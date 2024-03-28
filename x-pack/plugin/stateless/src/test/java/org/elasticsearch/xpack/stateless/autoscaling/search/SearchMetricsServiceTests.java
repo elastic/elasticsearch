@@ -21,6 +21,8 @@ import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetrics;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
+import co.elastic.elasticsearch.stateless.autoscaling.search.load.NodeSearchLoadSnapshot;
+import co.elastic.elasticsearch.stateless.autoscaling.search.load.PublishNodeSearchLoadRequest;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
 
@@ -29,6 +31,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -39,17 +42,23 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,13 +68,20 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
+import static co.elastic.elasticsearch.stateless.autoscaling.search.SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING;
+import static co.elastic.elasticsearch.stateless.autoscaling.search.SearchMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -78,12 +94,14 @@ public class SearchMetricsServiceTests extends ESTestCase {
     private AtomicLong currentRelativeTimeInNanos;
     private SearchMetricsService service;
 
+    private MemoryMetricsService memoryMetricsService;
+
     @Before
     @Override
     public void setUp() throws Exception {
         super.setUp();
         currentRelativeTimeInNanos = new AtomicLong(1L);
-        MemoryMetricsService memoryMetricsService = mock(MemoryMetricsService.class);
+        memoryMetricsService = mock(MemoryMetricsService.class);
         when(memoryMetricsService.getMemoryMetrics()).thenReturn(FIXED_MEMORY_METRICS);
         service = new SearchMetricsService(createClusterSettings(), currentRelativeTimeInNanos::get, memoryMetricsService);
     }
@@ -100,6 +118,8 @@ public class SearchMetricsServiceTests extends ESTestCase {
         service.processShardSizesRequest(
             new PublishShardSizesRequest("search_node_1", Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024, ZERO)))
         );
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_1", 1L, 1.0));
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_2", 1L, 2.0));
 
         assertThat(
             service.getSearchTierMetrics(),
@@ -107,7 +127,11 @@ public class SearchMetricsServiceTests extends ESTestCase {
                 new SearchTierMetrics(
                     FIXED_MEMORY_METRICS,
                     new MaxShardCopies(1, MetricQuality.EXACT),
-                    new StorageMetrics(1024, 1024, 2048, MetricQuality.EXACT)
+                    new StorageMetrics(1024, 1024, 2048, MetricQuality.EXACT),
+                    List.of(
+                        new NodeSearchLoadSnapshot("search_node_1", 1.0, MetricQuality.EXACT),
+                        new NodeSearchLoadSnapshot("search_node_2", 2.0, MetricQuality.EXACT)
+                    )
                 )
             )
         );
@@ -131,6 +155,10 @@ public class SearchMetricsServiceTests extends ESTestCase {
         service.processShardSizesRequest(
             new PublishShardSizesRequest("search_node_1", Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(512, 512, ZERO)))
         );
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_1", 2L, 1.0));
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_1", 1L, 5.0));
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_2", 2L, 2.0));
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_2", 1L, 5.0));
 
         // sticks to the first received metric
         assertThat(
@@ -139,14 +167,17 @@ public class SearchMetricsServiceTests extends ESTestCase {
                 new SearchTierMetrics(
                     FIXED_MEMORY_METRICS,
                     new MaxShardCopies(1, MetricQuality.EXACT),
-                    new StorageMetrics(1024, 1024, 2048, MetricQuality.EXACT)
+                    new StorageMetrics(1024, 1024, 2048, MetricQuality.EXACT),
+                    List.of(
+                        new NodeSearchLoadSnapshot("search_node_1", 1.0, MetricQuality.EXACT),
+                        new NodeSearchLoadSnapshot("search_node_2", 2.0, MetricQuality.EXACT)
+                    )
                 )
             )
         );
     }
 
     public void testHandlesMetricsFromMultipleReplicas() {
-
         var indexMetadata = createIndex(1, 2);
         var state = ClusterState.builder(ClusterState.EMPTY_STATE)
             .nodes(createNodes(2))
@@ -162,6 +193,8 @@ public class SearchMetricsServiceTests extends ESTestCase {
             ),
             new PublishShardSizesRequest("search_node_2", Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1025, 1025, ZERO)))
         );
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_1", 1L, 1.0));
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_2", 1L, 2.0));
 
         // any of the replica sizes should be accepted
         var metrics = service.getSearchTierMetrics();
@@ -171,6 +204,13 @@ public class SearchMetricsServiceTests extends ESTestCase {
             anyOf(
                 equalTo(new StorageMetrics(1024, 1024, 2048, MetricQuality.EXACT)),
                 equalTo(new StorageMetrics(1025, 1025, 2050, MetricQuality.EXACT))
+            )
+        );
+        assertThat(
+            metrics.getNodesLoad(),
+            Matchers.containsInAnyOrder(
+                new NodeSearchLoadSnapshot("search_node_1", 1.0, MetricQuality.EXACT),
+                new NodeSearchLoadSnapshot("search_node_2", 2.0, MetricQuality.EXACT)
             )
         );
     }
@@ -196,6 +236,13 @@ public class SearchMetricsServiceTests extends ESTestCase {
                 Map.of(new ShardId(indexMetadata2.getIndex(), 0), new ShardSize(512, 512, new PrimaryTermAndGeneration(1L, 2L)))
             )
         );
+        sendInRandomOrder(
+            service,
+            new PublishNodeSearchLoadRequest("search_node_1", 2L, 1.0),
+            new PublishNodeSearchLoadRequest("search_node_1", 1L, 5.0),
+            new PublishNodeSearchLoadRequest("search_node_2", 2L, 2.0),
+            new PublishNodeSearchLoadRequest("search_node_2", 1L, 5.0)
+        );
 
         // both messages should be accepted
         assertThat(
@@ -204,7 +251,11 @@ public class SearchMetricsServiceTests extends ESTestCase {
                 new SearchTierMetrics(
                     FIXED_MEMORY_METRICS,
                     new MaxShardCopies(1, MetricQuality.EXACT),
-                    new StorageMetrics(1024, 1536, 3072, MetricQuality.EXACT)
+                    new StorageMetrics(1024, 1536, 3072, MetricQuality.EXACT),
+                    List.of(
+                        new NodeSearchLoadSnapshot("search_node_1", 1.0, MetricQuality.EXACT),
+                        new NodeSearchLoadSnapshot("search_node_2", 2.0, MetricQuality.EXACT)
+                    )
                 )
             )
         );
@@ -230,6 +281,13 @@ public class SearchMetricsServiceTests extends ESTestCase {
                 Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024, new PrimaryTermAndGeneration(1L, 2L)))
             )
         );
+        sendInRandomOrder(
+            service,
+            new PublishNodeSearchLoadRequest("search_node_1", 2L, 1.0),
+            new PublishNodeSearchLoadRequest("search_node_1", 1L, 5.0),
+            new PublishNodeSearchLoadRequest("search_node_2", 2L, 2.0),
+            new PublishNodeSearchLoadRequest("search_node_2", 1L, 5.0)
+        );
 
         // only newer metric should be accepted
         assertThat(
@@ -238,7 +296,11 @@ public class SearchMetricsServiceTests extends ESTestCase {
                 new SearchTierMetrics(
                     FIXED_MEMORY_METRICS,
                     new MaxShardCopies(1, MetricQuality.EXACT),
-                    new StorageMetrics(1024, 1024, 2048, MetricQuality.EXACT)
+                    new StorageMetrics(1024, 1024, 2048, MetricQuality.EXACT),
+                    List.of(
+                        new NodeSearchLoadSnapshot("search_node_1", 1.0, MetricQuality.EXACT),
+                        new NodeSearchLoadSnapshot("search_node_2", 2.0, MetricQuality.EXACT)
+                    )
                 )
             )
         );
@@ -256,29 +318,41 @@ public class SearchMetricsServiceTests extends ESTestCase {
         service.processShardSizesRequest(
             new PublishShardSizesRequest("search_node_1", Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024, ZERO)))
         );
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_1", 1L, 1.0));
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_2", 1L, 2.0));
 
         // after metric becomes outdated
-        currentRelativeTimeInNanos.addAndGet(SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING.get(Settings.EMPTY).nanos() + 1);
+        currentRelativeTimeInNanos.addAndGet(ACCURATE_METRICS_WINDOW_SETTING.get(Settings.EMPTY).nanos() + 1);
         assertThat(
             service.getSearchTierMetrics(),
             equalTo(
                 new SearchTierMetrics(
                     FIXED_MEMORY_METRICS,
                     new MaxShardCopies(1, MetricQuality.EXACT),
-                    new StorageMetrics(1024, 1024, 2048, MetricQuality.MINIMUM)
+                    new StorageMetrics(1024, 1024, 2048, MetricQuality.MINIMUM),
+                    List.of(
+                        new NodeSearchLoadSnapshot("search_node_1", 1.0, MetricQuality.MINIMUM),
+                        new NodeSearchLoadSnapshot("search_node_2", 2.0, MetricQuality.MINIMUM)
+                    )
                 )
             )
         );
 
         // metrics become exact again when receiving empty ping from the node
         service.processShardSizesRequest(new PublishShardSizesRequest("search_node_1", Map.of()));
+        // Metrics become exact for the node that is updated.
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest("search_node_1", 2L, 5.0));
         assertThat(
             service.getSearchTierMetrics(),
             equalTo(
                 new SearchTierMetrics(
                     FIXED_MEMORY_METRICS,
                     new MaxShardCopies(1, MetricQuality.EXACT),
-                    new StorageMetrics(1024, 1024, 2048, MetricQuality.EXACT)
+                    new StorageMetrics(1024, 1024, 2048, MetricQuality.EXACT),
+                    List.of(
+                        new NodeSearchLoadSnapshot("search_node_1", 5.0, MetricQuality.EXACT),
+                        new NodeSearchLoadSnapshot("search_node_2", 2.0, MetricQuality.MINIMUM)
+                    )
                 )
             )
         );
@@ -301,8 +375,8 @@ public class SearchMetricsServiceTests extends ESTestCase {
                 )
             );
         }
-        currentRelativeTimeInNanos.addAndGet(SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING.get(Settings.EMPTY).nanos() + 1);
-        currentRelativeTimeInNanos.addAndGet(SearchMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).nanos() + 1);
+        currentRelativeTimeInNanos.addAndGet(ACCURATE_METRICS_WINDOW_SETTING.get(Settings.EMPTY).nanos() + 1);
+        currentRelativeTimeInNanos.addAndGet(STALE_METRICS_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).nanos() + 1);
 
         var memoryMetricsServiceLogger = LogManager.getLogger(SearchMetricsService.class);
         var mockLogAppender = new MockLogAppender();
@@ -358,7 +432,8 @@ public class SearchMetricsServiceTests extends ESTestCase {
                 new SearchTierMetrics(
                     FIXED_MEMORY_METRICS,
                     new MaxShardCopies(0, MetricQuality.EXACT),
-                    new StorageMetrics(0, 0, 0, MetricQuality.EXACT)
+                    new StorageMetrics(0, 0, 0, MetricQuality.EXACT),
+                    List.of(new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING))
                 )
             )
         );
@@ -378,7 +453,8 @@ public class SearchMetricsServiceTests extends ESTestCase {
                 new SearchTierMetrics(
                     FIXED_MEMORY_METRICS,
                     new MaxShardCopies(0, MetricQuality.MINIMUM),
-                    new StorageMetrics(0, 0, 0, MetricQuality.MINIMUM)
+                    new StorageMetrics(0, 0, 0, MetricQuality.MINIMUM),
+                    List.of()
                 )
             )
         );
@@ -393,7 +469,8 @@ public class SearchMetricsServiceTests extends ESTestCase {
                 new SearchTierMetrics(
                     FIXED_MEMORY_METRICS,
                     new MaxShardCopies(0, MetricQuality.MINIMUM),
-                    new StorageMetrics(0, 0, 0, MetricQuality.MINIMUM)
+                    new StorageMetrics(0, 0, 0, MetricQuality.MINIMUM),
+                    List.of()
                 )
             )
         );
@@ -413,7 +490,8 @@ public class SearchMetricsServiceTests extends ESTestCase {
                 new SearchTierMetrics(
                     FIXED_MEMORY_METRICS,
                     new MaxShardCopies(1, MetricQuality.EXACT),
-                    new StorageMetrics(0, 0, 0, MetricQuality.MINIMUM)
+                    new StorageMetrics(0, 0, 0, MetricQuality.MINIMUM),
+                    List.of(new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING))
                 )
             )
         );
@@ -434,7 +512,8 @@ public class SearchMetricsServiceTests extends ESTestCase {
                 new SearchTierMetrics(
                     FIXED_MEMORY_METRICS,
                     new MaxShardCopies(1, MetricQuality.EXACT),
-                    new StorageMetrics(0, 0, 0, MetricQuality.EXACT)
+                    new StorageMetrics(0, 0, 0, MetricQuality.EXACT),
+                    List.of(new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING))
                 )
             )
         );
@@ -464,7 +543,8 @@ public class SearchMetricsServiceTests extends ESTestCase {
                 new SearchTierMetrics(
                     FIXED_MEMORY_METRICS,
                     new MaxShardCopies(1, MetricQuality.EXACT),
-                    new StorageMetrics(1024, 1024, 2048, MetricQuality.MINIMUM)
+                    new StorageMetrics(1024, 1024, 2048, MetricQuality.MINIMUM),
+                    List.of(new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING))
                 )
             )
         );
@@ -491,7 +571,8 @@ public class SearchMetricsServiceTests extends ESTestCase {
                 new SearchTierMetrics(
                     FIXED_MEMORY_METRICS,
                     new MaxShardCopies(1, MetricQuality.EXACT),
-                    new StorageMetrics(1024, 1024, 2048, MetricQuality.EXACT)
+                    new StorageMetrics(1024, 1024, 2048, MetricQuality.EXACT),
+                    List.of(new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING))
                 )
             )
         );
@@ -514,7 +595,14 @@ public class SearchMetricsServiceTests extends ESTestCase {
 
         assertThat(
             service.getSearchTierMetrics(),
-            equalTo(new SearchTierMetrics(FIXED_MEMORY_METRICS, new MaxShardCopies(1, MetricQuality.EXACT), storageMetrics))
+            equalTo(
+                new SearchTierMetrics(
+                    FIXED_MEMORY_METRICS,
+                    new MaxShardCopies(1, MetricQuality.EXACT),
+                    storageMetrics,
+                    List.of(new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING))
+                )
+            )
         );
 
         indexMetadata = IndexMetadata.builder(indexMetadata)
@@ -525,7 +613,14 @@ public class SearchMetricsServiceTests extends ESTestCase {
 
         assertThat(
             service.getSearchTierMetrics(),
-            equalTo(new SearchTierMetrics(FIXED_MEMORY_METRICS, new MaxShardCopies(2, MetricQuality.EXACT), storageMetrics))
+            equalTo(
+                new SearchTierMetrics(
+                    FIXED_MEMORY_METRICS,
+                    new MaxShardCopies(2, MetricQuality.EXACT),
+                    storageMetrics,
+                    List.of(new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING))
+                )
+            )
         );
     }
 
@@ -556,7 +651,11 @@ public class SearchMetricsServiceTests extends ESTestCase {
         var expectedSearchTierMetrics = new SearchTierMetrics(
             FIXED_MEMORY_METRICS,
             new MaxShardCopies(1, MetricQuality.EXACT),
-            new StorageMetrics(1024, 1024, 2048, MetricQuality.EXACT)
+            new StorageMetrics(1024, 1024, 2048, MetricQuality.EXACT),
+            List.of(
+                new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING),
+                new NodeSearchLoadSnapshot("search_node_2", 0.0, MetricQuality.MISSING)
+            )
         );
         assertThat(service.getSearchTierMetrics(), equalTo(expectedSearchTierMetrics));
 
@@ -610,7 +709,8 @@ public class SearchMetricsServiceTests extends ESTestCase {
                 new SearchTierMetrics(
                     FIXED_MEMORY_METRICS,
                     new MaxShardCopies(0, MetricQuality.EXACT),
-                    new StorageMetrics(0, 0, 0, MetricQuality.EXACT)
+                    new StorageMetrics(0, 0, 0, MetricQuality.EXACT),
+                    List.of(new NodeSearchLoadSnapshot("search_node_1", 0.0, MetricQuality.MISSING))
                 )
             )
         );
@@ -637,11 +737,11 @@ public class SearchMetricsServiceTests extends ESTestCase {
             new PublishShardSizesRequest("search_node_2", Map.of(new ShardId(indexMetadata.getIndex(), 0), new ShardSize(1024, 1024, ZERO)))
         );
 
-        assertThat(service.getNodeMetrics(), allOf(aMapWithSize(2), hasKey("search_node_1"), hasKey("search_node_2")));
+        assertThat(service.getNodeTimingForShardMetrics(), allOf(aMapWithSize(2), hasKey("search_node_1"), hasKey("search_node_2")));
 
         service.clusterChanged(new ClusterChangedEvent("test", state2, state1));
 
-        assertThat(service.getNodeMetrics(), allOf(aMapWithSize(1), hasKey("search_node_1"), not(hasKey("search_node_2"))));
+        assertThat(service.getNodeTimingForShardMetrics(), allOf(aMapWithSize(1), hasKey("search_node_1"), not(hasKey("search_node_2"))));
     }
 
     public void testDeletedIndicesAreRemovedFromState() {
@@ -764,6 +864,178 @@ public class SearchMetricsServiceTests extends ESTestCase {
         }
     }
 
+    public void testServiceOnlyReturnDataWhenLocalNodeIsElectedAsMaster() {
+        var localNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID());
+        var remoteNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID());
+        var nodes = DiscoveryNodes.builder().add(localNode).add(remoteNode).localNodeId(localNode.getId()).build();
+        var searchTierMetrics = service.getSearchTierMetrics();
+        // If the node is not elected as master (i.e. we haven't got any cluster state notification) it shouldn't return any info
+        assertThat(searchTierMetrics.getNodesLoad(), is(empty()));
+
+        service.clusterChanged(
+            new ClusterChangedEvent(
+                "Local node not elected as master",
+                clusterState(DiscoveryNodes.builder(nodes).masterNodeId(remoteNode.getId()).build()),
+                clusterState(nodes)
+            )
+        );
+
+        var searchTierMetricsAfterClusterStateEvent = service.getSearchTierMetrics();
+        assertThat(searchTierMetricsAfterClusterStateEvent.getNodesLoad(), is(empty()));
+    }
+
+    public void testOnlySearchNodesAreTracked() {
+        final var localNode = DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID()).roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
+
+        final var nodes = DiscoveryNodes.builder()
+            .add(localNode)
+            .add(DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID()).roles(Set.of(DiscoveryNodeRole.INDEX_ROLE)).build())
+            .add(DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID()).roles(Set.of(DiscoveryNodeRole.SEARCH_ROLE)).build())
+            .localNodeId(localNode.getId())
+            .build();
+
+        service.clusterChanged(
+            new ClusterChangedEvent(
+                "Local node elected as master",
+                clusterState(DiscoveryNodes.builder(nodes).masterNodeId(localNode.getId()).build()),
+                clusterState(nodes)
+            )
+        );
+        var searchTierMetrics = service.getSearchTierMetrics();
+        var metricQualityCount = searchTierMetrics.getNodesLoad()
+            .stream()
+            .collect(Collectors.groupingBy(NodeSearchLoadSnapshot::metricQuality, Collectors.counting()));
+
+        // When the node hasn't published a metric yet, we consider it as missing
+        assertThat(searchTierMetrics.toString(), metricQualityCount.get(MetricQuality.MISSING), is(equalTo(1L)));
+    }
+
+    private static ClusterState clusterState(DiscoveryNodes nodes) {
+        assert nodes != null;
+        return ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).build();
+    }
+
+    public void testSearchLoadIsKeptDuringNodeLifecycle() {
+        final var masterNode = DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID()).roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
+        final var searchNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID());
+
+        final var nodes = DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).build();
+
+        final var nodesWithElectedMaster = DiscoveryNodes.builder(nodes).masterNodeId(masterNode.getId()).build();
+
+        var fakeClock = new AtomicLong();
+
+        var inaccurateMetricTime = TimeValue.timeValueSeconds(25);
+        var staleLoadWindow = TimeValue.timeValueMinutes(10);
+        var service = new SearchMetricsService(
+            createClusterSettings(
+                Settings.builder()
+                    .put(ACCURATE_METRICS_WINDOW_SETTING.getKey(), inaccurateMetricTime)
+                    .put(STALE_METRICS_CHECK_INTERVAL_SETTING.getKey(), staleLoadWindow)
+                    .build()
+            ),
+            fakeClock::get,
+            memoryMetricsService
+        );
+
+        service.clusterChanged(new ClusterChangedEvent("master node elected", clusterState(nodesWithElectedMaster), clusterState(nodes)));
+
+        // Take into account the case where the search node sends the metric to the new master node before it applies the new cluster state
+        if (randomBoolean()) {
+            fakeClock.addAndGet(TimeValue.timeValueSeconds(1).nanos());
+            service.processSearchLoadRequest(new PublishNodeSearchLoadRequest(searchNode.getId(), 1, 0.5));
+        }
+
+        var nodesWithSearchNode = DiscoveryNodes.builder(nodesWithElectedMaster).add(searchNode).build();
+
+        service.clusterChanged(
+            new ClusterChangedEvent("search node joins", clusterState(nodesWithSearchNode), clusterState(nodesWithElectedMaster))
+        );
+
+        fakeClock.addAndGet(TimeValue.timeValueSeconds(1).nanos());
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest(searchNode.getId(), 2, 1.5));
+
+        var searchTierMetrics = service.getSearchTierMetrics();
+        assertThat(searchTierMetrics.getNodesLoad(), hasSize(1));
+
+        var searchNodeLoad = searchTierMetrics.getNodesLoad().get(0);
+        assertThat(searchNodeLoad.load(), is(equalTo(1.5)));
+        assertThat(searchTierMetrics.toString(), searchNodeLoad.metricQuality(), is(equalTo(MetricQuality.EXACT)));
+
+        if (randomBoolean()) {
+            service.clusterChanged(
+                new ClusterChangedEvent("search node leaves", clusterState(nodesWithElectedMaster), clusterState(nodesWithSearchNode))
+            );
+        }
+
+        fakeClock.addAndGet(inaccurateMetricTime.getNanos());
+
+        var searchTierMetricsAfterNodeMetricIsInaccurate = service.getSearchTierMetrics();
+        assertThat(searchTierMetricsAfterNodeMetricIsInaccurate.getNodesLoad(), hasSize(1));
+
+        var searchNodeLoadAfterMissingMetrics = searchTierMetricsAfterNodeMetricIsInaccurate.getNodesLoad().get(0);
+        assertThat(searchNodeLoadAfterMissingMetrics.load(), is(equalTo(1.5)));
+        assertThat(searchNodeLoadAfterMissingMetrics.metricQuality(), is(equalTo(MetricQuality.MINIMUM)));
+
+        // The node re-joins before the metric is considered to be inaccurate
+        if (randomBoolean()) {
+            service.clusterChanged(
+                new ClusterChangedEvent("search node re-joins", clusterState(nodesWithSearchNode), clusterState(nodesWithElectedMaster))
+            );
+            fakeClock.addAndGet(TimeValue.timeValueSeconds(1).nanos());
+            service.processSearchLoadRequest(new PublishNodeSearchLoadRequest(searchNode.getId(), 3, 0.5));
+
+            var searchTierMetricsAfterNodeReJoins = service.getSearchTierMetrics();
+            assertThat(searchTierMetricsAfterNodeReJoins.getNodesLoad(), hasSize(1));
+
+            var searchNodeLoadAfterRejoining = searchTierMetricsAfterNodeReJoins.getNodesLoad().get(0);
+            assertThat(searchNodeLoadAfterRejoining.load(), is(equalTo(0.5)));
+            assertThat(searchNodeLoadAfterRejoining.metricQuality(), is(equalTo(MetricQuality.EXACT)));
+        } else {
+            // The node do not re-join after the max time
+            fakeClock.addAndGet(staleLoadWindow.getNanos());
+
+            var searchTierMetricsAfterTTLExpires = service.getSearchTierMetrics();
+            assertThat(searchTierMetricsAfterTTLExpires.getNodesLoad(), hasSize(0));
+        }
+    }
+
+    public void testGetNumberOfReplicaChangesIndexRemoved() {
+        Map<ShardId, ShardSize> shardSizeMap = new HashMap<>();
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        for (int i = 0; i < 100; i++) {
+            IndexMetadata index = createIndex(1, 1);
+            metadataBuilder.put(index, false);
+            shardSizeMap.put(new ShardId(index.getIndex(), 0), new ShardSize(0, 1024, ZERO));
+        }
+
+        var state = ClusterState.builder(ClusterState.EMPTY_STATE).nodes(createNodes(1)).metadata(metadataBuilder).build();
+
+        service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
+        service.processShardSizesRequest(new PublishShardSizesRequest("search_node_1", shardSizeMap));
+
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
+        try {
+            ClusterState newState = ClusterState.builder(state)
+                .metadata(Metadata.builder(state.metadata()).removeAllIndices().build())
+                .build();
+            Future<?> numReplicaChangesFuture = executorService.submit(
+                () -> { assertEquals(0, service.getNumberOfReplicaChanges().size()); }
+            );
+            Future<?> clusterChangedFuture = executorService.submit(
+                () -> service.clusterChanged(new ClusterChangedEvent("test", newState, state))
+            );
+            numReplicaChangesFuture.get();
+            clusterChangedFuture.get();
+        } catch (InterruptedException e) {
+            throw new ThreadInterruptedException(e);
+        } catch (ExecutionException e) {
+            fail(e);
+        } finally {
+            terminate(executorService);
+        }
+    }
+
     public void testGetNumberOfReplicaChangesOnShardSizeUpdateHighSearchPower() {
         service.updateSearchPower(randomIntBetween(250, 10000));
         IndexMetadata outsideBoostWindowMetadata = createIndex(1, 1);
@@ -833,40 +1105,75 @@ public class SearchMetricsServiceTests extends ESTestCase {
         }
     }
 
-    public void testGetNumberOfReplicaChangesIndexRemoved() {
-        Map<ShardId, ShardSize> shardSizeMap = new HashMap<>();
-        Metadata.Builder metadataBuilder = Metadata.builder();
-        for (int i = 0; i < 100; i++) {
-            IndexMetadata index = createIndex(1, 1);
-            metadataBuilder.put(index, false);
-            shardSizeMap.put(new ShardId(index.getIndex(), 0), new ShardSize(0, 1024, ZERO));
+    public void testOutOfOrderMetricsAreDiscarded() {
+        final var masterNode = DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID()).roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
+        final var searchNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID());
+
+        final var nodes = DiscoveryNodes.builder().add(masterNode).add(searchNode).localNodeId(masterNode.getId()).build();
+
+        final var nodesWithElectedMaster = DiscoveryNodes.builder(nodes).masterNodeId(masterNode.getId()).build();
+
+        var service = new SearchMetricsService(createClusterSettings(), () -> 0, memoryMetricsService);
+
+        service.clusterChanged(new ClusterChangedEvent("master node elected", clusterState(nodesWithElectedMaster), clusterState(nodes)));
+
+        var maxSeqNo = randomIntBetween(10, 20);
+        var maxSeqNoSearchLoad = randomSearchLoad();
+        service.processSearchLoadRequest(new PublishNodeSearchLoadRequest(searchNode.getId(), maxSeqNo, maxSeqNoSearchLoad));
+
+        var numberOfOutOfOrderMetricSamples = randomIntBetween(1, maxSeqNo);
+        var unorderedSeqNos = IntStream.of(numberOfOutOfOrderMetricSamples).boxed().collect(Collectors.toCollection(ArrayList::new));
+        Collections.shuffle(unorderedSeqNos, random());
+        for (long seqNo : unorderedSeqNos) {
+            service.processSearchLoadRequest(new PublishNodeSearchLoadRequest(searchNode.getId(), maxSeqNo, maxSeqNoSearchLoad));
         }
 
-        var state = ClusterState.builder(ClusterState.EMPTY_STATE).nodes(createNodes(1)).metadata(metadataBuilder).build();
+        var searchTierMetrics = service.getSearchTierMetrics();
+        assertThat(searchTierMetrics.getNodesLoad().toString(), searchTierMetrics.getNodesLoad(), hasSize(1));
 
-        service.clusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
-        service.processShardSizesRequest(new PublishShardSizesRequest("search_node_1", shardSizeMap));
+        var searchNodeLoad = searchTierMetrics.getNodesLoad().get(0);
+        assertThat(searchNodeLoad.load(), is(equalTo(maxSeqNoSearchLoad)));
+        assertThat(searchNodeLoad.metricQuality(), is(equalTo(MetricQuality.EXACT)));
+    }
 
-        ExecutorService executorService = Executors.newFixedThreadPool(2);
-        try {
-            ClusterState newState = ClusterState.builder(state)
-                .metadata(Metadata.builder(state.metadata()).removeAllIndices().build())
-                .build();
-            Future<?> numReplicaChangesFuture = executorService.submit(
-                () -> { assertEquals(0, service.getNumberOfReplicaChanges().size()); }
-            );
-            Future<?> clusterChangedFuture = executorService.submit(
-                () -> service.clusterChanged(new ClusterChangedEvent("test", newState, state))
-            );
-            numReplicaChangesFuture.get();
-            clusterChangedFuture.get();
-        } catch (InterruptedException e) {
-            throw new ThreadInterruptedException(e);
-        } catch (ExecutionException e) {
-            fail(e);
-        } finally {
-            terminate(executorService);
-        }
+    public void testServiceStopsReturningInfoAfterMasterTakeover() {
+        final var localNode = DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID()).roles(Set.of(DiscoveryNodeRole.MASTER_ROLE)).build();
+
+        final var remoteNode = DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID()).roles(Set.of(DiscoveryNodeRole.SEARCH_ROLE)).build();
+        final var nodes = DiscoveryNodes.builder()
+            .add(localNode)
+            .add(remoteNode)
+            .add(DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID()).roles(Set.of(DiscoveryNodeRole.INDEX_ROLE)).build())
+            .localNodeId(localNode.getId())
+            .build();
+
+        var service = new SearchMetricsService(createClusterSettings(), () -> 0, memoryMetricsService);
+
+        service.clusterChanged(
+            new ClusterChangedEvent(
+                "Local node elected as master",
+                clusterState(DiscoveryNodes.builder(nodes).masterNodeId(localNode.getId()).build()),
+                clusterState(nodes)
+            )
+        );
+        var searchTierMetrics = service.getSearchTierMetrics();
+        var metricQualityCount = searchTierMetrics.getNodesLoad()
+            .stream()
+            .collect(Collectors.groupingBy(NodeSearchLoadSnapshot::metricQuality, Collectors.counting()));
+
+        // When the node hasn't published a metric yet, we consider it as missing
+        assertThat(searchTierMetrics.getNodesLoad().toString(), metricQualityCount.get(MetricQuality.MISSING), is(equalTo(1L)));
+
+        service.clusterChanged(
+            new ClusterChangedEvent(
+                "Remote node elected as master",
+                clusterState(DiscoveryNodes.builder(nodes).masterNodeId(remoteNode.getId()).build()),
+                clusterState(DiscoveryNodes.builder(nodes).masterNodeId(localNode.getId()).build())
+            )
+        );
+
+        var searchTierMetricsAfterMasterHandover = service.getSearchTierMetrics();
+        assertThat(searchTierMetricsAfterMasterHandover.getNodesLoad(), is(empty()));
     }
 
     private static DiscoveryNodes createNodes(int searchNodes) {
@@ -890,15 +1197,28 @@ public class SearchMetricsServiceTests extends ESTestCase {
         shuffledList(List.of(requests)).forEach(service::processShardSizesRequest);
     }
 
+    private static void sendInRandomOrder(SearchMetricsService service, PublishNodeSearchLoadRequest... requests) {
+        shuffledList(List.of(requests)).forEach(service::processSearchLoadRequest);
+    }
+
     private static ClusterSettings createClusterSettings() {
-        return new ClusterSettings(
-            Settings.EMPTY,
-            Sets.addToCopy(
-                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
-                SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING,
-                SearchMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING,
-                ServerlessSharedSettings.SEARCH_POWER_SETTING
-            )
+        return new ClusterSettings(Settings.EMPTY, defaultClusterSettings());
+    }
+
+    private static ClusterSettings createClusterSettings(Settings settings) {
+        return new ClusterSettings(settings, defaultClusterSettings());
+    }
+
+    private static Set<Setting<?>> defaultClusterSettings() {
+        return Sets.addToCopy(
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+            SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING,
+            SearchMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING,
+            ServerlessSharedSettings.SEARCH_POWER_SETTING
         );
+    }
+
+    private static double randomSearchLoad() {
+        return randomDoubleBetween(0, 16, true);
     }
 }

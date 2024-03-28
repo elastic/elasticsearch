@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.autoscaling.search;
 import co.elastic.elasticsearch.stateless.autoscaling.AbstractBaseTierMetrics;
 import co.elastic.elasticsearch.stateless.autoscaling.AutoscalingMetrics;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetrics;
+import co.elastic.elasticsearch.stateless.autoscaling.search.load.NodeSearchLoadSnapshot;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersions;
@@ -28,18 +29,29 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
+
+import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.SEARCH_LOAD_AUTOSCALING;
 
 public class SearchTierMetrics extends AbstractBaseTierMetrics implements AutoscalingMetrics {
     private final MemoryMetrics memoryMetrics;
     private final MaxShardCopies maxShardCopies;
     private final StorageMetrics storageMetrics;
+    private final List<NodeSearchLoadSnapshot> nodesLoad;
 
-    public SearchTierMetrics(MemoryMetrics memoryMetrics, MaxShardCopies maxShardCopies, StorageMetrics storageMetrics) {
+    public SearchTierMetrics(
+        MemoryMetrics memoryMetrics,
+        MaxShardCopies maxShardCopies,
+        StorageMetrics storageMetrics,
+        List<NodeSearchLoadSnapshot> nodesLoad
+    ) {
         super();
         this.memoryMetrics = memoryMetrics;
         this.maxShardCopies = maxShardCopies;
         this.storageMetrics = storageMetrics;
+        this.nodesLoad = nodesLoad;
     }
 
     public SearchTierMetrics(String reason, ElasticsearchException exception) {
@@ -47,20 +59,29 @@ public class SearchTierMetrics extends AbstractBaseTierMetrics implements Autosc
         this.memoryMetrics = null;
         this.maxShardCopies = null;
         this.storageMetrics = null;
+        this.nodesLoad = null;
     }
 
     public SearchTierMetrics(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_11_X)) {
+        var transportVersion = in.getTransportVersion();
+        if (transportVersion.before(TransportVersions.V_8_11_X)) {
             this.memoryMetrics = new MemoryMetrics(in);
             this.maxShardCopies = new MaxShardCopies(in);
             this.storageMetrics = new StorageMetrics(in);
+            this.nodesLoad = null;
             return;
         }
 
         this.memoryMetrics = in.readOptionalWriteable(MemoryMetrics::new);
         this.maxShardCopies = in.readOptionalWriteable(MaxShardCopies::new);
         this.storageMetrics = in.readOptionalWriteable(StorageMetrics::new);
+
+        if (transportVersion.before(SEARCH_LOAD_AUTOSCALING)) {
+            this.nodesLoad = null;
+        } else {
+            this.nodesLoad = in.readOptionalCollectionAsList(NodeSearchLoadSnapshot::new);
+        }
     }
 
     public MemoryMetrics getMemoryMetrics() {
@@ -75,10 +96,15 @@ public class SearchTierMetrics extends AbstractBaseTierMetrics implements Autosc
         return storageMetrics;
     }
 
+    public List<NodeSearchLoadSnapshot> getNodesLoad() {
+        return nodesLoad;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_11_X)) {
+        var transportVersion = out.getTransportVersion();
+        if (transportVersion.before(TransportVersions.V_8_11_X)) {
             memoryMetrics.writeTo(out);
             maxShardCopies.writeTo(out);
             storageMetrics.writeTo(out);
@@ -87,6 +113,10 @@ public class SearchTierMetrics extends AbstractBaseTierMetrics implements Autosc
         out.writeOptionalWriteable(memoryMetrics);
         out.writeOptionalWriteable(maxShardCopies);
         out.writeOptionalWriteable(storageMetrics);
+
+        if (transportVersion.onOrAfter(SEARCH_LOAD_AUTOSCALING)) {
+            out.writeOptionalCollection(nodesLoad);
+        }
     }
 
     public XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException {
@@ -94,6 +124,7 @@ public class SearchTierMetrics extends AbstractBaseTierMetrics implements Autosc
             memoryMetrics.toXContent(objectBuilder, params);
             maxShardCopies.toXContent(objectBuilder, params);
             storageMetrics.toXContent(objectBuilder, params);
+            objectBuilder.xContentList("search_load", nodesLoad);
         });
         return builder;
     }
@@ -112,11 +143,12 @@ public class SearchTierMetrics extends AbstractBaseTierMetrics implements Autosc
 
         return Objects.equals(this.memoryMetrics, that.memoryMetrics)
             && Objects.equals(this.maxShardCopies, that.maxShardCopies)
-            && Objects.equals(this.storageMetrics, that.storageMetrics);
+            && Objects.equals(this.storageMetrics, that.storageMetrics)
+            && Objects.equals(new HashSet<>(this.nodesLoad), new HashSet<>(that.nodesLoad)); // Equality does not depend on order
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(memoryMetrics, maxShardCopies, storageMetrics);
+        return Objects.hash(memoryMetrics, maxShardCopies, storageMetrics, nodesLoad);
     }
 }

@@ -19,6 +19,8 @@ package co.elastic.elasticsearch.stateless.autoscaling.search;
 
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
+import co.elastic.elasticsearch.stateless.autoscaling.search.load.NodeSearchLoadSnapshot;
+import co.elastic.elasticsearch.stateless.autoscaling.search.load.PublishNodeSearchLoadRequest;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
 
@@ -40,6 +42,8 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -58,6 +62,9 @@ public class SearchMetricsService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(SearchMetricsService.class);
 
+    /**
+     * Samples older than this value will not be considered exact.
+     */
     public static final Setting<TimeValue> ACCURATE_METRICS_WINDOW_SETTING = Setting.timeSetting(
         "serverless.autoscaling.search_metrics.accurate_window",
         TimeValue.timeValueSeconds(90),
@@ -76,15 +83,17 @@ public class SearchMetricsService implements ClusterStateListener {
     private final LongSupplier relativeTimeInNanosSupplier;
     private final MemoryMetricsService memoryMetricsService;
 
-    private volatile boolean initialized = false;
-    private final ConcurrentMap<Index, IndexShardsSettings> indices = new ConcurrentHashMap<>();
-    private final ConcurrentMap<String, NodeMetrics> nodeMetrics = new ConcurrentHashMap<>();
-    private final ConcurrentMap<ShardId, ShardMetrics> shardMetrics = new ConcurrentHashMap<>();
+    private volatile boolean shardMetricsInitialized = false;
+    private volatile boolean loadMetricsInitialized = false;
 
-    private volatile long metricTimeoutNanos;
+    private final ConcurrentMap<Index, IndexShardsSettings> indices = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, NodeTimingForShardMetrics> nodeTimingForShardMetrics = new ConcurrentHashMap<>();
+    private final ConcurrentMap<ShardId, ShardMetrics> shardMetrics = new ConcurrentHashMap<>();
+    private final Map<String, NodeSearchLoad> nodeSearchLoads = new ConcurrentHashMap<>();
 
     private volatile long lastStaleMetricsCheckTimeNs = Long.MIN_VALUE;
-    private volatile TimeValue staleMetricsCheckInterval;
+    private volatile long accurateMetricWindowNs;
+    private volatile long staleMetricsCheckIntervalNs;
     private volatile int searchPowerSetting;
 
     public static SearchMetricsService create(
@@ -105,8 +114,11 @@ public class SearchMetricsService implements ClusterStateListener {
     ) {
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.memoryMetricsService = memoryMetricsService;
-        clusterSettings.initializeAndWatch(ACCURATE_METRICS_WINDOW_SETTING, value -> this.metricTimeoutNanos = value.nanos());
-        clusterSettings.initializeAndWatch(STALE_METRICS_CHECK_INTERVAL_SETTING, value -> this.staleMetricsCheckInterval = value);
+        clusterSettings.initializeAndWatch(ACCURATE_METRICS_WINDOW_SETTING, value -> this.accurateMetricWindowNs = value.getNanos());
+        clusterSettings.initializeAndWatch(
+            STALE_METRICS_CHECK_INTERVAL_SETTING,
+            value -> this.staleMetricsCheckIntervalNs = value.getNanos()
+        );
         clusterSettings.initializeAndWatch(SEARCH_POWER_SETTING, this::updateSearchPower);
     }
 
@@ -117,58 +129,91 @@ public class SearchMetricsService implements ClusterStateListener {
     void processShardSizesRequest(PublishShardSizesRequest request) {
         var currentTimestampNanos = relativeTimeInNanos();
         logger.debug("Received shard sizes {}", request.getShardSizes());
-        var nodeMetrics = this.nodeMetrics.computeIfAbsent(request.getNodeId(), unused -> new NodeMetrics());
+        var nodeMetrics = this.nodeTimingForShardMetrics.computeIfAbsent(request.getNodeId(), unused -> new NodeTimingForShardMetrics());
         nodeMetrics.update(currentTimestampNanos);
         for (var entry : request.getShardSizes().entrySet()) {
             shardMetrics.computeIfAbsent(entry.getKey(), unused -> new ShardMetrics()).update(nodeMetrics, entry.getValue());
         }
     }
 
+    public void processSearchLoadRequest(PublishNodeSearchLoadRequest request) {
+        var nodeSearchLoad = nodeSearchLoads.computeIfAbsent(request.getNodeId(), unused -> new NodeSearchLoad(request.getNodeId()));
+        nodeSearchLoad.setLatestReadingTo(request.getSearchLoad(), request.getSeqNo());
+    }
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.localNodeMaster() == false || event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            initialized = false;
+            shardMetricsInitialized = false;
+            loadMetricsInitialized = false;
             indices.clear();
-            nodeMetrics.clear();
+            nodeTimingForShardMetrics.clear();
             shardMetrics.clear();
-            return;
-        }
-        if (event.metadataChanged() || initialized == false) {
-            var state = event.state();
-            indices.keySet().removeIf(index -> state.metadata().hasIndex(index) == false || hasZeroReplicas(index, state));
-            shardMetrics.keySet()
-                .removeIf(shardId -> state.metadata().hasIndex(shardId.getIndex()) == false || hasZeroReplicas(shardId.getIndex(), state));
+            nodeSearchLoads.clear();
 
-            Function<ShardId, ShardMetrics> newShardMetricFactory = initialized
-                ? newIndexShardMetricFactory()
-                : shardId -> new ShardMetrics();
+        } else {
+            if (event.metadataChanged() || shardMetricsInitialized == false) {
+                var state = event.state();
+                indices.keySet().removeIf(index -> state.metadata().hasIndex(index) == false || hasZeroReplicas(index, state));
+                shardMetrics.keySet()
+                    .removeIf(
+                        shardId -> state.metadata().hasIndex(shardId.getIndex()) == false || hasZeroReplicas(shardId.getIndex(), state)
+                    );
 
-            for (IndexMetadata metadata : state.metadata().indices().values()) {
-                int shardCopies = getNumberOfReplicas(metadata);
-                if (shardCopies == 0) {
-                    continue;
-                }
+                Function<ShardId, ShardMetrics> newShardMetricFactory = shardMetricsInitialized
+                    ? newIndexShardMetricFactory()
+                    : shardId -> new ShardMetrics();
 
-                indices.put(metadata.getIndex(), new IndexShardsSettings(metadata.getNumberOfShards(), shardCopies));
-                for (int i = 0; i < metadata.getNumberOfShards(); i++) {
-                    shardMetrics.computeIfAbsent(new ShardId(metadata.getIndex(), i), newShardMetricFactory);
-                }
+                for (IndexMetadata metadata : state.metadata().indices().values()) {
+                    int shardCopies = getNumberOfReplicas(metadata);
+                    if (shardCopies == 0) {
+                        continue;
+                    }
 
-            }
-        }
-        if (event.nodesChanged() || initialized == false) {
-            var searchNodes = new HashSet<String>();
-            for (DiscoveryNode node : event.state().nodes()) {
-                if (node.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE)) {
-                    searchNodes.add(node.getId());
+                    indices.put(metadata.getIndex(), new IndexShardsSettings(metadata.getNumberOfShards(), shardCopies));
+                    for (int i = 0; i < metadata.getNumberOfShards(); i++) {
+                        shardMetrics.computeIfAbsent(new ShardId(metadata.getIndex(), i), newShardMetricFactory);
+                    }
                 }
             }
-            nodeMetrics.keySet().retainAll(searchNodes);
-            for (String searchNode : searchNodes) {
-                nodeMetrics.computeIfAbsent(searchNode, unused -> new NodeMetrics());
+            if (event.nodesChanged() || shardMetricsInitialized == false) {
+                var searchNodes = new HashSet<String>();
+                for (DiscoveryNode node : event.state().nodes()) {
+                    if (node.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE)) {
+                        searchNodes.add(node.getId());
+                    }
+                }
+                nodeTimingForShardMetrics.keySet().retainAll(searchNodes);
+                for (String searchNode : searchNodes) {
+                    nodeTimingForShardMetrics.computeIfAbsent(searchNode, unused -> new NodeTimingForShardMetrics());
+                }
+            }
+            shardMetricsInitialized = true;
+
+            if (event.nodesDelta().masterNodeChanged() || loadMetricsInitialized == false) {
+                for (DiscoveryNode node : event.state().nodes()) {
+                    if (isSearchNode(node)) {
+                        nodeSearchLoads.computeIfAbsent(node.getId(), unused -> new NodeSearchLoad(node.getId()));
+                    }
+                }
+                loadMetricsInitialized = true;
+            }
+            if (event.nodesChanged()) {
+                for (DiscoveryNode node : event.nodesDelta().addedNodes()) {
+                    if (isSearchNode(node)) {
+                        nodeSearchLoads.computeIfAbsent(node.getId(), unused -> new NodeSearchLoad(node.getId()));
+                    }
+                }
+                for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
+                    if (isSearchNode(removedNode)) {
+                        var removedNodeSearchLoad = nodeSearchLoads.get(removedNode.getId());
+                        if (removedNodeSearchLoad != null) {
+                            removedNodeSearchLoad.setQualityToMinimum();
+                        }
+                    }
+                }
             }
         }
-        initialized = true;
     }
 
     /**
@@ -176,7 +221,7 @@ public class SearchMetricsService implements ClusterStateListener {
      * It is initialized with a fake node so that metric quality stays exact when new/empty index is created
      */
     private Function<ShardId, ShardMetrics> newIndexShardMetricFactory() {
-        var nodeMetrics = new NodeMetrics();
+        var nodeMetrics = new NodeTimingForShardMetrics();
         nodeMetrics.timestamp = relativeTimeInNanos();
         return shardId -> {
             var shardMetrics = new ShardMetrics();
@@ -189,13 +234,13 @@ public class SearchMetricsService implements ClusterStateListener {
     public SearchTierMetrics getSearchTierMetrics() {
         var currentTimestampNanos = relativeTimeInNanos();
 
-        boolean shardCopiesExact = initialized;
+        boolean shardCopiesExact = shardMetricsInitialized;
         int maxShardCopies = 0;
-        boolean dataSizeExact = initialized;
+        boolean dataSizeExact = shardMetricsInitialized;
         long maxInteractiveDataSizeInBytes = 0;
         long totalInteractiveDataSizeInBytes = 0;
         long totalDataSizeInBytes = 0;
-        boolean checkStaleMetrics = currentTimestampNanos - staleMetricsCheckInterval.nanos() > lastStaleMetricsCheckTimeNs;
+        boolean checkStaleMetrics = currentTimestampNanos - staleMetricsCheckIntervalNs > lastStaleMetricsCheckTimeNs;
         if (checkStaleMetrics) {
             lastStaleMetricsCheckTimeNs = relativeTimeInNanos();
         }
@@ -220,6 +265,19 @@ public class SearchMetricsService implements ClusterStateListener {
                 }
             }
         }
+
+        var nodeLoadIterator = nodeSearchLoads.entrySet().iterator();
+        var searchLoads = new ArrayList<NodeSearchLoadSnapshot>();
+        while (nodeLoadIterator.hasNext()) {
+            var nodeSearchStatsEntry = nodeLoadIterator.next();
+            var value = nodeSearchStatsEntry.getValue();
+            if (value.isStale()) {
+                nodeLoadIterator.remove();
+            } else {
+                searchLoads.add(value.getSearchLoadSnapshot());
+            }
+        }
+
         return new SearchTierMetrics(
             memoryMetricsService.getMemoryMetrics(),
             new MaxShardCopies(maxShardCopies, shardCopiesExact ? MetricQuality.EXACT : MetricQuality.MINIMUM),
@@ -228,27 +286,31 @@ public class SearchMetricsService implements ClusterStateListener {
                 totalInteractiveDataSizeInBytes,
                 totalDataSizeInBytes,
                 dataSizeExact ? MetricQuality.EXACT : MetricQuality.MINIMUM
-            )
+            ),
+            Collections.unmodifiableList(searchLoads)
         );
     }
 
-    private class NodeMetrics {
-        private long timestamp = relativeTimeInNanos() - metricTimeoutNanos - 1;
+    /**
+     * Stores timeStamp information used to determine metric quality for ShardMetrics.
+     */
+    private class NodeTimingForShardMetrics {
+        private long timestamp = relativeTimeInNanos() - accurateMetricWindowNs - 1;
 
         private synchronized void update(long currentTimestamp) {
             this.timestamp = currentTimestamp;
         }
 
         private synchronized boolean isOutdated(long currentTimestampNanos) {
-            return currentTimestampNanos - timestamp >= metricTimeoutNanos;
+            return currentTimestampNanos - timestamp >= accurateMetricWindowNs;
         }
     }
 
     private class ShardMetrics {
-        private NodeMetrics sourceNode = null;
+        private NodeTimingForShardMetrics sourceNode = null;
         private ShardSize shardSize = ZERO_SHARD_SIZE;
 
-        private synchronized void update(NodeMetrics sourceNode, ShardSize shardSize) {
+        private synchronized void update(NodeTimingForShardMetrics sourceNode, ShardSize shardSize) {
             if (this.shardSize.primaryTermGeneration().compareTo(shardSize.primaryTermGeneration()) <= 0) {
                 this.sourceNode = sourceNode;
                 this.shardSize = shardSize;
@@ -258,6 +320,46 @@ public class SearchMetricsService implements ClusterStateListener {
         @Override
         public String toString() {
             return Strings.format("ShardMetrics{timestamp=%d, shardSize=%s}", sourceNode != null ? sourceNode.timestamp : 0, shardSize);
+        }
+    }
+
+    class NodeSearchLoad {
+        private String nodeId;
+        private double searchLoad;
+        private long latestSampleTimeInNanos;
+        private long maxSeqNo = Long.MIN_VALUE;
+        private MetricQuality quality = MetricQuality.MISSING;
+
+        NodeSearchLoad(String nodeId) {
+            this.nodeId = nodeId;
+        }
+
+        synchronized void setLatestReadingTo(double searchLoad, long metricSeqNo) {
+            if (metricSeqNo > maxSeqNo) {
+                this.searchLoad = searchLoad;
+                this.quality = MetricQuality.EXACT;
+                this.latestSampleTimeInNanos = relativeTimeInNanos();
+                this.maxSeqNo = metricSeqNo;
+            }
+        }
+
+        synchronized void setQualityToMinimum() {
+            this.quality = MetricQuality.MINIMUM;
+        }
+
+        synchronized NodeSearchLoadSnapshot getSearchLoadSnapshot() {
+            if (quality == MetricQuality.EXACT && timeSinceLastSampleInNanos() >= accurateMetricWindowNs) {
+                quality = MetricQuality.MINIMUM;
+            }
+            return new NodeSearchLoadSnapshot(nodeId, searchLoad, quality);
+        }
+
+        synchronized boolean isStale() {
+            return timeSinceLastSampleInNanos() >= staleMetricsCheckIntervalNs;
+        }
+
+        private long timeSinceLastSampleInNanos() {
+            return relativeTimeInNanos() - latestSampleTimeInNanos;
         }
     }
 
@@ -283,12 +385,16 @@ public class SearchMetricsService implements ClusterStateListener {
         return indices;
     }
 
-    ConcurrentMap<String, NodeMetrics> getNodeMetrics() {
-        return nodeMetrics;
+    ConcurrentMap<String, NodeTimingForShardMetrics> getNodeTimingForShardMetrics() {
+        return nodeTimingForShardMetrics;
     }
 
     ConcurrentMap<ShardId, ShardMetrics> getShardMetrics() {
         return shardMetrics;
+    }
+
+    private static boolean isSearchNode(DiscoveryNode node) {
+        return node.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE);
     }
 
     Map<String, Integer> getNumberOfReplicaChanges() {

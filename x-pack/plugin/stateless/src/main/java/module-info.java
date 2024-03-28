@@ -44,5 +44,6 @@ module org.elasticsearch.stateless {
     exports co.elastic.elasticsearch.stateless.autoscaling.memory;
     exports co.elastic.elasticsearch.stateless.lucene.stats to org.elasticsearch.server;
     exports co.elastic.elasticsearch.stateless.cluster.coordination to org.elasticsearch.server;
+    exports co.elastic.elasticsearch.stateless.autoscaling.search.load;
     exports co.elastic.elasticsearch.stateless.engine to org.elasticsearch.server; // For PrimaryTermAndGeneration
 }

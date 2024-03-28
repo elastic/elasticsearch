@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.Set;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_KEY;
@@ -114,7 +115,8 @@ public class SecurityActionFilterTests extends ESTestCase {
             licenseState,
             threadPool,
             securityContext,
-            destructiveOperations
+            destructiveOperations,
+            Set::of
         );
     }
 

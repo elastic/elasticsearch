@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.support;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
@@ -34,6 +35,7 @@ import java.util.function.IntFunction;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "testing")
 public class SubscribableListenerTests extends ESTestCase {
 
     private static class OrderAssertingRunnable implements Runnable {

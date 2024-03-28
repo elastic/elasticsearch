@@ -25,6 +25,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -34,15 +35,24 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.iterableWithSize;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class RestQueryApiKeyActionTests extends ESTestCase {
@@ -198,5 +208,100 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
         restQueryApiKeyAction.handleRequest(restRequest, restChannel, client);
 
         assertNotNull(responseSetOnce.get());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testQueryApiKeyWithProfileUid() throws Exception {
+        final boolean isQueryRequestWithProfileUid = randomBoolean();
+        Map<String, String> param = new HashMap<>();
+        if (isQueryRequestWithProfileUid) {
+            param.put("with_profile_uid", Boolean.TRUE.toString());
+        } else {
+            if (randomBoolean()) {
+                param.put("with_profile_uid", Boolean.FALSE.toString());
+            }
+        }
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(param).build();
+        SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
+        RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
+            @Override
+            public void sendResponse(RestResponse restResponse) {
+                responseSetOnce.set(restResponse);
+            }
+        };
+        ApiKey apiKey1 = new ApiKey(
+            randomAlphaOfLength(4),
+            randomAlphaOfLength(4),
+            randomFrom(ApiKey.Type.values()),
+            Instant.now(),
+            Instant.now(),
+            randomBoolean(),
+            null,
+            randomAlphaOfLength(4),
+            randomAlphaOfLength(4),
+            null,
+            null,
+            null,
+            null
+        );
+        final List<String> profileUids;
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                profileUids = null;
+            } else {
+                profileUids = new ArrayList<>(1);
+                profileUids.add(null);
+            }
+        } else {
+            profileUids = new ArrayList<>(1);
+            profileUids.add(randomAlphaOfLength(8));
+        }
+        var client = new NodeClient(Settings.EMPTY, threadPool) {
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                QueryApiKeyRequest queryApiKeyRequest = (QueryApiKeyRequest) request;
+                if (queryApiKeyRequest.withProfileUid()) {
+                    listener.onResponse(
+                        (Response) new QueryApiKeyResponse(
+                            1,
+                            List.of(apiKey1),
+                            List.<Object[]>of(new Object[] { "last" }),
+                            profileUids,
+                            null
+                        )
+                    );
+                } else {
+                    listener.onResponse(
+                        (Response) new QueryApiKeyResponse(1, List.of(apiKey1), List.<Object[]>of(new Object[] { "last" }), null, null)
+                    );
+                }
+            }
+        };
+        RestQueryApiKeyAction restQueryApiKeyAction = new RestQueryApiKeyAction(Settings.EMPTY, mockLicenseState);
+        restQueryApiKeyAction.handleRequest(restRequest, restChannel, client);
+        RestResponse restResponse = responseSetOnce.get();
+        assertNotNull(restResponse);
+        assertThat(restResponse.status(), is(RestStatus.OK));
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), restResponse.content())) {
+            Map<String, Object> queryApiKeyResponseMap = parser.map();
+            assertThat((List<Map<String, Object>>) queryApiKeyResponseMap.get("api_keys"), iterableWithSize(1));
+            assertThat(((List<Map<String, Object>>) queryApiKeyResponseMap.get("api_keys")).get(0).get("id"), is(apiKey1.getId()));
+            assertThat(
+                (List<Object[]>) ((List<Map<String, Object>>) queryApiKeyResponseMap.get("api_keys")).get(0).get("_sort"),
+                contains("last")
+            );
+            if (isQueryRequestWithProfileUid && profileUids != null && profileUids.get(0) != null) {
+                assertThat(
+                    ((List<Map<String, Object>>) queryApiKeyResponseMap.get("api_keys")).get(0).get("profile_uid"),
+                    is(profileUids.get(0))
+                );
+            } else {
+                assertThat(((List<Map<String, Object>>) queryApiKeyResponseMap.get("api_keys")).get(0).get("profile_uid"), nullValue());
+            }
+        }
     }
 }

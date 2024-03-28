@@ -155,6 +155,11 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         nodeFeatures.put(node.getId(), nodeJoinTask.features());
                         nodesChanged = true;
                     }
+                    if (Objects.equals(compatibilityVersionsMap.get(node.getId()), nodeJoinTask.compatibilityVersions()) == false) {
+                        logger.debug("updating node [{}] compatibility versions {}", node.getId(), nodeJoinTask.compatibilityVersions());
+                        compatibilityVersionsMap.put(node.getId(), nodeJoinTask.compatibilityVersions());
+                        nodesChanged = true;
+                    }
                 } else {
                     try {
                         CompatibilityVersions compatibilityVersions = nodeJoinTask.compatibilityVersions();

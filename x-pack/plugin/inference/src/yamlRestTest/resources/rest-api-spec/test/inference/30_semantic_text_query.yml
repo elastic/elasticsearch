@@ -154,6 +154,41 @@ setup:
   - match: { hits.hits.0.matched_queries: ["i-like-naming-my-queries"] }
 
 ---
+"Query an index alias":
+  - skip:
+      features: [ "headers" ]
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: "inference test"
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      indices.put_alias:
+        index: test-sparse-index
+        name: my-alias
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: my-alias
+        body:
+          query:
+            semantic_query:
+              inference_field:
+                query: "inference test"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - match: { hits.hits.0._score: 55.0 }
+
+---
 "Query the wrong field type":
   - do:
       index:
@@ -223,6 +258,41 @@ setup:
         index:
           - test-sparse-index
           - test-dense-index
+        body:
+          query:
+            semantic_query:
+              inference_field:
+                query: "inference test"
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "Field [inference_field] has multiple inference IDs associated with it" }
+
+  # Test wildcard resolution
+  - do:
+      catch: bad_request
+      search:
+        index: test-*
+        body:
+          query:
+            semantic_query:
+              inference_field:
+                query: "inference test"
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "Field [inference_field] has multiple inference IDs associated with it" }
+
+  # Test querying an index alias that resolves to multiple indices
+  - do:
+      indices.put_alias:
+        index:
+          - test-sparse-index
+          - test-dense-index
+        name: my-alias
+
+  - do:
+      catch: bad_request
+      search:
+        index: my-alias
         body:
           query:
             semantic_query:

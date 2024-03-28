@@ -37,14 +37,18 @@ public class ServerProcess {
     private final Process jvmProcess;
 
     // the thread pumping stderr watching for state change messages
-    private final ErrorPumpThread errorPump;
+    private final PumpThread stderrPump;
+
+    // the thread pumping stdout
+    private final PumpThread stdoutPump;
 
     // a flag marking whether the streams of the java subprocess have been closed
     private volatile boolean detached = false;
 
-    ServerProcess(Process jvmProcess, ErrorPumpThread errorPump) {
+    ServerProcess(Process jvmProcess, PumpThread stderrPump, PumpThread stdoutPump) {
         this.jvmProcess = jvmProcess;
-        this.errorPump = errorPump;
+        this.stderrPump = stderrPump;
+        this.stdoutPump = stdoutPump;
     }
 
     /**
@@ -57,20 +61,27 @@ public class ServerProcess {
     /**
      * Detaches the server process from the current process, enabling the current process to exit.
      *
-     * @throws IOException If an I/O error occurred while reading stderr or closing any of the standard streams
+     * @throws IOException If an I/O error occurred while reading stdout / stderr or closing any of the standard streams
      */
     public synchronized void detach() throws IOException {
-        errorPump.drain();
-        IOUtils.close(jvmProcess.getOutputStream(), jvmProcess.getInputStream(), jvmProcess.getErrorStream());
-        detached = true;
+        stderrPump.drain();
+        stdoutPump.drain();
+        try {
+            IOUtils.close(jvmProcess.getOutputStream(), jvmProcess.getInputStream(), jvmProcess.getErrorStream(), stderrPump, stdoutPump);
+        } finally {
+            detached = true;
+        }
     }
 
     /**
      * Waits for the subprocess to exit.
      */
-    public int waitFor() {
-        errorPump.drain();
-        return nonInterruptible(jvmProcess::waitFor);
+    public int waitFor() throws IOException {
+        stderrPump.drain();
+        stdoutPump.drain();
+        Integer exitCode = nonInterruptible(jvmProcess::waitFor);
+        IOUtils.close(stderrPump, stdoutPump);
+        return exitCode;
     }
 
     /**
@@ -81,7 +92,7 @@ public class ServerProcess {
      *
      * <p> Note that if {@link #detach()} has been called, this method is a no-op.
      */
-    public synchronized void stop() {
+    public synchronized void stop() throws IOException {
         if (detached) {
             return;
         }

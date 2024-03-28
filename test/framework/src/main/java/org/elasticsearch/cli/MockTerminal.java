@@ -90,6 +90,11 @@ public class MockTerminal extends Terminal {
     }
 
     @Override
+    public Terminal asJson() {
+        throw new UnsupportedOperationException("MockTerminal doesn't support JSON output");
+    }
+
+    @Override
     public InputStream getInputStream() {
         return supportsBinary ? stdinBuffer : null;
     }

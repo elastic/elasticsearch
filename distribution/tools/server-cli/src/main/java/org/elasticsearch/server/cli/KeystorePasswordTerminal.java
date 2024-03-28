@@ -30,6 +30,11 @@ class KeystorePasswordTerminal extends Terminal implements Closeable {
     }
 
     @Override
+    public Terminal asJson() {
+        throw new UnsupportedOperationException("KeystorePasswordTerminal doesn't support JSON output");
+    }
+
+    @Override
     public char[] readSecret(String prompt) {
         return password.getChars();
     }

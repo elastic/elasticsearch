@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cli;
 
+import org.elasticsearch.cli.internal.JsonPrintWriter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 
@@ -23,6 +24,7 @@ import java.lang.reflect.Method;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * A Terminal wraps access to reading input and writing output for a cli.
@@ -35,17 +37,8 @@ import java.util.Locale;
  * the verbosity of the message.
 */
 public abstract class Terminal {
-
-    // Writer to standard error - not supplied by the {@link Console} API, so we share with subclasses
-    private static final PrintWriter ERROR_WRITER = newErrorWriter();
-
     /** The default terminal implementation, which will be a console if available, or stdout/stderr if not. */
-    public static final Terminal DEFAULT = ConsoleTerminal.isSupported() ? new ConsoleTerminal() : new SystemTerminal();
-
-    @SuppressForbidden(reason = "Writer for System.err")
-    private static PrintWriter newErrorWriter() {
-        return new PrintWriter(System.err, true);
-    }
+    public static final Terminal DEFAULT = ConsoleTerminal.isSupported() ? new ConsoleTerminal() : new SystemTerminal(false);
 
     /** Defines the available verbosity levels of messages to be printed. */
     public enum Verbosity {
@@ -191,6 +184,18 @@ public abstract class Terminal {
         print(verbosity, errWriter, msg, true);
     }
 
+    /** Prints a stacktrace to the terminal's standard error at {@code verbosity} level. */
+    public void errorPrintln(Verbosity verbosity, Throwable throwable) {
+        if (isPrintable(verbosity)) {
+            throwable.printStackTrace(errWriter);
+        }
+    }
+
+    /** Prints a stacktrace to the terminal's standard error at {@link Verbosity#SILENT} verbosity level. */
+    public void errorPrintln(Throwable throwable) {
+        errorPrintln(Verbosity.SILENT, throwable);
+    }
+
     /** Checks if is enough {@code verbosity} level to be printed */
     public final boolean isPrintable(Verbosity verbosity) {
         return this.currentVerbosity.ordinal() >= verbosity.ordinal();
@@ -275,12 +280,16 @@ public abstract class Terminal {
         return false;
     }
 
+    public abstract Terminal asJson();
+
     private static class ConsoleTerminal extends Terminal {
         private static final int JDK_VERSION_WITH_IS_TERMINAL = 22;
         private static final Console CONSOLE = detectTerminal();
 
+        @SuppressForbidden(reason = "Writer for System.err")
         ConsoleTerminal() {
-            super(CONSOLE.reader(), CONSOLE.writer(), ERROR_WRITER);
+            // Writer to standard error is not supplied by the {@link Console} API, so we create it here.
+            super(CONSOLE.reader(), CONSOLE.writer(), new PrintWriter(System.err, true));
         }
 
         static boolean isSupported() {
@@ -305,6 +314,11 @@ public abstract class Terminal {
         }
 
         @Override
+        public Terminal asJson() {
+            throw new UnsupportedOperationException("ConsoleTerminal doesn't support JSON output");
+        }
+
+        @Override
         public String readText(String prompt) {
             return CONSOLE.readLine("%s", prompt);
         }
@@ -315,18 +329,50 @@ public abstract class Terminal {
         }
     }
 
-    /** visible for testing */
+    /**
+     * System terminal used if console is not available.
+     *
+     * This terminal can optionally emit JSON.
+     * Visible for testing.
+     */
     @SuppressForbidden(reason = "Access streams for construction")
     static class SystemTerminal extends Terminal {
-        SystemTerminal() {
+        private final boolean useJsonOutput;
+
+        SystemTerminal(boolean useJsonOutput) {
             super(
                 // TODO: InputStreamReader can advance stdin past what it decodes. We need a way to buffer this and put it back
                 // at the end of each character based read, so that switching to using getInputStream() returns binary data
                 // right after the last character based input (newline)
                 new InputStreamReader(System.in, Charset.defaultCharset()),
-                new PrintWriter(System.out, true),
-                ERROR_WRITER
+                printWriter(System.out, useJsonOutput),
+                printWriter(System.err, useJsonOutput)
             );
+            this.useJsonOutput = useJsonOutput;
+        }
+
+        @Override
+        public Terminal asJson() {
+            return useJsonOutput ? this : new SystemTerminal(true);
+        }
+
+        private static PrintWriter printWriter(OutputStream out, boolean useJsonOutput) {
+            if (useJsonOutput == false) {
+                return new PrintWriter(out, true);
+            }
+            var fields = Map.of(
+                "log.level",
+                out == System.err ? "ERROR" : "INFO",
+                "log.logger",
+                out == System.err ? "stderr" : "stdout",
+                "ecs.version",
+                "1.2.0",
+                "service.name",
+                "ES_ECS",
+                "event.dataset",
+                "elasticsearch.server"
+            );
+            return new JsonPrintWriter(fields, out, true);
         }
 
         @Override
@@ -337,6 +383,18 @@ public abstract class Terminal {
         @Override
         public OutputStream getOutputStream() {
             return System.out;
+        }
+
+        @Override
+        public void errorPrintln(Verbosity verbosity, Throwable throwable) {
+            if (isPrintable(verbosity) == false) {
+                return;
+            }
+            if (useJsonOutput) {
+                ((JsonPrintWriter) getErrorWriter()).println(throwable);
+            } else {
+                throwable.printStackTrace(getErrorWriter());
+            }
         }
     }
 }

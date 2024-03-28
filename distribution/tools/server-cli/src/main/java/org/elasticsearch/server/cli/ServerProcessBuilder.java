@@ -15,6 +15,7 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.server.cli.PumpThread.ErrorPumpThread;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -149,16 +150,19 @@ public class ServerProcessBuilder {
         checkRequiredArgument(terminal, "terminal");
 
         Process jvmProcess = null;
-        ErrorPumpThread errorPump;
+        ErrorPumpThread stderrPump;
+        PumpThread stdoutPump;
 
         boolean success = false;
         try {
             jvmProcess = createProcess(getCommand(), getJvmArgs(), jvmOptions, getEnvironment(), processStarter);
-            errorPump = new ErrorPumpThread(terminal.getErrorWriter(), jvmProcess.getErrorStream());
-            errorPump.start();
+            stderrPump = PumpThread.stderrPump(terminal, jvmProcess);
+            stdoutPump = PumpThread.stdoutPump(terminal, jvmProcess);
+            stderrPump.start();
+            stdoutPump.start();
             sendArgs(serverArgs, jvmProcess.getOutputStream());
 
-            boolean serverOk = errorPump.waitUntilReady();
+            boolean serverOk = stderrPump.waitUntilReady();
             if (serverOk == false) {
                 // something bad happened, wait for the process to exit then rethrow
                 int exitCode = jvmProcess.waitFor();
@@ -175,7 +179,7 @@ public class ServerProcessBuilder {
             }
         }
 
-        return new ServerProcess(jvmProcess, errorPump);
+        return new ServerProcess(jvmProcess, stderrPump, stdoutPump);
     }
 
     private static Process createProcess(

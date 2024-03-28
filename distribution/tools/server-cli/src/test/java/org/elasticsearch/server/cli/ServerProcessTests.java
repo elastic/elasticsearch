@@ -70,7 +70,7 @@ public class ServerProcessTests extends ESTestCase {
     SecureSettings secrets;
 
     interface MainMethod {
-        void main(ServerArgs args, InputStream stdin, PrintStream stderr, AtomicInteger exitCode) throws IOException;
+        void main(ServerArgs args, InputStream stdin, PrintStream stdout, PrintStream stderr, AtomicInteger exitCode) throws IOException;
     }
 
     interface ProcessValidator {
@@ -105,9 +105,10 @@ public class ServerProcessTests extends ESTestCase {
     private class MockElasticsearchProcess extends Process {
         private final PipedOutputStream processStdin = new PipedOutputStream();
         private final PipedInputStream processStderr = new PipedInputStream();
+        private final PipedInputStream processStdout = new PipedInputStream();
         private final PipedInputStream stdin = new PipedInputStream();
         private final PipedOutputStream stderr = new PipedOutputStream();
-
+        private final PipedOutputStream stdout = new PipedOutputStream();
         private final AtomicInteger exitCode = new AtomicInteger();
         private final AtomicReference<IOException> processException = new AtomicReference<>();
         private final AtomicReference<AssertionError> assertion = new AtomicReference<>();
@@ -115,14 +116,18 @@ public class ServerProcessTests extends ESTestCase {
 
         MockElasticsearchProcess() throws IOException {
             stdin.connect(processStdin);
+            stdout.connect(processStdout);
             stderr.connect(processStderr);
             this.main = mockJvmProcessExecutor.submit(() -> {
                 var in = new InputStreamStreamInput(stdin);
                 try {
                     var serverArgs = new ServerArgs(in);
-                    try (var err = new PrintStream(stderr, true, StandardCharsets.UTF_8)) {
+                    try (
+                        var err = new PrintStream(stderr, true, StandardCharsets.UTF_8);
+                        var out = new PrintStream(stdout, true, StandardCharsets.UTF_8);
+                    ) {
                         if (mainCallback != null) {
-                            mainCallback.main(serverArgs, stdin, err, exitCode);
+                            mainCallback.main(serverArgs, stdin, out, err, exitCode);
                         } else {
                             err.println(SERVER_READY_MARKER);
                         }
@@ -132,7 +137,7 @@ public class ServerProcessTests extends ESTestCase {
                 } catch (AssertionError e) {
                     assertion.set(e);
                 }
-                IOUtils.closeWhileHandlingException(stdin, stderr);
+                IOUtils.closeWhileHandlingException(stdin, stdout, stderr);
             });
         }
 
@@ -143,7 +148,7 @@ public class ServerProcessTests extends ESTestCase {
 
         @Override
         public InputStream getInputStream() {
-            return InputStream.nullInputStream();
+            return processStdout;
         }
 
         @Override
@@ -231,13 +236,13 @@ public class ServerProcessTests extends ESTestCase {
             assertThat(pb.redirectError(), equalTo(ProcessBuilder.Redirect.PIPE));
             assertThat(pb.directory(), nullValue()); // leave default, which is working directory
         };
-        mainCallback = (args, stdin, stderr, exitCode) -> {
-            try (PrintStream err = new PrintStream(stderr, true, StandardCharsets.UTF_8)) {
-                err.println("stderr message");
-                err.println(SERVER_READY_MARKER);
-            }
+        mainCallback = (args, stdin, stdout, stderr, exitCode) -> {
+            stdout.println("stdout message");
+            stderr.println("stderr message");
+            stderr.println(SERVER_READY_MARKER);
         };
         runForeground();
+        assertThat(terminal.getOutput(), containsString("stdout message"));
         assertThat(terminal.getErrorOutput(), containsString("stderr message"));
     }
 
@@ -248,7 +253,7 @@ public class ServerProcessTests extends ESTestCase {
     }
 
     public void testBootstrapError() throws Exception {
-        mainCallback = (args, stdin, stderr, exitCode) -> {
+        mainCallback = (args, stdin, stdout, stderr, exitCode) -> {
             stderr.println("a bootstrap exception");
             exitCode.set(ExitCodes.CONFIG);
         };
@@ -332,11 +337,12 @@ public class ServerProcessTests extends ESTestCase {
     }
 
     public void testDetach() throws Exception {
-        mainCallback = (args, stdin, stderr, exitCode) -> {
+        mainCallback = (args, stdin, stdout, stderr, exitCode) -> {
             assertThat(args.daemonize(), equalTo(true));
             stderr.println(SERVER_READY_MARKER);
             stderr.println("final message");
             stderr.close();
+            stdout.close();
             // will block until stdin closed manually after test
             assertThat(stdin.read(), equalTo(-1));
         };
@@ -349,7 +355,7 @@ public class ServerProcessTests extends ESTestCase {
 
     public void testStop() throws Exception {
         CountDownLatch mainReady = new CountDownLatch(1);
-        mainCallback = (args, stdin, stderr, exitCode) -> {
+        mainCallback = (args, stdin, stdout, stderr, exitCode) -> {
             stderr.println(SERVER_READY_MARKER);
             nonInterruptibleVoid(mainReady::await);
             stderr.println("final message");
@@ -363,7 +369,7 @@ public class ServerProcessTests extends ESTestCase {
 
     public void testWaitFor() throws Exception {
         CountDownLatch mainReady = new CountDownLatch(1);
-        mainCallback = (args, stdin, stderr, exitCode) -> {
+        mainCallback = (args, stdin, stdout, stderr, exitCode) -> {
             stderr.println(SERVER_READY_MARKER);
             mainReady.countDown();
             assertThat(stdin.read(), equalTo((int) BootstrapInfo.SERVER_SHUTDOWN_MARKER));
@@ -373,7 +379,7 @@ public class ServerProcessTests extends ESTestCase {
         new Thread(() -> {
             // simulate stop run as shutdown hook in another thread, eg from Ctrl-C
             nonInterruptibleVoid(mainReady::await);
-            server.stop();
+            IOUtils.closeWhileHandlingException(server::stop);
         }).start();
         int exitCode = server.waitFor();
         assertThat(process.main.isDone(), is(true));
@@ -383,7 +389,7 @@ public class ServerProcessTests extends ESTestCase {
 
     public void testProcessDies() throws Exception {
         CountDownLatch mainExit = new CountDownLatch(1);
-        mainCallback = (args, stdin, stderr, exitCode) -> {
+        mainCallback = (args, stdin, stdout, stderr, exitCode) -> {
             stderr.println(SERVER_READY_MARKER);
             stderr.println("fatal message");
             stderr.close(); // mimic pipe break if cli process dies

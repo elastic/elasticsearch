@@ -58,7 +58,7 @@ class CliToolLauncher {
         String libs = pinfo.sysprops().getOrDefault("cli.libs", "");
 
         command = CliToolProvider.load(toolname, libs).create();
-        Terminal terminal = Terminal.DEFAULT;
+        Terminal terminal = command.hasJsonOutput() ? Terminal.DEFAULT.asJson() : Terminal.DEFAULT;
         Runtime.getRuntime().addShutdownHook(createShutdownHook(terminal, command));
 
         int exitCode = command.main(args, terminal, pinfo);

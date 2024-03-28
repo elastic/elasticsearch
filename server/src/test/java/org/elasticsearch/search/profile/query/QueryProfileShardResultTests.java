@@ -9,6 +9,7 @@
 package org.elasticsearch.search.profile.query;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.ProfileResultTests;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
@@ -51,7 +52,7 @@ public class QueryProfileShardResultTests extends AbstractXContentSerializingTes
     @Override
     protected QueryProfileShardResult doParseInstance(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-        QueryProfileShardResult result = QueryProfileShardResult.fromXContent(parser);
+        QueryProfileShardResult result = SearchResponseUtils.parseQueryProfileShardResult(parser);
         ensureExpectedToken(null, parser.nextToken(), parser);
         return result;
     }

@@ -281,8 +281,15 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     /**
      * Create parameters for this parameterized test.
      */
+    public static Iterable<Object[]> createParameters(String[] testPaths, Map<String, Object> yamlParameters) throws Exception {
+        return createParameters(ExecutableSection.XCONTENT_REGISTRY, testPaths, yamlParameters);
+    }
+
+    /**
+     * Create parameters for this parameterized test.
+     */
     public static Iterable<Object[]> createParameters(String[] testPaths) throws Exception {
-        return createParameters(ExecutableSection.XCONTENT_REGISTRY, testPaths);
+        return createParameters(testPaths, Collections.emptyMap());
     }
 
     /**
@@ -295,6 +302,23 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      */
     public static Iterable<Object[]> createParameters(NamedXContentRegistry executeableSectionRegistry, String[] testPaths)
         throws Exception {
+        return createParameters(executeableSectionRegistry, testPaths, Collections.emptyMap());
+    }
+
+    /**
+     * Create parameters for this parameterized test.
+     *
+     * @param executeableSectionRegistry registry of executable sections
+     * @param testPaths list of paths to explicitly search for tests. If <code>null</code> then include all tests in root path.
+     * @param yamlParameters map or parameters used within the yaml specs to be replaced at parsing time.
+     * @return list of test candidates.
+     * @throws Exception
+     */
+    public static Iterable<Object[]> createParameters(
+        NamedXContentRegistry executeableSectionRegistry,
+        String[] testPaths,
+        Map<String, ?> yamlParameters
+    ) throws Exception {
         if (testPaths != null && System.getProperty(REST_TESTS_SUITE) != null) {
             throw new IllegalArgumentException("The '" + REST_TESTS_SUITE + "' system property is not supported with explicit test paths.");
         }
@@ -308,7 +332,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         for (String api : yamlSuites.keySet()) {
             List<Path> yamlFiles = new ArrayList<>(yamlSuites.get(api));
             for (Path yamlFile : yamlFiles) {
-                ClientYamlTestSuite suite = ClientYamlTestSuite.parse(executeableSectionRegistry, api, yamlFile);
+                ClientYamlTestSuite suite = ClientYamlTestSuite.parse(executeableSectionRegistry, api, yamlFile, yamlParameters);
                 suites.add(suite);
                 try {
                     suite.validate();

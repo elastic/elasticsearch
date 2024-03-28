@@ -20,7 +20,7 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class NativeAccessTests extends VectorSimilarityFunctionsTests {
+public class NativeSimilarityTests extends VectorSimilarityFunctionsTests {
 
     static final Class<IllegalArgumentException> IAE = IllegalArgumentException.class;
 
@@ -30,7 +30,7 @@ public class NativeAccessTests extends VectorSimilarityFunctionsTests {
 
     static Arena arena;
 
-    public NativeAccessTests(int size) {
+    public NativeSimilarityTests(int size) {
         this.size = size;
     }
 
@@ -64,14 +64,19 @@ public class NativeAccessTests extends VectorSimilarityFunctionsTests {
         for (int i = 0; i < loopTimes; i++) {
             int first = randomInt(numVecs - 1);
             int second = randomInt(numVecs - 1);
+            // dot product
             int implDot = dotProduct(segment.asSlice((long) first * dims, dims), segment.asSlice((long) second * dims, dims), dims);
             int otherDot = dotProductScalar(values[first], values[second]);
             assertEquals(otherDot, implDot);
+            // TODO: add squareDistance
+            // int squareDist = squareDistance(...); // TODO: replace with real impl
+            // int otherSq = squareDistanceScalar(values[first], values[second]);
+            // assertEquals(otherSq, squareDist);
         }
-        // TODO: add squareDistance
     }
 
     public void testIllegalDims() {
+        assumeTrue(notSupportedMsg(), supported());
         var segment = arena.allocate((long) size * 3);
         var e = expectThrows(IAE, () -> dotProduct(segment.asSlice(0L, size), segment.asSlice(size, size + 1), size));
         assertThat(e.getMessage(), containsString("dimensions differ"));
@@ -94,6 +99,20 @@ public class NativeAccessTests extends VectorSimilarityFunctionsTests {
         }
     }
 
+    int squareDistance(MemorySegment a, MemorySegment b, int length) {
+        try {
+            return (int) getVectorDistance().squareDistanceHandle().invokeExact(a, b, length);
+        } catch (Throwable e) {
+            if (e instanceof Error err) {
+                throw err;
+            } else if (e instanceof RuntimeException re) {
+                throw re;
+            } else {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
     /** Computes the dot product of the given vectors a and b. */
     static int dotProductScalar(byte[] a, byte[] b) {
         int res = 0;
@@ -101,5 +120,16 @@ public class NativeAccessTests extends VectorSimilarityFunctionsTests {
             res += a[i] * b[i];
         }
         return res;
+    }
+
+    /** Computes the square distance of the given vectors a and b. */
+    static int squareDistanceScalar(byte[] a, byte[] b) {
+        // Note: this will not overflow if dim < 2^18, since max(byte * byte) = 2^14.
+        int squareSum = 0;
+        for (int i = 0; i < a.length; i++) {
+            int diff = a[i] - b[i];
+            squareSum += diff * diff;
+        }
+        return squareSum;
     }
 }

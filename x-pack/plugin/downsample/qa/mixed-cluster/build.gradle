@@ -25,11 +25,6 @@ restResources {
   }
 }
 
-artifacts {
-  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
-}
-
-
 def supportedVersion = bwcVersion -> {
   return bwcVersion.onOrAfter(Version.fromString("8.8.0"));
 }

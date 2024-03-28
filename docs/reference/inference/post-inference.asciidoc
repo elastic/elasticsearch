@@ -34,7 +34,7 @@ own model, use the <<ml-df-trained-models-apis>>.
 
 The perform {infer} API enables you to use {ml} models to perform specific tasks
 on data that you provide as an input. The API returns a response with the
-resutls of the tasks. The {infer} model you use can perform one specific task
+results of the tasks. The {infer} model you use can perform one specific task
 that has been defined when the model was created with the <<put-inference-api>>.
 
 

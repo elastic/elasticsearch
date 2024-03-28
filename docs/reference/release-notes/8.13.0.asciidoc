@@ -3,6 +3,16 @@
 
 Also see <<breaking-changes-8.13,Breaking changes in 8.13>>.
 
+[[known-issues-8.13.0]]
+[float]
+=== Known issues
+
+* Downsampling persistent state fails to load, preventing upgraded nodes from joining the cluster (issue: {es-issue}106880[#106880])
++
+This affects clusters running version 8.10 or later, with an active downsampling
+https://www.elastic.co/guide/en/elasticsearch/reference/current/downsampling-ilm.html[configuration]
+or a configuration that was activated at some point since upgrading to version 8.10 or later.
+
 [[breaking-8.13.0]]
 [float]
 === Breaking changes
@@ -117,7 +127,8 @@ Machine Learning::
 * Fix `categorize_text` aggregation nested under empty buckets {es-pull}105987[#105987] (issue: {es-issue}105836[#105836])
 * Fix resetting a job if the original reset task no longer exists. {es-pull}106020[#106020]
 * Retry updates to model snapshot ID on job config {es-pull}104077[#104077]
-* The OpenAI model parameter should be in service settings not task settings. Move the configuration field to service settings {es-pull}105458[#105458]
+* The OpenAI model parameter should be in service settings not task settings.
+Move the configuration field to service settings {es-pull}105458[#105458]
 * Undeploy elser when inference model deleted {es-pull}104230[#104230]
 
 Mapping::

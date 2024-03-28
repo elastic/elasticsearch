@@ -9,6 +9,7 @@ package org.elasticsearch.repositories.azure;
 
 import fixture.azure.AzureHttpHandler;
 
+import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.common.Strings;
@@ -37,6 +38,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -473,4 +475,32 @@ public class AzureBlobContainerRetriesTests extends AbstractAzureServerTestCase 
             assertThat(failedGetCalls.get(), equalTo(1));
         }
     }
+
+    public void testPrematureClosedConnectionDoesNotInterruptBackingThread() throws Exception {
+        final int maxRetries = 0;
+
+        final byte[] data = randomBytes(ByteSizeUnit.KB.toIntBytes(512));
+
+        httpServer.createContext("/account/container/closed_connection_blob", HttpExchange::close);
+
+        final BlobContainer blobContainer = createBlobContainer(maxRetries);
+
+        var interruptedThread = new AtomicBoolean();
+        try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", data), data.length) {
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                try {
+                    // Ensure that the thread where the stream is read is not interrupted
+                    Thread.sleep(250);
+                } catch (InterruptedException e) {
+                    interruptedThread.set(true);
+                }
+                return super.read(b, off, len);
+            }
+        }) {
+            expectThrows(IOException.class, () -> blobContainer.writeBlob("closed_connection_blob", stream, data.length, false));
+            assertFalse(interruptedThread.get());
+        }
+    }
+
 }

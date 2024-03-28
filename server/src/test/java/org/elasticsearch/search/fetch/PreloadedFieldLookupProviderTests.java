@@ -57,4 +57,38 @@ public class PreloadedFieldLookupProviderTests extends ESTestCase {
         assertEquals("VALUE", unloadedFieldLookup.getValue());
     }
 
+    public void testNoStoredFields() throws IOException {
+        final PreloadedFieldLookupProvider lookup = new PreloadedFieldLookupProvider();
+
+        final MappedFieldType fooField = mock(MappedFieldType.class);
+        when(fooField.name()).thenReturn("foo");
+        when(fooField.valueForDisplay(any())).then(invocation -> ((String) invocation.getArguments()[0]).toUpperCase(Locale.ROOT));
+        final FieldLookup fieldLookup = new FieldLookup(fooField);
+
+        // NOTE: we have no stored fields and we still have to call setNextReader so we don't have a LeafFieldLookupProvider
+        expectThrows(NullPointerException.class, () -> lookup.populateFieldLookup(fieldLookup, 0));
+        assertNull(lookup.backUpLoader);
+
+        final MappedFieldType barField = mock(MappedFieldType.class);
+        when(barField.name()).thenReturn("bar");
+        when(barField.valueForDisplay(any())).then(
+            invocation -> ((BytesRef) invocation.getArguments()[0]).utf8ToString().toUpperCase(Locale.ROOT)
+        );
+        final FieldLookup barFieldLookup = new FieldLookup(barField);
+
+        final MemoryIndex mi = new MemoryIndex();
+        mi.addField(new StringField("bar", "value", Field.Store.YES), null);
+        final LeafReaderContext ctx = mi.createSearcher().getIndexReader().leaves().get(0);
+
+        // NOTE: no exception after calling 'setNextReader` as we end up using the backup loader
+        lookup.setNextReader(ctx);
+        lookup.populateFieldLookup(barFieldLookup, 0);
+        assertEquals("VALUE", barFieldLookup.getValue());
+
+        // NOTE: no exception after adding stored fields
+        lookup.storedFields = Map.of("foo", List.of("bar"));
+        lookup.populateFieldLookup(fieldLookup, 0);
+        assertEquals("BAR", fieldLookup.getValue());
+    }
+
 }

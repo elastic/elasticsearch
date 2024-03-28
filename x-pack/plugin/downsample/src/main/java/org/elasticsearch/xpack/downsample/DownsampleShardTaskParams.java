@@ -115,8 +115,6 @@ public record DownsampleShardTaskParams(
         out.writeStringArray(labels);
         if (out.getTransportVersion().onOrAfter(TransportVersions.DIMENSIONS_SERIALIZATION_PERSISTENT_TASK)) {
             out.writeOptionalStringArray(dimensions);
-        } else if (dimensions.length > 0) {
-            throw new IllegalStateException("can't serialize dimensions to pre 8.13 nodes");
         }
     }
 

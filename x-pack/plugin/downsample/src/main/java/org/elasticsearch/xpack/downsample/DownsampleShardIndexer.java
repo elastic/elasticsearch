@@ -31,7 +31,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -566,9 +565,6 @@ class DownsampleShardIndexer {
             }
 
             if (dimensions.length == 0) {
-                if (indexShard.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ID_HASHING)) {
-                    throw new IllegalStateException("downsampling task of indices created in 8.13 or later should specify dimensions");
-                }
                 logger.debug("extracting dimensions from legacy tsid");
                 Map<?, ?> dimensions = (Map<?, ?>) DocValueFormat.TIME_SERIES_ID.format(tsid);
                 for (Map.Entry<?, ?> e : dimensions.entrySet()) {

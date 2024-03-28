@@ -47,7 +47,7 @@ public class DataStreamLifecyclePermissionsRestIT extends ESRestTestCase {
         .setting("xpack.security.http.ssl.enabled", "false")
         .user("test_admin", PASSWORD, "superuser", false)
         .user("test_data_stream_lifecycle", PASSWORD, "manage_data_stream_lifecycle", false)
-        .user("test_non_privileged", PASSWORD, "not_privileged", false)
+        .user("test_non_privileged", PASSWORD, "under_privilged", false)
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .build();
 
@@ -88,13 +88,13 @@ public class DataStreamLifecyclePermissionsRestIT extends ESRestTestCase {
     }
 
     private Settings restPrivilegedClientSettings() {
-        // Note: This user is assigned the role "not_privileged". That role is defined in roles.yml.
+        // Note: This user is assigned the role "under_privilged". That role is defined in roles.yml.
         String token = basicAuthHeaderValue("test_data_stream_lifecycle", new SecureString(PASSWORD.toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     private Settings restUnprivilegedClientSettings() {
-        // Note: This user is assigned the role "not_privileged". That role is defined in roles.yml.
+        // Note: This user is assigned the role "under_privilged". That role is defined in roles.yml.
         String token = basicAuthHeaderValue("test_non_privileged", new SecureString(PASSWORD.toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
@@ -106,7 +106,7 @@ public class DataStreamLifecyclePermissionsRestIT extends ESRestTestCase {
              * This test checks that a user with the "manage_data_stream_lifecycle" index privilege on "data-stream-lifecycle-*" data
              * streams can delete and put a lifecycle on the "data-stream-lifecycle-test" data stream, while a user with who does not have
              * that privilege (but does have all the other same "data-stream-lifecycle-*" privileges) cannot delete or put a lifecycle on
-             * that datastream.
+             * that data stream.
              */
             String dataStreamName = "data-stream-lifecycle-test"; // Needs to match the pattern of the names in roles.yml
             createDataStreamAsAdmin(dataStreamName);

@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
@@ -151,15 +150,15 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         }
 
         final var tp = internalCluster().getInstance(ThreadPool.class, dataNodeName);
-        final var tps = new AtomicReference<ThreadPoolStats>();
+        final var tps = new ThreadPoolStats[1];
         // wait for all threads to complete so that we get deterministic results
-        waitUntil(() -> tps.updateAndGet(s -> tp.stats()).stats().stream().allMatch(s -> s.active() == 0));
+        waitUntil(() -> (tps[0] = tp.stats()).stats().stream().allMatch(s -> s.active() == 0));
 
         plugin.collect();
         ArrayList<String> registeredMetrics = plugin.getRegisteredMetrics(InstrumentType.LONG_GAUGE);
         registeredMetrics.addAll(plugin.getRegisteredMetrics(InstrumentType.LONG_ASYNC_COUNTER));
 
-        tps.get().forEach(stats -> {
+        tps[0].forEach(stats -> {
             Map<String, Long> threadPoolStats = List.of(
                 Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED, stats.completed()),
                 Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_ACTIVE, (long) stats.active()),

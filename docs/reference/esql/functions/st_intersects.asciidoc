@@ -2,6 +2,8 @@
 [[esql-st_intersects]]
 === `ST_INTERSECTS`
 
+experimental::[]
+
 *Syntax*
 
 [.text-center]

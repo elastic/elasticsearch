@@ -2,6 +2,8 @@
 [[esql-st_within]]
 === `ST_WITHIN`
 
+experimental::[]
+
 *Syntax*
 
 [.text-center]

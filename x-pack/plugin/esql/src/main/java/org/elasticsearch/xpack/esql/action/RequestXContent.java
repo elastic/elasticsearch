@@ -45,8 +45,7 @@ final class RequestXContent {
         PARAM_PARSER.declareField(constructorArg(), (p, c) -> parseFieldsValue(p), VALUE, ObjectParser.ValueType.VALUE);
         PARAM_PARSER.declareString(constructorArg(), TYPE);
     }
-
-    // TODO: Maybe esql_version would be better? This looks like there's a JSON attribute `esql` with subattribute `version`.
+    
     static final ParseField ESQL_VERSION_FIELD = new ParseField("version");
     static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField COLUMNAR_FIELD = new ParseField("columnar");

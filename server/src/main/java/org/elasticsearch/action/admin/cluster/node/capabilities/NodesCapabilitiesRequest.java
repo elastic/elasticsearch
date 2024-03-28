@@ -9,11 +9,8 @@
 package org.elasticsearch.action.admin.cluster.node.capabilities;
 
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestRequest;
 
-import java.io.IOException;
 import java.util.Set;
 
 public class NodesCapabilitiesRequest extends BaseNodesRequest<NodesCapabilitiesRequest> {
@@ -23,17 +20,9 @@ public class NodesCapabilitiesRequest extends BaseNodesRequest<NodesCapabilities
     private Set<String> parameters = Set.of();
     private Set<String> features = Set.of();
 
-    public NodesCapabilitiesRequest(StreamInput in) throws IOException {
-        super(in);
-
-        method = in.readEnum(RestRequest.Method.class);
-        path = in.readString();
-        parameters = in.readCollectionAsImmutableSet(StreamInput::readString);
-        features = in.readCollectionAsImmutableSet(StreamInput::readString);
-    }
-
-    public NodesCapabilitiesRequest(String... nodeIds) {
-        super(nodeIds);
+    public NodesCapabilitiesRequest() {
+        // always send to all nodes
+        super(new String[0]);
     }
 
     public NodesCapabilitiesRequest path(String path) {
@@ -54,8 +43,8 @@ public class NodesCapabilitiesRequest extends BaseNodesRequest<NodesCapabilities
         return path;
     }
 
-    public NodesCapabilitiesRequest parameters(Set<String> parameters) {
-        this.parameters = Set.copyOf(parameters);
+    public NodesCapabilitiesRequest parameters(String... parameters) {
+        this.parameters = Set.of(parameters);
         return this;
     }
 
@@ -63,22 +52,12 @@ public class NodesCapabilitiesRequest extends BaseNodesRequest<NodesCapabilities
         return parameters;
     }
 
-    public NodesCapabilitiesRequest features(Set<String> features) {
-        this.features = Set.copyOf(features);
+    public NodesCapabilitiesRequest features(String... features) {
+        this.features = Set.of(features);
         return this;
     }
 
     public Set<String> features() {
         return features;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-
-        out.writeEnum(method);
-        out.writeString(path);
-        out.writeCollection(parameters, StreamOutput::writeString);
-        out.writeCollection(features, StreamOutput::writeString);
     }
 }

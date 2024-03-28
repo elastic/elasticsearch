@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContent;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Handler for REST requests
@@ -83,6 +84,21 @@ public interface RestHandler {
      */
     default List<Route> routes() {
         return Collections.emptyList();
+    }
+
+    /**
+     * The set of query parameters accepted by this rest handler,
+     * {@code null} if query parameters should not be checked nor validated.
+     */
+    default @Nullable Set<String> supportedQueryParameters() {
+        return null;
+    }
+
+    /**
+     * The set of arbitrary features this rest handler supports.
+     */
+    default Set<String> supportedFeatures() {
+        return Set.of();
     }
 
     /**

@@ -365,7 +365,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    public boolean checkSupported(RestRequest.Method method, String path, RestApiVersion restApiVersion) {
+    public boolean checkSupported(RestRequest.Method method, String path, Set<String> parameters, Set<String> features, RestApiVersion restApiVersion) {
         Iterator<MethodHandlers> allHandlers = getAllHandlers(null, path);
         while (allHandlers.hasNext()) {
             RestHandler handler;
@@ -374,10 +374,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 handler = null;
             } else {
                 handler = handlers.getHandler(method, restApiVersion);
-                // TODO: add query parameters and arbitrary features to Route, and check them here
             }
             if (handler != null) {
-                return true;
+                return handler.supportedQueryParameters().containsAll(parameters) && handler.supportedFeatures().containsAll(features);
             }
         }
         return false;

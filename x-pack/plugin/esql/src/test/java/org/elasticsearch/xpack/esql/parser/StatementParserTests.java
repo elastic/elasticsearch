@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLi
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsqlAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
@@ -38,7 +40,6 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -240,7 +241,7 @@ public class StatementParserTests extends ESTestCase {
 
     public void testStatsWithGroups() {
         assertEquals(
-            new Aggregate(
+            new EsqlAggregate(
                 EMPTY,
                 PROCESSING_CMD_INPUT,
                 List.of(attribute("c"), attribute("d.e")),
@@ -256,7 +257,7 @@ public class StatementParserTests extends ESTestCase {
 
     public void testStatsWithoutGroups() {
         assertEquals(
-            new Aggregate(
+            new EsqlAggregate(
                 EMPTY,
                 PROCESSING_CMD_INPUT,
                 List.of(),
@@ -271,7 +272,7 @@ public class StatementParserTests extends ESTestCase {
 
     public void testStatsWithoutAggs() throws Exception {
         assertEquals(
-            new Aggregate(EMPTY, PROCESSING_CMD_INPUT, List.of(attribute("a")), List.of(attribute("a"))),
+            new EsqlAggregate(EMPTY, PROCESSING_CMD_INPUT, List.of(attribute("a")), List.of(attribute("a"))),
             processingCommand("stats by a")
         );
     }
@@ -297,7 +298,7 @@ public class StatementParserTests extends ESTestCase {
             """ };
 
         for (String query : queries) {
-            expectError(query, "Cannot specify grouping expression [a] as an aggregate");
+            expectVerificationError(query, "grouping key [a] already specified in the STATS BY clause");
         }
     }
 
@@ -1000,6 +1001,11 @@ public class StatementParserTests extends ESTestCase {
 
     private void expectError(String query, String errorMessage) {
         ParsingException e = expectThrows(ParsingException.class, "Expected syntax error for " + query, () -> statement(query));
+        assertThat(e.getMessage(), containsString(errorMessage));
+    }
+
+    private void expectVerificationError(String query, String errorMessage) {
+        VerificationException e = expectThrows(VerificationException.class, "Expected syntax error for " + query, () -> statement(query));
         assertThat(e.getMessage(), containsString(errorMessage));
     }
 

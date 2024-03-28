@@ -125,13 +125,14 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         assert esQueryExec.estimatedRowSize() != null : "estimated row size not initialized";
         int rowEstimatedSize = esQueryExec.estimatedRowSize();
         int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold() : NO_LIMIT;
+        var indexShardContexts = getShardContextsFor(esQueryExec);
         if (sorts != null && sorts.isEmpty() == false) {
             fieldSorts = new ArrayList<>(sorts.size());
             for (FieldSort sort : sorts) {
                 fieldSorts.add(sort.fieldSortBuilder());
             }
             luceneFactory = new LuceneTopNSourceOperator.Factory(
-                shardContexts,
+                indexShardContexts,
                 querySupplier(esQueryExec.query()),
                 context.queryPragmas().dataPartitioning(),
                 context.queryPragmas().taskConcurrency(),
@@ -145,12 +146,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                     limit,
                     context.pageSize(rowEstimatedSize),
                     context.queryPragmas().taskConcurrency(),
-                    shardContexts,
+                    indexShardContexts,
                     querySupplier(esQueryExec.query())
                 );
             } else {
                 luceneFactory = new LuceneSourceOperator.Factory(
-                    shardContexts,
+                    indexShardContexts,
                     querySupplier(esQueryExec.query()),
                     context.queryPragmas().dataPartitioning(),
                     context.queryPragmas().taskConcurrency(),
@@ -164,6 +165,17 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         int instanceCount = Math.max(1, luceneFactory.taskConcurrency());
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, instanceCount));
         return PhysicalOperation.fromSource(luceneFactory, layout.build());
+    }
+
+    private List<ShardContext> getShardContextsFor(EsQueryExec queryExec) {
+        List<ShardContext> filtered = new ArrayList<>();
+        for (ShardContext shardContext : shardContexts) {
+            DefaultShardContext defaultShardContext = (DefaultShardContext) shardContext;
+            if (queryExec.index().concreteIndices().contains(defaultShardContext.ctx.index().getName())) {
+                filtered.add(shardContext);
+            }
+        }
+        return filtered;
     }
 
     /**

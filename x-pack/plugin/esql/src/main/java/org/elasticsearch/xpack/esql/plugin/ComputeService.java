@@ -561,6 +561,8 @@ public class ComputeService {
                     if (group.allocatedNodes().isEmpty()) {
                         throw new ShardNotFoundException(group.shardId(), "no shard copies found {}", group.shardId());
                     }
+                    // TODO: we are filtering out data nodes without any matching shards,
+                    // but we do not yet correlate the index-specific drivers with the shards, which could be better
                     if (concreteIndices.contains(shardId.getIndexName()) == false) {
                         continue;
                     }

@@ -71,6 +71,28 @@ public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
         public void setTimeout(String timeout) {
             this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            Request that = (Request) o;
+            return Objects.equals(this.timeout, that.timeout) && Objects.equals(this.masterNodeTimeout, that.masterNodeTimeout);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(this.timeout, this.masterNodeTimeout);
+        }
+
+        @Override
+        public String toString() {
+            return "CcrStatsAction.Request[timeout=" + timeout + ", masterNodeTimeout=" + masterNodeTimeout + "]";
+        }
     }
 
     public static class Response extends ActionResponse implements ChunkedToXContentObject {

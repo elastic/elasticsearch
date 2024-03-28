@@ -106,7 +106,9 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         return Strings.toString(this);
     }
 
-    private static final StringLiteralDeduplicator fieldNameStringDeduplicator = new StringLiteralDeduplicator();
+    // Some mappings like those created by Beats contain thousands of fields so we size this deduplicator larger than the default to
+    // speed up mapping parsing
+    private static final StringLiteralDeduplicator fieldNameStringDeduplicator = new StringLiteralDeduplicator(5000);
 
     /**
      * Interns the given field name string through a {@link StringLiteralDeduplicator}.

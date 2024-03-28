@@ -411,8 +411,8 @@ setup:
 ---
 "Downsample failure":
   - skip:
-      version: " - 8.12.99"
-      reason: "#103615 merged to 8.13.0 and later"
+      version: " - 8.11.99"
+      reason: "#103615 merged to 8.12.0 and later"
       features: allowed_warnings
 
   - do:

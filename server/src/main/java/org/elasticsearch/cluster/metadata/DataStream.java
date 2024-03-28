@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling.Round;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -511,12 +512,47 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Performs a dummy rollover on a {@code DataStream} instance and returns the tuple of the next write index name and next generation
-     * that this {@code DataStream} should roll over to using {@link #rollover(Index, long, boolean, DataStreamAutoShardingEvent)}.
+     * Performs a rollover on the failure store of a {@code DataStream} instance and returns a new instance containing
+     * the updated list of failure store indices and incremented generation.
+     *
+     * @param writeIndex new failure store write index
+     * @param generation new generation
+     * @return new {@code DataStream} instance with the rollover operation applied
+     */
+    public DataStream rolloverFailureStore(Index writeIndex, long generation) {
+        ensureNotReplicated();
+
+        return unsafeRolloverFailureStore(writeIndex, generation);
+    }
+
+    /**
+     * Like {@link #rolloverFailureStore(Index, long)}, but does no validation, use with care only.
+     */
+    public DataStream unsafeRolloverFailureStore(Index writeIndex, long generation) {
+        List<Index> failureIndices = new ArrayList<>(this.failureIndices);
+        failureIndices.add(writeIndex);
+        return new DataStream(
+            name,
+            indices,
+            generation,
+            metadata,
+            hidden,
+            false,
+            system,
+            allowCustomRouting,
+            indexMode,
+            lifecycle,
+            failureStore,
+            failureIndices,
+            autoShardingEvent
+        );
+    }
+
+    /**
+     * Generates the next write index name and <code>generation</code> to be used for rolling over this data stream.
      *
      * @param clusterMetadata Cluster metadata
-     *
-     * @return new {@code DataStream} instance with the dummy rollover operation applied
+     * @return tuple of the next write index name and next generation.
      */
     public Tuple<String, Long> nextWriteIndexAndGeneration(Metadata clusterMetadata) {
         ensureNotReplicated();
@@ -527,11 +563,36 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * Like {@link #nextWriteIndexAndGeneration(Metadata)}, but does no validation, use with care only.
      */
     public Tuple<String, Long> unsafeNextWriteIndexAndGeneration(Metadata clusterMetadata) {
+        return generateNextWriteIndexAndGeneration(clusterMetadata, DataStream::getDefaultBackingIndexName);
+    }
+
+    /**
+     * Generates the next write index name and <code>generation</code> to be used for rolling over the failure store of this data stream.
+     *
+     * @param clusterMetadata Cluster metadata
+     * @return tuple of the next failure store write index name and next generation.
+     */
+    public Tuple<String, Long> nextFailureStoreWriteIndexAndGeneration(Metadata clusterMetadata) {
+        ensureNotReplicated();
+        return unsafeNextFailureStoreWriteIndexAndGeneration(clusterMetadata);
+    }
+
+    /**
+     * Like {@link #nextFailureStoreWriteIndexAndGeneration(Metadata)}, but does no validation, use with care only.
+     */
+    public Tuple<String, Long> unsafeNextFailureStoreWriteIndexAndGeneration(Metadata clusterMetadata) {
+        return generateNextWriteIndexAndGeneration(clusterMetadata, DataStream::getDefaultFailureStoreName);
+    }
+
+    private Tuple<String, Long> generateNextWriteIndexAndGeneration(
+        Metadata clusterMetadata,
+        TriFunction<String, Long, Long, String> nameGenerator
+    ) {
         String newWriteIndexName;
         long generation = this.generation;
         long currentTimeMillis = timeProvider.getAsLong();
         do {
-            newWriteIndexName = DataStream.getDefaultBackingIndexName(getName(), ++generation, currentTimeMillis);
+            newWriteIndexName = nameGenerator.apply(getName(), ++generation, currentTimeMillis);
         } while (clusterMetadata.hasIndexAbstraction(newWriteIndexName));
         return Tuple.tuple(newWriteIndexName, generation);
     }

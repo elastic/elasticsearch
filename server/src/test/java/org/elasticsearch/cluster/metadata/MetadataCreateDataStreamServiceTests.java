@@ -26,6 +26,7 @@ import org.elasticsearch.indices.SystemDataStreamDescriptor.Type;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.Feature;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -465,29 +466,33 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
     private static MetadataCreateIndexService getMetadataCreateIndexService() throws Exception {
         MetadataCreateIndexService s = mock(MetadataCreateIndexService.class);
         when(s.getSystemIndices()).thenReturn(getSystemIndices());
-        when(s.applyCreateIndexRequest(any(ClusterState.class), any(CreateIndexClusterStateUpdateRequest.class), anyBoolean(), any()))
-            .thenAnswer(mockInvocation -> {
-                ClusterState currentState = (ClusterState) mockInvocation.getArguments()[0];
-                CreateIndexClusterStateUpdateRequest request = (CreateIndexClusterStateUpdateRequest) mockInvocation.getArguments()[1];
+        Answer<Object> objectAnswer = mockInvocation -> {
+            ClusterState currentState = (ClusterState) mockInvocation.getArguments()[0];
+            CreateIndexClusterStateUpdateRequest request = (CreateIndexClusterStateUpdateRequest) mockInvocation.getArguments()[1];
 
-                Metadata.Builder b = Metadata.builder(currentState.metadata())
-                    .put(
-                        IndexMetadata.builder(request.index())
-                            .settings(
-                                Settings.builder()
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                                    .put(request.settings())
-                                    .build()
-                            )
-                            .putMapping(generateMapping("@timestamp"))
-                            .system(getSystemIndices().isSystemName(request.index()))
-                            .numberOfShards(1)
-                            .numberOfReplicas(1)
-                            .build(),
-                        false
-                    );
-                return ClusterState.builder(currentState).metadata(b.build()).build();
-            });
+            Metadata.Builder b = Metadata.builder(currentState.metadata())
+                .put(
+                    IndexMetadata.builder(request.index())
+                        .settings(
+                            Settings.builder()
+                                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                                .put(request.settings())
+                                .build()
+                        )
+                        .putMapping(generateMapping("@timestamp"))
+                        .system(getSystemIndices().isSystemName(request.index()))
+                        .numberOfShards(1)
+                        .numberOfReplicas(1)
+                        .build(),
+                    false
+                );
+            return ClusterState.builder(currentState).metadata(b.build()).build();
+        };
+        when(s.applyCreateIndexRequest(any(ClusterState.class), any(CreateIndexClusterStateUpdateRequest.class), anyBoolean(), any()))
+            .thenAnswer(objectAnswer);
+        when(
+            s.applyCreateIndexRequest(any(ClusterState.class), any(CreateIndexClusterStateUpdateRequest.class), anyBoolean(), any(), any())
+        ).thenAnswer(objectAnswer);
 
         return s;
     }

@@ -253,6 +253,20 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(rolledDs.getIndexMode(), nullValue());
     }
 
+    public void testRolloverFailureStore() {
+        DataStream ds = DataStreamTestHelper.randomInstance(true).promoteDataStream();
+        Tuple<String, Long> newCoordinates = ds.nextFailureStoreWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
+        final DataStream rolledDs = ds.rolloverFailureStore(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2());
+        assertThat(rolledDs.getName(), equalTo(ds.getName()));
+        assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
+        assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size()));
+        assertThat(rolledDs.getFailureIndices().size(), equalTo(ds.getFailureIndices().size() + 1));
+        assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
+        assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
+        assertTrue(rolledDs.getFailureIndices().containsAll(ds.getFailureIndices()));
+        assertTrue(rolledDs.getFailureIndices().contains(rolledDs.getFailureStoreWriteIndex()));
+    }
+
     public void testRemoveBackingIndex() {
         int numBackingIndices = randomIntBetween(2, 32);
         int indexToRemove = randomIntBetween(1, numBackingIndices - 1);
@@ -506,6 +520,18 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         String defaultBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, backingIndexNum, epochMillis);
         String expectedBackingIndexName = Strings.format(".ds-%s-%s-%06d", dataStreamName, dateString, backingIndexNum);
         assertThat(defaultBackingIndexName, equalTo(expectedBackingIndexName));
+    }
+
+    public void testDefaultFailureStoreName() {
+        // this test does little more than flag that changing the default naming convention for failure store indices
+        // will also require changing a lot of hard-coded values in REST tests and docs
+        long failureStoreIndexNum = randomLongBetween(1, 1000001);
+        String dataStreamName = randomAlphaOfLength(6);
+        long epochMillis = randomLongBetween(1580536800000L, 1583042400000L);
+        String dateString = DataStream.DATE_FORMATTER.formatMillis(epochMillis);
+        String defaultFailureStoreName = DataStream.getDefaultFailureStoreName(dataStreamName, failureStoreIndexNum, epochMillis);
+        String expectedFailureStoreName = Strings.format(".fs-%s-%s-%06d", dataStreamName, dateString, failureStoreIndexNum);
+        assertThat(defaultFailureStoreName, equalTo(expectedFailureStoreName));
     }
 
     public void testReplaceBackingIndex() {

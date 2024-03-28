@@ -37,6 +37,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
@@ -318,25 +319,28 @@ public class QueryRewriteContext {
      * @param pattern the field name pattern
      */
     public Set<String> getMatchingFieldNames(String pattern) {
+        Set<String> matches;
         if (runtimeMappings.isEmpty()) {
-            return mappingLookup.getMatchingFieldNames(pattern);
-        }
-        Set<String> matches = new HashSet<>(mappingLookup.getMatchingFieldNames(pattern));
-        if ("*".equals(pattern)) {
-            matches.addAll(runtimeMappings.keySet());
-        } else if (Regex.isSimpleMatchPattern(pattern) == false) {
-            // no wildcard
-            if (runtimeMappings.containsKey(pattern)) {
-                matches.add(pattern);
-            }
+            matches = mappingLookup.getMatchingFieldNames(pattern);
         } else {
-            for (String name : runtimeMappings.keySet()) {
-                if (Regex.simpleMatch(pattern, name)) {
-                    matches.add(name);
+            matches = new HashSet<>(mappingLookup.getMatchingFieldNames(pattern));
+            if ("*".equals(pattern)) {
+                matches.addAll(runtimeMappings.keySet());
+            } else if (Regex.isSimpleMatchPattern(pattern) == false) {
+                // no wildcard
+                if (runtimeMappings.containsKey(pattern)) {
+                    matches.add(pattern);
+                }
+            } else {
+                for (String name : runtimeMappings.keySet()) {
+                    if (Regex.simpleMatch(pattern, name)) {
+                        matches.add(name);
+                    }
                 }
             }
         }
-        return matches;
+        // If the field is not allowed, behave as if it is not mapped
+        return allowedFields == null ? matches : matches.stream().filter(allowedFields).collect(Collectors.toSet());
     }
 
     /**

@@ -39,6 +39,7 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
@@ -177,6 +178,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
             EsExecutors.DIRECT_EXECUTOR_SERVICE, // TODO fork to SNAPSHOT_META and drop the forking below, see #101445
             repositoryDataListener
         );
+        request.setParentTask(new TaskId(clusterService.localNode().getId(), task.getId()));
         repositoryDataListener.addListener(listener.delegateFailureAndWrap((delegate, repoData) -> {
             final Map<String, IndexId> indexIds = repoData.getIndices();
             if (indexIds.containsKey(indexName) == false) {

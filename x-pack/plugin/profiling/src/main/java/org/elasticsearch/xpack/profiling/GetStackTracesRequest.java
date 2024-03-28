@@ -38,8 +38,10 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQu
 public class GetStackTracesRequest extends ActionRequest implements IndicesRequest.Replaceable {
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField SAMPLE_SIZE_FIELD = new ParseField("sample_size");
+    public static final ParseField LIMIT_FIELD = new ParseField("limit");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
     public static final ParseField STACKTRACE_IDS_FIELD = new ParseField("stacktrace_ids_field");
+    public static final ParseField AGGREGATION_FIELD = new ParseField("aggregation_field");
     public static final ParseField REQUESTED_DURATION_FIELD = new ParseField("requested_duration");
     public static final ParseField AWS_COST_FACTOR_FIELD = new ParseField("aws_cost_factor");
     public static final ParseField AZURE_COST_FACTOR_FIELD = new ParseField("azure_cost_factor");
@@ -52,9 +54,11 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
 
     private QueryBuilder query;
     private int sampleSize;
+    private Integer limit;
     private String[] indices;
     private boolean userProvidedIndices;
     private String stackTraceIdsField;
+    private String aggregationField;
     private Double requestedDuration;
     private Double awsCostFactor;
     private Double azureCostFactor;
@@ -73,7 +77,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     private Integer shardSeed;
 
     public GetStackTracesRequest() {
-        this(null, null, null, null, null, null, null, null, null, null, null, null);
+        this(null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     public GetStackTracesRequest(
@@ -84,6 +88,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         QueryBuilder query,
         String[] indices,
         String stackTraceIdsField,
+        String aggregationField,
         Double customCO2PerKWH,
         Double customDatacenterPUE,
         Double customPerCoreWattX86,
@@ -98,6 +103,7 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         this.indices = indices;
         this.userProvidedIndices = indices != null && indices.length > 0;
         this.stackTraceIdsField = stackTraceIdsField;
+        this.aggregationField = aggregationField;
         this.customCO2PerKWH = customCO2PerKWH;
         this.customDatacenterPUE = customDatacenterPUE;
         this.customPerCoreWattX86 = customPerCoreWattX86;
@@ -112,6 +118,14 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
 
     public int getSampleSize() {
         return sampleSize;
+    }
+
+    public void setLimit(int limit) {
+        this.limit = limit;
+    }
+
+    public Integer getLimit() {
+        return limit;
     }
 
     public Double getRequestedDuration() {
@@ -162,6 +176,10 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
         return stackTraceIdsField;
     }
 
+    public String getAggregationField() {
+        return aggregationField;
+    }
+
     public boolean isAdjustSampleCount() {
         return Boolean.TRUE.equals(adjustSampleCount);
     }
@@ -194,8 +212,12 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
             } else if (token.isValue()) {
                 if (SAMPLE_SIZE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.sampleSize = parser.intValue();
+                } else if (LIMIT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.limit = parser.intValue();
                 } else if (STACKTRACE_IDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.stackTraceIdsField = parser.text();
+                } else if (AGGREGATION_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    this.aggregationField = parser.text();
                 } else if (REQUESTED_DURATION_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     this.requestedDuration = parser.doubleValue();
                 } else if (AWS_COST_FACTOR_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -277,7 +299,15 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                 );
             }
         }
+        if (aggregationField != null && aggregationField.isBlank()) {
+            validationException = addValidationError(
+                "[" + AGGREGATION_FIELD.getPreferredName() + "] must be non-empty",
+                validationException
+            );
+        }
+
         validationException = requirePositive(SAMPLE_SIZE_FIELD, sampleSize, validationException);
+        validationException = requirePositive(LIMIT_FIELD, limit, validationException);
         validationException = requirePositive(REQUESTED_DURATION_FIELD, requestedDuration, validationException);
         validationException = requirePositive(AWS_COST_FACTOR_FIELD, awsCostFactor, validationException);
         validationException = requirePositive(AZURE_COST_FACTOR_FIELD, azureCostFactor, validationException);
@@ -307,7 +337,9 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
                 StringBuilder sb = new StringBuilder();
                 appendField(sb, "indices", indices);
                 appendField(sb, "stacktrace_ids_field", stackTraceIdsField);
+                appendField(sb, "aggregation_field", aggregationField);
                 appendField(sb, "sample_size", sampleSize);
+                appendField(sb, "limit", limit);
                 appendField(sb, "requested_duration", requestedDuration);
                 appendField(sb, "aws_cost_factor", awsCostFactor);
                 appendField(sb, "azure_cost_factor", azureCostFactor);

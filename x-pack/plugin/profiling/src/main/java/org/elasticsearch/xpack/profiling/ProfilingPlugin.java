@@ -134,6 +134,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         if (enabled) {
             handlers.add(new RestGetStackTracesAction());
             handlers.add(new RestGetFlamegraphAction());
+            handlers.add(new RestGetTopNFunctionsAction());
         }
         return Collections.unmodifiableList(handlers);
     }
@@ -168,6 +169,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         return List.of(
             new ActionHandler<>(GetStackTracesAction.INSTANCE, TransportGetStackTracesAction.class),
             new ActionHandler<>(GetFlamegraphAction.INSTANCE, TransportGetFlamegraphAction.class),
+            new ActionHandler<>(GetTopNFunctionsAction.INSTANCE, TransportGetTopNFunctionsAction.class),
             new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.UNIVERSAL_PROFILING, ProfilingUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.UNIVERSAL_PROFILING, ProfilingInfoTransportAction.class)

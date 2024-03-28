@@ -62,6 +62,5 @@ public class StackFrameTests extends ESTestCase {
             frame,
             (o -> new StackFrame(o.fileName, o.functionName, o.functionOffset, o.lineNumber))
         );
-
     }
 }

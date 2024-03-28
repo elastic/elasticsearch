@@ -49,9 +49,9 @@ public enum InstrumentType {
     public static InstrumentType fromInstrument(Instrument instrument) {
         Objects.requireNonNull(instrument);
         if (instrument instanceof DoubleCounter) {
-            return InstrumentType.DOUBLE_COUNTER;
+            return InstrumentType.DOUBLE_UP_DOWN_COUNTER;
         } else if (instrument instanceof LongCounter) {
-            return InstrumentType.LONG_COUNTER;
+            return InstrumentType.LONG_UP_DOWN_COUNTER;
         } else if (instrument instanceof LongAsyncCounter) {
             return InstrumentType.LONG_ASYNC_COUNTER;
         } else if (instrument instanceof DoubleAsyncCounter) {

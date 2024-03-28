@@ -148,13 +148,27 @@ public class APMMeterRegistryTests extends ESTestCase {
 
     private void hasOneDouble(Instrument instrument, double value) {
         List<Measurement> measurements = testOtel.getRecorder().getMeasurements(instrument);
-        assertThat(measurements, hasSize(1));
-        assertThat(measurements.get(0).getDouble(), equalTo(value));
+        if (instrument instanceof DoubleCounter) {// ignore the initial measurement
+            assertThat(measurements, hasSize(2));
+            assertThat(measurements.get(0).getDouble(), equalTo(0.0));
+            assertThat(measurements.get(1).getDouble(), equalTo(value));
+        } else {
+            assertThat(measurements, hasSize(1));
+            assertThat(measurements.get(0).getDouble(), equalTo(value));
+        }
+
     }
 
     private void hasOneLong(Instrument instrument, long value) {
         List<Measurement> measurements = testOtel.getRecorder().getMeasurements(instrument);
-        assertThat(measurements, hasSize(1));
-        assertThat(measurements.get(0).getLong(), equalTo(value));
+        if (instrument instanceof LongCounter) { // ignore the initial measurement
+            assertThat(measurements, hasSize(2));
+            assertThat(measurements.get(0).getLong(), equalTo(0L));
+            assertThat(measurements.get(1).getLong(), equalTo(value));
+        } else {
+            assertThat(measurements, hasSize(1));
+            assertThat(measurements.get(0).getLong(), equalTo(value));
+        }
+
     }
 }

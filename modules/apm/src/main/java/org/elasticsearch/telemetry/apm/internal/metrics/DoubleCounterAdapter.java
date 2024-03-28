@@ -8,7 +8,7 @@
 
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
-import io.opentelemetry.api.metrics.DoubleCounter;
+import io.opentelemetry.api.metrics.DoubleUpDownCounter;
 import io.opentelemetry.api.metrics.Meter;
 
 import org.elasticsearch.telemetry.apm.AbstractInstrument;
@@ -19,7 +19,9 @@ import java.util.Objects;
 /**
  * DoubleGaugeAdapter wraps an otel ObservableDoubleMeasurement
  */
-public class DoubleCounterAdapter extends AbstractInstrument<DoubleCounter> implements org.elasticsearch.telemetry.metric.DoubleCounter {
+public class DoubleCounterAdapter extends AbstractInstrument<DoubleUpDownCounter>
+    implements
+        org.elasticsearch.telemetry.metric.DoubleCounter {
 
     public DoubleCounterAdapter(Meter meter, String name, String description, String unit) {
         super(meter, new Builder(name, description, unit));
@@ -42,14 +44,21 @@ public class DoubleCounterAdapter extends AbstractInstrument<DoubleCounter> impl
         getInstrument().add(inc, OtelHelper.fromMap(attributes));
     }
 
-    private static class Builder extends AbstractInstrument.Builder<DoubleCounter> {
+    private static class Builder extends AbstractInstrument.Builder<DoubleUpDownCounter> {
         private Builder(String name, String description, String unit) {
             super(name, description, unit);
         }
 
         @Override
-        public DoubleCounter build(Meter meter) {
-            return Objects.requireNonNull(meter).counterBuilder(name).ofDoubles().setDescription(description).setUnit(unit).build();
+        public DoubleUpDownCounter build(Meter meter) {
+            DoubleUpDownCounter counter = Objects.requireNonNull(meter)
+                .upDownCounterBuilder(name)
+                .ofDoubles()
+                .setDescription(description)
+                .setUnit(unit)
+                .build();
+            counter.add(0.0);
+            return counter;
         }
     }
 }

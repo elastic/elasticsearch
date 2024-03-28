@@ -9,19 +9,21 @@
 package org.elasticsearch.telemetry.apm;
 
 import io.opentelemetry.api.OpenTelemetry;
-import io.opentelemetry.api.metrics.DoubleCounterBuilder;
 import io.opentelemetry.api.metrics.DoubleGaugeBuilder;
 import io.opentelemetry.api.metrics.DoubleHistogramBuilder;
-import io.opentelemetry.api.metrics.LongCounter;
+import io.opentelemetry.api.metrics.DoubleUpDownCounterBuilder;
 import io.opentelemetry.api.metrics.LongCounterBuilder;
+import io.opentelemetry.api.metrics.LongUpDownCounter;
 import io.opentelemetry.api.metrics.LongUpDownCounterBuilder;
 import io.opentelemetry.api.metrics.Meter;
-import io.opentelemetry.api.metrics.ObservableLongCounter;
 import io.opentelemetry.api.metrics.ObservableLongMeasurement;
+import io.opentelemetry.api.metrics.ObservableLongUpDownCounter;
 
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.Mockito;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -37,12 +39,12 @@ public class MeterRegistryConcurrencyTests extends ESTestCase {
     private final Meter lockingMeter = new Meter() {
         @Override
         public LongCounterBuilder counterBuilder(String name) {
-            return new LockingLongCounterBuilder();
+            return null;
         }
 
         @Override
         public LongUpDownCounterBuilder upDownCounterBuilder(String name) {
-            return null;
+            return new LockingLongCounterBuilder();
         }
 
         @Override
@@ -56,36 +58,35 @@ public class MeterRegistryConcurrencyTests extends ESTestCase {
         }
     };
 
-    class LockingLongCounterBuilder implements LongCounterBuilder {
-
+    class LockingLongCounterBuilder implements LongUpDownCounterBuilder {
         @Override
-        public LongCounterBuilder setDescription(String description) {
+        public LongUpDownCounterBuilder setDescription(String description) {
             return this;
         }
 
         @Override
-        public LongCounterBuilder setUnit(String unit) {
+        public LongUpDownCounterBuilder setUnit(String unit) {
             return this;
         }
 
         @Override
-        public DoubleCounterBuilder ofDoubles() {
+        public DoubleUpDownCounterBuilder ofDoubles() {
             return null;
         }
 
         @Override
-        public LongCounter build() {
+        public LongUpDownCounter build() {
             try {
                 buildLatch.countDown();
                 registerLatch.await();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-            return null;
+            return Mockito.mock(LongUpDownCounter.class);
         }
 
         @Override
-        public ObservableLongCounter buildWithCallback(Consumer<ObservableLongMeasurement> callback) {
+        public ObservableLongUpDownCounter buildWithCallback(Consumer<ObservableLongMeasurement> callback) {
             return null;
         }
     }
@@ -96,8 +97,7 @@ public class MeterRegistryConcurrencyTests extends ESTestCase {
         var registerThread = new Thread(() -> meterRegistrar.registerLongCounter(name, description, unit));
         // registerThread has a countDown latch that is simulating a long-running registration
         registerThread.start();
-        buildLatch.await(); // wait for registerThread to hold the lock
-
+        buildLatch.await(30, TimeUnit.SECONDS); // wait for registerThread to hold the lock
         var setProviderThread = new Thread(() -> meterRegistrar.setProvider(noopMeter));
         // a setProviderThread will attempt to override a meter, but will wait to acquireLock
         setProviderThread.start();
@@ -110,8 +110,8 @@ public class MeterRegistryConcurrencyTests extends ESTestCase {
         // finish long-running registration
         registerLatch.countDown();
         // wait for everything to quiesce, registerLatch.countDown() doesn't ensure lock has been released
-        setProviderThread.join();
-        registerThread.join();
+        setProviderThread.join(30000);
+        registerThread.join(30000);
         // assert that a meter was overriden
         assertThat(meterRegistrar.getMeter(), sameInstance(noopMeter));
     }

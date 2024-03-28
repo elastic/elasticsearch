@@ -8,7 +8,7 @@
 
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
-import io.opentelemetry.api.metrics.LongCounter;
+import io.opentelemetry.api.metrics.LongUpDownCounter;
 import io.opentelemetry.api.metrics.Meter;
 
 import org.elasticsearch.telemetry.apm.AbstractInstrument;
@@ -19,7 +19,7 @@ import java.util.Objects;
 /**
  * LongCounterAdapter wraps an otel LongCounter
  */
-public class LongCounterAdapter extends AbstractInstrument<LongCounter> implements org.elasticsearch.telemetry.metric.LongCounter {
+public class LongCounterAdapter extends AbstractInstrument<LongUpDownCounter> implements org.elasticsearch.telemetry.metric.LongCounter {
     public LongCounterAdapter(Meter meter, String name, String description, String unit) {
         super(meter, new Builder(name, description, unit));
     }
@@ -41,14 +41,20 @@ public class LongCounterAdapter extends AbstractInstrument<LongCounter> implemen
         getInstrument().add(inc, OtelHelper.fromMap(attributes));
     }
 
-    private static class Builder extends AbstractInstrument.Builder<LongCounter> {
+    private static class Builder extends AbstractInstrument.Builder<LongUpDownCounter> {
         private Builder(String name, String description, String unit) {
             super(name, description, unit);
         }
 
         @Override
-        public LongCounter build(Meter meter) {
-            return Objects.requireNonNull(meter).counterBuilder(name).setDescription(description).setUnit(unit).build();
+        public LongUpDownCounter build(Meter meter) {
+            LongUpDownCounter counter = Objects.requireNonNull(meter)
+                .upDownCounterBuilder(name)
+                .setDescription(description)
+                .setUnit(unit)
+                .build();
+            counter.add(0L);
+            return counter;
         }
     }
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -960,6 +961,21 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
+    public static List<TypedDataSupplier> datesAsStringLiteralsCases() {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        for (TypedDataSupplier dateCase : dateCases()) {
+            cases.add(
+                new TypedDataSupplier(
+                    "<" + dateCase.name + "as string>",
+                    () -> EsqlDataTypeConverter.dateTimeToString((long) dateCase.supplier.get()),
+                    DataTypes.KEYWORD,
+                    true
+                )
+            );
+        }
+        return cases;
+    }
+
     public static List<TypedDataSupplier> datePeriodCases() {
         return List.of(
             new TypedDataSupplier("<zero date period>", () -> Period.ZERO, EsqlDataTypes.DATE_PERIOD),
@@ -1318,9 +1334,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
      * exists because we can't generate random values from the test parameter generation functions, and instead need to return
      * suppliers which generate the random values at test execution time.
      */
-    public record TypedDataSupplier(String name, Supplier<Object> supplier, DataType type) {
+    public record TypedDataSupplier(String name, Supplier<Object> supplier, DataType type, boolean forceLiteral) {
+
+        public TypedDataSupplier(String name, Supplier<Object> supplier, DataType type) {
+            this(name, supplier, type, false);
+        }
+
         public TypedData get() {
-            return new TypedData(supplier.get(), type, name);
+            return new TypedData(supplier.get(), type, name, forceLiteral);
         }
     }
 

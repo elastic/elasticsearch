@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor;
@@ -120,6 +121,12 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         if ((rightType == UNSIGNED_LONG && (false == (leftType == UNSIGNED_LONG || leftType == DataTypes.NULL)))
             || (leftType == UNSIGNED_LONG && (false == (rightType == UNSIGNED_LONG || rightType == DataTypes.NULL)))) {
             return new TypeResolution(formatIncompatibleTypesMessage());
+        }
+
+        // String literals (and only literals) can be cast up to dates
+        if ((DataTypes.isDateTime(leftType) && DataTypes.isString(rightType) && right() instanceof Literal)
+            || (DataTypes.isDateTime(rightType) && DataTypes.isString(leftType) && left() instanceof Literal)) {
+            return TypeResolution.TYPE_RESOLVED;
         }
 
         if ((leftType.isNumeric() && rightType.isNumeric())

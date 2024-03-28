@@ -21,8 +21,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -34,8 +37,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import java.util.function.Predicate;
 
 /**
  * Base class for functions that converts a field into a function-specific type.
@@ -73,6 +75,27 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
         return isType(field(), factories()::containsKey, sourceText(), null, supportedTypesNames(factories().keySet()));
+    }
+
+    /**
+     * This alternative to the TypeResolution.isType method allows for a union type (collection of supported types).
+     */
+    public static TypeResolution isType(
+        Expression e,
+        Predicate<DataType> predicate,
+        String operationName,
+        TypeResolutions.ParamOrdinal paramOrd,
+        String... acceptedTypes
+    ) {
+        if (e instanceof FieldAttribute fe && fe.field() instanceof EsqlIndexResolver.MultiTypeField mtf) {
+            for (String typeName : mtf.getTypesToIndices().keySet()) {
+                DataType type = DataTypes.fromTypeName(typeName);
+                if (predicate.test(type)) {
+                    return TypeResolution.TYPE_RESOLVED;
+                }
+            }
+        }
+        return TypeResolutions.isType(e, predicate, operationName, paramOrd, acceptedTypes);
     }
 
     public static String supportedTypesNames(Set<DataType> types) {

@@ -16,10 +16,14 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeRegistry;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.DateEsField;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
@@ -33,6 +37,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -167,17 +172,23 @@ public class EsqlIndexResolver {
                 }
             }
             for (IndexFieldCapabilities fc : rest) {
-                if (type != typeRegistry.fromEs(fc.type(), fc.metricType())) {
-                    return conflictingTypes(name, fullName, fieldCapsResponse);
-                }
+                aggregatable &= fc.isAggregatable();
             }
             for (IndexFieldCapabilities fc : rest) {
-                aggregatable &= fc.isAggregatable();
+                if (type != typeRegistry.fromEs(fc.type(), fc.metricType())) {
+                    return conflictingTypes(name, fullName, aggregatable, fieldCapsResponse);
+                }
             }
         }
 
         // TODO I think we only care about unmapped fields if we're aggregating on them. do we even then?
+        if (type == UNSUPPORTED) {
+            return unsupported(name, first);
+        }
+        return createField(name, type, aggregatable, isAlias);
+    }
 
+    private EsField createField(String name, DataType type, boolean aggregatable, boolean isAlias) {
         if (type == TEXT) {
             return new TextEsField(name, new HashMap<>(), false, isAlias);
         }
@@ -190,9 +201,6 @@ public class EsqlIndexResolver {
         if (type == DATETIME) {
             return DateEsField.dateEsField(name, new HashMap<>(), aggregatable);
         }
-        if (type == UNSUPPORTED) {
-            return unsupported(name, first);
-        }
 
         return new EsField(name, type, new HashMap<>(), aggregatable, isAlias);
     }
@@ -202,7 +210,7 @@ public class EsqlIndexResolver {
         return new UnsupportedEsField(name, originalType);
     }
 
-    private EsField conflictingTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse) {
+    private EsField conflictingTypes(String name, String fullName, boolean aggregatable, FieldCapabilitiesResponse fieldCapsResponse) {
         Map<String, Set<String>> typesToIndices = new TreeMap<>();
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             IndexFieldCapabilities fc = ir.get().get(fullName);
@@ -214,23 +222,123 @@ public class EsqlIndexResolver {
                 typesToIndices.computeIfAbsent(type.esType(), _key -> new TreeSet<>()).add(ir.getIndexName());
             }
         }
-        StringBuilder errorMessage = new StringBuilder();
-        errorMessage.append("mapped as [");
-        errorMessage.append(typesToIndices.size());
-        errorMessage.append("] incompatible types: ");
-        boolean first = true;
-        for (Map.Entry<String, Set<String>> e : typesToIndices.entrySet()) {
-            if (first) {
-                first = false;
-            } else {
-                errorMessage.append(", ");
-            }
-            errorMessage.append("[");
-            errorMessage.append(e.getKey());
-            errorMessage.append("] in ");
-            errorMessage.append(e.getValue());
+        return new MultiTypeField(name, typesToIndices, aggregatable);
+    }
+
+    /**
+     * This is a modified InvalidMappedField that can handle multiple types.
+     * If the planner can plan this later into a union type, it will be valid, otherwise it remains invalid.
+     * TODO: Consider the alternative of not using inheritance here. But then we need to change the IndexResolution to handle this.
+     */
+    public static class MultiTypeField extends InvalidMappedField {
+        private final Map<String, Set<String>> typesToIndices;
+        private final boolean aggregatable;
+
+        MultiTypeField(String name, Map<String, Set<String>> typesToIndices, boolean aggregatable) {
+            super(name, makeErrorMessage(typesToIndices), new TreeMap<>());
+            this.typesToIndices = typesToIndices;
+            this.aggregatable = aggregatable;
         }
-        return new InvalidMappedField(name, errorMessage.toString());
+
+        private static String makeErrorMessage(Map<String, Set<String>> typesToIndices) {
+            StringBuilder errorMessage = new StringBuilder();
+            errorMessage.append("mapped as [");
+            errorMessage.append(typesToIndices.size());
+            errorMessage.append("] incompatible types: ");
+            boolean first = true;
+            for (Map.Entry<String, Set<String>> e : typesToIndices.entrySet()) {
+                if (first) {
+                    first = false;
+                } else {
+                    errorMessage.append(", ");
+                }
+                errorMessage.append("[");
+                errorMessage.append(e.getKey());
+                errorMessage.append("] in ");
+                errorMessage.append(e.getValue());
+            }
+            return errorMessage.toString();
+        }
+
+        public Map<String, Set<String>> getTypesToIndices() {
+            return typesToIndices;
+        }
+
+        public DataType typeFromIndex(String indexName) {
+            for (String typeName : typesToIndices.keySet()) {
+                if (typesToIndices.get(typeName).contains(indexName)) {
+                    return DataTypes.fromTypeName(typeName);
+                }
+            }
+            throw new IllegalStateException("No supported data type found for index [" + indexName + "]");
+        }
+
+        public Attribute makeTypedFieldAttribute(FieldAttribute fa, DataType specificType) {
+            return new FieldAttribute(
+                fa.source(),
+                fa.parent(),
+                fa.name(),
+                new EsField(this.getName(), specificType, Map.of(), aggregatable),
+                fa.qualifier(),
+                fa.nullable(),
+                fa.id(),
+                fa.synthetic()
+            );
+        }
+    }
+
+    public static class ResolvedMultiTypeField extends MultiTypeField {
+        private final Map<String, Expression> typesToConversionExpressions;
+        private DataType resolvedDataType = DataTypes.UNSUPPORTED;
+
+        public ResolvedMultiTypeField(MultiTypeField mtf, Map<String, Expression> typesToConversionExpressions) {
+            this(mtf.getName(), mtf.getTypesToIndices(), mtf.isAggregatable(), typesToConversionExpressions);
+        }
+
+        private ResolvedMultiTypeField(
+            String name,
+            Map<String, Set<String>> typesToIndices,
+            boolean aggregatable,
+            Map<String, Expression> typesToConversionExpressions
+        ) {
+            super(name, typesToIndices, aggregatable);
+            this.typesToConversionExpressions = typesToConversionExpressions;
+            for (Expression convertExpr : typesToConversionExpressions.values()) {
+                if (resolvedDataType == DataTypes.UNSUPPORTED) {
+                    resolvedDataType = convertExpr.dataType();
+                } else if (resolvedDataType != convertExpr.dataType()) {
+                    throw new IllegalArgumentException(
+                        "Resolved data type mismatch: " + resolvedDataType + " != " + convertExpr.dataType()
+                    );
+                }
+            }
+        }
+
+        @Override
+        public DataType getDataType() {
+            return resolvedDataType;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (super.equals(obj) == false) {
+                return false;
+            }
+            if (obj instanceof ResolvedMultiTypeField other) {
+                return typesToConversionExpressions.equals(other.typesToConversionExpressions)
+                    && resolvedDataType == other.resolvedDataType;
+            }
+            return false;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), typesToConversionExpressions, resolvedDataType);
+        }
+
+        public Map<String, Expression> getTypesToConversionExpressions() {
+            return typesToConversionExpressions;
+        }
     }
 
     private EsField conflictingMetricTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse) {

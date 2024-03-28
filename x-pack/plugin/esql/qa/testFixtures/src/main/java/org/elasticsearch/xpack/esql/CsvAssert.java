@@ -40,7 +40,6 @@ import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public final class CsvAssert {
@@ -187,7 +186,13 @@ public final class CsvAssert {
 
         for (int row = 0; row < expectedValues.size(); row++) {
             try {
-                assertTrue("Expected more data but no more entries found after [" + row + "]", row < actualValues.size());
+                if (row >= actualValues.size()) {
+                    if (dataFailures.isEmpty()) {
+                        fail("Expected more data but no more entries found after [" + row + "]");
+                    } else {
+                        dataFailure(dataFailures, "Expected more data but no more entries found after [" + row + "]\n");
+                    }
+                }
 
                 if (logger != null) {
                     logger.info(row(actualValues, row));
@@ -256,7 +261,11 @@ public final class CsvAssert {
     }
 
     private static void dataFailure(List<DataFailure> dataFailures) {
-        fail("Data mismatch:\n" + dataFailures.stream().map(f -> {
+        dataFailure(dataFailures, "");
+    }
+
+    private static void dataFailure(List<DataFailure> dataFailures, String prefixError) {
+        fail(prefixError + "Data mismatch:\n" + dataFailures.stream().map(f -> {
             Description description = new StringDescription();
             ListMatcher expected;
             if (f.expected instanceof List<?> e) {

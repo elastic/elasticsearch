@@ -7,20 +7,28 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.TimeSeriesSortedSourceOperatorFactory;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -34,24 +42,30 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.NestedHelper;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.FieldSort;
+import org.elasticsearch.xpack.esql.plan.physical.EsUnionTypesQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallelism;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
+import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -99,17 +113,65 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>();
         int docChannel = source.layout.get(sourceAttr.id()).channel();
         var docValuesAttrs = fieldExtractExec.docValuesAttributes();
+        var unionTypes = findUnionTypes(fieldExtractExec);
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
-            layout.append(attr);
-            DataType dataType = attr.dataType();
-            MappedFieldType.FieldExtractPreference fieldExtractPreference = PlannerUtils.extractPreference(docValuesAttrs.contains(attr));
-            ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
             String fieldName = attr.name();
-            boolean isSupported = EsqlDataTypes.isUnsupported(dataType);
-            IntFunction<BlockLoader> loader = s -> shardContexts.get(s).blockLoader(fieldName, isSupported, fieldExtractPreference);
-            fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, loader));
+            MappedFieldType.FieldExtractPreference fieldExtractPreference = PlannerUtils.extractPreference(docValuesAttrs.contains(attr));
+            layout.append(attr);
+            if (unionTypes != null && unionTypes.getName().equals(fieldName)) {
+                DataType dataType = unionTypes.getDataType();
+                ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
+                boolean isSupported = EsqlDataTypes.isUnsupported(dataType);
+                for (String typeName : unionTypes.getTypesToIndices().keySet()) {
+                    // TODO: plan a type conversion into the block loader from each source type to the target type
+                }
+                IntFunction<BlockLoader> loader = s -> getBlockLoaderFor(s, fieldName, isSupported, fieldExtractPreference, unionTypes);
+                fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, loader));
+            } else {
+                DataType dataType = attr.dataType();
+                ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
+                boolean isSupported = EsqlDataTypes.isUnsupported(dataType);
+                IntFunction<BlockLoader> loader = s -> shardContexts.get(s).blockLoader(fieldName, isSupported, fieldExtractPreference);
+                fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, loader));
+            }
         }
         return source.with(new ValuesSourceReaderOperator.Factory(fields, readers, docChannel), layout.build());
+    }
+
+    BlockLoader getBlockLoaderFor(
+        int shardId,
+        String fieldName,
+        boolean isSupported,
+        MappedFieldType.FieldExtractPreference fieldExtractPreference,
+        EsqlIndexResolver.ResolvedMultiTypeField unionTypes
+    ) {
+        DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
+        if (unionTypes != null && unionTypes.getName().equals(fieldName)) {
+            String indexName = shardContext.ctx.index().getName();
+            DataType type = unionTypes.typeFromIndex(indexName);
+            Expression conversion = unionTypes.getTypesToConversionExpressions().get(type.typeName());
+            // TODO get converter from unionTypes to type
+            var typeConvertingShardContext = new TypeConvertingShardContext(shardContext, (AbstractConvertFunction) conversion);
+            return typeConvertingShardContext.blockLoader(fieldName, isSupported, fieldExtractPreference);
+        }
+        return shardContext.blockLoader(fieldName, isSupported, fieldExtractPreference);
+    }
+
+    private EsqlIndexResolver.ResolvedMultiTypeField findUnionTypes(FieldExtractExec fieldExtractExec) {
+        Set<EsqlIndexResolver.ResolvedMultiTypeField> found = new HashSet<>();
+        fieldExtractExec.forEachDown(EsQueryExec.class, esQueryExec -> {
+            if (esQueryExec instanceof EsUnionTypesQueryExec esUnionTypesQueryExec) {
+                var multiTypeField = esUnionTypesQueryExec.multiTypeField();
+                if (multiTypeField != null) {
+                    for (Attribute attr : fieldExtractExec.attributesToExtract()) {
+                        if (attr instanceof FieldAttribute fa && fa.field().getName().equals(multiTypeField.getName())) {
+                            found.add(multiTypeField);
+                        }
+                    }
+                }
+            }
+        });
+        return found.isEmpty() ? null : found.stream().iterator().next();
     }
 
     public Function<org.elasticsearch.compute.lucene.ShardContext, Query> querySupplier(QueryBuilder builder) {
@@ -318,6 +380,132 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             }
 
             return loader;
+        }
+    }
+
+    public static class TypeConvertingShardContext extends DefaultShardContext {
+        private final AbstractConvertFunction convertFunction;
+
+        public TypeConvertingShardContext(DefaultShardContext delegate, AbstractConvertFunction convertFunction) {
+            super(delegate.index, delegate.ctx, delegate.aliasFilter);
+            this.convertFunction = convertFunction;
+        }
+
+        @Override
+        public BlockLoader blockLoader(
+            String name,
+            boolean asUnsupportedSource,
+            MappedFieldType.FieldExtractPreference fieldExtractPreference
+        ) {
+            return new TypeConvertingBlockLoader(super.blockLoader(name, asUnsupportedSource, fieldExtractPreference), convertFunction);
+        }
+    }
+
+    static class TypeConvertingBlockLoader implements BlockLoader {
+        protected final BlockLoader delegate;
+        DriverContext driverContext;
+        private final AbstractConvertFunction convertFunction;
+        private EvalOperator.ExpressionEvaluator convertEvaluator;
+
+        protected TypeConvertingBlockLoader(BlockLoader delegate, AbstractConvertFunction convertFunction) {
+            this.delegate = delegate;
+            this.convertFunction = convertFunction;
+            this.driverContext = new DriverContext(
+                BigArrays.NON_RECYCLING_INSTANCE,
+                new org.elasticsearch.compute.data.BlockFactory(
+                    new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                    BigArrays.NON_RECYCLING_INSTANCE
+                )
+            );
+            this.convertEvaluator = convertFunction.toEvaluator(e -> driverContext -> new EvalOperator.ExpressionEvaluator() {
+                @Override
+                public org.elasticsearch.compute.data.Block eval(Page page) {
+                    return page.getBlock(0);
+                }
+
+                @Override
+                public void close() {}
+            }).get(driverContext);
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return delegate.builder(factory, expectedCount);
+        }
+
+        @Override
+        public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
+            ColumnAtATimeReader reader = delegate.columnAtATimeReader(context);
+            if (reader == null) {
+                return null;
+            }
+            return new ColumnAtATimeReader() {
+                @Override
+                public Block read(BlockFactory factory, Docs docs) throws IOException {
+                    Block block = reader.read(factory, docs);
+                    Page page = new Page((org.elasticsearch.compute.data.Block) block);
+                    org.elasticsearch.compute.data.Block converted = convertEvaluator.eval(page);
+                    return converted;
+                }
+
+                @Override
+                public boolean canReuse(int startingDocID) {
+                    return reader.canReuse(startingDocID);
+                }
+
+                @Override
+                public String toString() {
+                    return "Delegating[to=" + delegatingTo() + ", impl=" + reader + "]";
+                }
+            };
+        }
+
+        @Override
+        public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
+            RowStrideReader reader = delegate.rowStrideReader(context);
+            if (reader == null) {
+                return null;
+            }
+            return new RowStrideReader() {
+                @Override
+                public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+                    reader.read(docId, storedFields, builder);
+                }
+
+                @Override
+                public boolean canReuse(int startingDocID) {
+                    return reader.canReuse(startingDocID);
+                }
+
+                @Override
+                public String toString() {
+                    return "Delegating[to=" + delegatingTo() + ", impl=" + reader + "]";
+                }
+            };
+        }
+
+        @Override
+        public StoredFieldsSpec rowStrideStoredFieldSpec() {
+            return delegate.rowStrideStoredFieldSpec();
+        }
+
+        @Override
+        public boolean supportsOrdinals() {
+            return delegate.supportsOrdinals();
+        }
+
+        @Override
+        public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
+            return delegate.ordinals(context);
+        }
+
+        protected String delegatingTo() {
+            return delegate.toString();
+        }
+
+        @Override
+        public final String toString() {
+            return "Delegating[to=" + delegatingTo() + ", impl=" + delegate + "]";
         }
     }
 }

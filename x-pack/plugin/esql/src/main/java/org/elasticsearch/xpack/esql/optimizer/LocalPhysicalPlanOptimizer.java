@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EsTimeseriesQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsUnionTypesQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.EsqlTranslatorHandler;
+import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -144,8 +146,29 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             if (timeSeriesMode) {
                 return new EsTimeseriesQueryExec(plan.source(), plan.index(), plan.query());
             } else {
-                return new EsQueryExec(plan.source(), plan.index(), plan.query());
+                var unionTypes = findUnionTypes(plan);
+                if (unionTypes == null) {
+                    return new EsQueryExec(plan.source(), plan.index(), plan.query());
+                } else {
+                    return new EsUnionTypesQueryExec(plan.source(), plan.index(), plan.query(), unionTypes);
+                }
             }
+        }
+
+        static EsqlIndexResolver.ResolvedMultiTypeField findUnionTypes(EsSourceExec p) {
+            HashSet<EsqlIndexResolver.ResolvedMultiTypeField> found = new HashSet<>();
+            for (Attribute at : p.output()) {
+                if (at instanceof FieldAttribute fa && fa.field() instanceof EsqlIndexResolver.ResolvedMultiTypeField mft) {
+                    found.add(mft);
+                }
+            }
+            if (found.size() > 1) {
+                throw new IllegalStateException("Multiple union types found in the plan");
+            }
+            if (found.isEmpty()) {
+                return null;
+            }
+            return found.iterator().next();
         }
     }
 

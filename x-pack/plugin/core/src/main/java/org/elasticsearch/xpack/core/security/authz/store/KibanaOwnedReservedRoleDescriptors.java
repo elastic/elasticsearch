@@ -198,7 +198,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 // Fleet publishes Agent metrics in kibana task runner
                 RoleDescriptor.IndicesPrivileges.builder().indices("metrics-fleet_server*").privileges("all").build(),
                 // Fleet reads output health from this index pattern
-                RoleDescriptor.IndicesPrivileges.builder().indices("logs-fleet_server*").privileges("read").build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("logs-fleet_server*").privileges("read", "delete_index").build(),
                 // Legacy "Alerts as data" used in Security Solution.
                 // Kibana user creates these indices; reads / writes to them.
                 RoleDescriptor.IndicesPrivileges.builder().indices(ReservedRolesStore.ALERTS_LEGACY_INDEX).privileges("all").build(),

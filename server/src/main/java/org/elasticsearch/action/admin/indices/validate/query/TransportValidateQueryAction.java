@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.validate.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -38,6 +39,8 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -45,8 +48,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 public class TransportValidateQueryAction extends TransportBroadcastAction<
     ValidateQueryRequest,
@@ -55,6 +60,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
     ShardValidateQueryResponse> {
 
     private final SearchService searchService;
+    private final RemoteClusterService remoteClusterService;
 
     @Inject
     public TransportValidateQueryAction(
@@ -75,12 +81,25 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
             transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
         );
         this.searchService = searchService;
+        this.remoteClusterService = transportService.getRemoteClusterService();
     }
 
     @Override
     protected void doExecute(Task task, ValidateQueryRequest request, ActionListener<ValidateQueryResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
         LongSupplier timeProvider = () -> request.nowInMillis;
+
+        // Get local indices lazily since it will not always be necessary
+        final AtomicReference<OriginalIndices> localIndices = new AtomicReference<>();
+        Supplier<OriginalIndices> localIndicesSupplier = () -> {
+            localIndices.compareAndSet(
+                null,
+                remoteClusterService.groupIndices(request.indicesOptions(), request.indices())
+                    .getOrDefault(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, OriginalIndices.NONE)
+            );
+            return localIndices.get();
+        };
+
         ActionListener<org.elasticsearch.index.query.QueryBuilder> rewriteListener = ActionListener.wrap(rewrittenQuery -> {
             request.query(rewrittenQuery);
             super.doExecute(task, request, listener);
@@ -107,7 +126,11 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         if (request.query() == null) {
             rewriteListener.onResponse(request.query());
         } else {
-            Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(timeProvider, request), rewriteListener);
+            Rewriteable.rewriteAndFetch(
+                request.query(),
+                searchService.getRewriteContext(timeProvider, localIndicesSupplier),
+                rewriteListener
+            );
         }
     }
 

@@ -18,7 +18,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
@@ -28,7 +28,6 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.RefCountAwareThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -1726,26 +1725,28 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, IndicesRequest indicesRequest) {
-        Supplier<Map<String, IndexMetadata>> indexMetadataMapSupplier = () -> {
-            // Skip unavailable indices
-            IndicesOptions.Builder indicesOptionsBuilder = IndicesOptions.builder(indicesRequest.indicesOptions())
-                .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(true));
-            Index[] indices = indexNameExpressionResolver.concreteIndices(
-                clusterService.state(),
-                indicesOptionsBuilder.build(),
-                true,
-                indicesRequest.indices()
-            );
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, Supplier<OriginalIndices> localIndicesSupplier) {
+        Objects.requireNonNull(localIndicesSupplier);
 
+        Supplier<Map<String, IndexMetadata>> indexMetadataMapSupplier = () -> {
             Map<String, IndexMetadata> indexMetadataMap = new HashMap<>();
-            for (Index index : indices) {
-                IndexMetadata indexMetadata = clusterService.state().metadata().index(index);
+            OriginalIndices localIndices = localIndicesSupplier.get();
+            if (localIndices == null) {
+                return indexMetadataMap;
+            }
+
+            String[] localIndexNames = localIndices.indices();
+            if (localIndexNames == null) {
+                return indexMetadataMap;
+            }
+
+            for (String indexName : localIndexNames) {
+                IndexMetadata indexMetadata = clusterService.state().metadata().index(indexName);
                 if (indexMetadata == null) {
-                    throw new IndexNotFoundException(index);
+                    throw new IndexNotFoundException(indexName);
                 }
 
-                indexMetadataMap.put(index.getName(), indexMetadata);
+                indexMetadataMap.put(indexName, indexMetadata);
             }
 
             return indexMetadataMap;

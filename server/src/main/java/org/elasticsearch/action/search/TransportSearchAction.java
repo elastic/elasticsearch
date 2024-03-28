@@ -322,22 +322,23 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             relativeStartNanos,
             System::nanoTime
         );
+
+        final SearchContextId searchContext;
+        final Map<String, OriginalIndices> remoteClusterIndices; // key to map is clusterAlias
+        if (original.pointInTimeBuilder() != null) {
+            searchContext = original.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry);
+            remoteClusterIndices = getIndicesFromSearchContexts(searchContext, original.indicesOptions());
+        } else {
+            searchContext = null;
+            remoteClusterIndices = remoteClusterService.groupIndices(original.indicesOptions(), original.indices());
+        }
+        final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+
         ActionListener<SearchRequest> rewriteListener = listener.delegateFailureAndWrap((delegate, rewritten) -> {
-            final SearchContextId searchContext;
-            // key to map is clusterAlias
-            final Map<String, OriginalIndices> remoteClusterIndices;
             if (ccsCheckCompatibility) {
                 checkCCSVersionCompatibility(rewritten);
             }
 
-            if (rewritten.pointInTimeBuilder() != null) {
-                searchContext = rewritten.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry);
-                remoteClusterIndices = getIndicesFromSearchContexts(searchContext, rewritten.indicesOptions());
-            } else {
-                searchContext = null;
-                remoteClusterIndices = remoteClusterService.groupIndices(rewritten.indicesOptions(), rewritten.indices());
-            }
-            OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
             final ClusterState clusterState = clusterService.state();
             if (remoteClusterIndices.isEmpty()) {
                 executeLocalSearch(
@@ -453,9 +454,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
             }
         });
+
         Rewriteable.rewriteAndFetch(
             original,
-            searchService.getRewriteContext(timeProvider::absoluteStartMillis, original),
+            searchService.getRewriteContext(timeProvider::absoluteStartMillis, () -> localIndices),
             rewriteListener
         );
     }

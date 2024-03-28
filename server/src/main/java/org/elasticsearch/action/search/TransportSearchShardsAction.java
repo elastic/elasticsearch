@@ -101,19 +101,21 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
             relativeStartNanos,
             System::nanoTime
         );
+
+        final Map<String, OriginalIndices> groupedIndices = remoteClusterService.groupIndices(
+            original.indicesOptions(),
+            original.indices()
+        );
+        final OriginalIndices originalIndices = groupedIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+        if (groupedIndices.isEmpty() == false) {
+            throw new UnsupportedOperationException("search_shards API doesn't support remote indices " + original);
+        }
+
         ClusterState clusterState = clusterService.state();
         Rewriteable.rewriteAndFetch(
             original,
-            searchService.getRewriteContext(timeProvider::absoluteStartMillis, original),
+            searchService.getRewriteContext(timeProvider::absoluteStartMillis, () -> originalIndices),
             listener.delegateFailureAndWrap((delegate, searchRequest) -> {
-                Map<String, OriginalIndices> groupedIndices = remoteClusterService.groupIndices(
-                    searchRequest.indicesOptions(),
-                    searchRequest.indices()
-                );
-                OriginalIndices originalIndices = groupedIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                if (groupedIndices.isEmpty() == false) {
-                    throw new UnsupportedOperationException("search_shards API doesn't support remote indices " + searchRequest);
-                }
                 // TODO: Move a share stuff out of the TransportSearchAction.
                 Index[] concreteIndices = transportSearchAction.resolveLocalIndices(originalIndices, clusterState, timeProvider);
                 final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, searchRequest.indices());

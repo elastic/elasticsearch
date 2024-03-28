@@ -100,7 +100,9 @@ public class TransportGetComposableIndexTemplateAction extends TransportMasterNo
                 )
             );
         } else {
-            listener.onResponse(new GetComposableIndexTemplateAction.Response(results));
+            listener.onResponse(
+                new GetComposableIndexTemplateAction.Response(results, DataStreamGlobalRetention.getFromClusterState(state))
+            );
         }
     }
 }

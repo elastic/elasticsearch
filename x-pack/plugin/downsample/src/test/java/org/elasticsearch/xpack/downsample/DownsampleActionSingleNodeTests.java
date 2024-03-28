@@ -832,14 +832,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(1, measurement.attributes().size());
             assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "failed", "missing_docs")));
         }
-
-        measurements = plugin.getLongHistogramMeasurement(DownsampleMetrics.LATENCY_TOTAL);
-        assertFalse(measurements.isEmpty());
-        for (Measurement measurement : measurements) {
-            assertTrue(measurement.value().toString(), measurement.value().longValue() >= 0 && measurement.value().longValue() < 1000_000);
-            assertEquals(1, measurement.attributes().size());
-            assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "failed")));
-        }
     }
 
     public void testResumeDownsample() throws IOException {

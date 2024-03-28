@@ -17,12 +17,12 @@ import static org.hamcrest.Matchers.is;
 public class EsqlVersionTests extends ESTestCase {
     public void testVersionString() {
         assertThat(EsqlVersion.NIGHTLY.toString(), equalTo("nightly.😴"));
-        assertThat(EsqlVersion.PARTY_POPPER.toString(), equalTo("2024.04.🎉"));
+        assertThat(EsqlVersion.PARTY_POPPER.toString(), equalTo("2024.04.01.🎉"));
     }
 
     public void testVersionId() {
         assertThat(EsqlVersion.NIGHTLY.id(), equalTo(Integer.MAX_VALUE));
-        assertThat(EsqlVersion.PARTY_POPPER.id(), equalTo(202404));
+        assertThat(EsqlVersion.PARTY_POPPER.id(), equalTo(20240401));
     }
 
     public void testVersionStringNoEmoji() {

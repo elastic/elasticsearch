@@ -78,6 +78,11 @@ public class CsvTestsDataLoader {
         "mapping-airport_city_boundaries.json",
         "airport_city_boundaries.csv"
     );
+    private static final TestsDataset CARTESIAN_MULTIPOLYGONS = new TestsDataset(
+        "cartesian_multipolygons",
+        "mapping-cartesian_multipolygons.json",
+        "cartesian_multipolygons.csv"
+    );
 
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -96,7 +101,8 @@ public class CsvTestsDataLoader {
         Map.entry(AIRPORTS_WEB.indexName, AIRPORTS_WEB),
         Map.entry(COUNTRIES_BBOX.indexName, COUNTRIES_BBOX),
         Map.entry(COUNTRIES_BBOX_WEB.indexName, COUNTRIES_BBOX_WEB),
-        Map.entry(AIRPORT_CITY_BOUNDARIES.indexName, AIRPORT_CITY_BOUNDARIES)
+        Map.entry(AIRPORT_CITY_BOUNDARIES.indexName, AIRPORT_CITY_BOUNDARIES),
+        Map.entry(CARTESIAN_MULTIPOLYGONS.indexName, CARTESIAN_MULTIPOLYGONS)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");

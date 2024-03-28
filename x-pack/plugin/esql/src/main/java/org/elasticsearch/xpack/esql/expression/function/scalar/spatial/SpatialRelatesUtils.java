@@ -50,6 +50,16 @@ public class SpatialRelatesUtils {
         }
     }
 
+    static Component2D[] asLuceneComponent2Ds(SpatialRelatesFunction.SpatialCrsType crsType, Geometry geometry) {
+        if (crsType == SpatialRelatesFunction.SpatialCrsType.GEO) {
+            var luceneGeometries = LuceneGeometriesUtils.toLatLonGeometry(geometry, true, t -> {});
+            return LuceneComponent2DUtils.createLatLonComponents(luceneGeometries);
+        } else {
+            var luceneGeometries = LuceneGeometriesUtils.toXYGeometry(geometry, t -> {});
+            return LuceneComponent2DUtils.createXYComponents(luceneGeometries);
+        }
+    }
+
     /**
      * This function is used to convert a spatial constant to a doc-values byte array.
      * When both left and right sides are constants, we convert the left to a doc-values byte array and the right to a Component2D.

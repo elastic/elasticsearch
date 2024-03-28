@@ -1,13 +1,13 @@
 [discrete]
-[[esql-st_intersects]]
-=== `ST_INTERSECTS`
+[[esql-st_within]]
+=== `ST_WITHIN`
 
 experimental::[]
 
 *Syntax*
 
 [.text-center]
-image::esql/functions/signature/st_intersects.svg[Embedded,opts=inline]
+image::esql/functions/signature/st_within.svg[Embedded,opts=inline]
 
 *Parameters*
 
@@ -19,12 +19,8 @@ Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_sha
 The second parameter must also have the same coordinate system as the first.
 This means it is not possible to combine `geo_*` and `cartesian_*` parameters.
 
-*Description*
+include::description/st_within.asciidoc[]
+This is the inverse of the `<<esql-st_contains,ST_CONTAINS>>` function.
 
-Returns true if two geometries intersect.
-They intersect if they have any point in common, including their interior points
-(points along lines or within polygons).
-In mathematical terms: ST_Intersects(A, B) ⇔ A ⋂ B ≠ ∅
-
-include::types/st_intersects.asciidoc[]
-include::examples/st_intersects.asciidoc[]
+include::types/st_within.asciidoc[]
+include::examples/st_within.asciidoc[]

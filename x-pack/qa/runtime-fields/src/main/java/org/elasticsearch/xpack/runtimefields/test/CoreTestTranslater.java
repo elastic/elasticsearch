@@ -309,6 +309,10 @@ public abstract class CoreTestTranslater {
                 if (RUNTIME_TYPES.contains(type) == false) {
                     continue;
                 }
+                if (propertyMap.get("meta") instanceof Map<?, ?> meta && meta.containsKey("unit")) {
+                    // units have an effect on query behavior that's currently not supported by runtime fields
+                    continue;
+                }
                 Map<String, Object> runtimeConfig = new HashMap<>(propertyMap);
                 runtimeConfig.put("type", type);
                 runtimeConfig.remove("store");

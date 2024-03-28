@@ -331,7 +331,7 @@ public class JwtRealmSettingsTests extends JwtTestCase {
                 assertThat(
                     exception.getMessage(),
                     equalTo(
-                        "failed to parse setting ["
+                        "failed to parse ["
                             + settingKey
                             + "] with value ["
                             + rejectedValue

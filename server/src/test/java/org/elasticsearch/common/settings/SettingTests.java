@@ -117,7 +117,7 @@ public class SettingTests extends ESTestCase {
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
-        final String expected = "failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized";
+        final String expected = "failed to parse [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized";
         assertThat(cause, hasToString(containsString(expected)));
         assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "12b").build(), Settings.EMPTY));
         assertThat(value.get(), equalTo(ByteSizeValue.ofBytes(12)));
@@ -158,8 +158,7 @@ public class SettingTests extends ESTestCase {
             assertNotNull(ex.getCause());
             assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
             final IllegalArgumentException cause = (IllegalArgumentException) ex.getCause();
-            final String expected =
-                "failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized";
+            final String expected = "failed to parse [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized";
             assertThat(cause, hasToString(containsString(expected)));
         }
 

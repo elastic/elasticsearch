@@ -658,8 +658,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "failed to parse setting [date_histo.config.interval] with value "
-                    + "[minute] as a time value: unit is missing or unrecognized"
+                "failed to parse [date_histo.config.interval] with value " + "[minute] as a time value: unit is missing or unrecognized"
             )
         );
 

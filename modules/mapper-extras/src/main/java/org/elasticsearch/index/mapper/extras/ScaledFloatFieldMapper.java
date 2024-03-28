@@ -16,6 +16,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.UnitOfMeasurement;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -178,6 +179,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             return metric;
         }
 
+        public Builder meta(Map<String, String> meta) {
+            this.meta.setValue(meta);
+            return this;
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { indexed, hasDocValues, stored, ignoreMalformed, meta, scalingFactor, coerce, nullValue, metric };
@@ -208,6 +214,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         private final Double nullValue;
         private final TimeSeriesParams.MetricType metricType;
         private final IndexMode indexMode;
+        private final UnitOfMeasurement unit;
 
         public ScaledFloatFieldType(
             String name,
@@ -225,6 +232,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             this.nullValue = nullValue;
             this.metricType = metricType;
             this.indexMode = indexMode;
+            this.unit = UnitOfMeasurement.of(meta.get("unit"));
         }
 
         public ScaledFloatFieldType(String name, double scalingFactor) {
@@ -257,6 +265,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
+            value = unit.tryConvert(value, name());
             long scaledValue = Math.round(scale(value));
             return NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue, isIndexed());
         }
@@ -264,6 +273,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexedNorDocValuesFallback(context);
+            values = values.stream().map(v -> unit.tryConvert(v, name())).toList();
             if (isIndexed()) {
                 List<Long> scaledValues = new ArrayList<>(values.size());
                 for (Object value : values) {
@@ -287,6 +297,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             failIfNotIndexedNorDocValuesFallback(context);
             Long lo = null;
             if (lowerTerm != null) {
+                lowerTerm = unit.tryConvert(lowerTerm, name());
                 double dValue = scale(lowerTerm);
                 if (includeLower == false) {
                     dValue = Math.nextUp(dValue);
@@ -295,6 +306,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             }
             Long hi = null;
             if (upperTerm != null) {
+                upperTerm = unit.tryConvert(upperTerm, name());
                 double dValue = scale(upperTerm);
                 if (includeUpper == false) {
                     dValue = Math.nextDown(dValue);

@@ -132,7 +132,7 @@ public class TimeValueTests extends ESTestCase {
     }
 
     private String randomTimeUnit() {
-        return randomFrom("nanos", "micros", "ms", "s", "m", "h", "d");
+        return randomFrom("nanos", "ns", "micros", "us", "ms", "s", "m", "h", "d");
     }
 
     public void testFailOnUnknownUnits() {
@@ -216,7 +216,7 @@ public class TimeValueTests extends ESTestCase {
         assertThat(
             ex.getMessage(),
             equalTo(
-                "failed to parse setting ["
+                "failed to parse ["
                     + settingName
                     + "] with value ["
                     + negativeTimeValueString

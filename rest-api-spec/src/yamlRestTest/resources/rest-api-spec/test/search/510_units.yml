@@ -1,0 +1,170 @@
+setup:
+  - skip:
+      version: " - 8.12.99"
+      reason: Support for units in queries has been added in 8.13
+---
+"Time units":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              duration_us:
+                type: long
+                meta:
+                  unit: us
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test_index", "_id": "1"}}'
+          - '{"duration_us": 1000}'
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+        body:
+          query:
+            term:
+              duration_us: 1ms
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+        body:
+          query:
+            range:
+              duration_us:
+                gte: 1us
+                lte: 1ms
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+        body:
+          query:
+            range:
+              duration_us:
+                gte: 1us
+                lt: 1ms
+  - match: { hits.total: 0 }
+
+---
+"Byte units":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              request_size:
+                type: long
+                meta:
+                  unit: By
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test_index", "_id": "1"}}'
+          - '{"request_size": 1024}'
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+        body:
+          query:
+            term:
+              request_size: 1kb
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+        body:
+          query:
+            range:
+              request_size:
+                gte: 1b
+                lte: 1kb
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+        body:
+          query:
+            range:
+              request_size:
+                gte: 1b
+                lt: 1kb
+  - match: { hits.total: 0 }
+
+
+---
+"Percent units":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              cpu_utilization:
+                type: double
+                meta:
+                  unit: "%"
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test_index", "_id": "1"}}'
+          - '{"cpu_utilization": 0.42}'
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+        body:
+          query:
+            term:
+              cpu_utilization: "42%"
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+        body:
+          query:
+            range:
+              cpu_utilization:
+                gte: "1%"
+                lte: "42%"
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+        body:
+          query:
+            range:
+              cpu_utilization:
+                gte: "1%"
+                lt: "42%"
+  - match: { hits.total: 0 }
+

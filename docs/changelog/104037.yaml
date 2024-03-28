@@ -1,0 +1,7 @@
+pr: 104037
+summary: "Add support for time, byte, and percent units in `NumberFieldMapper`"
+area: "Mapping"
+type: feature
+issues:
+ - 65432
+ - 31244

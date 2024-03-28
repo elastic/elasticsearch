@@ -520,7 +520,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
-        final String causeExpected = "failed to parse setting ["
+        final String causeExpected = "failed to parse ["
             + key
             + "] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized";
         assertThat(cause, hasToString(containsString(causeExpected)));

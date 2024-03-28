@@ -8,15 +8,21 @@
 package org.elasticsearch.xpack.unsignedlong;
 
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.UnsignedLongFieldType;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.BIGINTEGER_2_64_MINUS_ONE;
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.UnsignedLongFieldType.parseLowerRangeTerm;
@@ -95,6 +101,31 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
         assertEquals(new MatchNoDocsQuery(), ft.rangeQuery(9223372036854775807L, 9223372036854775806L, true, true, null));
 
         expectThrows(NumberFormatException.class, () -> ft.rangeQuery("18incorrectnumber", "18incorrectnumber", true, true, null));
+    }
+
+    public void testTermQueryTimeUnitConversion() {
+        UnsignedLongFieldType ft = fieldMapperWithUnit("us").fieldType();
+        assertEquals(
+            LongPoint.newExactQuery("field", toUnsignedLong(TimeUnit.MILLISECONDS.toMicros(42))),
+            ft.termQuery("42ms", MOCK_CONTEXT)
+        );
+    }
+
+    public void testTermsQueryTimeUnitConversion() {
+        UnsignedLongFieldType ft = fieldMapperWithUnit("us").fieldType();
+        assertEquals(
+            LongPoint.newSetQuery("field", toUnsignedLong(1), toUnsignedLong(2), toUnsignedLong(3), toUnsignedLong(4000)),
+            ft.termsQuery(Arrays.asList(1, "2", "3us", "4ms"), MOCK_CONTEXT)
+        );
+    }
+
+    public void testRangeQueryUnitConversion() {
+        UnsignedLongFieldType ft = fieldMapperWithUnit("us").fieldType();
+        Query expected = new IndexOrDocValuesQuery(
+            LongPoint.newRangeQuery("field", toUnsignedLong(1), toUnsignedLong(3000)),
+            SortedNumericDocValuesField.newSlowRangeQuery("field", toUnsignedLong(1), toUnsignedLong(3000))
+        );
+        assertEquals(expected, ft.rangeQuery("1us", "3ms", true, true, null, null, null, MOCK_CONTEXT));
     }
 
     public void testParseTermForTermQuery() {
@@ -179,5 +210,15 @@ public class UnsignedLongFieldTypeTests extends FieldTypeTestCase {
             .build(MapperBuilderContext.root(false, false))
             .fieldType();
         assertEquals(List.of(BIGINTEGER_2_64_MINUS_ONE), fetchSourceValue(nullValueMapper, ""));
+    }
+
+    private static UnsignedLongFieldMapper fieldMapperWithUnit(String unit) {
+        return new UnsignedLongFieldMapper.Builder("field", false, null).meta(Map.of("unit", unit))
+            .build(MapperBuilderContext.root(false, false));
+    }
+
+    private long toUnsignedLong(long l) {
+        assert l >= 0;
+        return Long.MIN_VALUE + l;
     }
 }

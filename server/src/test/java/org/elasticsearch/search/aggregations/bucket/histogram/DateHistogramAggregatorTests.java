@@ -703,10 +703,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         );
         assertThat(
             e.getMessage(),
-            equalTo(
-                "failed to parse setting [date_histogram.fixedInterval] with value [1w] as a time value: "
-                    + "unit is missing or unrecognized"
-            )
+            equalTo("failed to parse [date_histogram.fixedInterval] with value [1w] as a time value: " + "unit is missing or unrecognized")
         );
     }
 
@@ -1108,8 +1105,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         assertThat(
             e.getMessage(),
             equalTo(
-                "failed to parse setting [date_histogram.fixedInterval] with value [foobar] as a time value:"
-                    + " unit is missing or unrecognized"
+                "failed to parse [date_histogram.fixedInterval] with value [foobar] as a time value:" + " unit is missing or unrecognized"
             )
         );
     }

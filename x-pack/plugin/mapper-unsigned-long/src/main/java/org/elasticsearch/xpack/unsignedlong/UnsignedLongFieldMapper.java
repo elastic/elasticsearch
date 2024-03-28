@@ -19,6 +19,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.UnitOfMeasurement;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -180,6 +181,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             return metric;
         }
 
+        public Builder meta(Map<String, String> meta) {
+            this.meta.setValue(meta);
+            return this;
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { indexed, hasDocValues, stored, ignoreMalformed, nullValue, meta, dimension, metric };
@@ -221,6 +227,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         private final boolean isDimension;
         private final MetricType metricType;
         private final IndexMode indexMode;
+        private final UnitOfMeasurement unit;
 
         public UnsignedLongFieldType(
             String name,
@@ -238,6 +245,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             this.isDimension = isDimension;
             this.metricType = metricType;
             this.indexMode = indexMode;
+            this.unit = UnitOfMeasurement.of(meta.get("unit"));
         }
 
         public UnsignedLongFieldType(String name) {
@@ -257,6 +265,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexed();
+            value = unit.tryConvert(value, name());
             Long longValue = parseTerm(value);
             if (longValue == null) {
                 return new MatchNoDocsQuery();
@@ -267,6 +276,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         @Override
         public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexed();
+            values = values.stream().map(v -> unit.tryConvert(v, name())).toList();
             long[] lvalues = new long[values.size()];
             int upTo = 0;
             for (Object value : values) {
@@ -296,11 +306,13 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             long l = Long.MIN_VALUE;
             long u = Long.MAX_VALUE;
             if (lowerTerm != null) {
+                lowerTerm = unit.tryConvert(lowerTerm, name());
                 Long lt = parseLowerRangeTerm(lowerTerm, includeLower);
                 if (lt == null) return new MatchNoDocsQuery();
                 l = unsignedToSortableSignedLong(lt);
             }
             if (upperTerm != null) {
+                upperTerm = unit.tryConvert(upperTerm, name());
                 Long ut = parseUpperRangeTerm(upperTerm, includeUpper);
                 if (ut == null) return new MatchNoDocsQuery();
                 u = unsignedToSortableSignedLong(ut);

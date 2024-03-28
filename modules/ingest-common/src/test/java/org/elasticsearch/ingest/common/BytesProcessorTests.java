@@ -51,7 +51,7 @@ public class BytesProcessorTests extends AbstractStringProcessorTestCase<Long> {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "8912pb");
         Processor processor = newProcessor(fieldName, randomBoolean(), fieldName);
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> processor.execute(ingestDocument));
-        assertThat(exception.getMessage(), equalTo("failed to parse setting [Ingest Field] with value [8912pb] as a size in bytes"));
+        assertThat(exception.getMessage(), equalTo("failed to parse [Ingest Field] with value [8912pb] as a size in bytes"));
         assertThat(exception.getCause().getMessage(), containsString("Values greater than 9223372036854775807 bytes are not supported"));
     }
 
@@ -60,7 +60,7 @@ public class BytesProcessorTests extends AbstractStringProcessorTestCase<Long> {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "junk");
         Processor processor = newProcessor(fieldName, randomBoolean(), fieldName);
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> processor.execute(ingestDocument));
-        assertThat(exception.getMessage(), equalTo("failed to parse setting [Ingest Field] with value [junk]"));
+        assertThat(exception.getMessage(), equalTo("failed to parse [Ingest Field] with value [junk]"));
     }
 
     public void testMissingUnits() {
@@ -78,7 +78,7 @@ public class BytesProcessorTests extends AbstractStringProcessorTestCase<Long> {
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, expectedResultType()), equalTo(1126L));
         assertWarnings(
-            "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [1.1kb] found for setting " + "[Ingest Field]"
+            "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [1.1kb] found for " + "[Ingest Field]"
         );
     }
 }

@@ -400,13 +400,13 @@ Whenever durations need to be specified, e.g. for a `timeout` parameter, the dur
 the unit, like `2d` for 2 days. The supported units are:
 
 [horizontal]
-`d`::       Days
-`h`::       Hours
-`m`::       Minutes
-`s`::       Seconds
-`ms`::      Milliseconds
-`micros`::  Microseconds
-`nanos`::   Nanoseconds
+Days::         `d`
+Hours::        `h`
+Minutes::      `m`
+Seconds::      `s`
+Milliseconds:: `ms`
+Microseconds:: `us` or `micros`
+Nanoseconds::  `ns` or `nanos`
 
 [[size-units]]
 [discrete]

@@ -716,7 +716,7 @@ public class IndexSettingsTests extends ESTestCase {
             (e, ex) -> {
                 assertThat(e.getKey(), equalTo("index.refresh_interval"));
                 assertThat(e.getValue(), equalTo("-200"));
-                assertThat(ex, hasToString(containsString("failed to parse setting [index.refresh_interval] with value [-200]")));
+                assertThat(ex, hasToString(containsString("failed to parse [index.refresh_interval] with value [-200]")));
             }
         );
         assertEquals("-200", settings.get("archived.index.refresh_interval"));

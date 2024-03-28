@@ -15,6 +15,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -34,6 +35,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -79,6 +82,28 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             "Cannot search on field [scaled_float] since it is not indexed and 'search.allow_expensive_queries' is set to false.",
             e2.getMessage()
         );
+    }
+
+    public void testTermQueryTimeUnitConversion() {
+        ScaledFloatFieldMapper.ScaledFloatFieldType ft = fieldMapperWithUnit("us", 100).fieldType();
+        assertEquals(LongPoint.newExactQuery("field", TimeUnit.MILLISECONDS.toMicros(42) * 100), ft.termQuery("42ms", MOCK_CONTEXT));
+    }
+
+    public void testTermsQueryTimeUnitConversion() {
+        ScaledFloatFieldMapper.ScaledFloatFieldType ft = fieldMapperWithUnit("us", 100).fieldType();
+        assertEquals(
+            LongPoint.newSetQuery("field", 100, 200, 300, 400_000),
+            ft.termsQuery(Arrays.asList(1, "2", "3us", "4ms"), MOCK_CONTEXT)
+        );
+    }
+
+    public void testRangeQueryUnitConversion() {
+        ScaledFloatFieldMapper.ScaledFloatFieldType ft = fieldMapperWithUnit("us", 100).fieldType();
+        Query expected = new IndexOrDocValuesQuery(
+            LongPoint.newRangeQuery("field", 100, 300000),
+            SortedNumericDocValuesField.newSlowRangeQuery("field", 100, 300000)
+        );
+        assertEquals(expected, ft.rangeQuery("1us", "3ms", true, true, null, null, null, MOCK_CONTEXT));
     }
 
     public void testRangeQuery() throws IOException {
@@ -231,5 +256,11 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             .build(MapperBuilderContext.root(false, false))
             .fieldType();
         assertEquals(List.of(2.71), fetchSourceValue(nullValueMapper, ""));
+    }
+
+    private static ScaledFloatFieldMapper fieldMapperWithUnit(String unit, int scalingFactor) {
+        return new ScaledFloatFieldMapper.Builder("field", false, true, null).scalingFactor(scalingFactor)
+            .meta(Map.of("unit", unit))
+            .build(MapperBuilderContext.root(false, false));
     }
 }

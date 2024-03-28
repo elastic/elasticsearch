@@ -11,8 +11,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.cluster.metadata.FieldInferenceMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -202,11 +202,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private static String getInferenceIdForForField(Collection<IndexMetadata> indexMetadataCollection, String fieldName) {
         String inferenceId = null;
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
-            FieldInferenceMetadata.FieldInferenceOptions fieldInferenceOptions = indexMetadata.getFieldInferenceMetadata()
-                .getFieldInferenceOptions()
-                .get(fieldName);
-
-            String indexInferenceId = fieldInferenceOptions != null ? fieldInferenceOptions.inferenceId() : null;
+            InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.getInferenceFields().get(fieldName);
+            String indexInferenceId = inferenceFieldMetadata != null ? inferenceFieldMetadata.getInferenceId() : null;
             if (indexInferenceId != null) {
                 if (inferenceId != null && inferenceId.equals(indexInferenceId) == false) {
                     throw new IllegalArgumentException("Field [" + fieldName + "] has multiple inference IDs associated with it");

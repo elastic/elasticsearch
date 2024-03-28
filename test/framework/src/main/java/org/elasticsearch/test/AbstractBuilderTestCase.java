@@ -21,7 +21,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.FieldInferenceMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -561,7 +560,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 )
                 .numberOfShards(1)
                 .numberOfReplicas(0)
-                .fieldInferenceMetadata(new FieldInferenceMetadata(mapperService.mappingLookup()))
+                .putInferenceFields(mapperService.mappingLookup().inferenceFields())
                 .build();
         }
 

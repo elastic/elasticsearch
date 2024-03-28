@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -895,6 +896,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         ),
         Map.entry(Set.of(DataTypes.DOUBLE, DataTypes.NULL), "double"),
         Map.entry(Set.of(DataTypes.INTEGER, DataTypes.NULL), "integer"),
+        Map.entry(Set.of(DataTypes.IP, DataTypes.NULL), "ip"),
         Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE, DataTypes.NULL), "numeric"),
         Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.VERSION, DataTypes.NULL), "string or version"),
         Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "string"),
@@ -1102,8 +1104,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);
             renderTypes(description.argNames());
             renderParametersList(description.argNames(), description.argDescriptions());
-            renderDescription(description.description());
-            boolean hasExamples = renderExamples(EsqlFunctionRegistry.functionInfo(definition));
+            FunctionInfo info = EsqlFunctionRegistry.functionInfo(definition);
+            renderDescription(description.description(), info.note());
+            boolean hasExamples = renderExamples(info);
             renderFullLayout(name, hasExamples);
             return;
         }
@@ -1155,11 +1158,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         writeToTempDir("parameters", rendered, "asciidoc");
     }
 
-    private static void renderDescription(String description) throws IOException {
+    private static void renderDescription(String description, String note) throws IOException {
         String rendered = DOCS_WARNING + """
             *Description*
 
             """ + description + "\n";
+        if (Strings.isNullOrEmpty(note) == false) {
+            rendered += "\nNOTE: " + note + "\n";
+        }
         LogManager.getLogger(getTestClass()).info("Writing description for [{}]:\n{}", functionName(), rendered);
         writeToTempDir("description", rendered, "asciidoc");
     }

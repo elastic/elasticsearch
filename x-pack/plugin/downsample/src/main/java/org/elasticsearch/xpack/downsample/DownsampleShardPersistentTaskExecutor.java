@@ -188,6 +188,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
     static void realNodeOperation(
         Client client,
         IndicesService indicesService,
+        DownsampleMetrics downsampleMetrics,
         DownsampleShardTask task,
         DownsampleShardTaskParams params,
         BytesRef lastDownsampledTsid
@@ -209,6 +210,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
                         task,
                         client,
                         indicesService.indexServiceSafe(params.shardId().getIndex()),
+                        downsampleMetrics,
                         params.shardId(),
                         params.downsampleIndex(),
                         params.downsampleConfig(),
@@ -303,17 +305,25 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
 
             private final Client client;
             private final IndicesService indicesService;
+            private final DownsampleMetrics downsampleMetrics;
 
             @Inject
-            public TA(TransportService transportService, ActionFilters actionFilters, Client client, IndicesService indicesService) {
+            public TA(
+                TransportService transportService,
+                ActionFilters actionFilters,
+                Client client,
+                IndicesService indicesService,
+                DownsampleMetrics downsampleMetrics
+            ) {
                 super(NAME, actionFilters, transportService.getTaskManager());
                 this.client = client;
                 this.indicesService = indicesService;
+                this.downsampleMetrics = downsampleMetrics;
             }
 
             @Override
             protected void doExecute(Task t, Request request, ActionListener<ActionResponse.Empty> listener) {
-                realNodeOperation(client, indicesService, request.task, request.params, request.lastDownsampleTsid);
+                realNodeOperation(client, indicesService, downsampleMetrics, request.task, request.params, request.lastDownsampleTsid);
                 listener.onResponse(ActionResponse.Empty.INSTANCE);
             }
         }

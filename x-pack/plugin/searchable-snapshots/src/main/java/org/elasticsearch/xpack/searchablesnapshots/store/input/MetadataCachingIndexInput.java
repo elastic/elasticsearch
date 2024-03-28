@@ -674,6 +674,10 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
 
     @Override
     public IndexInput slice(String sliceName, long sliceOffset, long sliceLength) {
+        var bufferSlice = trySliceBuffer(sliceName, sliceOffset, sliceLength);
+        if (bufferSlice != null) {
+            return bufferSlice;
+        }
         BlobCacheUtils.ensureSlice(sliceName, sliceOffset, sliceLength, this);
 
         // Are we creating a slice from a CFS file?

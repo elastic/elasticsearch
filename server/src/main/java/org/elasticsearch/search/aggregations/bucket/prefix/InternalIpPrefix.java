@@ -20,7 +20,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregatorsReducer;
+import org.elasticsearch.search.aggregations.bucket.BucketReducer;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -225,7 +225,7 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
-            final ObjectObjectPagedHashMap<BytesRef, ReducerAndProto> buckets = new ObjectObjectPagedHashMap<>(
+            final ObjectObjectPagedHashMap<BytesRef, BucketReducer<Bucket>> buckets = new ObjectObjectPagedHashMap<>(
                 getBuckets().size(),
                 reduceContext.bigArrays()
             );
@@ -234,29 +234,29 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
             public void accept(InternalAggregation aggregation) {
                 final InternalIpPrefix ipPrefix = (InternalIpPrefix) aggregation;
                 for (Bucket bucket : ipPrefix.getBuckets()) {
-                    ReducerAndProto reducerAndProto = buckets.get(bucket.key);
-                    if (reducerAndProto == null) {
-                        reducerAndProto = new ReducerAndProto(new MultiBucketAggregatorsReducer(reduceContext, size), bucket);
+                    BucketReducer<Bucket> bucketReducer = buckets.get(bucket.key);
+                    if (bucketReducer == null) {
+                        bucketReducer = new BucketReducer<>(bucket, reduceContext, size);
                         boolean success = false;
                         try {
-                            buckets.put(bucket.key, reducerAndProto);
+                            buckets.put(bucket.key, bucketReducer);
                             success = true;
                         } finally {
                             if (success == false) {
-                                Releasables.close(reducerAndProto.reducer);
+                                Releasables.close(bucketReducer);
                             }
                         }
                     }
-                    reducerAndProto.reducer.accept(bucket);
+                    bucketReducer.accept(bucket);
                 }
             }
 
             @Override
             public InternalAggregation get() {
                 final List<Bucket> reducedBuckets = new ArrayList<>(Math.toIntExact(buckets.size()));
-                buckets.iterator().forEachRemaining(entry -> {
-                    if (false == reduceContext.isFinalReduce() || entry.value.reducer.getDocCount() >= minDocCount) {
-                        reducedBuckets.add(createBucket(entry.value.proto, entry.value.reducer.get(), entry.value.reducer.getDocCount()));
+                buckets.forEach(entry -> {
+                    if (false == reduceContext.isFinalReduce() || entry.value.getDocCount() >= minDocCount) {
+                        reducedBuckets.add(createBucket(entry.value.getProto(), entry.value.getAggregations(), entry.value.getDocCount()));
                     }
                 });
                 reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
@@ -266,13 +266,11 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
 
             @Override
             public void close() {
-                buckets.iterator().forEachRemaining(entry -> Releasables.close(entry.value.reducer));
+                buckets.forEach(entry -> Releasables.close(entry.value));
                 Releasables.close(buckets);
             }
         };
     }
-
-    private record ReducerAndProto(MultiBucketAggregatorsReducer reducer, Bucket proto) {}
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {

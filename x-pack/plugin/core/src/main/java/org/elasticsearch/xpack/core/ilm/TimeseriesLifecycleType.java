@@ -66,9 +66,9 @@ public class TimeseriesLifecycleType implements LifecycleType {
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
         ReadOnlyAction.NAME,
-        DownsampleAction.NAME,
         AllocateAction.NAME,
         MigrateAction.NAME,
+        DownsampleAction.NAME,
         ShrinkAction.NAME,
         ForceMergeAction.NAME
     ).filter(Objects::nonNull).toList();
@@ -76,10 +76,10 @@ public class TimeseriesLifecycleType implements LifecycleType {
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
         ReadOnlyAction.NAME,
-        DownsampleAction.NAME,
         SearchableSnapshotAction.NAME,
         AllocateAction.NAME,
         MigrateAction.NAME,
+        DownsampleAction.NAME,
         FreezeAction.NAME
     ).filter(Objects::nonNull).toList();
     public static final List<String> ORDERED_VALID_FROZEN_ACTIONS = List.of(UnfollowAction.NAME, SearchableSnapshotAction.NAME);

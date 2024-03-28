@@ -93,4 +93,10 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
     public BlockFactory blockFactory() {
         return vector.blockFactory();
     }
+
+    @Override
+    public final DoubleVectorBlock expand() {
+        incRef();
+        return this;
+    }
 }

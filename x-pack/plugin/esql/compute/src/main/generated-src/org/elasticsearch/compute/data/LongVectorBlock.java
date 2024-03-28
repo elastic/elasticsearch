@@ -93,4 +93,10 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
     public BlockFactory blockFactory() {
         return vector.blockFactory();
     }
+
+    @Override
+    public final LongVectorBlock expand() {
+        incRef();
+        return this;
+    }
 }

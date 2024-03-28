@@ -21,7 +21,8 @@ import java.io.IOException;
  * This class is generated. Do not edit it.
  */
 $if(BytesRef)$
-public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, ConstantNullVector {
+public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector, BytesRefArrayVector, ConstantNullVector,
+    OrdinalBytesRefVector {
 $elseif(boolean)$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector,
     ConstantNullVector {

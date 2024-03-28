@@ -93,4 +93,10 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     public BlockFactory blockFactory() {
         return vector.blockFactory();
     }
+
+    @Override
+    public final IntVectorBlock expand() {
+        incRef();
+        return this;
+    }
 }

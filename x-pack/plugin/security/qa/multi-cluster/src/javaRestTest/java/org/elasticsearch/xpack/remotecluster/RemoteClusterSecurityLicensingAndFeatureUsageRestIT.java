@@ -105,9 +105,11 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
         final Settings.Builder builder = Settings.builder();
         if (isProxyMode) {
             builder.put("cluster.remote.my_remote_cluster.mode", "proxy")
+                .put("cluster.remote.my_remote_cluster.skip_unavailable", "false")
                 .put("cluster.remote.my_remote_cluster.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0));
         } else {
             builder.put("cluster.remote.my_remote_cluster.mode", "sniff")
+                .put("cluster.remote.my_remote_cluster.skip_unavailable", "false")
                 .putList("cluster.remote.my_remote_cluster.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0));
         }
         updateClusterSettings(builder.build());

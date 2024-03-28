@@ -45,6 +45,7 @@ def queryingCluster = testClusters.register('querying-cluster') {
   setting 'cluster.remote.connections_per_cluster', "1"
   user username: "test_user", password: "x-pack-test-password"
 
+  setting 'cluster.remote.my_remote_cluster.skip_unavailable', 'false'
   if (proxyMode) {
     setting 'cluster.remote.my_remote_cluster.mode', 'proxy'
     setting 'cluster.remote.my_remote_cluster.proxy_address', {

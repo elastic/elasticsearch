@@ -335,7 +335,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
             );
-
+            // FIXME? when skip_unavailable=true, this returns "NoSuchRemoteClusterException: no such remote cluster: [my_remote_cluster]"
             final ElasticsearchSecurityException e = expectThrows(
                 ElasticsearchSecurityException.class,
                 () -> executeRemote(
@@ -573,9 +573,11 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         builder.setSecureSettings(secureSettings);
         if (randomBoolean()) {
             builder.put("cluster.remote.my_remote_cluster.mode", "sniff")
+                .put("cluster.remote.my_remote_cluster.skip_unavailable", "false")
                 .put("cluster.remote.my_remote_cluster.seeds", remoteClusterServerEndpoint);
         } else {
             builder.put("cluster.remote.my_remote_cluster.mode", "proxy")
+                .put("cluster.remote.my_remote_cluster.skip_unavailable", "false")
                 .put("cluster.remote.my_remote_cluster.proxy_address", remoteClusterServerEndpoint);
         }
 

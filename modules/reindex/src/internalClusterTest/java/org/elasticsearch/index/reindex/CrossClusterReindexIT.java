@@ -19,6 +19,7 @@ import org.elasticsearch.test.AbstractMultiClustersTestCase;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -36,6 +37,11 @@ public class CrossClusterReindexIT extends AbstractMultiClustersTestCase {
     @Override
     protected Collection<String> remoteClusterAlias() {
         return List.of(REMOTE_CLUSTER);
+    }
+
+    @Override
+    protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
+        return Map.of(REMOTE_CLUSTER, false);
     }
 
     @Override

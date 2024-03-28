@@ -147,7 +147,7 @@ cluster with cluster alias `leader`.
     "num_nodes_connected" : 1, <1>
     "max_connections_per_cluster" : 3,
     "initial_connect_timeout" : "30s",
-    "skip_unavailable" : false,
+    "skip_unavailable" : true,
     "mode" : "sniff"
   }
 }

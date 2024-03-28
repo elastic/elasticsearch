@@ -331,14 +331,16 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 )
             );
 
-            // Check that authentication fails if we use a non-existent API key
+            // Check that authentication fails if we use a non-existent API key (when skip_unavailable=false)
             updateClusterSettings(
                 randomBoolean()
                     ? Settings.builder()
                         .put("cluster.remote.invalid_remote.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                        .put("cluster.remote.invalid_remote.skip_unavailable", "false")
                         .build()
                     : Settings.builder()
                         .put("cluster.remote.invalid_remote.mode", "proxy")
+                        .put("cluster.remote.invalid_remote.skip_unavailable", "false")
                         .put("cluster.remote.invalid_remote.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
                         .build()
             );
@@ -349,14 +351,16 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             assertThat(exception4.getResponse().getStatusLine().getStatusCode(), equalTo(401));
             assertThat(exception4.getMessage(), containsString("unable to find apikey"));
 
-            // check that REST API key is not supported by cross cluster access
+            // check that REST API key is not supported by cross cluster access (when skip_unavailable=false)
             updateClusterSettings(
                 randomBoolean()
                     ? Settings.builder()
                         .put("cluster.remote.wrong_api_key_type.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                        .put("cluster.remote.wrong_api_key_type.skip_unavailable", "false")
                         .build()
                     : Settings.builder()
                         .put("cluster.remote.wrong_api_key_type.mode", "proxy")
+                        .put("cluster.remote.wrong_api_key_type.skip_unavailable", "false")
                         .put("cluster.remote.wrong_api_key_type.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
                         .build()
             );
@@ -374,14 +378,16 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 )
             );
 
-            // Check invalid cross-cluster API key length is rejected
+            // Check invalid cross-cluster API key length is rejected (when skip_unavailable=false)
             updateClusterSettings(
                 randomBoolean()
                     ? Settings.builder()
                         .put("cluster.remote.invalid_secret_length.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                        .put("cluster.remote.invalid_secret_length.skip_unavailable", "false")
                         .build()
                     : Settings.builder()
                         .put("cluster.remote.invalid_secret_length.mode", "proxy")
+                        .put("cluster.remote.invalid_secret_length.skip_unavailable", "false")
                         .put("cluster.remote.invalid_secret_length.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
                         .build()
             );

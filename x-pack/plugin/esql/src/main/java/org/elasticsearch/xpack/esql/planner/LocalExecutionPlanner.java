@@ -19,6 +19,7 @@ import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.DriverContextForConcreteIndex;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
@@ -75,14 +76,18 @@ import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.ArrayList;
@@ -92,6 +97,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -164,17 +170,80 @@ public class LocalExecutionPlanner {
             AggregateExec.class,
             a -> a.getMode() == AggregateExec.Mode.FINAL ? new ProjectExec(a.source(), a, Expressions.asAttributes(a.aggregates())) : a
         );
-        PhysicalOperation physicalOperation = plan(node, context);
 
-        final TimeValue statusInterval = configuration.pragmas().statusInterval();
-        context.addDriverFactory(
-            new DriverFactory(
-                new DriverSupplier(context.bigArrays, context.blockFactory, physicalOperation, statusInterval, settings),
-                context.driverParallelism().get()
-            )
-        );
+        // If there are union types (same field with different types in different indexes) we plan separate drivers for each index
+        planForMultiIndices(node).forEach((index, plan) -> {
+            PhysicalOperation indexSpecificPhysicalOperation = plan(plan, context);
+            DriverSupplier supplier = new DriverSupplier(
+                context.bigArrays,
+                context.blockFactory,
+                indexSpecificPhysicalOperation,
+                configuration.pragmas().statusInterval(),
+                settings,
+                index
+            );
+            context.addDriverFactory(new DriverFactory(supplier, context.driverParallelism().get()));
+        });
 
         return new LocalExecutionPlan(context.driverFactories);
+    }
+
+    private Map<String, PhysicalPlan> planForMultiIndices(PhysicalPlan plan) {
+        HashMap<String, PhysicalPlan> concreteIndices = new HashMap<>();
+        HashSet<String> multiTypeFields = new HashSet<>();
+        plan.forEachDown(node -> {
+            if (node instanceof EsQueryExec query) {
+                EsIndex index = query.index();
+                index.concreteIndices().forEach(concreteIndex -> { concreteIndices.put(concreteIndex, query); });
+            }
+            node.forEachExpression(FieldAttribute.class, fieldAttribute -> {
+                if (fieldAttribute.field() instanceof EsqlIndexResolver.MultiTypeField multiTypeField) {
+                    multiTypeFields.add(multiTypeField.getName());
+                }
+            });
+        });
+        if (multiTypeFields.isEmpty()) {
+            // No multi-type fields in the plan, lets not split the plan into multiple drivers
+            return Map.of("", plan);
+        } else if (concreteIndices.isEmpty()) {
+            // This plan does not contain any indices at all
+            return Map.of("", plan);
+        } else if (concreteIndices.size() == 1) {
+            // This plan contains a single concrete index
+            return Map.of(concreteIndices.keySet().iterator().next(), plan);
+        } else {
+            // This plan contains multiple concrete indices, we need to replan the drivers, one for each index
+            // We replace the EsQueryExec and FieldAttribute nodes with the concrete index and the resolved type for that index
+            concreteIndices.replaceAll(
+                ((indexName, v) -> plan.transformDown(EsQueryExec.class, n -> withConcreteIndex(n, indexName))
+                    .transformDown(FieldExtractExec.class, n -> withResolvedType(n, indexName)))
+            );
+            return concreteIndices;
+        }
+    }
+
+    private static EsQueryExec withConcreteIndex(EsQueryExec query, String concreteIndex) {
+        EsIndex index = new EsIndex(concreteIndex, query.index().mapping(), Set.of(concreteIndex));
+        return query.withIndex(index);
+    }
+
+    private static FieldExtractExec withResolvedType(FieldExtractExec fieldExtract, String concreteIndex) {
+        List<Attribute> transformed = fieldExtract.attributesToExtract().stream().map(a -> {
+            if (a instanceof FieldAttribute fa && fa.field() instanceof EsqlIndexResolver.MultiTypeField multiTypeField) {
+                DataType specificType = multiTypeField.typeFromIndex(concreteIndex);
+                return multiTypeField.makeTypedFieldAttribute(fa, specificType);
+            }
+            return a;
+        }).toList();
+        if (transformed.equals(fieldExtract.attributesToExtract())) {
+            return fieldExtract;
+        }
+        return new FieldExtractExec(
+            fieldExtract.source(),
+            fieldExtract.child(),
+            transformed,
+            new HashSet<>(fieldExtract.docValuesAttributes())
+        );
     }
 
     private PhysicalOperation plan(PhysicalPlan node, LocalExecutionPlannerContext context) {
@@ -696,7 +765,8 @@ public class LocalExecutionPlanner {
         BlockFactory blockFactory,
         PhysicalOperation physicalOperation,
         TimeValue statusInterval,
-        Settings settings
+        Settings settings,
+        String indexName
     ) implements Function<String, Driver>, Describable {
         @Override
         public Driver apply(String sessionId) {
@@ -710,7 +780,7 @@ public class LocalExecutionPlanner {
                 localBreakerSettings.overReservedBytes(),
                 localBreakerSettings.maxOverReservedBytes()
             );
-            var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker));
+            var driverContext = new DriverContextForConcreteIndex(bigArrays, blockFactory.newChildFactory(localBreaker), indexName);
             try {
                 source = physicalOperation.source(driverContext);
                 physicalOperation.operators(operators, driverContext);

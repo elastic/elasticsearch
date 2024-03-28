@@ -15,14 +15,18 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.DriverContextForConcreteIndex;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -34,8 +38,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import java.util.function.Predicate;
 
 /**
  * Base class for functions that converts a field into a function-specific type.
@@ -59,6 +62,10 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
      * Build the evaluator given the evaluator a multivalued field.
      */
     protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
+        // In support of Union types we delay the selection of evaluator to after local planning on the data node
+        if (field() instanceof FieldAttribute fe && fe.field() instanceof EsqlIndexResolver.MultiTypeField mtf) {
+            return new DelayedMultiTypeEvaluatorFactory(fieldEval, mtf, source(), factories());
+        }
         DataType sourceType = field().dataType();
         var factory = factories().get(sourceType);
         if (factory == null) {
@@ -67,12 +74,71 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
         return factory.build(fieldEval, source());
     }
 
+    /**
+     * This factory delays the decision on which evaluator to used to the point the get(DriverContext)
+     * method is called, because at that point we have driver specific information, including which index
+     * is being sourced for the driver, and therefor which specific data type will be passed to the
+     * conversion function.
+     */
+    public static class DelayedMultiTypeEvaluatorFactory implements ExpressionEvaluator.Factory {
+        private final ExpressionEvaluator.Factory fieldEval;
+        private final EsqlIndexResolver.MultiTypeField mtf;
+        private final Source source;
+        private final Map<DataType, BuildFactory> factories;
+
+        public DelayedMultiTypeEvaluatorFactory(
+            ExpressionEvaluator.Factory fieldEval,
+            EsqlIndexResolver.MultiTypeField mtf,
+            Source source,
+            Map<DataType, BuildFactory> factories
+        ) {
+            this.fieldEval = fieldEval;
+            this.mtf = mtf;
+            this.source = source;
+            this.factories = factories;
+        }
+
+        @Override
+        public ExpressionEvaluator get(DriverContext context) {
+            if (context instanceof DriverContextForConcreteIndex concreteIndexContext) {
+                String indexName = concreteIndexContext.indexName();
+                DataType type = mtf.typeFromIndex(indexName);
+                if (factories.containsKey(type)) {
+                    return factories.get(type).build(fieldEval, source).get(context);
+                }
+                throw new IllegalStateException("No factory found for type [" + type + "] in index [" + indexName + "]");
+            }
+            throw new IllegalStateException("No factory found for types: " + mtf.getTypesToIndices().keySet());
+        }
+    }
+
     @Override
     protected final TypeResolution resolveType() {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
         return isType(field(), factories()::containsKey, sourceText(), null, supportedTypesNames(factories().keySet()));
+    }
+
+    /**
+     * This alternative to the TypeResolution.isType method allows for a union type (collection of supported types).
+     */
+    public static TypeResolution isType(
+        Expression e,
+        Predicate<DataType> predicate,
+        String operationName,
+        TypeResolutions.ParamOrdinal paramOrd,
+        String... acceptedTypes
+    ) {
+        if (e instanceof FieldAttribute fe && fe.field() instanceof EsqlIndexResolver.MultiTypeField mtf) {
+            for (String typeName : mtf.getTypesToIndices().keySet()) {
+                DataType type = DataTypes.fromTypeName(typeName);
+                if (predicate.test(type)) {
+                    return TypeResolution.TYPE_RESOLVED;
+                }
+            }
+        }
+        return TypeResolutions.isType(e, predicate, operationName, paramOrd, acceptedTypes);
     }
 
     public static String supportedTypesNames(Set<DataType> types) {

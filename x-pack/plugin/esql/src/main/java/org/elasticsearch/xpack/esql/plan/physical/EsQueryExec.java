@@ -140,6 +140,10 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         return Objects.equals(this.sorts, sorts) ? this : new EsQueryExec(source(), index, attrs, query, limit, sorts, estimatedRowSize);
     }
 
+    public EsQueryExec withIndex(EsIndex index) {
+        return Objects.equals(this.index, index) ? this : new EsQueryExec(source(), index, attrs, query, limit, sorts, estimatedRowSize);
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(index, attrs, query, limit, sorts);

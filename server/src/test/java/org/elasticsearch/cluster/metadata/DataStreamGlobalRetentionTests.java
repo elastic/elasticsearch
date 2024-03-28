@@ -94,5 +94,7 @@ public class DataStreamGlobalRetentionTests extends SimpleDiffableWireSerializat
                 TimeValue.timeValueDays(randomIntBetween(1, 1000))
             )
         );
+        expectThrows(IllegalArgumentException.class, () -> new DataStreamGlobalRetention(TimeValue.ZERO, null));
+        expectThrows(IllegalArgumentException.class, () -> new DataStreamGlobalRetention(null, TimeValue.ZERO));
     }
 }

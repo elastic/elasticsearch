@@ -35,7 +35,6 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
  * configured for a specific field the default postings or vector format is used.
  */
 public final class PerFieldMapperCodec extends Lucene99Codec {
-
     private final MapperService mapperService;
     private final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
@@ -110,7 +109,7 @@ public final class PerFieldMapperCodec extends Lucene99Codec {
             return false;
         }
 
-        return mapperService != null && isTimeSeriesModeIndex() && mapperService.getIndexSettings().isES87TSDBCodecEnabled();
+        return mapperService != null && isLoggingDataset() && mapperService.getIndexSettings().isES87TSDBCodecEnabled();
     }
 
     private boolean excludeFields(String fieldName) {
@@ -119,8 +118,16 @@ public final class PerFieldMapperCodec extends Lucene99Codec {
         return fieldName.startsWith("_") && fieldName.equals("_tsid") == false && fieldName.equals("_ts_routing_hash") == false;
     }
 
-    private boolean isTimeSeriesModeIndex() {
-        return IndexMode.TIME_SERIES == mapperService.getIndexSettings().getMode();
+    private boolean isLoggingDataset() {
+        return mapperService.getIndexSettings().getIndex().getName().contains("apache")
+            || mapperService.getIndexSettings().getIndex().getName().contains("k8-application")
+            || mapperService.getIndexSettings().getIndex().getName().contains("kafka")
+            || mapperService.getIndexSettings().getIndex().getName().contains("mysql")
+            || mapperService.getIndexSettings().getIndex().getName().contains("nginx")
+            || mapperService.getIndexSettings().getIndex().getName().contains("postgresql")
+            || mapperService.getIndexSettings().getIndex().getName().contains("redis")
+            || mapperService.getIndexSettings().getIndex().getName().contains("system.auth")
+            || mapperService.getIndexSettings().getIndex().getName().contains("system.slowlog");
     }
 
 }

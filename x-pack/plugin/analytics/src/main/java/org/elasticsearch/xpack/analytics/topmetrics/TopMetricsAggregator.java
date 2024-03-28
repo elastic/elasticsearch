@@ -7,12 +7,16 @@
 
 package org.elasticsearch.xpack.analytics.topmetrics;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.DoubleArray;
@@ -20,6 +24,7 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -328,10 +333,10 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
     }
 
     /**
-     * Loads metrics for whole numbers.
+     * Base collector for metrics that resolve in {@link NumericDocValues}.
      */
-    static class LongMetricValues extends CollectingMetricValues {
-        private final ValuesSource.Numeric valuesSource;
+    private abstract static class AbstractNumericDocValuesMetricValues extends CollectingMetricValues {
+
         /**
          * Tracks "missing" values in a {@link BitArray}. Unlike
          * {@link DoubleMetricValues}, we there isn't a sentinel value
@@ -342,11 +347,22 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         private final MissingHelper empty;
         private LongArray values;
 
-        LongMetricValues(int size, BigArrays bigArrays, String name, ValuesSourceConfig config) {
+        AbstractNumericDocValuesMetricValues(int size, BigArrays bigArrays, String name, ValuesSourceConfig config) {
             super(bigArrays, name, config);
-            valuesSource = (ValuesSource.Numeric) config.getValuesSource();
             empty = new MissingHelper(bigArrays);
             values = bigArrays.newLongArray(size, false);
+        }
+
+        protected abstract NumericDocValues getMetricValues(LeafReaderContext ctx) throws IOException;
+
+        protected abstract MetricValue metricValue(LongArray values, long index);
+
+        @Override
+        public void swap(long lhs, long rhs) {
+            long tmp = values.get(lhs);
+            values.set(lhs, values.get(rhs));
+            values.set(rhs, tmp);
+            empty.swap(lhs, rhs);
         }
 
         @Override
@@ -362,21 +378,13 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
             if (empty.isEmpty(index)) {
                 return null;
             }
-            return new MetricValue(config.format(), SortValue.from(values.get(index)));
-        }
-
-        @Override
-        public void swap(long lhs, long rhs) {
-            long tmp = values.get(lhs);
-            values.set(lhs, values.get(rhs));
-            values.set(rhs, tmp);
-            empty.swap(lhs, rhs);
+            return metricValue(values, index);
         }
 
         @Override
         public Loader loader(LeafReaderContext ctx) throws IOException {
             // TODO allow configuration of value mode
-            NumericDocValues metricValues = MultiValueMode.AVG.select(valuesSource.longValues(ctx));
+            NumericDocValues metricValues = getMetricValues(ctx);
             return (index, doc) -> {
                 if (false == metricValues.advanceExact(doc)) {
                     empty.markMissing(index);
@@ -393,6 +401,88 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         @Override
         public void close() {
             Releasables.close(values, empty);
+        }
+    }
+
+    /**
+     * Loads metrics for whole numbers.
+     */
+    static class LongMetricValues extends AbstractNumericDocValuesMetricValues {
+        private final ValuesSource.Numeric valuesSource;
+
+        LongMetricValues(int size, BigArrays bigArrays, String name, ValuesSourceConfig config) {
+            super(size, bigArrays, name, config);
+            valuesSource = (ValuesSource.Numeric) config.getValuesSource();
+        }
+
+        @Override
+        protected NumericDocValues getMetricValues(LeafReaderContext ctx) throws IOException {
+            return MultiValueMode.AVG.select(valuesSource.longValues(ctx));
+        }
+
+        @Override
+        protected MetricValue metricValue(LongArray values, long index) {
+            return new MetricValue(config.format(), SortValue.from(values.get(index)));
+        }
+    }
+
+    /**
+     * Loads metrics fields from geo_point values.
+     */
+    static class GeoPointValues extends AbstractNumericDocValuesMetricValues {
+        private final ValuesSource.GeoPoint valuesSource;
+
+        private final GeoPoint point;
+
+        GeoPointValues(int size, BigArrays bigArrays, String name, ValuesSourceConfig config) {
+            super(size, bigArrays, name, config);
+            valuesSource = (ValuesSource.GeoPoint) config.getValuesSource();
+            point = new GeoPoint();
+        }
+
+        @Override
+        protected NumericDocValues getMetricValues(LeafReaderContext ctx) {
+            final SortedNumericDocValues values = valuesSource.geoSortedNumericDocValues(ctx);
+            final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+            if (singleton != null) {
+                return singleton;
+            }
+            // we just pick the first value
+            return new AbstractNumericDocValues() {
+
+                private long value;
+
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    if (values.advanceExact(target)) {
+                        value = values.nextValue();
+                        return true;
+                    }
+                    return false;
+                }
+
+                @Override
+                public int docID() {
+                    return values.docID();
+                }
+
+                @Override
+                public long longValue() {
+                    return value;
+                }
+            };
+        }
+
+        @Override
+        protected MetricValue metricValue(LongArray values, long index) {
+            final long encoded = values.get(index);
+            point.reset(GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32)), GeoEncodingUtils.decodeLongitude((int) encoded));
+            return new MetricValue(config.format(), SortValue.from(new BytesRef(point.toString())));
+        }
+
+        @Override
+        public double doubleValue(long index) {
+            throw new IllegalArgumentException("pipeline aggregations may not refer to non-numeric metrics collected by top_metrics");
         }
     }
 

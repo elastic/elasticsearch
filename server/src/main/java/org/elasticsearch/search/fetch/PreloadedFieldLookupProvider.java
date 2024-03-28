@@ -32,19 +32,12 @@ class PreloadedFieldLookupProvider implements LeafFieldLookupProvider {
 
     @Override
     public void populateFieldLookup(FieldLookup fieldLookup, int doc) throws IOException {
-        if (storedFields == null) {
-            loadDirect(fieldLookup, doc);
-            return;
-        }
         String field = fieldLookup.fieldType().name();
         if (storedFields.containsKey(field)) {
             fieldLookup.setValues(storedFields.get(field));
             return;
         }
-        loadDirect(fieldLookup, doc);
-    }
-
-    private void loadDirect(final FieldLookup fieldLookup, int doc) throws IOException {
+        // stored field not preloaded, go and get it directly
         if (backUpLoader == null) {
             backUpLoader = loaderSupplier.get();
         }

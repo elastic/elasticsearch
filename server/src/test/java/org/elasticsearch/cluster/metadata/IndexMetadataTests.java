@@ -552,10 +552,10 @@ public class IndexMetadataTests extends ESTestCase {
         }
     }
 
-    public void testDynamicFieldMetadata() {
+    public void testInferenceFieldMetadata() {
         Settings.Builder settings = indexSettings(IndexVersion.current(), randomIntBetween(1, 8), 0);
         IndexMetadata idxMeta1 = IndexMetadata.builder("test").settings(settings).build();
-        assertSame(idxMeta1.getInferenceFields(), Map.of());
+        assertTrue(idxMeta1.getInferenceFields().isEmpty());
 
         Map<String, InferenceFieldMetadata> dynamicFields = randomInferenceFields();
         IndexMetadata idxMeta2 = IndexMetadata.builder(idxMeta1).putInferenceFields(dynamicFields).build();

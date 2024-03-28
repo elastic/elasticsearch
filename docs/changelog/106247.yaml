@@ -1,0 +1,5 @@
+pr: 106247
+summary: Fix a downsample persistent task assignment bug
+area: Downsampling
+type: bug
+issues: []

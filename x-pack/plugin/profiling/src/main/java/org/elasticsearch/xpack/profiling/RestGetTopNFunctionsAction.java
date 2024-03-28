@@ -12,7 +12,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,11 +35,7 @@ public class RestGetTopNFunctionsAction extends BaseRestHandler {
 
         return channel -> {
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancelClient.execute(
-                GetTopNFunctionsAction.INSTANCE,
-                getStackTracesRequest,
-                new RestRefCountedChunkedToXContentListener<>(channel)
-            );
+            cancelClient.execute(GetTopNFunctionsAction.INSTANCE, getStackTracesRequest, new RestToXContentListener<>(channel));
         };
     }
 

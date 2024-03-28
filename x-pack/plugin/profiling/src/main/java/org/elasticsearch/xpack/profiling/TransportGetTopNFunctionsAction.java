@@ -24,13 +24,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
-public class TransportGetTopNFunctionsAction extends HandledTransportAction<GetStackTracesRequest, GetTopNFunctionsResponse> {
+public class TransportGetTopNFunctionsAction extends TransportAction<GetStackTracesRequest, GetTopNFunctionsResponse> {
     private static final Logger log = LogManager.getLogger(TransportGetTopNFunctionsAction.class);
-    private static final StackFrame EMPTY_STACKFRAME = new StackFrame("", "", 0, 0);
-
     private final NodeClient nodeClient;
     private final TransportService transportService;
 
@@ -47,35 +44,35 @@ public class TransportGetTopNFunctionsAction extends HandledTransportAction<GetS
         StopWatch watch = new StopWatch("getTopNFunctionsAction");
         client.execute(GetStackTracesAction.INSTANCE, request, ActionListener.wrap(searchResponse -> {
             StopWatch processingWatch = new StopWatch("Processing response");
-            GetTopNFunctionsResponse topNFunctionsResponse = buildTopNFunctions(searchResponse);
+            GetTopNFunctionsResponse topNFunctionsResponse = buildTopNFunctions(searchResponse, request.getLimit());
             log.debug(() -> watch.report() + " " + processingWatch.report());
             listener.onResponse(topNFunctionsResponse);
         }, listener::onFailure));
     }
 
-    static GetTopNFunctionsResponse buildTopNFunctions(GetStackTracesResponse response) {
-        TopNFunctionsBuilder builder = new TopNFunctionsBuilder(response.getSamplingRate());
+    static GetTopNFunctionsResponse buildTopNFunctions(GetStackTracesResponse response, Integer limit) {
+        TopNFunctionsBuilder builder = new TopNFunctionsBuilder(response.getSamplingRate(), response.getTotalSamples(), limit);
         if (response.getTotalFrames() == 0) {
             return builder.build();
         }
 
-        for (Map.Entry<String, StackTrace> st : response.getStackTraces().entrySet()) {
+        for (StackTrace stackTrace : response.getStackTraces().values()) {
             Set<String> frameGroupsPerStackTrace = new HashSet<>();
-            String stackTraceId = st.getKey();
-            StackTrace stackTrace = st.getValue();
-            long samples = response.getStackTraceEvents().getOrDefault(stackTraceId, 0L);
-            builder.addTotalCount(samples);
+            long samples = stackTrace.count;
+            double annualCO2Tons = stackTrace.annualCO2Tons;
+            double annualCostsUSD = stackTrace.annualCostsUSD;
 
-            int frameCount = stackTrace.frameIds.size();
+            int frameCount = stackTrace.frameIds.length;
             for (int i = 0; i < frameCount; i++) {
-                String frameId = stackTrace.frameIds.get(i);
-                String fileId = stackTrace.fileIds.get(i);
-                Integer frameType = stackTrace.typeIds.get(i);
-                Integer addressOrLine = stackTrace.addressOrLines.get(i);
-                StackFrame stackFrame = response.getStackFrames().getOrDefault(frameId, EMPTY_STACKFRAME);
+                String frameId = stackTrace.frameIds[i];
+                String fileId = stackTrace.fileIds[i];
+                int frameType = stackTrace.typeIds[i];
+                int addressOrLine = stackTrace.addressOrLines[i];
+                StackFrame stackFrame = response.getStackFrames().getOrDefault(frameId, StackFrame.EMPTY_STACKFRAME);
                 String executable = response.getExecutables().getOrDefault(fileId, "");
 
-                for (Frame frame : stackFrame.frames()) {
+                final boolean isLeafFrame = i == frameCount - 1;
+                stackFrame.forEach(frame -> {
                     // The samples associated with a frame provide the total number of
                     // traces in which that frame has appeared at least once. However, a
                     // frame may appear multiple times in a trace, and thus to avoid
@@ -84,10 +81,10 @@ public class TransportGetTopNFunctionsAction extends HandledTransportAction<GetS
                     // to determine if a frame has already been seen within a given
                     // stacktrace, we use the frame group ID for a frame.
                     String frameGroupId = FrameGroupID.create(fileId, addressOrLine, executable, frame.fileName(), frame.functionName());
-                    if (builder.setCurrentTopNFunction(frameGroupId) == false) {
+                    if (builder.isExists(frameGroupId) == false) {
                         builder.addTopNFunction(
-                            frameGroupId,
-                            new StackFrameMetadata(
+                            new TopNFunction(
+                                frameGroupId,
                                 frameId,
                                 fileId,
                                 frameType,
@@ -101,15 +98,25 @@ public class TransportGetTopNFunctionsAction extends HandledTransportAction<GetS
                             )
                         );
                     }
+                    TopNFunction current = builder.getTopNFunction(frameGroupId);
+                    if (stackTrace.subGroups != null) {
+                        current.addSubGroups(stackTrace.subGroups);
+                    }
                     if (frameGroupsPerStackTrace.contains(frameGroupId) == false) {
                         frameGroupsPerStackTrace.add(frameGroupId);
-                        builder.addToCurrentInclusiveCount(samples);
+                        current.addInclusiveCount(samples);
+                        current.addAnnualCO2TonsInclusive(annualCO2Tons);
+                        current.addAnnualCostsUSDInclusive(annualCostsUSD);
+
                     }
-                    if (i == frameCount - 1) {
+                    if (isLeafFrame && frame.last()) {
                         // Leaf frame: sum up counts for exclusive CPU.
-                        builder.addToCurrentExclusiveCount(samples);
+                        current.addExclusiveCount(samples);
+                        current.addAnnualCO2TonsExclusive(annualCO2Tons);
+                        current.addAnnualCostsUSDExclusive(annualCostsUSD);
+
                     }
-                }
+                });
             }
         }
 
@@ -117,55 +124,46 @@ public class TransportGetTopNFunctionsAction extends HandledTransportAction<GetS
     }
 
     private static class TopNFunctionsBuilder {
-        private long totalCount = 0;
-        private TopNFunction currentTopNFunction;
+        private final long totalSamples;
+        private final Integer limit;
         private final double samplingRate;
         private final HashMap<String, TopNFunction> topNFunctions;
 
-        TopNFunctionsBuilder(double samplingRate) {
+        TopNFunctionsBuilder(double samplingRate, long totalSamples, Integer limit) {
             this.samplingRate = samplingRate;
+            this.totalSamples = totalSamples;
+            this.limit = limit;
             this.topNFunctions = new HashMap<>();
         }
 
         public GetTopNFunctionsResponse build() {
             List<TopNFunction> functions = new ArrayList<>(topNFunctions.values());
-            Collections.sort(functions, Collections.reverseOrder());
+            functions.sort(Collections.reverseOrder());
             long sumSelfCPU = 0;
             long sumTotalCPU = 0;
             for (int i = 0; i < functions.size(); i++) {
                 TopNFunction topNFunction = functions.get(i);
-                topNFunction.rank = i + 1;
-                sumSelfCPU += topNFunction.exclusiveCount;
-                sumTotalCPU += topNFunction.inclusiveCount;
+                topNFunction.setRank(i + 1);
+                sumSelfCPU += topNFunction.getExclusiveCount();
+                sumTotalCPU += topNFunction.getInclusiveCount();
             }
-            return new GetTopNFunctionsResponse(samplingRate, totalCount, sumSelfCPU, sumTotalCPU, functions);
-        }
-
-        public void addTotalCount(long count) {
-            this.totalCount += count;
-        }
-
-        public boolean setCurrentTopNFunction(String frameGroupID) {
-            TopNFunction topNFunction = this.topNFunctions.get(frameGroupID);
-            if (topNFunction == null) {
-                return false;
+            // limit at the end so global stats are independent of the limit
+            if (limit != null && limit > 0) {
+                functions = functions.subList(0, limit);
             }
-            this.currentTopNFunction = topNFunction;
-            return true;
+            return new GetTopNFunctionsResponse(samplingRate, totalSamples, sumSelfCPU, sumTotalCPU, functions);
         }
 
-        public void addTopNFunction(String frameGroupID, StackFrameMetadata metadata) {
-            TopNFunction topNFunction = new TopNFunction(frameGroupID, metadata);
-            this.currentTopNFunction = topNFunction;
-            this.topNFunctions.put(frameGroupID, topNFunction);
+        public boolean isExists(String frameGroupID) {
+            return this.topNFunctions.containsKey(frameGroupID);
         }
 
-        public void addToCurrentExclusiveCount(long count) {
-            this.currentTopNFunction.exclusiveCount += count;
+        public TopNFunction getTopNFunction(String frameGroupID) {
+            return this.topNFunctions.get(frameGroupID);
         }
 
-        public void addToCurrentInclusiveCount(long count) {
-            this.currentTopNFunction.inclusiveCount += count;
+        public void addTopNFunction(TopNFunction topNFunction) {
+            this.topNFunctions.put(topNFunction.getId(), topNFunction);
         }
     }
 }

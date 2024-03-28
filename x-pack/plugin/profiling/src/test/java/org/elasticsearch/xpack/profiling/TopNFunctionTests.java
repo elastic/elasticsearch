@@ -16,72 +16,115 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class TopNFunctionTests extends ESTestCase {
     public void testToXContent() throws IOException {
-        StackFrameMetadata metadata = new StackFrameMetadata(
-            "VZbhUAtQEfdUptXfb8HvNgAAAAAAsbAE",
-            "6tVKI4mSYDEJ-ABAIpYXcg",
-            1,
-            false,
-            23,
-            "PyDict_GetItemWithError",
-            2567,
-            "/build/python3.9-RNBry6/python3.9-3.9.2/Objects/dictobject.c",
-            1456,
-            "python3.9"
-        );
-        String frameGroupID = FrameGroupID.create(
-            metadata.fileID,
-            metadata.addressOrLine,
-            metadata.exeFilename,
-            metadata.sourceFilename,
-            metadata.functionName
-        );
+        String frameID = "VZbhUAtQEfdUptXfb8HvNgAAAAAAsbAE";
+        String fileID = "6tVKI4mSYDEJ-ABAIpYXcg";
+        int frameType = 1;
+        boolean inline = false;
+        int addressOrLine = 23;
+        String functionName = "PyDict_GetItemWithError";
+        int functionOffset = 2567;
+        String sourceFilename = "/build/python3.9-RNBry6/python3.9-3.9.2/Objects/dictobject.c";
+        int sourceLine = 1456;
+        String exeFilename = "python3.9";
+
+        String frameGroupID = FrameGroupID.create(fileID, addressOrLine, exeFilename, sourceFilename, functionName);
 
         XContentType contentType = randomFrom(XContentType.values());
         XContentBuilder expectedRequest = XContentFactory.contentBuilder(contentType)
             .startObject()
-            .field("Id", frameGroupID)
-            .field("Rank", 1)
-            .field("Frame", metadata)
-            .field("CountExclusive", 1)
-            .field("CountInclusive", 10)
+            .field("id", frameGroupID)
+            .field("rank", 1)
+            .startObject("frame")
+            .field("frame_id", frameID)
+            .field("file_id", fileID)
+            .field("frame_type", frameType)
+            .field("inline", inline)
+            .field("address_or_line", addressOrLine)
+            .field("function_name", functionName)
+            .field("function_offset", functionOffset)
+            .field("file_name", sourceFilename)
+            .field("line_number", sourceLine)
+            .field("executable_file_name", exeFilename)
+            .endObject()
+            .field("sub_groups", Map.of("basket", 7L))
+            .field("count_exclusive", 1)
+            .field("count_inclusive", 10)
+            .field("annual_co2_tons_exclusive")
+            .rawValue("2.2000")
+            .field("annual_co2_tons_inclusive")
+            .rawValue("22.0000")
+            .field("annual_costs_usd_exclusive", "12.0000")
+            .field("annual_costs_usd_inclusive", "120.0000")
             .endObject();
 
         XContentBuilder actualRequest = XContentFactory.contentBuilder(contentType);
-        TopNFunction topNFunction = new TopNFunction(frameGroupID.toString(), 1, metadata, 1, 10);
+        TopNFunction topNFunction = new TopNFunction(
+            frameGroupID,
+            1,
+            frameID,
+            fileID,
+            frameType,
+            inline,
+            addressOrLine,
+            functionName,
+            functionOffset,
+            sourceFilename,
+            sourceLine,
+            exeFilename,
+            1,
+            10,
+            2.2d,
+            22.0d,
+            12.0d,
+            120.0d,
+            Map.of("basket", 7L)
+        );
         topNFunction.toXContent(actualRequest, ToXContent.EMPTY_PARAMS);
 
         assertToXContentEquivalent(BytesReference.bytes(expectedRequest), BytesReference.bytes(actualRequest), contentType);
     }
 
     public void testEquality() {
-        StackFrameMetadata metadata = new StackFrameMetadata(
-            "VZbhUAtQEfdUptXfb8HvNgAAAAAAsbAE",
-            "6tVKI4mSYDEJ-ABAIpYXcg",
+        String frameID = "VZbhUAtQEfdUptXfb8HvNgAAAAAAsbAE";
+        String fileID = "6tVKI4mSYDEJ-ABAIpYXcg";
+        int frameType = 1;
+        boolean inline = false;
+        int addressOrLine = 23;
+        String functionName = "PyDict_GetItemWithError";
+        int functionOffset = 2567;
+        String sourceFilename = "/build/python3.9-RNBry6/python3.9-3.9.2/Objects/dictobject.c";
+        int sourceLine = 1456;
+        String exeFilename = "python3.9";
+
+        String frameGroupID = FrameGroupID.create(fileID, addressOrLine, exeFilename, sourceFilename, functionName);
+
+        TopNFunction topNFunction = new TopNFunction(
+            frameGroupID,
             1,
-            false,
-            23,
-            "PyDict_GetItemWithError",
-            2567,
-            "/build/python3.9-RNBry6/python3.9-3.9.2/Objects/dictobject.c",
-            1456,
-            "python3.9"
+            frameID,
+            fileID,
+            frameType,
+            inline,
+            addressOrLine,
+            functionName,
+            functionOffset,
+            sourceFilename,
+            sourceLine,
+            exeFilename,
+            1,
+            10,
+            2.0d,
+            4.0d,
+            23.2d,
+            12.0d,
+            Map.of("checkout", 4L, "basket", 12L)
         );
-        String frameGroupID = FrameGroupID.create(
-            metadata.fileID,
-            metadata.addressOrLine,
-            metadata.exeFilename,
-            metadata.sourceFilename,
-            metadata.functionName
-        );
-        TopNFunction topNFunction = new TopNFunction(frameGroupID, 1, metadata, 1, 10);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            topNFunction,
-            (o -> new TopNFunction(o.id, o.rank, o.metadata, o.exclusiveCount, o.inclusiveCount))
-        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(topNFunction, (TopNFunction::clone));
     }
 }

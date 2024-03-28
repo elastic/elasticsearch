@@ -9,18 +9,18 @@ package org.elasticsearch.xpack.profiling;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class TransportGetTopNFunctionsActionTests extends ESTestCase {
-    public void testCreateTopNFunctions() {
+    public void testCreateAllTopNFunctions() {
         GetStackTracesResponse stacktraces = new GetStackTracesResponse(
             Map.of(
                 "2buqP1GpF-TXYmL4USW8gA",
                 new StackTrace(
-                    List.of(12784352, 19334053, 19336161, 18795859, 18622708, 18619213, 12989721, 13658842, 16339645),
-                    List.of(
+                    new int[] { 12784352, 19334053, 19336161, 18795859, 18622708, 18619213, 12989721, 13658842, 16339645 },
+                    new String[] {
                         "fr28zxcZ2UDasxYuu6dV-w",
                         "fr28zxcZ2UDasxYuu6dV-w",
                         "fr28zxcZ2UDasxYuu6dV-w",
@@ -29,9 +29,8 @@ public class TransportGetTopNFunctionsActionTests extends ESTestCase {
                         "fr28zxcZ2UDasxYuu6dV-w",
                         "fr28zxcZ2UDasxYuu6dV-w",
                         "fr28zxcZ2UDasxYuu6dV-w",
-                        "fr28zxcZ2UDasxYuu6dV-w"
-                    ),
-                    List.of(
+                        "fr28zxcZ2UDasxYuu6dV-w" },
+                    new String[] {
                         "fr28zxcZ2UDasxYuu6dV-wAAAAAAwxLg",
                         "fr28zxcZ2UDasxYuu6dV-wAAAAABJwOl",
                         "fr28zxcZ2UDasxYuu6dV-wAAAAABJwvh",
@@ -40,23 +39,25 @@ public class TransportGetTopNFunctionsActionTests extends ESTestCase {
                         "fr28zxcZ2UDasxYuu6dV-wAAAAABHBtN",
                         "fr28zxcZ2UDasxYuu6dV-wAAAAAAxjUZ",
                         "fr28zxcZ2UDasxYuu6dV-wAAAAAA0Gra",
-                        "fr28zxcZ2UDasxYuu6dV-wAAAAAA-VK9"
-                    ),
-                    List.of(3, 3, 3, 3, 3, 3, 3, 3, 3)
+                        "fr28zxcZ2UDasxYuu6dV-wAAAAAA-VK9" },
+                    new int[] { 3, 3, 3, 3, 3, 3, 3, 3, 3 },
+                    0.3d,
+                    2.7d,
+                    1
                 )
             ),
             Map.of(),
             Map.of("fr28zxcZ2UDasxYuu6dV-w", "containerd"),
-            Map.of("2buqP1GpF-TXYmL4USW8gA", 1L),
+            Map.of("2buqP1GpF-TXYmL4USW8gA", new TraceEvent("2buqP1GpF-TXYmL4USW8gA", 1L)),
             9,
             1.0d,
             1
         );
 
-        GetTopNFunctionsResponse response = TransportGetTopNFunctionsAction.buildTopNFunctions(stacktraces);
+        GetTopNFunctionsResponse response = TransportGetTopNFunctionsAction.buildTopNFunctions(stacktraces, null);
         assertNotNull(response);
         assertEquals(1.0d, response.getSamplingRate(), 0.001d);
-        assertEquals(1, response.getTotalCount());
+        assertEquals(1, response.getTotalSamples());
         assertEquals(1, response.getSelfCPU());
         assertEquals(9, response.getTotalCPU());
 
@@ -64,85 +65,124 @@ public class TransportGetTopNFunctionsActionTests extends ESTestCase {
         assertNotNull(topNFunctions);
         assertEquals(9, topNFunctions.size());
 
-        List<String> ids = topNFunctions.stream().map(fn -> fn.id).collect(Collectors.toList());
-        List<Integer> ranks = topNFunctions.stream().map(fn -> fn.rank).collect(Collectors.toList());
-        List<Long> exclusiveCounts = topNFunctions.stream().map(fn -> fn.exclusiveCount).collect(Collectors.toList());
-        List<Long> inclusiveCounts = topNFunctions.stream().map(fn -> fn.inclusiveCount).collect(Collectors.toList());
-        List<String> frameIDs = topNFunctions.stream().map(fn -> fn.metadata.frameID).collect(Collectors.toList());
-        List<String> fileIDs = topNFunctions.stream().map(fn -> fn.metadata.fileID).collect(Collectors.toList());
-        List<Integer> frameTypes = topNFunctions.stream().map(fn -> fn.metadata.frameType).collect(Collectors.toList());
-        List<Boolean> inlines = topNFunctions.stream().map(fn -> fn.metadata.inline).collect(Collectors.toList());
-        List<Integer> addressOrLines = topNFunctions.stream().map(fn -> fn.metadata.addressOrLine).collect(Collectors.toList());
-        List<String> functionNames = topNFunctions.stream().map(fn -> fn.metadata.functionName).collect(Collectors.toList());
-        List<Integer> functionOffsets = topNFunctions.stream().map(fn -> fn.metadata.functionOffset).collect(Collectors.toList());
-        List<String> sourceFilenames = topNFunctions.stream().map(fn -> fn.metadata.sourceFilename).collect(Collectors.toList());
-        List<Integer> sourceLines = topNFunctions.stream().map(fn -> fn.metadata.sourceLine).collect(Collectors.toList());
-        List<String> exeFilenames = topNFunctions.stream().map(fn -> fn.metadata.exeFilename).collect(Collectors.toList());
+        assertEquals(
+            List.of(
+                topN("178196121", 1, "fr28zxcZ2UDasxYuu6dV-wAAAAAA-VK9", 16339645, 1L, 1L, 0.3d, 0.3d, 2.7d, 2.7d),
+                topN("181192637", 2, "fr28zxcZ2UDasxYuu6dV-wAAAAABJwvh", 19336161, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d),
+                topN("181190529", 3, "fr28zxcZ2UDasxYuu6dV-wAAAAABJwOl", 19334053, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d),
+                topN("180652335", 4, "fr28zxcZ2UDasxYuu6dV-wAAAAABHs1T", 18795859, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d),
+                topN("180479184", 5, "fr28zxcZ2UDasxYuu6dV-wAAAAABHCj0", 18622708, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d),
+                topN("180475689", 6, "fr28zxcZ2UDasxYuu6dV-wAAAAABHBtN", 18619213, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d),
+                topN("175515318", 7, "fr28zxcZ2UDasxYuu6dV-wAAAAAA0Gra", 13658842, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d),
+                topN("174846197", 8, "fr28zxcZ2UDasxYuu6dV-wAAAAAAxjUZ", 12989721, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d),
+                topN("174640828", 9, "fr28zxcZ2UDasxYuu6dV-wAAAAAAwxLg", 12784352, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d)
+            ),
+            topNFunctions
+        );
+    }
+
+    public void testCreateTopNFunctionsWithLimit() {
+        GetStackTracesResponse stacktraces = new GetStackTracesResponse(
+            Map.of(
+                "2buqP1GpF-TXYmL4USW8gA",
+                new StackTrace(
+                    new int[] { 12784352, 19334053, 19336161, 18795859, 18622708, 18619213, 12989721, 13658842, 16339645 },
+                    new String[] {
+                        "fr28zxcZ2UDasxYuu6dV-w",
+                        "fr28zxcZ2UDasxYuu6dV-w",
+                        "fr28zxcZ2UDasxYuu6dV-w",
+                        "fr28zxcZ2UDasxYuu6dV-w",
+                        "fr28zxcZ2UDasxYuu6dV-w",
+                        "fr28zxcZ2UDasxYuu6dV-w",
+                        "fr28zxcZ2UDasxYuu6dV-w",
+                        "fr28zxcZ2UDasxYuu6dV-w",
+                        "fr28zxcZ2UDasxYuu6dV-w" },
+                    new String[] {
+                        "fr28zxcZ2UDasxYuu6dV-wAAAAAAwxLg",
+                        "fr28zxcZ2UDasxYuu6dV-wAAAAABJwOl",
+                        "fr28zxcZ2UDasxYuu6dV-wAAAAABJwvh",
+                        "fr28zxcZ2UDasxYuu6dV-wAAAAABHs1T",
+                        "fr28zxcZ2UDasxYuu6dV-wAAAAABHCj0",
+                        "fr28zxcZ2UDasxYuu6dV-wAAAAABHBtN",
+                        "fr28zxcZ2UDasxYuu6dV-wAAAAAAxjUZ",
+                        "fr28zxcZ2UDasxYuu6dV-wAAAAAA0Gra",
+                        "fr28zxcZ2UDasxYuu6dV-wAAAAAA-VK9" },
+                    new int[] { 3, 3, 3, 3, 3, 3, 3, 3, 3 },
+                    0.3d,
+                    2.7d,
+                    1
+                )
+            ),
+            Map.of(),
+            Map.of("fr28zxcZ2UDasxYuu6dV-w", "containerd"),
+            Map.of("2buqP1GpF-TXYmL4USW8gA", new TraceEvent("2buqP1GpF-TXYmL4USW8gA", 1L)),
+            9,
+            1.0d,
+            1
+        );
+
+        GetTopNFunctionsResponse response = TransportGetTopNFunctionsAction.buildTopNFunctions(stacktraces, 3);
+        assertNotNull(response);
+        assertEquals(1.0d, response.getSamplingRate(), 0.001d);
+        assertEquals(1, response.getTotalSamples());
+        assertEquals(1, response.getSelfCPU());
+        assertEquals(9, response.getTotalCPU());
+
+        List<TopNFunction> topNFunctions = response.getTopN();
+        assertNotNull(topNFunctions);
+        assertEquals(3, topNFunctions.size());
 
         assertEquals(
-            List.of("178196121", "181192637", "181190529", "180652335", "180479184", "180475689", "175515318", "174846197", "174640828"),
-            ids
-        );
-        assertEquals(List.of(1, 2, 3, 4, 5, 6, 7, 8, 9), ranks);
-        assertEquals(List.of(1L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L), exclusiveCounts);
-        assertEquals(List.of(1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L), inclusiveCounts);
-        assertEquals(
             List.of(
-                "fr28zxcZ2UDasxYuu6dV-wAAAAAA-VK9",
-                "fr28zxcZ2UDasxYuu6dV-wAAAAABJwvh",
-                "fr28zxcZ2UDasxYuu6dV-wAAAAABJwOl",
-                "fr28zxcZ2UDasxYuu6dV-wAAAAABHs1T",
-                "fr28zxcZ2UDasxYuu6dV-wAAAAABHCj0",
-                "fr28zxcZ2UDasxYuu6dV-wAAAAABHBtN",
-                "fr28zxcZ2UDasxYuu6dV-wAAAAAA0Gra",
-                "fr28zxcZ2UDasxYuu6dV-wAAAAAAxjUZ",
-                "fr28zxcZ2UDasxYuu6dV-wAAAAAAwxLg"
+                topN("178196121", 1, "fr28zxcZ2UDasxYuu6dV-wAAAAAA-VK9", 16339645, 1L, 1L, 0.3d, 0.3d, 2.7d, 2.7d),
+                topN("181192637", 2, "fr28zxcZ2UDasxYuu6dV-wAAAAABJwvh", 19336161, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d),
+                topN("181190529", 3, "fr28zxcZ2UDasxYuu6dV-wAAAAABJwOl", 19334053, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d)
             ),
-            frameIDs
+            topNFunctions
         );
-        assertEquals(
-            List.of(
-                "fr28zxcZ2UDasxYuu6dV-w",
-                "fr28zxcZ2UDasxYuu6dV-w",
-                "fr28zxcZ2UDasxYuu6dV-w",
-                "fr28zxcZ2UDasxYuu6dV-w",
-                "fr28zxcZ2UDasxYuu6dV-w",
-                "fr28zxcZ2UDasxYuu6dV-w",
-                "fr28zxcZ2UDasxYuu6dV-w",
-                "fr28zxcZ2UDasxYuu6dV-w",
-                "fr28zxcZ2UDasxYuu6dV-w"
-            ),
-            fileIDs
-        );
-        assertEquals(List.of(3, 3, 3, 3, 3, 3, 3, 3, 3), frameTypes);
-        assertEquals(List.of(false, false, false, false, false, false, false, false, false), inlines);
-        assertEquals(List.of(16339645, 19336161, 19334053, 18795859, 18622708, 18619213, 13658842, 12989721, 12784352), addressOrLines);
-        assertEquals(List.of("", "", "", "", "", "", "", "", ""), functionNames);
-        assertEquals(List.of(0, 0, 0, 0, 0, 0, 0, 0, 0), functionOffsets);
-        assertEquals(List.of("", "", "", "", "", "", "", "", ""), sourceFilenames);
-        assertEquals(List.of(0, 0, 0, 0, 0, 0, 0, 0, 0), sourceLines);
-        assertEquals(
-            List.of(
-                "containerd",
-                "containerd",
-                "containerd",
-                "containerd",
-                "containerd",
-                "containerd",
-                "containerd",
-                "containerd",
-                "containerd"
-            ),
-            exeFilenames
+    }
+
+    private TopNFunction topN(
+        String id,
+        int rank,
+        String frameId,
+        int addressOrLine,
+        long exclusiveCount,
+        long inclusiveCount,
+        double annualCO2TonsExclusive,
+        double annualCO2TonsInclusive,
+        double annualCostsUSDExclusive,
+        double annualCostsUSDInclusive
+    ) {
+        return new TopNFunction(
+            id,
+            rank,
+            frameId,
+            "fr28zxcZ2UDasxYuu6dV-w",
+            3,
+            false,
+            addressOrLine,
+            "",
+            0,
+            "",
+            0,
+            "containerd",
+            exclusiveCount,
+            inclusiveCount,
+            annualCO2TonsExclusive,
+            annualCO2TonsInclusive,
+            annualCostsUSDExclusive,
+            annualCostsUSDInclusive,
+            Collections.emptyMap()
         );
     }
 
     public void testCreateEmptyTopNFunctions() {
         GetStackTracesResponse stacktraces = new GetStackTracesResponse(Map.of(), Map.of(), Map.of(), Map.of(), 0, 1.0d, 0);
-        GetTopNFunctionsResponse response = TransportGetTopNFunctionsAction.buildTopNFunctions(stacktraces);
+        GetTopNFunctionsResponse response = TransportGetTopNFunctionsAction.buildTopNFunctions(stacktraces, null);
         assertNotNull(response);
         assertEquals(1.0d, response.getSamplingRate(), 0.001d);
-        assertEquals(0, response.getTotalCount());
+        assertEquals(0, response.getTotalSamples());
         assertEquals(0, response.getSelfCPU());
         assertEquals(0, response.getTotalCPU());
 

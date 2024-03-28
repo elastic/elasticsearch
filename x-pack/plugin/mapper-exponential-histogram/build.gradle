@@ -1,0 +1,22 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+
+esplugin {
+  name 'exponential-histogram'
+  description 'Module for the exponential-histogram field type.'
+  classname 'org.elasticsearch.xpack.exponentialhistogram.ExponentialHistogramMapperPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+base {
+  archivesName = 'x-pack-exponential-histogram'
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+}

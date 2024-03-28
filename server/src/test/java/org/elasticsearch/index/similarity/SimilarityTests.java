@@ -27,6 +27,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.lucene.similarity.LegacyBM25Similarity;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -254,7 +255,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("foo");
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> indexService.mapperService().parseMapping("type", new CompressedXContent(mapping))
+            () -> indexService.mapperService().parseMapping("type", MergeReason.MAPPING_UPDATE, new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), equalTo("Failed to parse mapping: Unknown Similarity type [unknown_similarity] for field [field1]"));
     }

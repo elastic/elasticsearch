@@ -133,6 +133,7 @@ public class MetadataMappingService {
             final CompressedXContent mappingUpdateSource = request.source();
             final Metadata metadata = currentState.metadata();
             final List<IndexMetadata> updateList = new ArrayList<>();
+            MergeReason reason = request.autoUpdate() ? MergeReason.MAPPING_AUTO_UPDATE : MergeReason.MAPPING_UPDATE;
             for (Index index : request.indices()) {
                 MapperService mapperService = indexMapperServices.get(index);
                 // IMPORTANT: always get the metadata from the state since it get's batched
@@ -147,13 +148,8 @@ public class MetadataMappingService {
                 updateList.add(indexMetadata);
                 // try and parse it (no need to add it here) so we can bail early in case of parsing exception
                 // first, simulate: just call merge and ignore the result
-                Mapping mapping = mapperService.parseMapping(MapperService.SINGLE_MAPPING_NAME, mappingUpdateSource);
-                MapperService.mergeMappings(
-                    mapperService.documentMapper(),
-                    mapping,
-                    request.autoUpdate() ? MergeReason.MAPPING_AUTO_UPDATE : MergeReason.MAPPING_UPDATE,
-                    mapperService.getIndexSettings()
-                );
+                Mapping mapping = mapperService.parseMapping(MapperService.SINGLE_MAPPING_NAME, reason, mappingUpdateSource);
+                MapperService.mergeMappings(mapperService.documentMapper(), mapping, reason, mapperService.getIndexSettings());
             }
             Metadata.Builder builder = Metadata.builder(metadata);
             boolean updated = false;
@@ -169,11 +165,7 @@ public class MetadataMappingService {
                 if (existingMapper != null) {
                     existingSource = existingMapper.mappingSource();
                 }
-                DocumentMapper mergedMapper = mapperService.merge(
-                    MapperService.SINGLE_MAPPING_NAME,
-                    mappingUpdateSource,
-                    request.autoUpdate() ? MergeReason.MAPPING_AUTO_UPDATE : MergeReason.MAPPING_UPDATE
-                );
+                DocumentMapper mergedMapper = mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mappingUpdateSource, reason);
                 CompressedXContent updatedSource = mergedMapper.mappingSource();
 
                 if (existingSource != null) {

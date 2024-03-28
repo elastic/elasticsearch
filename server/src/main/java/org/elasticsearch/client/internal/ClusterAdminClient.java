@@ -16,6 +16,8 @@ import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplai
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesRequest;
+import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -197,6 +199,22 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Nodes info of the cluster.
      */
     NodesInfoRequestBuilder prepareNodesInfo(String... nodesIds);
+
+    /**
+     * Nodes capabilities of the cluster.
+     *
+     * @param request The nodes capabilities request
+     * @return The result future
+     */
+    ActionFuture<NodesCapabilitiesResponse> nodesCapabilities(NodesCapabilitiesRequest request);
+
+    /**
+     * Nodes capabilities of the cluster.
+     *
+     * @param request  The nodes capabilities request
+     * @param listener A listener to be notified with a result
+     */
+    void nodesCapabilities(NodesCapabilitiesRequest request, ActionListener<NodesCapabilitiesResponse> listener);
 
     /**
      * Cluster wide aggregated stats

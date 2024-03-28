@@ -77,6 +77,16 @@ public abstract class BaseRestHandler implements RestHandler {
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+        // check if the query has any parameters that are not in the supported set (if declared)
+        var supported = supportedQueryParameters();
+        if (supported != null) {
+            Set<String> unsupported = new HashSet<>(request.params().keySet());
+            unsupported.removeAll(supported);
+            if (unsupported.isEmpty() == false) {
+                throw new IllegalArgumentException(unrecognized(request, unsupported, supported, "parameter"));
+            }
+        }
+
         // prepare the request for execution; has the side effect of touching the request parameters
         try (var action = prepareRequest(request, client)) {
 

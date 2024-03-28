@@ -47,12 +47,14 @@ import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.SORTED_
 
 final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
 
+    final SegmentWriteState state;
     IndexOutput data, meta;
     final int maxDoc;
     private byte[] termsDictBuffer;
 
     ES87TSDBDocValuesConsumer(SegmentWriteState state, String dataCodec, String dataExtension, String metaCodec, String metaExtension)
         throws IOException {
+        this.state = state;
         this.termsDictBuffer = new byte[1 << 14];
         boolean success = false;
         try {
@@ -195,66 +197,51 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         meta.writeInt(field.number);
         meta.writeByte(ES87TSDBDocValuesFormat.BINARY);
 
-        BinaryDocValues values = valuesProducer.getBinary(field);
-        long start = data.getFilePointer();
-        meta.writeLong(start); // dataOffset
-        int numDocsWithField = 0;
-        int minLength = Integer.MAX_VALUE;
-        int maxLength = 0;
-        for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-            numDocsWithField++;
-            BytesRef v = values.binaryValue();
-            int length = v.length;
-            data.writeBytes(v.bytes, v.offset, v.length);
-            minLength = Math.min(length, minLength);
-            maxLength = Math.max(length, maxLength);
-        }
-        assert numDocsWithField <= maxDoc;
-        meta.writeLong(data.getFilePointer() - start); // dataLength
-
-        if (numDocsWithField == 0) {
-            meta.writeLong(-2); // docsWithFieldOffset
-            meta.writeLong(0L); // docsWithFieldLength
-            meta.writeShort((short) -1); // jumpTableEntryCount
-            meta.writeByte((byte) -1); // denseRankPower
-        } else if (numDocsWithField == maxDoc) {
-            meta.writeLong(-1); // docsWithFieldOffset
-            meta.writeLong(0L); // docsWithFieldLength
-            meta.writeShort((short) -1); // jumpTableEntryCount
-            meta.writeByte((byte) -1); // denseRankPower
-        } else {
-            long offset = data.getFilePointer();
-            meta.writeLong(offset); // docsWithFieldOffset
-            values = valuesProducer.getBinary(field);
-            final short jumpTableEntryCount = IndexedDISI.writeBitSet(values, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
-            meta.writeLong(data.getFilePointer() - offset); // docsWithFieldLength
-            meta.writeShort(jumpTableEntryCount);
-            meta.writeByte(IndexedDISI.DEFAULT_DENSE_RANK_POWER);
-        }
-
-        meta.writeInt(numDocsWithField);
-        meta.writeInt(minLength);
-        meta.writeInt(maxLength);
-        if (maxLength > minLength) {
-            start = data.getFilePointer();
-            meta.writeLong(start);
-            meta.writeVInt(ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT);
-
-            final DirectMonotonicWriter writer = DirectMonotonicWriter.getInstance(
-                meta,
-                data,
-                numDocsWithField + 1,
-                ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
-            );
-            long addr = 0;
-            writer.add(addr);
-            values = valuesProducer.getBinary(field);
+        try (CompressedBinaryBlockWriter blockWriter = new CompressedBinaryBlockWriter(state, meta, data)) {
+            BinaryDocValues values = valuesProducer.getBinary(field);
+            long start = data.getFilePointer();
+            meta.writeLong(start); // dataOffset
+            int numDocsWithField = 0;
+            int minLength = Integer.MAX_VALUE;
+            int maxLength = 0;
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                addr += values.binaryValue().length;
-                writer.add(addr);
+                numDocsWithField++;
+                BytesRef v = values.binaryValue();
+                blockWriter.addDoc(v);
+                int length = v.length;
+                minLength = Math.min(length, minLength);
+                maxLength = Math.max(length, maxLength);
             }
-            writer.finish();
-            meta.writeLong(data.getFilePointer() - start);
+            blockWriter.flushData();
+
+            assert numDocsWithField <= maxDoc;
+            meta.writeLong(data.getFilePointer() - start); // dataLength
+
+            if (numDocsWithField == 0) {
+                meta.writeLong(-2); // docsWithFieldOffset
+                meta.writeLong(0L); // docsWithFieldLength
+                meta.writeShort((short) -1); // jumpTableEntryCount
+                meta.writeByte((byte) -1);   // denseRankPower
+            } else if (numDocsWithField == maxDoc) {
+                meta.writeLong(-1); // docsWithFieldOffset
+                meta.writeLong(0L); // docsWithFieldLength
+                meta.writeShort((short) -1); // jumpTableEntryCount
+                meta.writeByte((byte) -1);   // denseRankPower
+            } else {
+                long offset = data.getFilePointer();
+                meta.writeLong(offset); // docsWithFieldOffset
+                values = valuesProducer.getBinary(field);
+                final short jumpTableEntryCount = IndexedDISI.writeBitSet(values, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+                meta.writeLong(data.getFilePointer() - offset); // docsWithFieldLength
+                meta.writeShort(jumpTableEntryCount);
+                meta.writeByte(IndexedDISI.DEFAULT_DENSE_RANK_POWER);
+            }
+
+            meta.writeInt(numDocsWithField);
+            meta.writeInt(minLength);
+            meta.writeInt(maxLength);
+
+            blockWriter.writeMetaData();
         }
     }
 

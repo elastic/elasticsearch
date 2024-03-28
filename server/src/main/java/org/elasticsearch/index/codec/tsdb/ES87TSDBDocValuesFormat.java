@@ -42,6 +42,10 @@ public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
     static final int TERMS_DICT_REVERSE_INDEX_SIZE = 1 << TERMS_DICT_REVERSE_INDEX_SHIFT;
     static final int TERMS_DICT_REVERSE_INDEX_MASK = TERMS_DICT_REVERSE_INDEX_SIZE - 1;
 
+    static final int BINARY_BLOCK_SHIFT = 5;
+    static final int BINARY_DOCS_PER_COMPRESSED_BLOCK = 1 << BINARY_BLOCK_SHIFT;
+    static final long MAX_COMPRESSED_BLOCK_SIZE = 1 << 1;
+
     public ES87TSDBDocValuesFormat() {
         super(CODEC_NAME);
     }

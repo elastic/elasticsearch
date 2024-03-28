@@ -9,10 +9,14 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.CharArraySet;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.BufferedWriter;
 import java.io.FileNotFoundException;
@@ -27,6 +31,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.is;
 
 public class AnalysisTests extends ESTestCase {
@@ -102,5 +107,37 @@ public class AnalysisTests extends ESTestCase {
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
         List<String> wordList = Analysis.getWordList(env, nodeSettings, "foo.bar");
         assertEquals(Arrays.asList("hello", "world"), wordList);
+    }
+
+    public void testCustomAnalyzerWithUnsupportedKey() {
+        Settings analyzerSettings = Settings.builder().
+            put("index.analysis.analyzer.my_analyzer.tokenizer", "standard").
+            put("index.analysis.analyzer.my_analyzer.type", "custom").
+            put("index.analysis.analyzer.my_analyzer.foo", "bar").
+            build();
+        Settings settings = Settings.builder().
+            put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_8_5_0).
+            put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).
+            put(analyzerSettings).
+            build();
+
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        AnalysisRegistry emptyAnalysisRegistry = new AnalysisRegistry(
+            TestEnvironment.newEnvironment(settings),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap(),
+            emptyMap()
+        );
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> emptyAnalysisRegistry.build(idxSettings)
+        );
+        assertEquals(ex.getMessage(), "Custom analyzer [my_analyzer] does not support [foo]");
     }
 }

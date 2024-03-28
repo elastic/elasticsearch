@@ -79,7 +79,7 @@ Once your changes and tests are ready to submit for review:
 1. Test your changes
 
     Run the test suite to make sure that nothing is broken. See the
-[TESTING](TESTING.asciidoc) file for help running tests.
+[TESTING](TESTING.asciidoc) file for helping run tests.
 
 2. Sign the Contributor License Agreement
 

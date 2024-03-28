@@ -445,11 +445,11 @@ public class MatchQueryParser {
             SpanNearQuery.Builder builder = new SpanNearQuery.Builder(field, true);
             Term lastTerm = null;
             while (in.incrementToken()) {
-                if (posIncAtt.getPositionIncrement() > 1) {
-                    builder.addGap(posIncAtt.getPositionIncrement() - 1);
-                }
                 if (lastTerm != null) {
                     builder.addClause(new SpanTermQuery(lastTerm));
+                }
+                if (posIncAtt.getPositionIncrement() > 1) {
+                    builder.addGap(posIncAtt.getPositionIncrement() - 1);
                 }
                 lastTerm = new Term(field, termAtt.getBytesRef());
             }

@@ -34,7 +34,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.InternalEngineFactory;
@@ -595,8 +594,6 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
      */
     private class AllPermitsThenBlockAction extends TestAction {
 
-        private final TimeValue timeout = TimeValue.timeValueSeconds(30L);
-
         AllPermitsThenBlockAction(
             Settings settings,
             String actionName,
@@ -624,7 +621,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
 
         @Override
         protected void acquirePrimaryOperationPermit(IndexShard shard, Request request, ActionListener<Releasable> onAcquired) {
-            shard.acquireAllPrimaryOperationsPermits(onAcquired, timeout);
+            shard.acquireAllPrimaryOperationsPermits(onAcquired);
         }
 
         @Override
@@ -636,7 +633,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
             long globalCheckpoint,
             long maxSeqNo
         ) {
-            shard.acquireAllReplicaOperationsPermits(primaryTerm, globalCheckpoint, maxSeqNo, onAcquired, timeout);
+            shard.acquireAllReplicaOperationsPermits(primaryTerm, globalCheckpoint, maxSeqNo, onAcquired);
         }
 
         @Override

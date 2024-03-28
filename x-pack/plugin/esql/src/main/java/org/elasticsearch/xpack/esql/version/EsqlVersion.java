@@ -12,8 +12,8 @@ import org.elasticsearch.common.VersionId;
 
 public enum EsqlVersion implements VersionId<EsqlVersion> {
     // Breaking changes go here until the next version is released.
-    NIGHTLY(Integer.MAX_VALUE, Integer.MAX_VALUE, "\uD83D\uDE34"),
-    PARTY_POPPER(2024, 4, "\uD83C\uDF89");
+    NIGHTLY(Integer.MAX_VALUE, Integer.MAX_VALUE, "😴"),
+    PARTY_POPPER(2024, 4, "🎉");
 
     EsqlVersion(int year, int month, String emoji) {
         this.year = year;

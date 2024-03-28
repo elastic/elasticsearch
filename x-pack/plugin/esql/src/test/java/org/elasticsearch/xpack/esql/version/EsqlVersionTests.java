@@ -16,8 +16,8 @@ import static org.hamcrest.Matchers.is;
 
 public class EsqlVersionTests extends ESTestCase {
     public void testVersionString() {
-        assertThat(EsqlVersion.NIGHTLY.toString(), equalTo("nightly.\uD83D\uDE34"));
-        assertThat(EsqlVersion.PARTY_POPPER.toString(), equalTo("2024.04.\uD83C\uDF89"));
+        assertThat(EsqlVersion.NIGHTLY.toString(), equalTo("nightly.😴"));
+        assertThat(EsqlVersion.PARTY_POPPER.toString(), equalTo("2024.04.🎉"));
     }
 
     public void testVersionId() {

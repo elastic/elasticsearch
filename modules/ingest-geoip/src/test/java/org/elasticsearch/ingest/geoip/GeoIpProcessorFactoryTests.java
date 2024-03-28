@@ -301,7 +301,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config1.put("field", "_field");
         config1.put("properties", List.of("ip"));
         Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config1));
-        assertThat(e.getMessage(), equalTo("[properties] illegal property value [ip]. valid values are []"));
+        assertThat(e.getMessage(), equalTo("[database_file] Unsupported database type [some-unsupported-database]"));
     }
 
     @SuppressWarnings("HiddenField")

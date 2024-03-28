@@ -69,7 +69,7 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
             new RestBuilderListener<>(channel) {
                 @Override
                 public RestResponse buildResponse(GetBuiltinPrivilegesResponse response, XContentBuilder builder) throws Exception {
-                    final var translatedResponse = responseTranslator.translate(response, restrictResponse);
+                    final var translatedResponse = responseTranslator.translate(response);
                     builder.startObject();
                     builder.array("cluster", translatedResponse.getClusterPrivileges());
                     builder.array("index", translatedResponse.getIndexPrivileges());

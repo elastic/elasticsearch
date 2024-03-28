@@ -32,6 +32,7 @@ import static org.elasticsearch.action.support.IndicesOptions.WildcardOptions.AL
 public class EsSourceOptions {
 
     private static final String OPTION_PREFERENCE = "preference";
+    public static final EsSourceOptions NO_OPTIONS = new EsSourceOptions();
 
     @Nullable
     private String allowNoIndices;

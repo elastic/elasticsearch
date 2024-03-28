@@ -776,10 +776,9 @@ public final class PlanNamedTypes {
         Source source = in.readSource();
         EsIndex esIndex = readEsIndex(in);
         List<Attribute> attributes = readAttributes(in);
-        EsSourceOptions esSourceOptions = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_SOURCE_OPTIONS) && in.readBoolean()) {
-            esSourceOptions = new EsSourceOptions(in);
-        }
+        EsSourceOptions esSourceOptions = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_SOURCE_OPTIONS)
+            ? new EsSourceOptions(in)
+            : EsSourceOptions.NO_OPTIONS;
         boolean frozen = in.readBoolean();
         return new EsRelation(source, esIndex, attributes, esSourceOptions, frozen);
     }
@@ -790,12 +789,7 @@ public final class PlanNamedTypes {
         writeEsIndex(out, relation.index());
         writeAttributes(out, relation.output());
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_SOURCE_OPTIONS)) {
-            if (relation.esSourceOptions() != null) {
-                out.writeBoolean(true);
-                relation.esSourceOptions().writeEsSourceOptions(out);
-            } else {
-                out.writeBoolean(false);
-            }
+            relation.esSourceOptions().writeEsSourceOptions(out);
         }
         out.writeBoolean(relation.frozen());
     }

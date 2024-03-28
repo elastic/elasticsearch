@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ql.plan.logical;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -26,16 +25,15 @@ public class EsRelation extends LeafPlan {
 
     private final EsIndex index;
     private final List<Attribute> attrs;
-    @Nullable
     private final EsSourceOptions esSourceOptions;
     private final boolean frozen;
 
     public EsRelation(Source source, EsIndex index, boolean frozen) {
-        this(source, index, flatten(source, index.mapping()), null, frozen);
+        this(source, index, flatten(source, index.mapping()), EsSourceOptions.NO_OPTIONS, frozen);
     }
 
     public EsRelation(Source source, EsIndex index, List<Attribute> attributes) {
-        this(source, index, attributes, null, false);
+        this(source, index, attributes, EsSourceOptions.NO_OPTIONS, false);
     }
 
     public EsRelation(Source source, EsIndex index, List<Attribute> attributes, EsSourceOptions esSourceOptions) {
@@ -46,6 +44,7 @@ public class EsRelation extends LeafPlan {
         super(source);
         this.index = index;
         this.attrs = attributes;
+        Objects.requireNonNull(esSourceOptions);
         this.esSourceOptions = esSourceOptions;
         this.frozen = frozen;
     }
@@ -82,7 +81,6 @@ public class EsRelation extends LeafPlan {
         return index;
     }
 
-    @Nullable
     public EsSourceOptions esSourceOptions() {
         return esSourceOptions;
     }

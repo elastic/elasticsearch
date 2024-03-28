@@ -211,9 +211,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             }
         }
-        EsSourceOptions esSourceOptions = null;
+        EsSourceOptions esSourceOptions = new EsSourceOptions();
         if (ctx.fromOptions() != null) {
-            esSourceOptions = new EsSourceOptions();
             for (var o : ctx.fromOptions().configOption()) {
                 var nameContext = o.string().get(0);
                 String name = visitString(nameContext).fold().toString();

@@ -129,7 +129,9 @@ c:l | name:k
 1   | eeeee
 ;
 
-convertFromDatetimeWithOptions#[skip:-8.13.99, reason:OPTIONS added in 8.14]
+convertFromDatetimeWithOptions
+required_feature: esql.from_options
+
   FROM employees OPTIONS "allow_no_indices"="false","preference"="_shards:0"
 | SORT emp_no
 | EVAL hire_double = to_double(hire_date)

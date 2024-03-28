@@ -9,7 +9,7 @@ and returns the resulting tokens.
 
 [source,console]
 --------------------------------------------------
-GET /_analyze
+POST /_analyze
 {
   "analyzer" : "standard",
   "text" : "Quick Brown Foxes!"
@@ -141,7 +141,7 @@ specifying an index.
 
 [source,console]
 --------------------------------------------------
-GET /_analyze
+POST /_analyze
 {
   "analyzer" : "standard",
   "text" : "this is a test"
@@ -155,7 +155,7 @@ If the `text` parameter is provided as array of strings, it is analyzed as a mul
 
 [source,console]
 --------------------------------------------------
-GET /_analyze
+POST /_analyze
 {
   "analyzer" : "standard",
   "text" : ["this is a test", "the second text"]
@@ -171,7 +171,7 @@ parameter:
 
 [source,console]
 --------------------------------------------------
-GET /_analyze
+POST /_analyze
 {
   "tokenizer" : "keyword",
   "filter" : ["lowercase"],
@@ -181,7 +181,7 @@ GET /_analyze
 
 [source,console]
 --------------------------------------------------
-GET /_analyze
+POST /_analyze
 {
   "tokenizer" : "keyword",
   "filter" : ["lowercase"],
@@ -194,7 +194,7 @@ Custom tokenizers, token filters, and character filters can be specified in the 
 
 [source,console]
 --------------------------------------------------
-GET /_analyze
+POST /_analyze
 {
   "tokenizer" : "whitespace",
   "filter" : ["lowercase", {"type": "stop", "stopwords": ["a", "is", "this"]}],
@@ -222,7 +222,7 @@ can also be provided to use a different analyzer:
 
 [source,console]
 --------------------------------------------------
-GET /analyze_sample/_analyze
+POST /analyze_sample/_analyze
 {
   "analyzer" : "whitespace",
   "text" : "this is a test"
@@ -237,7 +237,7 @@ The analyzer can be derived based on a field mapping, for example:
 
 [source,console]
 --------------------------------------------------
-GET /analyze_sample/_analyze
+POST /analyze_sample/_analyze
 {
   "field" : "obj1.field1",
   "text" : "this is a test"
@@ -255,7 +255,7 @@ A `normalizer` can be provided for keyword field with normalizer associated with
 
 [source,console]
 --------------------------------------------------
-GET /analyze_sample/_analyze
+POST /analyze_sample/_analyze
 {
   "normalizer" : "my_normalizer",
   "text" : "BaR"
@@ -267,7 +267,7 @@ Or by building a custom transient normalizer out of token filters and char filte
 
 [source,console]
 --------------------------------------------------
-GET /_analyze
+POST /_analyze
 {
   "filter" : ["lowercase"],
   "text" : "BaR"
@@ -284,7 +284,7 @@ NOTE: The format of the additional detail information is labelled as experimenta
 
 [source,console]
 --------------------------------------------------
-GET /_analyze
+POST /_analyze
 {
   "tokenizer" : "standard",
   "filter" : ["snowball"],
@@ -370,7 +370,7 @@ PUT /analyze_sample
 
 [source,console]
 --------------------------------------------------
-GET /analyze_sample/_analyze
+POST /analyze_sample/_analyze
 {
   "text" : "this is a test"
 }

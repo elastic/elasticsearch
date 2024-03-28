@@ -16,7 +16,6 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.Objects;
 
 public final class IndexInputUtils {
 
@@ -84,7 +83,6 @@ public final class IndexInputUtils {
     static long offset(IndexInput input) {
         return (long) MULTI_OFFSET.get(input);
     }
-
 
     @SuppressWarnings("removal")
     static MethodHandles.Lookup privilegedPrivateLookupIn(Class<?> cls, MethodHandles.Lookup lookup) throws IllegalAccessException {

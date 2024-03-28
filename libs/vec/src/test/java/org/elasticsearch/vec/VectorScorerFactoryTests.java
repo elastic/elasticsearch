@@ -154,13 +154,13 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
         }
     }
 
-
     public void testRandomSlice() throws IOException {
         assumeTrue(notSupportedMsg(), supported());
         testRandomSliceImpl(30, 64, 1, ESTestCase::randomByteArrayOfLength);
     }
 
-    void testRandomSliceImpl(int dims, long maxChunkSize, int initialPadding, Function<Integer, byte[]> byteArraySupplier) throws IOException {
+    void testRandomSliceImpl(int dims, long maxChunkSize, int initialPadding, Function<Integer, byte[]> byteArraySupplier)
+        throws IOException {
         var factory = AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir(getTestName()), maxChunkSize)) {
@@ -184,8 +184,10 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                         offsets[i] = off;
                     }
                 }
-                try (var outter = dir.openInput(fileName, IOContext.DEFAULT);
-                     var in = outter.slice("slice", initialPadding, outter.length() - initialPadding)) {
+                try (
+                    var outter = dir.openInput(fileName, IOContext.DEFAULT);
+                    var in = outter.slice("slice", initialPadding, outter.length() - initialPadding)
+                ) {
                     int idx0 = randomIntBetween(0, size - 1);
                     int idx1 = randomIntBetween(0, size - 1); // may be the same as idx0 - which is ok.
                     // dot product

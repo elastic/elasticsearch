@@ -182,6 +182,9 @@ public class DiskThresholdDecider extends AllocationDecider {
         if (allocation.metadata().index(shardRouting.index()).ignoreDiskWatermarks()) {
             return YES_DISK_WATERMARKS_IGNORED;
         }
+        if (useAverageDiskUsage(node, usages) == false) {
+            return YES_AVERAGE_DISK_USAGE_UNAVAILABLE;
+        }
 
         // subtractLeavingShards is passed as false here, because they still use disk space, and therefore we should be extra careful
         // and take the size into account
@@ -343,6 +346,9 @@ public class DiskThresholdDecider extends AllocationDecider {
         if (allocation.metadata().index(shardRouting.index()).ignoreDiskWatermarks()) {
             return YES_DISK_WATERMARKS_IGNORED;
         }
+        if (useAverageDiskUsage(node, usages) == false) {
+            return YES_AVERAGE_DISK_USAGE_UNAVAILABLE;
+        }
 
         final DiskUsageWithRelocations usage = getDiskUsage(node, allocation, usages, false);
         final long shardSize = getExpectedShardSize(shardRouting, 0L, allocation);
@@ -382,6 +388,9 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         if (indexMetadata.ignoreDiskWatermarks()) {
             return YES_DISK_WATERMARKS_IGNORED;
+        }
+        if (useAverageDiskUsage(node, usages) == false) {
+            return YES_AVERAGE_DISK_USAGE_UNAVAILABLE;
         }
 
         // subtractLeavingShards is passed as true here, since this is only for shards remaining, we will *eventually* have enough disk
@@ -496,6 +505,32 @@ public class DiskThresholdDecider extends AllocationDecider {
     }
 
     /**
+     * Returns if an average disk usage can be computed from the disk usage map.
+     *
+     * @param usages map of nodeId to DiskUsage for all known nodes
+     * @param node Node to return an averaged DiskUsage object for
+     * @return true if the average disk usage can be computed from the disk usage map
+     */
+    static boolean useAverageDiskUsage(RoutingNode node, Map<String, DiskUsage> usages) {
+        assert usages.isEmpty() == false;
+        if (usages.containsKey(node.nodeId()) == false) {
+            long total = 0L;
+            long free = 0L;
+            for (DiskUsage du : usages.values()) {
+                total += du.getTotalBytes();
+                if (total < 0L) {
+                    return false;
+                }
+                free += du.getFreeBytes();
+                if (free < 0L) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
      * Returns a {@link DiskUsage} for the {@link RoutingNode} using the
      * average usage of other nodes in the disk usage map.
      * @param node Node to return an averaged DiskUsage object for
@@ -503,9 +538,8 @@ public class DiskThresholdDecider extends AllocationDecider {
      * @return DiskUsage representing given node using the average disk usage
      */
     static DiskUsage averageUsage(RoutingNode node, Map<String, DiskUsage> usages) {
-        if (usages.size() == 0) {
-            return new DiskUsage(node.nodeId(), node.node().getName(), "_na_", 0, 0);
-        }
+        assert usages.containsKey(node.nodeId()) == false;
+        assert usages.isEmpty() == false : usages;
         long totalBytes = 0;
         long freeBytes = 0;
         for (DiskUsage du : usages.values()) {
@@ -519,13 +553,19 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     private static final Decision YES_USAGES_UNAVAILABLE = Decision.single(Decision.Type.YES, NAME, "disk usages are unavailable");
 
+    private static final Decision YES_AVERAGE_DISK_USAGE_UNAVAILABLE = Decision.single(
+        Decision.Type.YES,
+        NAME,
+        "average disk usage cannot be computed"
+    );
+
     private Decision earlyTerminate(Map<String, DiskUsage> usages) {
         // Always allow allocation if the decider is disabled
         if (diskThresholdSettings.isEnabled() == false) {
             return YES_DISABLED;
         }
 
-        // Fail open if there are no disk usages available
+        // Allow allocation if there are no disk usages available
         if (usages.isEmpty()) {
             logger.trace("unable to determine disk usages for disk-aware allocation, allowing allocation");
             return YES_USAGES_UNAVAILABLE;

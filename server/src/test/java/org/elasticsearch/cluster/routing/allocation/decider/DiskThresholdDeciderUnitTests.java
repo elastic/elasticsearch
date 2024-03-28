@@ -131,6 +131,74 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         );
     }
 
+    public void testAverageDiskUsage() {
+        var metadata = Metadata.builder()
+            .put(IndexMetadata.builder("index").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
+            .build();
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(DiscoveryNodeUtils.builder("node_0").roles(new HashSet<>(DiscoveryNodeRole.roles())).build())
+                    .add(DiscoveryNodeUtils.builder("node_1").roles(new HashSet<>(DiscoveryNodeRole.roles())).build())
+                    .add(DiscoveryNodeUtils.builder("node_2").roles(new HashSet<>(DiscoveryNodeRole.roles())).build())
+            )
+            .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index("index")).build())
+            .build();
+        final Map<String, DiskUsage> availableSpaceUsage = new HashMap<>();
+        if (randomBoolean()) {
+            availableSpaceUsage.put("node_0", new DiskUsage("node_0", "node_0", "_na_", Long.MAX_VALUE, randomNonNegativeLong()));
+            availableSpaceUsage.put("node_1", new DiskUsage("node_0", "node_0", "_na_", Long.MAX_VALUE, randomNonNegativeLong()));
+        }
+        var clusterInfo = new ClusterInfo(
+            availableSpaceUsage,
+            availableSpaceUsage,
+            Map.of("[index][0][p]", ByteSizeValue.ofGb(50L).getBytes()),
+            Map.of(),
+            Map.of(),
+            Map.of()
+        );
+        var decider = new DiskThresholdDecider(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        var allocation = new RoutingAllocation(
+            new AllocationDeciders(Collections.singleton(decider)),
+            clusterState,
+            clusterInfo,
+            null,
+            System.nanoTime()
+        );
+        allocation.debugDecision(true);
+
+        final var node = RoutingNodesHelper.routingNode("node_2", clusterState.nodes().resolveNode("node_2"));
+        var unassignedShard = ShardRouting.newUnassigned(
+            new ShardId(clusterState.metadata().index("index").getIndex(), 0),
+            true,
+            EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "create index"),
+            ShardRouting.Role.DEFAULT
+        );
+        final Decision decision = switch (randomInt(2)) {
+            case 0 -> decider.canForceAllocateDuringReplace(unassignedShard, node, allocation);
+            case 1 -> decider.canAllocate(unassignedShard, node, allocation);
+            case 2 -> decider.canRemain(
+                clusterState.metadata().index("index"),
+                ShardRoutingHelper.moveToStarted(ShardRoutingHelper.initialize(unassignedShard, "node_2")),
+                node,
+                allocation
+            );
+            default -> throw new AssertionError();
+        };
+        assertEquals(Decision.Type.YES, decision.type());
+        assertThat(
+            decision.getExplanation(),
+            availableSpaceUsage.isEmpty()
+                ? containsString("disk usages are unavailable")
+                : containsString("average disk usage cannot be computed")
+        );
+    }
+
     private void doTestCannotAllocateDueToLackOfDiskResources(boolean testMaxHeadroom) {
         ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss);

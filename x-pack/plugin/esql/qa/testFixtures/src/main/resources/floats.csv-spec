@@ -139,10 +139,8 @@ equalToOrEqualToMultivalue
 required_feature: esql.mv_warn
 
 from employees | where salary_change == 1.19 or salary_change == 7.58 | keep emp_no, salary_change | sort emp_no;
-warning:Line 1:24: evaluation of [salary_change == 1.19] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:24: evaluation of [salary_change] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
-warning:Line 1:49: evaluation of [salary_change == 7.58] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:49: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 // Note that multivalued salaries are filtered out
 emp_no:integer |salary_change:double

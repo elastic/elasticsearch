@@ -1151,10 +1151,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 return false;
             }
             UnassignedShards that = (UnassignedShards) o;
-            return primaries == that.primaries
-                && ignoredPrimaries == that.ignoredPrimaries
-                && unassigned.equals(that.unassigned)
-                && ignored.equals(that.ignored);
+            return primaries == that.primaries && ignoredPrimaries == that.ignoredPrimaries
+            // Equality is only checked in testing, so the performance here does not matter. The
+            // underlying members must remain lists, but the order should not matter for equality.
+                && new HashSet<>(unassigned).equals(new HashSet<>(that.unassigned))
+                && new HashSet<>(ignored).equals(new HashSet<>(that.ignored));
         }
 
         @Override

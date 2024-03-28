@@ -159,6 +159,10 @@ its <<api-key-role-descriptors,assigned role descriptors>> and the owner user's 
 If it exists, the profile uid is returned under the `profile_uid` response field for each API key.
 Defaults to `false`.
 
+`typed_keys`::
+(Optional, Boolean) If `true`, aggregation names are prefixed by their respective types in the response.
+Defaults to `false`.
+
 [[security-api-query-api-key-request-body]]
 ==== {api-request-body-title}
 

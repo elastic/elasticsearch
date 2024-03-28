@@ -34,14 +34,28 @@ public class RecoveryMetricsCollector implements IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(RecoveryMetricsCollector.class);
     public static final String RECOVERY_TOTAL_TIME_METRIC = "es.recovery.shard.total.time";
+    public static final String RECOVERY_INDEX_TIME_METRIC = "es.recovery.shard.index.time";
+    public static final String RECOVERY_TRANSLOG_TIME_METRIC = "es.recovery.shard.translog.time";
 
     private final LongHistogram shardRecoveryTotalTimeMetric;
+    private final LongHistogram shardRecoveryIndexTimeMetric;
+    private final LongHistogram shardRecoveryTranslogTimeMetric;
 
     public RecoveryMetricsCollector(TelemetryProvider telemetryProvider) {
         final MeterRegistry meterRegistry = telemetryProvider.getMeterRegistry();
         shardRecoveryTotalTimeMetric = meterRegistry.registerLongHistogram(
             RECOVERY_TOTAL_TIME_METRIC,
-            "Elapsed shard recovery time in millis",
+            "Total elapsed shard recovery time in millis",
+            "milliseconds"
+        );
+        shardRecoveryIndexTimeMetric = meterRegistry.registerLongHistogram(
+            RECOVERY_INDEX_TIME_METRIC,
+            "Elapsed shard index (stage) recovery time in millis",
+            "milliseconds"
+        );
+        shardRecoveryTranslogTimeMetric = meterRegistry.registerLongHistogram(
+            RECOVERY_TRANSLOG_TIME_METRIC,
+            "Elapsed shard translog (stage) recovery time in millis",
             "milliseconds"
         );
     }
@@ -50,11 +64,13 @@ public class RecoveryMetricsCollector implements IndexEventListener {
     public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
         try {
             if (indexShard.state() == IndexShardState.POST_RECOVERY) {
-                RecoveryState recoveryState = indexShard.recoveryState();
+                final RecoveryState recoveryState = indexShard.recoveryState();
                 assert recoveryState != null;
                 if (recoveryState.getStage() == RecoveryState.Stage.DONE) {
                     final Map<String, Object> metricLabels = commonMetricLabels(indexShard);
                     shardRecoveryTotalTimeMetric.record(recoveryState.getTimer().time(), metricLabels);
+                    shardRecoveryIndexTimeMetric.record(recoveryState.getIndex().time(), metricLabels);
+                    shardRecoveryTranslogTimeMetric.record(recoveryState.getTranslog().time(), metricLabels);
                 }
             }
         } catch (Exception e) {

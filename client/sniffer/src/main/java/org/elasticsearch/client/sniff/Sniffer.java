@@ -52,6 +52,7 @@ public class Sniffer implements Closeable {
 
     private static final Log logger = LogFactory.getLog(Sniffer.class);
     private static final String SNIFFER_THREAD_NAME = "es_rest_client_sniffer";
+    private static final AtomicInteger factoryNumber = new AtomicInteger(1);
 
     private final NodesSniffer nodesSniffer;
     private final RestClient restClient;
@@ -293,6 +294,7 @@ public class Sniffer implements Closeable {
 
     static class SnifferThreadFactory implements ThreadFactory {
         private final AtomicInteger threadNumber = new AtomicInteger(1);
+        private final int curFactoryNumber;
         private final String namePrefix;
         private final ThreadFactory originalThreadFactory;
 
@@ -304,6 +306,7 @@ public class Sniffer implements Closeable {
                     return Executors.defaultThreadFactory();
                 }
             });
+            curFactoryNumber = factoryNumber.getAndIncrement();
         }
 
         @Override
@@ -312,7 +315,7 @@ public class Sniffer implements Closeable {
                 @Override
                 public Thread run() {
                     Thread t = originalThreadFactory.newThread(r);
-                    t.setName(namePrefix + "[T#" + threadNumber.getAndIncrement() + "]");
+                    t.setName(namePrefix + "[F#"+ curFactoryNumber + ",T#" + threadNumber.getAndIncrement() + "]");
                     t.setDaemon(true);
                     return t;
                 }

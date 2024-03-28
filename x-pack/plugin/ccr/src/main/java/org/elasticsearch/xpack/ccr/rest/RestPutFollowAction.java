@@ -40,8 +40,11 @@ public class RestPutFollowAction extends BaseRestHandler {
 
     private static Request createRequest(RestRequest restRequest) throws IOException {
         try (XContentParser parser = restRequest.contentOrSourceParamParser()) {
-            ActiveShardCount waitForActiveShards = ActiveShardCount.parseString(restRequest.param("wait_for_active_shards"));
-            return Request.fromXContent(parser, restRequest.param("index"), waitForActiveShards);
+            final Request request = Request.fromXContent(parser);
+            request.waitForActiveShards(ActiveShardCount.parseString(restRequest.param("wait_for_active_shards")));
+            request.setFollowerIndex(restRequest.param("index"));
+            request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+            return request;
         }
     }
 }

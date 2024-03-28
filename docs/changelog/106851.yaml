@@ -1,0 +1,5 @@
+pr: 106851
+summary: Catching `StackOverflowErrors` from bad regexes in `GsubProcessor`
+area: Ingest Node
+type: bug
+issues: []

@@ -8,7 +8,14 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.RandomDocumentPicks;
+
+import java.util.Map;
 import java.util.regex.Pattern;
+
+import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class GsubProcessorTests extends AbstractStringProcessorTestCase<String> {
 
@@ -25,5 +32,25 @@ public class GsubProcessorTests extends AbstractStringProcessorTestCase<String> 
     @Override
     protected String expectedResult(String input) {
         return "127-0-0-1";
+    }
+
+    public void testStackOverflow() {
+        // This tests that we rethrow StackOverflowErrors as ElasticsearchExceptions so that we don't take down the node
+        String badRegex = "( (?=(?:[^'\"]|'[^']*'|\"[^\"]*\")*$))";
+        GsubProcessor processor = new GsubProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "field",
+            Pattern.compile(badRegex),
+            "-",
+            false,
+            "targetField"
+        );
+        StringBuilder badSourceBuilder = new StringBuilder("key1=x key2=");
+        badSourceBuilder.append("x".repeat(3000));
+        Map<String, Object> source = Map.of("field", badSourceBuilder.toString());
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), source);
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> processor.execute(ingestDocument));
+        assertThat(exception.getRootCause(), instanceOf(StackOverflowError.class));
     }
 }

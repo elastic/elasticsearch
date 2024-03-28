@@ -451,7 +451,7 @@ public class CompositeRolesStore {
             MergeableIndicesPrivilege.collatePrivilegesByIndices(descriptor.getIndicesPrivileges(), false, indicesPrivilegesMap);
 
             if (descriptor.hasRemoteIndicesPrivileges()) {
-
+                groupIndexPrivilegesByCluster(descriptor.getRemoteIndicesPrivileges(), remoteIndicesPrivilegesByCluster);
             }
 
             if (descriptor.hasRemoteClusterPermissions()) {
@@ -514,6 +514,12 @@ public class CompositeRolesStore {
                 )
             );
         });
+
+        if(remoteClusterPermissions.hasPrivileges()) {
+            builder.addRemoteClusterPermissions(remoteClusterPermissions);
+        } else {
+            builder.addRemoteClusterPermissions(RemoteClusterPermissions.NONE);
+        }
 
         if (false == workflows.isEmpty()) {
             builder.workflows(workflows);

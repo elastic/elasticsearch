@@ -259,6 +259,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return clusterPrivileges.length != 0;
     }
 
+
     public boolean hasApplicationPrivileges() {
         return applicationPrivileges.length != 0;
     }
@@ -271,14 +272,17 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return runAs.length != 0;
     }
 
-    public boolean hasPrivilegesOtherThanIndex() {
-        return hasClusterPrivileges()
-            || hasConfigurableClusterPrivileges()
+    public boolean hasUnsupportedPrivileges() {
+//        //this is enforced elsewhere
+//        assert Arrays.stream(this.getRemoteClusterPermissions().privilegeNames("*"))
+//            .anyMatch(s -> s.equalsIgnoreCase("monitor_enrich") == false) : "monitor_enrich is the only value allowed";
+        //TODO: make this validation configurable
+
+        return hasConfigurableClusterPrivileges()
             || hasApplicationPrivileges()
             || hasRunAs()
             || hasRemoteIndicesPrivileges()
             || hasWorkflowsRestriction();
-        // TODO: add here
     }
 
     public String[] getRunAs() {

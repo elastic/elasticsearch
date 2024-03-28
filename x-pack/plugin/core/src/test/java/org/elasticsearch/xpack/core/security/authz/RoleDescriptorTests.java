@@ -1064,7 +1064,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 null,
                 null,
                 null
-            ).hasPrivilegesOtherThanIndex(),
+            ).hasUnsupportedPrivileges(),
             is(false)
         );
         final RoleDescriptor roleDescriptor = randomRoleDescriptor();
@@ -1073,7 +1073,7 @@ public class RoleDescriptorTests extends ESTestCase {
             || roleDescriptor.hasApplicationPrivileges()
             || roleDescriptor.hasRunAs()
             || roleDescriptor.hasRemoteIndicesPrivileges();
-        assertThat(roleDescriptor.hasPrivilegesOtherThanIndex(), equalTo(expected));
+        assertThat(roleDescriptor.hasUnsupportedPrivileges(), equalTo(expected));
     }
 
     public static List<RoleDescriptor> randomUniquelyNamedRoleDescriptors(int minSize, int maxSize) {

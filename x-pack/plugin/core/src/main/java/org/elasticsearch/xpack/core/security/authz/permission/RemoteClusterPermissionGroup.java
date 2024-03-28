@@ -38,6 +38,7 @@ public class RemoteClusterPermissionGroup implements Writeable,ToXContentObject 
         remoteClusterAliasMatcher = StringMatcher.of(remoteClusterAliases);
     }
     public RemoteClusterPermissionGroup(String[] clusterPrivileges, String[] remoteClusterAliases) {
+        //TODO: throw an exception if using unsupported cluster privilges
         this(clusterPrivileges, remoteClusterAliases, StringMatcher.of(remoteClusterAliases));
     }
 

@@ -221,7 +221,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         @Nullable Consumer<Runnable> postWriteAction,
         DocumentParsingProvider documentParsingProvider
     ) {
-        new ActionRunnable<>(listener) {
+        request.mustIncRef();
+        new ActionRunnable<>(ActionListener.releaseAfter(listener, request::decRef)) {
 
             private final Executor executor = threadPool.executor(executorName);
 

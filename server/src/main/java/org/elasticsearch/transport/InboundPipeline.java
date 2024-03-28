@@ -68,7 +68,7 @@ public class InboundPipeline implements Releasable {
     public void doHandleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
         channel.getChannelStats().markAccessed(relativeTimeInMillis.getAsLong());
         statsTracker.markBytesRead(reference.length());
-        pending.add(reference.retain());
+        pending.add(reference);
 
         final ArrayList<Object> fragments = fragmentList.get();
         boolean continueHandling = true;
@@ -118,12 +118,9 @@ public class InboundPipeline implements Releasable {
                 messageHandler.accept(channel, PING_MESSAGE);
             } else if (fragment == InboundDecoder.END_CONTENT) {
                 assert aggregator.isAggregating();
-                InboundMessage aggregated = aggregator.finishAggregation();
-                try {
+                try (InboundMessage aggregated = aggregator.finishAggregation()) {
                     statsTracker.markMessageReceived();
                     messageHandler.accept(channel, aggregated);
-                } finally {
-                    aggregated.decRef();
                 }
             } else {
                 assert aggregator.isAggregating();

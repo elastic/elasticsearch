@@ -119,7 +119,7 @@ public class InboundAggregator implements Releasable {
                 checkBreaker(aggregated.getHeader(), aggregated.getContentLength(), breakerControl);
             }
             if (isShortCircuited()) {
-                aggregated.decRef();
+                aggregated.close();
                 success = true;
                 return new InboundMessage(aggregated.getHeader(), aggregationException);
             } else {
@@ -130,7 +130,7 @@ public class InboundAggregator implements Releasable {
         } finally {
             resetCurrentAggregation();
             if (success == false) {
-                aggregated.decRef();
+                aggregated.close();
             }
         }
     }

@@ -64,7 +64,7 @@ public abstract class TransportDecompressor implements Releasable {
         }
     }
 
-    static TransportDecompressor getDecompressor(Recycler<BytesRef> recycler, BytesReference bytes) {
+    public static TransportDecompressor getDecompressor(Recycler<BytesRef> recycler, BytesReference bytes) {
         if (bytes.length() < Compression.Scheme.HEADER_LENGTH) {
             return null;
         }
@@ -97,6 +97,10 @@ public abstract class TransportDecompressor implements Releasable {
             return true;
         }
         return false;
+    }
+
+    public int pages() {
+        return pages.size();
     }
 
     private static IllegalStateException createIllegalState(BytesReference bytes) {

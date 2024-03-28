@@ -80,11 +80,11 @@ We define 4 different types of retention:
 set via an <<index-templates,index template>> for future data streams or via the <<data-streams-put-lifecycle, PUT data
 stream lifecycle API>> for an existing data stream. When the data stream retention is not set, it implies that the data
 need to be kept forever.
-* The global default retention, or `default_retention`, which is a retention configured on a project level and will be
+* The global default retention, or `default_retention`, which is a retention configured on a cluster level and will be
 applied to all data streams managed by data stream lifecycle that do not have `data_retention` configured. Effectively,
 it ensures that there will be no data streams keeping their data forever. This can be set via the
 <<data-streams-put-global-retention, PUT global retention API>>.
-* The global max retention, or `max_retention`, which is a retention configured on a project level and will be applied to
+* The global max retention, or `max_retention`, which is a retention configured on a cluster level and will be applied to
 all data streams managed by data stream lifecycle. Effectively, it ensures that there will be no data streams whose retention
 will exceed this time period. This can be set via the <<data-streams-put-global-retention, PUT global retention API>>.
 * The effective retention, or `effective_retention`, which is the retention applied at a data stream on a given moment.
@@ -129,7 +129,7 @@ PUT _data_stream/my-data-stream/_lifecycle
 // TEST[continued]
 <1> The retention period of this data stream is set to 30 days.
 
-- By setting the global retention via the `default_retention` and `max_retention` that are set on a project level. You
+- By setting the global retention via the `default_retention` and `max_retention` that are set on a cluster level. You
 can set them via the <<data-streams-put-global-retention, PUT global retention API>>. For example:
 +
 [source,console]

@@ -223,19 +223,6 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        @Override
-        Builder appendAllValuesToCurrentPosition(Block block);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition(IntBlock block);
-
         @Override
         IntBlock build();
     }

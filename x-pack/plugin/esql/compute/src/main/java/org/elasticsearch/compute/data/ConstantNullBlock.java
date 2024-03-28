@@ -173,8 +173,8 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            return appendNull();
+        public Block.Builder appendFrom(Block block, int valueIndex) {
+            throw new UnsupportedOperationException("can't append values to a null block builder");
         }
 
         @Override

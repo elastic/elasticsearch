@@ -184,16 +184,17 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
         Builder endPositionEntry();
 
         /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition(Block block);
-
-        /**
          * Copy the values in {@code block} from {@code beginInclusive} to
          * {@code endExclusive} into this builder.
          */
         Builder copyFrom(Block block, int beginInclusive, int endExclusive);
+
+        /**
+         * Appends a single value from the given block at the value index to this builder. The value indices for a given position are
+         * between {@link Block#getFirstValueIndex inclusive} and {@link Block#getFirstValueIndex} plus {@link Block#getValueCount}
+         * exclusive.
+         */
+        Builder appendFrom(Block block, int valueIndex);
 
         /**
          * How are multivalued fields ordered? This defaults to {@link Block.MvOrdering#UNORDERED}

@@ -121,59 +121,25 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
         // 4 -> [a1] -> [3]
         // 5 -> [] -> []
         EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(blockFactory, queryList, reader);
-        {
-            Page p0 = queryOperator.getOutput();
-            assertNotNull(p0);
-            assertThat(p0.getPositionCount(), equalTo(2));
-            IntVector docs = getDocVector(p0, 0);
-            assertThat(docs.getInt(0), equalTo(1));
-            assertThat(docs.getInt(1), equalTo(4));
-            Block positions = p0.getBlock(1);
-            assertThat(BlockUtils.toJavaObject(positions, 0), equalTo(0));
-            assertThat(BlockUtils.toJavaObject(positions, 1), equalTo(0));
-            p0.releaseBlocks();
-        }
-        {
-            Page p1 = queryOperator.getOutput();
-            assertNotNull(p1);
-            assertThat(p1.getPositionCount(), equalTo(3));
-            IntVector docs = getDocVector(p1, 0);
-            assertThat(docs.getInt(0), equalTo(0));
-            assertThat(docs.getInt(1), equalTo(1));
-            assertThat(docs.getInt(2), equalTo(2));
-            Block positions = p1.getBlock(1);
-            assertThat(BlockUtils.toJavaObject(positions, 0), equalTo(1));
-            assertThat(BlockUtils.toJavaObject(positions, 1), equalTo(1));
-            assertThat(BlockUtils.toJavaObject(positions, 2), equalTo(1));
-            p1.releaseBlocks();
-        }
-        {
-            Page p2 = queryOperator.getOutput();
-            assertNull(p2);
-        }
-        {
-            Page p3 = queryOperator.getOutput();
-            assertNull(p3);
-        }
-        {
-            Page p4 = queryOperator.getOutput();
-            assertNotNull(p4);
-            assertThat(p4.getPositionCount(), equalTo(1));
-            IntVector docs = getDocVector(p4, 0);
-            assertThat(docs.getInt(0), equalTo(3));
-            Block positions = p4.getBlock(1);
-            assertThat(BlockUtils.toJavaObject(positions, 0), equalTo(4));
-            p4.releaseBlocks();
-        }
-        {
-            Page p5 = queryOperator.getOutput();
-            assertNull(p5);
-        }
-        {
-            assertFalse(queryOperator.isFinished());
-            Page p6 = queryOperator.getOutput();
-            assertNull(p6);
-        }
+        Page p0 = queryOperator.getOutput();
+        assertNotNull(p0);
+        assertThat(p0.getPositionCount(), equalTo(6));
+        IntVector docs = getDocVector(p0, 0);
+        assertThat(docs.getInt(0), equalTo(1));
+        assertThat(docs.getInt(1), equalTo(4));
+        assertThat(docs.getInt(2), equalTo(0));
+        assertThat(docs.getInt(3), equalTo(1));
+        assertThat(docs.getInt(4), equalTo(2));
+        assertThat(docs.getInt(5), equalTo(3));
+
+        Block positions = p0.getBlock(1);
+        assertThat(BlockUtils.toJavaObject(positions, 0), equalTo(0));
+        assertThat(BlockUtils.toJavaObject(positions, 1), equalTo(0));
+        assertThat(BlockUtils.toJavaObject(positions, 2), equalTo(1));
+        assertThat(BlockUtils.toJavaObject(positions, 3), equalTo(1));
+        assertThat(BlockUtils.toJavaObject(positions, 4), equalTo(1));
+        assertThat(BlockUtils.toJavaObject(positions, 5), equalTo(4));
+        p0.releaseBlocks();
         assertTrue(queryOperator.isFinished());
         IOUtils.close(reader, dir, inputTerms);
     }

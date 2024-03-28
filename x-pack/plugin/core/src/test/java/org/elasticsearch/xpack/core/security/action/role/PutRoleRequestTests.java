@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -16,6 +17,7 @@ import org.junit.BeforeClass;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -143,6 +145,19 @@ public class PutRoleRequestTests extends ESTestCase {
             "An application name prefix must match the pattern",
             buildRequestWithApplicationPrivilege("%*", new String[] { "all" }, new String[] { "*" })
         );
+    }
+
+    public void testSetRefreshPolicy() {
+        final PutRoleRequest request = new PutRoleRequest();
+        final String refreshPolicy = randomFrom(
+            WriteRequest.RefreshPolicy.IMMEDIATE.getValue(),
+            WriteRequest.RefreshPolicy.WAIT_UNTIL.getValue()
+        );
+        request.setRefreshPolicy(refreshPolicy);
+        assertThat(request.getRefreshPolicy().getValue(), equalTo(refreshPolicy));
+
+        request.setRefreshPolicy((String) null);
+        assertThat(request.getRefreshPolicy().getValue(), equalTo(refreshPolicy));
     }
 
     private void assertSuccessfulValidation(PutRoleRequest request) {

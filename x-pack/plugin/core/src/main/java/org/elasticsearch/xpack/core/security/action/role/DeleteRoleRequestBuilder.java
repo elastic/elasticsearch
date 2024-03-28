@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.core.Nullable;
 
 /**
  * A builder for requests to delete a role from the security index
@@ -28,7 +29,7 @@ public class DeleteRoleRequestBuilder extends ActionRequestBuilder<DeleteRoleReq
         return this;
     }
 
-    public DeleteRoleRequestBuilder setRefreshPolicy(String refreshPolicy) {
+    public DeleteRoleRequestBuilder setRefreshPolicy(@Nullable String refreshPolicy) {
         request.setRefreshPolicy(refreshPolicy);
         return this;
     }

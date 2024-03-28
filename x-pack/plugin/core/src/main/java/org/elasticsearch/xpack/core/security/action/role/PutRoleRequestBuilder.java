@@ -76,7 +76,7 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
         return this;
     }
 
-    public PutRoleRequestBuilder setRefreshPolicy(String refreshPolicy) {
+    public PutRoleRequestBuilder setRefreshPolicy(@Nullable String refreshPolicy) {
         request.setRefreshPolicy(refreshPolicy);
         return this;
     }

@@ -11,13 +11,16 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
 import java.io.IOException;
@@ -90,6 +93,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
             either(instanceOf(TermQuery.class)).or(instanceOf(PointRangeQuery.class))
                 .or(instanceOf(MatchNoDocsQuery.class))
                 .or(instanceOf(AutomatonQuery.class))
+                .or(instanceOf(IndexOrDocValuesQuery.class))
         );
         MappedFieldType mapper = context.getFieldType(queryBuilder.fieldName());
         if (query instanceof TermQuery termQuery) {
@@ -100,7 +104,11 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
             Term term = ((TermQuery) termQuery(mapper, queryBuilder.value(), queryBuilder.caseInsensitive())).getTerm();
             assertThat(termQuery.getTerm(), equalTo(term));
         } else if (mapper != null) {
-            assertEquals(query, termQuery(mapper, queryBuilder.value(), queryBuilder.caseInsensitive()));
+            if (query instanceof IndexOrDocValuesQuery) {
+                assertTrue(mapper instanceof NumberFieldMapper.NumberFieldType || mapper instanceof DateFieldMapper.DateFieldType);
+            } else {
+                assertEquals(query, termQuery(mapper, queryBuilder.value(), queryBuilder.caseInsensitive()));
+            }
         } else {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         }

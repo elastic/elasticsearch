@@ -50,8 +50,4 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
         shapeQuery.relation(shapeRelation);
         return shapeQuery;
     }
-
-    public ShapeRelation getShapeRelation() {
-        return shapeRelation;
-    }
 }

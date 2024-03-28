@@ -153,12 +153,14 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
         private final int backingIndices;
         private final ByteSizeValue storeSize;
         private final long maximumTimestamp;
+        private final double write_load_forcast;
 
-        public DataStreamStats(String dataStream, int backingIndices, ByteSizeValue storeSize, long maximumTimestamp) {
+        public DataStreamStats(String dataStream, int backingIndices, ByteSizeValue storeSize, long maximumTimestamp, double write_load_forcast) {
             this.dataStream = dataStream;
             this.backingIndices = backingIndices;
             this.storeSize = storeSize;
             this.maximumTimestamp = maximumTimestamp;
+            this.write_load_forcast = write_load_forcast;
         }
 
         public DataStreamStats(StreamInput in) throws IOException {
@@ -201,6 +203,10 @@ public class DataStreamsStatsAction extends ActionType<DataStreamsStatsAction.Re
 
         public long getMaximumTimestamp() {
             return maximumTimestamp;
+        }
+        
+        public double getWriteLoadForcast(){
+            
         }
 
         @Override

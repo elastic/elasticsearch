@@ -24,6 +24,10 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * A builder for scaling executors.
+ *
+ * The {@link #build} method will instantiate a java {@link ExecutorService} thread pool that starts with the specified minimum number of
+ * threads and then scales up to the specified max number of threads as needed for excess work, scaling back when the burst of activity
+ * stops. As opposed to the {@link FixedExecutorBuilder} that keeps a fixed number of threads alive.
  */
 public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecutorBuilder.ScalingExecutorSettings> {
 

@@ -609,7 +609,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                 ) {
 
                     @Override
-                    protected void assertSnapshotOrGenericThread() {
+                    protected void assertSnapshotOrStatelessPermittedThreadPool() {
                         // eliminate thread name check as we create repo manually on test/main threads
                     }
                 };

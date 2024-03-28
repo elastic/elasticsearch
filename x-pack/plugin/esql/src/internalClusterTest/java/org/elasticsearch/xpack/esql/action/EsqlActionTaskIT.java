@@ -419,11 +419,11 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
     }
 
     public void testTaskContentsForTopNQuery() throws Exception {
-        READ_DESCRIPTION = "\\_LuceneTopNSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 1000, "
+        READ_DESCRIPTION = ("\\_LuceneTopNSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 1000, "
             + "sorts = [{\"pause_me\":{\"order\":\"asc\",\"missing\":\"_last\",\"unmapped_type\":\"long\"}}]]\n"
             + "\\_ValuesSourceReaderOperator[fields = [pause_me]]\n"
             + "\\_ProjectOperator[projection = [1]]\n"
-            + "\\_ExchangeSinkOperator".replace("pageSize()", Integer.toString(pageSize()));
+            + "\\_ExchangeSinkOperator").replace("pageSize()", Integer.toString(pageSize()));
         MERGE_DESCRIPTION = "\\_ExchangeSourceOperator[]\n"
             + "\\_TopNOperator[count=1000, elementTypes=[LONG], encoders=[DefaultSortable], "
             + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]\n"
@@ -462,9 +462,9 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             \\_LimitOperator[limit = limit()]
             \\_ProjectOperator[projection = [0]]
             \\_OutputOperator[columns = [pause_me]]""".replace("limit()", limit);
-        REDUCE_DESCRIPTION = "\\_ExchangeSourceOperator[]\n"
+        REDUCE_DESCRIPTION = ("\\_ExchangeSourceOperator[]\n"
             + (nodeLevelReduction ? "\\_LimitOperator[limit = limit()]\n" : "")
-            + "\\_ExchangeSinkOperator".replace("limit()", limit);
+            + "\\_ExchangeSinkOperator").replace("limit()", limit);
 
         ActionFuture<EsqlQueryResponse> response = startEsql("from test | keep pause_me | limit " + limit);
         try {

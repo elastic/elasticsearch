@@ -110,8 +110,13 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         );
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
+            private long lastProcessedIndex = -1;
+
             @Override
             protected void processInput(DesiredBalanceInput desiredBalanceInput) {
+
+                assert lastProcessedIndex < desiredBalanceInput.index() : lastProcessedIndex + " vs " + desiredBalanceInput.index();
+                lastProcessedIndex = desiredBalanceInput.index();
 
                 long index = desiredBalanceInput.index();
                 logger.debug("Starting desired balance computation for [{}]", index);

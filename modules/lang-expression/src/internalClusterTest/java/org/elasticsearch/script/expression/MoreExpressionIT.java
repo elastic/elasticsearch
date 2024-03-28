@@ -470,6 +470,16 @@ public class MoreExpressionIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * We have seen `testSpecialValueVariable()` fail in CI due to concurrency issues.
+     * We will disable concurrency here so that this doesn't cause flakey CI, then follow up with a subsequent fix.
+     * Ref: <a href="https://github.com/elastic/elasticsearch/issues/99156">Test failure issue</a>
+     */
+    @Override
+    protected boolean enableConcurrentSearch() {
+        return false;
+    }
+
     public void testSpecialValueVariable() throws Exception {
         // i.e. _value for aggregations
         createIndex("test");

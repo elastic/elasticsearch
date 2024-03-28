@@ -358,10 +358,6 @@ public class Node implements Closeable {
 
         final FileSettingsService fileSettingsService = injector.getInstance(FileSettingsService.class);
         fileSettingsService.start();
-        // if we are using the readiness service, listen for the file settings being applied
-        if (ReadinessService.enabled(environment)) {
-            fileSettingsService.addFileChangedListener(injector.getInstance(ReadinessService.class));
-        }
 
         clusterService.addStateApplier(transportService.getTaskManager());
         // start after transport service so the local disco is known

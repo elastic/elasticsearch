@@ -10,6 +10,7 @@ package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -122,6 +123,14 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         ) {
             stateService.process(NAMESPACE, parser, (e) -> completeProcessing(e, completion));
         }
+        completion.get();
+    }
+
+    @Override
+    protected void processInitialFileMissing() throws ExecutionException, InterruptedException, IOException {
+        PlainActionFuture<ActionResponse.Empty> completion = new PlainActionFuture<>();
+        logger.info("setting file [{}] not found, initializing [{}] as empty", watchedFile(), NAMESPACE);
+        stateService.initEmpty(NAMESPACE, completion);
         completion.get();
     }
 

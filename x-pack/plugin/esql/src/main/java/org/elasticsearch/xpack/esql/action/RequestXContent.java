@@ -45,7 +45,7 @@ final class RequestXContent {
         PARAM_PARSER.declareField(constructorArg(), (p, c) -> parseFieldsValue(p), VALUE, ObjectParser.ValueType.VALUE);
         PARAM_PARSER.declareString(constructorArg(), TYPE);
     }
-    
+
     static final ParseField ESQL_VERSION_FIELD = new ParseField("version");
     static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField COLUMNAR_FIELD = new ParseField("columnar");

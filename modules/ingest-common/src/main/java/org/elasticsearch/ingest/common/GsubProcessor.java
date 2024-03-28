@@ -59,7 +59,7 @@ public final class GsubProcessor extends AbstractStringProcessor<String> {
              * StackOverflowError, so we rethrow it as an Exception instead. This way the document fails this processor, but processing
              * can carry on.
              */
-            throw new ElasticsearchException("Caught a StackOverflowError while processing gsub pattern: [" + pattern + "]", e);
+            throw new ElasticsearchException("Caught a StackOverflowError while processing " + pattern, e);
         }
     }
 

@@ -8,16 +8,10 @@
 
 package org.elasticsearch.grok;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.grok.GrokCaptureConfig.NativeExtracterMap;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.XContentType;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -101,94 +95,6 @@ public class GrokTests extends ESTestCase {
     public void testCaptureRanges() {
         captureRanges(false);
         captureRanges(true);
-    }
-
-    public void testPatterns() throws IOException {
-        String[] patterns;
-        try (InputStream is = GrokTests.class.getResourceAsStream("/patterns")) {
-            byte bytes[] = is.readAllBytes();
-            String allPatterns = new String(bytes, "UTF-8");
-            patterns = allPatterns.split("\n");
-        }
-        Map<String, String> patternDefinitions = Map.of(
-            "GREEDYMULTILINE",
-            "(.|\n            )*",
-            "LOCALDATETIME",
-            "(?:%{YEAR}-%{MONTHNUM}-%{MONTHDAY}|%{NUMBER})%{SPACE}%{TIME}",
-            "MYSQLDATETIME",
-            "(?:%{LOCALDATETIME:_tmp.local_timestamp}|%{TIMESTAMP_ISO8601:_tmp.timestamp})",
-            // "GREEDYMULTILINE", "(.|\n)+",
-            // "TIMESTAMP", "%{PANW_DATE}|%{TIMESTAMP_ISO8601}",
-            "PANW_DATE",
-            "%{YEAR}/%{MONTHNUM}/%{MONTHDAY} %{TIME}",
-            "FIELD",
-            "[^,]*",
-            "USERNAME",
-            "[ a-zA-Z0-9._-]+[$]?",
-            "TIMESTAMP",
-            "(?:%{TIMESTAMP_ISO8601}|%{SYSLOGTIMESTAMP}|%{MONTHDAY}/%{MONTHNUM}/%{YEAR}:%{TIME})",
-            "DIGITS",
-            "(?:[0-9]+)"
-
-        );
-        for (String pattern : patterns) {
-            String realPattern = pattern.substring(1, pattern.length() - 2);
-            Grok grok = new Grok(GrokBuiltinPatterns.get(false).extendWith(patternDefinitions), realPattern, logger::info);
-        }
-    }
-
-    public void testPatterns2() throws IOException {
-        try (InputStream is = GrokTests.class.getResourceAsStream("/ingest-pipelines.json")) {
-            byte bytes[] = is.readAllBytes();
-            String allPatterns = new String(bytes, "UTF-8");
-            Tuple<XContentType, Map<String, Object>> resultTuple = XContentHelper.convertToMap(
-                BytesReference.fromByteBuffer(ByteBuffer.wrap(allPatterns.getBytes())),
-                false,
-                XContentType.JSON
-            );
-            Map<String, Object> pipelines = resultTuple.v2();
-            for (Map.Entry<String, Object> pipeline : pipelines.entrySet()) {
-                List<Map<String, Object>> processors = (List<Map<String, Object>>) ((Map<String, Object>) pipeline.getValue()).get(
-                    "processors"
-                );
-                for (Map<String, Object> processor : processors) {
-                    for (Map.Entry<String, Object> thing : processor.entrySet()) {
-                        if (thing.getKey().equals("grok")) {
-                            Map<String, Object> realProcessor = (Map<String, Object>) thing.getValue();
-                            List<String> patterns = (List<String>) realProcessor.get("patterns");
-                            Map<String, String> patternDefinitions;
-                            if (realProcessor.containsKey("pattern_definitions")) {
-                                patternDefinitions = (Map<String, String>) realProcessor.get("pattern_definitions");
-                            } else {
-                                patternDefinitions = Map.of();
-                            }
-                            for (String pattern : patterns) {
-                                if (pattern.contains("CUSTOMUSERNAME")) {
-                                    System.out.println(pattern);
-                                    Grok grok = new Grok(
-                                        GrokBuiltinPatterns.get(false).extendWith(patternDefinitions),
-                                        pattern,
-                                        logger::info
-                                    );
-                                    for (int i = 0; i < 10000000; i++) {
-                                        String input = randomAlphaOfLength(100000);
-                                        try {
-                                            Map<String, Object> result = grok.captures(input);
-                                            if (result != null && i % 10000 == 0) {
-                                                System.out.println(i);
-                                            }
-                                        } catch (StackOverflowError e) {
-                                            System.out.println("Failed for input: " + input);
-                                            throw e;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
 
     private void captureRanges(boolean ecsCompatibility) {

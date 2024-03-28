@@ -26,6 +26,8 @@ POST /_features/_reset
 
 Return a cluster to the same state as a new installation by resetting the feature state for all {es} features. This deletes all state information stored in system indices.
 
+IMPORTANT: This action deletes system indices and [starting from 8.1](https://github.com/elastic/elasticsearch/pull/81400) system index write-access has been removed from the superuser role. So, if you are performing this action from a user with the superuser role, you need to ensure that the user has another role with the `allow_restricted_indices` set to `true` to be able to delete all system indices.
+
 The response code is `HTTP 200` if state is successfully reset for all features, `HTTP 207` if there is a mixture of successes and failures, and `HTTP 500` if the reset operation fails for all features.
 
 Note that select features might provide a way to reset particular system indices. Using this API resets _all_ features, both those that are built-in and implemented as plugins.

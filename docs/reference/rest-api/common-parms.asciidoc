@@ -508,7 +508,7 @@ Return all statistics.
 <<completion-suggester,Completion suggester>> statistics.
 
 `docs`::
-Number of documents and deleted docs, which have not yet merged out.
+Number of documents, number of deleted docs which have not yet merged out, and total size in bytes.
 <<indices-refresh,Index refreshes>> can affect this statistic.
 
 `fielddata`::

@@ -63,8 +63,17 @@ public class DependencyLicensesTaskTests {
     public void givenProjectWithLicensesDirButNoDependenciesThenShouldThrowException() throws Exception {
         expectedException.expect(GradleException.class);
         expectedException.expectMessage(containsString("exists, but there are no dependencies"));
-
         getLicensesDir(project).mkdir();
+        createFileIn(getLicensesDir(project), "groovy-LICENSE.txt", PERMISSIVE_LICENSE_TEXT);
+        task.get().checkDependencies();
+    }
+
+    @Test
+    public void givenProjectWithLicensesDirButAllIgnoreFileAndNoDependencies() throws Exception {
+        getLicensesDir(project).mkdir();
+        String licenseFileName = "cloudcarbonfootprint-LICENSE.txt";
+        createFileIn(getLicensesDir(project), licenseFileName, PERMISSIVE_LICENSE_TEXT);
+        task.get().ignoreFile(licenseFileName);
         task.get().checkDependencies();
     }
 

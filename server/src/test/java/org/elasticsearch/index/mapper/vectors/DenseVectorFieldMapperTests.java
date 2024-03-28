@@ -247,7 +247,15 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         mapping = mapping(b -> {
             b.startObject("field");
-            b.field("type", "dense_vector").field("dims", 4).field("similarity", "cosine").field("index", true);
+            b.field("type", "dense_vector")
+                .field("dims", 4)
+                .field("similarity", "cosine")
+                .field("index", true)
+                .startObject("index_options")
+                .field("type", "int8_hnsw")
+                .field("m", 16)
+                .field("ef_construction", 100)
+                .endObject();
             b.endObject();
         });
         merge(mapperService, mapping);

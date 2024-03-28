@@ -110,7 +110,7 @@ public class DenseVectorMappingUpdateIT extends ParameterizedRollingUpgradeTestC
             assertCount("test_index", expectedCount);
 
             if (isUpgradedCluster()) {
-                Request updateMapping = new Request("PUT", "/" + indexName + "_mapping");
+                Request updateMapping = new Request("PUT", "/" + indexName + "/_mapping");
                 XContentBuilder mappings = XContentBuilder.builder(XContentType.JSON.xContent())
                     .startObject()
                     .startObject("properties")

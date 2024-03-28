@@ -35,6 +35,11 @@ public abstract class ElectionStrategy {
     };
 
     /**
+     * Contains a result for whether a node may win an election and the reason if not.
+     */
+    public record NodeEligibility(boolean mayWin, String reason) {}
+
+    /**
      * Whether there is an election quorum from the point of view of the given local node under the provided voting configurations
      */
     public boolean isElectionQuorum(
@@ -105,10 +110,14 @@ public abstract class ElectionStrategy {
         listener.onResponse(null);
     }
 
-    public boolean nodeMayWinElection(ClusterState lastAcceptedState, DiscoveryNode node) {
+    public NodeEligibility nodeMayWinElection(ClusterState lastAcceptedState, DiscoveryNode node) {
         final String nodeId = node.getId();
-        return lastAcceptedState.getLastCommittedConfiguration().getNodeIds().contains(nodeId)
+        if (lastAcceptedState.getLastCommittedConfiguration().getNodeIds().contains(nodeId)
             || lastAcceptedState.getLastAcceptedConfiguration().getNodeIds().contains(nodeId)
-            || lastAcceptedState.getVotingConfigExclusions().stream().noneMatch(vce -> vce.getNodeId().equals(nodeId));
+            || lastAcceptedState.getVotingConfigExclusions().stream().noneMatch(vce -> vce.getNodeId().equals(nodeId))) {
+            return new NodeEligibility(true, "");
+        }
+
+        return new NodeEligibility(false, "node is ineligible for election, not a voting node in the voting configuration");
     }
 }

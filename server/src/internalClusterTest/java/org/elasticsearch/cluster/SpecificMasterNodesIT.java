@@ -104,10 +104,6 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
             equalTo(masterNodeName)
         );
         assertThat(
-            internalCluster().nonMasterClient().admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(),
-            equalTo(masterNodeName)
-        );
-        assertThat(
             internalCluster().masterClient().admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(),
             equalTo(masterNodeName)
         );

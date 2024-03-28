@@ -575,6 +575,15 @@ class DownsampleShardIndexer {
                 fieldProducer.write(builder);
             }
 
+            if (dimensions.length == 0) {
+                // Extract dimension values from _tsid field, so we avoid loading them from doc_values
+                Map<?, ?> dimensions = (Map<?, ?>) DocValueFormat.TIME_SERIES_ID.format(tsid);
+                for (Map.Entry<?, ?> e : dimensions.entrySet()) {
+                    assert e.getValue() != null;
+                    builder.field((String) e.getKey(), e.getValue());
+                }
+            }
+
             builder.endObject();
             return builder;
         }

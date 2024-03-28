@@ -112,8 +112,6 @@ public record DownsampleShardTaskParams(
         out.writeStringArray(labels);
         if (out.getTransportVersion().onOrAfter(TransportVersions.DIMENSIONS_SERIALIZATION_PERSISTENT_TASK)) {
             out.writeOptionalStringArray(dimensions);
-        } else {
-            out.writeBoolean(false);
         }
     }
 

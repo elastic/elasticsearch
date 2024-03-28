@@ -148,6 +148,17 @@ class DownsampleShardIndexer {
 
     public DownsampleIndexerAction.ShardDownsampleResponse execute() throws IOException {
         final Query initialStateQuery = createQuery();
+        if (this.dimensions == null || this.dimensions.length <= 0) {
+            final String errorMessage = "Downsampling task ["
+                + task.getPersistentTaskId()
+                + "] on shard "
+                + indexShard.shardId()
+                + " failed because of missing dimensions for index ["
+                + task.getDownsampleIndex()
+                + "]";
+            logger.error(errorMessage);
+            throw new DownsampleShardIndexerException(errorMessage, false);
+        }
         if (initialStateQuery instanceof MatchNoDocsQuery) {
             return new DownsampleIndexerAction.ShardDownsampleResponse(indexShard.shardId(), task.getNumIndexed());
         }

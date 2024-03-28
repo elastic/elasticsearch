@@ -1249,7 +1249,7 @@ i:ul                | c:ul                | f:ul
 1000000000000000000 | 1000000000000000000 | 1000000000000000000
 ;
 
-signum
+signum#[skip:-8.13.99,reason:new scalar function added in 8.14]
 // tag::signum[]
 ROW d = 100.0
 | EVAL s = SIGNUM(d)
@@ -1262,77 +1262,77 @@ d: double | s:double
 // end::signum-result[]
 ;
 
-signumOfPositiveInteger
+signumOfPositiveInteger#[skip:-8.13.99,reason:new scalar function added in 8.14]
 row i = 100 | eval s = signum(i);
 
 i:integer | s:double
 100       | 1.0
 ;
 
-signumOfNegativeInteger
+signumOfNegativeInteger#[skip:-8.13.99,reason:new scalar function added in 8.14]
 row i = -100 | eval s = signum(i);
 
 i:integer | s:double
 -100       | -1.0
 ;
 
-signumOfZeroInteger
+signumOfZeroInteger#[skip:-8.13.99,reason:new scalar function added in 8.14]
 row i = 0 | eval s = signum(i);
 
 i:integer | s:double
 0         | 0.0
 ;
 
-signumOfPositiveLong
+signumOfPositiveLong#[skip:-8.13.99,reason:new scalar function added in 8.14]
 row l = to_long(100) | eval s = signum(l);
 
 l:long | s:double
 100       | 1.0
 ;
 
-signumOfNegativeLong
+signumOfNegativeLong#[skip:-8.13.99,reason:new scalar function added in 8.14]
 row l = to_long(-100) | eval s = signum(l);
 
 l:long | s:double
 -100       | -1.0
 ;
 
-signumOfZeroLong
+signumOfZeroLong#[skip:-8.13.99,reason:new scalar function added in 8.14]
 row l = to_long(0) | eval s = signum(l);
 
 l:long | s:double
 0         | 0.0
 ;
 
-signumOfPositiveDouble
+signumOfPositiveDouble#[skip:-8.13.99,reason:new scalar function added in 8.14]
 row d = to_double(100) | eval s = signum(d);
 
 d:double | s:double
 100       | 1.0
 ;
 
-signumOfNegativeDouble
+signumOfNegativeDouble#[skip:-8.13.99,reason:new scalar function added in 8.14]
 row d = to_double(-100) | eval s = signum(d);
 
 d:double | s:double
 -100       | -1.0
 ;
 
-signumOfZeroDouble
+signumOfZeroDouble#[skip:-8.13.99,reason:new scalar function added in 8.14]
 row d = to_double(0) | eval s = signum(d);
 
 d:double | s:double
 0         | 0.0
 ;
 
-signumOfPositiveUnsignedLong
+signumOfPositiveUnsignedLong#[skip:-8.13.99,reason:new scalar function added in 8.14]
 row l = to_ul(100) | eval s = signum(l);
 
 l:ul | s:double
 100       | 1.0
 ;
 
-signumOfZeroUnsignedLong
+signumOfZeroUnsignedLong#[skip:-8.13.99,reason:new scalar function added in 8.14]
 row l = to_ul(0) | eval s = signum(l);
 
 l:ul | s:double

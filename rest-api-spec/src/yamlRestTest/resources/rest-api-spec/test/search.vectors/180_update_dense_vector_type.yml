@@ -454,7 +454,7 @@
                 type: flat
 
 ---
-"Disallowed dense vector update on same type but different other index_options, hnsw":
+"Allowed dense vector updates on same type but different other index_options, hnsw":
   - skip:
       version: " - 8.13.99"
       reason: "introduced after 8.13"
@@ -482,7 +482,6 @@
   - match: { test_index.mappings.properties.embedding.index_options.type: hnsw }
 
   - do:
-      catch: /illegal_argument_exception/
       indices.put_mapping:
         index: test_index
         body:
@@ -492,7 +491,36 @@
               dims: 4
               index_options:
                 type: hnsw
-                m: 4
+                m: 24
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: hnsw }
+  - match: { test_index.mappings.properties.embedding.index_options.m: 24 }
+
+  - do:
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: hnsw
+                m: 24
+                ef_construction: 200
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: hnsw }
+  - match: { test_index.mappings.properties.embedding.index_options.m: 24 }
+  - match: { test_index.mappings.properties.embedding.index_options.ef_construction: 200 }
+
   - do:
       catch: /illegal_argument_exception/
       indices.put_mapping:
@@ -504,23 +532,11 @@
               dims: 4
               index_options:
                 type: hnsw
+                m: 3
                 ef_construction: 200
-  - do:
-      catch: /illegal_argument_exception/
-      indices.put_mapping:
-        index: test_index
-        body:
-          properties:
-            embedding:
-              type: dense_vector
-              dims: 4
-              index_options:
-                type: hnsw
-                ef_construction: 200
-                m: 4
 
 ---
-"Disallowed dense vector update on same type but different other index_options, int8_hnsw":
+"Allowed dense vector updates on same type but different other index_options, int8_hnsw":
   - skip:
       version: " - 8.13.99"
       reason: "introduced after 8.13"
@@ -548,7 +564,6 @@
   - match: { test_index.mappings.properties.embedding.index_options.type: int8_hnsw }
 
   - do:
-      catch: /illegal_argument_exception/
       indices.put_mapping:
         index: test_index
         body:
@@ -558,9 +573,16 @@
               dims: 4
               index_options:
                 type: int8_hnsw
-                m: 4
+                m: 32
   - do:
-      catch: /illegal_argument_exception/
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int8_hnsw }
+  - match: { test_index.mappings.properties.embedding.index_options.m: 32 }
+
+  - do:
       indices.put_mapping:
         index: test_index
         body:
@@ -570,9 +592,19 @@
               dims: 4
               index_options:
                 type: int8_hnsw
+                m: 32
                 ef_construction: 200
+
   - do:
-      catch: /illegal_argument_exception/
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int8_hnsw }
+  - match: { test_index.mappings.properties.embedding.index_options.m: 32 }
+  - match: { test_index.mappings.properties.embedding.index_options.ef_construction: 200 }
+
+  - do:
       indices.put_mapping:
         index: test_index
         body:
@@ -582,9 +614,22 @@
               dims: 4
               index_options:
                 type: int8_hnsw
+                m: 32
+                ef_construction: 200
                 confidence_interval: 0.3
+
   - do:
-      catch: /illegal_argument_exception/
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int8_hnsw }
+  - match: { test_index.mappings.properties.embedding.index_options.m: 32 }
+  - match: { test_index.mappings.properties.embedding.index_options.ef_construction: 200 }
+  - match: { test_index.mappings.properties.embedding.index_options.confidence_interval: 0.3 }
+
+  - do:
+      catch: /illegal_argument_exception/ # fails because m = 10 is less than the current value of 20
       indices.put_mapping:
         index: test_index
         body:
@@ -595,11 +640,25 @@
               index_options:
                 type: int8_hnsw
                 ef_construction: 200
-                m: 4
+                m: 10
+                confidence_interval: 0.3
+
+  - do:
+      catch: /illegal_argument_exception/ # fails because m = 16 by default, which is less than the current value of 20
+      indices.put_mapping:
+        index: test_index
+        body:
+          properties:
+            embedding:
+              type: dense_vector
+              dims: 4
+              index_options:
+                type: int8_hnsw
+                ef_construction: 200
                 confidence_interval: 0.3
 
 ---
-"Disallowed dense vector update on same type but different other index_options, int8_flat":
+"Allowed dense vector updates on same type but different other index_options, int8_flat":
   - skip:
       version: " - 8.13.99"
       reason: "introduced after 8.13"
@@ -627,7 +686,6 @@
   - match: { test_index.mappings.properties.embedding.index_options.type: int8_flat }
 
   - do:
-      catch: /illegal_argument_exception/
       indices.put_mapping:
         index: test_index
         body:
@@ -638,3 +696,11 @@
               index_options:
                 type: int8_flat
                 confidence_interval: 0.3
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - match: { test_index.mappings.properties.embedding.type: dense_vector }
+  - match: { test_index.mappings.properties.embedding.index_options.type: int8_flat }
+  - match: { test_index.mappings.properties.embedding.index_options.confidence_interval: 0.3 }

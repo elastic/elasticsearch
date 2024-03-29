@@ -161,14 +161,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             XContentBuilder::field,
             Objects::toString
         ).setSerializerCheck((id, ic, v) -> v != null)
-            .setMergeValidator(
-                (previous, current, c) -> previous == null
-                    || Objects.equals(previous, current)
-                    || previous.type.equals(VectorIndexType.FLAT.name)
-                    || previous.type.equals(VectorIndexType.HNSW.name) && current.type.equals(VectorIndexType.INT8_HNSW.name)
-                    || previous.type.equals(VectorIndexType.INT8_FLAT.name) && current.type.equals(VectorIndexType.HNSW.name)
-                    || previous.type.equals(VectorIndexType.INT8_FLAT.name) && current.type.equals(VectorIndexType.INT8_HNSW.name)
-            );
+            .setMergeValidator((previous, current, c) -> previous == null || previous.updatableTo(current));
         private final Parameter<Boolean> indexed;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -825,6 +818,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         boolean supportsElementType(ElementType elementType) {
             return true;
         }
+
+        abstract boolean updatableTo(IndexOptions update);
     }
 
     private enum VectorIndexType {
@@ -941,6 +936,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
         boolean supportsElementType(ElementType elementType) {
             return elementType != ElementType.BYTE;
         }
+
+        @Override
+        boolean updatableTo(IndexOptions update) {
+            return update.type.equals(this.type)
+                || update.type.equals(VectorIndexType.HNSW.name)
+                || update.type.equals(VectorIndexType.INT8_HNSW.name);
+        }
     }
 
     private static class FlatIndexOptions extends IndexOptions {
@@ -960,6 +962,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         KnnVectorsFormat getVectorsFormat() {
             return new ES813FlatVectorFormat();
+        }
+
+        @Override
+        boolean updatableTo(IndexOptions update) {
+            return true;
         }
 
         @Override
@@ -1034,6 +1041,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
         boolean supportsElementType(ElementType elementType) {
             return elementType != ElementType.BYTE;
         }
+
+        @Override
+        boolean updatableTo(IndexOptions update) {
+            boolean sameType = update.type.equals(this.type);
+            if (sameType) {
+                Int8HnswIndexOptions int8HnswIndexOptions = (Int8HnswIndexOptions) update;
+                sameType = int8HnswIndexOptions.m >= this.m;
+            }
+            return sameType;
+        }
     }
 
     private static class HnswIndexOptions extends IndexOptions {
@@ -1049,6 +1066,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public KnnVectorsFormat getVectorsFormat() {
             return new Lucene99HnswVectorsFormat(m, efConstruction, 1, null);
+        }
+
+        @Override
+        boolean updatableTo(IndexOptions update) {
+            boolean sameType = update.type.equals(this.type);
+            if (sameType) {
+                HnswIndexOptions hnswIndexOptions = (HnswIndexOptions) update;
+                sameType = hnswIndexOptions.m >= this.m;
+            }
+            return sameType || update.type.equals(VectorIndexType.INT8_HNSW.name);
         }
 
         @Override

@@ -112,12 +112,12 @@ public abstract class ElectionStrategy {
 
     public NodeEligibility nodeMayWinElection(ClusterState lastAcceptedState, DiscoveryNode node) {
         final String nodeId = node.getId();
-        if (lastAcceptedState.getLastCommittedConfiguration().getNodeIds().contains(nodeId)
-            || lastAcceptedState.getLastAcceptedConfiguration().getNodeIds().contains(nodeId)
-            || lastAcceptedState.getVotingConfigExclusions().stream().noneMatch(vce -> vce.getNodeId().equals(nodeId))) {
-            return new NodeEligibility(true, "");
+        if (lastAcceptedState.getLastCommittedConfiguration().getNodeIds().contains(nodeId) == false
+            && lastAcceptedState.getLastAcceptedConfiguration().getNodeIds().contains(nodeId) == false) {
+            if (lastAcceptedState.getVotingConfigExclusions().stream().anyMatch(vce -> vce.getNodeId().equals(nodeId))) {
+                return new NodeEligibility(false, "node is scheduled for shutdown");
+            }
         }
-
-        return new NodeEligibility(false, "node is ineligible for election, not a voting node in the voting configuration");
+        return new NodeEligibility(true, "");
     }
 }

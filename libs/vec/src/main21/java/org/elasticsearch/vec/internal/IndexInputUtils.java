@@ -16,6 +16,8 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 
 public final class IndexInputUtils {
 
@@ -27,17 +29,24 @@ public final class IndexInputUtils {
             MSINDEX_CLS = Class.forName("org.apache.lucene.store.MemorySegmentIndexInput");
             MS_MSINDEX_CLS = Class.forName("org.apache.lucene.store.MemorySegmentIndexInput$MultiSegmentImpl");
             var lookup = privilegedPrivateLookupIn(MSINDEX_CLS, MethodHandles.lookup());
-            SEGMENTS_ARRAY = lookup.findVarHandle(MSINDEX_CLS, "segments", MemorySegment[].class);
-            CHUNK_SIZE_POWER = lookup.findVarHandle(MSINDEX_CLS, "chunkSizePower", int.class);
-            CHUNK_SIZE_MASK = lookup.findVarHandle(MSINDEX_CLS, "chunkSizeMask", long.class);
-            MULTI_OFFSET = lookup.findVarHandle(MS_MSINDEX_CLS, "offset", long.class);
+            SEGMENTS_ARRAY = privilegedFindVarHandle(lookup, MSINDEX_CLS, "segments", MemorySegment[].class);
+            CHUNK_SIZE_POWER = privilegedFindVarHandle(lookup, MSINDEX_CLS, "chunkSizePower", int.class);
+            CHUNK_SIZE_MASK = privilegedFindVarHandle(lookup, MSINDEX_CLS, "chunkSizeMask", long.class);
+            MULTI_OFFSET = privilegedFindVarHandle(lookup, MS_MSINDEX_CLS, "offset", long.class);
         } catch (ClassNotFoundException e) {
             throw new AssertionError(e);
         } catch (IllegalAccessException e) {
             throw new AssertionError("should not happen, check opens", e);
-        } catch (NoSuchFieldException e) {
+        } catch (PrivilegedActionException e) {
             throw new AssertionError("should not happen", e);
         }
+    }
+
+    @SuppressWarnings("removal")
+    static VarHandle privilegedFindVarHandle(MethodHandles.Lookup lookup, Class<?> cls, String name, Class<?> type)
+        throws PrivilegedActionException {
+        PrivilegedExceptionAction<VarHandle> pa = () -> lookup.findVarHandle(cls, name, type);
+        return AccessController.doPrivileged(pa);
     }
 
     private IndexInputUtils() {}

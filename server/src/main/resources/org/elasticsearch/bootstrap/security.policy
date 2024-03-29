@@ -85,6 +85,7 @@ grant codeBase "${codebase.elasticsearch-preallocate}" {
 
 grant codeBase "${codebase.elasticsearch-vec}" {
   // for access MemorySegmentIndexInput internals
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 

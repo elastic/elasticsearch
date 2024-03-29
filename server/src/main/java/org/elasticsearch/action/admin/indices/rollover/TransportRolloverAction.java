@@ -141,9 +141,13 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
     @Override
     protected ClusterBlockException checkBlock(RolloverRequest request, ClusterState state) {
-        var indicesOptions = buildIndicesOptions(
-            request.indicesOptions().expandWildcardsOpen(),
-            request.indicesOptions().expandWildcardsClosed(),
+        final var indicesOptions = new IndicesOptions(
+            IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
+            IndicesOptions.WildcardOptions.builder()
+                .matchOpen(request.indicesOptions().expandWildcardsOpen())
+                .matchClosed(request.indicesOptions().expandWildcardsClosed())
+                .build(),
+            IndicesOptions.GatekeeperOptions.DEFAULT,
             request.indicesOptions().failureStoreOptions()
         );
 
@@ -225,9 +229,15 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             return;
         }
 
+        final var statsIndicesOptions = new IndicesOptions(
+            IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
+            IndicesOptions.WildcardOptions.builder().matchClosed(true).allowEmptyExpressions(false).build(),
+            IndicesOptions.GatekeeperOptions.DEFAULT,
+            rolloverRequest.indicesOptions().failureStoreOptions()
+        );
         IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getRolloverTarget())
             .clear()
-            .indicesOptions(buildIndicesOptions(true, true, rolloverRequest.indicesOptions().failureStoreOptions()))
+            .indicesOptions(statsIndicesOptions)
             .docs(true)
             .indexing(true);
         statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
@@ -540,30 +550,5 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 return currentState;
             }
         }
-    }
-
-    private IndicesOptions buildIndicesOptions(
-        boolean expandToOpenIndices,
-        boolean expandToClosedIndices,
-        IndicesOptions.FailureStoreOptions failureStoreOptions
-    ) {
-        var wildcardOptions = IndicesOptions.WildcardOptions.builder()
-            .matchOpen(expandToOpenIndices)
-            .matchClosed(expandToClosedIndices)
-            .includeHidden(false)
-            .resolveAliases(true)
-            .allowEmptyExpressions(true)
-            .build();
-        var gatekeeperOptions = IndicesOptions.GatekeeperOptions.builder()
-            .allowAliasToMultipleIndices(true)
-            .allowClosedIndices(true)
-            .ignoreThrottled(false)
-            .build();
-        return new IndicesOptions(
-            IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS,
-            wildcardOptions,
-            gatekeeperOptions,
-            failureStoreOptions
-        );
     }
 }

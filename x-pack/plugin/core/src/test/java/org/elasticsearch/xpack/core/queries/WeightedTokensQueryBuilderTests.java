@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.queries;
+package org.elasticsearch.xpack.core.queries;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FeatureField;
@@ -31,10 +31,10 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
@@ -42,7 +42,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults.WeightedToken;
-import static org.elasticsearch.xpack.ml.queries.WeightedTokensQueryBuilder.TOKENS_FIELD;
+import static org.elasticsearch.xpack.core.queries.WeightedTokensQueryBuilder.TOKENS_FIELD;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.either;
@@ -76,7 +76,7 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(MachineLearning.class, MapperExtrasPlugin.class);
+        return List.of(LocalStateCompositeXPackPlugin.class, MapperExtrasPlugin.class);
     }
 
     @Override

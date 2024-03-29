@@ -34,6 +34,8 @@ import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.queries.TokenPruningConfig;
+import org.elasticsearch.xpack.core.queries.WeightedTokensQueryBuilder;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
@@ -42,7 +44,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.xpack.ml.queries.WeightedTokensQueryBuilder.TOKENS_FIELD;
+import static org.elasticsearch.xpack.core.queries.WeightedTokensQueryBuilder.TOKENS_FIELD;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.hasSize;

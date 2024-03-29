@@ -129,6 +129,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.monitoring.action;
     exports org.elasticsearch.xpack.core.monitoring.exporter;
     exports org.elasticsearch.xpack.core.monitoring;
+    exports org.elasticsearch.xpack.core.queries;
     exports org.elasticsearch.xpack.core.rest.action;
     exports org.elasticsearch.xpack.core.rollup.action;
     exports org.elasticsearch.xpack.core.rollup.job;

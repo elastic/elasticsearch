@@ -53,6 +53,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -95,6 +96,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.queries.WeightedTokensQueryBuilder;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.io.IOException;
@@ -230,6 +232,17 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         List<ActionFilter> filters = new ArrayList<>(super.getActionFilters());
         filterPlugins(ActionPlugin.class).forEach(p -> filters.addAll(p.getActionFilters()));
         return filters;
+    }
+
+    @Override
+    public List<QuerySpec<?>> getQueries() {
+        return List.of(
+            new QuerySpec<QueryBuilder>(
+                WeightedTokensQueryBuilder.NAME,
+                WeightedTokensQueryBuilder::new,
+                WeightedTokensQueryBuilder::fromXContent
+            )
+        );
     }
 
     @Override

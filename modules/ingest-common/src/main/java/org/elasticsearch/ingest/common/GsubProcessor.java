@@ -8,8 +8,6 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ElasticsearchException;
-
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -57,9 +55,10 @@ public final class GsubProcessor extends AbstractStringProcessor<String> {
             /*
              * A bad regex on problematic data can trigger a StackOverflowError. In this case we can safely recover from the
              * StackOverflowError, so we rethrow it as an Exception instead. This way the document fails this processor, but processing
-             * can carry on.
+             * can carry on. The value would be useful to log here, but we do not do so for because we do not want to write potentially
+             * sensitive data to the logs.
              */
-            throw new ElasticsearchException("Caught a StackOverflowError while processing gsub pattern: [" + pattern + "]", e);
+            throw logAndBuildException("Caught a StackOverflowError while processing gsub pattern: [" + pattern + "]", e);
         }
     }
 

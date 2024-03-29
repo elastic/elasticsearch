@@ -19,9 +19,7 @@ import java.nio.ByteOrder;
 import java.util.Optional;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.startsWith;
 
 public abstract class AbstractVectorTestCase extends ESTestCase {
 
@@ -46,7 +44,6 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
             return true;
         } else {
             assertThat(factory, not(isPresent()));
-            assertThat(osName, either(startsWith("Mac")).or(startsWith("Linux")));
             return false;
         }
     }

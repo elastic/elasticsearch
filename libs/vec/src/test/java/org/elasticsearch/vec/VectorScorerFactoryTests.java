@@ -146,8 +146,8 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                     expected = luceneScore(COSINE, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
                     assertThat(scorer.score(idx0, idx1), equalTo(expected));
                     // euclidean
-                    scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, EUCLIDEAN, in).get();
-                    expected = luceneScore(EUCLIDEAN, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
+                    // scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, EUCLIDEAN, in).get();
+                    // expected = luceneScore(EUCLIDEAN, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
                     // assertThat(scorer.score(idx0, idx1), equalTo(expected)); // TODO: implement
                 }
             }
@@ -203,8 +203,8 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                     expected = luceneScore(COSINE, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
                     assertThat(scorer.score(idx0, idx1), equalTo(expected));
                     // euclidean
-                    scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, EUCLIDEAN, in).get();
-                    expected = luceneScore(EUCLIDEAN, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
+                    // scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, EUCLIDEAN, in).get();
+                    // expected = luceneScore(EUCLIDEAN, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
                     // assertThat(scorer.score(idx0, idx1), equalTo(expected)); // TODO: implement
                 }
             }

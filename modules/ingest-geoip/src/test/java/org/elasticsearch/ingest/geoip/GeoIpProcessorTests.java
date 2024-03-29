@@ -14,6 +14,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.geoip.GeoIpProcessor.Property;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -36,7 +37,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class GeoIpProcessorTests extends ESTestCase {
 
-    private static final Set<GeoIpProcessor.Property> ALL_PROPERTIES = EnumSet.allOf(GeoIpProcessor.Property.class);
+    private static final Set<Property> ALL_PROPERTIES = EnumSet.allOf(Property.class);
 
     public void testCity() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(

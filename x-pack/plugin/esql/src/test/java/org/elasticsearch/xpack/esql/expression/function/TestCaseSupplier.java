@@ -945,21 +945,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
-    public static List<TypedDataSupplier> datesAsStringLiteralsCases() {
-        List<TypedDataSupplier> cases = new ArrayList<>();
-        for (TypedDataSupplier dateCase : dateCases()) {
-            cases.add(
-                new TypedDataSupplier(
-                    "<" + dateCase.name + "as string>",
-                    () -> EsqlDataTypeConverter.dateTimeToString((long) dateCase.supplier.get()),
-                    DataTypes.KEYWORD,
-                    true
-                )
-            );
-        }
-        return cases;
-    }
-
     public static List<TypedDataSupplier> datePeriodCases() {
         return List.of(
             new TypedDataSupplier("<zero date period>", () -> Period.ZERO, EsqlDataTypes.DATE_PERIOD),

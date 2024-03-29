@@ -123,12 +123,6 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
             return new TypeResolution(formatIncompatibleTypesMessage());
         }
 
-        // String literals (and only literals) can be cast up to dates
-        if ((DataTypes.isDateTime(leftType) && DataTypes.isString(rightType) && right() instanceof Literal)
-            || (DataTypes.isDateTime(rightType) && DataTypes.isString(leftType) && left() instanceof Literal)) {
-            return TypeResolution.TYPE_RESOLVED;
-        }
-
         if ((leftType.isNumeric() && rightType.isNumeric())
             || (DataTypes.isString(leftType) && DataTypes.isString(rightType))
             || leftType.equals(rightType)

@@ -128,19 +128,6 @@ public class EqualsTests extends AbstractFunctionTestCase {
             )
         );
 
-        suppliers.addAll(
-            TestCaseSupplier.forBinaryNotCasting(
-                "EqualsLongsEvaluator",
-                "lhs",
-                "rhs",
-                Object::equals,
-                DataTypes.BOOLEAN,
-                TestCaseSupplier.dateCases(),
-                TestCaseSupplier.datesAsStringLiteralsCases(),
-                List.of()
-            )
-        );
-
         List<TestCaseSupplier.TypedDataSupplier> lhsSuppliers = new ArrayList<>();
         List<TestCaseSupplier.TypedDataSupplier> rhsSuppliers = new ArrayList<>();
         for (DataType type : AbstractConvertFunction.STRING_TYPES) {

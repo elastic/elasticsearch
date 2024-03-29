@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
-import java.lang.NumberFormatException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
@@ -15,6 +14,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
@@ -40,7 +40,7 @@ public final class ToLongFromStringEvaluator extends AbstractConvertFunction.Abs
     if (vector.isConstant()) {
       try {
         return driverContext.blockFactory().newConstantLongBlockWith(evalValue(vector, 0, scratchPad), positionCount);
-      } catch (NumberFormatException  e) {
+      } catch (InvalidArgumentException  e) {
         registerException(e);
         return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
@@ -49,7 +49,7 @@ public final class ToLongFromStringEvaluator extends AbstractConvertFunction.Abs
       for (int p = 0; p < positionCount; p++) {
         try {
           builder.appendLong(evalValue(vector, p, scratchPad));
-        } catch (NumberFormatException  e) {
+        } catch (InvalidArgumentException  e) {
           registerException(e);
           builder.appendNull();
         }
@@ -84,7 +84,7 @@ public final class ToLongFromStringEvaluator extends AbstractConvertFunction.Abs
             }
             builder.appendLong(value);
             valuesAppended = true;
-          } catch (NumberFormatException  e) {
+          } catch (InvalidArgumentException  e) {
             registerException(e);
           }
         }

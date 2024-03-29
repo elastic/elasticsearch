@@ -40,6 +40,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -914,19 +915,32 @@ public class SettingTests extends ESTestCase {
         assertFalse(listAffixSetting.match("foo"));
     }
 
-    public void testAffixKeyExists() {
-        Setting<Boolean> setting = Setting.affixKeySetting("foo.", "enable", (key) -> Setting.boolSetting(key, false, Property.NodeScope));
+    public void testAffixKeySettingWithSecure() {
+        Setting.AffixSetting<SecureString> secureSetting = Setting.affixKeySetting(
+            "foo.",
+            "secret",
+            (key) -> SecureSetting.secureString(key, null)
+        );
 
-        assertFalse(setting.exists(Settings.EMPTY));
-        assertTrue(setting.exists(Settings.builder().put("foo.test.enable", "true").build()));
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("foo.a.secret", "secret1");
+        secureSettings.setString("foo.b.secret", "secret2");
+        Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
+
+        assertThat(secureSetting.exists(settings), is(true));
+
+        Map<String, SecureString> secrets = secureSetting.getAsMap(settings);
+        assertThat(secrets.keySet(), contains("a", "b"));
+
+        Setting<SecureString> secureA = secureSetting.getConcreteSetting("foo.a.secret");
+        assertThat(secureA.get(settings), is("secret1"));
+        assertThat(secrets.get("a"), is("secret1"));
     }
 
-    public void testAffixKeyExistsWithSecure() {
+    public void testAffixKeyExists() {
         Setting<Boolean> setting = Setting.affixKeySetting("foo.", "enable", (key) -> Setting.boolSetting(key, false, Property.NodeScope));
-
-        final MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("foo.test.enabled", "true");
-        assertFalse(setting.exists(Settings.builder().setSecureSettings(secureSettings).build()));
+        assertFalse(setting.exists(Settings.EMPTY));
+        assertTrue(setting.exists(Settings.builder().put("foo.test.enable", "true").build()));
     }
 
     public void testAffixSettingNamespaces() {

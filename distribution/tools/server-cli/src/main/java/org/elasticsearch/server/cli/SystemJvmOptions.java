@@ -168,7 +168,7 @@ final class SystemJvmOptions {
         }
 
         String esPlatformDir = platformDir.resolve(os + "-" + arch).toAbsolutePath().toString();
-        return String.format(Locale.ROOT, format,  esPlatformDir, getPathSeparator(), existingPath);
+        return String.format(Locale.ROOT, format, esPlatformDir, getPathSeparator(), existingPath);
     }
 
     @SuppressForbidden(reason = "no way to get path separator with nio")

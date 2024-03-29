@@ -17,7 +17,6 @@ import org.elasticsearch.plugins.Plugin;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -29,14 +28,7 @@ public class KibanaThreadPoolTests extends SystemIndexThreadPoolTests {
     }
 
     public void testKibanaThreadPool() {
-        String userIndex = "user_index";
-        client().admin().indices().prepareCreate(userIndex).get();
-        CountDownLatch writeLatch = blockThreads();
-        try {
-            assertThreadPoolsBlocked(userIndex);
-
-            // interact with Kibana index
-
+        assertRunsWithThreadPoolsBlocked(() -> {
             // index documents
             String idToDelete = client().prepareIndex(".kibana").setSource(Map.of("foo", "delete me!")).get().getId();
             String idToUpdate = client().prepareIndex(".kibana").setSource(Map.of("foo", "update me!")).get().getId();
@@ -53,8 +45,6 @@ public class KibanaThreadPoolTests extends SystemIndexThreadPoolTests {
             // match-all search
             var results = client().prepareSearch(".kibana").setQuery(QueryBuilders.matchAllQuery()).get();
             assertThat(results.getHits().getHits().length, equalTo(2));
-        } finally {
-            writeLatch.countDown();
-        }
+        });
     }
 }

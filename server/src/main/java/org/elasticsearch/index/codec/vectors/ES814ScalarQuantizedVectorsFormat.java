@@ -13,8 +13,11 @@ import org.apache.lucene.codecs.FlatVectorsReader;
 import org.apache.lucene.codecs.FlatVectorsWriter;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsReader;
+import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.util.hnsw.RandomVectorScorer;
 
 import java.io.IOException;
 
@@ -71,6 +74,50 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new Lucene99ScalarQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state));
+        return new ES814ScalarQuantizedVectorsReader(new Lucene99ScalarQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state)));
+    }
+
+    static class ES814ScalarQuantizedVectorsReader extends FlatVectorsReader {
+
+        final FlatVectorsReader reader;
+
+        ES814ScalarQuantizedVectorsReader(FlatVectorsReader reader) {
+            this.reader = reader;
+        }
+
+        @Override
+        public RandomVectorScorer getRandomVectorScorer(String field, float[] target) throws IOException {
+            return reader.getRandomVectorScorer(field, target);
+        }
+
+        @Override
+        public RandomVectorScorer getRandomVectorScorer(String field, byte[] target) throws IOException {
+            return reader.getRandomVectorScorer(field, target);
+        }
+
+        @Override
+        public void checkIntegrity() throws IOException {
+            reader.checkIntegrity();
+        }
+
+        @Override
+        public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+            return reader.getFloatVectorValues(field);
+        }
+
+        @Override
+        public ByteVectorValues getByteVectorValues(String field) throws IOException {
+            return reader.getByteVectorValues(field);
+        }
+
+        @Override
+        public void close() throws IOException {
+            reader.close();
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return reader.ramBytesUsed();
+        }
     }
 }

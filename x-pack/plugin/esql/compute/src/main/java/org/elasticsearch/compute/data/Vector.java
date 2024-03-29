@@ -28,9 +28,6 @@ public interface Vector extends Accountable, RefCounted, Releasable {
      */
     int getPositionCount();
 
-    // TODO: improve implementation not to waste as much space
-    Vector getRow(int position);
-
     /**
      * Creates a new vector that only exposes the positions provided. Materialization of the selected positions is avoided.
      * @param positions the positions to retain

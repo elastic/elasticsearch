@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.BaseAnalyzerRule;
@@ -40,6 +43,7 @@ import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
+import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -53,6 +57,7 @@ import org.elasticsearch.xpack.ql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -62,6 +67,7 @@ import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
+import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -83,9 +89,12 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
+import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
@@ -94,7 +103,9 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
+import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
     // marker list of attributes for plans that do not have any concrete fields to return, but have other computed columns to return
@@ -113,7 +124,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveFunctions(),
             new RemoveDuplicateProjections()
         );
-        var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new PromoteStringsInDateComparisons());
+        var finish = new Batch<>(
+            "Finish Analysis",
+            Limiter.ONCE,
+            new AddImplicitLimit(),
+            new PromoteStringsInDateComparisons(),
+            new ImplicitCasting()
+        );
         rules = List.of(resolution, finish);
     }
 
@@ -797,5 +814,101 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
         plan.forEachDown(p -> FeatureMetric.set(p, b));
         return b;
+    }
+
+    private static class ImplicitCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+            return plan.transformExpressionsUp(
+                org.elasticsearch.xpack.ql.expression.function.Function.class,
+                f -> cast(f, context.functionRegistry())
+            );
+        }
+
+        private static Expression cast(org.elasticsearch.xpack.ql.expression.function.Function f, FunctionRegistry registry) {
+            // function name is changed to class name after being resolved
+            /*
+            FunctionDefinition def = registry.resolveFunction(f.functionName());
+            EsqlFunctionRegistry.FunctionDescription signature = EsqlFunctionRegistry.description(def);
+            List<EsqlFunctionRegistry.ArgSignature> metaData = signature.args();
+             */
+
+            List<Expression> args = f.arguments();
+            List<String[]> metaData = getMetaData(f);
+            List<Expression> newChildren = new ArrayList<>(args.size());
+            boolean childrenChanged = false;
+            for (int i = 0; i < args.size(); i++) {
+                if (args.get(i).dataType() == KEYWORD && args.get(i).foldable()) {
+                    List<DataType> supportedTypes = getSupportedTypes(metaData.get(i));
+                    if (supportedTypes.contains(KEYWORD) == false && supportedTypes.contains(TEXT) == false) {
+                        DataType desired = supportedTypes.contains(DATETIME) ? DATETIME
+                            : supportedTypes.contains(DOUBLE) ? DOUBLE
+                            : supportedTypes.contains(LONG) ? LONG
+                            : supportedTypes.contains(INTEGER) ? INTEGER
+                            : supportedTypes.contains(IP) ? IP
+                            : supportedTypes.contains(VERSION) ? VERSION
+                            : supportedTypes.contains(GEO_POINT) ? GEO_POINT
+                            : supportedTypes.contains(GEO_SHAPE) ? GEO_SHAPE
+                            : supportedTypes.contains(CARTESIAN_POINT) ? CARTESIAN_POINT
+                            : supportedTypes.contains(CARTESIAN_SHAPE) ? CARTESIAN_SHAPE
+                            : supportedTypes.contains(BOOLEAN) ? BOOLEAN
+                            : NULL;
+                        if (desired != NULL) {
+                            Expression e = castStringLiteral(args.get(i), desired);
+                            childrenChanged = true;
+                            newChildren.add(e);
+                            continue;
+                        }
+                    }
+                }
+                newChildren.add(args.get(i));
+            }
+
+            return childrenChanged ? f.replaceChildren(newChildren) : f;
+        }
+
+        private static List<String[]> getMetaData(org.elasticsearch.xpack.ql.expression.function.Function f) {
+            List<String[]> paramTypes = new ArrayList<>();
+            var constructors = f.getClass().getConstructors();
+            Constructor<?> constructor = constructors[0];
+            var params = constructor.getParameters(); // no multiple c'tors supported
+            for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
+                if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
+                    Param paramInfo = params[i].getAnnotation(Param.class);
+                    String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
+                    paramTypes.add(type);
+                }
+            }
+            return paramTypes;
+        }
+
+        private static List<DataType> getSupportedTypes(String[] names) {
+            List<DataType> supportedTypes = new ArrayList<>();
+            for (String name : names) {
+                supportedTypes.add(DataTypes.fromEs(name));
+            }
+            return supportedTypes;
+        }
+
+        private static Expression castStringLiteral(Expression from, DataType desired) {
+            try {
+                Object to = EsqlDataTypeConverter.convert(from.fold(), desired);
+                return new Literal(from.source(), to, desired);
+            } catch (Exception e) {
+                String message = LoggerMessageFormat.format(
+                    "Implicit conversion of string [{}] literal to type [{}], error [{}]",
+                    from.fold(),
+                    desired,
+                    e.getMessage()
+                );
+                return new UnsupportedAttribute(
+                    from.source(),
+                    message,
+                    new UnsupportedEsField(String.valueOf(from.fold()), desired.typeName())
+                );
+            }
+        }
+
     }
 }

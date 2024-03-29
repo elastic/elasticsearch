@@ -9,6 +9,7 @@
 package org.elasticsearch.action.update;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkItemResponseTests;
 import org.elasticsearch.action.index.IndexResponseTests;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.Strings;
@@ -214,7 +215,7 @@ public class UpdateResponseTests extends ESTestCase {
                 context.setGetResult(GetResult.fromXContentEmbedded(parser));
             }
         } else {
-            DocWriteResponse.parseInnerToXContent(parser, context);
+            BulkItemResponseTests.parseInnerToXContent(parser, context);
         }
     }
 

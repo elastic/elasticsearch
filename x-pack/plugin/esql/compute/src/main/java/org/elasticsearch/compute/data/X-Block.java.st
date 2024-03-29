@@ -54,6 +54,9 @@ $endif$
     $Type$Block filter(int... positions);
 
     @Override
+    $Type$Block expand();
+
+    @Override
     default String getWriteableName() {
         return "$Type$Block";
     }

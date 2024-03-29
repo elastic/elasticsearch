@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.ql.options.EsSourceOptions;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -293,35 +294,51 @@ public class ComputeService {
         // Since it's used only for @timestamp, it is relatively safe to assume it's not needed
         // but it would be better to have a proper impl.
         QueryBuilder requestFilter = PlannerUtils.requestFilter(dataNodePlan, x -> true);
-        lookupDataNodes(parentTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(dataNodes -> {
-            try (RefCountingRunnable refs = new RefCountingRunnable(() -> parentListener.onResponse(null))) {
-                // For each target node, first open a remote exchange on the remote node, then link the exchange source to
-                // the new remote exchange sink, and initialize the computation on the target node via data-node-request.
-                for (DataNode node : dataNodes) {
-                    var dataNodeListener = ActionListener.releaseAfter(dataNodeListenerSupplier.get(), refs.acquire());
-                    var queryPragmas = configuration.pragmas();
-                    ExchangeService.openExchange(
-                        transportService,
-                        node.connection,
-                        sessionId,
-                        queryPragmas.exchangeBufferSize(),
-                        esqlExecutor,
-                        dataNodeListener.delegateFailureAndWrap((delegate, unused) -> {
-                            var remoteSink = exchangeService.newRemoteSink(parentTask, sessionId, transportService, node.connection);
-                            exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
-                            transportService.sendChildRequest(
-                                node.connection,
-                                DATA_ACTION_NAME,
-                                new DataNodeRequest(sessionId, configuration, clusterAlias, node.shardIds, node.aliasFilters, dataNodePlan),
-                                parentTask,
-                                TransportRequestOptions.EMPTY,
-                                new ActionListenerResponseHandler<>(delegate, ComputeResponse::new, esqlExecutor)
-                            );
-                        })
-                    );
+        EsSourceOptions esSourceOptions = PlannerUtils.esSourceOptions(dataNodePlan);
+        lookupDataNodes(
+            parentTask,
+            clusterAlias,
+            requestFilter,
+            concreteIndices,
+            originalIndices,
+            esSourceOptions,
+            ActionListener.wrap(dataNodes -> {
+                try (RefCountingRunnable refs = new RefCountingRunnable(() -> parentListener.onResponse(null))) {
+                    // For each target node, first open a remote exchange on the remote node, then link the exchange source to
+                    // the new remote exchange sink, and initialize the computation on the target node via data-node-request.
+                    for (DataNode node : dataNodes) {
+                        var dataNodeListener = ActionListener.releaseAfter(dataNodeListenerSupplier.get(), refs.acquire());
+                        var queryPragmas = configuration.pragmas();
+                        ExchangeService.openExchange(
+                            transportService,
+                            node.connection,
+                            sessionId,
+                            queryPragmas.exchangeBufferSize(),
+                            esqlExecutor,
+                            dataNodeListener.delegateFailureAndWrap((delegate, unused) -> {
+                                var remoteSink = exchangeService.newRemoteSink(parentTask, sessionId, transportService, node.connection);
+                                exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
+                                transportService.sendChildRequest(
+                                    node.connection,
+                                    DATA_ACTION_NAME,
+                                    new DataNodeRequest(
+                                        sessionId,
+                                        configuration,
+                                        clusterAlias,
+                                        node.shardIds,
+                                        node.aliasFilters,
+                                        dataNodePlan
+                                    ),
+                                    parentTask,
+                                    TransportRequestOptions.EMPTY,
+                                    new ActionListenerResponseHandler<>(delegate, ComputeResponse::new, esqlExecutor)
+                                );
+                            })
+                        );
+                    }
                 }
-            }
-        }, parentListener::onFailure));
+            }, parentListener::onFailure)
+        );
     }
 
     private void startComputeOnRemoteClusters(
@@ -518,12 +535,13 @@ public class ComputeService {
      * Ideally, the search_shards API should be called before the field-caps API; however, this can lead
      * to a situation where the column structure (i.e., matched data types) differs depending on the query.
      */
-    void lookupDataNodes(
+    private void lookupDataNodes(
         Task parentTask,
         String clusterAlias,
         QueryBuilder filter,
         Set<String> concreteIndices,
         String[] originalIndices,
+        EsSourceOptions esSourceOptions,
         ActionListener<List<DataNode>> listener
     ) {
         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
@@ -567,10 +585,10 @@ public class ComputeService {
             threadContext.markAsSystemContext();
             SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
                 originalIndices,
-                SearchRequest.DEFAULT_INDICES_OPTIONS,
+                esSourceOptions.indicesOptions(SearchRequest.DEFAULT_INDICES_OPTIONS),
                 filter,
                 null,
-                null,
+                esSourceOptions.preference(),
                 false,
                 clusterAlias
             );

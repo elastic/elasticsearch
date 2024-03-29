@@ -39,6 +39,9 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
     DoubleBlock filter(int... positions);
 
     @Override
+    DoubleBlock expand();
+
+    @Override
     default String getWriteableName() {
         return "DoubleBlock";
     }

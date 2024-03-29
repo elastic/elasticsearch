@@ -566,20 +566,20 @@ public class InferenceProcessorTests extends ESTestCase {
         assertEquals(modelId, document.getFieldValue("ml.results.model_id", String.class));
 
         var bodyTokens = document.getFieldValue("ml.results.body_tokens", HashMap.class);
-        assertEquals(teResult1.getWeightedTokens().size(), bodyTokens.entrySet().size());
-        if (teResult1.getWeightedTokens().isEmpty() == false) {
+        assertEquals(teResult1.getVectorDimensions().size(), bodyTokens.entrySet().size());
+        if (teResult1.getVectorDimensions().isEmpty() == false) {
             assertEquals(
-                (float) bodyTokens.get(teResult1.getWeightedTokens().get(0).token()),
-                teResult1.getWeightedTokens().get(0).weight(),
+                (float) bodyTokens.get(teResult1.getVectorDimensions().get(0).token()),
+                teResult1.getVectorDimensions().get(0).weight(),
                 0.001
             );
         }
         var contentTokens = document.getFieldValue("ml.results.content_tokens", HashMap.class);
-        assertEquals(teResult2.getWeightedTokens().size(), contentTokens.entrySet().size());
-        if (teResult2.getWeightedTokens().isEmpty() == false) {
+        assertEquals(teResult2.getVectorDimensions().size(), contentTokens.entrySet().size());
+        if (teResult2.getVectorDimensions().isEmpty() == false) {
             assertEquals(
-                (float) contentTokens.get(teResult2.getWeightedTokens().get(0).token()),
-                teResult2.getWeightedTokens().get(0).weight(),
+                (float) contentTokens.get(teResult2.getVectorDimensions().get(0).token()),
+                teResult2.getVectorDimensions().get(0).weight(),
                 0.001
             );
         }

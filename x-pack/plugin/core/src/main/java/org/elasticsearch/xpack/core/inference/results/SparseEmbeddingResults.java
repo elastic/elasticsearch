@@ -42,7 +42,7 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Infe
 
         for (InferenceResults result : results) {
             if (result instanceof TextExpansionResults expansionResults) {
-                embeddings.add(Embedding.create(expansionResults.getWeightedTokens(), expansionResults.isTruncated()));
+                embeddings.add(Embedding.create(expansionResults.getVectorDimensions(), expansionResults.isTruncated()));
             } else {
                 throw new IllegalArgumentException("Received invalid legacy inference result");
             }

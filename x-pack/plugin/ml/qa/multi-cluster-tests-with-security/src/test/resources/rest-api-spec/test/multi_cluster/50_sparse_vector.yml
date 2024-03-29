@@ -1,4 +1,4 @@
-# This test tests cases covered by ML's text_expansion.yml
+# This test tests cases covered by ML's sparse_vector.yml
 ---
 setup:
   - skip:

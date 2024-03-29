@@ -67,7 +67,7 @@ public class TextExpansionResults extends NlpInferenceResults {
         this.vectorDimensions = in.readCollectionAsList(VectorDimension::new);
     }
 
-    public List<VectorDimension> getWeightedTokens() {
+    public List<VectorDimension> getVectorDimensions() {
         return vectorDimensions;
     }
 
@@ -89,8 +89,8 @@ public class TextExpansionResults extends NlpInferenceResults {
     @Override
     void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(resultsField);
-        for (var weightedToken : vectorDimensions) {
-            weightedToken.toXContent(builder, params);
+        for (var vectorDimension : vectorDimensions) {
+            vectorDimension.toXContent(builder, params);
         }
         builder.endObject();
     }

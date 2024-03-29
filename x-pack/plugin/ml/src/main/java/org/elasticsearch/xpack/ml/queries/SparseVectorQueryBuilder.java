@@ -53,7 +53,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     private final String modelText;
     private final String modelId;
     private final List<VectorDimension> vectorDimensions;
-    private SetOnce<TextExpansionResults> weightedTokensSupplier;
+    private SetOnce<TextExpansionResults> vectorDimensionsSupplier;
     private final TokenPruningConfig tokenPruningConfig;
 
     public SparseVectorQueryBuilder(
@@ -101,7 +101,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         this.vectorDimensions = in.readOptionalCollectionAsList(VectorDimension::new);
     }
 
-    private SparseVectorQueryBuilder(SparseVectorQueryBuilder other, SetOnce<TextExpansionResults> weightedTokensSupplier) {
+    private SparseVectorQueryBuilder(SparseVectorQueryBuilder other, SetOnce<TextExpansionResults> vectorDimensionsSupplier) {
         this.fieldName = other.fieldName;
         this.modelText = other.modelText;
         this.modelId = other.modelId;
@@ -109,7 +109,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         this.tokenPruningConfig = other.tokenPruningConfig;
         this.boost = other.boost;
         this.queryName = other.queryName;
-        this.weightedTokensSupplier = weightedTokensSupplier;
+        this.vectorDimensionsSupplier = vectorDimensionsSupplier;
     }
 
     @Override
@@ -124,7 +124,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (weightedTokensSupplier != null) {
+        if (vectorDimensionsSupplier != null) {
             throw new IllegalStateException("token supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
         }
         out.writeString(fieldName);
@@ -159,11 +159,11 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
-        if (weightedTokensSupplier != null) {
-            if (weightedTokensSupplier.get() == null) {
+        if (vectorDimensionsSupplier != null) {
+            if (vectorDimensionsSupplier.get() == null) {
                 return this;
             }
-            return textExpansionResultsToQuery(fieldName, weightedTokensSupplier.get());
+            return textExpansionResultsToQuery(fieldName, vectorDimensionsSupplier.get());
         }
 
         if (modelId != null) {
@@ -246,7 +246,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     }
 
     private QueryBuilder textExpansionResultsToQuery(String fieldName, TextExpansionResults textExpansionResults) {
-        return vectorDimensionsToQuery(fieldName, textExpansionResults.getWeightedTokens());
+        return vectorDimensionsToQuery(fieldName, textExpansionResults.getVectorDimensions());
     }
 
     @Override
@@ -261,12 +261,12 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             && Objects.equals(modelId, other.modelId)
             && Objects.equals(tokenPruningConfig, other.tokenPruningConfig)
             && Objects.equals(vectorDimensions, other.vectorDimensions)
-            && Objects.equals(weightedTokensSupplier, other.weightedTokensSupplier);
+            && Objects.equals(vectorDimensionsSupplier, other.vectorDimensionsSupplier);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, modelText, modelId, tokenPruningConfig, vectorDimensions, weightedTokensSupplier);
+        return Objects.hash(fieldName, modelText, modelId, tokenPruningConfig, vectorDimensions, vectorDimensionsSupplier);
     }
 
     public static SparseVectorQueryBuilder fromXContent(XContentParser parser) throws IOException {

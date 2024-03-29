@@ -225,7 +225,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         if (tokenPruningConfig != null) {
             VectorDimensionsQueryBuilder vectorDimensionsQueryBuilder = new VectorDimensionsQueryBuilder(
                 fieldName,
-                textExpansionResults.getWeightedTokens(),
+                textExpansionResults.getVectorDimensions(),
                 tokenPruningConfig
             );
             vectorDimensionsQueryBuilder.queryName(queryName);
@@ -236,7 +236,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         // if no token pruning configuration is specified we fall back to a boolean query.
         // TODO this should be updated to always use a WeightedTokensQueryBuilder once it's in all supported versions.
         var boolQuery = QueryBuilders.boolQuery();
-        for (var weightedToken : textExpansionResults.getWeightedTokens()) {
+        for (var weightedToken : textExpansionResults.getVectorDimensions()) {
             boolQuery.should(QueryBuilders.termQuery(fieldName, weightedToken.token()).boost(weightedToken.weight()));
         }
         boolQuery.minimumShouldMatch(1);

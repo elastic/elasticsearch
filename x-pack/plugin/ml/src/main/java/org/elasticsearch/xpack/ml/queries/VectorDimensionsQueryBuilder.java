@@ -38,6 +38,7 @@ import static org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder.Allow
 import static org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder.PRUNING_CONFIG;
 
 public class VectorDimensionsQueryBuilder extends AbstractQueryBuilder<VectorDimensionsQueryBuilder> {
+    // TODO Decide if we want to allow this to remain a query, but deprecated, or remove entirely since it's preview.
     public static final String NAME = "weighted_tokens";
 
     public static final ParseField TOKENS_FIELD = new ParseField("tokens");

@@ -51,8 +51,8 @@ import static org.hamcrest.Matchers.hasSize;
 public class VectorDimensionsQueryBuilderTests extends AbstractQueryTestCase<VectorDimensionsQueryBuilder> {
 
     private static final String RANK_FEATURES_FIELD = "rank";
-    private static final List<VectorDimension> WEIGHTED_TOKENS = List.of(new VectorDimension("foo", .42f));
-    private static final int NUM_TOKENS = WEIGHTED_TOKENS.size();
+    private static final List<VectorDimension> VECTOR_DIMENSIONS = List.of(new VectorDimension("foo", .42f));
+    private static final int NUM_TOKENS = VECTOR_DIMENSIONS.size();
 
     @Override
     protected VectorDimensionsQueryBuilder doCreateTestQueryBuilder() {
@@ -64,7 +64,7 @@ public class VectorDimensionsQueryBuilderTests extends AbstractQueryTestCase<Vec
             ? new TokenPruningConfig(randomIntBetween(1, 100), randomFloat(), onlyScorePrunedTokens)
             : null;
 
-        var builder = new VectorDimensionsQueryBuilder(RANK_FEATURES_FIELD, WEIGHTED_TOKENS, tokenPruningConfig);
+        var builder = new VectorDimensionsQueryBuilder(RANK_FEATURES_FIELD, VECTOR_DIMENSIONS, tokenPruningConfig);
         if (randomBoolean()) {
             builder.boost((float) randomDoubleBetween(0.1, 10.0, true));
         }
@@ -95,7 +95,7 @@ public class VectorDimensionsQueryBuilderTests extends AbstractQueryTestCase<Vec
         // asserts that 2 rewritten queries are the same
         var response = InferModelAction.Response.builder()
             .setId(request.getId())
-            .addInferenceResults(List.of(new TextExpansionResults("foo", WEIGHTED_TOKENS.stream().toList(), randomBoolean())))
+            .addInferenceResults(List.of(new TextExpansionResults("foo", VECTOR_DIMENSIONS.stream().toList(), randomBoolean())))
             .build();
         @SuppressWarnings("unchecked")  // We matched the method above.
         ActionListener<InferModelAction.Response> listener = (ActionListener<InferModelAction.Response>) args[2];
@@ -382,7 +382,7 @@ public class VectorDimensionsQueryBuilderTests extends AbstractQueryTestCase<Vec
     }
 
     public void testToXContent() throws Exception {
-        QueryBuilder query = new VectorDimensionsQueryBuilder("foo", WEIGHTED_TOKENS, null);
+        QueryBuilder query = new VectorDimensionsQueryBuilder("foo", VECTOR_DIMENSIONS, null);
         checkGeneratedJson("""
             {
               "weighted_tokens": {
@@ -396,7 +396,7 @@ public class VectorDimensionsQueryBuilderTests extends AbstractQueryTestCase<Vec
     }
 
     public void testToXContentWithThresholds() throws Exception {
-        QueryBuilder query = new VectorDimensionsQueryBuilder("foo", WEIGHTED_TOKENS, new TokenPruningConfig(4, 0.4f, false));
+        QueryBuilder query = new VectorDimensionsQueryBuilder("foo", VECTOR_DIMENSIONS, new TokenPruningConfig(4, 0.4f, false));
         checkGeneratedJson("""
             {
               "weighted_tokens": {
@@ -414,7 +414,7 @@ public class VectorDimensionsQueryBuilderTests extends AbstractQueryTestCase<Vec
     }
 
     public void testToXContentWithThresholdsAndOnlyScorePrunedTokens() throws Exception {
-        QueryBuilder query = new VectorDimensionsQueryBuilder("foo", WEIGHTED_TOKENS, new TokenPruningConfig(4, 0.4f, true));
+        QueryBuilder query = new VectorDimensionsQueryBuilder("foo", VECTOR_DIMENSIONS, new TokenPruningConfig(4, 0.4f, true));
         checkGeneratedJson("""
             {
               "weighted_tokens": {

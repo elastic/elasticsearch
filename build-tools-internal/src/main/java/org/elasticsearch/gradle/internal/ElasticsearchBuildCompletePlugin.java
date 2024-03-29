@@ -143,6 +143,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             createBuildArchiveTar(parameters.getFilteredFiles().get(), parameters.getProjectDir().get(), uploadFile);
             if (uploadFile.exists() && "true".equals(System.getenv("BUILDKITE"))) {
                 String uploadFilePath = uploadFile.getName();
+                String uploadFileDir = uploadFile.getParentFile();
                 try {
                     System.out.println("Uploading buildkite artifact: " + uploadFilePath + "...");
                     ProcessBuilder pb = new ProcessBuilder("buildkite-agent", "artifact", "upload", uploadFilePath);
@@ -150,7 +151,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                     // Buildkite will flip the `/` to a `\` at upload time on Windows, which will make the search command below fail
                     // So, if you change this such that the artifact will have a slash/directory in it, you'll need to update the logic
                     // below as well
-                    pb.directory(new File("./build"));
+                    pb.directory(uploadFileDir);
                     pb.start().waitFor();
 
                     System.out.println("Generating buildscan link for artifact...");

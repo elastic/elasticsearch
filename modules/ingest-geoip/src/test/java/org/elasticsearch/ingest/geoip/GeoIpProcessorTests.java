@@ -20,7 +20,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +36,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class GeoIpProcessorTests extends ESTestCase {
 
-    private static final Set<Property> ALL_PROPERTIES = EnumSet.allOf(Property.class);
+    private static final Set<Property> ALL_PROPERTIES = Set.of(Property.values());
 
     public void testCity() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(

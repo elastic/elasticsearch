@@ -38,8 +38,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -186,7 +186,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("database_file", "GeoLite2-Country.mmdb");
-        EnumSet<Property> asnOnlyProperties = EnumSet.copyOf(Property.ALL_ASN_PROPERTIES);
+        Set<Property> asnOnlyProperties = new HashSet<>(Property.ALL_ASN_PROPERTIES);
         asnOnlyProperties.remove(Property.IP);
         String asnProperty = RandomPicks.randomFrom(Randomness.get(), asnOnlyProperties).toString();
         config.put("properties", List.of(asnProperty));
@@ -206,7 +206,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("database_file", "GeoLite2-ASN.mmdb");
-        EnumSet<Property> cityOnlyProperties = EnumSet.copyOf(Property.ALL_CITY_PROPERTIES);
+        Set<Property> cityOnlyProperties = new HashSet<>(Property.ALL_CITY_PROPERTIES);
         cityOnlyProperties.remove(Property.IP);
         String cityProperty = RandomPicks.randomFrom(Randomness.get(), cityOnlyProperties).toString();
         config.put("properties", List.of(cityProperty));
@@ -246,7 +246,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     public void testBuildFields() throws Exception {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseNodeService);
 
-        Set<Property> properties = EnumSet.noneOf(Property.class);
+        Set<Property> properties = new HashSet<>();
         List<String> fieldNames = new ArrayList<>();
 
         int counter = 0;

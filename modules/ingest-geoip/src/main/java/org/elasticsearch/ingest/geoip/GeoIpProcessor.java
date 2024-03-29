@@ -34,8 +34,8 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -382,23 +382,21 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     public static final class Factory implements Processor.Factory {
-        static final Set<Property> DEFAULT_CITY_PROPERTIES = Set.copyOf(
-            EnumSet.of(
-                Property.CONTINENT_NAME,
-                Property.COUNTRY_NAME,
-                Property.COUNTRY_ISO_CODE,
-                Property.REGION_ISO_CODE,
-                Property.REGION_NAME,
-                Property.CITY_NAME,
-                Property.LOCATION
-            )
+        static final Set<Property> DEFAULT_CITY_PROPERTIES = Set.of(
+            Property.CONTINENT_NAME,
+            Property.COUNTRY_NAME,
+            Property.COUNTRY_ISO_CODE,
+            Property.REGION_ISO_CODE,
+            Property.REGION_NAME,
+            Property.CITY_NAME,
+            Property.LOCATION
         );
-        static final Set<Property> DEFAULT_COUNTRY_PROPERTIES = Set.copyOf(
-            EnumSet.of(Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE)
+        static final Set<Property> DEFAULT_COUNTRY_PROPERTIES = Set.of(
+            Property.CONTINENT_NAME,
+            Property.COUNTRY_NAME,
+            Property.COUNTRY_ISO_CODE
         );
-        static final Set<Property> DEFAULT_ASN_PROPERTIES = Set.copyOf(
-            EnumSet.of(Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK)
-        );
+        static final Set<Property> DEFAULT_ASN_PROPERTIES = Set.of(Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK);
 
         private final GeoIpDatabaseProvider geoIpDatabaseProvider;
 
@@ -502,7 +500,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         ORGANIZATION_NAME,
         NETWORK;
 
-        static final EnumSet<Property> ALL_CITY_PROPERTIES = EnumSet.of(
+        static final Set<Property> ALL_CITY_PROPERTIES = Set.of(
             Property.IP,
             Property.COUNTRY_ISO_CODE,
             Property.COUNTRY_NAME,
@@ -513,18 +511,13 @@ public final class GeoIpProcessor extends AbstractProcessor {
             Property.TIMEZONE,
             Property.LOCATION
         );
-        static final EnumSet<Property> ALL_COUNTRY_PROPERTIES = EnumSet.of(
+        static final Set<Property> ALL_COUNTRY_PROPERTIES = Set.of(
             Property.IP,
             Property.CONTINENT_NAME,
             Property.COUNTRY_NAME,
             Property.COUNTRY_ISO_CODE
         );
-        static final EnumSet<Property> ALL_ASN_PROPERTIES = EnumSet.of(
-            Property.IP,
-            Property.ASN,
-            Property.ORGANIZATION_NAME,
-            Property.NETWORK
-        );
+        static final Set<Property> ALL_ASN_PROPERTIES = Set.of(Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK);
 
         private static Property parseProperty(Set<Property> validProperties, String value) {
             try {
@@ -534,8 +527,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 }
                 return property;
             } catch (IllegalArgumentException e) {
+                // put the properties in natural order before throwing so that we have reliable error messages -- this is a little
+                // bit inefficient, but we only do this validation at processor construction time so the cost is practically immaterial
+                Property[] properties = validProperties.toArray(new Property[0]);
+                Arrays.sort(properties);
                 throw new IllegalArgumentException(
-                    "illegal property value [" + value + "]. valid values are " + Arrays.toString(validProperties.toArray())
+                    "illegal property value [" + value + "]. valid values are " + Arrays.toString(properties)
                 );
             }
         }
@@ -568,7 +565,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
             final Set<Property> properties;
             if (propertyNames != null) {
-                Set<Property> modifiableProperties = EnumSet.noneOf(Property.class);
+                Set<Property> modifiableProperties = new HashSet<>();
                 for (String propertyName : propertyNames) {
                     modifiableProperties.add(parseProperty(validProperties, propertyName)); // n.b. this throws if a property is invalid
                 }

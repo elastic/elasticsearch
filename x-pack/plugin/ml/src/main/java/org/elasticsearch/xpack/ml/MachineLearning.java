@@ -376,6 +376,7 @@ import org.elasticsearch.xpack.ml.process.MlControllerHolder;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
+import org.elasticsearch.xpack.ml.queries.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder;
 import org.elasticsearch.xpack.ml.queries.WeightedTokensQueryBuilder;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
@@ -1765,6 +1766,11 @@ public class MachineLearning extends Plugin
                 WeightedTokensQueryBuilder.NAME,
                 WeightedTokensQueryBuilder::new,
                 WeightedTokensQueryBuilder::fromXContent
+            ),
+            new QuerySpec<QueryBuilder>(
+                SparseVectorQueryBuilder.NAME,
+                SparseVectorQueryBuilder::new,
+                SparseVectorQueryBuilder::fromXContent
             )
         );
     }

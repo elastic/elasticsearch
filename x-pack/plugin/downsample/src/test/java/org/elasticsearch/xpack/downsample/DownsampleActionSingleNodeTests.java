@@ -764,7 +764,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         indexer.execute();
     }
 
-    public void testDownsampleStats() throws IOException {
+    public void testDownsampleStats() throws Exception {
         final PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
         final DownsampleConfig config = new DownsampleConfig(randomInterval());
         final SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
@@ -825,12 +825,21 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .findFirst()
             .orElseThrow();
 
-        List<Measurement> measurements = plugin.getLongHistogramMeasurement(DownsampleMetrics.LATENCY_SHARD);
-        assertFalse(measurements.isEmpty());
-        for (Measurement measurement : measurements) {
+        final List<Measurement> latencyShardMetrics = plugin.getLongHistogramMeasurement(DownsampleMetrics.LATENCY_SHARD);
+        assertFalse(latencyShardMetrics.isEmpty());
+        for (Measurement measurement : latencyShardMetrics) {
             assertTrue(measurement.value().toString(), measurement.value().longValue() >= 0 && measurement.value().longValue() < 1000_000);
             assertEquals(1, measurement.attributes().size());
             assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "failed", "missing_docs")));
+        }
+
+        final List<Measurement> latencyTotalMetrics = plugin.getLongHistogramMeasurement(DownsampleMetrics.LATENCY_TOTAL);
+        // Total latency gets recorded after reindex and force-merge complete.
+        assertBusy(() -> assertFalse(latencyTotalMetrics.isEmpty()), 10, TimeUnit.SECONDS);
+        for (Measurement measurement : latencyTotalMetrics) {
+            assertTrue(measurement.value().toString(), measurement.value().longValue() >= 0 && measurement.value().longValue() < 1000_000);
+            assertEquals(1, measurement.attributes().size());
+            assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "failed")));
         }
     }
 

@@ -23,14 +23,14 @@ public class FactoryTests extends ScriptTestCase {
     @Override
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = super.scriptContexts();
-        contexts.put(StatefulFactoryTestScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(FactoryTestScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(DeterministicFactoryTestScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(EmptyTestScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(TemplateScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(VoidReturnTestScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(FactoryTestConverterScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
-        contexts.put(FactoryTestConverterScriptBadDef.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
+        contexts.put(StatefulFactoryTestScript.CONTEXT, PainlessPlugin.baseWhiteList());
+        contexts.put(FactoryTestScript.CONTEXT, PainlessPlugin.baseWhiteList());
+        contexts.put(DeterministicFactoryTestScript.CONTEXT, PainlessPlugin.baseWhiteList());
+        contexts.put(EmptyTestScript.CONTEXT, PainlessPlugin.baseWhiteList());
+        contexts.put(TemplateScript.CONTEXT, PainlessPlugin.baseWhiteList());
+        contexts.put(VoidReturnTestScript.CONTEXT, PainlessPlugin.baseWhiteList());
+        contexts.put(FactoryTestConverterScript.CONTEXT, PainlessPlugin.baseWhiteList());
+        contexts.put(FactoryTestConverterScriptBadDef.CONTEXT, PainlessPlugin.baseWhiteList());
 
         return contexts;
     }

@@ -27,7 +27,7 @@ final class Debugger {
 
     /** compiles source to bytecode, and returns debugging output */
     static String toString(final String source) {
-        return toString(PainlessTestScript.class, source, new CompilerSettings(), PainlessPlugin.BASE_WHITELISTS);
+        return toString(PainlessTestScript.class, source, new CompilerSettings(), PainlessPlugin.baseWhiteList());
     }
 
     /** compiles to bytecode, and returns debugging output */
@@ -84,7 +84,7 @@ final class Debugger {
             PainlessTestScript.class,
             source,
             new CompilerSettings(),
-            PainlessPlugin.BASE_WHITELISTS,
+            PainlessPlugin.baseWhiteList(),
             semanticPhaseVisitor,
             irPhaseVisitor,
             asmPhaseVisitor

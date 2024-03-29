@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.not;
 
 public class DebugTests extends ScriptTestCase {
     private final PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromWhitelists(
-        PainlessPlugin.BASE_WHITELISTS,
+        PainlessPlugin.baseWhiteList(),
         new HashMap<>(),
         new HashMap<>()
     );

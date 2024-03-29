@@ -219,15 +219,15 @@ public abstract class TransportNodesAction<
 
     /**
      * Implements the request recipient logic.
-     * If access to the channel listener is needed, override {@link #nodeOperationAsync(TransportRequest, ChannelActionListener, Task)}.
+     * If access to the request listener is needed, override {@link #nodeOperationAsync(TransportRequest, Task, ActionListener)}.
      */
     protected abstract NodeResponse nodeOperation(NodeRequest request, Task task);
 
     /**
-     * This method can be overridden if a subclass needs to asynchronously respond to the node request via a listener.
+     * This method can be overridden if a subclass needs to access to a listener in order to asynchronously respond to the node request.
      * The default implementation is to fall through to {@link #nodeOperation}.
      */
-    protected void nodeOperationAsync(NodeRequest request, ChannelActionListener<NodeResponse> listener, Task task) {
+    protected void nodeOperationAsync(NodeRequest request, Task task, ActionListener<NodeResponse> listener) {
         ActionListener.respondAndRelease(listener, nodeOperation(request, task));
     }
 
@@ -246,7 +246,7 @@ public abstract class TransportNodesAction<
         public void messageReceived(NodeRequest request, TransportChannel channel, Task task) throws Exception {
             ActionListener.run(
                 new ChannelActionListener<NodeResponse>(channel),
-                channelListener -> nodeOperationAsync(request, channelListener, task)
+                channelListener -> nodeOperationAsync(request, task, channelListener)
             );
         }
     }

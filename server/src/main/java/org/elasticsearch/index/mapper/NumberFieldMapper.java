@@ -275,6 +275,7 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public Float parse(Object value, boolean coerce) {
                 final float result = parseToFloat(value);
+                validateFiniteValue(result);
                 // Reduce the precision to what we actually index
                 return HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(result));
             }
@@ -286,9 +287,9 @@ public class NumberFieldMapper extends FieldMapper {
 
             /**
              * Parse a query parameter or {@code _source} value to a float,
-             * keeping float precision. Used by queries which need more
-             * precise control over their rounding behavior that
-             * {@link #parse(Object, boolean)} provides.
+             * keeping float precision. Used by queries which do need to validate
+             * against infinite values, but need more precise control over their
+             * rounding behavior that {@link #parse(Object, boolean)} provides.
              */
             private static float parseToFloat(Object value) {
                 final float result;
@@ -301,7 +302,6 @@ public class NumberFieldMapper extends FieldMapper {
                     }
                     result = Float.parseFloat(value.toString());
                 }
-                validateParsed(result);
                 return result;
             }
 
@@ -313,13 +313,14 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public Float parse(XContentParser parser, boolean coerce) throws IOException {
                 float parsed = parser.floatValue(coerce);
-                validateParsed(parsed);
+                validateFiniteValue(parsed);
                 return parsed;
             }
 
             @Override
             public Query termQuery(String field, Object value, boolean isIndexed) {
                 float v = parseToFloat(value);
+                validateFiniteValue(v);
                 if (isIndexed) {
                     return HalfFloatPoint.newExactQuery(field, v);
                 } else {
@@ -332,7 +333,9 @@ public class NumberFieldMapper extends FieldMapper {
                 float[] v = new float[values.size()];
                 int pos = 0;
                 for (Object value : values) {
-                    v[pos++] = parseToFloat(value);
+                    float float_value = parseToFloat(value);
+                    validateFiniteValue(float_value);
+                    v[pos++] = float_value;
                 }
                 return HalfFloatPoint.newSetQuery(field, v);
             }
@@ -420,7 +423,7 @@ public class NumberFieldMapper extends FieldMapper {
                 );
             }
 
-            private static void validateParsed(float value) {
+            private static void validateFiniteValue(float value) {
                 if (Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(value))) == false) {
                     throw new IllegalArgumentException("[half_float] supports only finite values, but got [" + value + "]");
                 }
@@ -449,6 +452,17 @@ public class NumberFieldMapper extends FieldMapper {
         FLOAT("float", NumericType.FLOAT) {
             @Override
             public Float parse(Object value, boolean coerce) {
+                final float result = parseToFloat(value);
+                validateFiniteValue(result);
+                return result;
+            }
+
+            /**
+             * Parse a query parameter or {@code _source} value to a float,
+             * keeping float precision. Used by queries which do need validate
+             * against infinite values like {@link #parse(Object, boolean)} does.
+             */
+            private static float parseToFloat(Object value) {
                 final float result;
 
                 if (value instanceof Number) {
@@ -459,7 +473,6 @@ public class NumberFieldMapper extends FieldMapper {
                     }
                     result = Float.parseFloat(value.toString());
                 }
-                validateParsed(result);
                 return result;
             }
 
@@ -476,13 +489,13 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public Float parse(XContentParser parser, boolean coerce) throws IOException {
                 float parsed = parser.floatValue(coerce);
-                validateParsed(parsed);
+                validateFiniteValue(parsed);
                 return parsed;
             }
 
             @Override
             public Query termQuery(String field, Object value, boolean isIndexed) {
-                float v = parse(value, false);
+                float v = parseToFloat(value);
                 if (isIndexed) {
                     return FloatPoint.newExactQuery(field, v);
                 } else {
@@ -514,16 +527,18 @@ public class NumberFieldMapper extends FieldMapper {
                 float l = Float.NEGATIVE_INFINITY;
                 float u = Float.POSITIVE_INFINITY;
                 if (lowerTerm != null) {
-                    l = parse(lowerTerm, false);
-                    if (includeLower == false) {
-                        l = FloatPoint.nextUp(l);
+                    l = parseToFloat(lowerTerm);
+                    if (includeLower) {
+                        l = FloatPoint.nextDown(l);
                     }
+                    l = FloatPoint.nextUp(l);
                 }
                 if (upperTerm != null) {
-                    u = parse(upperTerm, false);
-                    if (includeUpper == false) {
-                        u = FloatPoint.nextDown(u);
+                    u = parseToFloat(upperTerm);
+                    if (includeUpper) {
+                        u = FloatPoint.nextUp(u);
                     }
+                    u = FloatPoint.nextDown(u);
                 }
                 Query query;
                 if (isIndexed) {
@@ -582,7 +597,7 @@ public class NumberFieldMapper extends FieldMapper {
                 );
             }
 
-            private static void validateParsed(float value) {
+            private static void validateFiniteValue(float value) {
                 if (Float.isFinite(value) == false) {
                     throw new IllegalArgumentException("[float] supports only finite values, but got [" + value + "]");
                 }

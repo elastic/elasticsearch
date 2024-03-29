@@ -153,6 +153,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             TableIdentifier table = plan.table();
             if (context.indexResolution().matches(table.index()) == false) {
+                // TODO: fix this (and tests), or drop check (seems SQL-inherited, where's also defective)
                 new EsqlUnresolvedRelation(
                     plan.source(),
                     plan.table(),
@@ -164,7 +165,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             EsIndex esIndex = context.indexResolution().get();
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             attributes.addAll(plan.metadataFields());
-            return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes);
+            return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes, plan.esSourceOptions());
         }
 
     }

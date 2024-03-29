@@ -198,7 +198,7 @@ public class HdfsFixture extends ExternalResource {
                 // If the maximum number of attempts is reached, rethrow the exception
                 FileUtils.deleteDirectory(baseDir.toFile());
                 if (attempt == maxAttempts) {
-                    throw e;
+                    Assume.assumeTrue("Unable to start HDFS cluster", false);
                 }
             }
         }

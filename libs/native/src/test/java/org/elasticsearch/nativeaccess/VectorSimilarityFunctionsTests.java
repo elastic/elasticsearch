@@ -13,9 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Optional;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.startsWith;
 
 public class VectorSimilarityFunctionsTests extends ESTestCase {
 

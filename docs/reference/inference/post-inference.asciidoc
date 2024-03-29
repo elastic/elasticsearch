@@ -16,9 +16,9 @@ own model, use the <<ml-df-trained-models-apis>>.
 [[post-inference-api-request]]
 ==== {api-request-title}
 
-`POST /_inference/<model_id>`
+`POST /_inference/<inference_id>`
 
-`POST /_inference/<task_type>/<model_id>`
+`POST /_inference/<task_type>/<inference_id>`
 
 
 [discrete]
@@ -32,8 +32,8 @@ own model, use the <<ml-df-trained-models-apis>>.
 [[post-inference-api-desc]]
 ==== {api-description-title}
 
-The perform {infer} API enables you to use {infer} models to perform specific
-tasks on data that you provide as an input. The API returns a response with the
+The perform {infer} API enables you to use {ml} models to perform specific tasks
+on data that you provide as an input. The API returns a response with the 
 resutls of the tasks. The {infer} model you use can perform one specific task
 that has been defined when the model was created with the <<put-inference-api>>.
 
@@ -42,9 +42,9 @@ that has been defined when the model was created with the <<put-inference-api>>.
 [[post-inference-api-path-params]]
 ==== {api-path-parms-title}
 
-`<model_id>`::
+`<inference_id>`::
 (Required, string)
-The unique identifier of the {infer} model.
+The unique identifier of the {infer} endpoint.
 
 
 `<task_type>`::

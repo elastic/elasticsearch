@@ -95,7 +95,7 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
         // <3> Delete transform config
         ActionListener<AcknowledgedResponse> deleteDestIndexListener = ActionListener.wrap(
             unusedAcknowledgedResponse -> transformConfigManager.deleteTransform(request.getId(), ActionListener.wrap(r -> {
-                logger.debug("[{}] deleted transform", request.getId());
+                logger.info("[{}] deleted transform", request.getId());
                 auditor.info(request.getId(), "Deleted transform.");
                 listener.onResponse(AcknowledgedResponse.of(r));
             }, listener::onFailure)),

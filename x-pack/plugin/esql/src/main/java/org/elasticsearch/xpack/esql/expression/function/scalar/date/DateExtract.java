@@ -14,6 +14,7 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
@@ -28,10 +29,10 @@ import java.time.temporal.ChronoField;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.EsqlConverter.STRING_TO_CHRONO_FIELD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.chronoToLong;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 
 public class DateExtract extends EsqlConfigurationFunction {
 
@@ -42,7 +43,7 @@ public class DateExtract extends EsqlConfigurationFunction {
         Source source,
         // Need to replace the commas in the description here with semi-colon as there's a bug in the CSV parser
         // used in the CSVTests and fixing it is not trivial
-        @Param(name = "datePart", type = { "keyword" }, description = """
+        @Param(name = "datePart", type = { "keyword", "text" }, description = """
             Part of the date to extract.
             Can be: aligned_day_of_week_in_month; aligned_day_of_week_in_year; aligned_week_of_month;
             aligned_week_of_year; ampm_of_day; clock_hour_of_ampm; clock_hour_of_day; day_of_month; day_of_week;
@@ -76,7 +77,7 @@ public class DateExtract extends EsqlConfigurationFunction {
         if (chronoField == null) {
             Expression field = children().get(0);
             try {
-                if (field.foldable() && field.dataType() == DataTypes.KEYWORD) {
+                if (field.foldable() && EsqlDataTypes.isString(field.dataType())) {
                     chronoField = (ChronoField) STRING_TO_CHRONO_FIELD.convert(field.fold());
                 }
             } catch (Exception e) {

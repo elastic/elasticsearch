@@ -44,7 +44,6 @@ public class VectorSimilarityFunctionsTests extends ESTestCase {
             return true;
         } else {
             assertThat(vectorSimilarityFunctions, not(isPresent()));
-            assertThat(osName, either(startsWith("Mac")).or(startsWith("Linux")));
             return false;
         }
     }

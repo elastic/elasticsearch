@@ -99,10 +99,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testInferenceIdNotPresent() throws IOException {
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> createMapperService(fieldMapping(b -> b.field("type", "semantic")))
-        );
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> b.field("type", "semantic"))));
         assertThat(e.getMessage(), containsString("field [inference_id] must be specified"));
     }
 
@@ -179,9 +176,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     IllegalArgumentException.class,
                     () -> merge(
                         mapperService,
-                        mapping(
-                            b -> b.startObject(fieldName).field("type", "semantic").field("inference_id", "test_model").endObject()
-                        )
+                        mapping(b -> b.startObject(fieldName).field("type", "semantic").field("inference_id", "test_model").endObject())
                     )
                 );
                 assertThat(

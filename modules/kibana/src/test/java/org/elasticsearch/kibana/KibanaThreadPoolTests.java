@@ -28,7 +28,7 @@ public class KibanaThreadPoolTests extends SystemIndexThreadPoolTests {
     }
 
     public void testKibanaThreadPool() {
-        assertRunsWithThreadPoolsBlocked(() -> {
+        runWithBlockedThreadPools(() -> {
             // index documents
             String idToDelete = client().prepareIndex(".kibana").setSource(Map.of("foo", "delete me!")).get().getId();
             String idToUpdate = client().prepareIndex(".kibana").setSource(Map.of("foo", "update me!")).get().getId();

@@ -95,10 +95,13 @@ public class AbstractProcessorTests extends ESTestCase {
                 assertThat("log.trace called", traceCalled.get(), is(false));
             }
 
+            // reset between tests:
+            warnCalled.set(false);
+            traceCalled.set(false);
+
             {
                 // Now enable trace logging
                 when(LogManager.getLogger(TestProcessor.class).isTraceEnabled()).thenReturn(true);
-                warnCalled.set(false);
                 ElasticsearchException resultException = testProcessor.logAndBuildException(message, throwable);
                 assertThat(resultException.getRootCause(), equalTo(resultException));
                 String resultMessage = resultException.getMessage();

@@ -816,24 +816,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         return b;
     }
 
-    private static class ImplicitCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+    private static class ImplicitCasting extends Rule<LogicalPlan, LogicalPlan> {
 
         @Override
-        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
+        public LogicalPlan apply(LogicalPlan plan) {
             return plan.transformExpressionsUp(
                 org.elasticsearch.xpack.ql.expression.function.Function.class,
-                f -> cast(f, context.functionRegistry())
+                    ImplicitCasting::cast
             );
         }
 
-        private static Expression cast(org.elasticsearch.xpack.ql.expression.function.Function f, FunctionRegistry registry) {
-            // function name is changed to class name after being resolved
-            /*
-            FunctionDefinition def = registry.resolveFunction(f.functionName());
-            EsqlFunctionRegistry.FunctionDescription signature = EsqlFunctionRegistry.description(def);
-            List<EsqlFunctionRegistry.ArgSignature> metaData = signature.args();
-             */
-
+        private static Expression cast(org.elasticsearch.xpack.ql.expression.function.Function f) {
             List<Expression> args = f.arguments();
             List<String[]> metaData = getMetaData(f);
             List<Expression> newChildren = new ArrayList<>(args.size());

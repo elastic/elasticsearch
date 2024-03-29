@@ -31,6 +31,7 @@ greatest                 |"integer|long|double|boolean|keyword|text|ip|version g
 least                    |"integer|long|double|boolean|keyword|text|ip|version least(first:integer|long|double|boolean|keyword|text|ip|version, ?rest...:integer|long|double|boolean|keyword|text|ip|version)"        | first           |"integer|long|double|boolean|keyword|text|ip|version"            |""                                            |"integer|long|double|boolean|keyword|text|ip|version"                    | "Returns the minimum value from many columns."                      | false       | true | false
 left                     |"keyword left(string:keyword|text, length:integer)"                |[string, length]         |["keyword|text", "integer"]            |["The string from which to return a substring.", "The number of characters to return."]                                            |keyword                    | "Returns the substring that extracts 'length' chars from 'string' starting from the left."                      | [false, false]       | false | false
 length                   |"integer length(string:keyword|text)"                                        |string                     |"keyword|text"                 | ""                                                 |integer                    | "Returns the character length of a string."                      | false                | false | false
+locate                   |"integer locate(str:keyword|text, substr:keyword|text)"        |[str,substr]       |["keyword|text", "keyword|text"]            |["", ""]                                            |integer                    | "Returns an integer that indicates the position of a keyword substring within another string"                      | [false, false]       | false | false
 log                      |"double log(?base:integer|unsigned_long|long|double, number:integer|unsigned_long|long|double)"          |[base, number]                        |["integer|unsigned_long|long|double", "integer|unsigned_long|long|double"]| ["", ""]                                                 |double                    | "Returns the logarithm of a number to a base."                      | [true, false]                | false | false
 log10                    |"double log10(number:double|integer|long|unsigned_long)"          |number                       |"double|integer|long|unsigned_long" | ""                                                 |double                    | "Returns the log base 10."                      | false                | false | false
 ltrim                    |"keyword|text ltrim(string:keyword|text)"                  |string                      |"keyword|text"    | ""                                                 |"keyword|text"       |Removes leading whitespaces from a string.| false | false | false
@@ -135,6 +136,7 @@ double e()
 "integer|long|double|boolean|keyword|text|ip|version least(first:integer|long|double|boolean|keyword|text|ip|version, ?rest...:integer|long|double|boolean|keyword|text|ip|version)"
 "keyword left(string:keyword|text, length:integer)"
 "integer length(string:keyword|text)"
+"integer locate(str:keyword|text, substr:keyword|text)"
 "double log(?base:integer|unsigned_long|long|double, number:integer|unsigned_long|long|double)"
 "double log10(number:double|integer|long|unsigned_long)"
 "keyword|text ltrim(string:keyword|text)"
@@ -223,5 +225,5 @@ countFunctions#[skip:-8.13.99]
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-97     | 97     | 97
+98     | 98     | 98
 ;

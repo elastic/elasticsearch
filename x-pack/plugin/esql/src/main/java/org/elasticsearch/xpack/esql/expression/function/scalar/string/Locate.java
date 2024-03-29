@@ -36,8 +36,8 @@ public class Locate extends EsqlScalarFunction {
     private final Expression substr;
 
     @FunctionInfo(
-        returnType = "int",
-        description = "Returns an int that indicates the first occurrence of another string inside a keyword string"
+        returnType = "integer",
+        description = "Returns an integer that indicates the position of a keyword substring within another string"
     )
     public Locate(
         Source source,
@@ -51,7 +51,7 @@ public class Locate extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataTypes.BOOLEAN;
+        return DataTypes.INTEGER;
     }
 
     @Override

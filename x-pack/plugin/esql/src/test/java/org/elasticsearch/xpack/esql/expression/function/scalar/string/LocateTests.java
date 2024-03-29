@@ -27,6 +27,9 @@ import java.util.function.Supplier;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Tests for {@link Locate} function.
+ */
 public class LocateTests extends AbstractScalarFunctionTestCase {
     public LocateTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -34,7 +37,7 @@ public class LocateTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Locate basic test", () -> {
+        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Locate basic test with keyword", () -> {
             String str = randomAlphaOfLength(10);
             String substr = str.substring(5);
             return new TestCaseSupplier.TestCase(
@@ -46,29 +49,17 @@ public class LocateTests extends AbstractScalarFunctionTestCase {
                 DataTypes.INTEGER,
                 equalTo(5)
             );
-        }), new TestCaseSupplier("Locate basic test with longer substr", () -> {
-            String str = randomAlphaOfLength(5);
-            String substr = randomAlphaOfLength(10);
+        }), new TestCaseSupplier("Locate basic test with text", () -> {
+            String str = randomAlphaOfLength(10);
+            String substr = str.substring(5);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(str), DataTypes.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(substr), DataTypes.KEYWORD, "substr")
+                    new TestCaseSupplier.TypedData(new BytesRef(str), DataTypes.TEXT, "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(substr), DataTypes.TEXT, "substr")
                 ),
                 "LocateEvaluator[str=Attribute[channel=0], substr=Attribute[channel=1]]",
                 DataTypes.INTEGER,
-                equalTo(-1)
-            );
-        }), new TestCaseSupplier("Locate basic test with equal str and substr", () -> {
-            String str = randomAlphaOfLength(5);
-            String substr = str;
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(str), DataTypes.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(substr), DataTypes.KEYWORD, "substr")
-                ),
-                "LocateEvaluator[str=Attribute[channel=0], substr=Attribute[channel=1]]",
-                DataTypes.INTEGER,
-                equalTo(0)
+                equalTo(5)
             );
         })));
     }
@@ -114,7 +105,7 @@ public class LocateTests extends AbstractScalarFunctionTestCase {
             ).get(driverContext());
             Block block = eval.eval(row(List.of(new BytesRef(str), new BytesRef(substr))))
         ) {
-            return block.isNull(0) ? -1 : ((Integer) toJavaObject(block, 0));
+            return block.isNull(0) ? Integer.valueOf(-1) : ((Integer) toJavaObject(block, 0));
         }
     }
 

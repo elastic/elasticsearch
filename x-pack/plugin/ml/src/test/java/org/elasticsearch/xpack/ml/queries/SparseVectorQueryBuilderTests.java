@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
@@ -42,7 +43,6 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.xpack.ml.queries.SparseVectorQueryBuilder.MODEL_ID;
-import static org.elasticsearch.xpack.ml.queries.SparseVectorQueryBuilder.MODEL_TEXT;
 import static org.elasticsearch.xpack.ml.queries.VectorDimensionsQueryBuilder.TOKENS_FIELD;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.either;
@@ -195,21 +195,21 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
                 IllegalArgumentException.class,
                 () -> new SparseVectorQueryBuilder("field name", null, "model id", null)
             );
-            assertEquals("[sparse_vector] requires " + MODEL_TEXT.getPreferredName(), e.getMessage());
+            assertEquals("[sparse_vector] requires [model_text] when [model_id] is specified", e.getMessage());
         }
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> new SparseVectorQueryBuilder("field name", "model text", null, null)
             );
-            assertEquals(
-                "[sparse_vector] requires one of ["
-                    + MODEL_ID.getPreferredName()
-                    + "], or ["
-                    + SparseVectorQueryBuilder.VECTOR_DIMENSIONS.getPreferredName()
-                    + "]",
-                e.getMessage()
+            assertEquals("[sparse_vector] requires one of [model_id], or [vector_dimensions]", e.getMessage());
+        }
+        {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> new SparseVectorQueryBuilder("field name", "model text", "baz", VECTOR_DIMENSIONS)
             );
+            assertEquals("[sparse_vector] requires one of [model_id], or [vector_dimensions]", e.getMessage());
         }
     }
 
@@ -348,6 +348,10 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder();
         QueryBuilder rewrittenQueryBuilder = rewriteAndFetch(queryBuilder, searchExecutionContext);
-        assertTrue(rewrittenQueryBuilder instanceof VectorDimensionsQueryBuilder);
+        if (queryBuilder.getTokenPruningConfig() == null) {
+            assertTrue(rewrittenQueryBuilder instanceof BoolQueryBuilder);
+        } else {
+            assertTrue(rewrittenQueryBuilder instanceof VectorDimensionsQueryBuilder);
+        }
     }
 }

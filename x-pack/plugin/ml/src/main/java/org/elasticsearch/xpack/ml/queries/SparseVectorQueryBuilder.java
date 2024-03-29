@@ -75,13 +75,15 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         if (fieldName == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires a fieldName");
         }
-        if (modelText == null) {
-            throw new IllegalArgumentException("[" + NAME + "] requires " + MODEL_TEXT.getPreferredName());
-        }
 
         if ((vectorDimensions == null) == (modelId == null)) {
             throw new IllegalArgumentException(
                 "[" + NAME + "] requires one of [" + MODEL_ID.getPreferredName() + "], or [" + VECTOR_DIMENSIONS.getPreferredName() + "]"
+            );
+        }
+        if (modelId != null && modelText == null) {
+            throw new IllegalArgumentException(
+                "[" + NAME + "] requires [" + MODEL_TEXT.getPreferredName() + "] when [" + MODEL_ID.getPreferredName() + "] is specified"
             );
         }
 
@@ -120,6 +122,10 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.ADD_SPARSE_VECTOR_QUERY;
+    }
+
+    public TokenPruningConfig getTokenPruningConfig() {
+        return tokenPruningConfig;
     }
 
     @Override
@@ -329,10 +335,6 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
                 fieldName = parser.currentName();
                 modelText = parser.text();
             }
-        }
-
-        if (modelText == null) {
-            throw new ParsingException(parser.getTokenLocation(), "No text specified for text query");
         }
 
         if (fieldName == null) {

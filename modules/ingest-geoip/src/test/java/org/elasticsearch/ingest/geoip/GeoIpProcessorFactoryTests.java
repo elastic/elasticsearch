@@ -301,7 +301,10 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config1.put("field", "_field");
         config1.put("properties", List.of("ip"));
         Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config1));
-        assertThat(e.getMessage(), equalTo("[database_file] Unsupported database type [some-unsupported-database]"));
+        assertThat(
+            e.getMessage(),
+            equalTo("[database_file] Unsupported database type [some-unsupported-database] for file [GeoLite2-City.mmdb]")
+        );
     }
 
     public void testBuildNullDatabase() throws Exception {
@@ -317,7 +320,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config1.put("field", "_field");
         config1.put("properties", List.of("ip"));
         Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config1));
-        assertThat(e.getMessage(), equalTo("[database_file] Unsupported database type [null]"));
+        assertThat(e.getMessage(), equalTo("[database_file] Unsupported database type [null] for file [GeoLite2-City.mmdb]"));
     }
 
     @SuppressWarnings("HiddenField")

@@ -448,7 +448,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 || (databaseType.endsWith(CITY_DB_SUFFIX)
                     || databaseType.endsWith(COUNTRY_DB_SUFFIX)
                     || databaseType.endsWith(ASN_DB_SUFFIX)) == false) {
-                throw newConfigurationException(TYPE, processorTag, "database_file", "Unsupported database type [" + databaseType + "]");
+                throw newConfigurationException(
+                    TYPE,
+                    processorTag,
+                    "database_file",
+                    "Unsupported database type [" + databaseType + "] for file [" + databaseFile + "]"
+                );
             }
 
             final Set<Property> properties;

@@ -234,24 +234,13 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     ) {
         String caseName = lhsSupplier.name() + ", " + rhsSupplier.name();
         return new TestCaseSupplier(caseName, List.of(lhsSupplier.type(), rhsSupplier.type()), () -> {
-            Object lhs = lhsSupplier.supplier().get();
-            Object rhs = rhsSupplier.supplier().get();
-            TypedData lhsTyped = new TypedData(
-                // TODO there has to be a better way to handle unsigned long
-                lhs instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : lhs,
-                lhsSupplier.type(),
-                "lhs"
-            );
-            TypedData rhsTyped = new TypedData(
-                rhs instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : rhs,
-                rhsSupplier.type(),
-                "rhs"
-            );
+            TypedData lhsTyped = lhsSupplier.get();
+            TypedData rhsTyped = rhsSupplier.get();
             TestCase testCase = new TestCase(
                 List.of(lhsTyped, rhsTyped),
                 evaluatorToString.apply(lhsSupplier.type(), rhsSupplier.type()),
                 expectedType,
-                equalTo(expectedValue.apply(lhs, rhs))
+                equalTo(expectedValue.apply(lhsTyped.getValue(), rhsTyped.getValue()))
             );
             for (String warning : warnings) {
                 testCase = testCase.withWarning(warning);
@@ -710,13 +699,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     ) {
         for (TypedDataSupplier supplier : valueSuppliers) {
             suppliers.add(new TestCaseSupplier(supplier.name(), List.of(supplier.type()), () -> {
-                Object value = supplier.supplier().get();
-                TypedData typed = new TypedData(
-                    // TODO there has to be a better way to handle unsigned long
-                    value instanceof BigInteger b ? NumericUtils.asLongUnsigned(b) : value,
-                    supplier.type(),
-                    "value"
-                );
+                TypedData typed = supplier.get();
+                Object value = typed.getValue();
                 logger.info("Value is " + value + " of type " + value.getClass());
                 logger.info("expectedValue is " + expectedValue.apply(value));
                 TestCase testCase = new TestCase(
@@ -1304,7 +1288,11 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          * @param forceLiteral should this data always be converted to a literal and <strong>never</strong> to a field reference?
          */
         private TypedData(Object data, DataType type, String name, boolean forceLiteral) {
-            this.data = data;
+            if (type == DataTypes.UNSIGNED_LONG && data instanceof BigInteger b) {
+                this.data = NumericUtils.asLongUnsigned(b);
+            } else {
+                this.data = data;
+            }
             this.type = type;
             this.name = name;
             this.forceLiteral = forceLiteral;
@@ -1376,6 +1364,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          * Value to test against.
          */
         public Object data() {
+            return data;
+        }
+
+        /**
+         * @return the data value being supplied, casting unsigned longs into BigIntegers correctly
+         */
+        public Object getValue() {
+            if (type == DataTypes.UNSIGNED_LONG && data instanceof Long l) {
+                return NumericUtils.unsignedLongAsBigInteger(l);
+            }
             return data;
         }
 

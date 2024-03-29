@@ -175,10 +175,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
             geoData = retrieveAsnGeoData(geoIpDatabase, ipAddress);
         } else {
-            throw new ElasticsearchParseException(
-                "Unsupported database type [" + geoIpDatabase.getDatabaseType() + "]",
-                new IllegalStateException()
-            );
+            throw new ElasticsearchParseException("Unsupported database type [" + databaseType + "]", new IllegalStateException());
         }
         return geoData;
     }
@@ -440,11 +437,23 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 // pipeline.
                 return new DatabaseUnavailableProcessor(processorTag, description, databaseFile);
             }
+
             final String databaseType;
             try {
                 databaseType = geoIpDatabase.getDatabaseType();
             } finally {
                 geoIpDatabase.release();
+            }
+            if (databaseType == null
+                || (databaseType.endsWith(CITY_DB_SUFFIX)
+                    || databaseType.endsWith(COUNTRY_DB_SUFFIX)
+                    || databaseType.endsWith(ASN_DB_SUFFIX)) == false) {
+                throw newConfigurationException(
+                    TYPE,
+                    processorTag,
+                    "database_file",
+                    "Unsupported database type [" + databaseType + "] for file [" + databaseFile + "]"
+                );
             }
 
             final Set<Property> properties;
@@ -466,12 +475,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
                     properties = DEFAULT_ASN_PROPERTIES;
                 } else {
-                    throw newConfigurationException(
-                        TYPE,
-                        processorTag,
-                        "database_file",
-                        "Unsupported database type [" + databaseType + "]"
-                    );
+                    assert false : "unsupported database type [" + databaseType + "]";
+                    properties = Set.of();
                 }
             }
             return new GeoIpProcessor(
@@ -545,6 +550,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 validProperties = ALL_COUNTRY_PROPERTIES;
             } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
                 validProperties = ALL_ASN_PROPERTIES;
+            } else {
+                assert false : "unsupported database type [" + databaseType + "]";
             }
 
             try {

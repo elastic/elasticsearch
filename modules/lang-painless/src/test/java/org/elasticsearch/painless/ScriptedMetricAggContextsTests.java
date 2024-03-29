@@ -34,10 +34,10 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
     @Override
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        contexts.put(ScriptedMetricAggContexts.InitScript.CONTEXT, PainlessPlugin.baseWhiteList());
-        contexts.put(ScriptedMetricAggContexts.MapScript.CONTEXT, PainlessPlugin.baseWhiteList());
-        contexts.put(ScriptedMetricAggContexts.CombineScript.CONTEXT, PainlessPlugin.baseWhiteList());
-        contexts.put(ScriptedMetricAggContexts.ReduceScript.CONTEXT, PainlessPlugin.baseWhiteList());
+        contexts.put(ScriptedMetricAggContexts.InitScript.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(ScriptedMetricAggContexts.MapScript.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(ScriptedMetricAggContexts.CombineScript.CONTEXT, PAINLESS_BASE_WHITELIST);
+        contexts.put(ScriptedMetricAggContexts.ReduceScript.CONTEXT, PAINLESS_BASE_WHITELIST);
         return contexts;
     }
 

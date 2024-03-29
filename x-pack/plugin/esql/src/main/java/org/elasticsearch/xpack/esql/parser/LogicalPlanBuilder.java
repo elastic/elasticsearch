@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
+import org.elasticsearch.xpack.ql.options.EsSourceOptions;
 import org.elasticsearch.xpack.ql.parser.ParserUtils;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
@@ -64,6 +65,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
@@ -209,7 +211,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             }
         }
-        return new EsqlUnresolvedRelation(source, table, Arrays.asList(metadataMap.values().toArray(Attribute[]::new)));
+        EsSourceOptions esSourceOptions = new EsSourceOptions();
+        if (ctx.fromOptions() != null) {
+            for (var o : ctx.fromOptions().configOption()) {
+                var nameContext = o.string().get(0);
+                String name = visitString(nameContext).fold().toString();
+                String value = visitString(o.string().get(1)).fold().toString();
+                try {
+                    esSourceOptions.addOption(name, value);
+                } catch (IllegalArgumentException iae) {
+                    var cause = iae.getCause() != null ? ". " + iae.getCause().getMessage() : "";
+                    throw new ParsingException(iae, source(nameContext), "invalid options provided: " + iae.getMessage() + cause);
+                }
+            }
+        }
+        return new EsqlUnresolvedRelation(source, table, Arrays.asList(metadataMap.values().toArray(Attribute[]::new)), esSourceOptions);
     }
 
     @Override
@@ -250,7 +266,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx) {
         Source source = source(ctx);
-        int limit = Integer.parseInt(ctx.INTEGER_LITERAL().getText());
+        int limit = stringToInt(ctx.INTEGER_LITERAL().getText());
         return input -> new Limit(source, new Literal(source, limit, DataTypes.INTEGER), input);
     }
 

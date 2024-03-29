@@ -7,6 +7,7 @@
  */
 
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
@@ -104,6 +105,12 @@ tasks.register("yamlRestTestHdfs2", RestIntegTestTask) {
   description = "Runs yaml rest tests against an elasticsearch cluster with HDFS version 2"
   testClassesDirs = sourceSets.yamlRestTest.output.classesDirs
   classpath = sourceSets.yamlRestTest.runtimeClasspath + configurations.hdfsFixture2
+}
+
+tasks.named("test").configure {
+  onlyIf("Not running on windows") {
+    OS.current().equals(OS.WINDOWS) == false
+  }
 }
 
 tasks.named("check").configure {

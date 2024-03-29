@@ -39,6 +39,9 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
     LongBlock filter(int... positions);
 
     @Override
+    LongBlock expand();
+
+    @Override
     default String getWriteableName() {
         return "LongBlock";
     }

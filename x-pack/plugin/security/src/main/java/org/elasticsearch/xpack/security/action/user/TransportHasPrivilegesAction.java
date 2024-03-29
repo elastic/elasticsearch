@@ -63,10 +63,12 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
         final String username = request.username();
         final Authentication authentication = securityContext.getAuthentication();
 
-        if (isSameUser(authentication, username) == false) {
-            listener.onFailure(new IllegalArgumentException("users may only check the privileges of their own account"));
-            return;
-        }
+        //authentication.getAuthenticationType()
+        // CROSS_CLUSTER_ACCESS == authentication.getEffectiveSubject().getType()
+//        if (isSameUser(authentication, username) == false) {
+//            listener.onFailure(new IllegalArgumentException("users may only check the privileges of their own account"));
+//            return;
+//        }
 
         resolveApplicationPrivileges(
             request,

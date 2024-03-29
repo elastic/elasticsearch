@@ -51,9 +51,11 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class ExchangeService extends AbstractLifecycleComponent {
     // TODO: Make this a child action of the data node transport to ensure that exchanges
     // are accessed only by the user initialized the session.
-    public static final String EXCHANGE_ACTION_NAME = "internal:data/read/esql/exchange";
+    //TODO: don't change this, rather add second name like in #95264
+    public static final String EXCHANGE_ACTION_NAME = "cluster:data/read/esql/exchange";
 
-    private static final String OPEN_EXCHANGE_ACTION_NAME = "internal:data/read/esql/open_exchange";
+    //TODO: don't change this, rather add second name like in #95264
+    private static final String OPEN_EXCHANGE_ACTION_NAME = "cluster:data/read/esql/open_exchange";
 
     /**
      * The time interval for an exchange sink handler to be considered inactive and subsequently

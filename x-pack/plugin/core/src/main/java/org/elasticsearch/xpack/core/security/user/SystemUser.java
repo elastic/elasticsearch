@@ -31,7 +31,9 @@ public class SystemUser extends InternalUser {
 
     private static final RoleDescriptor REMOTE_ACCESS_ROLE_DESCRIPTOR = new RoleDescriptor(
         ROLE_NAME + "_cross_cluster_access",
-        new String[] { "cross_cluster_search", "cross_cluster_replication" },
+        //TODO: don't add these esql here... just a hack for now
+        new String[] { "cross_cluster_search", "cross_cluster_replication", "cluster:data/read/esql/open_exchange"
+            ,"cluster:data/read/esql/exchange" },
         // Needed for CCR background jobs (with system user)
         new RoleDescriptor.IndicesPrivileges[] {
             RoleDescriptor.IndicesPrivileges.builder()

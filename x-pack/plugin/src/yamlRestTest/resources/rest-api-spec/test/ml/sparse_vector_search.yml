@@ -39,7 +39,7 @@ setup:
             "description": "simple model for testing",
             "model_type": "pytorch",
             "inference_config": {
-              "sparse_vector": {
+              "text_expansion": {
                 "tokenization": {
                   "bert": {
                     "with_special_tokens": false
@@ -97,7 +97,7 @@ setup:
         wait_for: started
 
 ---
-"Test text expansion search":
+"Test sparse vector search":
   - do:
       search:
         index: index-with-sparse-vector
@@ -111,7 +111,7 @@ setup:
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
-"Test text expansion search with pruning config":
+"Test sparse vector search with pruning config":
   - do:
       search:
         index: index-with-sparse-vector
@@ -128,7 +128,7 @@ setup:
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
-"Test named, boosted text expansion search with pruning config":
+"Test named, boosted sparse vector search with pruning config":
   - do:
       search:
         index: index-with-sparse-vector
@@ -165,7 +165,7 @@ setup:
   - match: { hits.hits.0._score: 300.0 }
 
 ---
-"Test text expansion search with default pruning config":
+"Test sparse vector search with default pruning config":
   - do:
       search:
         index: index-with-sparse-vector
@@ -180,7 +180,7 @@ setup:
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
-"Test text expansion search with weighted tokens rescoring only pruned tokens":
+"Test sparse vector search with weighted tokens rescoring only pruned tokens":
   - do:
       search:
         index: index-with-sparse-vector

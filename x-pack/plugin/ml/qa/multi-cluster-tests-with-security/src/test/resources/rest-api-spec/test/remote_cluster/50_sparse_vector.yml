@@ -130,7 +130,7 @@ teardown:
         ignore: 404
 
 ---
-"Test text expansion search":
+"Test sparse vector search":
   - do:
       search:
         index: index-with-sparse-vector
@@ -144,7 +144,7 @@ teardown:
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
-"Test text expansion search with pruning config":
+"Test sparse vector search with pruning config":
   - skip:
       version: " - 8.12.99"
       reason: "pruning introduced in 8.13.0"
@@ -165,7 +165,7 @@ teardown:
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
-"Test named, boosted text expansion search with pruning config":
+"Test named, boosted sparse vector search with pruning config":
   - skip:
       version: " - 8.12.99"
       reason: "pruning introduced in 8.13.0"
@@ -205,7 +205,7 @@ teardown:
   - match: { hits.hits.0._score: 300.0 }
 
 ---
-"Test text expansion search with default pruning config":
+"Test sparse vector search with default pruning config":
   - skip:
       version: " - 8.12.99"
       reason: "pruning introduced in 8.13.0"
@@ -224,7 +224,7 @@ teardown:
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
-"Test text expansion search with weighted tokens rescoring only pruned tokens":
+"Test sparse vector search with weighted tokens rescoring only pruned tokens":
   - skip:
       version: " - 8.12.99"
       reason: "pruning introduced in 8.13.0"

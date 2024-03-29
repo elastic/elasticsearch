@@ -23,19 +23,19 @@ import java.util.stream.Collectors;
 public class ChunkedTextExpansionResults extends ChunkedNlpInferenceResults {
     public static final String NAME = "chunked_text_expansion_result";
 
-    public record ChunkedResult(String matchedText, List<TextExpansionResults.WeightedToken> weightedTokens)
+    public record ChunkedResult(String matchedText, List<TextExpansionResults.VectorDimension> vectorDimensions)
         implements
             Writeable,
             ToXContentObject {
 
         public ChunkedResult(StreamInput in) throws IOException {
-            this(in.readString(), in.readCollectionAsList(TextExpansionResults.WeightedToken::new));
+            this(in.readString(), in.readCollectionAsList(TextExpansionResults.VectorDimension::new));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(matchedText);
-            out.writeCollection(weightedTokens);
+            out.writeCollection(vectorDimensions);
         }
 
         @Override
@@ -43,7 +43,7 @@ public class ChunkedTextExpansionResults extends ChunkedNlpInferenceResults {
             builder.startObject();
             builder.field(TEXT, matchedText);
             builder.startObject(INFERENCE);
-            for (var weightedToken : weightedTokens) {
+            for (var weightedToken : vectorDimensions) {
                 weightedToken.toXContent(builder, params);
             }
             builder.endObject();
@@ -56,8 +56,8 @@ public class ChunkedTextExpansionResults extends ChunkedNlpInferenceResults {
             map.put(TEXT, matchedText);
             map.put(
                 INFERENCE,
-                weightedTokens.stream()
-                    .collect(Collectors.toMap(TextExpansionResults.WeightedToken::token, TextExpansionResults.WeightedToken::weight))
+                vectorDimensions.stream()
+                    .collect(Collectors.toMap(TextExpansionResults.VectorDimension::token, TextExpansionResults.VectorDimension::weight))
             );
             return map;
         }

@@ -41,30 +41,30 @@ import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults.WeightedToken;
-import static org.elasticsearch.xpack.ml.queries.WeightedTokensQueryBuilder.TOKENS_FIELD;
+import static org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults.VectorDimension;
+import static org.elasticsearch.xpack.ml.queries.VectorDimensionsQueryBuilder.TOKENS_FIELD;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.hasSize;
 
-public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<WeightedTokensQueryBuilder> {
+public class VectorDimensionsQueryBuilderTests extends AbstractQueryTestCase<VectorDimensionsQueryBuilder> {
 
     private static final String RANK_FEATURES_FIELD = "rank";
-    private static final List<WeightedToken> WEIGHTED_TOKENS = List.of(new TextExpansionResults.WeightedToken("foo", .42f));
+    private static final List<VectorDimension> WEIGHTED_TOKENS = List.of(new VectorDimension("foo", .42f));
     private static final int NUM_TOKENS = WEIGHTED_TOKENS.size();
 
     @Override
-    protected WeightedTokensQueryBuilder doCreateTestQueryBuilder() {
+    protected VectorDimensionsQueryBuilder doCreateTestQueryBuilder() {
         return createTestQueryBuilder(randomBoolean());
     }
 
-    private WeightedTokensQueryBuilder createTestQueryBuilder(boolean onlyScorePrunedTokens) {
+    private VectorDimensionsQueryBuilder createTestQueryBuilder(boolean onlyScorePrunedTokens) {
         TokenPruningConfig tokenPruningConfig = randomBoolean()
             ? new TokenPruningConfig(randomIntBetween(1, 100), randomFloat(), onlyScorePrunedTokens)
             : null;
 
-        var builder = new WeightedTokensQueryBuilder(RANK_FEATURES_FIELD, WEIGHTED_TOKENS, tokenPruningConfig);
+        var builder = new VectorDimensionsQueryBuilder(RANK_FEATURES_FIELD, WEIGHTED_TOKENS, tokenPruningConfig);
         if (randomBoolean()) {
             builder.boost((float) randomDoubleBetween(0.1, 10.0, true));
         }
@@ -125,8 +125,8 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
                 // We need to force token pruning config here, to get repeatable lucene queries for comparison
-                WeightedTokensQueryBuilder firstQuery = createTestQueryBuilder(false);
-                WeightedTokensQueryBuilder controlQuery = copyQuery(firstQuery);
+                VectorDimensionsQueryBuilder firstQuery = createTestQueryBuilder(false);
+                VectorDimensionsQueryBuilder controlQuery = copyQuery(firstQuery);
                 QueryBuilder rewritten = rewriteQuery(firstQuery, context);
                 Query firstLuceneQuery = rewritten.toQuery(context);
                 assertNotNull("toQuery should not return null", firstLuceneQuery);
@@ -149,7 +149,7 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
                     controlQuery.hashCode(),
                     equalTo(firstQuery.hashCode())
                 );
-                WeightedTokensQueryBuilder secondQuery = copyQuery(firstQuery);
+                VectorDimensionsQueryBuilder secondQuery = copyQuery(firstQuery);
 
                 // query _name never should affect the result of toQuery, we randomly set it to make sure
                 if (randomBoolean()) {
@@ -213,22 +213,22 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
             );
             iw.addDocuments(documents);
 
-            List<WeightedToken> inputTokens = List.of(
-                new WeightedToken("the", .1f),      // Will be pruned - score too low, freq too high
-                new WeightedToken("black", 5.3f),   // Will be pruned - does not exist in index
-                new WeightedToken("dog", 7.5f),     // Will be kept - high score and low freq
-                new WeightedToken("jumped", 4.5f),  // Will be kept - high score and low freq
-                new WeightedToken("on", .1f),       // Will be kept - low score but also low freq
-                new WeightedToken("me", 3.8f)       // Will be kept - high freq but also high score
+            List<VectorDimension> inputTokens = List.of(
+                new VectorDimension("the", .1f),      // Will be pruned - score too low, freq too high
+                new VectorDimension("black", 5.3f),   // Will be pruned - does not exist in index
+                new VectorDimension("dog", 7.5f),     // Will be kept - high score and low freq
+                new VectorDimension("jumped", 4.5f),  // Will be kept - high score and low freq
+                new VectorDimension("on", .1f),       // Will be kept - low score but also low freq
+                new VectorDimension("me", 3.8f)       // Will be kept - high freq but also high score
             );
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
 
-                WeightedTokensQueryBuilder noPruningQuery = new WeightedTokensQueryBuilder(RANK_FEATURES_FIELD, inputTokens, null);
+                VectorDimensionsQueryBuilder noPruningQuery = new VectorDimensionsQueryBuilder(RANK_FEATURES_FIELD, inputTokens, null);
                 Query query = noPruningQuery.doToQuery(context);
                 assertCorrectLuceneQuery("noPruningQuery", query, List.of("the", "black", "dog", "jumped", "on", "me"));
 
-                WeightedTokensQueryBuilder queryThatShouldBePruned = new WeightedTokensQueryBuilder(
+                VectorDimensionsQueryBuilder queryThatShouldBePruned = new VectorDimensionsQueryBuilder(
                     RANK_FEATURES_FIELD,
                     inputTokens,
                     new TokenPruningConfig(2, 0.5f, false)
@@ -236,7 +236,7 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
                 query = queryThatShouldBePruned.doToQuery(context);
                 assertCorrectLuceneQuery("queryThatShouldBePruned", query, List.of("dog", "jumped", "on", "me"));
 
-                WeightedTokensQueryBuilder onlyScorePrunedTokensQuery = new WeightedTokensQueryBuilder(
+                VectorDimensionsQueryBuilder onlyScorePrunedTokensQuery = new VectorDimensionsQueryBuilder(
                     RANK_FEATURES_FIELD,
                     inputTokens,
                     new TokenPruningConfig(2, 0.5f, true)
@@ -291,7 +291,7 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
             iw.addDocument(document);
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
-                WeightedTokensQueryBuilder queryBuilder = createTestQueryBuilder();
+                VectorDimensionsQueryBuilder queryBuilder = createTestQueryBuilder();
                 QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
 
                 assertNotNull(rewriteQuery.toQuery(context));
@@ -312,14 +312,14 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
                 context.setAllowUnmappedFields(true);
-                WeightedTokensQueryBuilder queryBuilder = createTestQueryBuilder();
+                VectorDimensionsQueryBuilder queryBuilder = createTestQueryBuilder();
                 queryBuilder.toQuery(context);
             }
         }
     }
 
     @Override
-    protected void doAssertLuceneQuery(WeightedTokensQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
+    protected void doAssertLuceneQuery(VectorDimensionsQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
         assertThat(query, instanceOf(BooleanQuery.class));
         BooleanQuery booleanQuery = (BooleanQuery) query;
         assertEquals(booleanQuery.getMinimumNumberShouldMatch(), 1);
@@ -336,53 +336,53 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
     }
 
     public void testIllegalValues() {
-        List<WeightedToken> weightedTokens = List.of(new WeightedToken("foo", 1.0f));
+        List<VectorDimension> vectorDimensions = List.of(new VectorDimension("foo", 1.0f));
         {
             NullPointerException e = expectThrows(
                 NullPointerException.class,
-                () -> new WeightedTokensQueryBuilder(null, weightedTokens, null)
+                () -> new VectorDimensionsQueryBuilder(null, vectorDimensions, null)
             );
             assertEquals("[weighted_tokens] requires a fieldName", e.getMessage());
         }
         {
             NullPointerException e = expectThrows(
                 NullPointerException.class,
-                () -> new WeightedTokensQueryBuilder("field name", null, null)
+                () -> new VectorDimensionsQueryBuilder("field name", null, null)
             );
             assertEquals("[weighted_tokens] requires tokens", e.getMessage());
         }
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new WeightedTokensQueryBuilder("field name", List.of(), null)
+                () -> new VectorDimensionsQueryBuilder("field name", List.of(), null)
             );
             assertEquals("[weighted_tokens] requires at least one token", e.getMessage());
         }
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new WeightedTokensQueryBuilder("field name", weightedTokens, new TokenPruningConfig(-1, 0.0f, false))
+                () -> new VectorDimensionsQueryBuilder("field name", vectorDimensions, new TokenPruningConfig(-1, 0.0f, false))
             );
             assertEquals("[tokens_freq_ratio_threshold] must be between [1] and [100], got -1.0", e.getMessage());
         }
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new WeightedTokensQueryBuilder("field name", weightedTokens, new TokenPruningConfig(101, 0.0f, false))
+                () -> new VectorDimensionsQueryBuilder("field name", vectorDimensions, new TokenPruningConfig(101, 0.0f, false))
             );
             assertEquals("[tokens_freq_ratio_threshold] must be between [1] and [100], got 101.0", e.getMessage());
         }
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new WeightedTokensQueryBuilder("field name", weightedTokens, new TokenPruningConfig(5, 5f, false))
+                () -> new VectorDimensionsQueryBuilder("field name", vectorDimensions, new TokenPruningConfig(5, 5f, false))
             );
             assertEquals("[tokens_weight_threshold] must be between 0 and 1", e.getMessage());
         }
     }
 
     public void testToXContent() throws Exception {
-        QueryBuilder query = new WeightedTokensQueryBuilder("foo", WEIGHTED_TOKENS, null);
+        QueryBuilder query = new VectorDimensionsQueryBuilder("foo", WEIGHTED_TOKENS, null);
         checkGeneratedJson("""
             {
               "weighted_tokens": {
@@ -396,7 +396,7 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
     }
 
     public void testToXContentWithThresholds() throws Exception {
-        QueryBuilder query = new WeightedTokensQueryBuilder("foo", WEIGHTED_TOKENS, new TokenPruningConfig(4, 0.4f, false));
+        QueryBuilder query = new VectorDimensionsQueryBuilder("foo", WEIGHTED_TOKENS, new TokenPruningConfig(4, 0.4f, false));
         checkGeneratedJson("""
             {
               "weighted_tokens": {
@@ -414,7 +414,7 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
     }
 
     public void testToXContentWithThresholdsAndOnlyScorePrunedTokens() throws Exception {
-        QueryBuilder query = new WeightedTokensQueryBuilder("foo", WEIGHTED_TOKENS, new TokenPruningConfig(4, 0.4f, true));
+        QueryBuilder query = new VectorDimensionsQueryBuilder("foo", WEIGHTED_TOKENS, new TokenPruningConfig(4, 0.4f, true));
         checkGeneratedJson("""
             {
               "weighted_tokens": {

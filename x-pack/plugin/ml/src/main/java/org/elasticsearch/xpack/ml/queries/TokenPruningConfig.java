@@ -96,7 +96,7 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
     /**
      * Returns whether the filtering process retains tokens identified as non-relevant based on the specified thresholds
      * (ratio and weight). When {@code true}, only non-relevant tokens are considered for matching and scoring documents.
-     * Enabling this option is valuable for re-scoring top hits retrieved from a {@link WeightedTokensQueryBuilder} with
+     * Enabling this option is valuable for re-scoring top hits retrieved from a {@link VectorDimensionsQueryBuilder} with
      * active thresholds.
      */
     public boolean isOnlyScorePrunedTokens() {

@@ -223,14 +223,14 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
 
     private QueryBuilder weightedTokensToQuery(String fieldName, TextExpansionResults textExpansionResults) {
         if (tokenPruningConfig != null) {
-            WeightedTokensQueryBuilder weightedTokensQueryBuilder = new WeightedTokensQueryBuilder(
+            VectorDimensionsQueryBuilder vectorDimensionsQueryBuilder = new VectorDimensionsQueryBuilder(
                 fieldName,
                 textExpansionResults.getWeightedTokens(),
                 tokenPruningConfig
             );
-            weightedTokensQueryBuilder.queryName(queryName);
-            weightedTokensQueryBuilder.boost(boost);
-            return weightedTokensQueryBuilder;
+            vectorDimensionsQueryBuilder.queryName(queryName);
+            vectorDimensionsQueryBuilder.boost(boost);
+            return vectorDimensionsQueryBuilder;
         }
         // Note: Weighted tokens queries were introduced in 8.13.0. To support mixed version clusters prior to 8.13.0,
         // if no token pruning configuration is specified we fall back to a boolean query.

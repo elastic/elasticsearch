@@ -63,9 +63,9 @@ public class TextExpansionProcessorTests extends ESTestCase {
 
         var weightedTokens = results.getWeightedTokens();
         assertThat(weightedTokens, hasSize(3));
-        assertEquals(new TextExpansionResults.WeightedToken("e", 4.0f), weightedTokens.get(0));
-        assertEquals(new TextExpansionResults.WeightedToken("d", 3.0f), weightedTokens.get(1));
-        assertEquals(new TextExpansionResults.WeightedToken("b", 1.0f), weightedTokens.get(2));
+        assertEquals(new TextExpansionResults.VectorDimension("e", 4.0f), weightedTokens.get(0));
+        assertEquals(new TextExpansionResults.VectorDimension("d", 3.0f), weightedTokens.get(1));
+        assertEquals(new TextExpansionResults.VectorDimension("b", 1.0f), weightedTokens.get(2));
     }
 
     public void testSanitiseVocab() {
@@ -86,12 +86,12 @@ public class TextExpansionProcessorTests extends ESTestCase {
 
         var weightedTokens = results.getWeightedTokens();
         assertThat(weightedTokens, hasSize(6));
-        assertEquals(new TextExpansionResults.WeightedToken("fff", 6.0f), weightedTokens.get(0));
-        assertEquals(new TextExpansionResults.WeightedToken("XXX", 5.0f), weightedTokens.get(1));
-        assertEquals(new TextExpansionResults.WeightedToken("YYY", 4.0f), weightedTokens.get(2));
-        assertEquals(new TextExpansionResults.WeightedToken("ccc", 3.0f), weightedTokens.get(3));
-        assertEquals(new TextExpansionResults.WeightedToken("bbb", 2.0f), weightedTokens.get(4));
-        assertEquals(new TextExpansionResults.WeightedToken("aaa", 1.0f), weightedTokens.get(5));
+        assertEquals(new TextExpansionResults.VectorDimension("fff", 6.0f), weightedTokens.get(0));
+        assertEquals(new TextExpansionResults.VectorDimension("XXX", 5.0f), weightedTokens.get(1));
+        assertEquals(new TextExpansionResults.VectorDimension("YYY", 4.0f), weightedTokens.get(2));
+        assertEquals(new TextExpansionResults.VectorDimension("ccc", 3.0f), weightedTokens.get(3));
+        assertEquals(new TextExpansionResults.VectorDimension("bbb", 2.0f), weightedTokens.get(4));
+        assertEquals(new TextExpansionResults.VectorDimension("aaa", 1.0f), weightedTokens.get(5));
     }
 
     public void testBuildSanitizedVocabMap() {
@@ -114,11 +114,11 @@ public class TextExpansionProcessorTests extends ESTestCase {
         TextExpansionResults results = (TextExpansionResults) resultProcessor.processResult(tokenizationResult, pytorchResult, false);
         var weightedTokens = results.getWeightedTokens();
         assertThat(weightedTokens, hasSize(5));
-        assertEquals(new TextExpansionResults.WeightedToken("##__", 5.0f), weightedTokens.get(0));
-        assertEquals(new TextExpansionResults.WeightedToken("__", 4.0f), weightedTokens.get(1));
-        assertEquals(new TextExpansionResults.WeightedToken("cc", 3.0f), weightedTokens.get(2));
-        assertEquals(new TextExpansionResults.WeightedToken("bb", 2.0f), weightedTokens.get(3));
-        assertEquals(new TextExpansionResults.WeightedToken("aa", 1.0f), weightedTokens.get(4));
+        assertEquals(new TextExpansionResults.VectorDimension("##__", 5.0f), weightedTokens.get(0));
+        assertEquals(new TextExpansionResults.VectorDimension("__", 4.0f), weightedTokens.get(1));
+        assertEquals(new TextExpansionResults.VectorDimension("cc", 3.0f), weightedTokens.get(2));
+        assertEquals(new TextExpansionResults.VectorDimension("bb", 2.0f), weightedTokens.get(3));
+        assertEquals(new TextExpansionResults.VectorDimension("aa", 1.0f), weightedTokens.get(4));
     }
 
     public void testChunking() {
@@ -142,8 +142,8 @@ public class TextExpansionProcessorTests extends ESTestCase {
             assertThat(chunkedResult.getChunks(), hasSize(2));
             assertEquals("Elasticsearch darts champion little red", chunkedResult.getChunks().get(0).matchedText());
             assertEquals("is fun car", chunkedResult.getChunks().get(1).matchedText());
-            assertThat(chunkedResult.getChunks().get(0).weightedTokens(), not(empty()));
-            assertThat(chunkedResult.getChunks().get(1).weightedTokens(), not(empty()));
+            assertThat(chunkedResult.getChunks().get(0).vectorDimensions(), not(empty()));
+            assertThat(chunkedResult.getChunks().get(1).vectorDimensions(), not(empty()));
         }
     }
 }

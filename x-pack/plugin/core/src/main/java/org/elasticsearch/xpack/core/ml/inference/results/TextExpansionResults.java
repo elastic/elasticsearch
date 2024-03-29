@@ -24,9 +24,9 @@ public class TextExpansionResults extends NlpInferenceResults {
 
     public static final String NAME = "text_expansion_result";
 
-    public record WeightedToken(String token, float weight) implements Writeable, ToXContentFragment {
+    public record VectorDimension(String token, float weight) implements Writeable, ToXContentFragment {
 
-        public WeightedToken(StreamInput in) throws IOException {
+        public VectorDimension(StreamInput in) throws IOException {
             this(in.readString(), in.readFloat());
         }
 
@@ -53,22 +53,22 @@ public class TextExpansionResults extends NlpInferenceResults {
     }
 
     private final String resultsField;
-    private final List<WeightedToken> weightedTokens;
+    private final List<VectorDimension> vectorDimensions;
 
-    public TextExpansionResults(String resultField, List<WeightedToken> weightedTokens, boolean isTruncated) {
+    public TextExpansionResults(String resultField, List<VectorDimension> vectorDimensions, boolean isTruncated) {
         super(isTruncated);
         this.resultsField = resultField;
-        this.weightedTokens = weightedTokens;
+        this.vectorDimensions = vectorDimensions;
     }
 
     public TextExpansionResults(StreamInput in) throws IOException {
         super(in);
         this.resultsField = in.readString();
-        this.weightedTokens = in.readCollectionAsList(WeightedToken::new);
+        this.vectorDimensions = in.readCollectionAsList(VectorDimension::new);
     }
 
-    public List<WeightedToken> getWeightedTokens() {
-        return weightedTokens;
+    public List<VectorDimension> getWeightedTokens() {
+        return vectorDimensions;
     }
 
     @Override
@@ -89,7 +89,7 @@ public class TextExpansionResults extends NlpInferenceResults {
     @Override
     void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(resultsField);
-        for (var weightedToken : weightedTokens) {
+        for (var weightedToken : vectorDimensions) {
             weightedToken.toXContent(builder, params);
         }
         builder.endObject();
@@ -101,29 +101,29 @@ public class TextExpansionResults extends NlpInferenceResults {
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         TextExpansionResults that = (TextExpansionResults) o;
-        return Objects.equals(resultsField, that.resultsField) && Objects.equals(weightedTokens, that.weightedTokens);
+        return Objects.equals(resultsField, that.resultsField) && Objects.equals(vectorDimensions, that.vectorDimensions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), resultsField, weightedTokens);
+        return Objects.hash(super.hashCode(), resultsField, vectorDimensions);
     }
 
     @Override
     void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(resultsField);
-        out.writeCollection(weightedTokens);
+        out.writeCollection(vectorDimensions);
     }
 
     @Override
     void addMapFields(Map<String, Object> map) {
-        map.put(resultsField, weightedTokens.stream().collect(Collectors.toMap(WeightedToken::token, WeightedToken::weight)));
+        map.put(resultsField, vectorDimensions.stream().collect(Collectors.toMap(VectorDimension::token, VectorDimension::weight)));
     }
 
     @Override
     public Map<String, Object> asMap(String outputField) {
         var map = super.asMap(outputField);
-        map.put(outputField, weightedTokens.stream().collect(Collectors.toMap(WeightedToken::token, WeightedToken::weight)));
+        map.put(outputField, vectorDimensions.stream().collect(Collectors.toMap(VectorDimension::token, VectorDimension::weight)));
         return map;
     }
 }

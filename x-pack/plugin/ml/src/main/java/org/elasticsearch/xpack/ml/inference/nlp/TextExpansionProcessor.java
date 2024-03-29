@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceCo
 public class TextExpansionProcessor extends NlpTask.Processor {
 
     private final NlpTask.RequestBuilder requestBuilder;
-    private Map<Integer, String> replacementVocab;
+    private final Map<Integer, String> replacementVocab;
 
     public TextExpansionProcessor(NlpTokenizer tokenizer) {
         super(tokenizer);
@@ -100,21 +100,21 @@ public class TextExpansionProcessor extends NlpTask.Processor {
         }
     }
 
-    static List<TextExpansionResults.WeightedToken> sparseVectorToTokenWeights(
+    static List<TextExpansionResults.VectorDimension> sparseVectorToTokenWeights(
         double[] vector,
         TokenizationResult tokenization,
         Map<Integer, String> replacementVocab
     ) {
         // Anything with a score > 0.0 is retained.
-        List<TextExpansionResults.WeightedToken> weightedTokens = new ArrayList<>();
+        List<TextExpansionResults.VectorDimension> vectorDimensions = new ArrayList<>();
         for (int i = 0; i < vector.length; i++) {
             if (vector[i] > 0.0) {
-                weightedTokens.add(
-                    new TextExpansionResults.WeightedToken(tokenForId(i, tokenization, replacementVocab), (float) vector[i])
+                vectorDimensions.add(
+                    new TextExpansionResults.VectorDimension(tokenForId(i, tokenization, replacementVocab), (float) vector[i])
                 );
             }
         }
-        return weightedTokens;
+        return vectorDimensions;
     }
 
     static String tokenForId(int id, TokenizationResult tokenization, Map<Integer, String> replacementVocab) {

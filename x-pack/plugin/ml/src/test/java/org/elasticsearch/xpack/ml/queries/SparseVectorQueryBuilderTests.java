@@ -44,7 +44,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.ml.queries.SparseVectorQueryBuilder.MODEL_ID;
 import static org.elasticsearch.xpack.ml.queries.SparseVectorQueryBuilder.MODEL_TEXT;
 import static org.elasticsearch.xpack.ml.queries.SparseVectorQueryBuilder.VECTOR_DIMENSIONS;
-import static org.elasticsearch.xpack.ml.queries.WeightedTokensQueryBuilder.TOKENS_FIELD;
+import static org.elasticsearch.xpack.ml.queries.VectorDimensionsQueryBuilder.TOKENS_FIELD;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.hasSize;
@@ -52,8 +52,8 @@ import static org.hamcrest.Matchers.hasSize;
 public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseVectorQueryBuilder> {
 
     private static final String RANK_FEATURES_FIELD = "rank";
-    private static final List<TextExpansionResults.WeightedToken> WEIGHTED_TOKENS = List.of(
-        new TextExpansionResults.WeightedToken("foo", .42f)
+    private static final List<TextExpansionResults.VectorDimension> WEIGHTED_TOKENS = List.of(
+        new TextExpansionResults.VectorDimension("foo", .42f)
     );
     private static final int NUM_TOKENS = WEIGHTED_TOKENS.size();
 
@@ -64,7 +64,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
             : null;
         String modelText = randomAlphaOfLength(4);
         String modelId = randomBoolean() ? randomAlphaOfLength(4) : null;
-        List<TextExpansionResults.WeightedToken> vectorDimensions = modelId == null ? WEIGHTED_TOKENS : null;
+        List<TextExpansionResults.VectorDimension> vectorDimensions = modelId == null ? WEIGHTED_TOKENS : null;
 
         var builder = new SparseVectorQueryBuilder(RANK_FEATURES_FIELD, modelText, modelId, vectorDimensions, tokenPruningConfig);
         if (randomBoolean()) {
@@ -104,9 +104,9 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
 
         // Randomisation cannot be used here as {@code #doAssertLuceneQuery}
         // asserts that 2 rewritten queries are the same
-        var tokens = new ArrayList<TextExpansionResults.WeightedToken>();
+        var tokens = new ArrayList<TextExpansionResults.VectorDimension>();
         for (int i = 0; i < NUM_TOKENS; i++) {
-            tokens.add(new TextExpansionResults.WeightedToken(Integer.toString(i), (i + 1) * 1.0f));
+            tokens.add(new TextExpansionResults.VectorDimension(Integer.toString(i), (i + 1) * 1.0f));
         }
 
         var response = InferModelAction.Response.builder()
@@ -342,6 +342,6 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         SparseVectorQueryBuilder queryBuilder = createTestQueryBuilder();
         QueryBuilder rewrittenQueryBuilder = rewriteAndFetch(queryBuilder, searchExecutionContext);
-        assertTrue(rewrittenQueryBuilder instanceof WeightedTokensQueryBuilder);
+        assertTrue(rewrittenQueryBuilder instanceof VectorDimensionsQueryBuilder);
     }
 }

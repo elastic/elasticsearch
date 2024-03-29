@@ -165,8 +165,12 @@ public class SparseEmbeddingResultsTests extends AbstractWireSerializingTestCase
             results,
             is(
                 List.of(
-                    new TextExpansionResults(DEFAULT_RESULTS_FIELD, List.of(new TextExpansionResults.WeightedToken("token", 0.1F)), false),
-                    new TextExpansionResults(DEFAULT_RESULTS_FIELD, List.of(new TextExpansionResults.WeightedToken("token2", 0.2F)), true)
+                    new TextExpansionResults(
+                        DEFAULT_RESULTS_FIELD,
+                        List.of(new TextExpansionResults.VectorDimension("token", 0.1F)),
+                        false
+                    ),
+                    new TextExpansionResults(DEFAULT_RESULTS_FIELD, List.of(new TextExpansionResults.VectorDimension("token2", 0.2F)), true)
                 )
             )
         );

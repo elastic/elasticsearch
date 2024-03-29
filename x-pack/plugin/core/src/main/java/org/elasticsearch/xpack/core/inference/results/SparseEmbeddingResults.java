@@ -94,7 +94,7 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Infe
                     DEFAULT_RESULTS_FIELD,
                     embedding.tokens()
                         .stream()
-                        .map(weightedToken -> new TextExpansionResults.WeightedToken(weightedToken.token, weightedToken.weight))
+                        .map(weightedToken -> new TextExpansionResults.VectorDimension(weightedToken.token, weightedToken.weight))
                         .toList(),
                     embedding.isTruncated
                 )
@@ -111,9 +111,9 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Infe
             this(in.readCollectionAsList(WeightedToken::new), in.readBoolean());
         }
 
-        public static Embedding create(List<TextExpansionResults.WeightedToken> weightedTokens, boolean isTruncated) {
+        public static Embedding create(List<TextExpansionResults.VectorDimension> vectorDimensions, boolean isTruncated) {
             return new Embedding(
-                weightedTokens.stream().map(token -> new WeightedToken(token.token(), token.weight())).toList(),
+                vectorDimensions.stream().map(token -> new WeightedToken(token.token(), token.weight())).toList(),
                 isTruncated
             );
         }

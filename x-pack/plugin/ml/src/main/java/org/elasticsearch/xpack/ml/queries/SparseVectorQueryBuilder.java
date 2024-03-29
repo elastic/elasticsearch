@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults.WeightedToken;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults.VectorDimension;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 
@@ -52,7 +52,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     private final String fieldName;
     private final String modelText;
     private final String modelId;
-    private final List<WeightedToken> vectorDimensions;
+    private final List<VectorDimension> vectorDimensions;
     private SetOnce<TextExpansionResults> weightedTokensSupplier;
     private final TokenPruningConfig tokenPruningConfig;
 
@@ -60,7 +60,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         String fieldName,
         String modelText,
         @Nullable String modelId,
-        @Nullable List<WeightedToken> vectorDimensions
+        @Nullable List<VectorDimension> vectorDimensions
     ) {
         this(fieldName, modelText, modelId, vectorDimensions, null);
     }
@@ -69,7 +69,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         String fieldName,
         String modelText,
         @Nullable String modelId,
-        @Nullable List<WeightedToken> vectorDimensions,
+        @Nullable List<VectorDimension> vectorDimensions,
         @Nullable TokenPruningConfig tokenPruningConfig
     ) {
         if (fieldName == null) {
@@ -98,7 +98,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         this.modelText = in.readString();
         this.modelId = in.readOptionalString();
         this.tokenPruningConfig = in.readOptionalWriteable(TokenPruningConfig::new);
-        this.vectorDimensions = in.readOptionalCollectionAsList(WeightedToken::new);
+        this.vectorDimensions = in.readOptionalCollectionAsList(VectorDimension::new);
     }
 
     private SparseVectorQueryBuilder(SparseVectorQueryBuilder other, SetOnce<TextExpansionResults> weightedTokensSupplier) {
@@ -221,16 +221,16 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
     }
 
-    private QueryBuilder vectorDimensionsToQuery(String fieldName, List<WeightedToken> vectorDimensions) {
+    private QueryBuilder vectorDimensionsToQuery(String fieldName, List<VectorDimension> vectorDimensions) {
         if (tokenPruningConfig != null) {
-            WeightedTokensQueryBuilder weightedTokensQueryBuilder = new WeightedTokensQueryBuilder(
+            VectorDimensionsQueryBuilder vectorDimensionsQueryBuilder = new VectorDimensionsQueryBuilder(
                 fieldName,
                 vectorDimensions,
                 tokenPruningConfig
             );
-            weightedTokensQueryBuilder.queryName(queryName);
-            weightedTokensQueryBuilder.boost(boost);
-            return weightedTokensQueryBuilder;
+            vectorDimensionsQueryBuilder.queryName(queryName);
+            vectorDimensionsQueryBuilder.boost(boost);
+            return vectorDimensionsQueryBuilder;
         }
         // Note: Weighted tokens queries were introduced in 8.13.0. To support mixed version clusters prior to 8.13.0,
         // if no token pruning configuration is specified we fall back to a boolean query.
@@ -273,7 +273,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         String fieldName = null;
         String modelText = null;
         String modelId = null;
-        List<WeightedToken> vectorDimensions = new ArrayList<>();
+        List<VectorDimension> vectorDimensions = new ArrayList<>();
         TokenPruningConfig tokenPruningConfig = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
@@ -294,7 +294,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
                         } else if (VECTOR_DIMENSIONS.match(currentFieldName, parser.getDeprecationHandler())) {
                             var vectorDimensionsMap = parser.map();
                             for (var e : vectorDimensionsMap.entrySet()) {
-                                vectorDimensions.add(new WeightedToken(e.getKey(), parseWeight(e.getKey(), e.getValue())));
+                                vectorDimensions.add(new VectorDimension(e.getKey(), parseWeight(e.getKey(), e.getValue())));
                             }
                         } else {
                             throw new ParsingException(

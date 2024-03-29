@@ -1,0 +1,5 @@
+pr: 106911
+summary: Disable children aggregation concurrent execution
+area: "Search, Aggregations"
+type: bug
+issues: []

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.queries;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
@@ -28,14 +29,14 @@ import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults.WeightedToken;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -46,53 +47,48 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     public static final ParseField PRUNING_CONFIG = new ParseField("pruning_config");
     public static final ParseField MODEL_TEXT = new ParseField("model_text");
     public static final ParseField MODEL_ID = new ParseField("model_id");
+    public static final ParseField VECTOR_DIMENSIONS = new ParseField("vector_dimensions");
 
     private final String fieldName;
     private final String modelText;
     private final String modelId;
+    private final List<WeightedToken> vectorDimensions;
     private SetOnce<TextExpansionResults> weightedTokensSupplier;
     private final TokenPruningConfig tokenPruningConfig;
 
-    public enum AllowedFieldType {
-        RANK_FEATURES("rank_features"),
-        SPARSE_VECTOR("sparse_vector");
-
-        private final String typeName;
-
-        AllowedFieldType(String typeName) {
-            this.typeName = typeName;
-        }
-
-        public String getTypeName() {
-            return typeName;
-        }
-
-        public static boolean isFieldTypeAllowed(String typeName) {
-            return Arrays.stream(values()).anyMatch(value -> value.typeName.equals(typeName));
-        }
-
-        public static String getAllowedFieldTypesAsString() {
-            return Arrays.stream(values()).map(value -> value.typeName).collect(Collectors.joining(", "));
-        }
+    public SparseVectorQueryBuilder(
+        String fieldName,
+        String modelText,
+        @Nullable String modelId,
+        @Nullable List<WeightedToken> vectorDimensions
+    ) {
+        this(fieldName, modelText, modelId, vectorDimensions, null);
     }
 
-    public SparseVectorQueryBuilder(String fieldName, String modelText, String modelId) {
-        this(fieldName, modelText, modelId, null);
-    }
-
-    public SparseVectorQueryBuilder(String fieldName, String modelText, String modelId, @Nullable TokenPruningConfig tokenPruningConfig) {
+    public SparseVectorQueryBuilder(
+        String fieldName,
+        String modelText,
+        @Nullable String modelId,
+        @Nullable List<WeightedToken> vectorDimensions,
+        @Nullable TokenPruningConfig tokenPruningConfig
+    ) {
         if (fieldName == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires a fieldName");
         }
         if (modelText == null) {
-            throw new IllegalArgumentException("[" + NAME + "] requires a " + MODEL_TEXT.getPreferredName() + " value");
+            throw new IllegalArgumentException("[" + NAME + "] requires " + MODEL_TEXT.getPreferredName());
         }
-        if (modelId == null) {
-            throw new IllegalArgumentException("[" + NAME + "] requires a " + MODEL_ID.getPreferredName() + " value");
+
+        if ((vectorDimensions == null) == (modelId == null)) {
+            throw new IllegalArgumentException(
+                "[" + NAME + "] requires one of [" + MODEL_ID.getPreferredName() + "], or [" + VECTOR_DIMENSIONS.getPreferredName() + "]"
+            );
         }
+
         this.fieldName = fieldName;
         this.modelText = modelText;
         this.modelId = modelId;
+        this.vectorDimensions = vectorDimensions;
         this.tokenPruningConfig = tokenPruningConfig;
     }
 
@@ -100,30 +96,20 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         super(in);
         this.fieldName = in.readString();
         this.modelText = in.readString();
-        this.modelId = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.TEXT_EXPANSION_TOKEN_PRUNING_CONFIG_ADDED)) {
-            this.tokenPruningConfig = in.readOptionalWriteable(TokenPruningConfig::new);
-        } else {
-            this.tokenPruningConfig = null;
-        }
+        this.modelId = in.readOptionalString();
+        this.tokenPruningConfig = in.readOptionalWriteable(TokenPruningConfig::new);
+        this.vectorDimensions = in.readOptionalCollectionAsList(WeightedToken::new);
     }
 
     private SparseVectorQueryBuilder(SparseVectorQueryBuilder other, SetOnce<TextExpansionResults> weightedTokensSupplier) {
         this.fieldName = other.fieldName;
         this.modelText = other.modelText;
         this.modelId = other.modelId;
+        this.vectorDimensions = other.vectorDimensions;
         this.tokenPruningConfig = other.tokenPruningConfig;
         this.boost = other.boost;
         this.queryName = other.queryName;
         this.weightedTokensSupplier = weightedTokensSupplier;
-    }
-
-    String getFieldName() {
-        return fieldName;
-    }
-
-    public TokenPruningConfig getTokenPruningConfig() {
-        return tokenPruningConfig;
     }
 
     @Override
@@ -133,7 +119,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_8_0;
+        return TransportVersions.ADD_SPARSE_VECTOR_QUERY;
     }
 
     @Override
@@ -143,10 +129,9 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         }
         out.writeString(fieldName);
         out.writeString(modelText);
-        out.writeString(modelId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.TEXT_EXPANSION_TOKEN_PRUNING_CONFIG_ADDED)) {
-            out.writeOptionalWriteable(tokenPruningConfig);
-        }
+        out.writeOptionalString(modelId);
+        out.writeOptionalWriteable(tokenPruningConfig);
+        out.writeOptionalCollection(vectorDimensions, StreamOutput::writeWriteable);
     }
 
     @Override
@@ -154,9 +139,18 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         builder.startObject(NAME);
         builder.startObject(fieldName);
         builder.field(MODEL_TEXT.getPreferredName(), modelText);
-        builder.field(MODEL_ID.getPreferredName(), modelId);
+        if (modelId != null) {
+            builder.field(MODEL_ID.getPreferredName(), modelId);
+        }
         if (tokenPruningConfig != null) {
             builder.field(PRUNING_CONFIG.getPreferredName(), tokenPruningConfig);
+        }
+        if (vectorDimensions != null) {
+            builder.startObject(VECTOR_DIMENSIONS.getPreferredName());
+            for (var vectorDimension : vectorDimensions) {
+                vectorDimension.toXContent(builder, params);
+            }
+            builder.endObject();
         }
         boostAndQueryNameToXContent(builder);
         builder.endObject();
@@ -169,63 +163,69 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             if (weightedTokensSupplier.get() == null) {
                 return this;
             }
-            return weightedTokensToQuery(fieldName, weightedTokensSupplier.get());
+            return textExpansionResultsToQuery(fieldName, weightedTokensSupplier.get());
         }
 
-        CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
-            modelId,
-            List.of(modelText),
-            TextExpansionConfigUpdate.EMPTY_UPDATE,
-            false,
-            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
-        );
-        inferRequest.setHighPriority(true);
-        inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
+        if (modelId != null) {
+            CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
+                modelId,
+                List.of(modelText),
+                TextExpansionConfigUpdate.EMPTY_UPDATE,
+                false,
+                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
+            );
+            inferRequest.setHighPriority(true);
+            inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
 
-        SetOnce<TextExpansionResults> textExpansionResultsSupplier = new SetOnce<>();
-        queryRewriteContext.registerAsyncAction(
-            (client, listener) -> executeAsyncWithOrigin(
-                client,
-                ML_ORIGIN,
-                CoordinatedInferenceAction.INSTANCE,
-                inferRequest,
-                ActionListener.wrap(inferenceResponse -> {
+            SetOnce<TextExpansionResults> textExpansionResultsSupplier = new SetOnce<>();
+            queryRewriteContext.registerAsyncAction(
+                (client, listener) -> executeAsyncWithOrigin(
+                    client,
+                    ML_ORIGIN,
+                    CoordinatedInferenceAction.INSTANCE,
+                    inferRequest,
+                    ActionListener.wrap(inferenceResponse -> {
 
-                    if (inferenceResponse.getInferenceResults().isEmpty()) {
-                        listener.onFailure(new IllegalStateException("inference response contain no results"));
-                        return;
-                    }
+                        if (inferenceResponse.getInferenceResults().isEmpty()) {
+                            listener.onFailure(new IllegalStateException("inference response contain no results"));
+                            return;
+                        }
 
-                    if (inferenceResponse.getInferenceResults().get(0) instanceof TextExpansionResults textExpansionResults) {
-                        textExpansionResultsSupplier.set(textExpansionResults);
-                        listener.onResponse(null);
-                    } else if (inferenceResponse.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
-                        listener.onFailure(new IllegalStateException(warning.getWarning()));
-                    } else {
-                        listener.onFailure(
-                            new IllegalStateException(
-                                "expected a result of type ["
-                                    + TextExpansionResults.NAME
-                                    + "] received ["
-                                    + inferenceResponse.getInferenceResults().get(0).getWriteableName()
-                                    + "]. Is ["
-                                    + modelId
-                                    + "] a compatible model?"
-                            )
-                        );
-                    }
-                }, listener::onFailure)
-            )
-        );
+                        if (inferenceResponse.getInferenceResults().get(0) instanceof TextExpansionResults textExpansionResults) {
+                            textExpansionResultsSupplier.set(textExpansionResults);
+                            listener.onResponse(null);
+                        } else if (inferenceResponse.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
+                            listener.onFailure(new IllegalStateException(warning.getWarning()));
+                        } else {
+                            listener.onFailure(
+                                new IllegalStateException(
+                                    "expected a result of type ["
+                                        + TextExpansionResults.NAME
+                                        + "] received ["
+                                        + inferenceResponse.getInferenceResults().get(0).getWriteableName()
+                                        + "]. Is ["
+                                        + modelId
+                                        + "] a compatible model?"
+                                )
+                            );
+                        }
+                    }, listener::onFailure)
+                )
+            );
 
-        return new SparseVectorQueryBuilder(this, textExpansionResultsSupplier);
+            return new SparseVectorQueryBuilder(this, textExpansionResultsSupplier);
+
+        } else {
+            return vectorDimensionsToQuery(fieldName, vectorDimensions);
+        }
+
     }
 
-    private QueryBuilder weightedTokensToQuery(String fieldName, TextExpansionResults textExpansionResults) {
+    private QueryBuilder vectorDimensionsToQuery(String fieldName, List<WeightedToken> vectorDimensions) {
         if (tokenPruningConfig != null) {
             WeightedTokensQueryBuilder weightedTokensQueryBuilder = new WeightedTokensQueryBuilder(
                 fieldName,
-                textExpansionResults.getWeightedTokens(),
+                vectorDimensions,
                 tokenPruningConfig
             );
             weightedTokensQueryBuilder.queryName(queryName);
@@ -236,7 +236,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         // if no token pruning configuration is specified we fall back to a boolean query.
         // TODO this should be updated to always use a WeightedTokensQueryBuilder once it's in all supported versions.
         var boolQuery = QueryBuilders.boolQuery();
-        for (var weightedToken : textExpansionResults.getWeightedTokens()) {
+        for (var weightedToken : vectorDimensions) {
             boolQuery.should(QueryBuilders.termQuery(fieldName, weightedToken.token()).boost(weightedToken.weight()));
         }
         boolQuery.minimumShouldMatch(1);
@@ -245,9 +245,13 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         return boolQuery;
     }
 
+    private QueryBuilder textExpansionResultsToQuery(String fieldName, TextExpansionResults textExpansionResults) {
+        return vectorDimensionsToQuery(fieldName, textExpansionResults.getWeightedTokens());
+    }
+
     @Override
     protected Query doToQuery(SearchExecutionContext context) {
-        throw new IllegalStateException("text_expansion should have been rewritten to another query type");
+        throw new IllegalStateException("sparse_vector should have been rewritten to another query type");
     }
 
     @Override
@@ -256,18 +260,20 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             && Objects.equals(modelText, other.modelText)
             && Objects.equals(modelId, other.modelId)
             && Objects.equals(tokenPruningConfig, other.tokenPruningConfig)
+            && Objects.equals(vectorDimensions, other.vectorDimensions)
             && Objects.equals(weightedTokensSupplier, other.weightedTokensSupplier);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, modelText, modelId, tokenPruningConfig, weightedTokensSupplier);
+        return Objects.hash(fieldName, modelText, modelId, tokenPruningConfig, vectorDimensions, weightedTokensSupplier);
     }
 
     public static SparseVectorQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String fieldName = null;
         String modelText = null;
         String modelId = null;
+        List<WeightedToken> vectorDimensions = new ArrayList<>();
         TokenPruningConfig tokenPruningConfig = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
@@ -285,6 +291,11 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
                     } else if (token == XContentParser.Token.START_OBJECT) {
                         if (PRUNING_CONFIG.match(currentFieldName, parser.getDeprecationHandler())) {
                             tokenPruningConfig = TokenPruningConfig.fromXContent(parser);
+                        } else if (VECTOR_DIMENSIONS.match(currentFieldName, parser.getDeprecationHandler())) {
+                            var vectorDimensionsMap = parser.map();
+                            for (var e : vectorDimensionsMap.entrySet()) {
+                                vectorDimensions.add(new WeightedToken(e.getKey(), parseWeight(e.getKey(), e.getValue())));
+                            }
                         } else {
                             throw new ParsingException(
                                 parser.getTokenLocation(),
@@ -328,9 +339,27 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             throw new ParsingException(parser.getTokenLocation(), "No fieldname specified for query");
         }
 
-        SparseVectorQueryBuilder queryBuilder = new SparseVectorQueryBuilder(fieldName, modelText, modelId, tokenPruningConfig);
+        SparseVectorQueryBuilder queryBuilder = new SparseVectorQueryBuilder(
+            fieldName,
+            modelText,
+            modelId,
+            vectorDimensions.isEmpty() ? null : vectorDimensions,
+            tokenPruningConfig
+        );
         queryBuilder.queryName(queryName);
         queryBuilder.boost(boost);
         return queryBuilder;
+    }
+
+    private static float parseWeight(String token, Object weight) throws IOException {
+        if (weight instanceof Number asNumber) {
+            return asNumber.floatValue();
+        }
+        if (weight instanceof String asString) {
+            return Float.parseFloat(asString);
+        }
+        throw new ElasticsearchParseException(
+            "Illegal weight for token: [" + token + "], expected floating point got " + weight.getClass().getSimpleName()
+        );
     }
 }

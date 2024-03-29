@@ -25,6 +25,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -457,27 +458,10 @@ public final class GeoIpProcessor extends AbstractProcessor {
             }
 
             final Set<Property> properties;
-            if (propertyNames != null) {
-                Set<Property> modifiableProperties = EnumSet.noneOf(Property.class);
-                for (String fieldName : propertyNames) {
-                    try {
-                        modifiableProperties.add(Property.parseProperty(databaseType, fieldName));
-                    } catch (IllegalArgumentException e) {
-                        throw newConfigurationException(TYPE, processorTag, "properties", e.getMessage());
-                    }
-                }
-                properties = Set.copyOf(modifiableProperties);
-            } else {
-                if (databaseType.endsWith(CITY_DB_SUFFIX)) {
-                    properties = DEFAULT_CITY_PROPERTIES;
-                } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
-                    properties = DEFAULT_COUNTRY_PROPERTIES;
-                } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
-                    properties = DEFAULT_ASN_PROPERTIES;
-                } else {
-                    assert false : "unsupported database type [" + databaseType + "]";
-                    properties = Set.of();
-                }
+            try {
+                properties = Property.parseProperties(databaseType, propertyNames);
+            } catch (IllegalArgumentException e) {
+                throw newConfigurationException(TYPE, processorTag, "properties", e.getMessage());
             }
             return new GeoIpProcessor(
                 processorTag,
@@ -542,18 +526,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             Property.NETWORK
         );
 
-        public static Property parseProperty(String databaseType, String value) {
-            Set<Property> validProperties = EnumSet.noneOf(Property.class);
-            if (databaseType.endsWith(CITY_DB_SUFFIX)) {
-                validProperties = ALL_CITY_PROPERTIES;
-            } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
-                validProperties = ALL_COUNTRY_PROPERTIES;
-            } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
-                validProperties = ALL_ASN_PROPERTIES;
-            } else {
-                assert false : "unsupported database type [" + databaseType + "]";
-            }
-
+        private static Property parseProperty(Set<Property> validProperties, String value) {
             try {
                 Property property = valueOf(value.toUpperCase(Locale.ROOT));
                 if (validProperties.contains(property) == false) {
@@ -565,6 +538,46 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     "illegal property value [" + value + "]. valid values are " + Arrays.toString(validProperties.toArray())
                 );
             }
+        }
+
+        /**
+         * Parse the given list of property names and validate them against the supplied databaseType.
+         *
+         * @param databaseType the type of database to use to validate property names
+         * @param propertyNames a list of property names to parse, or null to use the default properties for the associated databaseType
+         * @throws IllegalArgumentException if any of the property names are not valid, or if the databaseType is not valid
+         * @return a set of parsed and validated properties
+         */
+        public static Set<Property> parseProperties(final String databaseType, @Nullable final List<String> propertyNames) {
+            final Set<Property> validProperties;
+            final Set<Property> defaultProperties;
+
+            if (databaseType.endsWith(CITY_DB_SUFFIX)) {
+                validProperties = ALL_CITY_PROPERTIES;
+                defaultProperties = Factory.DEFAULT_CITY_PROPERTIES;
+            } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
+                validProperties = ALL_COUNTRY_PROPERTIES;
+                defaultProperties = Factory.DEFAULT_COUNTRY_PROPERTIES;
+            } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
+                validProperties = ALL_ASN_PROPERTIES;
+                defaultProperties = Factory.DEFAULT_ASN_PROPERTIES;
+            } else {
+                assert false : "Unsupported database type [" + databaseType + "]";
+                throw new IllegalArgumentException("Unsupported database type [" + databaseType + "]");
+            }
+
+            final Set<Property> properties;
+            if (propertyNames != null) {
+                Set<Property> modifiableProperties = EnumSet.noneOf(Property.class);
+                for (String propertyName : propertyNames) {
+                    modifiableProperties.add(parseProperty(validProperties, propertyName)); // n.b. this throws if a property is invalid
+                }
+                properties = Set.copyOf(modifiableProperties);
+            } else {
+                // if propertyNames is null, then use the default properties for the databaseType
+                properties = defaultProperties;
+            }
+            return properties;
         }
     }
 

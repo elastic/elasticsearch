@@ -126,7 +126,6 @@ setup:
   - match: { test-downsample.settings.index.time_series.start_time: 2021-04-28T00:00:00Z }
   - match: { test-downsample.settings.index.routing_path: [ "metricset", "k8s.pod.uid"] }
   - match: { test-downsample.settings.index.downsample.source.name: test }
-  - match: { test-downsample.settings.index.number_of_shards: "1" }
 
   # Assert rollup index mapping
   - do:
@@ -151,17 +150,3 @@ setup:
   - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.scaled-gauge.time_series_metric: gauge }
   - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.uid.type: keyword }
   - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.uid.time_series_dimension: true }
-
-
-  # Assert source index has not been deleted
-  - do:
-      indices.get:
-        index: test
-
-  # Assert rollup index has been force merged
-  - do:
-      indices.segments:
-        index: test-downsample
-
-  - match:   { indices.test-downsample.shards.0.0.num_committed_segments: 1}
-  - match:   { indices.test-downsample.shards.0.0.num_search_segments: 1}

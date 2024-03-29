@@ -146,8 +146,8 @@ teardown:
 ---
 "Test sparse vector search with pruning config":
   - skip:
-      version: " - 8.12.99"
-      reason: "pruning introduced in 8.13.0"
+      version: " - 8.13.99"
+      reason: "introduced in 8.14.0"
 
   - do:
       search:
@@ -167,8 +167,8 @@ teardown:
 ---
 "Test named, boosted sparse vector search with pruning config":
   - skip:
-      version: " - 8.12.99"
-      reason: "pruning introduced in 8.13.0"
+      version: " - 8.13.99"
+      reason: "introduced in 8.14.0"
   - do:
       search:
         index: index-with-sparse-vector
@@ -207,8 +207,8 @@ teardown:
 ---
 "Test sparse vector search with default pruning config":
   - skip:
-      version: " - 8.12.99"
-      reason: "pruning introduced in 8.13.0"
+      version: " - 8.13.99"
+      reason: "introduced in 8.14.0"
 
   - do:
       search:
@@ -226,8 +226,8 @@ teardown:
 ---
 "Test sparse vector search with weighted tokens rescoring only pruned tokens":
   - skip:
-      version: " - 8.12.99"
-      reason: "pruning introduced in 8.13.0"
+      version: " - 8.13.99"
+      reason: "introduced in 8.14.0"
 
   - do:
       search:

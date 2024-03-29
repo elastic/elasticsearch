@@ -18,11 +18,11 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import java.util.List;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
@@ -71,7 +71,7 @@ public class Sqrt extends UnaryScalarFunction {
 
     @Evaluator(extraName = "UnsignedLong")
     static double processUnsignedLong(long val) {
-        return Math.sqrt(NumericUtils.unsignedLongToDouble(val));
+        return Math.sqrt(unsignedLongToDouble(val));
     }
 
     @Evaluator(extraName = "Int", warnExceptions = ArithmeticException.class)

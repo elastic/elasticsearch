@@ -48,7 +48,7 @@ public class NestedIdentityTests extends ESTestCase {
         }
         builder = nestedIdentity.innerToXContent(builder, ToXContent.EMPTY_PARAMS);
         try (XContentParser parser = createParser(builder)) {
-            NestedIdentity parsedNestedIdentity = NestedIdentity.fromXContent(parser);
+            NestedIdentity parsedNestedIdentity = SearchResponseUtils.parseNestedIdentity(parser);
             assertEquals(nestedIdentity, parsedNestedIdentity);
             assertNull(parser.nextToken());
         }

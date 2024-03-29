@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.common.metrics.MetricAccessor;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
 
 /**
@@ -16,6 +17,12 @@ import org.elasticsearch.index.mapper.SourceFieldMetrics;
  */
 public class MapperMetrics {
     public static MapperMetrics NOOP = new MapperMetrics(SourceFieldMetrics.NOOP);
+
+    public static MetricAccessor<MapperMetrics> INSTANCE = new MetricAccessor<>(NOOP);
+
+    public static void init(SourceFieldMetrics sourceFieldMetrics) {
+        INSTANCE = new MetricAccessor<>(new MapperMetrics(sourceFieldMetrics));
+    }
 
     private final SourceFieldMetrics sourceFieldMetrics;
 

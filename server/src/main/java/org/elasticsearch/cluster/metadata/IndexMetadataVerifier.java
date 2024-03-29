@@ -26,7 +26,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.indices.MapperMetrics;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -59,7 +58,6 @@ public class IndexMetadataVerifier {
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
     private final ScriptCompiler scriptService;
-    private final MapperMetrics mapperMetrics;
 
     public IndexMetadataVerifier(
         Settings settings,
@@ -67,8 +65,7 @@ public class IndexMetadataVerifier {
         NamedXContentRegistry xContentRegistry,
         MapperRegistry mapperRegistry,
         IndexScopedSettings indexScopedSettings,
-        ScriptCompiler scriptCompiler,
-        MapperMetrics mapperMetrics
+        ScriptCompiler scriptCompiler
     ) {
         this.settings = settings;
         this.clusterService = clusterService;
@@ -77,7 +74,6 @@ public class IndexMetadataVerifier {
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
         this.scriptService = scriptCompiler;
-        this.mapperMetrics = mapperMetrics;
     }
 
     /**
@@ -186,8 +182,7 @@ public class IndexMetadataVerifier {
                     mapperRegistry,
                     () -> null,
                     indexSettings.getMode().idFieldMapperWithoutFieldData(),
-                    scriptService,
-                    mapperMetrics
+                    scriptService
                 )
             ) {
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);

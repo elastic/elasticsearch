@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.indices.MapperMetrics;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -83,15 +84,13 @@ public interface SourceLoader {
     class Synthetic implements SourceLoader {
         private final Supplier<SyntheticFieldLoader> syntheticFieldLoaderLeafSupplier;
         private final Set<String> requiredStoredFields;
-        private final SourceFieldMetrics metrics;
 
-        public Synthetic(Mapping mapping, SourceFieldMetrics metrics) {
+        public Synthetic(Mapping mapping) {
             this.syntheticFieldLoaderLeafSupplier = mapping::syntheticFieldLoader;
             this.requiredStoredFields = syntheticFieldLoaderLeafSupplier.get()
                 .storedFieldLoaders()
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
-            this.metrics = metrics;
         }
 
         @Override
@@ -107,13 +106,14 @@ public interface SourceLoader {
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             SyntheticFieldLoader loader = syntheticFieldLoaderLeafSupplier.get();
-            return new LeafWithMetrics(new SyntheticLeaf(loader, loader.docValuesLoader(reader, docIdsInLeaf)), metrics);
+            return new LeafWithMetrics(new SyntheticLeaf(loader, loader.docValuesLoader(reader, docIdsInLeaf)));
         }
 
-        private record LeafWithMetrics(Leaf leaf, SourceFieldMetrics metrics) implements Leaf {
+        private record LeafWithMetrics(Leaf leaf) implements Leaf {
 
             @Override
             public Source source(LeafStoredFieldLoader storedFields, int docId) throws IOException {
+                SourceFieldMetrics metrics = MapperMetrics.INSTANCE.get().getSyntheticSourceMetrics();
                 long startTime = metrics.getRelativeTimeSupplier().getAsLong();
 
                 var source = leaf.source(storedFields, docId);

@@ -19,7 +19,6 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.MapperMetrics;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -56,8 +55,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             scriptService,
             indexAnalyzers,
             indexSettings,
-            indexSettings.getMode().idFieldMapperWithoutFieldData(),
-            MapperMetrics.NOOP
+            indexSettings.getMode().idFieldMapperWithoutFieldData()
         );
 
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(

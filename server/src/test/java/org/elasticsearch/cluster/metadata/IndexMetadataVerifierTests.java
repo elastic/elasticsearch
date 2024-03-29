@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperRegistry;
-import org.elasticsearch.indices.MapperMetrics;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -141,8 +140,7 @@ public class IndexMetadataVerifierTests extends ESTestCase {
             xContentRegistry(),
             new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            null,
-            MapperMetrics.NOOP
+            null
         );
     }
 

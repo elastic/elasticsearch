@@ -53,7 +53,6 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.indices.IndicesQueryCache;
-import org.elasticsearch.indices.MapperMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -476,8 +475,7 @@ public final class IndexModule {
         IdFieldMapper idFieldMapper,
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
-        Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers,
-        MapperMetrics metrics
+        Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -538,8 +536,7 @@ public final class IndexModule {
                 recoveryStateFactory,
                 indexFoldersDeletionListener,
                 snapshotCommitSupplier,
-                indexCommitListener.get(),
-                metrics
+                indexCommitListener.get()
             );
             success = true;
             return indexService;
@@ -636,8 +633,7 @@ public final class IndexModule {
         ClusterService clusterService,
         XContentParserConfiguration parserConfiguration,
         MapperRegistry mapperRegistry,
-        ScriptService scriptService,
-        MapperMetrics mapperMetrics
+        ScriptService scriptService
     ) throws IOException {
         return new MapperService(
             clusterService,
@@ -650,8 +646,7 @@ public final class IndexModule {
                 throw new UnsupportedOperationException("no index query shard context available");
             },
             indexSettings.getMode().idFieldMapperWithoutFieldData(),
-            scriptService,
-            mapperMetrics
+            scriptService
         );
     }
 

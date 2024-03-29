@@ -719,7 +719,7 @@ class NodeConstruction {
             telemetryProvider.getMeterRegistry(),
             threadPool::relativeTimeInMillis
         );
-        MapperMetrics mapperMetrics = new MapperMetrics(sourceFieldMetrics);
+        MapperMetrics.init(sourceFieldMetrics);
 
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
             .pluginsService(pluginsService)
@@ -740,7 +740,6 @@ class NodeConstruction {
             .metaStateService(metaStateService)
             .valuesSourceRegistry(searchModule.getValuesSourceRegistry())
             .requestCacheKeyDifferentiator(searchModule.getRequestCacheKeyDifferentiator())
-            .mapperMetrics(mapperMetrics)
             .build();
 
         final var parameters = new IndexSettingProvider.Parameters(indicesService::createIndexMapperServiceForValidation);
@@ -884,8 +883,7 @@ class NodeConstruction {
             xContentRegistry,
             indicesModule.getMapperRegistry(),
             settingsModule.getIndexScopedSettings(),
-            scriptService,
-            mapperMetrics
+            scriptService
         );
         if (DiscoveryNode.isMasterNode(settings)) {
             clusterService.addListener(new SystemIndexMetadataUpgradeService(systemIndices, clusterService));

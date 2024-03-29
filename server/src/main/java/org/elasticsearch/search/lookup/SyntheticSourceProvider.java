@@ -12,6 +12,7 @@ import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceLoader;
 
 import java.io.IOException;
@@ -24,8 +25,8 @@ class SyntheticSourceProvider implements SourceProvider {
     private final SourceLoader sourceLoader;
     private volatile SyntheticSourceLeafLoader[] leafLoaders;
 
-    SyntheticSourceProvider(SourceLoader sourceLoader) {
-        this.sourceLoader = sourceLoader;
+    SyntheticSourceProvider(Mapping mapping) {
+        sourceLoader = new SourceLoader.Synthetic(mapping);
     }
 
     @Override

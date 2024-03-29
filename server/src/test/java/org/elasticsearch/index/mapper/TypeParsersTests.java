@@ -20,7 +20,6 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.indices.MapperMetrics;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -98,8 +97,7 @@ public class TypeParsersTests extends ESTestCase {
             ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(),
             mapperService.getIndexSettings(),
-            ProvidedIdFieldMapper.NO_FIELD_DATA,
-            MapperMetrics.NOOP
+            ProvidedIdFieldMapper.NO_FIELD_DATA
         );
 
         TextFieldMapper.PARSER.parse("some-field", fieldNode, olderContext);
@@ -130,8 +128,7 @@ public class TypeParsersTests extends ESTestCase {
             ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(),
             mapperService.getIndexSettings(),
-            ProvidedIdFieldMapper.NO_FIELD_DATA,
-            MapperMetrics.NOOP
+            ProvidedIdFieldMapper.NO_FIELD_DATA
         );
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {

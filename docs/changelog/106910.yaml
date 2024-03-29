@@ -1,0 +1,5 @@
+pr: 106910
+summary: Disable top hits concurrent execution
+area: "Search, Infra/Logging"
+type: bug
+issues: []

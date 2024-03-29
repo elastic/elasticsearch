@@ -9,10 +9,9 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
@@ -28,10 +27,11 @@ import static org.hamcrest.Matchers.startsWith;
  * threads that wait on a countdown latch. This lets us verify that operations on system indices
  * are being directed to other thread pools.</p>
  *
- * <p>When implementing this class, don't forget to override {@link ESSingleNodeTestCase#getPlugins()} if
+ * <p>When implementing this class, don't forget to override {@link ESIntegTestCase#nodePlugins()} if
  * the relevant system index is defined in a plugin.</p>
  */
-public abstract class SystemIndexThreadPoolTests extends ESSingleNodeTestCase {
+@ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 0)
+public abstract class SystemIndexThreadPoolTests extends ESIntegTestCase {
 
     private static final String USER_INDEX = "user_index";
 
@@ -41,17 +41,9 @@ public abstract class SystemIndexThreadPoolTests extends ESSingleNodeTestCase {
         return Set.of(ThreadPool.Names.GET, ThreadPool.Names.WRITE, ThreadPool.Names.SEARCH);
     }
 
-    @Override
-    protected Settings nodeSettings() {
-        var settingsBuilder = Settings.builder().put(super.nodeSettings()).put("node.name", "kibana-thread-pool-tests");
-        for (String threadPoolName : threadPoolsToBlock()) {
-            settingsBuilder.put("thread_pool." + threadPoolName + ".queue_size", 10);
-        }
-        return settingsBuilder.build();
-    }
-
     private void assertThreadPoolsBlocked() {
         TimeValue timeout = TimeValue.timeValueMillis(25);
+        logger.info("cluster data nodes: " + cluster().numDataNodes() + ", data and master: " + cluster().numDataAndMasterNodes());
         var e1 = expectThrows(
             ElasticsearchTimeoutException.class,
             () -> client().prepareIndex(USER_INDEX).setSource(Map.of("foo", "bar")).get(timeout)
@@ -67,7 +59,7 @@ public abstract class SystemIndexThreadPoolTests extends ESSingleNodeTestCase {
     }
 
     protected void runWithBlockedThreadPools(Runnable runnable) {
-        ThreadPool threadPool = node().injector().getInstance(ThreadPool.class);
+        ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class);
         int numThreadsToBlock = threadPoolsToBlock().stream().map(threadPool::info).mapToInt(ThreadPool.Info::getMax).sum();
         CyclicBarrier cb = new CyclicBarrier(numThreadsToBlock + 1);
         Runnable waitAction = () -> {

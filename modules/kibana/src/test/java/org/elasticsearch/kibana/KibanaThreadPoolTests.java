@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class KibanaThreadPoolTests extends SystemIndexThreadPoolTests {
 
     @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Set.of(KibanaPlugin.class);
     }
 

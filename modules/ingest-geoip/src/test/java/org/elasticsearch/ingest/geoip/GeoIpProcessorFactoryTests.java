@@ -304,6 +304,22 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("[database_file] Unsupported database type [some-unsupported-database]"));
     }
 
+    public void testBuildNullDatabase() throws Exception {
+        // mock up a provider that returns a null databaseType
+        GeoIpDatabase database = mock(GeoIpDatabase.class);
+        when(database.getDatabaseType()).thenReturn(null);
+        GeoIpDatabaseProvider provider = mock(GeoIpDatabaseProvider.class);
+        when(provider.getDatabase(anyString())).thenReturn(database);
+
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(provider);
+
+        Map<String, Object> config1 = new HashMap<>();
+        config1.put("field", "_field");
+        config1.put("properties", List.of("ip"));
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config1));
+        assertThat(e.getMessage(), equalTo("[database_file] Unsupported database type [null]"));
+    }
+
     @SuppressWarnings("HiddenField")
     public void testLazyLoading() throws Exception {
         final Path configDir = createTempDir();

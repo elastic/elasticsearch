@@ -121,7 +121,7 @@ public class DownsampleShardTaskParamsTests extends AbstractXContentSerializingT
                 in.shardId(),
                 in.metrics(),
                 in.labels(),
-                generateRandomStringArray(6, 6, false, true)
+                generateRandomStringArray(6, 6, false, false)
             );
             default -> throw new AssertionError("unknown option");
         };

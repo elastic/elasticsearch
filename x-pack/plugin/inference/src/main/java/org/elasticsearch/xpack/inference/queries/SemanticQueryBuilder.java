@@ -120,36 +120,44 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
         SearchExecutionContext searchExecutionContext = queryRewriteContext.convertToSearchExecutionContext();
         if (searchExecutionContext != null) {
-            if (inferenceResults == null) {
-                throw new IllegalStateException("Query builder must have inference results before rewriting to another query type");
-            }
-
-            MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
-            if (fieldType == null) {
-                return new MatchNoneQueryBuilder();
-            } else if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
-                List<? extends InferenceResults> inferenceResultsList = inferenceResults.transformToCoordinationFormat();
-                if (inferenceResultsList.isEmpty()) {
-                    throw new IllegalArgumentException("No inference results retrieved for field [" + fieldName + "]");
-                } else if (inferenceResultsList.size() > 1) {
-                    // TODO: How to handle multiple inference results?
-                    throw new IllegalArgumentException(
-                        inferenceResultsList.size() + " inference results retrieved for field [" + fieldName + "]"
-                    );
-                }
-
-                InferenceResults inferenceResults = inferenceResultsList.get(0);
-                return semanticTextFieldType.semanticQuery(inferenceResults, boost(), queryName());
-            } else {
-                throw new IllegalArgumentException(
-                    "Field [" + fieldName + "] of type [" + fieldType.typeName() + "] does not support " + NAME + " queries"
-                );
-            }
+            return doRewriteBuildSemanticQuery(searchExecutionContext);
         }
 
+        return doRewriteGetInferenceResults(queryRewriteContext);
+    }
+
+    private QueryBuilder doRewriteBuildSemanticQuery(SearchExecutionContext searchExecutionContext) {
+        if (inferenceResults == null) {
+            throw new IllegalStateException("Query builder must have inference results before rewriting to another query type");
+        }
+
+        MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
+        if (fieldType == null) {
+            return new MatchNoneQueryBuilder();
+        } else if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
+            List<? extends InferenceResults> inferenceResultsList = inferenceResults.transformToCoordinationFormat();
+            if (inferenceResultsList.isEmpty()) {
+                throw new IllegalArgumentException("No inference results retrieved for field [" + fieldName + "]");
+            } else if (inferenceResultsList.size() > 1) {
+                // TODO: How to handle multiple inference results?
+                throw new IllegalArgumentException(
+                    inferenceResultsList.size() + " inference results retrieved for field [" + fieldName + "]"
+                );
+            }
+
+            InferenceResults inferenceResults = inferenceResultsList.get(0);
+            return semanticTextFieldType.semanticQuery(inferenceResults, boost(), queryName());
+        } else {
+            throw new IllegalArgumentException(
+                "Field [" + fieldName + "] of type [" + fieldType.typeName() + "] does not support " + NAME + " queries"
+            );
+        }
+    }
+
+    private SemanticQueryBuilder doRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) {
         if (inferenceResults != null) {
             return this;
         }

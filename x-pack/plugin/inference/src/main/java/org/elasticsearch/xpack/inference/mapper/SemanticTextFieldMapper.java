@@ -288,7 +288,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             throw new IllegalArgumentException("[semantic_text] fields do not support sorting, scripting or aggregating");
         }
 
-        public QueryBuilder semanticQuery(InferenceResults inferenceResults, float boost, String queryName) throws IOException {
+        public QueryBuilder semanticQuery(InferenceResults inferenceResults, float boost, String queryName) {
             String nestedFieldPath = name() + "." + CHUNKS;
             String inferenceResultsFieldName = nestedFieldPath + "." + INFERENCE_CHUNKS_RESULTS;
             QueryBuilder childQueryBuilder;

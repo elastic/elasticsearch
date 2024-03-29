@@ -2,4 +2,4 @@
 
 *Description*
 
-Returns the trigonometric tangent of an angle
+Returns the {wikipedia}/Sine_and_cosine[Tangent] trigonometric function of an angle.

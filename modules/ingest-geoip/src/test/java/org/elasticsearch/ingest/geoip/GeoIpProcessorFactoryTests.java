@@ -50,6 +50,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -285,6 +286,41 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config2.put("properties", "invalid");
         e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config2));
         assertThat(e.getMessage(), equalTo("[properties] property isn't a list, but of type [java.lang.String]"));
+    }
+
+    public void testBuildUnsupportedDatabase() throws Exception {
+        // mock up some unsupported database (it has a databaseType that we don't recognize)
+        GeoIpDatabase database = mock(GeoIpDatabase.class);
+        when(database.getDatabaseType()).thenReturn("some-unsupported-database");
+        GeoIpDatabaseProvider provider = mock(GeoIpDatabaseProvider.class);
+        when(provider.getDatabase(anyString())).thenReturn(database);
+
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(provider);
+
+        Map<String, Object> config1 = new HashMap<>();
+        config1.put("field", "_field");
+        config1.put("properties", List.of("ip"));
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config1));
+        assertThat(
+            e.getMessage(),
+            equalTo("[database_file] Unsupported database type [some-unsupported-database] for file [GeoLite2-City.mmdb]")
+        );
+    }
+
+    public void testBuildNullDatabase() throws Exception {
+        // mock up a provider that returns a null databaseType
+        GeoIpDatabase database = mock(GeoIpDatabase.class);
+        when(database.getDatabaseType()).thenReturn(null);
+        GeoIpDatabaseProvider provider = mock(GeoIpDatabaseProvider.class);
+        when(provider.getDatabase(anyString())).thenReturn(database);
+
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(provider);
+
+        Map<String, Object> config1 = new HashMap<>();
+        config1.put("field", "_field");
+        config1.put("properties", List.of("ip"));
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config1));
+        assertThat(e.getMessage(), equalTo("[database_file] Unsupported database type [null] for file [GeoLite2-City.mmdb]"));
     }
 
     @SuppressWarnings("HiddenField")

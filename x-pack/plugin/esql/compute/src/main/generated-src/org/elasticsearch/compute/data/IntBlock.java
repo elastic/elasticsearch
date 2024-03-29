@@ -39,6 +39,9 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
     IntBlock filter(int... positions);
 
     @Override
+    IntBlock expand();
+
+    @Override
     default String getWriteableName() {
         return "IntBlock";
     }

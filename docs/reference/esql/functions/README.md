@@ -12,10 +12,10 @@ directory that can `include::` any parts of the files above.
 
 To regenerate the files for a function run its tests using gradle:
 ```
-./gradlew :x-pack:plugin:esql:tests -Dtests.class='*SinTests'
+./gradlew :x-pack:plugin:esql:test -Dtests.class='*SinTests'
 ```
 
 To regenerate the files for all functions run all of ESQL's tests using gradle:
 ```
-./gradlew :x-pack:plugin:esql:tests
+./gradlew :x-pack:plugin:esql:test
 ```

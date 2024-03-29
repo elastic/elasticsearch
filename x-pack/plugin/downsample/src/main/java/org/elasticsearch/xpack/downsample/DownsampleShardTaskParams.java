@@ -73,9 +73,7 @@ public record DownsampleShardTaskParams(
             new ShardId(in),
             in.readStringArray(),
             in.readStringArray(),
-            in.getTransportVersion().onOrAfter(V_8_13_0)
-                ? in.readOptionalStringArray()
-                : new String[] {}
+            in.getTransportVersion().onOrAfter(V_8_13_0) ? in.readOptionalStringArray() : new String[] {}
         );
     }
 

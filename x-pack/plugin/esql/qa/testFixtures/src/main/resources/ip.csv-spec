@@ -302,7 +302,9 @@ eth0           |127.0.0.3
 eth0           |fe80::cae2:65ff:fece:fec1
 ;
 
-mvSort#[skip:-8.13.99, reason:newly added in 8.14]
+mvSort
+required_feature: esql.mv_sort
+
 FROM hosts
 | eval sd = mv_sort(ip1, "DESC"), sa = mv_sort(ip1)
 | sort host desc, ip1
@@ -318,7 +320,9 @@ epsilon      | fe80::cae2:65ff:fece:fec1                              | fe80::ca
 epsilon      | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0] | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0] | [fe82::cae2:65ff:fece:fec0, fe81::cae2:65ff:fece:feb9]
 ;
 
-mvSlice#[skip:-8.13.99, reason:newly added in 8.14]
+mvSlice
+required_feature: esql.mv_sort
+
 from hosts
 | where host == "epsilon"
 | eval a1 = mv_slice(ip1, 0, 1)
@@ -332,7 +336,9 @@ epsilon      | fe80::cae2:65ff:fece:fec1                              | fe80::ca
 epsilon      | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0] | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
 ;
 
-mvSlice#[skip:-8.13.99, reason:newly added in 8.14]
+mvSlice
+required_feature: esql.mv_sort
+
 from hosts
 | where host == "epsilon"
 | eval a1 = mv_slice(ip1, 0, 1)
@@ -346,7 +352,9 @@ epsilon      | fe80::cae2:65ff:fece:fec1                              | fe80::ca
 epsilon      | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0] | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
 ;
 
-mvZip#[skip:-8.13.99, reason:newly added in 8.14]
+mvZip
+required_feature: esql.mv_sort
+
 from hosts
 | eval zip = mv_zip(to_string(description), to_string(ip0), "@@")
 | keep host, description, ip0, zip

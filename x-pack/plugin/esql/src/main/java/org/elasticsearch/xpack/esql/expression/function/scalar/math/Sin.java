@@ -25,18 +25,18 @@ public class Sin extends AbstractTrigonometricFunction {
 
     @FunctionInfo(
         returnType = "double",
-        description = "Returns ths {wikipedia}/Sine_and_cosine[Sine] trigonometric function. Input expected in radians.",
+        description = "Returns ths {wikipedia}/Sine_and_cosine[Sine] trigonometric function of an angle.",
         examples = @Example(file = "floats", tag = "sin")
     )
     public Sin(
         Source source,
         @Param(
-            name = "number",
+            name = "angle",
             type = { "double", "integer", "long", "unsigned_long" },
             description = "An angle, in radians. If `null`, the function returns `null`."
-        ) Expression n
+        ) Expression angle
     ) {
-        super(source, n);
+        super(source, angle);
     }
 
     @Override

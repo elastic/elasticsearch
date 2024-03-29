@@ -2,4 +2,4 @@
 
 *Description*
 
-Returns ths {wikipedia}/Sine_and_cosine[Sine] trigonometric function. Input expected in radians.
+Returns ths {wikipedia}/Sine_and_cosine[Sine] trigonometric function of an angle.

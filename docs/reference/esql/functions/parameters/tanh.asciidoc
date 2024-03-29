@@ -1,4 +1,4 @@
 *Parameters*
 
-`number`::
-The number to return the hyperbolic tangent of. If `null`, the function returns `null`.
+`angle`::
+An angle, in radians. If `null`, the function returns `null`.

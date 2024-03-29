@@ -24,18 +24,18 @@ import java.util.List;
 public class Sinh extends AbstractTrigonometricFunction {
     @FunctionInfo(
         returnType = "double",
-        description = "Returns the {wikipedia}/Hyperbolic_functions[hyperbolic sine].",
+        description = "Returns the {wikipedia}/Hyperbolic_functions[hyperbolic sine] of an angle.",
         examples = @Example(file = "floats", tag = "sinh")
     )
     public Sinh(
         Source source,
         @Param(
-            name = "number",
+            name = "angle",
             type = { "double", "integer", "long", "unsigned_long" },
-            description = "The number to return the hyperbolic sine of. If `null`, the function returns `null`."
-        ) Expression n
+            description = "An angle, in radians. If `null`, the function returns `null`."
+        ) Expression angle
     ) {
-        super(source, n);
+        super(source, angle);
     }
 
     @Override

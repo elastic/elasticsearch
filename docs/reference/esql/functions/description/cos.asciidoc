@@ -2,4 +2,4 @@
 
 *Description*
 
-Returns the {wikipedia}/Sine_and_cosine[cosine] of `n`. Input expected in radians.
+Returns the {wikipedia}/Sine_and_cosine[cosine] of an angle.

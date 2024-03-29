@@ -1,4 +1,4 @@
 *Parameters*
 
-`number`::
-The number who's hyperbolic cosine is to be returned. If `null`, the function returns `null`.
+`angle`::
+An angle, in radians. If `null`, the function returns `null`.

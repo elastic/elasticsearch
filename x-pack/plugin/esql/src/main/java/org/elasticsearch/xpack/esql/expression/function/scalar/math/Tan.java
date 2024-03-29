@@ -24,18 +24,18 @@ import java.util.List;
 public class Tan extends AbstractTrigonometricFunction {
     @FunctionInfo(
         returnType = "double",
-        description = "Returns the {wikipedia}/Sine_and_cosine[Tangent] trigonometric function.",
+        description = "Returns the {wikipedia}/Sine_and_cosine[Tangent] trigonometric function of an angle.",
         examples = @Example(file = "floats", tag = "tan")
     )
     public Tan(
         Source source,
         @Param(
-            name = "number",
+            name = "angle",
             type = { "double", "integer", "long", "unsigned_long" },
             description = "An angle, in radians. If `null`, the function returns `null`."
-        ) Expression n
+        ) Expression angle
     ) {
-        super(source, n);
+        super(source, angle);
     }
 
     @Override

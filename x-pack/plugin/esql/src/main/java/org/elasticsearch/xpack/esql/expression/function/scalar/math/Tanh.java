@@ -24,18 +24,18 @@ import java.util.List;
 public class Tanh extends AbstractTrigonometricFunction {
     @FunctionInfo(
         returnType = "double",
-        description = "Returns the {wikipedia}/Hyperbolic_functions[Tangent] hyperbolic function.",
+        description = "Returns the {wikipedia}/Hyperbolic_functions[Tangent] hyperbolic function of an angle.",
         examples = @Example(file = "floats", tag = "tanh")
     )
     public Tanh(
         Source source,
         @Param(
-            name = "number",
+            name = "angle",
             type = { "double", "integer", "long", "unsigned_long" },
-            description = "The number to return the hyperbolic tangent of. If `null`, the function returns `null`."
-        ) Expression n
+            description = "An angle, in radians. If `null`, the function returns `null`."
+        ) Expression angle
     ) {
-        super(source, n);
+        super(source, angle);
     }
 
     @Override

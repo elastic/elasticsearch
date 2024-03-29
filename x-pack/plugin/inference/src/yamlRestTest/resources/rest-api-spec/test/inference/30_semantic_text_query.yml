@@ -250,6 +250,18 @@ setup:
   - match: { error.type: "index_not_found_exception" }
   - match: { error.reason: "no such index [missing-index]" }
 
+  - do:
+      search:
+        index: missing-index
+        ignore_unavailable: true
+        body:
+          query:
+            semantic_query:
+              inference_field:
+                query: "inference test"
+
+  - match: { hits.total.value: 0 }
+
 ---
 "Query multiple indices":
   - do:

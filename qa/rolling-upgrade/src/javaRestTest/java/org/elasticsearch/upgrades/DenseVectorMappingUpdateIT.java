@@ -19,6 +19,8 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 
@@ -109,7 +111,7 @@ public class DenseVectorMappingUpdateIT extends ParameterizedRollingUpgradeTestC
 
             assertCount("test_index", expectedCount);
 
-            if (isUpgradedCluster()) {
+            if (isUpgradedCluster() && clusterSupportsDenseVectorTypeUpdate()) {
                 Request updateMapping = new Request("PUT", "/" + indexName + "/_mapping");
                 XContentBuilder mappings = XContentBuilder.builder(XContentType.JSON.xContent())
                     .startObject()
@@ -129,6 +131,8 @@ public class DenseVectorMappingUpdateIT extends ParameterizedRollingUpgradeTestC
                 index.addParameter("refresh", "true");
                 index.setJsonEntity(BULK2);
                 assertOK(client().performRequest(index));
+                expectedCount = 20;
+                assertCount("test_index", expectedCount);
             }
         }
     }
@@ -142,6 +146,15 @@ public class DenseVectorMappingUpdateIT extends ParameterizedRollingUpgradeTestC
             "{\"hits\":{\"total\":" + count + "}}",
             EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8)
         );
+    }
+
+    private boolean clusterSupportsDenseVectorTypeUpdate() throws IOException {
+        Map<?, ?> response = entityAsMap(client().performRequest(new Request("GET", "_nodes")));
+        Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
+
+        Predicate<Map<?, ?>> nodeSupportsBulkApi = n -> Version.fromString(n.get("version").toString()).onOrAfter(Version.V_8_14_0);
+
+        return nodes.values().stream().map(o -> (Map<?, ?>) o).allMatch(nodeSupportsBulkApi);
     }
 
 }

@@ -45,7 +45,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
-        b.field("type", "semantic_text").field("inference_id", "test_model");
+        b.field("type", "semantic").field("inference_id", "test_model");
     }
 
     @Override
@@ -73,7 +73,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
-        assumeFalse("doc_values are not supported in semantic_text", true);
+        assumeFalse("doc_values are not supported in semantic", true);
         return null;
     }
 
@@ -101,7 +101,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     public void testInferenceIdNotPresent() throws IOException {
         Exception e = expectThrows(
             MapperParsingException.class,
-            () -> createMapperService(fieldMapping(b -> b.field("type", "semantic_text")))
+            () -> createMapperService(fieldMapping(b -> b.field("type", "semantic")))
         );
         assertThat(e.getMessage(), containsString("field [inference_id] must be specified"));
     }
@@ -111,24 +111,24 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             b.field("type", "text");
             b.startObject("fields");
             b.startObject("semantic");
-            b.field("type", "semantic_text");
+            b.field("type", "semantic");
             b.endObject();
             b.endObject();
         })));
-        assertThat(e.getMessage(), containsString("Field [semantic] of type [semantic_text] can't be used in multifields"));
+        assertThat(e.getMessage(), containsString("Field [semantic] of type [semantic] can't be used in multifields"));
     }
 
     public void testUpdatesToInferenceIdNotSupported() throws IOException {
         String fieldName = randomAlphaOfLengthBetween(5, 15);
         MapperService mapperService = createMapperService(
-            mapping(b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", "test_model").endObject())
+            mapping(b -> b.startObject(fieldName).field("type", "semantic").field("inference_id", "test_model").endObject())
         );
         assertSemanticTextField(mapperService, fieldName, false);
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> merge(
                 mapperService,
-                mapping(b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", "another_model").endObject())
+                mapping(b -> b.startObject(fieldName).field("type", "semantic").field("inference_id", "another_model").endObject())
             )
         );
         assertThat(e.getMessage(), containsString("Cannot update parameter [inference_id] from [test_model] to [another_model]"));
@@ -138,7 +138,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         for (int depth = 1; depth < 5; depth++) {
             String fieldName = InferenceMetadataFieldMapperTests.randomFieldName(depth);
             MapperService mapperService = createMapperService(
-                mapping(b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", "test_model").endObject())
+                mapping(b -> b.startObject(fieldName).field("type", "semantic").field("inference_id", "test_model").endObject())
             );
             assertSemanticTextField(mapperService, fieldName, false);
             {
@@ -148,7 +148,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                         mapperService,
                         mapping(
                             b -> b.startObject(fieldName)
-                                .field("type", "semantic_text")
+                                .field("type", "semantic")
                                 .field("inference_id", "test_model")
                                 .startObject("model_settings")
                                 .field("inference_id", "test_model")
@@ -164,7 +164,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     mapperService,
                     mapping(
                         b -> b.startObject(fieldName)
-                            .field("type", "semantic_text")
+                            .field("type", "semantic")
                             .field("inference_id", "test_model")
                             .startObject("model_settings")
                             .field("task_type", "sparse_embedding")
@@ -180,7 +180,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     () -> merge(
                         mapperService,
                         mapping(
-                            b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", "test_model").endObject()
+                            b -> b.startObject(fieldName).field("type", "semantic").field("inference_id", "test_model").endObject()
                         )
                     )
                 );
@@ -196,7 +196,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                         mapperService,
                         mapping(
                             b -> b.startObject(fieldName)
-                                .field("type", "semantic_text")
+                                .field("type", "semantic")
                                 .field("inference_id", "test_model")
                                 .startObject("model_settings")
                                 .field("task_type", "text_embedding")

@@ -1,7 +1,7 @@
 setup:
   - skip:
       version: " - 8.12.99"
-      reason: semantic_text introduced in 8.13.0 # TODO change when 8.13.0 is released
+      reason: semantic field type introduced in 8.13.0 # TODO change when 8.13.0 is released
 
   - do:
       inference.put_model:
@@ -41,10 +41,10 @@ setup:
           mappings:
             properties:
               inference_field:
-                type: semantic_text
+                type: semantic
                 inference_id: sparse-inference-id
               another_inference_field:
-                type: semantic_text
+                type: semantic
                 inference_id: sparse-inference-id
               non_inference_field:
                 type: text
@@ -56,10 +56,10 @@ setup:
           mappings:
             properties:
               inference_field:
-                type: semantic_text
+                type: semantic
                 inference_id: dense-inference-id
               another_inference_field:
-                type: semantic_text
+                type: semantic
                 inference_id: dense-inference-id
               non_inference_field:
                 type: text
@@ -96,8 +96,8 @@ setup:
       indices.get_mapping:
         index: test-sparse-index
 
-  - match: {test-sparse-index.mappings.properties.inference_field.type: semantic_text}
-  - match: {test-sparse-index.mappings.properties.another_inference_field.type: semantic_text}
+  - match: {test-sparse-index.mappings.properties.inference_field.type: semantic}
+  - match: {test-sparse-index.mappings.properties.another_inference_field.type: semantic}
   - match: {test-sparse-index.mappings.properties.non_inference_field.type: text}
   - length: {test-sparse-index.mappings.properties: 3}
 
@@ -134,13 +134,13 @@ setup:
       indices.get_mapping:
         index: test-dense-index
 
-  - match: {test-dense-index.mappings.properties.inference_field.type: semantic_text}
-  - match: {test-dense-index.mappings.properties.another_inference_field.type: semantic_text}
+  - match: {test-dense-index.mappings.properties.inference_field.type: semantic}
+  - match: {test-dense-index.mappings.properties.another_inference_field.type: semantic}
   - match: {test-dense-index.mappings.properties.non_inference_field.type: text}
   - length: {test-dense-index.mappings.properties: 3}
 
 ---
-"Updating non semantic_text fields does not recalculate embeddings":
+"Updating non semantic fields does not recalculate embeddings":
     - do:
         index:
           index: test-sparse-index
@@ -183,7 +183,7 @@ setup:
     - match:  { _source._inference.another_inference_field.chunks.0.inference: $another_inference_field_embedding }
 
 ---
-"Updating semantic_text fields recalculates embeddings":
+"Updating semantic fields recalculates embeddings":
     - do:
         index:
           index: test-sparse-index
@@ -265,7 +265,7 @@ setup:
     - match:  { _source._inference.another_inference_field.chunks.0.text: "bulk updated inference test" }
 
 ---
-"Reindex works for semantic_text fields":
+"Reindex works for semantic fields":
   - do:
       index:
         index: test-sparse-index
@@ -293,10 +293,10 @@ setup:
           mappings:
             properties:
               inference_field:
-                type: semantic_text
+                type: semantic
                 inference_id: sparse-inference-id
               another_inference_field:
-                type: semantic_text
+                type: semantic
                 inference_id: sparse-inference-id
               non_inference_field:
                 type: text
@@ -334,7 +334,7 @@ setup:
           mappings:
             properties:
               inference_field:
-                type: semantic_text
+                type: semantic
                 inference_id: non-existing-inference-id
               non_inference_field:
                 type: text
@@ -350,7 +350,7 @@ setup:
 
   - match: { error.reason: "Inference id [non-existing-inference-id] not found for field [inference_field]" }
 
-  # Succeeds when semantic_text field is not used
+  # Succeeds when semantic field is not used
   - do:
       index:
         index: incorrect-test-sparse-index
@@ -376,4 +376,4 @@ setup:
 
   - match: { errors: true }
   - match: { items.0.update.status: 400 }
-  - match: { items.0.update.error.reason: "Cannot apply update with a script on indices that contain [semantic_text] field(s)" }
+  - match: { items.0.update.error.reason: "Cannot apply update with a script on indices that contain [semantic] field(s)" }

@@ -442,7 +442,7 @@ public class InferenceMetadataFieldMapperTests extends MetadataMapperTestCase {
                 )
             )
         );
-        assertThat(ex.getMessage(), containsString("Missing required [model_settings] for field [field] of type [semantic_text]"));
+        assertThat(ex.getMessage(), containsString("Missing required [model_settings] for field [field] of type [semantic]"));
     }
 
     public void testMissingTaskType() throws IOException {

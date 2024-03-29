@@ -31,7 +31,7 @@ import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 
 /**
- * Serialization class for specifying the settings of a model from semantic_text inference to field mapper.
+ * Serialization class for specifying the settings of a model from semantic inference to field mapper.
  */
 public class SemanticTextModelSettings implements ToXContentObject {
 

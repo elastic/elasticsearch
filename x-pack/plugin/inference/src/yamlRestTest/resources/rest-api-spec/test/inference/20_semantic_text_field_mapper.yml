@@ -1,7 +1,7 @@
 setup:
   - skip:
       version: " - 8.12.99"
-      reason: semantic_text introduced in 8.13.0 # TODO change when 8.13.0 is released
+      reason: semantic field type introduced in 8.13.0 # TODO change when 8.13.0 is released
 
   - do:
       inference.put_model:
@@ -41,10 +41,10 @@ setup:
           mappings:
             properties:
               sparse_field:
-                type: semantic_text
+                type: semantic
                 inference_id: sparse-inference-id
               dense_field:
-                type: semantic_text
+                type: semantic
                 inference_id: dense-inference-id
               non_inference_field:
                 type: text
@@ -70,7 +70,7 @@ setup:
 ---
 "Inference section contains unreferenced fields":
   - do:
-      catch: /Field \[unknown_field\] is not registered as a \[semantic_text\] field type/
+      catch: /Field \[unknown_field\] is not registered as a \[semantic\] field type/
       index:
         index: test-index
         id: doc_1

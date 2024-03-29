@@ -58,7 +58,7 @@ import static org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMap
 public class SemanticTextFieldMapper extends FieldMapper implements InferenceFieldMapper {
     private static final Logger logger = LogManager.getLogger(SemanticTextFieldMapper.class);
 
-    public static final String CONTENT_TYPE = "semantic_text";
+    public static final String CONTENT_TYPE = "semantic";
 
     private static SemanticTextFieldMapper toType(FieldMapper in) {
         return (SemanticTextFieldMapper) in;
@@ -276,7 +276,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            throw new IllegalArgumentException("[semantic_text] fields do not support sorting, scripting or aggregating");
+            throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields do not support sorting, scripting or aggregating");
         }
     }
 

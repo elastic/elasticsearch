@@ -59,8 +59,8 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.c
  * A mapper for the {@code _inference} field.
  * <br>
  * <br>
- * This mapper works in tandem with {@link SemanticTextFieldMapper semantic_text} fields to index inference results.
- * The inference results for {@code semantic_text} fields are written to {@code _source} by an upstream process like so:
+ * This mapper works in tandem with {@link SemanticTextFieldMapper semantic} fields to index inference results.
+ * The inference results for {@code semantic} fields are written to {@code _source} by an upstream process like so:
  * <br>
  * <br>
  * <pre>

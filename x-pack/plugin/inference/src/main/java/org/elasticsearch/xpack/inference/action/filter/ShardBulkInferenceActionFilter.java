@@ -53,7 +53,7 @@ import java.util.stream.Collectors;
  * {@link SemanticTextFieldMapper} in the index mapping.
  * The source of each {@link BulkItemRequest} requiring inference is augmented with the results for each field
  * under the {@link InferenceMetadataFieldMapper#NAME} section.
- * For example, for an index with a semantic_text field named {@code my_semantic_field} the following source document:
+ * For example, for an index with a semantic field named {@code my_semantic_field} the following source document:
  * <br>
  * <pre>
  * {

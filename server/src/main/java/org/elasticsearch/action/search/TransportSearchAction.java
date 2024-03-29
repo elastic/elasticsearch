@@ -101,6 +101,7 @@ import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -334,8 +335,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             remoteClusterIndices = remoteClusterService.groupIndices(original.indicesOptions(), original.indices());
         }
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        final Index[] resolvedLocalIndices = resolveLocalIndices(localIndices, clusterState, timeProvider);
         final IndicesOptions indicesOptions = original.indicesOptions();
+
+        final AtomicReference<Index[]> resolvedLocalIndices = new AtomicReference<>();
+        final Supplier<Index[]> resolvedLocalIndicesSupplier = () -> {
+            resolvedLocalIndices.compareAndSet(null, resolveLocalIndices(localIndices, clusterState, timeProvider));
+            return resolvedLocalIndices.get();
+        };
 
         ActionListener<SearchRequest> rewriteListener = listener.delegateFailureAndWrap((delegate, rewritten) -> {
             if (ccsCheckCompatibility) {
@@ -347,7 +353,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     task,
                     timeProvider,
                     rewritten,
-                    resolvedLocalIndices,
+                    localIndices,
+                    resolvedLocalIndicesSupplier,
                     indicesOptions,
                     clusterState,
                     SearchResponse.Clusters.EMPTY,
@@ -388,7 +395,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             task,
                             timeProvider,
                             r,
-                            resolvedLocalIndices,
+                            localIndices,
+                            resolvedLocalIndicesSupplier,
                             indicesOptions,
                             clusterState,
                             clusters,
@@ -444,7 +452,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 task,
                                 timeProvider,
                                 rewritten,
-                                resolvedLocalIndices,
+                                localIndices,
+                                resolvedLocalIndicesSupplier,
                                 indicesOptions,
                                 remoteShardIterators,
                                 clusterNodeLookup,
@@ -462,7 +471,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         Rewriteable.rewriteAndFetch(
             original,
-            searchService.getRewriteContext(timeProvider::absoluteStartMillis, () -> resolvedLocalIndices),
+            searchService.getRewriteContext(timeProvider::absoluteStartMillis, resolvedLocalIndicesSupplier),
             rewriteListener
         );
     }
@@ -925,7 +934,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Task task,
         SearchTimeProvider timeProvider,
         SearchRequest searchRequest,
-        Index[] resolvedLocalIndices,
+        OriginalIndices localIndices,
+        Supplier<Index[]> resolvedLocalIndicesSupplier,
         IndicesOptions indicesOptions,
         ClusterState clusterState,
         SearchResponse.Clusters clusterInfo,
@@ -936,7 +946,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             (SearchTask) task,
             timeProvider,
             searchRequest,
-            resolvedLocalIndices,
+            localIndices,
+            resolvedLocalIndicesSupplier,
             indicesOptions,
             Collections.emptyList(),
             (clusterName, nodeId) -> null,
@@ -1093,7 +1104,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchTask task,
         SearchTimeProvider timeProvider,
         SearchRequest searchRequest,
-        Index[] resolvedLocalIndices,
+        OriginalIndices localIndices,
+        Supplier<Index[]> resolvedLocalIndicesSupplier,
         IndicesOptions indicesOptions,
         List<SearchShardIterator> remoteShardIterators,
         BiFunction<String, String, DiscoveryNode> remoteConnections,
@@ -1115,10 +1127,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final List<SearchShardIterator> localShardIterators;
         final Map<String, AliasFilter> aliasFilter;
 
-        final String[] concreteLocalIndices = Arrays.stream(resolvedLocalIndices).map(Index::getName).toArray(String[]::new);
+        final String[] concreteLocalIndices;
         if (searchContext != null) {
             assert searchRequest.pointInTimeBuilder() != null;
             aliasFilter = searchContext.aliasFilter();
+            concreteLocalIndices = localIndices == null ? new String[0] : localIndices.indices();
             localShardIterators = getLocalLocalShardsIteratorFromPointInTime(
                 clusterState,
                 indicesOptions,
@@ -1128,8 +1141,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchRequest.allowPartialSearchResults()
             );
         } else {
+            final Index[] indices = resolvedLocalIndicesSupplier.get();
+            concreteLocalIndices = Arrays.stream(indices).map(Index::getName).toArray(String[]::new);
             final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, searchRequest.indices());
-            aliasFilter = buildIndexAliasFilters(clusterState, indicesAndAliases, resolvedLocalIndices);
+            aliasFilter = buildIndexAliasFilters(clusterState, indicesAndAliases, indices);
             aliasFilter.putAll(remoteAliasMap);
             localShardIterators = getLocalShardsIterator(
                 clusterState,

@@ -86,7 +86,6 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     protected void doExecute(Task task, ExplainRequest request, ActionListener<ExplainResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
 
-        // Resolve local indices lazily since it will not always be necessary
         final AtomicReference<Index[]> resolvedLocalIndices = new AtomicReference<>();
         Supplier<Index[]> resolvedLocalIndicesSupplier = () -> {
             resolvedLocalIndices.compareAndSet(null, resolveLocalIndices(request));

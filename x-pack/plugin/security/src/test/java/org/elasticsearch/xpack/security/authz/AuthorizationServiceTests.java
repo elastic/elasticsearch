@@ -1583,8 +1583,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             mappingUpdater,
             waitForMappingUpdate,
             future,
-            threadPool,
-            Names.WRITE
+            threadPool.executor(Names.WRITE)
         );
 
         TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse> result = future.get();

@@ -59,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.bulk.TransportBulkAction.prohibitCustomRoutingOnDataStream;
@@ -321,31 +322,44 @@ public class TransportBulkActionTests extends ESTestCase {
         assertFalse(TransportBulkAction.isOnlySystem(buildBulkRequest(mixed), indicesLookup, systemIndices));
     }
 
-    public void testRejectCoordination() throws Exception {
+    private void blockWriteThreadPool(CountDownLatch blockingLatch) {
+        try {
+            final var executor = threadPool.executor(ThreadPool.Names.WRITE);
+            while (true) {
+                executor.execute(() -> safeAwait(blockingLatch));
+            }
+        } catch (EsRejectedExecutionException e) {
+            // expected, means the threadpool and its queue are full
+        }
+    }
+
+    public void testRejectCoordination() {
         BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
 
+        final var blockingLatch = new CountDownLatch(1);
         try {
-            threadPool.startForcingRejections();
+            blockWriteThreadPool(blockingLatch);
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
             expectThrows(EsRejectedExecutionException.class, future);
         } finally {
-            threadPool.stopForcingRejections();
+            blockingLatch.countDown();
         }
     }
 
-    public void testRejectionAfterCreateIndexIsPropagated() throws Exception {
+    public void testRejectionAfterCreateIndexIsPropagated() {
         BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
 
         bulkAction.failIndexCreation = randomBoolean();
+        final var blockingLatch = new CountDownLatch(1);
         try {
-            bulkAction.beforeIndexCreation = threadPool::startForcingRejections;
+            bulkAction.beforeIndexCreation = () -> blockWriteThreadPool(blockingLatch);
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
             expectThrows(EsRejectedExecutionException.class, future);
             assertTrue(bulkAction.indexCreated);
         } finally {
-            threadPool.stopForcingRejections();
+            blockingLatch.countDown();
         }
     }
 

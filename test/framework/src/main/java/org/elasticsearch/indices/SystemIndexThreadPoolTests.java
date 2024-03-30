@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -81,10 +82,10 @@ public abstract class SystemIndexThreadPoolTests extends ESIntegTestCase {
     }
 
     public void testUserThreadPoolsAreBlocked() {
-        client().admin().indices().prepareCreate(USER_INDEX).get();
+        assertAcked(client().admin().indices().prepareCreate(USER_INDEX));
 
         runWithBlockedThreadPools(this::assertThreadPoolsBlocked);
 
-        client().admin().indices().prepareDelete(USER_INDEX).get();
+        assertAcked(client().admin().indices().prepareDelete(USER_INDEX));
     }
 }

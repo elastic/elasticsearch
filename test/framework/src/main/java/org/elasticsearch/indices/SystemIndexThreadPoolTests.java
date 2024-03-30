@@ -8,17 +8,13 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Phaser;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -39,23 +35,6 @@ public abstract class SystemIndexThreadPoolTests extends ESIntegTestCase {
     // block normal system index thread pools as well.
     protected Set<String> threadPoolsToBlock() {
         return Set.of(ThreadPool.Names.GET, ThreadPool.Names.WRITE, ThreadPool.Names.SEARCH);
-    }
-
-    private void assertThreadPoolsBlocked() {
-        TimeValue timeout = TimeValue.timeValueMillis(25);
-        logger.info("cluster data nodes: " + cluster().numDataNodes() + ", data and master: " + cluster().numDataAndMasterNodes());
-        var e1 = expectThrows(
-            ElasticsearchTimeoutException.class,
-            () -> client().prepareIndex(USER_INDEX).setSource(Map.of("foo", "bar")).get(timeout)
-        );
-        assertThat(e1.getMessage(), startsWith("java.util.concurrent.TimeoutException: Timeout waiting for task."));
-        var e2 = expectThrows(ElasticsearchTimeoutException.class, () -> client().prepareGet(USER_INDEX, "id").get(timeout));
-        assertThat(e2.getMessage(), startsWith("java.util.concurrent.TimeoutException: Timeout waiting for task."));
-        var e3 = expectThrows(
-            ElasticsearchTimeoutException.class,
-            () -> client().prepareSearch(USER_INDEX).setQuery(QueryBuilders.matchAllQuery()).get(timeout)
-        );
-        assertThat(e3.getMessage(), startsWith("java.util.concurrent.TimeoutException: Timeout waiting for task."));
     }
 
     protected void runWithBlockedThreadPools(Runnable runnable) {
@@ -84,11 +63,26 @@ public abstract class SystemIndexThreadPoolTests extends ESIntegTestCase {
         }
     }
 
-    public void testUserThreadPoolsAreBlocked() {
-        assertAcked(client().admin().indices().prepareCreate(USER_INDEX));
+    public void testThreadPoolBlocking() {
+        runWithBlockedThreadPools(() -> {
+            for (String nodeName : internalCluster().getNodeNames()) {
+                ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
+                for (String threadPoolName : threadPoolsToBlock()) {
+                    ThreadPool.Info info = threadPool.info(threadPoolName);
 
-        runWithBlockedThreadPools(this::assertThreadPoolsBlocked);
+                    // fill up the queue
+                    for (int i = 0; i < info.getQueueSize().singles(); i++) {
+                        threadPool.executor(threadPoolName).submit(() -> {});
+                    }
 
-        assertAcked(client().admin().indices().prepareDelete(USER_INDEX));
+                    // next task throws exception
+                    var exception = expectThrows(
+                        EsRejectedExecutionException.class,
+                        () -> threadPool.executor(threadPoolName).submit(() -> {})
+                    );
+                    assertThat(exception.getMessage(), startsWith("rejected execution"));
+                }
+            }
+        });
     }
 }

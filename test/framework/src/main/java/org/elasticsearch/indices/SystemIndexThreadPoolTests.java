@@ -59,7 +59,7 @@ public abstract class SystemIndexThreadPoolTests extends ESIntegTestCase {
     }
 
     protected void runWithBlockedThreadPools(Runnable runnable) {
-        ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class);
+        ThreadPool threadPool = internalCluster().getDataNodeInstance(ThreadPool.class);
         int numThreadsToBlock = threadPoolsToBlock().stream().map(threadPool::info).mapToInt(ThreadPool.Info::getMax).sum();
         CyclicBarrier cb = new CyclicBarrier(numThreadsToBlock + 1);
         Runnable waitAction = () -> {

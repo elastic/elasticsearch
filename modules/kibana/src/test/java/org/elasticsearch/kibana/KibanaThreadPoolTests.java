@@ -10,6 +10,7 @@ package org.elasticsearch.kibana;
 
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.SystemIndexThreadPoolTests;
 import org.elasticsearch.plugins.Plugin;
@@ -34,17 +35,18 @@ public class KibanaThreadPoolTests extends SystemIndexThreadPoolTests {
             String idToUpdate = client().prepareIndex(".kibana").setSource(Map.of("foo", "update me!")).get().getId();
 
             // bulk index, delete, and update
-            BulkResponse response = client().prepareBulk(".kibana")
-                .add(client().prepareIndex(".kibana").setSource(Map.of("foo", "search me!")))
-                .add(client().prepareDelete(".kibana", idToDelete))
-                .add(client().prepareUpdate().setId(idToUpdate).setDoc(Map.of("foo", "I'm updated!")))
+            Client bulkClient = client();
+            BulkResponse response = bulkClient.prepareBulk(".kibana")
+                .add(bulkClient.prepareIndex(".kibana").setSource(Map.of("foo", "search me!")))
+                .add(bulkClient.prepareDelete(".kibana", idToDelete))
+                .add(bulkClient.prepareUpdate().setId(idToUpdate).setDoc(Map.of("foo", "I'm updated!")))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
             assertFalse(response.hasFailures());
 
             // match-all search
-            var results = client().prepareSearch(".kibana").setQuery(QueryBuilders.matchAllQuery()).get();
-            assertThat(results.getHits().getHits().length, equalTo(2));
+            var searchResponse = client().prepareSearch(".kibana").setQuery(QueryBuilders.matchAllQuery()).get();
+            assertThat(searchResponse.getHits().getHits().length, equalTo(2));
         });
     }
 }

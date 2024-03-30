@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 
 import java.io.EOFException;
@@ -131,6 +132,10 @@ public abstract class StreamInput extends InputStream {
      */
     public BytesReference readSlicedBytesReference() throws IOException {
         return readBytesReference();
+    }
+
+    public Releasable acquireBufferReference() {
+        return () -> {};
     }
 
     /**

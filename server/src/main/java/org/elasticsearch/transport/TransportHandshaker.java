@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Sends and receives transport-level connection handshakes. This class will send the initial handshake, manage state/timeouts while the
  * handshake is in transit, and handle the eventual response.
  */
-final class TransportHandshaker {
+public final class TransportHandshaker {
 
     /*
      * The transport-level handshake allows the node that opened the connection to determine the newest protocol version with which it can
@@ -117,7 +117,7 @@ final class TransportHandshaker {
 
     static final TransportVersion EARLIEST_HANDSHAKE_VERSION = TransportVersion.fromId(6080099);
     static final TransportVersion REQUEST_HANDSHAKE_VERSION = TransportVersions.MINIMUM_COMPATIBLE;
-    static final Set<TransportVersion> ALLOWED_HANDSHAKE_VERSIONS = Set.of(EARLIEST_HANDSHAKE_VERSION, REQUEST_HANDSHAKE_VERSION);
+    public static final Set<TransportVersion> ALLOWED_HANDSHAKE_VERSIONS = Set.of(EARLIEST_HANDSHAKE_VERSION, REQUEST_HANDSHAKE_VERSION);
 
     static final String HANDSHAKE_ACTION_NAME = "internal:tcp/handshake";
     private final ConcurrentMap<Long, HandshakeResponseHandler> pendingHandshakes = new ConcurrentHashMap<>();

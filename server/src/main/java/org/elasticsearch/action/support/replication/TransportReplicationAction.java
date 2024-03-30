@@ -41,8 +41,10 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -60,6 +62,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -410,16 +413,24 @@ public abstract class TransportReplicationAction<
                 );
             }
 
+            var request = primaryRequest.getRequest();
+            request.mustIncRef();
             acquirePrimaryOperationPermit(
                 indexShard,
-                primaryRequest.getRequest(),
-                ActionListener.wrap(releasable -> runWithPrimaryShardReference(new PrimaryShardReference(indexShard, releasable)), e -> {
-                    if (e instanceof ShardNotInPrimaryModeException) {
-                        onFailure(new ReplicationOperation.RetryOnPrimaryException(shardId, "shard is not in primary mode", e));
-                    } else {
-                        onFailure(e);
-                    }
-                })
+                request,
+                ActionListener.releaseAfter(
+                    ActionListener.wrap(
+                        releasable -> runWithPrimaryShardReference(new PrimaryShardReference(indexShard, releasable)),
+                        e -> {
+                            if (e instanceof ShardNotInPrimaryModeException) {
+                                onFailure(new ReplicationOperation.RetryOnPrimaryException(shardId, "shard is not in primary mode", e));
+                            } else {
+                                onFailure(e);
+                            }
+                        }
+                    ),
+                    request::decRef
+                )
             );
         }
 
@@ -635,11 +646,12 @@ public abstract class TransportReplicationAction<
             ReplicationTask task
         ) {
             this.replicaRequest = replicaRequest;
-            this.onCompletionListener = onCompletionListener;
+            this.onCompletionListener = ActionListener.releaseAfter(onCompletionListener, replicaRequest::decRef);
             this.task = task;
             final ShardId shardId = replicaRequest.getRequest().shardId();
             assert shardId != null : "request shardId must be set";
             this.replica = getIndexShard(shardId);
+            replicaRequest.mustIncRef();
         }
 
         @Override
@@ -778,11 +790,12 @@ public abstract class TransportReplicationAction<
 
         ReroutePhase(ReplicationTask task, Request request, ActionListener<Response> listener, boolean initiatedByNodeClient) {
             this.request = request;
+            request.mustIncRef();
             this.initiatedByNodeClient = initiatedByNodeClient;
             if (task != null) {
                 this.request.setParentTask(clusterService.localNode().getId(), task.getId());
             }
-            this.listener = listener;
+            this.listener = ActionListener.releaseAfter(listener, request::decRef);
             this.task = task;
             this.observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
         }
@@ -1311,12 +1324,15 @@ public abstract class TransportReplicationAction<
         // is only true if sentFromLocalReroute is true.
         private final boolean localRerouteInitiatedByNodeClient;
 
+        private final RefCounted refCounted;
+
         public ConcreteShardRequest(Writeable.Reader<R> requestReader, StreamInput in) throws IOException {
             targetAllocationID = in.readString();
             primaryTerm = in.readVLong();
             sentFromLocalReroute = false;
             localRerouteInitiatedByNodeClient = false;
             request = requestReader.read(in);
+            this.refCounted = LeakTracker.wrap(new SimpleRefCounted());
         }
 
         public ConcreteShardRequest(R request, String targetAllocationID, long primaryTerm) {
@@ -1332,6 +1348,7 @@ public abstract class TransportReplicationAction<
         ) {
             Objects.requireNonNull(request);
             Objects.requireNonNull(targetAllocationID);
+            this.refCounted = ALWAYS_REFERENCED;
             this.request = request;
             this.targetAllocationID = targetAllocationID;
             this.primaryTerm = primaryTerm;
@@ -1418,6 +1435,30 @@ public abstract class TransportReplicationAction<
         public String toString() {
             return "request: " + request + ", target allocation id: " + targetAllocationID + ", primary term: " + primaryTerm;
         }
+
+        @Override
+        public void incRef() {
+            refCounted.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return refCounted.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            if (refCounted.decRef()) {
+                request.decRef();
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return refCounted.hasReferences();
+        }
     }
 
     protected static final class ConcreteReplicaRequest<R extends TransportRequest> extends ConcreteShardRequest<R> {
@@ -1445,6 +1486,7 @@ public abstract class TransportReplicationAction<
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            assert hasReferences();
             super.writeTo(out);
             out.writeZLong(globalCheckpoint);
             out.writeZLong(maxSeqNoOfUpdatesOrDeletes);

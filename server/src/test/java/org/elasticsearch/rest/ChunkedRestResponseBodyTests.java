@@ -11,8 +11,10 @@ package org.elasticsearch.rest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -60,18 +62,21 @@ public class ChunkedRestResponseBodyTests extends ESTestCase {
             )
         );
 
-        final List<BytesReference> refsGenerated = new ArrayList<>();
+        final List<ReleasableBytesReference> refsGenerated = new ArrayList<>();
         while (chunkedResponse.isDone() == false) {
             refsGenerated.add(chunkedResponse.encodeChunk(randomIntBetween(2, 10), BytesRefRecycler.NON_RECYCLING_INSTANCE));
         }
-
-        assertEquals(bytesDirect, CompositeBytesReference.of(refsGenerated.toArray(new BytesReference[0])));
+        try {
+            assertEquals(bytesDirect, CompositeBytesReference.of(refsGenerated.toArray(new BytesReference[0])));
+        } finally {
+            Releasables.close(refsGenerated);
+        }
     }
 
     public void testFromTextChunks() throws IOException {
         final var chunks = randomList(1000, () -> randomUnicodeOfLengthBetween(1, 100));
         var body = ChunkedRestResponseBody.fromTextChunks("text/plain", Iterators.map(chunks.iterator(), s -> w -> w.write(s)));
-        final List<BytesReference> refsGenerated = new ArrayList<>();
+        final List<ReleasableBytesReference> refsGenerated = new ArrayList<>();
         while (body.isDone() == false) {
             refsGenerated.add(body.encodeChunk(randomIntBetween(2, 10), BytesRefRecycler.NON_RECYCLING_INSTANCE));
         }
@@ -83,6 +88,8 @@ public class ChunkedRestResponseBodyTests extends ESTestCase {
             }
             writer.flush();
             assertEquals(new BytesArray(outputStream.toByteArray()), chunkedBytes);
+        } finally {
+            Releasables.close(refsGenerated);
         }
     }
 }

@@ -31,7 +31,7 @@ public class Header {
     Tuple<Map<String, String>, Map<String, Set<String>>> headers;
     private Compression.Scheme compressionScheme = null;
 
-    Header(int networkMessageSize, long requestId, byte status, TransportVersion version) {
+    public Header(int networkMessageSize, long requestId, byte status, TransportVersion version) {
         this.networkMessageSize = networkMessageSize;
         this.version = version;
         this.requestId = requestId;
@@ -42,7 +42,7 @@ public class Header {
         return networkMessageSize;
     }
 
-    TransportVersion getVersion() {
+    public TransportVersion getVersion() {
         return version;
     }
 
@@ -54,7 +54,7 @@ public class Header {
         return TransportStatus.isRequest(status);
     }
 
-    boolean isResponse() {
+    public boolean isResponse() {
         return TransportStatus.isRequest(status) == false;
     }
 
@@ -66,7 +66,7 @@ public class Header {
         return TransportStatus.isHandshake(status);
     }
 
-    boolean isCompressed() {
+    public boolean isCompressed() {
         return TransportStatus.isCompress(status);
     }
 
@@ -83,7 +83,7 @@ public class Header {
         return allHeaders == null ? null : allHeaders.v1();
     }
 
-    boolean needsToReadVariableHeader() {
+    public boolean needsToReadVariableHeader() {
         return headers == null;
     }
 
@@ -91,7 +91,7 @@ public class Header {
         return headers;
     }
 
-    void finishParsingHeader(StreamInput input) throws IOException {
+    public void finishParsingHeader(StreamInput input) throws IOException {
         this.headers = ThreadContext.readHeadersFromStream(input);
 
         if (isRequest()) {
@@ -105,7 +105,7 @@ public class Header {
         }
     }
 
-    void setCompressionScheme(Compression.Scheme compressionScheme) {
+    public void setCompressionScheme(Compression.Scheme compressionScheme) {
         assert isCompressed();
         this.compressionScheme = compressionScheme;
     }

@@ -78,7 +78,7 @@ public interface TcpChannel extends CloseableChannel {
             lastAccessedTime = TimeValue.nsecToMSec(System.nanoTime());
         }
 
-        void markAccessed(long relativeMillisTime) {
+        public void markAccessed(long relativeMillisTime) {
             lastAccessedTime = relativeMillisTime;
         }
 

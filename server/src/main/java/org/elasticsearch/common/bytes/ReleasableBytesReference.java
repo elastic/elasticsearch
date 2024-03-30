@@ -171,6 +171,12 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
             public boolean supportReadAllToReleasableBytesReference() {
                 return true;
             }
+
+            @Override
+            public Releasable acquireBufferReference() {
+                refCounted.mustIncRef();
+                return refCounted::decRef;
+            }
         };
     }
 

@@ -176,6 +176,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
      * the testWithUsers test is generally testing).
      * @throws IOException
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106871")
     public void testStatusWithUsersWhileSearchIsRunning() throws IOException {
         String user = randomFrom("user1", "user2");
         String other = user.equals("user1") ? "user2" : "user1";

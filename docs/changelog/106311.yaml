@@ -1,0 +1,6 @@
+pr: 106311
+summary: update lease sync actions not circuit breakers
+area: CRUD
+type: enhancement
+issues:
+ - 105926

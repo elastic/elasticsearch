@@ -19,7 +19,8 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 public class KibanaThreadPoolTests extends SystemIndexThreadPoolTests {
 
@@ -42,11 +43,10 @@ public class KibanaThreadPoolTests extends SystemIndexThreadPoolTests {
                 .add(bulkClient.prepareUpdate().setId(idToUpdate).setDoc(Map.of("foo", "I'm updated!")))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
-            assertFalse(response.hasFailures());
+            assertNoFailures(response);
 
             // match-all search
-            var searchResponse = client().prepareSearch(".kibana").setQuery(QueryBuilders.matchAllQuery()).get();
-            assertThat(searchResponse.getHits().getHits().length, equalTo(2));
+            assertHitCount(client().prepareSearch(".kibana").setQuery(QueryBuilders.matchAllQuery()), 2);
         });
     }
 }

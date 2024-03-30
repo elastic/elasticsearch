@@ -113,6 +113,7 @@ final class LongArrayVector extends AbstractVector implements LongVector {
     @Override
     public String toString() {
         String valuesString = IntStream.range(0, getPositionCount())
+            .limit(10)
             .mapToObj(n -> String.valueOf(values[n]))
             .collect(Collectors.joining(", ", "[", getPositionCount() > 10 ? ", ...]" : "]"));
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + valuesString + ']';

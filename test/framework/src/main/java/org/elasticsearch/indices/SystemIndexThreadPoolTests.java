@@ -16,7 +16,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Phaser;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.startsWith;
@@ -31,7 +31,6 @@ import static org.hamcrest.Matchers.startsWith;
  * <p>When implementing this class, don't forget to override {@link ESIntegTestCase#nodePlugins()} if
  * the relevant system index is defined in a plugin.</p>
  */
-@ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 0)
 public abstract class SystemIndexThreadPoolTests extends ESIntegTestCase {
 
     private static final String USER_INDEX = "user_index";
@@ -60,24 +59,28 @@ public abstract class SystemIndexThreadPoolTests extends ESIntegTestCase {
     }
 
     protected void runWithBlockedThreadPools(Runnable runnable) {
-        ThreadPool threadPool = internalCluster().getDataNodeInstance(ThreadPool.class);
-        int numThreadsToBlock = threadPoolsToBlock().stream().map(threadPool::info).mapToInt(ThreadPool.Info::getMax).sum();
-        CyclicBarrier cb = new CyclicBarrier(numThreadsToBlock + 1);
+        Phaser phaser = new Phaser();
         Runnable waitAction = () -> {
-            safeAwait(cb);
-            safeAwait(cb);
+            phaser.arriveAndAwaitAdvance();
+            phaser.arriveAndAwaitAdvance();
         };
-        for (String threadPoolName : threadPoolsToBlock()) {
-            ThreadPool.Info info = threadPool.info(threadPoolName);
-            for (int i = 0; i < info.getMax(); i++) {
-                threadPool.executor(threadPoolName).submit(waitAction);
+        phaser.register(); // register this test's thread
+
+        for (String nodeName : internalCluster().getNodeNames()) {
+            ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
+            for (String threadPoolName : threadPoolsToBlock()) {
+                ThreadPool.Info info = threadPool.info(threadPoolName);
+                phaser.bulkRegister(info.getMax());
+                for (int i = 0; i < info.getMax(); i++) {
+                    threadPool.executor(threadPoolName).submit(waitAction);
+                }
             }
         }
-        safeAwait(cb);
+        phaser.arriveAndAwaitAdvance();
         try {
             runnable.run();
         } finally {
-            safeAwait(cb);
+            phaser.arriveAndAwaitAdvance();
         }
     }
 

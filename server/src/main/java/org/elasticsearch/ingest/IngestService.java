@@ -83,6 +83,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -696,7 +697,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * @param onCompletion A callback executed once all documents have been processed. Accepts the thread
      *                     that ingestion completed on or an exception in the event that the entire operation
      *                     has failed.
-     * @param executorName Which executor the bulk request should be executed on.
+     * @param executor Which executor the bulk request should be executed on.
      */
     public void executeBulkRequest(
         final int numberOfActionRequests,
@@ -706,11 +707,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final TriConsumer<Integer, String, Exception> onStoreFailure,
         final BiConsumer<Integer, Exception> onFailure,
         final BiConsumer<Thread, Exception> onCompletion,
-        final String executorName
+        final Executor executor
     ) {
         assert numberOfActionRequests > 0 : "numberOfActionRequests must be greater than 0 but was [" + numberOfActionRequests + "]";
 
-        threadPool.executor(executorName).execute(new AbstractRunnable() {
+        executor.execute(new AbstractRunnable() {
 
             @Override
             public void onFailure(Exception e) {

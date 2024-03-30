@@ -70,7 +70,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
             actionFilters,
             ResyncReplicationRequest::new,
             ResyncReplicationRequest::new,
-            ExecutorSelector::getWriteExecutorForShard,
+            ExecutorSelector.getWriteExecutorForShard(threadPool),
             true, /* we should never reject resync because of thread pool capacity on primary */
             indexingPressure,
             systemIndices

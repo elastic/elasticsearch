@@ -11,8 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -361,7 +361,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
                 executeAsyncWithOrigin(
                     client,
                     ML_ORIGIN,
-                    CancelTasksAction.INSTANCE,
+                    TransportCancelTasksAction.TYPE,
                     cancelTasksRequest,
                     ActionListener.wrap(cancelTasksResponse -> listener.onResponse(true), e -> {
                         if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {

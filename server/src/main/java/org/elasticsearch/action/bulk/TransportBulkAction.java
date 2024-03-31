@@ -83,6 +83,8 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  */
 public class TransportBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
 
+    public static final String NAME = "indices:data/write/bulk";
+    public static final ActionType<BulkResponse> TYPE = new ActionType<>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportBulkAction.class);
     public static final String LAZY_ROLLOVER_ORIGIN = "lazy_rollover";
 
@@ -141,7 +143,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         LongSupplier relativeTimeProvider
     ) {
         this(
-            BulkAction.INSTANCE,
+            TYPE,
             BulkRequest::new,
             threadPool,
             transportService,

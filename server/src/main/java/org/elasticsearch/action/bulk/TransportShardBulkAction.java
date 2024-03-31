@@ -78,7 +78,7 @@ import static org.elasticsearch.core.Strings.format;
 /** Performs shard-level bulk (index, delete or update) operations */
 public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
 
-    public static final String ACTION_NAME = BulkAction.NAME + "[s]";
+    public static final String ACTION_NAME = TransportBulkAction.NAME + "[s]";
     public static final ActionType<BulkShardResponse> TYPE = new ActionType<>(ACTION_NAME);
 
     private static final Logger logger = LogManager.getLogger(TransportShardBulkAction.class);

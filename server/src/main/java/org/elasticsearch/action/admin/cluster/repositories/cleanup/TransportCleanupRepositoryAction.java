@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.repositories.cleanup;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -59,6 +60,7 @@ import java.util.List;
  */
 public final class TransportCleanupRepositoryAction extends TransportMasterNodeAction<CleanupRepositoryRequest, CleanupRepositoryResponse> {
 
+    public static final ActionType<CleanupRepositoryResponse> TYPE = new ActionType<>("cluster:admin/repository/_cleanup");
     private static final Logger logger = LogManager.getLogger(TransportCleanupRepositoryAction.class);
 
     private final RepositoriesService repositoriesService;
@@ -73,7 +75,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            CleanupRepositoryAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,

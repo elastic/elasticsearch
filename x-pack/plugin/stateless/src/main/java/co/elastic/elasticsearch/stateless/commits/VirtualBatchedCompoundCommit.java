@@ -61,6 +61,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.CURRENT_VERSION;
 import static java.util.stream.Collectors.groupingBy;
 
 /**
@@ -390,15 +391,16 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
         try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
             var positionTrackingOutputStreamStreamOutput = new PositionTrackingOutputStreamStreamOutput(os);
-            StatelessCompoundCommit.writeHeader(
-                positionTrackingOutputStreamStreamOutput,
+            StatelessCompoundCommit.writeXContentHeader(
                 shardId,
                 reference.getGeneration(),
                 reference.getPrimaryTerm(),
                 nodeEphemeralId,
                 reference.getTranslogRecoveryStartFile(),
                 commitFiles,
-                internalFiles
+                internalFiles,
+                CURRENT_VERSION,
+                positionTrackingOutputStreamStreamOutput
             );
             return os.toByteArray();
         }

@@ -19,14 +19,19 @@ package co.elastic.elasticsearch.stateless.commits;
 
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
+import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.store.OutputStreamDataOutput;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.PositionTrackingOutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -121,7 +126,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             PositionTrackingOutputStreamStreamOutput positionTracking = new PositionTrackingOutputStreamStreamOutput(output);
-            StatelessCompoundCommit.writeHeader(
+            writeBwcHeader(
                 positionTracking,
                 testInstance.shardId(),
                 testInstance.generation(),
@@ -152,14 +157,53 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
         }
     }
 
+    // This method is moved from StatelessCompoundCommit since the production code only needs to write commit blobs with current version
+    private static long writeBwcHeader(
+        PositionTrackingOutputStreamStreamOutput positionTracking,
+        ShardId shardId,
+        long generation,
+        long primaryTerm,
+        String nodeEphemeralId,
+        long translogRecoveryStartFile,
+        Map<String, BlobLocation> referencedBlobFiles,
+        List<StatelessCompoundCommit.InternalFile> internalFiles,
+        int version
+    ) throws IOException {
+        assert version < StatelessCompoundCommit.VERSION_WITH_XCONTENT_ENCODING;
+        BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(positionTracking);
+        CodecUtil.writeHeader(new OutputStreamDataOutput(out), StatelessCompoundCommit.SHARD_COMMIT_CODEC, version);
+        TransportVersion.writeVersion(TransportVersion.current(), out);
+        out.writeWriteable(shardId);
+        out.writeVLong(generation);
+        out.writeVLong(primaryTerm);
+        out.writeString(nodeEphemeralId);
+        out.writeMap(referencedBlobFiles, StreamOutput::writeString, (so, v) -> {
+            final boolean includeBlobLength = version >= StatelessCompoundCommit.VERSION_WITH_BLOB_LENGTH;
+            so.writeVLong(v.primaryTerm());
+            so.writeString(v.blobName());
+            if (includeBlobLength) {
+                so.writeVLong(v.offset() + v.fileLength());
+            }
+            so.writeVLong(v.offset());
+            so.writeVLong(v.fileLength());
+        });
+        out.writeCollection(internalFiles);
+        out.flush();
+        // Add 8 bytes for the header size field and 4 bytes for the checksum
+        var headerSize = positionTracking.position() + 8 + 4;
+        out.writeLong(headerSize);
+        out.writeInt((int) out.getChecksum());
+        out.flush();
+        return headerSize;
+    }
+
     public void testStoreCorruption() throws Exception {
         StatelessCompoundCommit testInstance = createTestInstance();
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             Map<String, BlobLocation> commitFiles = testInstance.commitFiles();
 
-            StatelessCompoundCommit.writeHeader(
-                new PositionTrackingOutputStreamStreamOutput(output),
+            StatelessCompoundCommit.writeXContentHeader(
                 testInstance.shardId(),
                 testInstance.generation(),
                 testInstance.primaryTerm(),
@@ -167,7 +211,8 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                 0,
                 commitFiles,
                 List.of(),
-                StatelessCompoundCommit.CURRENT_VERSION
+                StatelessCompoundCommit.CURRENT_VERSION,
+                new PositionTrackingOutputStreamStreamOutput(output)
             );
             // flip one byte anywhere
             byte[] bytes = BytesReference.toBytes(output.bytes());

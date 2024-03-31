@@ -537,7 +537,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                     logLatestCommit(latestCommit, blobContainer);
                     StatelessCompoundCommit finalLatestCommit = latestCommit;
                     allBlobs.forEach((key, value) -> {
-                        var blobFile = new BlobFile(blobContainerPrimaryTerm, key, value.length());
+                        var blobFile = new BlobFile(blobContainerPrimaryTerm, key);
                         if (startsWithBlobPrefix(blobFile.blobName()) == false
                             || blobFile.primaryTerm() != finalLatestCommit.primaryTerm()
                             || parseGenerationFromBlobName(blobFile.blobName()) != finalLatestCommit.generation()) {
@@ -546,7 +546,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                     });
                 }
             } else {
-                allBlobs.forEach((key, value) -> unreferencedBlobs.add(new BlobFile(blobContainerPrimaryTerm, key, value.length())));
+                allBlobs.forEach((key, value) -> unreferencedBlobs.add(new BlobFile(blobContainerPrimaryTerm, key)));
             }
         }
         final var finalUnreferencedBlobs = Set.copyOf(unreferencedBlobs);

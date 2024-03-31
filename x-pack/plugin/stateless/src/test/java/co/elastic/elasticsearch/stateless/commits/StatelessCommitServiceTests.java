@@ -1140,7 +1140,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             StatelessCompoundCommit recoveredCommit = new StatelessCompoundCommit(shardId, 1, 2, "xx", Map.of(), 10);
             int count = rarely() ? 50000 : 10000;
             var unreferencedFiles = IntStream.range(1, count)
-                .mapToObj(i -> new BlobFile(1, StatelessCompoundCommit.blobNameFromGeneration(i), 100))
+                .mapToObj(i -> new BlobFile(1, StatelessCompoundCommit.blobNameFromGeneration(i)))
                 .collect(Collectors.toSet());
             testHarness.commitService.markRecoveredCommit(testHarness.shardId, recoveredCommit, unreferencedFiles);
         }

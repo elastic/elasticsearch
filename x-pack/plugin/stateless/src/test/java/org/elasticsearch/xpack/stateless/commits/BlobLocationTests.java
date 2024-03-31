@@ -17,11 +17,15 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+
+import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.BLOB_LOCATION_WITHOUT_BLOB_LENGTH;
 
 public class BlobLocationTests extends AbstractXContentSerializingTestCase<BlobLocation> {
 
@@ -41,7 +45,7 @@ public class BlobLocationTests extends AbstractXContentSerializingTestCase<BlobL
 
     @Override
     protected BlobLocation mutateInstance(BlobLocation instance) throws IOException {
-        return switch (randomIntBetween(0, 4)) {
+        return switch (randomIntBetween(0, 3)) {
             case 0 -> new BlobLocation(
                 randomValueOtherThan(instance.primaryTerm(), () -> randomLongBetween(1, 10)),
                 instance.blobName(),
@@ -56,20 +60,13 @@ public class BlobLocationTests extends AbstractXContentSerializingTestCase<BlobL
                 instance.offset(),
                 instance.fileLength()
             );
-            case 2 -> new BlobLocation(
-                instance.primaryTerm(),
-                instance.blobName(),
-                randomLongBetween(instance.blobLength(), Long.MAX_VALUE),
-                instance.offset(),
-                instance.fileLength()
-            );
-            case 3 -> blobLocation(
+            case 2 -> blobLocation(
                 instance.primaryTerm(),
                 instance.blobName(),
                 randomValueOtherThan(instance.offset(), () -> randomLongBetween(0, 100)),
                 instance.fileLength()
             );
-            case 4 -> blobLocation(
+            case 3 -> blobLocation(
                 instance.primaryTerm(),
                 instance.blobName(),
                 instance.offset(),
@@ -82,5 +79,11 @@ public class BlobLocationTests extends AbstractXContentSerializingTestCase<BlobL
     @Override
     protected BlobLocation doParseInstance(XContentParser parser) throws IOException {
         return BlobLocation.fromXContent(parser);
+    }
+
+    public void testWireSerializationBwc() throws IOException {
+        final TransportVersion previousVersion = TransportVersionUtils.getPreviousVersion(BLOB_LOCATION_WITHOUT_BLOB_LENGTH);
+        final BlobLocation blobLocation = createTestInstance();
+        assertSerialization(blobLocation, previousVersion); // this exercises the equalTo and hashCode logic for excluding blobLength
     }
 }

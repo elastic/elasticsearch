@@ -173,33 +173,6 @@ public record StatelessCompoundCommit(
             .collect(Collectors.toUnmodifiableSet());
     }
 
-    /**
-     * Writes the StatelessCompoundCommit header to the given StreamOutput and returns the number of bytes written
-     * @return the header size in bytes
-     */
-    static long writeHeader(
-        PositionTrackingOutputStreamStreamOutput positionTracking,
-        ShardId shardId,
-        long generation,
-        long primaryTerm,
-        String nodeEphemeralId,
-        long translogRecoveryStartFile,
-        Map<String, BlobLocation> referencedBlobFiles,
-        List<InternalFile> internalFiles
-    ) throws IOException {
-        return writeHeader(
-            positionTracking,
-            shardId,
-            generation,
-            primaryTerm,
-            nodeEphemeralId,
-            translogRecoveryStartFile,
-            referencedBlobFiles,
-            internalFiles,
-            CURRENT_VERSION
-        );
-    }
-
     static long writeInternalFilesToStore(OutputStream outputStream, List<InternalFile> internalFiles, Directory directory)
         throws IOException {
         long writtenBytes = 0L;
@@ -211,55 +184,12 @@ public record StatelessCompoundCommit(
         return writtenBytes;
     }
 
+    /**
+     * Writes the StatelessCompoundCommit header to the given StreamOutput and returns the number of bytes written
+     * @return the header size in bytes
+     */
     // visible for testing
-    static long writeHeader(
-        PositionTrackingOutputStreamStreamOutput positionTracking,
-        ShardId shardId,
-        long generation,
-        long primaryTerm,
-        String nodeEphemeralId,
-        long translogRecoveryStartFile,
-        Map<String, BlobLocation> referencedBlobFiles,
-        List<InternalFile> internalFiles,
-        int version
-    ) throws IOException {
-        if (version < VERSION_WITH_XCONTENT_ENCODING) {
-            BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(positionTracking);
-            CodecUtil.writeHeader(new OutputStreamDataOutput(out), SHARD_COMMIT_CODEC, version);
-            TransportVersion.writeVersion(TransportVersion.current(), out);
-            out.writeWriteable(shardId);
-            out.writeVLong(generation);
-            out.writeVLong(primaryTerm);
-            out.writeString(nodeEphemeralId);
-            out.writeMap(
-                referencedBlobFiles,
-                StreamOutput::writeString,
-                (so, v) -> v.writeToStore(so, version >= VERSION_WITH_BLOB_LENGTH)
-            );
-            out.writeCollection(internalFiles);
-            out.flush();
-            // Add 8 bytes for the header size field and 4 bytes for the checksum
-            var headerSize = positionTracking.position() + 8 + 4;
-            out.writeLong(headerSize);
-            out.writeInt((int) out.getChecksum());
-            out.flush();
-            return headerSize;
-        } else {
-            return writeXContentHeader(
-                shardId,
-                generation,
-                primaryTerm,
-                nodeEphemeralId,
-                translogRecoveryStartFile,
-                referencedBlobFiles,
-                internalFiles,
-                version,
-                positionTracking
-            );
-        }
-    }
-
-    private static long writeXContentHeader(
+    static long writeXContentHeader(
         ShardId shardId,
         long generation,
         long primaryTerm,
@@ -270,6 +200,8 @@ public record StatelessCompoundCommit(
         int version,
         PositionTrackingOutputStreamStreamOutput positionTracking
     ) throws IOException {
+        assert version == CURRENT_VERSION
+            : "writing to object store must use the current version [" + CURRENT_VERSION + "], got [" + version + "]";
         BufferedChecksumStreamOutput out = new BufferedChecksumStreamOutput(positionTracking);
         CodecUtil.writeHeader(new OutputStreamDataOutput(out), SHARD_COMMIT_CODEC, version);
         long codecSize = positionTracking.position();
@@ -318,7 +250,7 @@ public record StatelessCompoundCommit(
         return headerSize;
     }
 
-    private static final String SHARD_COMMIT_CODEC = "stateless_commit";
+    static final String SHARD_COMMIT_CODEC = "stateless_commit";
     static final int VERSION_WITH_COMMIT_FILES = 0;
     static final int VERSION_WITH_BLOB_LENGTH = 1;
     static final int VERSION_WITH_XCONTENT_ENCODING = 2;

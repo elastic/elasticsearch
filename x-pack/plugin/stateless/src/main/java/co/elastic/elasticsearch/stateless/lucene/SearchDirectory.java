@@ -325,7 +325,7 @@ public class SearchDirectory extends ByteSizeDirectory {
             cacheService.getCacheFile(
                 new FileCacheKey(shardId, location.primaryTerm(), location.blobName()),
                 // this length is only used to assert that the cache file does not try to read data beyond the file boundary within the blob
-                // since we overload computeCacheFileRegionSize in StatelessSharedBlobCacheService to to fully utilize each region
+                // since we overload computeCacheFileRegionSize in StatelessSharedBlobCacheService to fully utilize each region
                 location.offset() + location.fileLength()
             ),
             context,
@@ -414,6 +414,7 @@ public class SearchDirectory extends ByteSizeDirectory {
     }
 
     public void downloadCommit(StatelessCompoundCommit commit, ActionListener<Void> listener) {
+        assert false : "this method requires fixes, see https://elasticco.atlassian.net/browse/ES-8140";
         try (RefCountingListener refCountingListener = new RefCountingListener(listener)) {
             final String latestCompoundCommitLocation = StatelessCompoundCommit.blobNameFromGeneration(commit.generation());
             commit.commitFiles().forEach((file, blobLocation) -> {
@@ -422,7 +423,7 @@ public class SearchDirectory extends ByteSizeDirectory {
                     return;
                 }
                 FileCacheKey key = new FileCacheKey(shardId, blobLocation.primaryTerm(), blobLocation.blobName());
-                final var blobLength = blobLocation.blobLength();
+                final var blobLength = Long.MIN_VALUE;
                 final var container = blobContainer.get().apply(blobLocation.primaryTerm());
                 cacheService.maybeFetchFullEntry(key, blobLength, (channel, channelPos, relativePos, length, progressUpdater) -> {
                     final ByteRange rangeToWrite = BlobCacheUtils.computeRange(

@@ -17,10 +17,10 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
-public record BlobFile(long primaryTerm, String blobName, long blobLength) {
+public record BlobFile(long primaryTerm, String blobName) {
 
     @Override
     public String toString() {
-        return "BlobFile{" + "primaryTerm=" + primaryTerm + ", blobName='" + blobName + '\'' + ", blobLength=" + blobLength + '}';
+        return "BlobFile{" + "primaryTerm=" + primaryTerm + ", blobName='" + blobName + '\'' + '}';
     }
 }

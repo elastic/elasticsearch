@@ -261,7 +261,9 @@ public class SharedBlobCacheWarmingService {
                     cacheService.maybeFetchRegion(
                         new FileCacheKey(indexShard.shardId(), blobFile.primaryTerm(), blobFile.blobName()),
                         blobRegion,
-                        blobFile.blobLength(),
+                        // this length is not used since we overload computeCacheFileRegionSize in StatelessSharedBlobCacheService to
+                        // fully utilize each region. So we just pass it with a value that cover the current region.
+                        (long) (blobRegion + 1) * cacheService.getRegionSize(),
                         (channel, channelPos, relativePos, length, progressUpdater) -> {
                             long position = (long) blobRegion * cacheService.getRegionSize() + relativePos;
                             var blobContainer = unwrapDirectory(indexShard.store().directory()).getBlobContainer(blobFile.primaryTerm());

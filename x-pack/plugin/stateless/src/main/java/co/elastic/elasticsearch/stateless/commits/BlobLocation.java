@@ -27,25 +27,28 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
+import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.BLOB_LOCATION_WITHOUT_BLOB_LENGTH;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * References a location where a file is written on the blob store.
  *
  * @param blobFile the blob file in which this location points
+ * @param blobLength the length of the blob file TODO: to be removed
  * @param offset the offset inside the blob file where the file is written
  * @param fileLength the length of the file
  */
-public record BlobLocation(BlobFile blobFile, long offset, long fileLength) implements Writeable, ToXContentObject {
+public record BlobLocation(BlobFile blobFile, long blobLength, long offset, long fileLength) implements Writeable, ToXContentObject {
 
     public BlobLocation {
-        assert blobFile.blobLength() == Long.MIN_VALUE || offset + fileLength <= blobFile.blobLength()
+        assert blobLength == Long.MIN_VALUE || offset + fileLength <= blobLength
             : "(offset + file) length is greater than blobLength " + this;
     }
 
     public BlobLocation(long primaryTerm, String blobName, long blobLength, long offset, long fileLength) {
-        this(new BlobFile(primaryTerm, blobName, blobLength), offset, fileLength);
+        this(new BlobFile(primaryTerm, blobName), blobLength, offset, fileLength);
     }
 
     public long primaryTerm() {
@@ -54,10 +57,6 @@ public record BlobLocation(BlobFile blobFile, long offset, long fileLength) impl
 
     public String blobName() {
         return blobFile.blobName();
-    }
-
-    public long blobLength() {
-        return blobFile.blobLength();
     }
 
     /**
@@ -73,11 +72,14 @@ public record BlobLocation(BlobFile blobFile, long offset, long fileLength) impl
         } else {
             return readWithoutBlobLength(streamInput);
         }
-
     }
 
     public static BlobLocation readFromTransport(StreamInput streamInput) throws IOException {
-        return readWithBlobLength(streamInput);
+        if (streamInput.getTransportVersion().before(BLOB_LOCATION_WITHOUT_BLOB_LENGTH)) {
+            return readWithBlobLength(streamInput);
+        } else {
+            return readWithoutBlobLength(streamInput);
+        }
     }
 
     private static BlobLocation readWithBlobLength(StreamInput streamInput) throws IOException {
@@ -95,35 +97,18 @@ public record BlobLocation(BlobFile blobFile, long offset, long fileLength) impl
         String blobName = streamInput.readString();
         long offset = streamInput.readVLong();
         long length = streamInput.readVLong();
-        long blobLength;
-        if (StatelessCompoundCommit.startsWithBlobPrefix(blobName)) {
-            // Only the one segments file was stored in versions prior to the blobLength being added
-            blobLength = offset + length;
-        } else {
-            // Non-segments files were not stored in combined blobs prior to the blobLength being added
-            assert offset == 0;
-            blobLength = length;
-        }
+        long blobLength = Long.MIN_VALUE;
         return new BlobLocation(primaryTerm, blobName, blobLength, offset, length);
-    }
-
-    public void writeToStore(StreamOutput out, boolean includeBlobLength) throws IOException {
-        out.writeVLong(primaryTerm());
-        out.writeString(blobName());
-        if (includeBlobLength) {
-            out.writeVLong(blobLength());
-        } else {
-            assert blobLength() == fileLength;
-        }
-        out.writeVLong(offset);
-        out.writeVLong(fileLength);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(primaryTerm());
         out.writeString(blobName());
-        out.writeVLong(blobLength());
+        if (out.getTransportVersion().before(BLOB_LOCATION_WITHOUT_BLOB_LENGTH)) {
+            assert blobLength != Long.MIN_VALUE : "target node needs blobLength but this node does not have one";
+            out.writeVLong(blobLength);
+        }
         out.writeVLong(offset);
         out.writeVLong(fileLength);
     }
@@ -133,7 +118,8 @@ public record BlobLocation(BlobFile blobFile, long offset, long fileLength) impl
         return builder.startObject()
             .field("primary_term", primaryTerm())
             .field("blob_name", blobName())
-            .field("blob_length", blobLength())
+            // TODO: Remove writing blobLength to object store. Need it for now since an old node may read the commit
+            .field("blob_length", blobLength)
             .field("offset", offset)
             .field("file_length", fileLength)
             .endObject();
@@ -145,6 +131,7 @@ public record BlobLocation(BlobFile blobFile, long offset, long fileLength) impl
         args -> {
             long primaryTerm = (long) args[0];
             String blobName = (String) args[1];
+            // TODO: Remove parsing blobLength from object store. Need it for now since it can be resent as new notification to an old node
             long blobLength = (long) args[2];
             long offset = (long) args[3];
             long fileLength = (long) args[4];
@@ -163,6 +150,21 @@ public record BlobLocation(BlobFile blobFile, long offset, long fileLength) impl
         return PARSER.parse(parser, null);
     }
 
+    // TODO: Remove the overridden equals method once blobLength is removed from the class
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        BlobLocation that = (BlobLocation) o;
+        return offset == that.offset && fileLength == that.fileLength && Objects.equals(blobFile, that.blobFile);
+    }
+
+    // TODO: Remove the overridden hashCode method once blobLength is removed from the class
+    @Override
+    public int hashCode() {
+        return Objects.hash(blobFile, offset, fileLength);
+    }
+
     @Override
     public String toString() {
         return "BlobLocation{"
@@ -170,8 +172,6 @@ public record BlobLocation(BlobFile blobFile, long offset, long fileLength) impl
             + primaryTerm()
             + ", blobName='"
             + blobName()
-            + "', blobLength="
-            + blobLength()
             + ", offset="
             + offset
             + ", fileLength="

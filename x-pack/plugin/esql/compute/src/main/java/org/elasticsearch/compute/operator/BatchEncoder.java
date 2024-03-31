@@ -563,6 +563,9 @@ public abstract class BatchEncoder implements Accountable {
         }
     }
 
+    // Use big endian for the length of BytesRef for faster comparison
+    private static final VarHandle BIG_ENDIAN_INT_HANDLE = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
+
     protected abstract static class BytesRefs extends MVEncoder {
         protected BytesRefs(int batchSize) {
             super(batchSize);
@@ -592,7 +595,7 @@ public abstract class BatchEncoder implements Accountable {
          */
         protected final void encode(BytesRef v) {
             addingValue();
-            intHandle.set(bytes.bytes(), bytes.length(), v.length);
+            BIG_ENDIAN_INT_HANDLE.set(bytes.bytes(), bytes.length(), v.length);
             bytes.setLength(bytes.length() + Integer.BYTES);
             bytes.append(v);
         }
@@ -610,7 +613,7 @@ public abstract class BatchEncoder implements Accountable {
             var v = ((BytesRefBlock) block).getBytesRef(valueIndex, scratch);
             int start = dst.length();
             dst.grow(start + Integer.BYTES + v.length);
-            intHandle.set(dst.bytes(), start, v.length);
+            BIG_ENDIAN_INT_HANDLE.set(dst.bytes(), start, v.length);
             dst.setLength(start + Integer.BYTES);
             dst.append(v);
             return Integer.BYTES + v.length;
@@ -618,9 +621,10 @@ public abstract class BatchEncoder implements Accountable {
     }
 
     private static class BytesRefsDecoder implements Decoder {
+        private final BytesRef scratch = new BytesRef();
+
         @Override
         public void decode(Block.Builder builder, IsNull isNull, BytesRef[] encoded, int count) {
-            BytesRef scratch = new BytesRef();
             BytesRefBlock.Builder b = (BytesRefBlock.Builder) builder;
             for (int i = 0; i < count; i++) {
                 if (isNull.isNull(i)) {
@@ -628,7 +632,7 @@ public abstract class BatchEncoder implements Accountable {
                 } else {
                     BytesRef e = encoded[i];
                     scratch.bytes = e.bytes;
-                    scratch.length = (int) intHandle.get(e.bytes, e.offset);
+                    scratch.length = (int) BIG_ENDIAN_INT_HANDLE.get(e.bytes, e.offset);
                     e.offset += Integer.BYTES;
                     e.length -= Integer.BYTES;
                     scratch.offset = e.offset;

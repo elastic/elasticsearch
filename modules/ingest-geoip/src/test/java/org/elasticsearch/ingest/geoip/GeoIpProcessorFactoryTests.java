@@ -22,7 +22,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.ingest.geoip.GeoIpProcessor.Property;
+import org.elasticsearch.ingest.geoip.Database.Property;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
@@ -100,7 +100,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
         assertThat(processor.getDatabaseType(), equalTo("GeoLite2-City"));
-        assertThat(processor.getProperties(), sameInstance(GeoIpProcessor.Factory.DEFAULT_CITY_PROPERTIES));
+        assertThat(processor.getProperties(), sameInstance(Database.City.defaultProperties()));
         assertFalse(processor.isIgnoreMissing());
     }
 
@@ -117,7 +117,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
         assertThat(processor.getDatabaseType(), equalTo("GeoLite2-City"));
-        assertThat(processor.getProperties(), sameInstance(GeoIpProcessor.Factory.DEFAULT_CITY_PROPERTIES));
+        assertThat(processor.getProperties(), sameInstance(Database.City.defaultProperties()));
         assertTrue(processor.isIgnoreMissing());
     }
 
@@ -135,7 +135,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
         assertThat(processor.getDatabaseType(), equalTo("GeoLite2-Country"));
-        assertThat(processor.getProperties(), sameInstance(GeoIpProcessor.Factory.DEFAULT_COUNTRY_PROPERTIES));
+        assertThat(processor.getProperties(), sameInstance(Database.Country.defaultProperties()));
         assertFalse(processor.isIgnoreMissing());
     }
 
@@ -153,7 +153,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
         assertThat(processor.getDatabaseType(), equalTo("GeoLite2-ASN"));
-        assertThat(processor.getProperties(), sameInstance(GeoIpProcessor.Factory.DEFAULT_ASN_PROPERTIES));
+        assertThat(processor.getProperties(), sameInstance(Database.Asn.defaultProperties()));
         assertFalse(processor.isIgnoreMissing());
     }
 
@@ -177,7 +177,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
         assertThat(processor.getDatabaseType(), equalTo("GeoLite2-Country"));
-        assertThat(processor.getProperties(), sameInstance(GeoIpProcessor.Factory.DEFAULT_COUNTRY_PROPERTIES));
+        assertThat(processor.getProperties(), sameInstance(Database.Country.defaultProperties()));
         assertFalse(processor.isIgnoreMissing());
     }
 
@@ -186,7 +186,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("database_file", "GeoLite2-Country.mmdb");
-        Set<Property> asnOnlyProperties = new HashSet<>(Property.ALL_ASN_PROPERTIES);
+        Set<Property> asnOnlyProperties = new HashSet<>(Database.Asn.properties());
         asnOnlyProperties.remove(Property.IP);
         String asnProperty = RandomPicks.randomFrom(Randomness.get(), asnOnlyProperties).toString();
         config.put("properties", List.of(asnProperty));
@@ -206,7 +206,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("database_file", "GeoLite2-ASN.mmdb");
-        Set<Property> cityOnlyProperties = new HashSet<>(Property.ALL_CITY_PROPERTIES);
+        Set<Property> cityOnlyProperties = new HashSet<>(Database.City.properties());
         cityOnlyProperties.remove(Property.IP);
         String cityProperty = RandomPicks.randomFrom(Randomness.get(), cityOnlyProperties).toString();
         config.put("properties", List.of(cityProperty));
@@ -251,7 +251,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
         int counter = 0;
         int numFields = scaledRandomIntBetween(1, Property.values().length);
-        for (Property property : Property.ALL_CITY_PROPERTIES) {
+        for (Property property : Database.City.properties()) {
             properties.add(property);
             fieldNames.add(property.name().toLowerCase(Locale.ROOT));
             if (++counter >= numFields) {

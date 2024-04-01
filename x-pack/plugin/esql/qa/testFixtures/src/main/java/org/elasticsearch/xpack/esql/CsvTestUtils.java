@@ -359,7 +359,7 @@ public final class CsvTestUtils {
                     }
 
                     value = value.trim();
-                    if (value.trim().equalsIgnoreCase(NULL_VALUE)) {
+                    if (value.equalsIgnoreCase(NULL_VALUE)) {
                         rowValues.add(null);
                         continue;
                     }

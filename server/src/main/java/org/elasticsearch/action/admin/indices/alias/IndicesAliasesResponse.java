@@ -8,12 +8,14 @@
 
 package org.elasticsearch.action.admin.indices.alias;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -50,7 +52,7 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
     }
 
     public static IndicesAliasesResponse build(final List<AliasActionResult> actionResults) {
-        final boolean errors = actionResults.stream().anyMatch(a -> a.success == false);
+        final boolean errors = actionResults.stream().anyMatch(a -> a.error != null);
         return new IndicesAliasesResponse(true, errors, actionResults);
     }
 
@@ -73,10 +75,9 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
     }
 
     public static class AliasActionResult implements Writeable, ToXContentObject {
-        private static final String ALIAS_MISSING_ERROR = "aliases_not_found_exception";
+
         private final AliasActions action;
-        private final boolean success;
-        private final String error;
+        private final ElasticsearchException error;
 
         public static AliasActionResult build(AliasActions action, int numAliasesRemoved) {
             if (action.actionType() == AliasActions.Type.REMOVE && numAliasesRemoved == 0) {
@@ -86,38 +87,38 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
         }
 
         private static AliasActionResult buildRemoveError(AliasActions action) {
-            return new AliasActionResult(action, false, ALIAS_MISSING_ERROR);
+            return new AliasActionResult(action, new AliasesNotFoundException((action.getOriginalAliases())));
         }
 
         public static AliasActionResult buildSuccess(AliasActions action) {
-            return new AliasActionResult(action, true, null);
+            return new AliasActionResult(action, null);
         }
 
-        private AliasActionResult(AliasActions action, boolean success, String error) {
-            assert error != null ^ success : "AliasActionResult should contain error message if and only if action not successful";
+        private int getStatus() {
+            return error == null ? 200 : error.status().getStatus();
+        }
+
+        private AliasActionResult(AliasActions action, ElasticsearchException error) {
             this.action = action;
-            this.success = success;
             this.error = error;
         }
 
         private AliasActionResult(StreamInput in) throws IOException {
             this.action = new AliasActions(in);
-            this.success = in.readBoolean();
-            this.error = in.readOptionalString();
+            this.error = in.readException();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             action.writeTo(out);
-            out.writeBoolean(success);
-            out.writeOptionalString(error);
+            out.writeException(error);
         }
 
         public static final String ACTION_FIELD = "action";
         public static final String ACTION_TYPE_FIELD = "type";
         public static final String ACTION_INDICES_FIELD = "indices";
         public static final String ACTION_ALIASES_FIELD = "aliases";
-        public static final String SUCCESS_FIELD = "success";
+        public static final String STATUS_FIELD = "status";
         public static final String ERROR_FIELD = "error";
 
         @Override
@@ -132,9 +133,12 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
             builder.array(ACTION_ALIASES_FIELD, action.getOriginalAliases());
             builder.endObject();
 
-            builder.field(SUCCESS_FIELD, success);
+            builder.field(STATUS_FIELD, getStatus());
+
             if (error != null) {
-                builder.field(ERROR_FIELD, error);
+                builder.startObject(ERROR_FIELD);
+                error.toXContent(builder, params);
+                builder.endObject();
             }
             builder.endObject();
             return builder;

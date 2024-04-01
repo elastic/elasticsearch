@@ -73,6 +73,12 @@ public class CohereRankedResponseEntityTests extends ESSingleNodeTestCase {
         MatcherAssert.assertThat(((RankedDocsResults) parsedResults).getRankedDocs(), is(rankedDocs));
     }
 
+    private final List<RankedDocsResults.RankedDoc> responseLiteralDocs = List.of(
+        new RankedDocsResults.RankedDoc("2", "0.98005307", null),
+        new RankedDocsResults.RankedDoc("3", "0.27904198", null),
+        new RankedDocsResults.RankedDoc("0", "0.10194652", null)
+    );
+
     private final String responseLiteral = """
         {
             "id": "d0760819-5a73-4d58-b163-3956d3648b62",
@@ -101,10 +107,61 @@ public class CohereRankedResponseEntityTests extends ESSingleNodeTestCase {
         }
         """;
 
-    private final List<RankedDocsResults.RankedDoc> responseLiteralDocs = List.of(
-        new RankedDocsResults.RankedDoc("2", "0.98005307", null),
-        new RankedDocsResults.RankedDoc("3", "0.27904198", null),
-        new RankedDocsResults.RankedDoc("0", "0.10194652", null)
+    public void testResponseLiteralWithDocuments() throws IOException {
+        InferenceServiceResults parsedResults = CohereRankedResponseEntity.fromResponse(
+            mock(Request.class),
+            new HttpResult(mock(HttpResponse.class), responseLiteralWithDocuments.getBytes(StandardCharsets.UTF_8))
+        );
+
+        MatcherAssert.assertThat(parsedResults, instanceOf(RankedDocsResults.class));
+        MatcherAssert.assertThat(((RankedDocsResults) parsedResults).getRankedDocs(), is(responseLiteralDocsWithText));
+    }
+
+    private final String responseLiteralWithDocuments = """
+        {
+            "id": "44873262-1315-4c06-8433-fdc90c9790d0",
+            "results": [
+                {
+                    "document": {
+                        "text": "Washington, D.C.."
+                    },
+                    "index": 2,
+                    "relevance_score": 0.98005307
+                },
+                {
+                    "document": {
+                        "text": "Capital punishment has existed in the United States since beforethe United States was a country. "
+                    },
+                    "index": 3,
+                    "relevance_score": 0.27904198
+                },
+                {
+                    "document": {
+                        "text": "Carson City is the capital city of the American state of Nevada."
+                    },
+                    "index": 0,
+                    "relevance_score": 0.10194652
+                }
+            ],
+            "meta": {
+                "api_version": {
+                    "version": "1"
+                },
+                "billed_units": {
+                    "search_units": 1
+                }
+            }
+        }
+        """;
+
+    private final List<RankedDocsResults.RankedDoc> responseLiteralDocsWithText = List.of(
+        new RankedDocsResults.RankedDoc("2", "0.98005307", "Washington, D.C.."),
+        new RankedDocsResults.RankedDoc(
+            "3",
+            "0.27904198",
+            "Capital punishment has existed in the United States since beforethe United States was a country. "
+        ),
+        new RankedDocsResults.RankedDoc("0", "0.10194652", "Carson City is the capital city of the American state of Nevada.")
     );
 
     private ArrayList<Integer> linear(int n) {

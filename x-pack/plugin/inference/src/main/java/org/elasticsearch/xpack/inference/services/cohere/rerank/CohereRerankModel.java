@@ -21,9 +21,9 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import java.util.Map;
 
 public class CohereRerankModel extends CohereModel {
-    public static CohereRerankModel of(CohereRerankModel model, Map<String, Object> taskSettings, Boolean doReturnDocuments) {
+    public static CohereRerankModel of(CohereRerankModel model, Map<String, Object> taskSettings) {
         var requestTaskSettings = CohereRerankTaskSettings.fromMap(taskSettings);
-        return new CohereRerankModel(model, CohereRerankTaskSettings.of(model.getTaskSettings(), requestTaskSettings, doReturnDocuments));
+        return new CohereRerankModel(model, CohereRerankTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
     }
 
     public CohereRerankModel(
@@ -89,6 +89,6 @@ public class CohereRerankModel extends CohereModel {
      */
     @Override
     public ExecutableAction accept(CohereActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
-        return visitor.create(this, taskSettings, false);
+        return visitor.create(this, taskSettings);
     }
 }

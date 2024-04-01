@@ -29,10 +29,62 @@ public class RerankingIT extends InferenceBaseRestTest {
               "service": "cohere",
               "service_settings": {
                 "model_id": "rerank-english-v2.0",
-                "api_key": "8TNPBvpBO7oN97009HQHzQbBhNrxmREbcJrZCwkK" // TODO remove key
+                "api_key": "8TNPBvpBO7oN97009HQHzQbBhNrxmREbcJrZCwkK"
               }
             }
-            """);
+            """);// TODO remove key
+        return endpointID;
+    }
+
+    public void testPutCohereRerankEndpointWithDocuments() throws IOException {
+        String endpoint = putCohereRerankEndpointWithDocuments();
+        postCohereRerankEndpoint(
+            endpoint,
+            "what is elasticsearch for?",
+            new String[] { "for search", "for security", "for logs", "for email", "for rubber bands", "for kiwis" }
+        );
+    }
+
+    private String putCohereRerankEndpointWithDocuments() throws IOException {
+        String endpointID = randomAlphaOfLength(10).toLowerCase();
+        putRequest("/_inference/rerank/" + endpointID, """
+            {
+              "service": "cohere",
+              "service_settings": {
+                "model_id": "rerank-english-v2.0",
+                "api_key": "8TNPBvpBO7oN97009HQHzQbBhNrxmREbcJrZCwkK"
+              },
+              "task_settings": {
+                "return_documents": true
+              }
+            }
+            """);// TODO remove key
+        return endpointID;
+    }
+
+    public void testPutCohereRerankEndpointWithTop2() throws IOException {
+        String endpoint = putCohereRerankEndpointWithTop2();
+        postCohereRerankEndpoint(
+            endpoint,
+            "what is elasticsearch for?",
+            new String[] { "for search", "for security", "for logs", "for email", "for rubber bands", "for kiwis" }
+        );
+    }
+
+    private String putCohereRerankEndpointWithTop2() throws IOException {
+        String endpointID = randomAlphaOfLength(10).toLowerCase();
+        putRequest("/_inference/rerank/" + endpointID, """
+            {
+              "service": "cohere",
+              "service_settings": {
+                "model_id": "rerank-english-v2.0",
+                "api_key": "8TNPBvpBO7oN97009HQHzQbBhNrxmREbcJrZCwkK"
+              },
+              "task_settings": {
+                "top_n": 2
+              }
+            }
+            """);// TODO remove key
         return endpointID;
     }
 

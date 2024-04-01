@@ -121,6 +121,10 @@ public class ServiceUtils {
         return Strings.format("[%s] Invalid value empty string. [%s] must be a non-empty string", scope, settingName);
     }
 
+    public static String mustBeNonNonNull(String settingName, String scope) {
+        return Strings.format("[%s] Invalid value empty string. [%s] must be non-null", scope, settingName);
+    }
+
     public static String invalidValue(String settingName, String scope, String invalidType, String[] requiredValues) {
         var copyOfRequiredValues = requiredValues.clone();
         Arrays.sort(copyOfRequiredValues);
@@ -235,6 +239,25 @@ public class ServiceUtils {
         return optionalField;
     }
 
+    public static Integer extractOptionalPositiveInteger(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        Integer optionalField = ServiceUtils.removeAsType(map, settingName, Integer.class);
+
+        if (optionalField != null && optionalField <= 0) {
+            validationException.addValidationError(ServiceUtils.mustBeAPositiveNumberErrorMessage(settingName, optionalField));
+        }
+
+        if (validationException.validationErrors().isEmpty() == false) {
+            return null;
+        }
+
+        return optionalField;
+    }
+
     public static <E extends Enum<E>> E extractOptionalEnum(
         Map<String, Object> map,
         String settingName,
@@ -268,21 +291,13 @@ public class ServiceUtils {
         String scope,
         ValidationException validationException
     ) {
-        String booleanString = extractOptionalString(map, settingName, scope, validationException);
-        if (booleanString == null) {
+        Boolean optionalField = ServiceUtils.removeAsType(map, settingName, Boolean.class);
+
+        if (validationException.validationErrors().isEmpty() == false) {
             return null;
         }
 
-        if (booleanString.equalsIgnoreCase(Boolean.TRUE.toString())) {
-            return true;
-        } else if (booleanString.equalsIgnoreCase(Boolean.FALSE.toString())) {
-            return false;
-        } else {
-            validationException.addValidationError(
-                invalidValue(settingName, scope, booleanString, new String[] { Boolean.TRUE.toString(), Boolean.FALSE.toString() })
-            );
-            return null;
-        }
+        return optionalField;
     }
 
     private static <E extends Enum<E>> void validateEnumValue(E enumValue, EnumSet<E> validValues) {

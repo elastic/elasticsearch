@@ -46,10 +46,6 @@ public class CohereRerankServiceSettings implements ServiceSettings {
         commonSettings = new CohereServiceSettings(in);
     }
 
-    public CohereServiceSettings getCommonSettings() {
-        return commonSettings;
-    }
-
     @Override
     public String getWriteableName() {
         return NAME;
@@ -91,5 +87,9 @@ public class CohereRerankServiceSettings implements ServiceSettings {
     @Override
     public int hashCode() {
         return Objects.hash(commonSettings);
+    }
+
+    public CohereServiceSettings getCommonSettings() {
+        return commonSettings;
     }
 }

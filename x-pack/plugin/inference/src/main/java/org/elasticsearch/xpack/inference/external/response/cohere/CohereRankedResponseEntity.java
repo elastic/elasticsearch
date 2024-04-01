@@ -55,23 +55,36 @@ public class CohereRankedResponseEntity {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         Integer index = null;
         Float relevanceScore = null;
+        String documentText = null;
+        parser.nextToken();
         while (parser.currentToken() != XContentParser.Token.END_OBJECT) {
-            if (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
+            if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
                 switch (parser.currentName()) {
                     case "index":
-                        parser.nextToken();
+                        parser.nextToken(); // move to VALUE_NUMBER
                         index = parser.intValue();
+                        parser.nextToken(); // move to next FIELD_NAME or END_OBJECT
                         break;
                     case "relevance_score":
-                        parser.nextToken();
+                        parser.nextToken(); // move to VALUE_NUMBER
                         relevanceScore = parser.floatValue();
+                        parser.nextToken(); // move to next FIELD_NAME or END_OBJECT
+                        break;
+                    case "document":
+                        parser.nextToken(); // move to START_OBJECT; document text is wrapped in an object
+                        parser.nextToken(); // move to FIELD_NAME; document text is the only field
+                        parser.nextToken(); // move to VALUE_STRING; document text value
+                        documentText = parser.text();
+                        parser.nextToken();// move to END_OBJECT
+                        parser.nextToken();// move past END_OBJECT
+                        // parser should now be at the next FIELD_NAME or END_OBJECT
                         break;
                     default:
                         XContentParserUtils.throwUnknownField(parser.currentName(), parser);
                 }
             }
         }
-        return new RankedDocsResults.RankedDoc(String.valueOf(index), String.valueOf(relevanceScore), null);
+        return new RankedDocsResults.RankedDoc(String.valueOf(index), String.valueOf(relevanceScore), String.valueOf(documentText));
     }
 
     private CohereRankedResponseEntity() {}

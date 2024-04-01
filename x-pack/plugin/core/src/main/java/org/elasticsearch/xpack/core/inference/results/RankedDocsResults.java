@@ -8,19 +8,27 @@
 package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
-public class RankedDocs implements InferenceServiceResults {
+public class RankedDocsResults implements InferenceServiceResults {
+    public static final String NAME = "rerank_service_results";
+    public static final String RERANK = TaskType.RERANK.toString();
+
     List<RankedDoc> rankedDocs;
 
-    public RankedDocs(List<RankedDoc> rankedDocs) {
+    public RankedDocsResults(List<RankedDoc> rankedDocs) {
         this.rankedDocs = rankedDocs;
     }
 
@@ -30,9 +38,40 @@ public class RankedDocs implements InferenceServiceResults {
      * @param relevanceScore
      * @param text
      */
-    public record RankedDoc(String id, String relevanceScore, String text) {};
+    public record RankedDoc(String id, String relevanceScore, String text) implements Writeable, ToXContentObject {
 
-    public RankedDocs() {
+        public static final String NAME = "ranked_doc";
+        public static final String ID = "id";
+        public static final String RELEVANCE_SCORE = "relevance_score";
+        public static final String TEXT = "text";
+
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+
+            builder.field(ID, id);
+            builder.field(RELEVANCE_SCORE, relevanceScore);
+            if (text() != null) {
+                builder.field(TEXT, text);
+            }
+
+            builder.endObject();
+
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(id);
+            out.writeString(relevanceScore);
+            out.writeString(text);
+        }
+
+        public Map<String, Object> asMap() {
+            return Map.of(NAME, Map.of(ID, id, RELEVANCE_SCORE, relevanceScore, TEXT, text));
+        }
+    };
+
+    public RankedDocsResults() {
         this.rankedDocs = new ArrayList<RankedDoc>(0);
     }
 
@@ -42,32 +81,39 @@ public class RankedDocs implements InferenceServiceResults {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return null;
+        builder.startArray(RERANK);
+        for (RankedDoc rankedDoc : rankedDocs) {
+            rankedDoc.toXContent(builder, params);
+        }
+        builder.endArray();
+        return builder;
     }
 
     @Override
     public String getWriteableName() {
-        return null;
+        return NAME;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-
+        out.writeCollection(rankedDocs);
     }
 
     @Override
     public List<? extends InferenceResults> transformToCoordinationFormat() {
-        return null;
+        return null; // TODO see if this is required
     }
 
     @Override
     public List<? extends InferenceResults> transformToLegacyFormat() {
-        return null;
+        return null; // TODO see if this is required
     }
 
     @Override
     public Map<String, Object> asMap() {
-        return null;
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put(RERANK, rankedDocs.stream().map(RankedDoc::asMap).collect(Collectors.toList()));
+        return map;
     }
 
 }

@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-public enum Database {
+enum Database {
 
     City(
         Set.of(
@@ -108,7 +108,7 @@ public enum Database {
         }
     }
 
-    public enum Property {
+    enum Property {
 
         IP,
         COUNTRY_ISO_CODE,

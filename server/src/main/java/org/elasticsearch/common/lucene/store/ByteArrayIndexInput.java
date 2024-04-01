@@ -8,6 +8,7 @@
 package org.elasticsearch.common.lucene.store;
 
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.common.Strings;
 
@@ -17,7 +18,7 @@ import java.io.IOException;
 /**
  * Wraps array of bytes into IndexInput
  */
-public class ByteArrayIndexInput extends IndexInput {
+public class ByteArrayIndexInput extends IndexInput implements RandomAccessInput {
     private final byte[] bytes;
 
     private int pos;
@@ -47,17 +48,41 @@ public class ByteArrayIndexInput extends IndexInput {
 
     @Override
     public void seek(long l) throws IOException {
-        if (l < 0) {
+        pos = position(l);
+    }
+
+    private int position(long p) throws EOFException {
+        if (p < 0) {
             throw new IllegalArgumentException("Seeking to negative position: " + pos);
-        } else if (l > length) {
+        } else if (p > length) {
             throw new EOFException("seek past EOF");
         }
-        pos = (int) l;
+        return (int) p;
     }
 
     @Override
     public long length() {
         return length;
+    }
+
+    @Override
+    public byte readByte(long pos) throws IOException {
+        return bytes[position(pos)];
+    }
+
+    @Override
+    public short readShort(long pos) throws IOException {
+        return (short) BitUtil.VH_LE_SHORT.get(bytes, position(pos));
+    }
+
+    @Override
+    public int readInt(long pos) throws IOException {
+        return (int) BitUtil.VH_LE_INT.get(bytes, position(pos));
+    }
+
+    @Override
+    public long readLong(long pos) throws IOException {
+        return (long) BitUtil.VH_LE_LONG.get(bytes, position(pos));
     }
 
     @Override

@@ -351,7 +351,7 @@ bucket_key = localToUtc(Math.floor(utcToLocal(value) / interval) * interval))
 For example, if the interval is a calendar day and the time zone is
 `America/New_York`, then the date value `2020-01-03T01:00:01Z` is processed as follows:
 
-. Converted to ET: `2020-01-02T20:00:01`
+. Converted to EST: `2020-01-02T20:00:01`
 . Rounded down to the nearest interval: `2020-01-02T00:00:00`
 . Converted back to UTC: `2020-01-02T05:00:00:00Z`
 

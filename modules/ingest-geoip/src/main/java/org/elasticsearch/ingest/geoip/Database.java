@@ -49,9 +49,28 @@ public enum Database {
         Set.of(Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK)
     );
 
-    public static final String CITY_DB_SUFFIX = "-City";
-    public static final String COUNTRY_DB_SUFFIX = "-Country";
-    public static final String ASN_DB_SUFFIX = "-ASN";
+    private static final String CITY_DB_SUFFIX = "-City";
+    private static final String COUNTRY_DB_SUFFIX = "-Country";
+    private static final String ASN_DB_SUFFIX = "-ASN";
+
+    public static Database getDatabase(final String databaseType, final String databaseFile) {
+        Database database = null;
+        if (databaseType != null) {
+            if (databaseType.endsWith(Database.CITY_DB_SUFFIX)) {
+                database = Database.City;
+            } else if (databaseType.endsWith(Database.COUNTRY_DB_SUFFIX)) {
+                database = Database.Country;
+            } else if (databaseType.endsWith(Database.ASN_DB_SUFFIX)) {
+                database = Database.Asn;
+            }
+        }
+
+        if (database == null) {
+            throw new IllegalArgumentException("Unsupported database type [" + databaseType + "] for file [" + databaseFile + "]");
+        }
+
+        return database;
+    }
 
     private final Set<Property> properties;
     private final Set<Property> defaultProperties;

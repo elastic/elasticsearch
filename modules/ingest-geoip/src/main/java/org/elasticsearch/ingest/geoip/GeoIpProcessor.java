@@ -161,18 +161,18 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     private Map<String, Object> getGeoData(GeoIpDatabase geoIpDatabase, String ip) throws IOException {
         final String databaseType = geoIpDatabase.getDatabaseType();
-        final InetAddress ipAddress = InetAddresses.forString(ip);
-        Map<String, Object> geoData;
-        if (databaseType.endsWith(Database.CITY_DB_SUFFIX)) {
-            geoData = retrieveCityGeoData(geoIpDatabase, ipAddress);
-        } else if (databaseType.endsWith(Database.COUNTRY_DB_SUFFIX)) {
-            geoData = retrieveCountryGeoData(geoIpDatabase, ipAddress);
-        } else if (databaseType.endsWith(Database.ASN_DB_SUFFIX)) {
-            geoData = retrieveAsnGeoData(geoIpDatabase, ipAddress);
-        } else {
-            throw new ElasticsearchParseException("Unsupported database type [" + databaseType + "]", new IllegalStateException());
+        final Database database;
+        try {
+            database = Database.getDatabase(databaseType, databaseFile);
+        } catch (IllegalArgumentException e) {
+            throw new ElasticsearchParseException(e.getMessage(), e);
         }
-        return geoData;
+        final InetAddress ipAddress = InetAddresses.forString(ip);
+        return switch (database) {
+            case City -> retrieveCityGeoData(geoIpDatabase, ipAddress);
+            case Country -> retrieveCountryGeoData(geoIpDatabase, ipAddress);
+            case Asn -> retrieveAsnGeoData(geoIpDatabase, ipAddress);
+        };
     }
 
     @Override
@@ -424,26 +424,10 @@ public final class GeoIpProcessor extends AbstractProcessor {
             }
 
             final Database database;
-            if (databaseType != null) {
-                if (databaseType.endsWith(Database.CITY_DB_SUFFIX)) {
-                    database = Database.City;
-                } else if (databaseType.endsWith(Database.COUNTRY_DB_SUFFIX)) {
-                    database = Database.Country;
-                } else if (databaseType.endsWith(Database.ASN_DB_SUFFIX)) {
-                    database = Database.Asn;
-                } else {
-                    database = null;
-                }
-            } else {
-                database = null;
-            }
-            if (database == null) {
-                throw newConfigurationException(
-                    TYPE,
-                    processorTag,
-                    "database_file",
-                    "Unsupported database type [" + databaseType + "] for file [" + databaseFile + "]"
-                );
+            try {
+                database = Database.getDatabase(databaseType, databaseFile);
+            } catch (IllegalArgumentException e) {
+                throw newConfigurationException(TYPE, processorTag, "database_file", e.getMessage());
             }
 
             final Set<Property> properties;

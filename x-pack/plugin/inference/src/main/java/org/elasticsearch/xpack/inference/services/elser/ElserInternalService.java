@@ -284,6 +284,17 @@ public class ElserInternalService implements InferenceService {
         );
     }
 
+    public void chunkedInfer(
+        Model model,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        @Nullable ChunkingOptions chunkingOptions,
+        ActionListener<List<ChunkedInferenceServiceResults>> listener
+    ) {
+        chunkedInfer(model, null, input, taskSettings, inputType, chunkingOptions, listener);
+    }
+
     @Override
     public void chunkedInfer(
         Model model,

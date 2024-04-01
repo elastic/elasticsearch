@@ -41,12 +41,12 @@ class RequestTask implements RejectableTask {
         this.requestCreator = Objects.requireNonNull(requestCreator);
         this.listener = getListener(Objects.requireNonNull(listener), timeout, Objects.requireNonNull(threadPool));
 
-        if (inferenceInputs instanceof RerankInputs) {
-            this.query = ((RerankInputs) inferenceInputs).getQuery();
-            this.input = ((RerankInputs) inferenceInputs).getChunks();
-        } else if (inferenceInputs instanceof EmbeddingInputs) {
+        if (inferenceInputs instanceof QueryAndDocsInputs) {
+            this.query = ((QueryAndDocsInputs) inferenceInputs).getQuery();
+            this.input = ((QueryAndDocsInputs) inferenceInputs).getChunks();
+        } else if (inferenceInputs instanceof DocumentsOnlyInput) {
             this.query = null;
-            this.input = ((EmbeddingInputs) inferenceInputs).getInputs();
+            this.input = ((DocumentsOnlyInput) inferenceInputs).getInputs();
         } else {
             throw new IllegalArgumentException("Unsupported inference inputs type: " + inferenceInputs.getClass());
         }

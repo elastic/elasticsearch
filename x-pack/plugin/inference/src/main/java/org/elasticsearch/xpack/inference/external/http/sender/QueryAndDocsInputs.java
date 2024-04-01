@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import java.util.List;
 import java.util.Objects;
 
-public class RerankInputs extends InferenceInputs {
+public class QueryAndDocsInputs extends InferenceInputs {
 
     String query;
 
@@ -24,7 +24,7 @@ public class RerankInputs extends InferenceInputs {
 
     List<String> chunks;
 
-    public RerankInputs(String query, List<String> chunks) {
+    public QueryAndDocsInputs(String query, List<String> chunks) {
         super();
         this.query = Objects.requireNonNull(query);
         this.chunks = Objects.requireNonNull(chunks);

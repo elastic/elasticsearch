@@ -37,7 +37,7 @@ public class CohereRerankExecutableRequestCreator implements ExecutableRequestCr
 
     public CohereRerankExecutableRequestCreator(CohereRerankModel model) {
         this.model = Objects.requireNonNull(model);
-        account = new CohereAccount(this.model.getServiceSettings().getCommonSettings().getUri(), this.model.getSecretSettings().apiKey());
+        account = new CohereAccount(this.model.getServiceSettings().getCommonSettings().uri(), this.model.getSecretSettings().apiKey());
     }
 
     @Override

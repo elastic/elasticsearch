@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceActionCreator;
-import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -124,7 +124,7 @@ public abstract class HuggingFaceBaseService extends SenderService {
         var actionCreator = new HuggingFaceActionCreator(getSender(), getServiceComponents());
 
         var action = huggingFaceModel.accept(actionCreator);
-        action.execute(new EmbeddingInputs(input), listener);
+        action.execute(new DocumentsOnlyInput(input), listener);
     }
 
     @Override

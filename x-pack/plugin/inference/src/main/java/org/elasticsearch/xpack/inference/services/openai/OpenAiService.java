@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResul
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionCreator;
-import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
@@ -203,7 +203,7 @@ public class OpenAiService extends SenderService {
         var actionCreator = new OpenAiActionCreator(getSender(), getServiceComponents());
 
         var action = openAiModel.accept(actionCreator, taskSettings);
-        action.execute(new EmbeddingInputs(input), listener);
+        action.execute(new DocumentsOnlyInput(input), listener);
     }
 
     @Override

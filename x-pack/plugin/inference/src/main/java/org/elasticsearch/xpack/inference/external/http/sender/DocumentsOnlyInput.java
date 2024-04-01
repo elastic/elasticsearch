@@ -10,16 +10,16 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import java.util.List;
 import java.util.Objects;
 
-public class EmbeddingInputs extends InferenceInputs {
+public class DocumentsOnlyInput extends InferenceInputs {
 
     List<String> input;
 
-    public EmbeddingInputs(List<String> chunks) {
+    public DocumentsOnlyInput(List<String> chunks) {
         super();
         this.input = Objects.requireNonNull(chunks);
     }
 
-    List<String> getInputs() {
+    public List<String> getInputs() {
         return this.input;
     }
 }

@@ -416,7 +416,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 for (var entry : fieldInferenceMap.values()) {
                     String field = entry.getName();
                     String inferenceId = entry.getInferenceId();
-                    for (var sourceField : entry.getValue().sourceFields()) {
+                    for (var sourceField : entry.getSourceFields()) {
                         Object inferenceResult = inferenceMap.remove(field);
                         var value = XContentMapValues.extractValue(sourceField, docMap);
                         if (value == null) {
@@ -435,7 +435,10 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         }
                         ensureResponseAccumulatorSlot(item.id());
                         if (value instanceof String valueStr) {
-                            List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
+                            List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(
+                                inferenceId,
+                                k -> new ArrayList<>()
+                            );
                             fieldRequests.add(new FieldInferenceRequest(item.id(), field, valueStr));
                         } else {
                             addInferenceResponseFailure(

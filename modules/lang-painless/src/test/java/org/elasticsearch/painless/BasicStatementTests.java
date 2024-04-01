@@ -24,7 +24,7 @@ public class BasicStatementTests extends ScriptTestCase {
 
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = super.scriptContexts();
-        contexts.put(OneArg.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
+        contexts.put(OneArg.CONTEXT, PAINLESS_BASE_WHITELIST);
         return contexts;
     }
 

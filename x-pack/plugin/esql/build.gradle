@@ -79,7 +79,7 @@ tasks.named("test").configure {
           into "${rootDir}/docs/reference/esql/functions"
           include '**/*.asciidoc', '**/*.svg'
           preserve {
-            include '/*.asciidoc', '**/*.asciidoc', '**/*.svg'
+            include '/*.asciidoc', '**/*.asciidoc', '**/*.svg', 'README.md'
           }
         }
       } else {

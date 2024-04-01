@@ -327,7 +327,7 @@ public class SecurityActionFilterTests extends ESTestCase {
             .build(false);
         String requestId = UUIDs.randomBase64UUID();
 
-        //mock primary and secondary authentication headers already set
+        // mock primary and secondary authentication headers already set
         assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
         threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, authentication.encode());
@@ -336,7 +336,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         threadContext.putHeader(SecondaryAuthentication.THREAD_CTX_KEY, secondaryAuth.encode());
 
         String actionName = "_action_secondary_auth";
-        //ensure that the filter swaps out to the secondary user
+        // ensure that the filter swaps out to the secondary user
         doAnswer(i -> {
             final Object[] args = i.getArguments();
             assertThat(args, arrayWithSize(4));
@@ -355,6 +355,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         verify(authzService).authorize(eq(secondaryAuth), eq(actionName), eq(request), anyActionListener());
         verify(auditTrail).coordinatingActionResponse(eq(requestId), eq(secondaryAuth), eq(actionName), eq(request), eq(actionResponse));
     }
+
     public void testSecondaryAuthRequired() throws Exception {
         ActionRequest request = mock(ActionRequest.class);
         ActionListener listener = mock(ActionListener.class);
@@ -364,7 +365,7 @@ public class SecurityActionFilterTests extends ESTestCase {
             .user(user1)
             .realmRef(new RealmRef("test", "test", "foo"))
             .build(false);
-        //mock primary but not secondary authentication headers already set
+        // mock primary but not secondary authentication headers already set
         assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
         threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, authentication.encode());
@@ -375,8 +376,10 @@ public class SecurityActionFilterTests extends ESTestCase {
         ArgumentCaptor<Exception> exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
         verify(listener).onFailure(exceptionCaptor.capture());
         assertTrue(exceptionCaptor.getValue() instanceof IllegalArgumentException);
-        assertEquals("es-secondary-authorization header must be used to call action [" + actionName + "]",
-            exceptionCaptor.getValue().getMessage());
+        assertEquals(
+            "es-secondary-authorization header must be used to call action [" + actionName + "]",
+            exceptionCaptor.getValue().getMessage()
+        );
         verifyNoInteractions(authcService);
         verifyNoInteractions(authzService);
     }

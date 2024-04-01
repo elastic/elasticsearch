@@ -1,0 +1,22 @@
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.base-internal-es-plugin'
+
+esplugin {
+  name 'secondary-auth-actions-extension'
+  description 'Spi extension plugin for security to enforce custom secondary auth actions'
+  classname 'org.elasticsearch.secondary.auth.actions.SecondaryAuthActionsPlugin'
+  extendedPlugins = ['x-pack-security']
+}
+
+dependencies {
+  compileOnly project(':x-pack:plugin:core')
+  compileOnly project(':x-pack:plugin:security')
+  javaRestTestImplementation project(':test:framework')
+  // let the javaRestTest see the classpath of main
+  javaRestTestImplementation project.sourceSets.main.runtimeClasspath
+}
+
+dependencies {
+  clusterPlugins project(':x-pack:plugin:security:qa:secondary-auth-actions')
+}
+

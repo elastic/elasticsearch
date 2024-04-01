@@ -3,7 +3,7 @@
 *Parameters*
 
 `base`::
-
+Numeric expression. If `null`, the function returns `null`. The base is an optional input parameter. If a base is not provided, this function returns the natural logarithm (base e) of a value.
 
 `number`::
-
+Numeric expression. If `null`, the function returns `null`.

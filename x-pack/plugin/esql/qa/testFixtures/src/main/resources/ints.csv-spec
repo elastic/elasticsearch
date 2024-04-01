@@ -153,14 +153,14 @@ tf:boolean     |t2l:long       |f2l:long       |tf2l:long
 [true, false]  |1              |0              |[1, 0]
 ;
 
-convertStringToLong
+convertStringToLong#[skip:-8.13.99, reason:warning changed in 8.14]
 // tag::to_long-str[]
 ROW str1 = "2147483648", str2 = "2147483648.2", str3 = "foo"
 | EVAL long1 = TO_LONG(str1), long2 = TO_LONG(str2), long3 = TO_LONG(str3)
 // end::to_long-str[]
 ;
 warning:Line 2:62: evaluation of [TO_LONG(str3)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:62: java.lang.NumberFormatException: For input string: \"foo\"
+warning:Line 2:62: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [foo]
 
 
 // tag::to_long-str-result[]
@@ -238,16 +238,16 @@ int_str:keyword  |int_dbl_str:keyword |is2i:integer|ids2i:integer
 2147483647       |2147483646.2        |2147483647  |2147483646
 ;
 
-convertStringToIntFail
+convertStringToIntFail#[skip:-8.13.99, reason:warning changed in 8.14]
 required_feature: esql.mv_warn
 
 row str1 = "2147483647.2", str2 = "2147483648", non = "no number" | eval i1 = to_integer(str1), i2 = to_integer(str2), noi = to_integer(non);
 warning:Line 1:79: evaluation of [to_integer(str1)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:79: java.lang.NumberFormatException: For input string: \"2147483647.2\"
+warning:Line 1:79: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [2147483647.2]
 warning:Line 1:102: evaluation of [to_integer(str2)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:102: java.lang.NumberFormatException: For input string: \"2147483648\"
+warning:Line 1:102: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [2147483648]
 warning:Line 1:126: evaluation of [to_integer(non)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:126: java.lang.NumberFormatException: For input string: \"no number\"
+warning:Line 1:126: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [no number]
 
 str1:keyword   |str2:keyword   |non:keyword    |i1:integer     |i2:integer     |noi:integer
 2147483647.2   |2147483648     |no number      |null           |null           |null
@@ -416,7 +416,9 @@ row a = [1, 2, 2, 3] | eval da = mv_dedupe(a);
 [1, 2, 2, 3] | [1, 2, 3]
 ;
 
-mvSort#[skip:-8.13.99, reason:newly added in 8.14]
+mvSort
+required_feature: esql.mv_sort
+
 // tag::mv_sort[]
 ROW a = [4, 2, -3, 2]
 | EVAL sa = mv_sort(a), sd = mv_sort(a, "DESC")
@@ -429,7 +431,9 @@ a:integer     | sa:integer    | sd:integer
 // end::mv_sort-result[]
 ;
 
-mvSortEmpInt#[skip:-8.13.99, reason:newly added in 8.14]
+mvSortEmpInt
+required_feature: esql.mv_sort
+
 FROM employees
 | eval sd = mv_sort(salary_change.int, "DESC"), sa = mv_sort(salary_change.int)
 | sort emp_no
@@ -449,7 +453,9 @@ emp_no:integer | salary_change.int:integer | sa:integer    | sd:integer
 10009          | null                      | null          | null
 ;
 
-mvSortEmpLong#[skip:-8.13.99, reason:newly added in 8.14]
+mvSortEmpLong
+required_feature: esql.mv_sort
+
 FROM employees
 | eval sd = mv_sort(salary_change.long, "DESC"), sa = mv_sort(salary_change.long)
 | sort emp_no
@@ -469,7 +475,9 @@ emp_no:integer | salary_change.long:long | sa:long        | sd:long
 10009          | null                    | null           | null
 ;
 
-mvSlice#[skip:-8.13.99, reason:newly added in 8.14]
+mvSlice
+required_feature: esql.mv_sort
+
 // tag::mv_slice_positive[]
 row a = [1, 2, 2, 3]
 | eval a1 = mv_slice(a, 1), a2 = mv_slice(a, 2, 3)
@@ -481,7 +489,9 @@ a:integer    | a1:integer | a2:integer
 // end::mv_slice_positive-result[]
 ;
 
-mvSliceNegativeOffset#[skip:-8.13.99, reason:newly added in 8.14]
+mvSliceNegativeOffset
+required_feature: esql.mv_sort
+
 // tag::mv_slice_negative[]
 row a = [1, 2, 2, 3]
 | eval a1 = mv_slice(a, -2), a2 = mv_slice(a, -3, -1)
@@ -493,7 +503,9 @@ a:integer    | a1:integer | a2:integer
 // end::mv_slice_negative-result[]
 ;
 
-mvSliceSingle#[skip:-8.13.99, reason:newly added in 8.14]
+mvSliceSingle
+required_feature: esql.mv_sort
+
 row a = 1
 | eval a1 = mv_slice(a, 0);
 
@@ -501,7 +513,9 @@ a:integer | a1:integer
 1         | 1
 ;
 
-mvSliceOutOfBound#[skip:-8.13.99, reason:newly added in 8.14]
+mvSliceOutOfBound
+required_feature: esql.mv_sort
+
 row a = [1, 2, 2, 3]
 | eval a1 = mv_slice(a, 4), a2 = mv_slice(a, 2, 6), a3 = mv_slice(a, 4, 6);
 
@@ -509,7 +523,9 @@ a:integer    | a1:integer | a2:integer | a3:integer
 [1, 2, 2, 3] | null          | [2, 3]     | null
 ;
 
-mvSliceEmpInt#[skip:-8.13.99, reason:newly added in 8.14]
+mvSliceEmpInt
+required_feature: esql.mv_sort
+
 from employees
 | eval a1 = mv_slice(salary_change.int, 0, 1)
 | keep emp_no, salary_change.int, a1
@@ -524,7 +540,9 @@ emp_no:integer | salary_change.int:integer | a1:integer
 10005          | [-2, 13]                  | [-2, 13]
 ;
 
-mvSliceEmpIntSingle#[skip:-8.13.99, reason:newly added in 8.14]
+mvSliceEmpIntSingle
+required_feature: esql.mv_sort
+
 from employees
 | eval a1 = mv_slice(salary_change.int, 1)
 | keep emp_no, salary_change.int, a1
@@ -539,7 +557,9 @@ emp_no:integer | salary_change.int:integer | a1:integer
 10005          | [-2, 13]                  | 13
 ;
 
-mvSliceEmpIntEndOutOfBound#[skip:-8.13.99, reason:newly added in 8.14]
+mvSliceEmpIntEndOutOfBound
+required_feature: esql.mv_sort
+
 from employees
 | eval a1 = mv_slice(salary_change.int, 1, 4)
 | keep emp_no, salary_change.int, a1
@@ -554,7 +574,9 @@ emp_no:integer | salary_change.int:integer | a1:integer
 10005          | [-2, 13]                  | 13
 ;
 
-mvSliceEmpIntOutOfBound#[skip:-8.13.99, reason:newly added in 8.14]
+mvSliceEmpIntOutOfBound
+required_feature: esql.mv_sort
+
 from employees
 | eval a1 = mv_slice(salary_change.int, 2, 4)
 | keep emp_no, salary_change.int, a1
@@ -569,7 +591,9 @@ emp_no:integer | salary_change.int:integer | a1:integer
 10005          | [-2, 13]                  | null
 ;
 
-mvSliceEmpIntStartOutOfBoundNegative#[skip:-8.13.99, reason:newly added in 8.14]
+mvSliceEmpIntStartOutOfBoundNegative
+required_feature: esql.mv_sort
+
 from employees
 | eval a1 = mv_slice(salary_change.int, -5, -2)
 | keep emp_no, salary_change.int, a1
@@ -584,7 +608,9 @@ emp_no:integer | salary_change.int:integer | a1:integer
 10005          | [-2, 13]                  | -2
 ;
 
-mvSliceEmpIntOutOfBoundNegative#[skip:-8.13.99, reason:newly added in 8.14]
+mvSliceEmpIntOutOfBoundNegative
+required_feature: esql.mv_sort
+
 from employees
 | eval a1 = mv_slice(salary_change.int, -5, -3)
 | keep emp_no, salary_change.int, a1
@@ -599,7 +625,9 @@ emp_no:integer | salary_change.int:integer | a1:integer
 10005          | [-2, 13]                  | null
 ;
 
-mvSliceEmpLong#[skip:-8.13.99, reason:newly added in 8.14]
+mvSliceEmpLong
+required_feature: esql.mv_sort
+
 from employees
 | eval a1 = mv_slice(salary_change.long, 0, 1)
 | keep emp_no, salary_change.long, a1
@@ -788,4 +816,175 @@ warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [1001900
 warning:Line 1:76: org.elasticsearch.xpack.ql.InvalidArgumentException: [100200000000] out of [integer] range
 
 x:long
+;
+
+valuesLong
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS l=MV_SORT(VALUES(languages.long))
+;
+
+   l:long
+[1, 2, 3, 4, 5]
+;
+
+valuesLongGrouped
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| EVAL first_letter = SUBSTRING(first_name, 0, 1)
+| STATS l=MV_SORT(VALUES(languages.long)) BY first_letter
+| SORT first_letter
+;
+
+   l:long | first_letter:keyword
+        3 | A
+        5 | B
+        5 | C
+        2 | G
+        1 | K
+        4 | P
+   [1, 2] | S
+        4 | T
+;
+
+valuesLongGroupedByOrdinals
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS l=MV_SORT(VALUES(languages.long)) BY job_positions
+| SORT job_positions
+;
+
+      l:long | job_positions:keyword
+           2 | Accountant
+           5 | Head Human Resources
+      [1, 2] | Internship
+           2 | Junior Developer
+           3 | Principal Support Engineer
+           2 | Purchase Manager
+           5 | Reporting Analyst
+      [1, 2] | Senior Python Developer
+      [3, 5] | Senior Team Lead
+           5 | Support Engineer
+      [3, 5] | Tech Lead
+      [1, 4] | null
+;
+
+valuesInt
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS l=MV_SORT(VALUES(languages))
+;
+
+   l:integer
+[1, 2, 3, 4, 5]
+;
+
+valuesIntGrouped
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| EVAL first_letter = SUBSTRING(first_name, 0, 1)
+| STATS l=MV_SORT(VALUES(languages)) BY first_letter
+| SORT first_letter
+;
+
+l:integer | first_letter:keyword
+        3 | A
+        5 | B
+        5 | C
+        2 | G
+        1 | K
+        4 | P
+   [1, 2] | S
+        4 | T
+;
+
+valuesIntGroupedByOrdinals
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS l=MV_SORT(VALUES(languages)) BY job_positions
+| SORT job_positions
+;
+
+   l:integer | job_positions:keyword
+           2 | Accountant
+           5 | Head Human Resources
+      [1, 2] | Internship
+           2 | Junior Developer
+           3 | Principal Support Engineer
+           2 | Purchase Manager
+           5 | Reporting Analyst
+      [1, 2] | Senior Python Developer
+      [3, 5] | Senior Team Lead
+           5 | Support Engineer
+      [3, 5] | Tech Lead
+      [1, 4] | null
+;
+
+valuesShort
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS l=MV_SORT(VALUES(languages.short))
+;
+
+   l:integer
+[1, 2, 3, 4, 5]
+;
+
+valuesShortGrouped
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| EVAL first_letter = SUBSTRING(first_name, 0, 1)
+| STATS l=MV_SORT(VALUES(languages.short)) BY first_letter
+| SORT first_letter
+;
+
+l:integer | first_letter:keyword
+        3 | A
+        5 | B
+        5 | C
+        2 | G
+        1 | K
+        4 | P
+   [1, 2] | S
+        4 | T
+;
+
+valuesShortGroupedByOrdinals
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| STATS l=MV_SORT(VALUES(languages.short)) BY job_positions
+| SORT job_positions
+;
+
+   l:integer | job_positions:keyword
+           2 | Accountant
+           5 | Head Human Resources
+      [1, 2] | Internship
+           2 | Junior Developer
+           3 | Principal Support Engineer
+           2 | Purchase Manager
+           5 | Reporting Analyst
+      [1, 2] | Senior Python Developer
+      [3, 5] | Senior Team Lead
+           5 | Support Engineer
+      [3, 5] | Tech Lead
+      [1, 4] | null
 ;

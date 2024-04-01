@@ -118,8 +118,6 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         }
     }
 
-    // temporarily re-enable to gather more data on test failures likely caused by diverging thread pool stats
-    // at the time stats are collected vs when measurements are taken.
     public void testThreadPoolMetrics() throws Exception {
         internalCluster().startNode();
 
@@ -150,26 +148,30 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
             assertNoFailures(prepareSearch("idx").setQuery(QueryBuilders.termQuery("str_value", "s" + i)));
             assertNoFailures(prepareSearch("idx").setQuery(QueryBuilders.termQuery("l_value", i)));
         }
+
         final var tp = internalCluster().getInstance(ThreadPool.class, dataNodeName);
-        ThreadPoolStats tps = tp.stats();
+        final var tps = new ThreadPoolStats[1];
+        // wait for all threads to complete so that we get deterministic results
+        waitUntil(() -> (tps[0] = tp.stats()).stats().stream().allMatch(s -> s.active() == 0));
+
         plugin.collect();
         ArrayList<String> registeredMetrics = plugin.getRegisteredMetrics(InstrumentType.LONG_GAUGE);
         registeredMetrics.addAll(plugin.getRegisteredMetrics(InstrumentType.LONG_ASYNC_COUNTER));
 
-        tps.forEach(stats -> {
+        tps[0].forEach(stats -> {
             Map<String, Long> threadPoolStats = List.of(
                 Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED, stats.completed()),
                 Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_ACTIVE, (long) stats.active()),
                 Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_CURRENT, (long) stats.threads()),
                 Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_LARGEST, (long) stats.largest()),
                 Map.entry(ThreadPool.THREAD_POOL_METRIC_NAME_QUEUE, (long) stats.queue())
-            ).stream().collect(toUnmodifiableSortedMap(Entry::getKey, Entry::getValue));
+            ).stream().collect(toUnmodifiableSortedMap(e -> stats.name() + e.getKey(), Entry::getValue));
 
             Function<String, List<Long>> measurementExtractor = name -> {
-                String metricName = ThreadPool.THREAD_POOL_METRIC_PREFIX + stats.name() + name;
+                String metricName = ThreadPool.THREAD_POOL_METRIC_PREFIX + name;
                 assertThat(metricName, in(registeredMetrics));
 
-                List<Measurement> measurements = name.equals(ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED)
+                List<Measurement> measurements = name.endsWith(ThreadPool.THREAD_POOL_METRIC_NAME_COMPLETED)
                     ? plugin.getLongAsyncCounterMeasurement(metricName)
                     : plugin.getLongGaugeMeasurement(metricName);
                 return measurements.stream().map(Measurement::getLong).toList();

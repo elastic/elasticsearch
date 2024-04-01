@@ -68,6 +68,8 @@ import org.elasticsearch.indices.recovery.RecoverFilesRecoveryException;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.ingest.GraphStructureException;
 import org.elasticsearch.ingest.IngestProcessorException;
+import org.elasticsearch.persistent.NotPersistentTaskNodeException;
+import org.elasticsearch.persistent.PersistentTaskNodeNotAssignedException;
 import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.rest.ApiNotAvailableException;
@@ -829,6 +831,8 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(176, SearchTimeoutException.class);
         ids.put(177, GraphStructureException.class);
         ids.put(178, FailureIndexNotSupportedException.class);
+        ids.put(179, NotPersistentTaskNodeException.class);
+        ids.put(180, PersistentTaskNodeNotAssignedException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

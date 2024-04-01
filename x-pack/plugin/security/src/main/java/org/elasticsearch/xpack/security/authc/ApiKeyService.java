@@ -19,7 +19,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -68,6 +67,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
@@ -90,9 +90,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.BaseBulkUpdateApiKeyR
 import org.elasticsearch.xpack.core.security.action.apikey.BaseUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
-import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
-import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -446,7 +444,7 @@ public class ApiKeyService {
                     () -> executeAsyncWithOrigin(
                         client,
                         SECURITY_ORIGIN,
-                        BulkAction.INSTANCE,
+                        TransportBulkAction.TYPE,
                         bulkRequest,
                         TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
                             assert request.getId().equals(indexResponse.getId());
@@ -1897,7 +1895,7 @@ public class ApiKeyService {
      * @param apiKeyName API key name
      * @param apiKeyIds API key ids
      * @param withLimitedBy whether to parse and return the limited by role descriptors
-     * @param listener listener for {@link GetApiKeyResponse}
+     * @param listener receives the requested collection of {@link ApiKey}s
      */
     public void getApiKeys(
         String[] realmNames,
@@ -1906,7 +1904,7 @@ public class ApiKeyService {
         String[] apiKeyIds,
         boolean withLimitedBy,
         boolean activeOnly,
-        ActionListener<GetApiKeyResponse> listener
+        ActionListener<Collection<ApiKey>> listener
     ) {
         ensureEnabled();
         findApiKeysForUserRealmApiKeyIdAndNameCombination(
@@ -1918,7 +1916,7 @@ public class ApiKeyService {
             activeOnly,
             hit -> convertSearchHitToApiKeyInfo(hit, withLimitedBy),
             ActionListener.wrap(apiKeyInfos -> {
-                if (apiKeyInfos.isEmpty()) {
+                if (apiKeyInfos.isEmpty() && logger.isDebugEnabled()) {
                     logger.debug(
                         "No API keys found for realms {}, user [{}], API key name [{}], API key IDs {}, and active_only flag [{}]",
                         Arrays.toString(realmNames),
@@ -1927,20 +1925,27 @@ public class ApiKeyService {
                         Arrays.toString(apiKeyIds),
                         activeOnly
                     );
-                    listener.onResponse(GetApiKeyResponse.EMPTY);
-                } else {
-                    listener.onResponse(new GetApiKeyResponse(apiKeyInfos));
                 }
+                listener.onResponse(apiKeyInfos);
             }, listener::onFailure)
         );
     }
 
-    public void queryApiKeys(SearchRequest searchRequest, boolean withLimitedBy, ActionListener<QueryApiKeyResponse> listener) {
+    public record QueryApiKeysResult(
+        long total,
+        Collection<ApiKey> apiKeyInfos,
+        Collection<Object[]> sortValues,
+        @Nullable InternalAggregations aggregations
+    ) {
+        static final QueryApiKeysResult EMPTY = new QueryApiKeysResult(0, List.of(), List.of(), null);
+    }
+
+    public void queryApiKeys(SearchRequest searchRequest, boolean withLimitedBy, ActionListener<QueryApiKeysResult> listener) {
         ensureEnabled();
         final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             logger.debug("security index does not exist");
-            listener.onResponse(QueryApiKeyResponse.EMPTY);
+            listener.onResponse(QueryApiKeysResult.EMPTY);
         } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
         } else {
@@ -1952,24 +1957,22 @@ public class ApiKeyService {
                     TransportSearchAction.TYPE,
                     searchRequest,
                     ActionListener.wrap(searchResponse -> {
-                        final long total = searchResponse.getHits().getTotalHits().value;
+                        long total = searchResponse.getHits().getTotalHits().value;
                         if (total == 0) {
                             logger.debug("No api keys found for query [{}]", searchRequest.source().query());
-                            listener.onResponse(QueryApiKeyResponse.EMPTY);
+                            listener.onResponse(QueryApiKeysResult.EMPTY);
                             return;
                         }
-                        final List<QueryApiKeyResponse.Item> apiKeyItem = Arrays.stream(searchResponse.getHits().getHits())
-                            .map(hit -> convertSearchHitToQueryItem(hit, withLimitedBy))
+                        SearchHit[] hits = searchResponse.getHits().getHits();
+                        List<ApiKey> apiKeyInfos = Arrays.stream(hits)
+                            .map(hit -> convertSearchHitToApiKeyInfo(hit, withLimitedBy))
                             .toList();
-                        listener.onResponse(new QueryApiKeyResponse(total, apiKeyItem, searchResponse.getAggregations()));
+                        List<Object[]> sortValues = Arrays.stream(hits).map(SearchHit::getSortValues).toList();
+                        listener.onResponse(new QueryApiKeysResult(total, apiKeyInfos, sortValues, searchResponse.getAggregations()));
                     }, listener::onFailure)
                 )
             );
         }
-    }
-
-    private QueryApiKeyResponse.Item convertSearchHitToQueryItem(SearchHit hit, boolean withLimitedBy) {
-        return new QueryApiKeyResponse.Item(convertSearchHitToApiKeyInfo(hit, withLimitedBy), hit.getSortValues());
     }
 
     private ApiKey convertSearchHitToApiKeyInfo(SearchHit hit) {

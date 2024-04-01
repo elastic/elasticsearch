@@ -153,14 +153,14 @@ tf:boolean     |t2l:long       |f2l:long       |tf2l:long
 [true, false]  |1              |0              |[1, 0]
 ;
 
-convertStringToLong
+convertStringToLong#[skip:-8.13.99, reason:warning changed in 8.14]
 // tag::to_long-str[]
 ROW str1 = "2147483648", str2 = "2147483648.2", str3 = "foo"
 | EVAL long1 = TO_LONG(str1), long2 = TO_LONG(str2), long3 = TO_LONG(str3)
 // end::to_long-str[]
 ;
 warning:Line 2:62: evaluation of [TO_LONG(str3)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:62: java.lang.NumberFormatException: For input string: \"foo\"
+warning:Line 2:62: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [foo]
 
 
 // tag::to_long-str-result[]
@@ -238,16 +238,16 @@ int_str:keyword  |int_dbl_str:keyword |is2i:integer|ids2i:integer
 2147483647       |2147483646.2        |2147483647  |2147483646
 ;
 
-convertStringToIntFail
+convertStringToIntFail#[skip:-8.13.99, reason:warning changed in 8.14]
 required_feature: esql.mv_warn
 
 row str1 = "2147483647.2", str2 = "2147483648", non = "no number" | eval i1 = to_integer(str1), i2 = to_integer(str2), noi = to_integer(non);
 warning:Line 1:79: evaluation of [to_integer(str1)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:79: java.lang.NumberFormatException: For input string: \"2147483647.2\"
+warning:Line 1:79: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [2147483647.2]
 warning:Line 1:102: evaluation of [to_integer(str2)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:102: java.lang.NumberFormatException: For input string: \"2147483648\"
+warning:Line 1:102: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [2147483648]
 warning:Line 1:126: evaluation of [to_integer(non)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:126: java.lang.NumberFormatException: For input string: \"no number\"
+warning:Line 1:126: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [no number]
 
 str1:keyword   |str2:keyword   |non:keyword    |i1:integer     |i2:integer     |noi:integer
 2147483647.2   |2147483648     |no number      |null           |null           |null

@@ -17,7 +17,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestValidators;
-import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.TransportCleanupRepositoryAction;
@@ -39,7 +38,6 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -48,7 +46,6 @@ import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
@@ -2324,7 +2321,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new IndexSettingProviders(Set.of())
                 );
                 actions.put(
-                    CreateIndexAction.INSTANCE,
+                    TransportCreateIndexAction.TYPE,
                     new TransportCreateIndexAction(
                         transportService,
                         clusterService,
@@ -2339,7 +2336,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 final IndexingPressure indexingMemoryLimits = new IndexingPressure(settings);
                 mappingUpdatedAction.setClient(client);
                 actions.put(
-                    BulkAction.INSTANCE,
+                    TransportBulkAction.TYPE,
                     new TransportBulkAction(
                         threadPool,
                         transportService,
@@ -2477,7 +2474,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     )
                 );
                 actions.put(
-                    CleanupRepositoryAction.INSTANCE,
+                    TransportCleanupRepositoryAction.TYPE,
                     new TransportCleanupRepositoryAction(
                         transportService,
                         clusterService,

@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.ml.dataframe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
@@ -115,7 +115,7 @@ public final class DestinationIndex {
                 analyticsConfig.getHeaders(),
                 ClientHelper.ML_ORIGIN,
                 client,
-                CreateIndexAction.INSTANCE,
+                TransportCreateIndexAction.TYPE,
                 createIndexRequest,
                 listener
             );

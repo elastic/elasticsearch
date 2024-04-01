@@ -888,6 +888,18 @@ public class Setting<T> implements ToXContentObject {
             return settings.keySet().stream().filter(this::match).map(key::getConcreteString);
         }
 
+        @Override
+        public boolean exists(Settings settings) {
+            // concrete settings might be secure, so don't exclude these here
+            return key.exists(settings.keySet(), Collections.emptySet());
+        }
+
+        @Override
+        public boolean exists(Settings.Builder builder) {
+            // concrete settings might be secure, so don't exclude these here
+            return key.exists(builder.keys(), Collections.emptySet());
+        }
+
         /**
          * Get the raw list of dependencies. This method is exposed for testing purposes and {@link #getSettingsDependencies(String)}
          * should be preferred for most all cases.

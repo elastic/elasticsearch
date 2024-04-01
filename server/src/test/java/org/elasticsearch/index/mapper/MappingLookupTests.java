@@ -121,8 +121,6 @@ public class MappingLookupTests extends ESTestCase {
         assertEquals(0, mappingLookup.getMapping().getMetadataMappersMap().size());
         assertFalse(mappingLookup.fieldMappers().iterator().hasNext());
         assertEquals(0, mappingLookup.getMatchingFieldNames("*").size());
-        assertNotNull(mappingLookup.getInferenceIdsForFields());
-        assertTrue(mappingLookup.getInferenceIdsForFields().isEmpty());
     }
 
     public void testValidateDoesNotShadow() {
@@ -188,22 +186,6 @@ public class MappingLookupTests extends ESTestCase {
                     : "Field [metric] attempted to shadow a time_series_metric"
             )
         );
-    }
-
-    public void testInferenceIdsForFields() {
-        MockInferenceModelFieldType fieldType = new MockInferenceModelFieldType("test_field_name", "test_model_id");
-        MappingLookup mappingLookup = createMappingLookup(
-            Collections.singletonList(new MockFieldMapper(fieldType)),
-            emptyList(),
-            emptyList()
-        );
-        assertEquals(1, size(mappingLookup.fieldMappers()));
-        assertEquals(fieldType, mappingLookup.getFieldType("test_field_name"));
-
-        Map<String, String> inferenceIdsForFields = mappingLookup.getInferenceIdsForFields();
-        assertNotNull(inferenceIdsForFields);
-        assertEquals(1, inferenceIdsForFields.size());
-        assertEquals("test_model_id", inferenceIdsForFields.get("test_field_name"));
     }
 
     private void assertAnalyzes(Analyzer analyzer, String field, String output) throws IOException {

@@ -1263,12 +1263,11 @@ public class MetadataCreateIndexService {
         indexMetadataBuilder.system(isSystem);
         // now, update the mappings with the actual source
         Map<String, MappingMetadata> mappingsMetadata = new HashMap<>();
-        DocumentMapper mapper = documentMapperSupplier.get();
-        if (mapper != null) {
-            MappingMetadata mappingMd = new MappingMetadata(mapper);
-            mappingsMetadata.put(mapper.type(), mappingMd);
-            FieldInferenceMetadata fieldInferenceMetadata = new FieldInferenceMetadata(mapper.mappers());
-            indexMetadataBuilder.fieldInferenceMetadata(fieldInferenceMetadata);
+        DocumentMapper docMapper = documentMapperSupplier.get();
+        if (docMapper != null) {
+            MappingMetadata mappingMd = new MappingMetadata(docMapper);
+            mappingsMetadata.put(docMapper.type(), mappingMd);
+            indexMetadataBuilder.putInferenceFields(docMapper.mappers().inferenceFields());
         }
 
         for (MappingMetadata mappingMd : mappingsMetadata.values()) {

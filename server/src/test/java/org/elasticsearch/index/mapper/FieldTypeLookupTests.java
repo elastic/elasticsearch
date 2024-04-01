@@ -16,7 +16,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
@@ -36,10 +35,6 @@ public class FieldTypeLookupTests extends ESTestCase {
         Collection<String> names = lookup.getMatchingFieldNames("foo");
         assertNotNull(names);
         assertThat(names, hasSize(0));
-
-        Map<String, String> inferenceForFields = lookup.getInferenceIdsForFields();
-        assertNotNull(inferenceForFields);
-        assertTrue(inferenceForFields.isEmpty());
     }
 
     public void testAddNewField() {
@@ -47,10 +42,6 @@ public class FieldTypeLookupTests extends ESTestCase {
         FieldTypeLookup lookup = new FieldTypeLookup(Collections.singletonList(f), emptyList(), Collections.emptyList());
         assertNull(lookup.get("bar"));
         assertEquals(f.fieldType(), lookup.get("foo"));
-
-        Map<String, String> inferenceForFields = lookup.getInferenceIdsForFields();
-        assertNotNull(inferenceForFields);
-        assertTrue(inferenceForFields.isEmpty());
     }
 
     public void testAddFieldAlias() {
@@ -428,25 +419,6 @@ public class FieldTypeLookupTests extends ESTestCase {
             );
             assertEquals("Found sub-fields with name not belonging to the parent field they are part of [multi.]", ise.getMessage());
         }
-    }
-
-    public void testInferenceModelFieldType() {
-        MockFieldMapper f1 = new MockFieldMapper(new MockInferenceModelFieldType("foo1", "bar1"));
-        MockFieldMapper f2 = new MockFieldMapper(new MockInferenceModelFieldType("foo2", "bar1"));
-        MockFieldMapper f3 = new MockFieldMapper(new MockInferenceModelFieldType("foo3", "bar2"));
-
-        FieldTypeLookup lookup = new FieldTypeLookup(List.of(f1, f2, f3), emptyList(), emptyList());
-        assertEquals(f1.fieldType(), lookup.get("foo1"));
-        assertEquals(f2.fieldType(), lookup.get("foo2"));
-        assertEquals(f3.fieldType(), lookup.get("foo3"));
-
-        Map<String, String> inferenceIdsForFields = lookup.getInferenceIdsForFields();
-        assertNotNull(inferenceIdsForFields);
-        assertEquals(3, inferenceIdsForFields.size());
-
-        assertEquals("bar1", inferenceIdsForFields.get("foo1"));
-        assertEquals("bar1", inferenceIdsForFields.get("foo2"));
-        assertEquals("bar2", inferenceIdsForFields.get("foo3"));
     }
 
     private static FlattenedFieldMapper createFlattenedMapper(String fieldName) {

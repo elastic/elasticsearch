@@ -36,10 +36,7 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
             "test",
             client().admin().indices().prepareCreate("test").setMapping("field", "type=semantic_text,inference_id=test_model")
         );
-        assertThat(
-            indexService.getMetadata().getFieldInferenceMetadata().getFieldInferenceOptions().get("field").inferenceId(),
-            equalTo("test_model")
-        );
+        assertEquals(indexService.getMetadata().getInferenceFields().get("field").getInferenceId(), "test_model");
     }
 
     public void testSingleSourceSemanticTextField() throws Exception {
@@ -56,14 +53,9 @@ public class SemanticTextClusterMetadataTests extends ESSingleNodeTestCase {
             putMappingExecutor,
             singleTask(request)
         );
-        FieldInferenceMetadata.FieldInferenceOptions fieldInferenceOptions = resultingState.metadata()
-            .index("test")
-            .getFieldInferenceMetadata()
-            .getFieldInferenceOptions()
-            .get("field");
-        assertThat(fieldInferenceOptions.inferenceId(), equalTo("test_model"));
-        assertThat(fieldInferenceOptions.sourceFields(), equalTo(Set.of("field")));
+        assertEquals(resultingState.metadata().index("test").getInferenceFields().get("field").getInferenceId(), "test_model");
     }
+
 
     public void testCopyToSemanticTextField() throws Exception {
         final IndexService indexService = createIndex("test", client().admin().indices().prepareCreate("test"));

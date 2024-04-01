@@ -28,8 +28,8 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class TransformTaskFailedStateIT extends TransformRestTestCase {
 
@@ -69,13 +69,13 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         startTransform(transformId);
         awaitState(transformId, TransformStats.State.FAILED);
         Map<?, ?> fullState = getTransformStateAndStats(transformId);
-        final String failureReason = "Failed to index documents into destination index due to permanent error: "
-            + "\\[org.elasticsearch.xpack.transform.transforms.BulkIndexingException: Bulk index experienced \\[7\\] "
+        var failureReason = "Failed to index documents into destination index due to permanent error: "
+            + "[org.elasticsearch.xpack.transform.transforms.BulkIndexingException: Bulk index experienced [7] "
             + "failures and at least 1 irrecoverable "
-            + "\\[org.elasticsearch.xpack.transform.transforms.TransformException: Destination index mappings are "
-            + "incompatible with the transform configuration.;.*";
+            + "[org.elasticsearch.xpack.transform.transforms.TransformException: Destination index mappings are "
+            + "incompatible with the transform configuration.;";
         // Verify we have failed for the expected reason
-        assertThat((String) XContentMapValues.extractValue("reason", fullState), matchesRegex(failureReason));
+        assertThat((String) XContentMapValues.extractValue("reason", fullState), startsWith(failureReason));
 
         assertThat(getTransformTasks(), hasSize(1));
 
@@ -84,10 +84,10 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.CONFLICT.getStatus()));
         assertThat(
             (String) XContentMapValues.extractValue("error.reason", entityAsMap(ex.getResponse())),
-            matchesRegex(
-                "Unable to stop transform \\[test-force-stop-failed-transform\\] as it is in a failed state with reason \\["
+            startsWith(
+                "Unable to stop transform [test-force-stop-failed-transform] as it is in a failed state. "
+                    + "Use force stop to stop the transform. More details: ["
                     + failureReason
-                    + "\\]. Use force stop to stop the transform."
             )
         );
 
@@ -113,13 +113,13 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         startTransform(transformId);
         awaitState(transformId, TransformStats.State.FAILED);
         Map<?, ?> fullState = getTransformStateAndStats(transformId);
-        final String failureReason = "Failed to index documents into destination index due to permanent error: "
-            + "\\[org.elasticsearch.xpack.transform.transforms.BulkIndexingException: Bulk index experienced \\[7\\] "
+        var failureReason = "Failed to index documents into destination index due to permanent error: "
+            + "[org.elasticsearch.xpack.transform.transforms.BulkIndexingException: Bulk index experienced [7] "
             + "failures and at least 1 irrecoverable "
-            + "\\[org.elasticsearch.xpack.transform.transforms.TransformException: Destination index mappings are "
-            + "incompatible with the transform configuration.;.*";
+            + "[org.elasticsearch.xpack.transform.transforms.TransformException: Destination index mappings are "
+            + "incompatible with the transform configuration.;";
         // Verify we have failed for the expected reason
-        assertThat((String) XContentMapValues.extractValue("reason", fullState), matchesRegex(failureReason));
+        assertThat((String) XContentMapValues.extractValue("reason", fullState), startsWith(failureReason));
 
         assertThat(getTransformTasks(), hasSize(1));
 
@@ -149,28 +149,24 @@ public class TransformTaskFailedStateIT extends TransformRestTestCase {
         startTransform(transformId);
         awaitState(transformId, TransformStats.State.FAILED);
         Map<?, ?> fullState = getTransformStateAndStats(transformId);
-        final String failureReason = "Failed to index documents into destination index due to permanent error: "
-            + "\\[org.elasticsearch.xpack.transform.transforms.BulkIndexingException: Bulk index experienced \\[7\\] "
+        var failureReason = "Failed to index documents into destination index due to permanent error: "
+            + "[org.elasticsearch.xpack.transform.transforms.BulkIndexingException: Bulk index experienced [7] "
             + "failures and at least 1 irrecoverable "
-            + "\\[org.elasticsearch.xpack.transform.transforms.TransformException: Destination index mappings are "
-            + "incompatible with the transform configuration.;.*";
+            + "[org.elasticsearch.xpack.transform.transforms.TransformException: Destination index mappings are "
+            + "incompatible with the transform configuration.;";
         // Verify we have failed for the expected reason
-        assertThat((String) XContentMapValues.extractValue("reason", fullState), matchesRegex(failureReason));
+        assertThat((String) XContentMapValues.extractValue("reason", fullState), startsWith(failureReason));
 
         assertThat(getTransformTasks(), hasSize(1));
 
-        final String expectedFailure = "Unable to start transform \\[test-force-start-failed-transform\\] "
-            + "as it is in a failed state with failure: \\["
-            + failureReason
-            + "\\]. Use force stop and then restart the transform once error is resolved.";
+        var expectedFailure = "Unable to start transform [test-force-start-failed-transform] "
+            + "as it is in a failed state. Use force stop and then restart the transform once error is resolved. More details: ["
+            + failureReason;
         // Verify that we cannot start the transform when the task is in a failed state
         assertBusy(() -> {
             ResponseException ex = expectThrows(ResponseException.class, () -> startTransform(transformId));
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.CONFLICT.getStatus()));
-            assertThat(
-                (String) XContentMapValues.extractValue("error.reason", entityAsMap(ex.getResponse())),
-                matchesRegex(expectedFailure)
-            );
+            assertThat((String) XContentMapValues.extractValue("error.reason", entityAsMap(ex.getResponse())), startsWith(expectedFailure));
         }, 60, TimeUnit.SECONDS);
 
         stopTransform(transformId, true);

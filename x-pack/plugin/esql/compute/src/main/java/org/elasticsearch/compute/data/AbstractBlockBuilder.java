@@ -169,6 +169,7 @@ abstract class AbstractBlockBuilder implements Block.Builder {
     private void setFirstValue(int position, int value) {
         if (position >= firstValueIndexes.length) {
             final int currentSize = firstValueIndexes.length;
+            // We grow the `firstValueIndexes` at the same rate as the `values` array, but independently.
             final int newLength = ArrayUtil.oversize(position + 1, Integer.BYTES);
             adjustBreaker((long) newLength * Integer.BYTES);
             firstValueIndexes = ArrayUtil.growExact(firstValueIndexes, newLength);

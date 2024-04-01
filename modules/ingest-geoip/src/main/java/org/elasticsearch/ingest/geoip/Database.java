@@ -16,6 +16,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+/**
+ * A high-level representation of a kind of geoip database that is supported by the {@link GeoIpProcessor}.
+ * <p>
+ * A database has a set of properties that are valid to use with it (see {@link Database#properties()}),
+ * as well as a list of default properties to use if no properties are specified (see {@link Database#defaultProperties()}).
+ * <p>
+ * See especially {@link Database#getDatabase(String, String)} which is used to obtain instances of this class.
+ */
 enum Database {
 
     City(
@@ -53,6 +61,15 @@ enum Database {
     private static final String COUNTRY_DB_SUFFIX = "-Country";
     private static final String ASN_DB_SUFFIX = "-ASN";
 
+    /**
+     * Parses the passed-in databaseType (presumably from the passed-in databaseFile) and return the Database instance that is
+     * associated with that databaseType.
+     *
+     * @param databaseType the database type String from the metadata of the database file
+     * @param databaseFile the database file from which the database type was obtained
+     * @throws IllegalArgumentException if the databaseType is not associated with a Database instance
+     * @return the Database instance that is associated with the databaseType
+     */
     public static Database getDatabase(final String databaseType, final String databaseFile) {
         Database database = null;
         if (databaseType != null) {
@@ -80,19 +97,25 @@ enum Database {
         this.defaultProperties = defaultProperties;
     }
 
+    /**
+     * @return a set representing all the valid properties for this database
+     */
     public Set<Property> properties() {
         return properties;
     }
 
+    /**
+     * @return a set representing the default properties for this database
+     */
     public Set<Property> defaultProperties() {
         return defaultProperties;
     }
 
     /**
-     * Parse the given list of property names and validate them against the supplied databaseType.
+     * Parse the given list of property names.
      *
-     * @param propertyNames a list of property names to parse, or null to use the default properties for the associated databaseType
-     * @throws IllegalArgumentException if any of the property names are not valid, or if the databaseType is not valid
+     * @param propertyNames a list of property names to parse, or null to use the default properties for this database
+     * @throws IllegalArgumentException if any of the property names are not valid
      * @return a set of parsed and validated properties
      */
     public Set<Property> parseProperties(@Nullable final List<String> propertyNames) {
@@ -108,6 +131,9 @@ enum Database {
         }
     }
 
+    /**
+     * High-level database 'properties' that represent information that can be extracted from a geoip database.
+     */
     enum Property {
 
         IP,
@@ -123,6 +149,18 @@ enum Database {
         ORGANIZATION_NAME,
         NETWORK;
 
+        /**
+         * Parses a string representation of a property into an actual Property instance. Not all properties that exist are
+         * valid for all kinds of databases, so this method validates the parsed value against the provided set of valid properties.
+         * <p>
+         * See {@link Database#parseProperties(List)} where this is used.
+         *
+         * @param validProperties the valid properties against which to validate the parsed property value
+         * @param value the string representation to parse
+         * @return a parsed, validated Property
+         * @throws IllegalArgumentException if the value does not parse as a Property or if the parsed Property is not
+         * in the passed-in validProperties set
+         */
         private static Property parseProperty(final Set<Property> validProperties, final String value) {
             try {
                 Property property = valueOf(value.toUpperCase(Locale.ROOT));

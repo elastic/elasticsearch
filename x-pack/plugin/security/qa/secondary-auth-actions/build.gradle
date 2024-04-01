@@ -20,3 +20,4 @@ dependencies {
   clusterPlugins project(':x-pack:plugin:security:qa:secondary-auth-actions')
 }
 
+tasks.named("javadoc").configure { enabled = false }

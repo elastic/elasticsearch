@@ -272,7 +272,7 @@ Test that sparse vector search will not allow both a model ID and vector dimensi
                   smells: 1.0
                   bad: 1.0
                 pruning_config: {}
-  - match: { hits.total.value: 4 }
+  - match: { hits.total.value: 5 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---

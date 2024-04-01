@@ -131,7 +131,9 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         if (vectorDimensionsSupplier != null) {
-            throw new IllegalStateException("token supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
+            throw new IllegalStateException(
+                "vector dimension supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?"
+            );
         }
         out.writeString(fieldName);
         out.writeString(modelText);

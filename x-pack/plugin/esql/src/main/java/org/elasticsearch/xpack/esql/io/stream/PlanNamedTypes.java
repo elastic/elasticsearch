@@ -182,6 +182,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.options.EsSourceOptions;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
@@ -628,7 +629,8 @@ public final class PlanNamedTypes {
             in.readSource(),
             in.readLogicalPlanNode(),
             in.readOptionalNamedWriteable(QueryBuilder.class),
-            in.readOptionalVInt()
+            in.readOptionalVInt(),
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REDUCER_NODE_FRAGMENT) ? in.readOptionalPhysicalPlanNode() : null
         );
     }
 
@@ -637,6 +639,9 @@ public final class PlanNamedTypes {
         out.writeLogicalPlanNode(fragmentExec.fragment());
         out.writeOptionalNamedWriteable(fragmentExec.esFilter());
         out.writeOptionalVInt(fragmentExec.estimatedRowSize());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_REDUCER_NODE_FRAGMENT)) {
+            out.writeOptionalPhysicalPlanNode(fragmentExec.reducer());
+        }
     }
 
     static GrokExec readGrokExec(PlanStreamInput in) throws IOException {
@@ -772,7 +777,14 @@ public final class PlanNamedTypes {
     }
 
     static EsRelation readEsRelation(PlanStreamInput in) throws IOException {
-        return new EsRelation(in.readSource(), readEsIndex(in), readAttributes(in), in.readBoolean());
+        Source source = in.readSource();
+        EsIndex esIndex = readEsIndex(in);
+        List<Attribute> attributes = readAttributes(in);
+        EsSourceOptions esSourceOptions = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_SOURCE_OPTIONS)
+            ? new EsSourceOptions(in)
+            : EsSourceOptions.NO_OPTIONS;
+        boolean frozen = in.readBoolean();
+        return new EsRelation(source, esIndex, attributes, esSourceOptions, frozen);
     }
 
     static void writeEsRelation(PlanStreamOutput out, EsRelation relation) throws IOException {
@@ -780,6 +792,9 @@ public final class PlanNamedTypes {
         out.writeNoSource();
         writeEsIndex(out, relation.index());
         writeAttributes(out, relation.output());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_SOURCE_OPTIONS)) {
+            relation.esSourceOptions().writeEsSourceOptions(out);
+        }
         out.writeBoolean(relation.frozen());
     }
 

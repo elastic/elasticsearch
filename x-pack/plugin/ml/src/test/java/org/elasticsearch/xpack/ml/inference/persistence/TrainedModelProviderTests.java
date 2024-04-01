@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.ml.inference.persistence;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -548,7 +548,7 @@ public class TrainedModelProviderTests extends ESTestCase {
 
     private void assertThatBulkIndexRequestHasOperation(Client client, DocWriteRequest.OpType operation) {
         var bulkIndexRequestArg = ArgumentCaptor.forClass(BulkRequest.class);
-        verify(client).execute(eq(BulkAction.INSTANCE), bulkIndexRequestArg.capture(), any());
+        verify(client).execute(eq(TransportBulkAction.TYPE), bulkIndexRequestArg.capture(), any());
 
         var requests = bulkIndexRequestArg.getValue().requests();
         assertThat(bulkIndexRequestArg.getValue().requests().size(), Matchers.greaterThan(0));

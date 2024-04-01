@@ -135,7 +135,7 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(uri.toString());
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalEnum(similarity);
+            out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
             out.writeOptionalVInt(dimensions);
             out.writeOptionalVInt(maxInputTokens);
         }
@@ -145,10 +145,12 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
         return uri;
     }
 
+    @Override
     public SimilarityMeasure similarity() {
         return similarity;
     }
 
+    @Override
     public Integer dimensions() {
         return dimensions;
     }

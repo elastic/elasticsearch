@@ -321,7 +321,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             );
             assertThat(
                 newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.resolveAll(context)),
-                equalTo(newHashSet("index-visible-alias")) // TODO this is currently broken
+                equalTo(newHashSet("index-visible-alias"))
             );
         }
     }

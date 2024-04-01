@@ -70,9 +70,14 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature ASYNC_QUERY = new NodeFeature("esql.async_query");
 
+    /**
+     * Does ESQL support FROM OPTIONS?
+     */
+    public static final NodeFeature FROM_OPTIONS = new NodeFeature("esql.from_options");
+
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(ASYNC_QUERY, AGG_VALUES, MV_SORT, DISABLE_NULLABLE_OPTS, ST_X_Y);
+        return Set.of(ASYNC_QUERY, AGG_VALUES, MV_SORT, DISABLE_NULLABLE_OPTS, ST_X_Y, FROM_OPTIONS);
     }
 
     @Override

@@ -422,10 +422,22 @@ public final class GeoIpProcessor extends AbstractProcessor {
             } finally {
                 geoIpDatabase.release();
             }
-            if (databaseType == null
-                || (databaseType.endsWith(Database.CITY_DB_SUFFIX)
-                    || databaseType.endsWith(Database.COUNTRY_DB_SUFFIX)
-                    || databaseType.endsWith(Database.ASN_DB_SUFFIX)) == false) {
+
+            final Database database;
+            if (databaseType != null) {
+                if (databaseType.endsWith(Database.CITY_DB_SUFFIX)) {
+                    database = Database.City;
+                } else if (databaseType.endsWith(Database.COUNTRY_DB_SUFFIX)) {
+                    database = Database.Country;
+                } else if (databaseType.endsWith(Database.ASN_DB_SUFFIX)) {
+                    database = Database.Asn;
+                } else {
+                    database = null;
+                }
+            } else {
+                database = null;
+            }
+            if (database == null) {
                 throw newConfigurationException(
                     TYPE,
                     processorTag,
@@ -436,7 +448,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
             final Set<Property> properties;
             try {
-                properties = Property.parseProperties(databaseType, propertyNames);
+                properties = database.parseProperties(propertyNames);
             } catch (IllegalArgumentException e) {
                 throw newConfigurationException(TYPE, processorTag, "properties", e.getMessage());
             }

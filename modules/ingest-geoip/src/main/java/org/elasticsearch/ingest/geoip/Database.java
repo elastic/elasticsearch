@@ -69,6 +69,26 @@ public enum Database {
         return defaultProperties;
     }
 
+    /**
+     * Parse the given list of property names and validate them against the supplied databaseType.
+     *
+     * @param propertyNames a list of property names to parse, or null to use the default properties for the associated databaseType
+     * @throws IllegalArgumentException if any of the property names are not valid, or if the databaseType is not valid
+     * @return a set of parsed and validated properties
+     */
+    public Set<Property> parseProperties(@Nullable final List<String> propertyNames) {
+        if (propertyNames != null) {
+            final Set<Property> parsedProperties = new HashSet<>();
+            for (String propertyName : propertyNames) {
+                parsedProperties.add(Property.parseProperty(this.properties, propertyName)); // n.b. this throws if a property is invalid
+            }
+            return Set.copyOf(parsedProperties);
+        } else {
+            // if propertyNames is null, then use the default properties
+            return this.defaultProperties;
+        }
+    }
+
     public enum Property {
 
         IP,
@@ -100,46 +120,6 @@ public enum Database {
                     "illegal property value [" + value + "]. valid values are " + Arrays.toString(properties)
                 );
             }
-        }
-
-        /**
-         * Parse the given list of property names and validate them against the supplied databaseType.
-         *
-         * @param databaseType the type of database to use to validate property names
-         * @param propertyNames a list of property names to parse, or null to use the default properties for the associated databaseType
-         * @throws IllegalArgumentException if any of the property names are not valid, or if the databaseType is not valid
-         * @return a set of parsed and validated properties
-         */
-        public static Set<Property> parseProperties(final String databaseType, @Nullable final List<String> propertyNames) {
-            final Set<Property> validProperties;
-            final Set<Property> defaultProperties;
-
-            if (databaseType.endsWith(CITY_DB_SUFFIX)) {
-                validProperties = City.properties();
-                defaultProperties = City.defaultProperties();
-            } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
-                validProperties = Country.properties();
-                defaultProperties = Country.defaultProperties();
-            } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
-                validProperties = Asn.properties();
-                defaultProperties = Asn.defaultProperties();
-            } else {
-                assert false : "Unsupported database type [" + databaseType + "]";
-                throw new IllegalArgumentException("Unsupported database type [" + databaseType + "]");
-            }
-
-            final Set<Property> properties;
-            if (propertyNames != null) {
-                Set<Property> modifiableProperties = new HashSet<>();
-                for (String propertyName : propertyNames) {
-                    modifiableProperties.add(parseProperty(validProperties, propertyName)); // n.b. this throws if a property is invalid
-                }
-                properties = Set.copyOf(modifiableProperties);
-            } else {
-                // if propertyNames is null, then use the default properties for the databaseType
-                properties = defaultProperties;
-            }
-            return properties;
         }
     }
 }

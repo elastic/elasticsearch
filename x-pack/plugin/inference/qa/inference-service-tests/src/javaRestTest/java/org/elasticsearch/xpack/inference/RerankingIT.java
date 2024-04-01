@@ -9,8 +9,11 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
+
 import java.io.IOException;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106967")
 public class RerankingIT extends InferenceBaseRestTest {
 
     public void testPutCohereRerankEndpoint() throws IOException {
@@ -29,7 +32,7 @@ public class RerankingIT extends InferenceBaseRestTest {
               "service": "cohere",
               "service_settings": {
                 "model_id": "rerank-english-v2.0",
-                "api_key": "8TNPBvpBO7oN97009HQHzQbBhNrxmREbcJrZCwkK"
+                "api_key": ""
               }
             }
             """);// TODO remove key
@@ -52,7 +55,7 @@ public class RerankingIT extends InferenceBaseRestTest {
               "service": "cohere",
               "service_settings": {
                 "model_id": "rerank-english-v2.0",
-                "api_key": "8TNPBvpBO7oN97009HQHzQbBhNrxmREbcJrZCwkK"
+                "api_key": ""
               },
               "task_settings": {
                 "return_documents": true

@@ -376,21 +376,6 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     public static final class Factory implements Processor.Factory {
-        static final Set<Property> DEFAULT_CITY_PROPERTIES = Set.of(
-            Property.CONTINENT_NAME,
-            Property.COUNTRY_NAME,
-            Property.COUNTRY_ISO_CODE,
-            Property.REGION_ISO_CODE,
-            Property.REGION_NAME,
-            Property.CITY_NAME,
-            Property.LOCATION
-        );
-        static final Set<Property> DEFAULT_COUNTRY_PROPERTIES = Set.of(
-            Property.CONTINENT_NAME,
-            Property.COUNTRY_NAME,
-            Property.COUNTRY_ISO_CODE
-        );
-        static final Set<Property> DEFAULT_ASN_PROPERTIES = Set.of(Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK);
 
         private final GeoIpDatabaseProvider geoIpDatabaseProvider;
 

@@ -16,14 +16,57 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-public final class Database {
+public enum Database {
+
+    City(
+        Set.of(
+            Property.IP,
+            Property.COUNTRY_ISO_CODE,
+            Property.COUNTRY_NAME,
+            Property.CONTINENT_NAME,
+            Property.REGION_ISO_CODE,
+            Property.REGION_NAME,
+            Property.CITY_NAME,
+            Property.TIMEZONE,
+            Property.LOCATION
+        ),
+        Set.of(
+            Property.CONTINENT_NAME,
+            Property.COUNTRY_NAME,
+            Property.COUNTRY_ISO_CODE,
+            Property.REGION_ISO_CODE,
+            Property.REGION_NAME,
+            Property.CITY_NAME,
+            Property.LOCATION
+        )
+    ),
+    Country(
+        Set.of(Property.IP, Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE),
+        Set.of(Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE)
+    ),
+    Asn(
+        Set.of(Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK),
+        Set.of(Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK)
+    );
 
     public static final String CITY_DB_SUFFIX = "-City";
     public static final String COUNTRY_DB_SUFFIX = "-Country";
     public static final String ASN_DB_SUFFIX = "-ASN";
 
-    private Database() {
-        // utility class
+    private final Set<Property> properties;
+    private final Set<Property> defaultProperties;
+
+    Database(Set<Property> properties, Set<Property> defaultProperties) {
+        this.properties = properties;
+        this.defaultProperties = defaultProperties;
+    }
+
+    public Set<Property> properties() {
+        return properties;
+    }
+
+    public Set<Property> defaultProperties() {
+        return defaultProperties;
     }
 
     public enum Property {
@@ -40,25 +83,6 @@ public final class Database {
         ASN,
         ORGANIZATION_NAME,
         NETWORK;
-
-        static final Set<Property> ALL_CITY_PROPERTIES = Set.of(
-            Property.IP,
-            Property.COUNTRY_ISO_CODE,
-            Property.COUNTRY_NAME,
-            Property.CONTINENT_NAME,
-            Property.REGION_ISO_CODE,
-            Property.REGION_NAME,
-            Property.CITY_NAME,
-            Property.TIMEZONE,
-            Property.LOCATION
-        );
-        static final Set<Property> ALL_COUNTRY_PROPERTIES = Set.of(
-            Property.IP,
-            Property.CONTINENT_NAME,
-            Property.COUNTRY_NAME,
-            Property.COUNTRY_ISO_CODE
-        );
-        static final Set<Property> ALL_ASN_PROPERTIES = Set.of(Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK);
 
         private static Property parseProperty(Set<Property> validProperties, String value) {
             try {
@@ -91,14 +115,14 @@ public final class Database {
             final Set<Property> defaultProperties;
 
             if (databaseType.endsWith(CITY_DB_SUFFIX)) {
-                validProperties = ALL_CITY_PROPERTIES;
-                defaultProperties = GeoIpProcessor.Factory.DEFAULT_CITY_PROPERTIES;
+                validProperties = City.properties();
+                defaultProperties = City.defaultProperties();
             } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
-                validProperties = ALL_COUNTRY_PROPERTIES;
-                defaultProperties = GeoIpProcessor.Factory.DEFAULT_COUNTRY_PROPERTIES;
+                validProperties = Country.properties();
+                defaultProperties = Country.defaultProperties();
             } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
-                validProperties = ALL_ASN_PROPERTIES;
-                defaultProperties = GeoIpProcessor.Factory.DEFAULT_ASN_PROPERTIES;
+                validProperties = Asn.properties();
+                defaultProperties = Asn.defaultProperties();
             } else {
                 assert false : "Unsupported database type [" + databaseType + "]";
                 throw new IllegalArgumentException("Unsupported database type [" + databaseType + "]");

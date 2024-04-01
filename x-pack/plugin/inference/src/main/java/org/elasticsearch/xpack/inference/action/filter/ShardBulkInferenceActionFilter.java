@@ -388,10 +388,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     // item was already aborted/processed by a filter in the chain upstream (e.g. security)
                     continue;
                 }
+                boolean isUpdateRequest = false;
                 final IndexRequest indexRequest;
                 if (item.request() instanceof IndexRequest ir) {
                     indexRequest = ir;
                 } else if (item.request() instanceof UpdateRequest updateRequest) {
+                    isUpdateRequest = true;
                     if (updateRequest.script() != null) {
                         addInferenceResponseFailure(
                             item.id(),
@@ -409,25 +411,20 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     continue;
                 }
                 final Map<String, Object> docMap = indexRequest.sourceAsMap();
-                final Map<String, Object> inferenceMap = XContentMapValues.nodeMapValue(
-                    docMap.computeIfAbsent(InferenceMetadataFieldMapper.NAME, k -> new LinkedHashMap<String, Object>()),
-                    InferenceMetadataFieldMapper.NAME
-                );
                 for (var entry : fieldInferenceMap.values()) {
                     String field = entry.getName();
                     String inferenceId = entry.getInferenceId();
                     for (var sourceField : entry.getSourceFields()) {
-                        Object inferenceResult = inferenceMap.remove(field);
                         var value = XContentMapValues.extractValue(sourceField, docMap);
                         if (value == null) {
-                            if (inferenceResult != null) {
+                            if (isUpdateRequest) {
                                 addInferenceResponseFailure(
                                     item.id(),
                                     new ElasticsearchStatusException(
-                                        "The field [{}] is referenced in the [{}] metadata field but has no value",
+                                        "Field [{}] must be specified on an update request to calculate inference for field [{}]",
                                         RestStatus.BAD_REQUEST,
-                                        field,
-                                        InferenceMetadataFieldMapper.NAME
+                                        sourceField,
+                                        field
                                     )
                                 );
                             }

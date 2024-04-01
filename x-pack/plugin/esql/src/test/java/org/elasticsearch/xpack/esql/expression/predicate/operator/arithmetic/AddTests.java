@@ -189,7 +189,7 @@ public class AddTests extends AbstractFunctionTestCase {
 
         // Datetime tests are split in two, depending on their permissiveness of null-injection, which cannot happen "automatically" for
         // Datetime + Period/Duration, since the expression will take the non-null arg's type.
-        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), AddTests::addErrorMessageString);
+        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(suppliers), AddTests::addErrorMessageString);
 
         // Cases that should generate warnings
         suppliers.addAll(List.of(new TestCaseSupplier("MV", () -> {

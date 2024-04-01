@@ -208,7 +208,7 @@ public class ToLongTests extends AbstractFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(suppliers)));
     }
 
     @Override

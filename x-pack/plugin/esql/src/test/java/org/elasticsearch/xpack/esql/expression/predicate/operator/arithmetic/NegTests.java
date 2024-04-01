@@ -112,7 +112,7 @@ public class NegTests extends AbstractFunctionTestCase {
                 equalTo(arg.negated())
             );
         })));
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, suppliers)));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(suppliers, DataTypes.NULL)));
     }
 
     @Override

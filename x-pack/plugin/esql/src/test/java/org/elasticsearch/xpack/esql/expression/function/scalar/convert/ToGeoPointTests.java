@@ -71,7 +71,7 @@ public class ToGeoPointTests extends AbstractFunctionTestCase {
             List.of()
         );
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(suppliers)));
     }
 
     @Override

@@ -99,7 +99,13 @@ public class LeastTests extends AbstractFunctionTestCase {
                 )
             )
         );
-        return parameterSuppliersFromTypedData(anyNullIsNull(false, suppliers));
+        return parameterSuppliersFromTypedData(anyNullIsNull(suppliers, (data, original) -> {
+            if (data.size() == 1) {
+                // There's just one column, so we can't come up with a good type
+                return DataTypes.NULL;
+            }
+            return original;
+        }));
     }
 
     @Override

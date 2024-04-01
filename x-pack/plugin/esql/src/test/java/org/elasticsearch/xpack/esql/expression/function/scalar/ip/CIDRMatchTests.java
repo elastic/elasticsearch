@@ -83,7 +83,7 @@ public class CIDRMatchTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(suppliers)));
     }
 
     @Override

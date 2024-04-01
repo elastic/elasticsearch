@@ -48,9 +48,11 @@ public final class Case extends EsqlScalarFunction {
         returnType = {
             "boolean",
             "cartesian_point",
+            "cartesian_shape",
             "date",
             "double",
             "geo_point",
+            "geo_shape",
             "integer",
             "ip",
             "keyword",
@@ -70,9 +72,11 @@ public final class Case extends EsqlScalarFunction {
             type = {
                 "boolean",
                 "cartesian_point",
+                "cartesian_shape",
                 "date",
                 "double",
                 "geo_point",
+                "geo_shape",
                 "integer",
                 "ip",
                 "keyword",

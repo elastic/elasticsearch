@@ -70,7 +70,7 @@ public class ToRadiansTests extends AbstractFunctionTestCase {
             List.of()
         );
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(suppliers)));
     }
 
     @Override

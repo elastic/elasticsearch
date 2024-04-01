@@ -100,7 +100,14 @@ public class GreatestTests extends AbstractFunctionTestCase {
                 )
             )
         );
-        return parameterSuppliersFromTypedData(anyNullIsNull(false, suppliers));
+        return parameterSuppliersFromTypedData(anyNullIsNull(suppliers, (data, original) -> {
+            // TODO should null columns just be ignored in GREATEST/LEAST? they don't have a value - treat them like an empty list?
+            if (data.size() == 1) {
+                // There's just one column, so we can't come up with a good type
+                return DataTypes.NULL;
+            }
+            return original;
+        }));
     }
 
     @Override

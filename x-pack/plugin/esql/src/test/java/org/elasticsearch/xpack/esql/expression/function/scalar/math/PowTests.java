@@ -58,7 +58,7 @@ public class PowTests extends AbstractScalarFunctionTestCase {
         );
 
         // Add null cases before the rest of the error cases, so messages are correct.
-        suppliers = anyNullIsNull(true, suppliers);
+        suppliers = anyNullIsNull(suppliers);
 
         // Overflow should be null
         suppliers.addAll(

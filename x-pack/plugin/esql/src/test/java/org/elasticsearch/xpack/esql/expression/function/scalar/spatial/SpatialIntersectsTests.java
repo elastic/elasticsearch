@@ -51,7 +51,7 @@ public class SpatialIntersectsTests extends AbstractFunctionTestCase {
         DataType[] cartesianDataTypes = { EsqlDataTypes.CARTESIAN_POINT, EsqlDataTypes.CARTESIAN_SHAPE };
         addSpatialCombinations(suppliers, cartesianDataTypes);
         return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), SpatialIntersectsTests::typeErrorMessage)
+            errorsForCasesWithoutExamples(anyNullIsNull(suppliers), SpatialIntersectsTests::typeErrorMessage)
         );
     }
 

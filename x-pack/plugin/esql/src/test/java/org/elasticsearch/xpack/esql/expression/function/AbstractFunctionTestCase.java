@@ -37,9 +37,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
-import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunctionTestCase;
-import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.optimizer.FoldNull;
 import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.planner.Layout;
@@ -88,6 +85,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -456,48 +454,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     // TODO cranky time
 
-    public void testSimpleWithNulls() { // TODO replace this with nulls inserted into the test case like anyNullIsNull
-        assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
-        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
-        List<Object> simpleData = testCase.getDataValues();
-        try (EvalOperator.ExpressionEvaluator eval = evaluator(buildFieldExpression(testCase)).get(driverContext())) {
-            BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
-            Block[] orig = BlockUtils.fromListRow(blockFactory, simpleData);
-            for (int i = 0; i < orig.length; i++) {
-                List<Object> data = new ArrayList<>();
-                Block[] blocks = new Block[orig.length];
-                for (int b = 0; b < blocks.length; b++) {
-                    if (b == i) {
-                        blocks[b] = orig[b].elementType().newBlockBuilder(1, blockFactory).appendNull().build();
-                        data.add(null);
-                    } else {
-                        blocks[b] = orig[b];
-                        data.add(simpleData.get(b));
-                    }
-                }
-                try (Block block = eval.eval(new Page(blocks))) {
-                    assertSimpleWithNulls(data, block, i);
-                }
-            }
-
-            // Note: the null-in-fast-null-out handling prevents any exception from being thrown, so the warnings provided in some test
-            // cases won't actually be registered. This isn't an issue for unary functions, but could be an issue for n-ary ones, if
-            // function processing of the first parameter(s) could raise an exception/warning. (But hasn't been the case so far.)
-            // N-ary non-MV functions dealing with one multivalue (before hitting the null parameter injected above) will now trigger
-            // a warning ("SV-function encountered a MV") that thus needs to be checked.
-            if (this instanceof AbstractMultivalueFunctionTestCase == false
-                && simpleData.stream().anyMatch(List.class::isInstance)
-                && testCase.getExpectedWarnings() != null) {
-                assertWarnings(testCase.getExpectedWarnings());
-            }
-        }
-    }
-
-    protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
-        // TODO remove me in favor of cases containing null
-        assertTrue("argument " + nullBlock + " is null", value.isNull(0));
-    }
-
     public final void testEvaluateInManyThreads() throws ExecutionException, InterruptedException {
         assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
@@ -613,7 +569,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         List<Set<String>> typesFromSignature = new ArrayList<>();
         Set<String> returnFromSignature = new HashSet<>();
         for (int i = 0; i < args.size(); i++) {
-            typesFromSignature.add(new HashSet<>());
+            typesFromSignature.add(new TreeSet<>());
         }
         for (Map.Entry<List<DataType>, DataType> entry : signatures.entrySet()) {
             List<DataType> types = entry.getKey();
@@ -640,17 +596,44 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * Adds cases with {@code null} and asserts that the result is {@code null}.
      * <p>
+     * This will assert that the result has the same type as the function would
+     * have returned without the {@code null} inserted.
+     * </p>
+     * <p>
+     * Note: This won't add more than a single null to any existing test case,
+     * just to keep the number of test cases from exploding totally.
+     * </p>
+     */
+    protected static List<TestCaseSupplier> anyNullIsNull(List<TestCaseSupplier> testCaseSuppliers) {
+        return anyNullIsNull(testCaseSuppliers, (data, original) -> original);
+    }
+
+    /**
+     * Adds cases with {@code null} and asserts that the result is {@code null}.
+     * <p>
+     * Note: This won't add more than a single null to any existing test case,
+     * just to keep the number of test cases from exploding totally.
+     * </p>
+     * @param expectedType the data type that the function declares as its result, usually {@code NULL}
+     */
+    protected static List<TestCaseSupplier> anyNullIsNull(List<TestCaseSupplier> testCaseSuppliers, DataType expectedType) {
+        return anyNullIsNull(testCaseSuppliers, (data, original) -> expectedType);
+    }
+
+    /**
+     * Adds cases with {@code null} and asserts that the result is {@code null}.
+     * <p>
      * Note: This won't add more than a single null to any existing test case,
      * just to keep the number of test cases from exploding totally.
      * </p>
      *
-     * @param entirelyNullPreservesType should a test case that only contains parameters
-     *                                  with the {@code null} type keep it's expected type?
-     *                                  This is <strong>mostly</strong> going to be {@code true}
-     *                                  except for functions that base their type entirely
-     *                                  on input types like {@link Greatest} or {@link Coalesce}.
+     * @param resultType The result type, usually the same type as the function
+     *                   usually returns but sometimes {@link DataTypes#NULL}
      */
-    protected static List<TestCaseSupplier> anyNullIsNull(boolean entirelyNullPreservesType, List<TestCaseSupplier> testCaseSuppliers) {
+    protected static List<TestCaseSupplier> anyNullIsNull(
+        List<TestCaseSupplier> testCaseSuppliers,
+        BiFunction<List<TestCaseSupplier.TypedData>, DataType, DataType> resultType
+    ) {
         typesRequired(testCaseSuppliers);
         List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
         suppliers.addAll(testCaseSuppliers);
@@ -704,7 +687,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                             return new TestCaseSupplier.TestCase(
                                 data,
                                 equalTo("LiteralsEvaluator[lit=null]"),
-                                entirelyNullPreservesType == false && oc.getData().size() == 1 ? DataTypes.NULL : oc.expectedType(),
+                                resultType.apply(data, oc.expectedType()),
                                 nullValue(),
                                 null,
                                 oc.getExpectedTypeError(),

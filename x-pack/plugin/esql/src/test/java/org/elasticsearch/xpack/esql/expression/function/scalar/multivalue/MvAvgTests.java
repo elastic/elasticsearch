@@ -56,7 +56,7 @@ public class MvAvgTests extends AbstractMultivalueFunctionTestCase {
              */
             (size, data) -> avg.apply(size, data.mapToDouble(v -> unsignedLongToDouble(NumericUtils.asLongUnsigned(v))))
         );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, cases)));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(cases)));
     }
 
     @Override

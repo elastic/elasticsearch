@@ -130,7 +130,7 @@ public class ToStringTests extends AbstractFunctionTestCase {
             v -> new BytesRef(v.toString()),
             List.of()
         );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(suppliers)));
     }
 
     @Override

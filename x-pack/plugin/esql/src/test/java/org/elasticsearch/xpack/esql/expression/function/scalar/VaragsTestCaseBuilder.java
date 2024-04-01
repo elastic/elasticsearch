@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.nullValue;
  * Builds test cases for variable argument functions.
  */
 public class VaragsTestCaseBuilder {
-    private static final int MAX_WIDTH = 10;
+    public static final int MAX_WIDTH = 10;
 
     private Function<String, String> expectedEvaluatorPrefix;
     private Function<String, String> expectedEvaluatorValueMap = Function.identity();

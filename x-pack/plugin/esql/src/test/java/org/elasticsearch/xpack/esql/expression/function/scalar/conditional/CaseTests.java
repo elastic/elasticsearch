@@ -10,13 +10,14 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expression.TypeResolution;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -44,42 +46,58 @@ public class CaseTests extends AbstractFunctionTestCase {
      */
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("basics", () -> {
-            List<TestCaseSupplier.TypedData> typedData = List.of(
-                new TestCaseSupplier.TypedData(true, DataTypes.BOOLEAN, "cond"),
-                new TestCaseSupplier.TypedData(new BytesRef("a"), DataTypes.KEYWORD, "a"),
-                new TestCaseSupplier.TypedData(new BytesRef("b"), DataTypes.KEYWORD, "b")
-            );
-            return new TestCaseSupplier.TestCase(
-                typedData,
-                "CaseEvaluator[resultType=BYTES_REF, conditions=[ConditionEvaluator[condition=Attribute[channel=0], "
-                    + "value=Attribute[channel=1]]], elseVal=Attribute[channel=2]]",
-                DataTypes.KEYWORD,
-                equalTo(new BytesRef("a"))
-            );
-        })));
+        // TODO longer examples
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        for (DataType type : EsqlDataTypes.types()) {
+            if (false == EsqlDataTypes.isRepresentable(type)) {
+                continue;
+            }
+            suppliers.add(twoArms(type));
+        }
+        return parameterSuppliersFromTypedData(suppliers);
     }
 
-    @Override
-    protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
-        if (nullBlock == 0) {
-            assertThat(toJavaObject(value, 0), equalTo(data.get(2)));
-            return;
-        }
-        if (((Boolean) data.get(0)).booleanValue()) {
-            if (nullBlock == 1) {
-                super.assertSimpleWithNulls(data, value, nullBlock);
-            } else {
-                assertThat(toJavaObject(value, 0), equalTo(data.get(1)));
-            }
-            return;
-        }
-        if (nullBlock == 2) {
-            super.assertSimpleWithNulls(data, value, nullBlock);
-        } else {
-            assertThat(toJavaObject(value, 0), equalTo(data.get(2)));
-        }
+    private static TestCaseSupplier twoArms(DataType armType) {
+        return new TestCaseSupplier(List.of(DataTypes.BOOLEAN, armType, armType), () -> {
+            Boolean cond = randomFrom(true, false, null);
+            List<TestCaseSupplier.TypedData> typedData = List.of(
+                new TestCaseSupplier.TypedData(cond, DataTypes.BOOLEAN, "cond"),
+                new TestCaseSupplier.TypedData(randomBoolean() ? null : randomLiteral(armType).value(), armType, "true arm"),
+                new TestCaseSupplier.TypedData(randomBoolean() ? null : randomLiteral(armType).value(), armType, "false arm")
+            );
+            ElementType resultType = PlannerUtils.toElementType(armType);
+            return new TestCaseSupplier.TestCase(
+                typedData,
+                "CaseEvaluator[resultType="
+                    + resultType
+                    + ", conditions=[ConditionEvaluator[condition=Attribute[channel=0], "
+                    + "value=Attribute[channel=1]]], elseVal=Attribute[channel=2]]",
+                armType,
+                equalTo(cond != null && cond ? typedData.get(1).getValue() : typedData.get(2).getValue())
+            );
+        });
     }
+
+    // @Override
+    // protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
+    // if (nullBlock == 0) {
+    // assertThat(toJavaObject(value, 0), equalTo(data.get(2)));
+    // return;
+    // }
+    // if (((Boolean) data.get(0)).booleanValue()) {
+    // if (nullBlock == 1) {
+    // super.assertSimpleWithNulls(data, value, nullBlock);
+    // } else {
+    // assertThat(toJavaObject(value, 0), equalTo(data.get(1)));
+    // }
+    // return;
+    // }
+    // if (nullBlock == 2) {
+    // super.assertSimpleWithNulls(data, value, nullBlock);
+    // } else {
+    // assertThat(toJavaObject(value, 0), equalTo(data.get(2)));
+    // }
+    // }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {

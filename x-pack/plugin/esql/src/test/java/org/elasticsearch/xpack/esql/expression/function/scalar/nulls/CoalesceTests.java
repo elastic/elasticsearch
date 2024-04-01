@@ -18,11 +18,14 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.VaragsTestCaseBuilder;
 import org.elasticsearch.xpack.esql.planner.Layout;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 
 import java.util.ArrayList;
@@ -30,19 +33,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class CoalesceTests extends AbstractFunctionTestCase {
     public CoalesceTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
-    /**
-     * Generate the test cases for this test. The tests don't actually include
-     * any nulls, but we insert those nulls in {@link #testSimpleWithNulls()}.
-     */
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         VaragsTestCaseBuilder builder = new VaragsTestCaseBuilder(type -> "Coalesce");
@@ -50,26 +54,60 @@ public class CoalesceTests extends AbstractFunctionTestCase {
         builder.expectLong(longs -> longs.filter(v -> v != null).findFirst());
         builder.expectInt(ints -> ints.filter(v -> v != null).findFirst());
         builder.expectBoolean(booleans -> booleans.filter(v -> v != null).findFirst());
-        return parameterSuppliersFromTypedData(builder.suppliers());
-    }
-
-    @Override
-    protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
-        for (int i = 0; i < data.size(); i++) {
-            if (nullBlock == i) {
-                continue;
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        for (TestCaseSupplier supplier : builder.suppliers()) {
+            suppliers.add(supplier);
+            for (int leadingNullCount = 1; leadingNullCount < 4; leadingNullCount++) {
+                final int finalLeadingNullCount = leadingNullCount;
+                List<DataType> dataTypes = new ArrayList<>();
+                for (int i = 0; i < leadingNullCount; i++) {
+                    dataTypes.add(DataTypes.NULL);
+                }
+                dataTypes.addAll(supplier.types());
+                suppliers.add(
+                    new TestCaseSupplier(
+                        supplier.name() + " with " + leadingNullCount + " leading null" + (leadingNullCount > 1 ? "s" : ""),
+                        Stream.concat(Stream.of(supplier.types().get(0)), supplier.types().stream()).toList(),
+                        () -> {
+                            TestCaseSupplier.TestCase orig = supplier.get();
+                            List<TestCaseSupplier.TypedData> data = new ArrayList<>();
+                            for (int i = 0; i < finalLeadingNullCount; i++) {
+                                data.add(new TestCaseSupplier.TypedData(null, supplier.types().get(0), "leading null " + i));
+                            }
+                            data.addAll(orig.getData());
+                            return new TestCaseSupplier.TestCase(
+                                data,
+                                startsWith("CoalesceEvaluator["),
+                                orig.expectedType(),
+                                orig.getMatcher()
+                            );
+                        }
+                    )
+                );
             }
-            Object v = data.get(i);
-            if (v == null) {
-                continue;
-            }
-            if (v instanceof List<?> l && l.size() == 1) {
-                v = l.get(0);
-            }
-            assertThat(toJavaObject(value, 0), equalTo(v));
-            return;
         }
-        assertThat(value.isNull(0), equalTo(true));
+        for (DataType type : EsqlDataTypes.types()) {
+            if (EsqlDataTypes.isRepresentable(type) == false) {
+                continue;
+            }
+            for (int paramCount = 1; paramCount < VaragsTestCaseBuilder.MAX_WIDTH; paramCount++) {
+                final int finalParamCount = paramCount;
+                suppliers.add(
+                    new TestCaseSupplier(
+                        "all nulls " + IntStream.range(0, paramCount).mapToObj(i -> type.typeName()).collect(Collectors.joining(", ")),
+                        IntStream.range(0, paramCount).mapToObj(i -> type).toList(),
+                        () -> {
+                            List<TestCaseSupplier.TypedData> data = new ArrayList<>(finalParamCount);
+                            for (int i = 0; i < finalParamCount; i++) {
+                                data.add(new TestCaseSupplier.TypedData(null, type, "p " + i));
+                            }
+                            return new TestCaseSupplier.TestCase(data, startsWith("CoalesceEvaluator["), type, nullValue());
+                        }
+                    )
+                );
+            }
+        }
+        return parameterSuppliersFromTypedData(suppliers);
     }
 
     @Override
@@ -78,6 +116,7 @@ public class CoalesceTests extends AbstractFunctionTestCase {
     }
 
     public void testCoalesceIsLazy() {
+        assumeFalse("test needs some non-null values", testCase.getData().stream().allMatch(d -> d.getValue() == null));
         List<Expression> sub = new ArrayList<>(testCase.getDataAsFields());
         FieldAttribute evil = new FieldAttribute(Source.EMPTY, "evil", new EsField("evil", sub.get(0).dataType(), Map.of(), true));
         sub.add(evil);
@@ -120,6 +159,7 @@ public class CoalesceTests extends AbstractFunctionTestCase {
     }
 
     public void testCoalesceNotNullable() {
+        assumeFalse("can't make test data", testCase.getData().get(0).type() == DataTypes.NULL);
         List<Expression> sub = new ArrayList<>(testCase.getDataAsFields());
         sub.add(between(0, sub.size()), randomLiteral(sub.get(0).dataType()));
         Coalesce exp = build(Source.EMPTY, sub);

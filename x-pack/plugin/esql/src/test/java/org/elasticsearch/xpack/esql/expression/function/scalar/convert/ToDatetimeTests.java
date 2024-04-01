@@ -162,7 +162,7 @@ public class ToDatetimeTests extends AbstractFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(suppliers)));
     }
 
     private static String randomDateString(long from, long to) {

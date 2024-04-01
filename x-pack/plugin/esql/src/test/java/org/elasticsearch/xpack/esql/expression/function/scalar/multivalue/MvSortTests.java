@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MvSortTests extends AbstractFunctionTestCase {
     public MvSortTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -38,6 +39,7 @@ public class MvSortTests extends AbstractFunctionTestCase {
         longs(suppliers);
         doubles(suppliers);
         bytesRefs(suppliers);
+        nulls(suppliers);
         return parameterSuppliersFromTypedData(suppliers);
     }
 
@@ -60,7 +62,6 @@ public class MvSortTests extends AbstractFunctionTestCase {
                 equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted().toList())
             );
         }));
-
     }
 
     private static void ints(List<TestCaseSupplier> suppliers) {
@@ -183,8 +184,18 @@ public class MvSortTests extends AbstractFunctionTestCase {
         }));
     }
 
-    @Override
-    public void testSimpleWithNulls() {
-        assumeFalse("test case is invalid", false);
+    private static void nulls(List<TestCaseSupplier> suppliers) {
+        suppliers.add(new TestCaseSupplier(List.of(DataTypes.NULL, DataTypes.KEYWORD), () -> {
+            BytesRef order = new BytesRef("ASC");
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(null, DataTypes.NULL, "field"),
+                    new TestCaseSupplier.TypedData(order, DataTypes.KEYWORD, "order").forceLiteral()
+                ),
+                "LiteralsEvaluator[lit=null]",
+                DataTypes.NULL,
+                nullValue()
+            );
+        }));
     }
 }

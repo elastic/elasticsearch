@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -55,11 +53,6 @@ public class TauTests extends AbstractScalarFunctionTestCase {
     @Override
     protected DataType expectedType(List<DataType> argTypes) {
         return DataTypes.DOUBLE;
-    }
-
-    @Override
-    protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
-        assertThat(((DoubleBlock) value).asVector().getDouble(0), equalTo(Tau.TAU));
     }
 
     @Override

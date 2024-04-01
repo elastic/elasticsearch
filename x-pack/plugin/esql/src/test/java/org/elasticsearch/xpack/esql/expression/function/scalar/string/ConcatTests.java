@@ -44,7 +44,7 @@ public class ConcatTests extends AbstractFunctionTestCase {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         suppliers(suppliers, 2);
         suppliers(suppliers, 3);
-        suppliers = anyNullIsNull(true, suppliers);
+        suppliers = anyNullIsNull(suppliers);
         for (int length = 4; length < 100; length++) {
             suppliers(suppliers, length);
         }

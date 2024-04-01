@@ -27,7 +27,7 @@ public class AcosTests extends AbstractFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         // values in range
         List<TestCaseSupplier> suppliers = TestCaseSupplier.forUnaryCastingToDouble("AcosEvaluator", "val", Math::acos, -1d, 1d, List.of());
-        suppliers = anyNullIsNull(true, suppliers);
+        suppliers = anyNullIsNull(suppliers);
 
         // Values out of range
         suppliers.addAll(

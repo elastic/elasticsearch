@@ -43,7 +43,21 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
     private DataType dataType;
 
     @FunctionInfo(
-        returnType = { "boolean", "text", "integer", "keyword", "long" },
+        returnType = {
+            "boolean",
+            "cartesian_point",
+            "cartesian_shape",
+            "date",
+            "double",
+            "geo_point",
+            "geo_shape",
+            "integer",
+            "ip",
+            "keyword",
+            "long",
+            "text",
+            "unsigned_long",
+            "version" },
         description = "Returns the first of its arguments that is not null. If all arguments are null, it returns `null`.",
         examples = { @Example(file = "null", tag = "coalesce") }
     )
@@ -51,12 +65,40 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
         Source source,
         @Param(
             name = "first",
-            type = { "boolean", "text", "integer", "keyword", "long" },
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date",
+                "double",
+                "geo_point",
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" },
             description = "Expression to evaluate"
         ) Expression first,
         @Param(
             name = "rest",
-            type = { "boolean", "text", "integer", "keyword", "long" },
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date",
+                "double",
+                "geo_point",
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "unsigned_long",
+                "version" },
             description = "Other expression to evaluate",
             optional = true
         ) List<Expression> rest

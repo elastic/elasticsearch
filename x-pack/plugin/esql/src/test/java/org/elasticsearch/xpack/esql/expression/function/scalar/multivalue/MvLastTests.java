@@ -55,7 +55,7 @@ public class MvLastTests extends AbstractMultivalueFunctionTestCase {
             EsqlDataTypes.CARTESIAN_SHAPE,
             (size, values) -> equalTo(values.reduce((f, s) -> s).get())
         );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, cases)));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(cases, DataTypes.NULL)));
     }
 
     @Override

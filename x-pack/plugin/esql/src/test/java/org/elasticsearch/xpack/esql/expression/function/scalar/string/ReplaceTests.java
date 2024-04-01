@@ -105,7 +105,7 @@ public class ReplaceTests extends AbstractFunctionTestCase {
                     "Unclosed character class near index 0\n[\n^".replaceAll("\n", System.lineSeparator())
                 );
         }));
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, suppliers)));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(suppliers)));
     }
 
     private static TestCaseSupplier fixedCase(String name, String str, String oldStr, String newStr, String result) {

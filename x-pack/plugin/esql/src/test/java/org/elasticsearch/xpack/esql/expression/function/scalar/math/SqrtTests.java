@@ -70,7 +70,7 @@ public class SqrtTests extends AbstractFunctionTestCase {
             Double.MAX_VALUE,
             List.of()
         );
-        suppliers = anyNullIsNull(true, suppliers);
+        suppliers = anyNullIsNull(suppliers);
 
         // Out of range values (there are no out of range unsigned longs)
         TestCaseSupplier.forUnaryInt(

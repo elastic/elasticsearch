@@ -41,7 +41,7 @@ public class MvCountTests extends AbstractMultivalueFunctionTestCase {
         cartesianPoints(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         geoShape(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
         cartesianShape(cases, "mv_count", "MvCount", DataTypes.INTEGER, (size, values) -> equalTo(Math.toIntExact(values.count())));
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, cases)));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(cases)));
     }
 
     @Override

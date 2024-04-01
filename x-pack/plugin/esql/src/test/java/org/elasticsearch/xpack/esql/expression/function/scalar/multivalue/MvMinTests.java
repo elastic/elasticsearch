@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -38,7 +39,7 @@ public class MvMinTests extends AbstractMultivalueFunctionTestCase {
         longs(cases, "mv_min", "MvMin", (size, values) -> equalTo(values.min().getAsLong()));
         unsignedLongs(cases, "mv_min", "MvMin", (size, values) -> equalTo(values.reduce(BigInteger::min).get()));
         dateTimes(cases, "mv_min", "MvMin", (size, values) -> equalTo(values.min().getAsLong()));
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, cases)));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(cases, DataTypes.NULL)));
     }
 
     @Override

@@ -36,71 +36,73 @@ public class DateDiffTests extends AbstractFunctionTestCase {
         ZonedDateTime zdtEnd = ZonedDateTime.parse("2023-12-05T10:45:00Z");
 
         return parameterSuppliersFromTypedData(
-            List.of(
-                new TestCaseSupplier(
-                    "Date Diff In Seconds - OK",
-                    List.of(DataTypes.KEYWORD, DataTypes.DATETIME, DataTypes.DATETIME),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("seconds"), DataTypes.KEYWORD, "unit"),
-                            new TestCaseSupplier.TypedData(zdtStart.toInstant().toEpochMilli(), DataTypes.DATETIME, "startTimestamp"),
-                            new TestCaseSupplier.TypedData(zdtEnd.toInstant().toEpochMilli(), DataTypes.DATETIME, "endTimestamp")
-                        ),
-                        "DateDiffEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], "
-                            + "endTimestamp=Attribute[channel=2]]",
-                        DataTypes.INTEGER,
-                        equalTo(88170)
-                    )
-                ),
-                new TestCaseSupplier(
-                    "Date Diff In Seconds with text- OK",
-                    List.of(DataTypes.TEXT, DataTypes.DATETIME, DataTypes.DATETIME),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("seconds"), DataTypes.TEXT, "unit"),
-                            new TestCaseSupplier.TypedData(zdtStart.toInstant().toEpochMilli(), DataTypes.DATETIME, "startTimestamp"),
-                            new TestCaseSupplier.TypedData(zdtEnd.toInstant().toEpochMilli(), DataTypes.DATETIME, "endTimestamp")
-                        ),
-                        "DateDiffEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], "
-                            + "endTimestamp=Attribute[channel=2]]",
-                        DataTypes.INTEGER,
-                        equalTo(88170)
-                    )
-                ),
-                new TestCaseSupplier(
-                    "Date Diff Error Type unit",
-                    List.of(DataTypes.INTEGER, DataTypes.DATETIME, DataTypes.DATETIME),
-                    () -> TestCaseSupplier.TestCase.typeError(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("seconds"), DataTypes.INTEGER, "unit"),
-                            new TestCaseSupplier.TypedData(zdtStart.toInstant().toEpochMilli(), DataTypes.DATETIME, "startTimestamp"),
-                            new TestCaseSupplier.TypedData(zdtEnd.toInstant().toEpochMilli(), DataTypes.DATETIME, "endTimestamp")
-                        ),
-                        "first argument of [] must be [string], found value [unit] type [integer]"
-                    )
-                ),
-                new TestCaseSupplier(
-                    "Date Diff Error Type startTimestamp",
-                    List.of(DataTypes.TEXT, DataTypes.INTEGER, DataTypes.DATETIME),
-                    () -> TestCaseSupplier.TestCase.typeError(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("minutes"), DataTypes.TEXT, "unit"),
-                            new TestCaseSupplier.TypedData(zdtStart.toInstant().toEpochMilli(), DataTypes.INTEGER, "startTimestamp"),
-                            new TestCaseSupplier.TypedData(zdtEnd.toInstant().toEpochMilli(), DataTypes.DATETIME, "endTimestamp")
-                        ),
-                        "second argument of [] must be [datetime], found value [startTimestamp] type [integer]"
-                    )
-                ),
-                new TestCaseSupplier(
-                    "Date Diff Error Type endTimestamp",
-                    List.of(DataTypes.TEXT, DataTypes.DATETIME, DataTypes.INTEGER),
-                    () -> TestCaseSupplier.TestCase.typeError(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("minutes"), DataTypes.TEXT, "unit"),
-                            new TestCaseSupplier.TypedData(zdtStart.toInstant().toEpochMilli(), DataTypes.DATETIME, "startTimestamp"),
-                            new TestCaseSupplier.TypedData(zdtEnd.toInstant().toEpochMilli(), DataTypes.INTEGER, "endTimestamp")
-                        ),
-                        "third argument of [] must be [datetime], found value [endTimestamp] type [integer]"
+            anyNullIsNull(
+                List.of(
+                    new TestCaseSupplier(
+                        "Date Diff In Seconds - OK",
+                        List.of(DataTypes.KEYWORD, DataTypes.DATETIME, DataTypes.DATETIME),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(new BytesRef("seconds"), DataTypes.KEYWORD, "unit"),
+                                new TestCaseSupplier.TypedData(zdtStart.toInstant().toEpochMilli(), DataTypes.DATETIME, "startTimestamp"),
+                                new TestCaseSupplier.TypedData(zdtEnd.toInstant().toEpochMilli(), DataTypes.DATETIME, "endTimestamp")
+                            ),
+                            "DateDiffEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], "
+                                + "endTimestamp=Attribute[channel=2]]",
+                            DataTypes.INTEGER,
+                            equalTo(88170)
+                        )
+                    ),
+                    new TestCaseSupplier(
+                        "Date Diff In Seconds with text- OK",
+                        List.of(DataTypes.TEXT, DataTypes.DATETIME, DataTypes.DATETIME),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(
+                                new TestCaseSupplier.TypedData(new BytesRef("seconds"), DataTypes.TEXT, "unit"),
+                                new TestCaseSupplier.TypedData(zdtStart.toInstant().toEpochMilli(), DataTypes.DATETIME, "startTimestamp"),
+                                new TestCaseSupplier.TypedData(zdtEnd.toInstant().toEpochMilli(), DataTypes.DATETIME, "endTimestamp")
+                            ),
+                            "DateDiffEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], "
+                                + "endTimestamp=Attribute[channel=2]]",
+                            DataTypes.INTEGER,
+                            equalTo(88170)
+                        )
+                    ),
+                    new TestCaseSupplier(
+                        "Date Diff Error Type unit",
+                        List.of(DataTypes.INTEGER, DataTypes.DATETIME, DataTypes.DATETIME),
+                        () -> TestCaseSupplier.TestCase.typeError(
+                            List.of(
+                                new TestCaseSupplier.TypedData(new BytesRef("seconds"), DataTypes.INTEGER, "unit"),
+                                new TestCaseSupplier.TypedData(zdtStart.toInstant().toEpochMilli(), DataTypes.DATETIME, "startTimestamp"),
+                                new TestCaseSupplier.TypedData(zdtEnd.toInstant().toEpochMilli(), DataTypes.DATETIME, "endTimestamp")
+                            ),
+                            "first argument of [] must be [string], found value [unit] type [integer]"
+                        )
+                    ),
+                    new TestCaseSupplier(
+                        "Date Diff Error Type startTimestamp",
+                        List.of(DataTypes.TEXT, DataTypes.INTEGER, DataTypes.DATETIME),
+                        () -> TestCaseSupplier.TestCase.typeError(
+                            List.of(
+                                new TestCaseSupplier.TypedData(new BytesRef("minutes"), DataTypes.TEXT, "unit"),
+                                new TestCaseSupplier.TypedData(zdtStart.toInstant().toEpochMilli(), DataTypes.INTEGER, "startTimestamp"),
+                                new TestCaseSupplier.TypedData(zdtEnd.toInstant().toEpochMilli(), DataTypes.DATETIME, "endTimestamp")
+                            ),
+                            "second argument of [] must be [datetime], found value [startTimestamp] type [integer]"
+                        )
+                    ),
+                    new TestCaseSupplier(
+                        "Date Diff Error Type endTimestamp",
+                        List.of(DataTypes.TEXT, DataTypes.DATETIME, DataTypes.INTEGER),
+                        () -> TestCaseSupplier.TestCase.typeError(
+                            List.of(
+                                new TestCaseSupplier.TypedData(new BytesRef("minutes"), DataTypes.TEXT, "unit"),
+                                new TestCaseSupplier.TypedData(zdtStart.toInstant().toEpochMilli(), DataTypes.DATETIME, "startTimestamp"),
+                                new TestCaseSupplier.TypedData(zdtEnd.toInstant().toEpochMilli(), DataTypes.INTEGER, "endTimestamp")
+                            ),
+                            "third argument of [] must be [datetime], found value [endTimestamp] type [integer]"
+                        )
                     )
                 )
             )

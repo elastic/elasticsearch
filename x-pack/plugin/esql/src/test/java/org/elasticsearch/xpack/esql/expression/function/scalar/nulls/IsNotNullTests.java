@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.nulls;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -68,11 +66,6 @@ public class IsNotNullTests extends AbstractFunctionTestCase {
             );
         }
         return parameterSuppliersFromTypedData(failureForCasesWithoutExamples(suppliers));
-    }
-
-    @Override
-    protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
-        assertFalse(((BooleanBlock) value).asVector().getBoolean(0));
     }
 
     @Override

@@ -72,7 +72,7 @@ public class Log10Tests extends AbstractFunctionTestCase {
         );
 
         // Add in null cases here; the out of range cases won't set the right warnings on a null input.
-        suppliers = anyNullIsNull(true, suppliers);
+        suppliers = anyNullIsNull(suppliers);
 
         // Cases with invalid inputs
         TestCaseSupplier.forUnaryInt(

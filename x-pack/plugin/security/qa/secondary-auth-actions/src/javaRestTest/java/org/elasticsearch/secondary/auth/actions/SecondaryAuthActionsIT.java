@@ -101,5 +101,13 @@ public class SecondaryAuthActionsIT extends ESRestTestCase {
         final Map<String, Object> getIndicesResponseBody = entityAsMap(getIndicesResponse);
         assertNotNull(getIndicesResponseBody.get("logs"));
         assertNull(getIndicesResponseBody.get("metrics"));
+
+        // invalid secondary auth header
+        getIndicesRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", ADMIN_TOKEN).addHeader("es-secondary-authorization", "junk")
+        );
+        responseException = expectThrows(ResponseException.class, () -> client().performRequest(getIndicesRequest));
+        assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.UNAUTHORIZED.getStatus()));
+        assertThat(responseException.getMessage(), containsString("Failed to authenticate secondary user"));
     }
 }

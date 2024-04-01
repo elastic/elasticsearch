@@ -858,7 +858,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
                 newChildren.add(args.get(i));
             }
-
             return childrenChanged ? f.replaceChildren(newChildren) : f;
         }
 
@@ -903,6 +902,5 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
             }
         }
-
     }
 }

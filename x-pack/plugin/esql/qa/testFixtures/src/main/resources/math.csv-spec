@@ -1414,3 +1414,12 @@ Amabile        |Gomatam        |2.09           |2.09
 Anneke         |Preusig        |1.56           |1.56     
 //end::abs-employees-result[]
 ;
+
+evalAbsString
+ROW number = -1.0
+| EVAL abs_number = ABS("10.0")
+;
+
+number:double  | abs_number:double
+-1.0           | 10.0
+;

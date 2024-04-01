@@ -3,6 +3,8 @@
 setup:
   - skip:
       features: headers
+      version: " - 8.13.99"
+      reason: "introduced in 8.14.0"
 
   - do:
       headers:
@@ -145,10 +147,6 @@ teardown:
 
 ---
 "Test sparse vector search with pruning config":
-  - skip:
-      version: " - 8.13.99"
-      reason: "introduced in 8.14.0"
-
   - do:
       search:
         index: index-with-sparse-vector
@@ -166,9 +164,6 @@ teardown:
 
 ---
 "Test named, boosted sparse vector search with pruning config":
-  - skip:
-      version: " - 8.13.99"
-      reason: "introduced in 8.14.0"
   - do:
       search:
         index: index-with-sparse-vector
@@ -206,10 +201,6 @@ teardown:
 
 ---
 "Test sparse vector search with default pruning config":
-  - skip:
-      version: " - 8.13.99"
-      reason: "introduced in 8.14.0"
-
   - do:
       search:
         index: index-with-sparse-vector
@@ -224,11 +215,7 @@ teardown:
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
-"Test sparse vector search with weighted tokens rescoring only pruned tokens":
-  - skip:
-      version: " - 8.13.99"
-      reason: "introduced in 8.14.0"
-
+"Test sparse vector search with vector dimensions rescoring only pruned tokens":
   - do:
       search:
         index: index-with-sparse-vector

@@ -833,14 +833,19 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "failed", "missing_docs")));
         }
 
-        final List<Measurement> latencyTotalMetrics = plugin.getLongHistogramMeasurement(DownsampleMetrics.LATENCY_TOTAL);
         // Total latency gets recorded after reindex and force-merge complete.
-        assertBusy(() -> assertFalse(latencyTotalMetrics.isEmpty()), 10, TimeUnit.SECONDS);
-        for (Measurement measurement : latencyTotalMetrics) {
-            assertTrue(measurement.value().toString(), measurement.value().longValue() >= 0 && measurement.value().longValue() < 1000_000);
-            assertEquals(1, measurement.attributes().size());
-            assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "failed")));
-        }
+        assertBusy(() -> {
+            final List<Measurement> latencyTotalMetrics = plugin.getLongHistogramMeasurement(DownsampleMetrics.LATENCY_TOTAL);
+            assertFalse(latencyTotalMetrics.isEmpty());
+            for (Measurement measurement : latencyTotalMetrics) {
+                assertTrue(
+                    measurement.value().toString(),
+                    measurement.value().longValue() >= 0 && measurement.value().longValue() < 1000_000
+                );
+                assertEquals(1, measurement.attributes().size());
+                assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "failed")));
+            }
+        }, 10, TimeUnit.SECONDS);
     }
 
     public void testResumeDownsample() throws IOException {

@@ -123,7 +123,7 @@ public enum Database {
         ORGANIZATION_NAME,
         NETWORK;
 
-        private static Property parseProperty(Set<Property> validProperties, String value) {
+        private static Property parseProperty(final Set<Property> validProperties, final String value) {
             try {
                 Property property = valueOf(value.toUpperCase(Locale.ROOT));
                 if (validProperties.contains(property) == false) {

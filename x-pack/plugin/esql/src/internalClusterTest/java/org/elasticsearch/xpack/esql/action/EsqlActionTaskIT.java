@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.esql.action;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.collect.Iterators;
@@ -231,12 +231,12 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         CancelTasksRequest request = new CancelTasksRequest().setTargetTaskId(taskId).setReason("test cancel");
         request.setWaitForCompletion(false);
         LOGGER.debug("--> cancelling task [{}] without waiting for completion", taskId);
-        client().admin().cluster().execute(CancelTasksAction.INSTANCE, request).actionGet();
+        client().admin().cluster().execute(TransportCancelTasksAction.TYPE, request).actionGet();
         scriptPermits.release(numberOfDocs());
         request = new CancelTasksRequest().setTargetTaskId(taskId).setReason("test cancel");
         request.setWaitForCompletion(true);
         LOGGER.debug("--> cancelling task [{}] with waiting for completion", taskId);
-        client().admin().cluster().execute(CancelTasksAction.INSTANCE, request).actionGet();
+        client().admin().cluster().execute(TransportCancelTasksAction.TYPE, request).actionGet();
     }
 
     /**

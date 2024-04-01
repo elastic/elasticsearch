@@ -35,7 +35,7 @@ import java.io.UncheckedIOException;
 import java.util.Iterator;
 import java.util.Map;
 
-import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.tasks.TaskInfo.INCLUDE_CANCELLED_PARAM;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;

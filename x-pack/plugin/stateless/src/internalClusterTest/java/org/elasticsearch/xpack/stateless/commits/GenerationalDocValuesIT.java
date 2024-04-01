@@ -331,10 +331,23 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         var searchCacheService = SearchDirectoryTestUtils.getCacheService(searchDirectory);
         searchCacheService.forceEvict(fileCacheKey -> compoundCommitBlobName_5.equals(fileCacheKey.fileName()));
 
+        for (var input : inputs) {
+            FileCacheKey cacheKey = null;
+            if (input instanceof SearchIndexInput searchInput) {
+                cacheKey = SearchDirectoryTestUtils.getCacheKey(searchInput);
+            }
+            assertThat("No cache key found for input " + input, cacheKey, notNullValue());
+            if (cacheKey.fileName().equals(compoundCommitBlobName_5)) {
+                // seek to the end of the file and restore position to make sure we flushed all internal buffers for existing index inputs
+                long pos = input.getFilePointer();
+                input.seek(input.length());
+                input.seek(pos);
+            }
+        }
         Exception e = expectThrows(Exception.class, () -> {
             try (var searcher_7 = searchShard.acquireSearcher("searcher_generation_7")) {
                 assertThat(searcher_7.getDirectoryReader().getIndexCommit().getGeneration(), equalTo(7L));
-                // make sure to read the generation files to trigger a cache misss
+                // make sure to read the generation files to trigger a cache miss
                 readGenerationalDocValues(searcher_7);
             }
         });

@@ -862,6 +862,10 @@ public class IndexDirectory extends ByteSizeDirectory {
 
         @Override
         public IndexInput slice(String sliceDescription, long sliceOffset, long sliceLength) throws IOException {
+            var arraySlice = trySliceBuffer(sliceDescription, sliceOffset, length);
+            if (arraySlice != null) {
+                return arraySlice;
+            }
             assert sliceDescription != null;
             return executeLocallyOrReopen(current -> {
                 if (current.isCached()) {

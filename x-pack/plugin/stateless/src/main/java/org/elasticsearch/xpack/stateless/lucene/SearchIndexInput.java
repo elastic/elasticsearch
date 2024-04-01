@@ -103,6 +103,10 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length) {
         BlobCacheUtils.ensureSlice(sliceDescription, offset, length, this);
+        var arraySlice = trySliceBuffer(sliceDescription, offset, length);
+        if (arraySlice != null) {
+            return arraySlice;
+        }
         return new SearchIndexInput(
             "(" + sliceDescription + ") " + super.toString(),
             cacheFile,

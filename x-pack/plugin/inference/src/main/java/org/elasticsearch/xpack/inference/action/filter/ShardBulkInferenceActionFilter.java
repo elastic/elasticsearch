@@ -411,9 +411,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     continue;
                 }
                 final Map<String, Object> docMap = indexRequest.sourceAsMap();
+                final Map<String, Object> inferenceMap = XContentMapValues.nodeMapValue(
+                    docMap.computeIfAbsent(InferenceMetadataFieldMapper.NAME, k -> new LinkedHashMap<String, Object>()),
+                    InferenceMetadataFieldMapper.NAME
+                );
                 for (var entry : fieldInferenceMap.values()) {
                     String field = entry.getName();
                     String inferenceId = entry.getInferenceId();
+                    Object inferenceResult = inferenceMap.remove(field);
                     for (var sourceField : entry.getSourceFields()) {
                         var value = XContentMapValues.extractValue(sourceField, docMap);
                         if (value == null) {
@@ -425,6 +430,16 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                         RestStatus.BAD_REQUEST,
                                         sourceField,
                                         field
+                                    )
+                                );
+                            } else if (inferenceResult != null) {
+                                addInferenceResponseFailure(
+                                    item.id(),
+                                    new ElasticsearchStatusException(
+                                        "The field [{}] is referenced in the [{}] metadata field but has no value",
+                                        RestStatus.BAD_REQUEST,
+                                        field,
+                                        InferenceMetadataFieldMapper.NAME
                                     )
                                 );
                             }

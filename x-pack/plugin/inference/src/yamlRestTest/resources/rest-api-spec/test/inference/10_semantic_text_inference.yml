@@ -379,6 +379,22 @@ setup:
   - match: { items.0.update.error.reason: "Cannot apply update with a script on indices that contain [semantic_text] field(s)" }
 
 ---
+"Fails when providing inference results and there is no value for field":
+  - do:
+      catch: /The field \[inference_field\] is referenced in the \[_inference\] metadata field but has no value/
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          _inference:
+            inference_field:
+              chunks:
+                - text: "inference test"
+                  inference:
+                    "hello": 0.123
+
+
+---
 "semantic_text copy_to calculate inference for source fields":
   - do:
       indices.create:

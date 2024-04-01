@@ -10,8 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
@@ -215,7 +215,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
-                GetTaskAction.INSTANCE,
+                TransportGetTaskAction.TYPE,
                 getTaskRequest,
                 ActionListener.wrap(r -> listener.onResponse(r.getTask().isCompleted() == false), e -> {
                     if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {

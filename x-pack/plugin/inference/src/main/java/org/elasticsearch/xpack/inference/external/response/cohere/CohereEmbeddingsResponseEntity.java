@@ -159,18 +159,17 @@ public class CohereEmbeddingsResponseEntity {
     }
 
     private static InferenceServiceResults parseEmbeddingsObject(XContentParser parser) throws IOException {
-        XContentParser.Token token;
+        XContentParser.Token token = parser.nextToken();
 
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+        while (token != null && token != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 var embeddingValueParser = EMBEDDING_PARSERS.get(parser.currentName());
-                if (embeddingValueParser == null) {
-                    continue;
+                if (embeddingValueParser != null) {
+                    parser.nextToken();
+                    return embeddingValueParser.apply(parser);
                 }
-
-                parser.nextToken();
-                return embeddingValueParser.apply(parser);
             }
+            token = parser.nextToken();
         }
 
         throw new IllegalStateException(

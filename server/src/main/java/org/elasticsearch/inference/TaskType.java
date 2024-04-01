@@ -22,6 +22,7 @@ public enum TaskType implements Writeable {
     TEXT_EMBEDDING,
     SPARSE_EMBEDDING,
     RERANK,
+    COMPLETION,
     ANY {
         @Override
         public boolean isAnyOrSame(TaskType other) {

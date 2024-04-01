@@ -278,6 +278,7 @@ synthetic source text field:
                                 type: keyword
                           name:
                             type: text
+                            store: false
                       value:
                         type: long
                         time_series_metric: gauge

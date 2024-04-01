@@ -291,7 +291,7 @@ public class ElserInternalService implements InferenceService {
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
-        ChunkingOptions chunkingOptions,
+        @Nullable ChunkingOptions chunkingOptions,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         try {
@@ -301,9 +301,9 @@ public class ElserInternalService implements InferenceService {
             return;
         }
 
-        var configUpdate = chunkingOptions.settingsArePresent()
+        var configUpdate = chunkingOptions != null
             ? new TokenizationConfigUpdate(chunkingOptions.windowSize(), chunkingOptions.span())
-            : TextExpansionConfigUpdate.EMPTY_UPDATE;
+            : new TokenizationConfigUpdate(null, null);
 
         var request = InferTrainedModelDeploymentAction.Request.forTextInput(
             model.getConfigurations().getInferenceEntityId(),

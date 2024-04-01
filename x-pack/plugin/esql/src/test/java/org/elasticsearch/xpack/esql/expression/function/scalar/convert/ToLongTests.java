@@ -50,7 +50,7 @@ public class ToLongTests extends AbstractFunctionTestCase {
             bytesRef -> null,
             bytesRef -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.NumberFormatException: For input string: \"" + bytesRef.utf8ToString() + "\""
+                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [" + bytesRef.utf8ToString() + "]"
             )
         );
         // from doubles within long's range
@@ -179,7 +179,9 @@ public class ToLongTests extends AbstractFunctionTestCase {
             bytesRef -> null,
             bytesRef -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.NumberFormatException: For input string: \"" + ((BytesRef) bytesRef).utf8ToString() + "\""
+                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number ["
+                    + ((BytesRef) bytesRef).utf8ToString()
+                    + "]"
             )
         );
         // strings of random doubles outside integer's range, positive
@@ -200,7 +202,9 @@ public class ToLongTests extends AbstractFunctionTestCase {
             bytesRef -> null,
             bytesRef -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.NumberFormatException: For input string: \"" + ((BytesRef) bytesRef).utf8ToString() + "\""
+                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number ["
+                    + ((BytesRef) bytesRef).utf8ToString()
+                    + "]"
             )
         );
 

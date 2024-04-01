@@ -12,18 +12,21 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.Duration;
 import java.time.Period;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -32,7 +35,10 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
-public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper {
+public class DateTrunc extends EsqlScalarFunction {
+    private final Expression interval;
+    private final Expression timestampField;
+    protected static final ZoneId DEFAULT_TZ = ZoneOffset.UTC;
 
     @FunctionInfo(returnType = "date", description = "Rounds down a date to the closest interval.")
     public DateTrunc(
@@ -46,7 +52,9 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
         ) Expression interval,
         @Param(name = "date", type = { "date" }, description = "Date expression") Expression field
     ) {
-        super(source, interval, field);
+        super(source, List.of(interval, field));
+        this.interval = interval;
+        this.timestampField = field;
     }
 
     @Override
@@ -55,14 +63,13 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
             return new TypeResolution("Unresolved children");
         }
 
-        return isDate(timestampField(), sourceText(), FIRST).and(
-            isType(interval(), EsqlDataTypes::isTemporalAmount, sourceText(), SECOND, "dateperiod", "timeduration")
+        return isDate(timestampField, sourceText(), FIRST).and(
+            isType(interval, EsqlDataTypes::isTemporalAmount, sourceText(), SECOND, "dateperiod", "timeduration")
         );
     }
 
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
+    public DataType dataType() {
+        return DataTypes.DATETIME;
     }
 
     @Evaluator
@@ -71,17 +78,13 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
     }
 
     @Override
-    protected BinaryScalarFunction replaceChildren(Expression newLeft, Expression newRight) {
-        return new DateTrunc(source(), newLeft, newRight);
+    public Expression replaceChildren(List<Expression> newChildren) {
+        return new DateTrunc(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, DateTrunc::new, interval(), timestampField());
-    }
-
-    public Expression interval() {
-        return left();
+        return NodeInfo.create(this, DateTrunc::new, children().get(0), children().get(1));
     }
 
     static Rounding.Prepared createRounding(final Object interval) {
@@ -146,10 +149,9 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        var fieldEvaluator = toEvaluator.apply(timestampField());
-        Expression interval = interval();
+        var fieldEvaluator = toEvaluator.apply(timestampField);
         if (interval.foldable() == false) {
-            throw new IllegalArgumentException("Function [" + sourceText() + "] has invalid interval [" + interval().sourceText() + "].");
+            throw new IllegalArgumentException("Function [" + sourceText() + "] has invalid interval [" + interval.sourceText() + "].");
         }
         Object foldedInterval;
         try {
@@ -159,10 +161,10 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
             }
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException(
-                "Function [" + sourceText() + "] has invalid interval [" + interval().sourceText() + "]. " + e.getMessage()
+                "Function [" + sourceText() + "] has invalid interval [" + interval.sourceText() + "]. " + e.getMessage()
             );
         }
-        return evaluator(source(), fieldEvaluator, DateTrunc.createRounding(foldedInterval, zoneId()));
+        return evaluator(source(), fieldEvaluator, DateTrunc.createRounding(foldedInterval, DEFAULT_TZ));
     }
 
     public static ExpressionEvaluator.Factory evaluator(

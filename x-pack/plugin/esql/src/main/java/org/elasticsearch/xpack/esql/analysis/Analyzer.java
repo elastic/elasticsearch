@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
@@ -43,7 +44,6 @@ import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -820,20 +820,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            return plan.transformExpressionsUp(
-                org.elasticsearch.xpack.ql.expression.function.Function.class,
-                    ImplicitCasting::cast
-            );
+            return plan.transformExpressionsUp(EsqlScalarFunction.class, ImplicitCasting::cast);
         }
 
-        private static Expression cast(org.elasticsearch.xpack.ql.expression.function.Function f) {
+        private static Expression cast(EsqlScalarFunction f) {
             List<Expression> args = f.arguments();
             List<String[]> metaData = getMetaData(f);
             List<Expression> newChildren = new ArrayList<>(args.size());
             boolean childrenChanged = false;
+            List<DataType> supportedTypes = new ArrayList<>();
             for (int i = 0; i < args.size(); i++) {
                 if (args.get(i).dataType() == KEYWORD && args.get(i).foldable()) {
-                    List<DataType> supportedTypes = getSupportedTypes(metaData.get(i));
+                    if (i < metaData.size()) {
+                        supportedTypes = getSupportedTypes(metaData.get(i));
+                    }
                     if (supportedTypes.contains(KEYWORD) == false && supportedTypes.contains(TEXT) == false) {
                         DataType desired = supportedTypes.contains(DATETIME) ? DATETIME
                             : supportedTypes.contains(DOUBLE) ? DOUBLE
@@ -861,7 +861,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return childrenChanged ? f.replaceChildren(newChildren) : f;
         }
 
-        private static List<String[]> getMetaData(org.elasticsearch.xpack.ql.expression.function.Function f) {
+        private static List<String[]> getMetaData(EsqlScalarFunction f) {
             List<String[]> paramTypes = new ArrayList<>();
             var constructors = f.getClass().getConstructors();
             Constructor<?> constructor = constructors[0];
@@ -898,7 +898,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return new UnsupportedAttribute(
                     from.source(),
                     message,
-                    new UnsupportedEsField(String.valueOf(from.fold()), desired.typeName())
+                    new UnsupportedEsField(String.valueOf(from.fold()), from.dataType().typeName())
                 );
             }
         }

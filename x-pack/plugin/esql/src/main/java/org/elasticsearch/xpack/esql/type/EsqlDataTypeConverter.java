@@ -242,6 +242,10 @@ public class EsqlDataTypeConverter {
         return new Version(field.utf8ToString()).toBytesRef();
     }
 
+    public static Version stringToVersion(String field) {
+        return new Version(field);
+    }
+
     public static String versionToString(BytesRef field) {
         return new Version(field).toString();
     }
@@ -379,7 +383,7 @@ public class EsqlDataTypeConverter {
         STRING_TO_CHRONO_FIELD(EsqlDataTypeConverter::stringToChrono),
         STRING_TO_DATETIME(x -> EsqlDataTypeConverter.dateTimeToLong((String) x)),
         STRING_TO_IP(x -> EsqlDataTypeConverter.stringToIP((String) x)),
-        STRING_TO_VERSION(x -> EsqlDataTypeConverter.stringToIP((String) x)),
+        STRING_TO_VERSION(x -> EsqlDataTypeConverter.stringToVersion((String) x)),
         STRING_TO_DOUBLE(x -> EsqlDataTypeConverter.stringToDouble((String) x)),
         STRING_TO_LONG(x -> EsqlDataTypeConverter.stringToLong((String) x)),
         STRING_TO_INT(x -> EsqlDataTypeConverter.stringToInt((String) x)),

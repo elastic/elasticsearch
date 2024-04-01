@@ -57,8 +57,9 @@ public class VerifierTests extends ESTestCase {
             error("row a = 1, b = \"c\" | eval x = round(a, 3.5)")
         );
         assertEquals(
-            "1:9: second argument of [round(123.45, \"1\")] must be [integer], found value [\"1\"] type [keyword]",
-            error("row a = round(123.45, \"1\")")
+            "1:23: Cannot use field [Implicit conversion of string [c] literal to type [INTEGER],"
+                + " error [Cannot parse number [c]]] with unsupported type [keyword]",
+            error("row a = round(123.45, \"c\")")
         );
     }
 

@@ -13,10 +13,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.math.BigInteger;
@@ -126,20 +124,14 @@ public class NotEqualsTests extends AbstractFunctionTestCase {
                 List.of()
             )
         );
-        for (DataType type : AbstractConvertFunction.STRING_TYPES) {
-            suppliers.addAll(
-                TestCaseSupplier.forBinaryNotCasting(
-                    "NotEqualsKeywordsEvaluator",
-                    "lhs",
-                    "rhs",
-                    (l, r) -> false == l.equals(r),
-                    DataTypes.BOOLEAN,
-                    TestCaseSupplier.stringCases(type),
-                    TestCaseSupplier.stringCases(type),
-                    List.of()
-                )
-            );
-        }
+        suppliers.addAll(
+            TestCaseSupplier.stringCases(
+                (l, r) -> false == l.equals(r),
+                (lhsType, rhsType) -> "NotEqualsKeywordsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                List.of(),
+                DataTypes.BOOLEAN
+            )
+        );
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 "NotEqualsGeometriesEvaluator",

@@ -76,6 +76,23 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return types.stream().map(t -> "<" + t.typeName() + ">").collect(Collectors.joining(", "));
     }
 
+    public static List<TestCaseSupplier> stringCases(
+        BinaryOperator<Object> expected,
+        BiFunction<DataType, DataType, String> evaluatorToString,
+        List<String> warnings,
+        DataType expectedType
+    ) {
+        List<TypedDataSupplier> lhsSuppliers = new ArrayList<>();
+        List<TypedDataSupplier> rhsSuppliers = new ArrayList<>();
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        for (DataType type : AbstractConvertFunction.STRING_TYPES) {
+            lhsSuppliers.addAll(stringCases(type));
+            rhsSuppliers.addAll(stringCases(type));
+            casesCrossProduct(expected, lhsSuppliers, rhsSuppliers, evaluatorToString, warnings, suppliers, expectedType, true);
+        }
+        return suppliers;
+    }
+
     @Override
     public TestCase get() {
         TestCase supplied = supplier.get();

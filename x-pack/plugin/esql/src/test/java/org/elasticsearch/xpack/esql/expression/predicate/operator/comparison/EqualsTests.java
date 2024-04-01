@@ -13,10 +13,8 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.NumericUtils;
 
@@ -128,22 +126,15 @@ public class EqualsTests extends AbstractFunctionTestCase {
             )
         );
 
-        List<TestCaseSupplier.TypedDataSupplier> lhsSuppliers = new ArrayList<>();
-        List<TestCaseSupplier.TypedDataSupplier> rhsSuppliers = new ArrayList<>();
-        for (DataType type : AbstractConvertFunction.STRING_TYPES) {
-            lhsSuppliers.addAll(TestCaseSupplier.stringCases(type));
-            rhsSuppliers.addAll(TestCaseSupplier.stringCases(type));
-            TestCaseSupplier.casesCrossProduct(
+        suppliers.addAll(
+            TestCaseSupplier.stringCases(
                 Object::equals,
-                lhsSuppliers,
-                rhsSuppliers,
                 (lhsType, rhsType) -> "EqualsKeywordsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 List.of(),
-                suppliers,
-                DataTypes.BOOLEAN,
-                true
-            );
-        }
+                DataTypes.BOOLEAN
+            )
+        );
+
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 "EqualsGeometriesEvaluator",

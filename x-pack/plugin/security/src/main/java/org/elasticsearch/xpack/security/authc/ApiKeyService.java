@@ -19,7 +19,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -445,7 +444,7 @@ public class ApiKeyService {
                     () -> executeAsyncWithOrigin(
                         client,
                         SECURITY_ORIGIN,
-                        BulkAction.INSTANCE,
+                        TransportBulkAction.TYPE,
                         bulkRequest,
                         TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
                             assert request.getId().equals(indexResponse.getId());

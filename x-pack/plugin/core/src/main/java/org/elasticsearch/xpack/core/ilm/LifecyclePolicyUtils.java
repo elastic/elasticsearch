@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.ItemUsage;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.NotXContentException;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -23,8 +24,10 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.template.resources.TemplateResources;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -109,26 +112,36 @@ public class LifecyclePolicyUtils {
             .map(indexMetadata -> indexMetadata.getIndex().getName())
             .collect(Collectors.toList());
 
+        // First find all the index templates that use this policy, and sort them descending on priority.
+        final var composableTemplates = state.metadata().templatesV2().entrySet().stream().filter(entry -> {
+            Settings settings = MetadataIndexTemplateService.resolveSettings(entry.getValue(), state.metadata().componentTemplates());
+            return policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(settings));
+        }).sorted(Comparator.comparing(entry -> entry.getValue().priorityOrZero(), Comparator.reverseOrder())).toList();
+
+        // These index templates are returned as a type of usage themselves.
+        final var composableTemplateNames = composableTemplates.stream().map(Map.Entry::getKey).toList();
+
         final List<String> allDataStreams = indexNameExpressionResolver.dataStreamNames(
             state,
             IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN
         );
 
+        // We filter all the data streams by finding the first index template (highest priority) whose index pattern covers the data stream.
         final List<String> dataStreams = allDataStreams.stream().filter(dsName -> {
-            String indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dsName, false);
-            if (indexTemplate != null) {
-                Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), indexTemplate);
-                return policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(settings));
-            } else {
-                return false;
+            final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, dsName);
+            for (var entry : composableTemplates) {
+                final boolean matched = entry.getValue().indexPatterns().stream().anyMatch(patternMatchPredicate);
+                if (matched) {
+                    Settings settings = MetadataIndexTemplateService.resolveSettings(
+                        entry.getValue(),
+                        state.metadata().componentTemplates()
+                    );
+                    return policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(settings));
+                }
             }
+            return false;
         }).collect(Collectors.toList());
 
-        final List<String> composableTemplates = state.metadata().templatesV2().keySet().stream().filter(templateName -> {
-            Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), templateName);
-            return policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(settings));
-        }).collect(Collectors.toList());
-
-        return new ItemUsage(indices, dataStreams, composableTemplates);
+        return new ItemUsage(indices, dataStreams, composableTemplateNames);
     }
 }

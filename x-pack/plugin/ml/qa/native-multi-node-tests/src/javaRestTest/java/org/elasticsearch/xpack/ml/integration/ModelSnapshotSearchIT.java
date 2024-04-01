@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -144,7 +144,7 @@ public class ModelSnapshotSearchIT extends MlNativeAutodetectIntegTestCase {
             bulkRequest.add(indexRequest);
         }
 
-        BulkResponse bulkResponse = client().execute(BulkAction.INSTANCE, bulkRequest).actionGet();
+        BulkResponse bulkResponse = client().execute(TransportBulkAction.TYPE, bulkRequest).actionGet();
         assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
     }
 }

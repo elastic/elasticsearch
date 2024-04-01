@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.readonly;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -40,6 +41,7 @@ import java.util.Collections;
  */
 public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddIndexBlockRequest, AddIndexBlockResponse> {
 
+    public static final ActionType<AddIndexBlockResponse> TYPE = new ActionType<>("indices:admin/block/add");
     private static final Logger logger = LogManager.getLogger(TransportAddIndexBlockAction.class);
 
     private final MetadataIndexStateService indexStateService;
@@ -56,7 +58,7 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
         DestructiveOperations destructiveOperations
     ) {
         super(
-            AddIndexBlockAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,

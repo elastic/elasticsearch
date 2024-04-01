@@ -21,3 +21,7 @@ dependencies {
 }
 
 tasks.named("javadoc").configure { enabled = false }
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution()
+}

@@ -14,6 +14,6 @@ import java.util.Set;
 
 public class SecondaryAuthActionsPlugin extends Plugin implements SecondaryAuthActions {
     public Set<String> get() {
-        return Set.of("cluster:admin/xpack/security/user/authenticate");
+        return Set.of("cluster:admin/xpack/security/user/authenticate", "indices:admin/get");
     }
 }

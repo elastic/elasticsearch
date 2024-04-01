@@ -51,6 +51,6 @@ public class GsubProcessorTests extends AbstractStringProcessorTestCase<String> 
         Map<String, Object> source = Map.of("field", badSourceBuilder.toString());
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), source);
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> processor.execute(ingestDocument));
-        assertThat(exception.getRootCause(), instanceOf(StackOverflowError.class));
+        assertThat(exception.getRootCause(), instanceOf(ElasticsearchException.class));
     }
 }

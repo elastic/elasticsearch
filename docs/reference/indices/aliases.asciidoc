@@ -214,11 +214,11 @@ Description of the associated action request.
 (array of strings) List of aliases in the associated action.
 =====
 
-`success`::
-(boolean)
-If true, the requested action was successfully applied to at least one alias.
+`status`::
+(integer) HTTP status code returned for the action.
 
 `error`::
-(Optional, string)
-Only present if `success` is `false`. Consists of a message describing why the action failed
+(Optional, object) Contains additional information about the failed action.
++
+Only present if the action failed.
 ====

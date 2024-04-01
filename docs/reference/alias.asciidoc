@@ -167,8 +167,13 @@ The API returns the following result:
         "indices": [ "index1" ],
         "aliases": [ "logs-non-existing" ],
       },
-      "success": false,
-      "error": "aliases_not_found_exception"
+      "status": 404,
+      "error": {
+        "type": "aliases_not_found_exception",
+        "reason": "aliases [logs-non-existing] missing",
+        "resource.type": "aliases",
+        "resource.id": "logs-non-existing"
+      }
     },
     {
       "action": {
@@ -176,7 +181,7 @@ The API returns the following result:
         "indices": [ "index2" ],
         "aliases": [ "logs-non-existing" ],
       },
-      "success": true
+      "status": 200
     }
   ]
 }

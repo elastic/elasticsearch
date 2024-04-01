@@ -19,8 +19,8 @@ package co.elastic.elasticsearch.api.waitforactiveshards;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActiveShardCount;
 
@@ -37,7 +37,7 @@ public class SuppressWaitForActiveShardsActionFilter extends ActionFilter.Simple
 
     @Override
     protected boolean apply(String action, ActionRequest request, ActionListener<?> listener) {
-        if (action.equals(BulkAction.NAME) && request instanceof BulkRequest bulkRequest) {
+        if (action.equals(TransportBulkAction.NAME) && request instanceof BulkRequest bulkRequest) {
             // Single-item write requests become bulk requests in TransportSingleItemBulkWriteAction so this catches them all
             bulkRequest.waitForActiveShards(ActiveShardCount.NONE);
         }

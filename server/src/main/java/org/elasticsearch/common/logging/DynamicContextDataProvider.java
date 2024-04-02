@@ -9,11 +9,11 @@
 package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.core.util.ContextDataProvider;
-import org.apache.lucene.util.SetOnce;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * An implementation of log4j2's {@link ContextDataProvider} that can be configured at runtime
@@ -31,10 +31,11 @@ import java.util.Map;
  */
 public class DynamicContextDataProvider implements ContextDataProvider {
 
-    private static final SetOnce<List<? extends LoggingDataProvider>> DATA_PROVIDERS = new SetOnce<>();
+    // This is not a set-once because some integration tests may try to set it twice
+    private static final AtomicReference<List<? extends LoggingDataProvider>> DATA_PROVIDERS = new AtomicReference<>();
 
     public static void setDataProviders(List<? extends LoggingDataProvider> dataProviders) {
-        DynamicContextDataProvider.DATA_PROVIDERS.set(List.copyOf(dataProviders));
+        DynamicContextDataProvider.DATA_PROVIDERS.compareAndSet(null, List.copyOf(dataProviders));
     }
 
     @Override

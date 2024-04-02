@@ -45,7 +45,7 @@ public class OtelMetircsDataStreamIT extends DisabledSecurityDataStreamTestCase 
 
     @SuppressWarnings("unchecked")
     public void testOtelMapping() throws Exception {
-        String dataStream = "metrics-otel.generic-default";
+        String dataStream = "metrics-generic.otel-default";
         createDataStream(client, dataStream);
 
         bulk(client, dataStream, List.of("""
@@ -55,7 +55,7 @@ public class OtelMetircsDataStreamIT extends DisabledSecurityDataStreamTestCase 
               "@timestamp": "%s",
               "data_stream": {
                 "type": "metrics",
-                "dataset": "otel.generic",
+                "dataset": "generic.otel",
                 "namespace": "default"
               },
               "resource": {

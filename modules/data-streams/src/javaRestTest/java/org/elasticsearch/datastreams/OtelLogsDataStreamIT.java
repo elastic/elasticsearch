@@ -43,7 +43,7 @@ public class OtelLogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
 
     @SuppressWarnings("unchecked")
     public void testOtelMapping() throws Exception {
-        String dataStream = "logs-otel.generic-default";
+        String dataStream = "logs-generic.otel-default";
         createDataStream(client, dataStream);
 
         indexDoc(client, dataStream, """

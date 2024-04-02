@@ -1,5 +1,5 @@
 {
-  "index_patterns": ["metrics-otel.*-*"],
+  "index_patterns": ["metrics-*.otel-*"],
   "priority": 120,
   "data_stream": {},
   "composed_of": [

@@ -2,6 +2,8 @@
 [[esql-st_y]]
 === `ST_Y`
 
+experimental::[]
+
 *Syntax*
 
 [.text-center]

@@ -29,6 +29,7 @@ public class KibanaThreadPoolTests extends SystemIndexThreadPoolTests {
         return Set.of(KibanaPlugin.class);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106957")
     public void testKibanaThreadPool() {
         runWithBlockedThreadPools(() -> {
             // index documents

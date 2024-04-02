@@ -24,11 +24,6 @@ public class DeleteRoleRequestBuilder extends ActionRequestBuilder<DeleteRoleReq
         return this;
     }
 
-    public DeleteRoleRequestBuilder restrictRequest(boolean restrictRequest) {
-        request.restrictRequest(restrictRequest);
-        return this;
-    }
-
     public DeleteRoleRequestBuilder setRefreshPolicy(@Nullable String refreshPolicy) {
         request.setRefreshPolicy(refreshPolicy);
         return this;

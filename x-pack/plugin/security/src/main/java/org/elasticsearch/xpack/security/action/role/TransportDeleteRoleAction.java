@@ -38,7 +38,7 @@ public class TransportDeleteRoleAction extends TransportAction<DeleteRoleRequest
 
     @Override
     protected void doExecute(Task task, DeleteRoleRequest request, ActionListener<DeleteRoleResponse> listener) {
-        if (reservedRoleNameChecker.isReserved(request.name(), request.restrictRequest())) {
+        if (reservedRoleNameChecker.isReserved(request.name())) {
             listener.onFailure(new IllegalArgumentException("role [" + request.name() + "] is reserved and cannot be deleted"));
             return;
         }

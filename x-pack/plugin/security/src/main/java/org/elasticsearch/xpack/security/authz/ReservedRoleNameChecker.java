@@ -23,11 +23,11 @@ public interface ReservedRoleNameChecker {
         }
     }
 
-    boolean isReserved(String roleName, boolean restrictRequest);
+    boolean isReserved(String roleName);
 
     class Default implements ReservedRoleNameChecker {
         @Override
-        public boolean isReserved(String roleName, boolean restrictRequest) {
+        public boolean isReserved(String roleName) {
             return ReservedRolesStore.isReserved(roleName);
         }
     }

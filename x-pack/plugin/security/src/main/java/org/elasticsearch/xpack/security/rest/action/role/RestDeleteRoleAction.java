@@ -51,9 +51,7 @@ public class RestDeleteRoleAction extends NativeRoleBaseRestHandler {
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String name = request.param("name");
         final String refresh = request.param("refresh");
-        final boolean restrictRequest = request.hasParam(RestRequest.PATH_RESTRICTED);
         return channel -> new DeleteRoleRequestBuilder(client).name(name)
-            .restrictRequest(restrictRequest)
             .setRefreshPolicy(refresh)
             .execute(new RestBuilderListener<>(channel) {
                 @Override

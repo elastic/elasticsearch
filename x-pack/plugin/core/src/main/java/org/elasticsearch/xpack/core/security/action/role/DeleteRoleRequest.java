@@ -24,7 +24,6 @@ public class DeleteRoleRequest extends ActionRequest {
 
     private String name;
     private WriteRequest.RefreshPolicy refreshPolicy = WriteRequest.RefreshPolicy.IMMEDIATE;
-    private boolean restrictRequest = false;
 
     public DeleteRoleRequest() {}
 
@@ -59,14 +58,6 @@ public class DeleteRoleRequest extends ActionRequest {
 
     public String name() {
         return name;
-    }
-
-    public void restrictRequest(boolean restrictRequest) {
-        this.restrictRequest = restrictRequest;
-    }
-
-    public boolean restrictRequest() {
-        return restrictRequest;
     }
 
     @Override

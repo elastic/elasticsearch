@@ -21,10 +21,10 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -1940,7 +1940,7 @@ public class JobResultsProvider {
                 bulkUpdate.add(updateRequest);
             }
             if (bulkUpdate.numberOfActions() > 0) {
-                executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkUpdate.request(), updateCalendarsListener);
+                executeAsyncWithOrigin(client, ML_ORIGIN, TransportBulkAction.TYPE, bulkUpdate.request(), updateCalendarsListener);
             } else {
                 listener.onResponse(true);
             }

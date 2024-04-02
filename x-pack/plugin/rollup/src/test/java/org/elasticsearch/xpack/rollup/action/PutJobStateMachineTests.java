@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.rollup.action;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
@@ -67,12 +67,12 @@ public class PutJobStateMachineTests extends ESTestCase {
         doAnswer(invocation -> {
             requestCaptor.getValue().onFailure(new RuntimeException("something bad"));
             return null;
-        }).when(client).execute(eq(CreateIndexAction.INSTANCE), any(CreateIndexRequest.class), requestCaptor.capture());
+        }).when(client).execute(eq(TransportCreateIndexAction.TYPE), any(CreateIndexRequest.class), requestCaptor.capture());
 
         TransportPutRollupJobAction.createIndex(job, testListener, mock(PersistentTasksService.class), client, logger);
 
         // ResourceAlreadyExists should trigger a GetMapping next
-        verify(client).execute(eq(CreateIndexAction.INSTANCE), any(CreateIndexRequest.class), any());
+        verify(client).execute(eq(TransportCreateIndexAction.TYPE), any(CreateIndexRequest.class), any());
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -90,7 +90,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         doAnswer(invocation -> {
             requestCaptor.getValue().onFailure(new ResourceAlreadyExistsException(job.getConfig().getRollupIndex()));
             return null;
-        }).when(client).execute(eq(CreateIndexAction.INSTANCE), any(CreateIndexRequest.class), requestCaptor.capture());
+        }).when(client).execute(eq(TransportCreateIndexAction.TYPE), any(CreateIndexRequest.class), requestCaptor.capture());
 
         ArgumentCaptor<ActionListener> requestCaptor2 = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(invocation -> {
@@ -130,7 +130,7 @@ public class PutJobStateMachineTests extends ESTestCase {
             listenerCaptor.getValue().onFailure(new ResourceAlreadyExistsException(job.getConfig().getRollupIndex()));
             latch.countDown();
             return null;
-        }).when(client).execute(eq(CreateIndexAction.INSTANCE), requestCaptor.capture(), listenerCaptor.capture());
+        }).when(client).execute(eq(TransportCreateIndexAction.TYPE), requestCaptor.capture(), listenerCaptor.capture());
 
         ArgumentCaptor<ActionListener> requestCaptor2 = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(invocation -> {

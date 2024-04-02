@@ -36,7 +36,7 @@ public class Log extends EsqlScalarFunction implements OptionalArgument {
     @FunctionInfo(
         returnType = "double",
         description = "Returns the logarithm of a value to a base. The input can be any numeric value, "
-            + "lthe return value is always a double.\n"
+            + "the return value is always a double.\n"
             + "\n"
             + "Logs of zero, negative numbers, infinities and base of one return `null` as well as a warning.",
         examples = { @Example(file = "math", tag = "log"), @Example(file = "math", tag = "logUnary") }

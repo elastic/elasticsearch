@@ -24,7 +24,7 @@
           }
         },
         {
-          "ecs_event_original_non_indexed_keyword": {
+          "ecs_non_indexed_keyword": {
             "mapping": {
               "type": "keyword",
               "index": false,
@@ -36,7 +36,7 @@
           }
         },
         {
-          "ecs_x509_public_key_exponent_non_indexed_long": {
+          "ecs_non_indexed_long": {
             "mapping": {
               "type": "long",
               "index": false,

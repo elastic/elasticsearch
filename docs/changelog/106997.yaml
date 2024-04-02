@@ -1,0 +1,5 @@
+pr: 106997
+summary: Add Alias fallbacks for simple & list settings
+area: Infra/Settings
+type: bug
+issues: []

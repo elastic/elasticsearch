@@ -21,11 +21,9 @@ import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
@@ -70,29 +68,8 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
         public static final ParseField DOCS = new ParseField("docs");
         public static final ParseField TIMEOUT = new ParseField("timeout");
-        public static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
 
         public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
-
-        static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME, Request.Builder::new);
-        static {
-            PARSER.declareString(Request.Builder::setId, InferModelAction.Request.DEPLOYMENT_ID);
-            PARSER.declareObjectArray(Request.Builder::setDocs, (p, c) -> p.mapOrdered(), DOCS);
-            PARSER.declareString(Request.Builder::setInferenceTimeout, TIMEOUT);
-            PARSER.declareNamedObject(
-                Request.Builder::setUpdate,
-                ((p, c, name) -> p.namedObject(InferenceConfigUpdate.class, name, c)),
-                INFERENCE_CONFIG
-            );
-        }
-
-        public static Request.Builder parseRequest(String id, XContentParser parser) {
-            Request.Builder builder = PARSER.apply(parser, null);
-            if (id != null) {
-                builder.setId(id);
-            }
-            return builder;
-        }
 
         private String id;
         private final List<Map<String, Object>> docs;

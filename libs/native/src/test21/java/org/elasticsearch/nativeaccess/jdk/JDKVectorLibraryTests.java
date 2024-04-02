@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.nativeaccess.jdk.vec;
+package org.elasticsearch.nativeaccess.jdk;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
@@ -20,7 +20,7 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class NativeSimilarityTests extends VectorSimilarityFunctionsTests {
+public class JDKVectorLibraryTests extends VectorSimilarityFunctionsTests {
 
     static final Class<IllegalArgumentException> IAE = IllegalArgumentException.class;
 
@@ -30,7 +30,7 @@ public class NativeSimilarityTests extends VectorSimilarityFunctionsTests {
 
     static Arena arena;
 
-    public NativeSimilarityTests(int size) {
+    public JDKVectorLibraryTests(int size) {
         this.size = size;
     }
 

@@ -217,7 +217,7 @@ class TopHitsAggregator extends MetricsAggregator {
     }
 
     private static FetchSearchResult runFetchPhase(SubSearchContext subSearchContext, int[] docIdsToLoad) {
-        //Fork the search execution context for each slice, because the fetch phase does not support concurrent execution yet.
+        // Fork the search execution context for each slice, because the fetch phase does not support concurrent execution yet.
         SearchExecutionContext searchExecutionContext = new SearchExecutionContext(subSearchContext.getSearchExecutionContext());
         SubSearchContext fetchSubSearchContext = new SubSearchContext(subSearchContext) {
             @Override

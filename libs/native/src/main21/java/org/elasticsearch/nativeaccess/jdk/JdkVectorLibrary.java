@@ -15,8 +15,6 @@ import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
@@ -26,15 +24,7 @@ import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 public final class JdkVectorLibrary implements VectorLibrary {
 
     static {
-        loadLibrary();
-    }
-
-    @SuppressWarnings("removal")
-    private static void loadLibrary() {
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            System.loadLibrary("vec");
-            return null;
-        });
+        System.loadLibrary("vec");
     }
 
     public JdkVectorLibrary() {}

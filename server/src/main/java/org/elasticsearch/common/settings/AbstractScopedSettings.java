@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
@@ -49,6 +50,7 @@ public abstract class AbstractScopedSettings {
     private final List<SettingUpdater<?>> settingUpdaters = new CopyOnWriteArrayList<>();
     private final Map<String, Setting<?>> complexMatchers;
     private final Map<String, Setting<?>> keySettings;
+    private final Map<Setting<?>, Setting<?>> aliasTargets;
     private final Setting.Property scope;
     private Settings lastSettingsApplied;
 
@@ -61,6 +63,8 @@ public abstract class AbstractScopedSettings {
         this.scope = scope;
         Map<String, Setting<?>> complexMatchers = new HashMap<>();
         Map<String, Setting<?>> keySettings = new HashMap<>();
+        Map<Setting<?>, Setting<?>> aliasTargets = new HashMap<>();
+
         for (Setting<?> setting : settingsSet) {
             if (setting.getProperties().contains(scope) == false) {
                 throw new IllegalArgumentException(
@@ -84,9 +88,26 @@ public abstract class AbstractScopedSettings {
             } else {
                 keySettings.putIfAbsent(setting.getKey(), setting);
             }
+
+            if (setting.hasAlias()) {
+                Setting<?> fallback = setting.getFallbackSetting();
+                // reverse the dependency to resolve aliases on dynamic updates
+                Setting<?> previous = aliasTargets.put(fallback, setting);
+                if (previous != null) {
+                    throw new IllegalArgumentException(
+                        Strings.format(
+                            "fallback %s cannot be an alias for multiple settings: [%s, %s]",
+                            fallback.getKey(),
+                            previous.getKey(),
+                            setting.getKey()
+                        )
+                    );
+                }
+            }
         }
         this.complexMatchers = Collections.unmodifiableMap(complexMatchers);
         this.keySettings = Collections.unmodifiableMap(keySettings);
+        this.aliasTargets = Collections.unmodifiableMap(aliasTargets);
     }
 
     protected void validateSettingKey(Setting<?> setting) {
@@ -104,6 +125,7 @@ public abstract class AbstractScopedSettings {
         this.scope = other.scope;
         complexMatchers = other.complexMatchers;
         keySettings = other.keySettings;
+        aliasTargets = other.aliasTargets;
         settingUpdaters.addAll(other.settingUpdaters);
     }
 
@@ -703,7 +725,10 @@ public abstract class AbstractScopedSettings {
      * Returns <code>true</code> if the setting for the given key is dynamically updateable. Otherwise <code>false</code>.
      */
     public boolean isDynamicSetting(String key) {
-        final Setting<?> setting = get(key);
+        return isDynamicSetting(get(key));
+    }
+
+    private boolean isDynamicSetting(Setting<?> setting) {
         return setting != null && setting.isDynamic();
     }
 
@@ -711,7 +736,10 @@ public abstract class AbstractScopedSettings {
      * Returns <code>true</code> if the setting for the given key is final. Otherwise <code>false</code>.
      */
     public boolean isFinalSetting(String key) {
-        final Setting<?> setting = get(key);
+        return isFinalSetting(get(key));
+    }
+
+    private boolean isFinalSetting(Setting<?> setting) {
         return setting != null && setting.isFinal();
     }
 
@@ -781,11 +809,11 @@ public abstract class AbstractScopedSettings {
     /**
      * Returns <code>true</code> if the given key is a valid delete key
      */
-    private boolean isValidDelete(String key, boolean onlyDynamic) {
-        return isFinalSetting(key) == false && // it's not a final setting
-            (onlyDynamic && isDynamicSetting(key)  // it's a dynamicSetting and we only do dynamic settings
-                || get(key) == null && key.startsWith(ARCHIVED_SETTINGS_PREFIX) // the setting is not registered AND it's been archived
-                || (onlyDynamic == false && get(key) != null)); // if it's not dynamic AND we have a key
+    private boolean isValidDelete(Setting<?> setting, String key, boolean onlyDynamic) {
+        return isFinalSetting(setting) == false && // it's not a final setting
+            (onlyDynamic && isDynamicSetting(setting)  // it's a dynamicSetting and we only do dynamic settings
+                || setting == null && key.startsWith(ARCHIVED_SETTINGS_PREFIX) // the setting is not registered AND it's been archived
+                || (onlyDynamic == false && setting != null)); // if it's not dynamic AND we have a key
     }
 
     /**
@@ -803,34 +831,68 @@ public abstract class AbstractScopedSettings {
     private boolean updateSettings(Settings toApply, Settings.Builder target, Settings.Builder updates, String type, boolean onlyDynamic) {
         boolean changed = false;
         final Set<String> toRemove = new HashSet<>();
-        Settings.Builder settingsBuilder = Settings.builder();
-        final Predicate<String> canUpdate = (key) -> (isFinalSetting(key) == false && // it's not a final setting
-            ((onlyDynamic == false && get(key) != null) || isDynamicSetting(key)));
+        final Settings.Builder settingsBuilder = Settings.builder();
+        final Predicate<Setting<?>> canUpdate = (setting) -> (isFinalSetting(setting) == false && // it's not a final setting
+            ((onlyDynamic == false && setting != null) || isDynamicSetting(setting)));
+
         for (String key : toApply.keySet()) {
+            final Setting<?> setting = get(key);
             boolean isDelete = toApply.hasValue(key) == false;
-            if (isDelete && (isValidDelete(key, onlyDynamic) || key.endsWith("*"))) {
+
+            if (isDelete && (isValidDelete(setting, key, onlyDynamic) || key.endsWith("*"))) {
                 // this either accepts null values that suffice the canUpdate test OR wildcard expressions (key ends with *)
                 // we don't validate if there is any dynamic setting with that prefix yet we could do in the future
                 toRemove.add(key);
+                if (setting != null && (setting.isAlias() || setting.hasAlias())) {
+                    // also remove the alias or the target of this alias
+                    Setting<?> otherSetting = setting.isAlias() ? aliasTargets.get(setting) : setting.getFallbackSetting();
+                    toRemove.add(rewriteKey(setting, otherSetting, key));
+                }
                 // we don't set changed here it's set after we apply deletes below if something actually changed
-            } else if (get(key) == null) {
+            } else if (setting == null) {
                 throw new IllegalArgumentException(type + " setting [" + key + "], not recognized");
-            } else if (isDelete == false && canUpdate.test(key)) {
-                get(key).validateWithoutDependencies(toApply); // we might not have a full picture here do to a dependency validation
+            } else if (isDelete == false && canUpdate.test(setting)) {
+                setting.validateWithoutDependencies(toApply); // we might not have a full picture here do to a dependency validation
                 settingsBuilder.copy(key, toApply);
                 updates.copy(key, toApply);
-                changed |= toApply.get(key).equals(target.get(key)) == false;
+                if (setting.isAlias() == false) {
+                    // consider alias fallback if exists when detecting changes
+                    String previous = setting.hasAlias() && target.keys().contains(key) == false
+                        ? target.get(rewriteKey(setting, setting.getFallbackSetting(), key))
+                        : target.get(key);
+                    changed |= toApply.get(key).equals(previous) == false;
+                } else {
+                    String aliasTarget = rewriteKey(setting, aliasTargets.get(setting), key);
+                    assert canUpdate.test(get(aliasTarget))
+                        : "Cannot update target [" + aliasTarget + "] of alias " + type + " setting [" + key + "]";
+                    if (toApply.keySet().contains(aliasTarget)) {
+                        throw new IllegalArgumentException(type + " setting [" + key + "], alias conflicts with [ " + aliasTarget + "]");
+                    }
+                    // copy alias to alias target to guarantee update consumers are correctly triggered
+                    settingsBuilder.copy(aliasTarget, key, toApply);
+                    updates.copy(aliasTarget, key, toApply);
+                    // the alias target always takes precedence, detect if changed accordingly
+                    String previous = target.keys().contains(aliasTarget) ? target.get(aliasTarget) : target.get(key);
+                    changed |= toApply.get(key).equals(previous) == false;
+                }
             } else {
-                if (isFinalSetting(key)) {
+                if (isFinalSetting(setting)) {
                     throw new IllegalArgumentException("final " + type + " setting [" + key + "], not updateable");
                 } else {
                     throw new IllegalArgumentException(type + " setting [" + key + "], not dynamically updateable");
                 }
             }
         }
-        changed |= applyDeletes(toRemove, target, k -> isValidDelete(k, onlyDynamic));
+        changed |= applyDeletes(toRemove, target, k -> isValidDelete(get(k), k, onlyDynamic));
         target.put(settingsBuilder.build());
         return changed;
+    }
+
+    private static String rewriteKey(Setting<?> from, Setting<?> to, String key) {
+        assert from != null && to != null;
+        return to.getRawKey()
+            .rewrite(from.getRawKey(), key)
+            .orElseThrow(() -> new AssertionError("Unable to resolve target of alias setting [" + key + "]"));
     }
 
     private static boolean applyDeletes(Set<String> deletes, Settings.Builder builder, Predicate<String> canRemove) {

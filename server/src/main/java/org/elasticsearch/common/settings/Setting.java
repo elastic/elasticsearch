@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -155,7 +156,16 @@ public class Setting<T> implements ToXContentObject {
          * All other settings will be rejected when used on a PUT request
          * and filtered out on a GET
          */
-        ServerlessPublic
+        ServerlessPublic,
+
+        /**
+         * Turns a fallback setting into an alias that can be used interchangeably with its target.
+         * Dynamic updates to an alias are also copied to the target setting, otherwise such updates would be ignored if
+         * the corresponding target is already present.
+         * This is typically used in combination with {@link Property#Deprecated} or {@link Property#DeprecatedWarning}
+         * to deprecate and migrate a setting.
+         */
+        Alias
     }
 
     private final Key key;
@@ -212,6 +222,14 @@ public class Setting<T> implements ToXContentObject {
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.IndexSettingDeprecatedInV7AndRemovedInV8);
             checkPropertyRequiresNodeScope(propertiesAsSet);
             this.properties = propertiesAsSet;
+        }
+        if (fallbackSetting != null) {
+            if (isAlias()) {
+                throw new IllegalArgumentException("setting [" + key + "] cannot be an alias if having a fallback itself");
+            }
+            if ((fallbackSetting.isAlias() && fallbackSetting.isDynamic()) && isDynamic() == false) {
+                throw new IllegalArgumentException("setting [" + key + "] cannot have a dynamic alias unless being dynamic itself");
+            }
         }
     }
 
@@ -439,6 +457,27 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
+     * Returns <code>true</code> if this setting is tagged as {@link Property#Alias alias}, otherwise <code>false</code>.
+     */
+    boolean isAlias() {
+        return properties.contains(Property.Alias);
+    }
+
+    /**
+     * Returns <code>true</code> if this setting has an {@link Property#Alias alias} fallback, otherwise <code>false</code>.
+     */
+    boolean hasAlias() {
+        return fallbackSetting != null && fallbackSetting.isAlias();
+    }
+
+    /**
+     * Returns the fallback setting if exists, otherwise <code>null</code>.
+     */
+    Setting<T> getFallbackSetting() {
+        return fallbackSetting;
+    }
+
+    /**
      * Returns <code>true</code> if this setting is deprecated, otherwise <code>false</code>
      */
     private boolean isDeprecated() {
@@ -497,19 +536,22 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
-     * Returns true if and only if this setting is present in the given settings instance. Note that fallback settings are excluded.
+     * Returns <code>true</code> if and only if this setting is present in the given settings instance.
+     * Note that fallback settings are excluded unless tagged as {@link Property#Alias alias}.
      *
      * @param settings the settings
      * @return true if the setting is present in the given settings instance, otherwise false
      */
     public boolean exists(final Settings settings) {
         SecureSettings secureSettings = settings.getSecureSettings();
-        return key.exists(settings.keySet(), secureSettings == null ? Collections.emptySet() : secureSettings.getSettingNames());
+        return key.exists(settings.keySet(), secureSettings == null ? Collections.emptySet() : secureSettings.getSettingNames())
+            || (hasAlias() && fallbackSetting.exists(settings));
     }
 
     public boolean exists(final Settings.Builder builder) {
         SecureSettings secureSettings = builder.getSecureSettings();
-        return key.exists(builder.keys(), secureSettings == null ? Collections.emptySet() : secureSettings.getSettingNames());
+        return key.exists(builder.keys(), secureSettings == null ? Collections.emptySet() : secureSettings.getSettingNames())
+            || (hasAlias() && fallbackSetting.exists(builder));
     }
 
     /**
@@ -519,7 +561,7 @@ public class Setting<T> implements ToXContentObject {
      * @return true if the setting including fallback settings is present in the given settings instance, otherwise false
      */
     public boolean existsOrFallbackExists(final Settings settings) {
-        return exists(settings) || (fallbackSetting != null && fallbackSetting.existsOrFallbackExists(settings));
+        return exists(settings) || (hasAlias() == false && fallbackSetting != null && fallbackSetting.existsOrFallbackExists(settings));
     }
 
     /**
@@ -693,7 +735,7 @@ public class Setting<T> implements ToXContentObject {
         if (fallbackSetting == null) {
             return get(primary);
         }
-        if (fallbackSetting.exists(primary)) {
+        if (hasAlias() == false && fallbackSetting.exists(primary)) {
             return fallbackSetting.get(primary);
         }
         return fallbackSetting.get(secondary);
@@ -2128,18 +2170,23 @@ public class Setting<T> implements ToXContentObject {
         return new AffixSetting<>(key, delegate, delegateFactory, dependencies);
     }
 
-    public interface Key {
-        boolean match(String key);
+    public abstract static class Key {
+        public abstract boolean match(String key);
 
         /**
          * Returns true if and only if this key is present in the given settings instance (ignoring given exclusions).
          * @param keys keys to check
          * @param exclusions exclusions to ignore
          */
-        boolean exists(Set<String> keys, Set<String> exclusions);
+        abstract boolean exists(Set<String> keys, Set<String> exclusions);
+
+        /**
+         * Attempts to rewrite a setting key from another {@link Key} to one matching this.
+         */
+        abstract Optional<String> rewrite(Key from, String settingKey);
     }
 
-    public static class SimpleKey implements Key {
+    public static class SimpleKey extends Key {
         protected final String key;
 
         public SimpleKey(String key) {
@@ -2173,6 +2220,12 @@ public class Setting<T> implements ToXContentObject {
         public boolean exists(Set<String> keys, Set<String> exclusions) {
             return keys.contains(key) && exclusions.contains(key) == false;
         }
+
+        @Override
+        public Optional<String> rewrite(Key from, String settingKey) {
+            assert from.match(settingKey);
+            return from.getClass().equals(getClass()) ? Optional.of(key) : Optional.empty();
+        }
     }
 
     public static final class GroupKey extends SimpleKey {
@@ -2195,6 +2248,11 @@ public class Setting<T> implements ToXContentObject {
                 return keys.stream().anyMatch(this::match);
             }
             return keys.stream().filter(Predicate.not(exclusions::contains)).anyMatch(this::match);
+        }
+
+        @Override
+        public Optional<String> rewrite(Key from, String settingKey) {
+            throw new UnsupportedOperationException("Cannot rewrite group key");
         }
     }
 
@@ -2221,13 +2279,29 @@ public class Setting<T> implements ToXContentObject {
             }
             return keys.stream().filter(Predicate.not(exclusions::contains)).anyMatch(this::match);
         }
+
+        @Override
+        public Optional<String> rewrite(Key from, String settingKey) {
+            assert from.match(settingKey);
+            if (from instanceof ListKey listKey) {
+                if (listKey.key.equals(settingKey)) {
+                    return Optional.of(key);
+                }
+                if (settingKey.startsWith(listKey.key)) {
+                    String rewritten = key + settingKey.substring(listKey.key.length());
+                    assert match(rewritten) : "Unexpected key after rewrite: " + rewritten;
+                    return Optional.of(rewritten);
+                }
+            }
+            return Optional.empty();
+        }
     }
 
     /**
      * A key that allows for static pre and suffix. This is used for settings
      * that have dynamic namespaces like for different accounts etc.
      */
-    public static final class AffixKey implements Key {
+    public static final class AffixKey extends Key {
         private final Pattern pattern;
         private final Pattern fallbackPattern;
         private final String prefix;
@@ -2333,6 +2407,11 @@ public class Setting<T> implements ToXContentObject {
                 key.append(suffix);
             }
             return new SimpleKey(key.toString());
+        }
+
+        @Override
+        public Optional<String> rewrite(Key from, String settingKey) {
+            throw new UnsupportedOperationException("Cannot rewrite affix key");
         }
 
         @Override

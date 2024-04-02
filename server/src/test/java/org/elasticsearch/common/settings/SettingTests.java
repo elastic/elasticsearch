@@ -40,6 +40,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -50,11 +52,79 @@ import static org.hamcrest.Matchers.is;
 
 public class SettingTests extends ESTestCase {
 
-    public void testGet() {
-        Setting<Boolean> booleanSetting = Setting.boolSetting("foo.bar", false, Property.Dynamic, Property.NodeScope);
-        assertFalse(booleanSetting.get(Settings.EMPTY));
-        assertFalse(booleanSetting.get(Settings.builder().put("foo.bar", false).build()));
-        assertTrue(booleanSetting.get(Settings.builder().put("foo.bar", true).build()));
+    public void testSimpleSetting() {
+        Setting<String> setting = Setting.simpleString("foo.bar", "", Property.Dynamic, Property.NodeScope);
+
+        Settings withSetting = Settings.builder().put("foo.bar", "bar").build();
+
+        assertFalse(setting.exists(Settings.EMPTY));
+        assertThat(setting.get(Settings.EMPTY), is(""));
+
+        assertTrue(setting.exists(withSetting));
+        assertTrue(setting.exists(Settings.builder().put(withSetting)));
+        assertThat(setting.get(withSetting), is("bar"));
+
+        assertThat(setting.get(Settings.EMPTY, Settings.EMPTY), is(""));
+        assertThat(setting.get(withSetting, Settings.EMPTY), is("bar"));
+        assertThat(setting.get(Settings.EMPTY, withSetting), is("bar"));
+    }
+
+    public void testSimpleSettingWithFallback() {
+        Property[] properties = { Property.Dynamic, Property.NodeScope };
+        Property[] aliasProperties = { Property.Dynamic, Property.NodeScope, Property.Alias };
+        // test fallback with and without alias property
+        for (var fallbackProperties : List.of(properties, aliasProperties)) {
+            Setting<String> fallback = Setting.simpleString("foo.fallback", "", fallbackProperties);
+            Setting<String> setting = Setting.simpleString("foo.bar", fallback, properties);
+
+            Settings withSetting = Settings.builder().put("foo.bar", "bar").build();
+            Settings withFallback = Settings.builder().put("foo.fallback", "fallback").build();
+            Settings withBoth = Settings.builder().put(withSetting).put(withFallback).build();
+
+            assertFalse(setting.existsOrFallbackExists(Settings.EMPTY));
+            assertThat(setting.get(Settings.EMPTY), is(""));
+
+            assertThat(setting.exists(withFallback), is(setting.hasAlias())); // true if alias
+            assertThat(setting.exists(Settings.builder().put(withFallback)), is(setting.hasAlias())); // true if alias
+            assertTrue(setting.existsOrFallbackExists(withFallback));
+            assertThat(setting.get(withFallback), is("fallback"));
+
+            assertThat(setting.get(Settings.EMPTY, Settings.EMPTY), is(""));
+            assertThat(setting.get(withFallback, Settings.EMPTY), is("fallback"));
+            assertThat(setting.get(Settings.EMPTY, withFallback), is("fallback"));
+
+            for (Settings settings : List.of(withSetting, withBoth)) {
+                assertTrue(setting.exists(settings));
+                assertTrue(setting.exists(Settings.builder().put(settings)));
+                assertThat(setting.get(settings), is("bar"));
+
+                assertThat(setting.get(Settings.EMPTY, Settings.EMPTY), is(""));
+                assertThat(setting.get(settings, withFallback), is("bar"));
+                assertThat(setting.get(withFallback, settings), setting.hasAlias() ? is("fallback") : is("bar"));
+            }
+        }
+    }
+
+    public void testInvalidAlias() {
+        Setting<String> fallback = Setting.simpleString("foo.fallback", "", Property.Dynamic, Property.Alias);
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> Setting.simpleString("foo.bar", fallback));
+        assertThat(exception.getMessage(), is("setting [foo.bar] cannot have a dynamic alias unless being dynamic itself"));
+    }
+
+    public void testAliasKeyRewrite() {
+        Setting.Key key = new Setting.SimpleKey("foo.bar");
+        Setting.Key aliasKey = new Setting.SimpleKey("foo.alias");
+        assertThat(key.rewrite(aliasKey, "foo.alias"), isPresentWith("foo.bar"));
+        assertThat(key.rewrite(new Setting.ListKey("foo.alias"), "foo.alias"), isEmpty());
+
+        key = new Setting.ListKey("foo.bar");
+        aliasKey = new Setting.ListKey("foo.alias");
+        assertThat(key.rewrite(aliasKey, "foo.alias"), isPresentWith("foo.bar"));
+        assertThat(key.rewrite(aliasKey, "foo.alias.0"), isPresentWith("foo.bar.0"));
+        assertThat(key.rewrite(new Setting.SimpleKey("foo.alias"), "foo.alias"), isEmpty());
+
+        assertThrows(UnsupportedOperationException.class, () -> new Setting.GroupKey("foo.").rewrite(null, "ignored"));
+        assertThrows(UnsupportedOperationException.class, () -> new Setting.AffixKey("foo.", null, null).rewrite(null, "ignored"));
     }
 
     public void testByteSizeSetting() {

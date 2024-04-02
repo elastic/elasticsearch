@@ -19,7 +19,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.LambdaMatchers;
 import org.elasticsearch.transport.TransportSettings;
+import org.hamcrest.Matcher;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -38,8 +40,12 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static java.util.Collections.emptyList;
+import static java.util.function.Function.identity;
+import static java.util.stream.Collectors.toMap;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.hasToString;
 import static org.mockito.Mockito.clearInvocations;
@@ -48,6 +54,49 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class ScopedSettingsTests extends ESTestCase {
+    public void testUpdateDynamicSettingsWithAlias() {
+        var strAliasSetting = Setting.simpleString("alias.string", "", Property.Dynamic, Property.NodeScope, Property.Alias);
+        var strSetting = Setting.simpleString("foo.string", strAliasSetting, Property.Dynamic, Property.NodeScope);
+
+        ClusterSettings service = new ClusterSettings(Settings.EMPTY, Set.of(strAliasSetting, strSetting));
+
+        // alias will be copied to alias target, but effective value is UNchanged
+        for (String existingKey : List.of("foo.string", "alias.string")) {
+            Settings.Builder target = Settings.builder().put(existingKey, "a");
+            Settings.Builder updates = Settings.builder();
+            Settings toApply = Settings.builder().put("alias.string", "a").build();
+            assertThat(service.updateDynamicSettings(toApply, target, updates, "test"), is(false));
+            assertThat(target, containsAllOf(Map.of("foo.string", "a", "alias.string", "a")));
+            assertThat(updates, containsAllOf(Map.of("foo.string", "a", "alias.string", "a")));
+        }
+
+        // alias will be copied to alias target, effective value has changed
+        for (String existingKey : List.of("foo.string", "alias.string", "other")) {
+            Settings.Builder target = Settings.builder().put("other", "a").put(existingKey, "a");
+            Settings.Builder updates = Settings.builder();
+            Settings toApply = Settings.builder().put("alias.string", "b").build();
+            assertThat(service.updateDynamicSettings(toApply, target, updates, "test"), is(true));
+            assertThat(target, containsAllOf(Map.of("foo.string", "b", "alias.string", "b", "other", "a")));
+            assertThat(updates, containsAllOf(Map.of("foo.string", "b", "alias.string", "b")));
+            assertThat(service.updateDynamicSettings(toApply, target, updates, "test"), is(false)); // unchanged
+        }
+
+        // alias and alias target are all removed if either is present
+        for (List<String> existingKeys : List.of(List.of("alias.string"), List.of("foo.string"), List.of("alias.string", "foo.string"))) {
+            Settings.Builder target = Settings.builder();
+            for (String toRemove : List.of("alias.string", "foo.string")) {
+                existingKeys.forEach(key -> target.put(key, "value"));
+                Settings toApply = Settings.builder().putNull(toRemove).build();
+                assertThat(service.updateDynamicSettings(toApply, target, Settings.builder(), "test"), is(true));
+                assertThat(target, containsAllOf(Map.of()));
+                assertThat(service.updateDynamicSettings(toApply, target, Settings.builder(), "test"), is(false)); // unchanged
+            }
+        }
+    }
+
+    private static Matcher<Settings.Builder> containsAllOf(Map<String, String> settings) {
+        return LambdaMatchers.transformedMatch(b -> b.keys().stream().collect(toMap(identity(), b::get)), equalTo(settings));
+    }
 
     public void testResetSetting() {
         Setting<Integer> dynamicSetting = Setting.intSetting("some.dyn.setting", 1, Property.Dynamic, Property.NodeScope);
@@ -881,7 +930,7 @@ public class ScopedSettingsTests extends ESTestCase {
         Setting<List<String>> foorBarQuux = Setting.listSetting(
             "foo.bar.quux",
             Arrays.asList("a", "b", "c"),
-            Function.identity(),
+            identity(),
             Property.NodeScope
         );
         ClusterSettings settings = new ClusterSettings(
@@ -961,7 +1010,7 @@ public class ScopedSettingsTests extends ESTestCase {
         Setting<List<String>> foorBarQuux = Setting.affixKeySetting(
             "foo.",
             "quux",
-            (key) -> Setting.listSetting(key, Arrays.asList("a", "b", "c"), Function.identity(), Property.NodeScope)
+            (key) -> Setting.listSetting(key, Arrays.asList("a", "b", "c"), identity(), Property.NodeScope)
         );
         ClusterSettings settings = new ClusterSettings(
             Settings.EMPTY,
@@ -1221,7 +1270,7 @@ public class ScopedSettingsTests extends ESTestCase {
         Set<Setting<?>> settings = Sets.newLinkedHashSetWithExpectedSize(2);
         final boolean groupFirst = randomBoolean();
         final Setting<?> groupSetting = Setting.groupSetting("foo.", Property.NodeScope);
-        final Setting<?> listSetting = Setting.listSetting("foo.bar", Collections.emptyList(), Function.identity(), Property.NodeScope);
+        final Setting<?> listSetting = Setting.listSetting("foo.bar", emptyList(), identity(), Property.NodeScope);
         settings.add(groupFirst ? groupSetting : listSetting);
         settings.add(groupFirst ? listSetting : groupSetting);
 

@@ -11,9 +11,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -397,9 +397,8 @@ public class ProfilingIndexManagerTests extends ESTestCase {
         ActionRequest request,
         ActionListener<?> listener
     ) {
-        if (action instanceof CreateIndexAction) {
+        if (action == TransportCreateIndexAction.TYPE) {
             calledTimes.incrementAndGet();
-            assertThat(action, instanceOf(CreateIndexAction.class));
             assertThat(request, instanceOf(CreateIndexRequest.class));
             assertNotNull(listener);
             return new CreateIndexResponse(true, true, ((CreateIndexRequest) request).index());
@@ -416,9 +415,8 @@ public class ProfilingIndexManagerTests extends ESTestCase {
         ActionRequest request,
         ActionListener<?> listener
     ) {
-        if (action instanceof CreateIndexAction) {
+        if (action == TransportCreateIndexAction.TYPE) {
             indicesCreated.incrementAndGet();
-            assertThat(action, instanceOf(CreateIndexAction.class));
             assertThat(request, instanceOf(CreateIndexRequest.class));
             assertNotNull(listener);
             return new CreateIndexResponse(true, true, ((CreateIndexRequest) request).index());

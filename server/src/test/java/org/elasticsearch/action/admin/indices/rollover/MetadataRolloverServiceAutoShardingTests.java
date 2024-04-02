@@ -107,7 +107,8 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             randomBoolean(),
                             false,
                             null,
-                            new AutoShardingResult(INCREASE_SHARDS, 3, 5, TimeValue.ZERO, 64.33)
+                            new AutoShardingResult(INCREASE_SHARDS, 3, 5, TimeValue.ZERO, 64.33),
+                            false
                         );
                         assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), metConditions, 5);
                     }
@@ -126,7 +127,8 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                                 randomBoolean(),
                                 false,
                                 null,
-                                new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.ZERO, 0.33)
+                                new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.ZERO, 0.33),
+                                false
                             );
                             assertRolloverResult(
                                 dataStream,
@@ -152,7 +154,8 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                                 randomBoolean(),
                                 false,
                                 null,
-                                new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.ZERO, 0.33)
+                                new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.ZERO, 0.33),
+                                false
                             );
                             assertRolloverResult(
                                 dataStream,
@@ -182,7 +185,8 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             randomBoolean(),
                             false,
                             null,
-                            new AutoShardingResult(COOLDOWN_PREVENTED_INCREASE, 3, 5, TimeValue.timeValueMinutes(10), 64.33)
+                            new AutoShardingResult(COOLDOWN_PREVENTED_INCREASE, 3, 5, TimeValue.timeValueMinutes(10), 64.33),
+                            false
                         );
                         // the expected number of shards remains 3 for the data stream due to the remaining cooldown
                         assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), List.of(), 3);
@@ -198,7 +202,8 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             randomBoolean(),
                             false,
                             null,
-                            new AutoShardingResult(COOLDOWN_PREVENTED_DECREASE, 3, 1, TimeValue.timeValueMinutes(10), 64.33)
+                            new AutoShardingResult(COOLDOWN_PREVENTED_DECREASE, 3, 1, TimeValue.timeValueMinutes(10), 64.33),
+                            false
                         );
                         // the expected number of shards remains 3 for the data stream due to the remaining cooldown
                         assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), List.of(), 3);
@@ -215,7 +220,8 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             randomBoolean(),
                             false,
                             null,
-                            new AutoShardingResult(NO_CHANGE_REQUIRED, 3, 3, TimeValue.ZERO, 2.33)
+                            new AutoShardingResult(NO_CHANGE_REQUIRED, 3, 3, TimeValue.ZERO, 2.33),
+                            false
                         );
                         assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), metConditions, 3);
                     }
@@ -231,7 +237,8 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             randomBoolean(),
                             false,
                             null,
-                            new AutoShardingResult(NOT_APPLICABLE, 1, 1, TimeValue.MAX_VALUE, null)
+                            new AutoShardingResult(NOT_APPLICABLE, 1, 1, TimeValue.MAX_VALUE, null),
+                            false
                         );
                         assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), metConditions, 3);
                     }
@@ -303,7 +310,8 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             randomBoolean(),
                             false,
                             null,
-                            new AutoShardingResult(INCREASE_SHARDS, 3, 5, TimeValue.ZERO, 64.33)
+                            new AutoShardingResult(INCREASE_SHARDS, 3, 5, TimeValue.ZERO, 64.33),
+                            false
                         );
                         assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), metConditions, 5);
                     }
@@ -322,7 +330,8 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                                 randomBoolean(),
                                 false,
                                 null,
-                                new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.ZERO, 0.33)
+                                new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.ZERO, 0.33),
+                                false
                             );
                             assertRolloverResult(
                                 dataStream,
@@ -348,7 +357,8 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                                 randomBoolean(),
                                 false,
                                 null,
-                                new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.ZERO, 0.33)
+                                new AutoShardingResult(DECREASE_SHARDS, 3, 1, TimeValue.ZERO, 0.33),
+                                false
                             );
                             assertRolloverResult(
                                 dataStream,
@@ -371,7 +381,8 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             randomBoolean(),
                             false,
                             null,
-                            new AutoShardingResult(COOLDOWN_PREVENTED_INCREASE, 3, 5, TimeValue.timeValueMinutes(10), 64.33)
+                            new AutoShardingResult(COOLDOWN_PREVENTED_INCREASE, 3, 5, TimeValue.timeValueMinutes(10), 64.33),
+                            false
                         );
                         // the expected number of shards remains 3 for the data stream due to the remaining cooldown
                         assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), List.of(), 3);
@@ -387,7 +398,8 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             randomBoolean(),
                             false,
                             null,
-                            new AutoShardingResult(COOLDOWN_PREVENTED_DECREASE, 3, 1, TimeValue.timeValueMinutes(10), 64.33)
+                            new AutoShardingResult(COOLDOWN_PREVENTED_DECREASE, 3, 1, TimeValue.timeValueMinutes(10), 64.33),
+                            false
                         );
                         // the expected number of shards remains 3 for the data stream due to the remaining cooldown
                         assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), List.of(), 3);
@@ -404,7 +416,8 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             randomBoolean(),
                             false,
                             null,
-                            new AutoShardingResult(NO_CHANGE_REQUIRED, 3, 3, TimeValue.ZERO, 2.33)
+                            new AutoShardingResult(NO_CHANGE_REQUIRED, 3, 3, TimeValue.ZERO, 2.33),
+                            false
                         );
                         assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), metConditions, 3);
                     }
@@ -420,7 +433,8 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
                             randomBoolean(),
                             false,
                             null,
-                            new AutoShardingResult(NOT_APPLICABLE, 1, 1, TimeValue.MAX_VALUE, null)
+                            new AutoShardingResult(NOT_APPLICABLE, 1, 1, TimeValue.MAX_VALUE, null),
+                            false
                         );
                         // if the auto sharding is not applicable we just use whatever's in the index template (1 shard in this case)
                         assertRolloverResult(dataStream, rolloverResult, before, testThreadPool.absoluteTimeInMillis(), metConditions, 1);

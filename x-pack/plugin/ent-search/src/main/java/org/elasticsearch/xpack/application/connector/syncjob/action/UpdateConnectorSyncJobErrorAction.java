@@ -135,9 +135,6 @@ public class UpdateConnectorSyncJobErrorAction {
             return builder;
         }
 
-        public static UpdateConnectorSyncJobErrorAction.Request parse(XContentParser parser) {
-            return PARSER.apply(parser, null);
-        }
     }
 
 }

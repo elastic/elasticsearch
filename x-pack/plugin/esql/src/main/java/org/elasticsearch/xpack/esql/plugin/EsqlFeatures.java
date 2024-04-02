@@ -22,6 +22,11 @@ public class EsqlFeatures implements FeatureSpecification {
     private static final NodeFeature MV_SORT = new NodeFeature("esql.mv_sort");
 
     /**
+     * Introduction of {@code MV_APPEND}
+     */
+    private static final NodeFeature MV_APPEND = new NodeFeature("esql.mv_append");
+
+    /**
      * When we disabled some broken optimizations around {@code nullable}.
      * Fixed in #105691.
      */
@@ -77,7 +82,7 @@ public class EsqlFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(ASYNC_QUERY, AGG_VALUES, MV_SORT, DISABLE_NULLABLE_OPTS, ST_X_Y, FROM_OPTIONS);
+        return Set.of(ASYNC_QUERY, AGG_VALUES, MV_SORT, MV_APPEND, DISABLE_NULLABLE_OPTS, ST_X_Y, FROM_OPTIONS);
     }
 
     @Override

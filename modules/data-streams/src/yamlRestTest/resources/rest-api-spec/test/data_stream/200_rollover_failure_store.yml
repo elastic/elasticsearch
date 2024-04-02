@@ -28,11 +28,6 @@ setup:
 
 ---
 "Roll over a data stream's failure store without conditions":
-  - skip:
-      version: " - 8.13.99"
-      reason: "data stream failure store rollover only supported in 8.14+"
-      features: allowed_warnings
-
   # rollover data stream to create new backing index
   - do:
       indices.rollover:
@@ -59,11 +54,6 @@ setup:
 
 ---
 "Roll over a data stream's failure store with conditions":
-  - skip:
-      version: " - 8.13.99"
-      reason: "data stream failure store rollover only supported in 8.14+"
-      features: allowed_warnings
-
   # index first document and wait for refresh
   - do:
       index:
@@ -102,11 +92,6 @@ setup:
 
 ---
 "Don't roll over a data stream's failure store when conditions aren't met":
-  - skip:
-      version: " - 8.13.99"
-      reason: "data stream failure store rollover only supported in 8.14+"
-      features: allowed_warnings
-
   # rollover data stream to create new backing index
   - do:
       indices.rollover:

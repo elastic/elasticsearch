@@ -10,6 +10,11 @@ package org.elasticsearch.common.logging;
 
 import java.util.Map;
 
+/**
+ * Elasticsearch plugins may provide an implementation of this class (via SPI) in order to add extra fields to the JSON based log file.
+ *
+ * @see DynamicContextDataProvider
+ */
 public interface LoggingDataProvider {
     void collectData(Map<String, String> data);
 }

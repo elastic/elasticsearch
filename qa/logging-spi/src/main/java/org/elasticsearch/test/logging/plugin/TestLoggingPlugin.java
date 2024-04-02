@@ -10,6 +10,9 @@ package org.elasticsearch.test.logging.plugin;
 
 import org.elasticsearch.plugins.Plugin;
 
+/**
+ * Dummy plugin, does not implement any methods, only exists in order to allow {@link CustomDataProvider} to be loaded via SPI.
+ */
 public class TestLoggingPlugin extends Plugin {
 
 }

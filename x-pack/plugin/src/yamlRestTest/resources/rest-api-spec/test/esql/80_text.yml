@@ -541,10 +541,6 @@ setup:
 
 ---
 values:
-  - skip:
-      version: all
-      reason: 'AwaitsFix https://github.com/elastic/elasticsearch/issues/106939'
-
   - requires:
       cluster_features: esql.agg_values
       reason: "values is available in 8.14+"
@@ -552,7 +548,7 @@ values:
   - do:
       esql.query:
         body:
-          query: 'FROM test | STATS job = VALUES(job) | LIMIT 1'
+          query: 'FROM test | STATS job = VALUES(job) | EVAL job = MV_SORT(job) | LIMIT 1'
   - match: { columns.0.name: "job" }
   - match: { columns.0.type: "text" }
   - length: { values: 1 }
@@ -569,11 +565,11 @@ values:
   - do:
       esql.query:
         body:
-          query: 'FROM test | STATS job = VALUES(job) BY tag | SORT tag | LIMIT 10'
-  - match: { columns.0.name: "job" }
+          query: 'FROM test | STATS job = VALUES(job) BY tag | EVAL job = MV_SORT(job) | SORT tag | LIMIT 10'
+  - match: { columns.0.name: "tag" }
   - match: { columns.0.type: "text" }
-  - match: { columns.1.name: "tag" }
+  - match: { columns.1.name: "job" }
   - match: { columns.1.type: "text" }
   - length: { values: 2 }
-  - match: { values.0: [ [ "Payroll Specialist", "Other" ], "baz" ] }
-  - match: { values.1: [ "IT Director", "foo bar" ] }
+  - match: { values.0: [ "baz", [ "Other", "Payroll Specialist" ] ] }
+  - match: { values.1: [ "foo bar", "IT Director" ] }

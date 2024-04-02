@@ -89,7 +89,7 @@ fragment UNQUOTED_ID_BODY
     : (LETTER | DIGIT | UNDERSCORE)
     ;
 
-STRING
+QUOTED_STRING
     : '"' (ESCAPE_SEQUENCE | UNESCAPED_CHARS)* '"'
     | '"""' (~[\r\n])*? '"""' '"'? '"'?
     ;
@@ -186,8 +186,10 @@ FROM_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET);
 FROM_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET);
 FROM_COMMA : COMMA -> type(COMMA);
 FROM_ASSIGN : ASSIGN -> type(ASSIGN);
+FROM_QUOTED_STRING : QUOTED_STRING -> type(QUOTED_STRING);
 
-METADATA: 'metadata';
+OPTIONS : 'options';
+METADATA : 'metadata';
 
 fragment FROM_UNQUOTED_IDENTIFIER_PART
     : ~[=`|,[\]/ \t\r\n]

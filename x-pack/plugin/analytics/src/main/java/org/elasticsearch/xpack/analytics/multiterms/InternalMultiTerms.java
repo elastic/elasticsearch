@@ -19,7 +19,6 @@ import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalOrder;
-import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.terms.AbstractInternalTerms;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -37,7 +36,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
 
     public static final TermsComparator TERMS_COMPARATOR = new TermsComparator();
 
-    public static class Bucket extends AbstractInternalTerms.AbstractTermsBucket implements KeyComparable<Bucket> {
+    public static class Bucket extends AbstractInternalTerms.AbstractTermsBucket<Bucket> {
 
         long bucketOrd;
 

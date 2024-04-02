@@ -320,6 +320,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             } else {
                 assert fromSortValuePredicates.isMatchAll() : "filtering is not supported in non-verbose mode";
                 assert slmPolicyPredicate == SlmPolicyPredicate.MATCH_ALL_POLICIES : "filtering is not supported in non-verbose mode";
+
                 addSimpleSnapshotInfos(
                     toResolve,
                     repo,
@@ -436,7 +437,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 // only want current snapshots
                 addResults(currentSnapshots.size(), currentSnapshots.stream().filter(afterPredicate).toList());
                 return;
-            }
+            } // else want non-current snapshots as well, which are found in the repository data
 
             List<SnapshotInfo> snapshotInfos = new ArrayList<>(currentSnapshots.size() + toResolve.size());
             int repositoryTotalCount = 0;
@@ -677,10 +678,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             }
             return indexCount;
         }
-    }
-
-    private record SnapshotsInRepo(List<SnapshotInfo> snapshotInfos, int totalCount, int remaining) {
-        private static final SnapshotsInRepo EMPTY = new SnapshotsInRepo(List.of(), 0, 0);
     }
 
     /**

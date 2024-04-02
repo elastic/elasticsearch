@@ -184,10 +184,6 @@ public class ConnectorScheduling implements Writeable, ToXContentObject {
             return PARSER.parse(parser, null);
         }
 
-        public static ConstructingObjectParser<ScheduleConfig, Void> getParser() {
-            return PARSER;
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();

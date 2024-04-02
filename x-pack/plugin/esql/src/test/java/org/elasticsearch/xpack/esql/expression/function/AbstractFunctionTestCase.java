@@ -1149,6 +1149,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     private static void renderParametersList(List<String> argNames, List<String> argDescriptions) throws IOException {
         StringBuilder builder = new StringBuilder();
+        builder.append(DOCS_WARNING);
         builder.append("*Parameters*\n");
         for (int a = 0; a < argNames.size(); a++) {
             builder.append("\n`").append(argNames.get(a)).append("`::\n").append(argDescriptions.get(a)).append('\n');

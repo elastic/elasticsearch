@@ -389,6 +389,9 @@ public class EsqlSecurityIT extends ESRestTestCase {
         if (randomBoolean()) {
             settings.put("enrich_max_workers", between(1, 5));
         }
+        if (randomBoolean()) {
+            settings.put("node_level_reduction", randomBoolean());
+        }
         return settings.build();
     }
 }

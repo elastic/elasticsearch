@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.CancellableFanOut;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -216,11 +217,24 @@ public abstract class TransportNodesAction<
 
     protected abstract NodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException;
 
+    /**
+     * Implements the request recipient logic.
+     * If access to the request listener is needed, override {@link #nodeOperationAsync(TransportRequest, Task, ActionListener)}.
+     */
     protected abstract NodeResponse nodeOperation(NodeRequest request, Task task);
 
     /**
-     * resolve node ids to concrete nodes of the incoming request
-     **/
+     * This method can be overridden if a subclass needs to access to a listener in order to asynchronously respond to the node request.
+     * The default implementation is to fall through to {@link #nodeOperation}.
+     */
+    protected void nodeOperationAsync(NodeRequest request, Task task, ActionListener<NodeResponse> listener) {
+        ActionListener.respondAndRelease(listener, nodeOperation(request, task));
+    }
+
+    /**
+     * Resolves node ids to concrete nodes of the incoming request.
+     * NB: if the request's nodeIds() returns nothing, then the request will be sent to ALL known nodes in the cluster.
+     */
     protected void resolveRequest(NodesRequest request, ClusterState clusterState) {
         assert request.concreteNodes() == null : "request concreteNodes shouldn't be set";
         String[] nodesIds = clusterState.nodes().resolveNodes(request.nodesIds());
@@ -230,12 +244,10 @@ public abstract class TransportNodesAction<
     class NodeTransportHandler implements TransportRequestHandler<NodeRequest> {
         @Override
         public void messageReceived(NodeRequest request, TransportChannel channel, Task task) throws Exception {
-            final var nodeResponse = nodeOperation(request, task);
-            try {
-                channel.sendResponse(nodeResponse);
-            } finally {
-                nodeResponse.decRef();
-            }
+            ActionListener.run(
+                new ChannelActionListener<NodeResponse>(channel),
+                channelListener -> nodeOperationAsync(request, task, channelListener)
+            );
         }
     }
 

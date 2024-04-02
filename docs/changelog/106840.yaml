@@ -1,0 +1,6 @@
+pr: 106840
+summary: Add total size in bytes to doc stats
+area: Stats
+type: enhancement
+issues:
+ - 97670

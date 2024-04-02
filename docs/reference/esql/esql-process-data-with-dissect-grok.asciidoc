@@ -240,7 +240,7 @@ with a `\`. For example, in the earlier pattern:
 ----
 
 In {esql} queries, the backslash character itself is a special character that
-needs to be escaped with another `\`. For this example, the corresponding {esql}
+needs to be escaped with another `\`, excepting quoting marks `"` which only need one backslash. For this example, the corresponding {esql}
 query becomes:
 [source.merge.styled,esql]
 ----

@@ -405,7 +405,8 @@ public class IndexEngine extends InternalEngine {
                 shardId,
                 fromSeqNo,
                 toSeqNo,
-                translogRecoveryStartFile
+                translogRecoveryStartFile,
+                this::isClosing
             );
             return new Translog.Snapshot() {
                 @Override

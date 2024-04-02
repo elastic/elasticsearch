@@ -28,8 +28,8 @@ public final class VectorScorerSupplierAdapter implements RandomVectorScorerSupp
             final int firstOrd = ord;
 
             @Override
-            public float score(int node) throws IOException {
-                return scorer.score(firstOrd, ord);
+            public float score(int otherOrd) throws IOException {
+                return scorer.score(firstOrd, otherOrd);
             }
 
             @Override

@@ -64,17 +64,20 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                 }
                 try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
                     // dot product
-                    var scorer = factory.getScalarQuantizedVectorScorer(dims, 2, 1, DOT_PRODUCT, in).get();
                     float expected = luceneScore(DOT_PRODUCT, vec1, vec2, 1, 1, 1);
+                    var scorer = factory.getScalarQuantizedVectorScorer(dims, 2, 1, DOT_PRODUCT, in).get();
                     assertThat(scorer.score(0, 1), equalTo(expected));
+                    assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(0).score(1), equalTo(expected));
                     // max inner product
-                    scorer = factory.getScalarQuantizedVectorScorer(dims, 2, 1, MAXIMUM_INNER_PRODUCT, in).get();
                     expected = luceneScore(MAXIMUM_INNER_PRODUCT, vec1, vec2, 1, 1, 1);
+                    scorer = factory.getScalarQuantizedVectorScorer(dims, 2, 1, MAXIMUM_INNER_PRODUCT, in).get();
                     assertThat(scorer.score(0, 1), equalTo(expected));
+                    assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(0).score(1), equalTo(expected));
                     // cosine
-                    scorer = factory.getScalarQuantizedVectorScorer(dims, 2, 1, COSINE, in).get();
                     expected = luceneScore(COSINE, vec1, vec2, 1, 1, 1);
+                    scorer = factory.getScalarQuantizedVectorScorer(dims, 2, 1, COSINE, in).get();
                     assertThat(scorer.score(0, 1), equalTo(expected));
+                    assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(0).score(1), equalTo(expected));
                     // euclidean
                     // scorer = factory.getScalarQuantizedVectorScorer(dims, 2, 1, EUCLIDEAN, in).get();
                     // expected = luceneScore(EUCLIDEAN, vec1, vec2, 1, 1, 1);
@@ -133,17 +136,20 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                     int idx0 = randomIntBetween(0, size - 1);
                     int idx1 = randomIntBetween(0, size - 1); // may be the same as idx0 - which is ok.
                     // dot product
-                    var scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, DOT_PRODUCT, in).get();
                     float expected = luceneScore(DOT_PRODUCT, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
+                    var scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, DOT_PRODUCT, in).get();
                     assertThat(scorer.score(idx0, idx1), equalTo(expected));
+                    assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(idx0).score(idx1), equalTo(expected));
                     // max inner product
-                    scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, MAXIMUM_INNER_PRODUCT, in).get();
                     expected = luceneScore(MAXIMUM_INNER_PRODUCT, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
+                    scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, MAXIMUM_INNER_PRODUCT, in).get();
                     assertThat(scorer.score(idx0, idx1), equalTo(expected));
+                    assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(idx0).score(idx1), equalTo(expected));
                     // cosine
-                    scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, COSINE, in).get();
                     expected = luceneScore(COSINE, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
+                    scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, COSINE, in).get();
                     assertThat(scorer.score(idx0, idx1), equalTo(expected));
+                    assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(idx0).score(idx1), equalTo(expected));
                     // euclidean
                     // scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, EUCLIDEAN, in).get();
                     // expected = luceneScore(EUCLIDEAN, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
@@ -190,17 +196,20 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                     int idx0 = randomIntBetween(0, size - 1);
                     int idx1 = randomIntBetween(0, size - 1); // may be the same as idx0 - which is ok.
                     // dot product
-                    var scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, DOT_PRODUCT, in).get();
                     float expected = luceneScore(DOT_PRODUCT, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
+                    var scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, DOT_PRODUCT, in).get();
                     assertThat(scorer.score(idx0, idx1), equalTo(expected));
+                    assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(idx0).score(idx1), equalTo(expected));
                     // max inner product
-                    scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, MAXIMUM_INNER_PRODUCT, in).get();
                     expected = luceneScore(MAXIMUM_INNER_PRODUCT, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
+                    scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, MAXIMUM_INNER_PRODUCT, in).get();
                     assertThat(scorer.score(idx0, idx1), equalTo(expected));
+                    assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(idx0).score(idx1), equalTo(expected));
                     // cosine
-                    scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, COSINE, in).get();
                     expected = luceneScore(COSINE, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);
+                    scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, COSINE, in).get();
                     assertThat(scorer.score(idx0, idx1), equalTo(expected));
+                    assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(idx0).score(idx1), equalTo(expected));
                     // euclidean
                     // scorer = factory.getScalarQuantizedVectorScorer(dims, size, correction, EUCLIDEAN, in).get();
                     // expected = luceneScore(EUCLIDEAN, vectors[idx0], vectors[idx1], correction, offsets[idx0], offsets[idx1]);

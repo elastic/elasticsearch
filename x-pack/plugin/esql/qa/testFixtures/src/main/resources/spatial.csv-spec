@@ -1108,6 +1108,7 @@ required_feature: esql.st_intersects
 
 FROM airports_web
 | WHERE ST_INTERSECTS(location, TO_CARTESIANSHAPE("MULTIPOINT(4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096)"))
+| SORT abbrev DESC
 ;
 
 abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
@@ -1120,6 +1121,7 @@ required_feature: esql.st_intersects
 
 FROM airports_web
 | WHERE ST_INTERSECTS(location, TO_CARTESIANSHAPE("LINESTRING(4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096)"))
+| SORT abbrev DESC
 ;
 
 abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
@@ -1132,6 +1134,7 @@ required_feature: esql.st_intersects
 
 FROM airports_web
 | WHERE ST_INTERSECTS(location, TO_CARTESIANSHAPE("MULTILINESTRING((4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096),(1408119.2975413958 7484813.53657096, 1996039.722208033 8322469.9470024165))"))
+| SORT abbrev DESC
 ;
 
 abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
@@ -1265,6 +1268,7 @@ required_feature: esql.st_intersects
 
 FROM airports_web
 | WHERE ST_CONTAINS(location, TO_CARTESIANSHAPE("MULTIPOINT(4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096)"))
+| SORT abbrev DESC
 ;
 
 abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
@@ -1275,6 +1279,7 @@ required_feature: esql.st_intersects
 
 FROM airports_web
 | WHERE ST_CONTAINS(location, TO_CARTESIANSHAPE("LINESTRING(4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096)"))
+| SORT abbrev DESC
 ;
 
 abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
@@ -1285,6 +1290,7 @@ required_feature: esql.st_intersects
 
 FROM airports_web
 | WHERE ST_CONTAINS(location, TO_CARTESIANSHAPE("MULTILINESTRING((4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096),(1408119.2975413958 7484813.53657096, 1996039.722208033 8322469.9470024165))"))
+| SORT abbrev DESC
 ;
 
 abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
@@ -1381,6 +1387,7 @@ required_feature: esql.st_intersects
 
 FROM airports_web
 | WHERE ST_WITHIN(location, TO_CARTESIANSHAPE("MULTIPOINT(4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096)"))
+| SORT abbrev DESC
 ;
 
 abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
@@ -1393,6 +1400,7 @@ required_feature: esql.st_intersects
 
 FROM airports_web
 | WHERE ST_WITHIN(location, TO_CARTESIANSHAPE("LINESTRING(4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096)"))
+| SORT abbrev DESC
 ;
 
 abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
@@ -1405,6 +1413,7 @@ required_feature: esql.st_intersects
 
 FROM airports_web
 | WHERE ST_WITHIN(location, TO_CARTESIANSHAPE("MULTILINESTRING((4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096),(1408119.2975413958 7484813.53657096, 1996039.722208033 8322469.9470024165))"))
+| SORT abbrev DESC
 ;
 
 abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k

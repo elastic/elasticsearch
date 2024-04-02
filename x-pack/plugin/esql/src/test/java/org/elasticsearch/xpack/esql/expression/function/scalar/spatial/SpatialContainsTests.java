@@ -21,9 +21,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-@FunctionName("st_intersects")
-public class SpatialIntersectsTests extends SpatialRelatesFunctionTestCase {
-    public SpatialIntersectsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+@FunctionName("st_contains")
+public class SpatialContainsTests extends SpatialRelatesFunctionTestCase {
+    public SpatialContainsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -35,12 +35,12 @@ public class SpatialIntersectsTests extends SpatialRelatesFunctionTestCase {
         DataType[] cartesianDataTypes = { EsqlDataTypes.CARTESIAN_POINT, EsqlDataTypes.CARTESIAN_SHAPE };
         SpatialRelatesFunctionTestCase.addSpatialCombinations(suppliers, cartesianDataTypes);
         return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), SpatialIntersectsTests::typeErrorMessage)
+            errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), SpatialContainsTests::typeErrorMessage)
         );
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new SpatialIntersects(source, args.get(0), args.get(1));
+        return new SpatialContains(source, args.get(0), args.get(1));
     }
 }

@@ -30,12 +30,12 @@ public final class SpatialContainsCartesianSourceAndConstantEvaluator implements
 
   private final EvalOperator.ExpressionEvaluator leftValue;
 
-  private final Component2D rightValue;
+  private final Component2D[] rightValue;
 
   private final DriverContext driverContext;
 
   public SpatialContainsCartesianSourceAndConstantEvaluator(Source source,
-      EvalOperator.ExpressionEvaluator leftValue, Component2D rightValue,
+      EvalOperator.ExpressionEvaluator leftValue, Component2D[] rightValue,
       DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.leftValue = leftValue;
@@ -110,10 +110,10 @@ public final class SpatialContainsCartesianSourceAndConstantEvaluator implements
 
     private final EvalOperator.ExpressionEvaluator.Factory leftValue;
 
-    private final Component2D rightValue;
+    private final Component2D[] rightValue;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory leftValue,
-        Component2D rightValue) {
+        Component2D[] rightValue) {
       this.source = source;
       this.leftValue = leftValue;
       this.rightValue = rightValue;

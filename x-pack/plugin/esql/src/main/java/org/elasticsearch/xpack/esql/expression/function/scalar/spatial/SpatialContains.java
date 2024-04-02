@@ -14,6 +14,7 @@ import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
@@ -89,6 +90,18 @@ public class SpatialContains extends SpatialRelatesFunction {
             for (Component2D rightComponent2D : rightComponent2Ds) {
                 // Every component of the right geometry must be contained within the left geometry for this to pass
                 if (geometryRelatesGeometry(leftDocValueReader, rightComponent2D) == false) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private boolean pointRelatesGeometries(long encoded, Component2D[] rightComponent2Ds) {
+            // This code path exists for doc-values points, and we could consider re-using the point class to reduce garbage creation
+            Point point = spatialCoordinateType.longAsPoint(encoded);
+            for (Component2D rightComponent2D : rightComponent2Ds) {
+                // Every component of the right geometry must be contained within the left geometry for this to pass
+                if (pointRelatesGeometry(point, rightComponent2D) == false) {
                     return false;
                 }
             }
@@ -189,7 +202,7 @@ public class SpatialContains extends SpatialRelatesFunction {
                 );
                 evaluatorMap.put(
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType),
-                    new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
+                    new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantArrayFactory(
                         SpatialContainsGeoSourceAndConstantEvaluator.Factory::new
                     )
                 );
@@ -202,7 +215,7 @@ public class SpatialContains extends SpatialRelatesFunction {
                     );
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType).withLeftDocValues(),
-                        new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
+                        new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantArrayFactory(
                             SpatialContainsGeoPointDocValuesAndConstantEvaluator.Factory::new
                         )
                     );
@@ -221,7 +234,7 @@ public class SpatialContains extends SpatialRelatesFunction {
                 );
                 evaluatorMap.put(
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType),
-                    new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
+                    new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantArrayFactory(
                         SpatialContainsCartesianSourceAndConstantEvaluator.Factory::new
                     )
                 );
@@ -234,7 +247,7 @@ public class SpatialContains extends SpatialRelatesFunction {
                     );
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType).withLeftDocValues(),
-                        new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
+                        new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantArrayFactory(
                             SpatialContainsCartesianPointDocValuesAndConstantEvaluator.Factory::new
                         )
                     );
@@ -244,8 +257,8 @@ public class SpatialContains extends SpatialRelatesFunction {
     }
 
     @Evaluator(extraName = "GeoSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static boolean processGeoSourceAndConstant(BytesRef leftValue, @Fixed Component2D rightValue) throws IOException {
-        return GEO.geometryRelatesGeometry(leftValue, rightValue);
+    static boolean processGeoSourceAndConstant(BytesRef leftValue, @Fixed Component2D[] rightValue) throws IOException {
+        return GEO.geometryRelatesGeometries(leftValue, rightValue);
     }
 
     @Evaluator(extraName = "GeoSourceAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
@@ -254,8 +267,8 @@ public class SpatialContains extends SpatialRelatesFunction {
     }
 
     @Evaluator(extraName = "GeoPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class })
-    static boolean processGeoPointDocValuesAndConstant(long leftValue, @Fixed Component2D rightValue) {
-        return GEO.pointRelatesGeometry(leftValue, rightValue);
+    static boolean processGeoPointDocValuesAndConstant(long leftValue, @Fixed Component2D[] rightValue) {
+        return GEO.pointRelatesGeometries(leftValue, rightValue);
     }
 
     @Evaluator(extraName = "GeoPointDocValuesAndSource", warnExceptions = { IllegalArgumentException.class })
@@ -265,8 +278,8 @@ public class SpatialContains extends SpatialRelatesFunction {
     }
 
     @Evaluator(extraName = "CartesianSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static boolean processCartesianSourceAndConstant(BytesRef leftValue, @Fixed Component2D rightValue) throws IOException {
-        return CARTESIAN.geometryRelatesGeometry(leftValue, rightValue);
+    static boolean processCartesianSourceAndConstant(BytesRef leftValue, @Fixed Component2D[] rightValue) throws IOException {
+        return CARTESIAN.geometryRelatesGeometries(leftValue, rightValue);
     }
 
     @Evaluator(extraName = "CartesianSourceAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
@@ -275,8 +288,8 @@ public class SpatialContains extends SpatialRelatesFunction {
     }
 
     @Evaluator(extraName = "CartesianPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class })
-    static boolean processCartesianPointDocValuesAndConstant(long leftValue, @Fixed Component2D rightValue) {
-        return CARTESIAN.pointRelatesGeometry(leftValue, rightValue);
+    static boolean processCartesianPointDocValuesAndConstant(long leftValue, @Fixed Component2D[] rightValue) {
+        return CARTESIAN.pointRelatesGeometries(leftValue, rightValue);
     }
 
     @Evaluator(extraName = "CartesianPointDocValuesAndSource")

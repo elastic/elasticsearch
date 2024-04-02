@@ -297,7 +297,7 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
             return pointRelatesGeometry(point, component2D);
         }
 
-        private boolean pointRelatesGeometry(Point point, Component2D component2D) {
+        protected boolean pointRelatesGeometry(Point point, Component2D component2D) {
             if (queryRelation == CONTAINS) {
                 return component2D.withinPoint(point.getX(), point.getY()) == Component2D.WithinRelation.CANDIDATE;
             } else {

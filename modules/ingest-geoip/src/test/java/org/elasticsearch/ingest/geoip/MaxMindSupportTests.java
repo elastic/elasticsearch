@@ -219,21 +219,21 @@ public class MaxMindSupportTests extends ESTestCase {
                 "A new Database type, "
                     + databaseType
                     + ", has been added, but this test has not been updated to know which MaxMind "
-                    + "class to use to load it. Update typeToMaxMindClass",
+                    + "class to use to load it. Update TYPE_TO_MAX_MIND_CLASS",
                 maxMindClass
             );
             assertNotNull(
                 "A new Database type, "
                     + databaseType
                     + ", has been added, but this test has not been updated to know which fields we "
-                    + "support for it. Update typeToSupportedFieldsMap",
+                    + "support for it. Update TYPE_TO_SUPPORTED_FIELDS_MAP",
                 supportedFields
             );
             assertNotNull(
                 "A new Database type, "
                     + databaseType
                     + ", has been added, but this test has not been updated to know which fields we "
-                    + "do not support for it. Update typeToUnsupportedFieldsMap",
+                    + "do not support for it. Update TYPE_TO_UNSUPPORTED_FIELDS_MAP",
                 unsupportedFields
             );
             final SortedSet<String> fieldNames = getFieldNamesUsedFromClass(maxMindClass);
@@ -242,7 +242,7 @@ public class MaxMindSupportTests extends ESTestCase {
             assertThat(
                 "New MaxMind fields have been added for "
                     + databaseType
-                    + " that we do not use or have documented in typeToUnsupportedFieldsMap. The actual list of fields is:\n"
+                    + " that we do not use or have documented in TYPE_TO_UNSUPPORTED_FIELDS_MAP. The actual list of fields is:\n"
                     + getFormattedList(unusedFields),
                 unusedFields,
                 equalTo(new TreeSet<>(unsupportedFields))

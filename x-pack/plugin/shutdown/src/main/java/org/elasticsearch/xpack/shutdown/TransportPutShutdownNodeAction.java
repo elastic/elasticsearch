@@ -22,6 +22,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -44,6 +46,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
 
     private final AllocationService allocationService;
     private final MasterServiceTaskQueue<PutShutdownNodeTask> taskQueue;
+    private final Runnable resetDesiredBalance;
 
     private static boolean putShutdownNodeState(
         Map<String, SingleNodeShutdownMetadata> shutdownMetadata,
@@ -126,6 +129,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                 return updatedState;
             }
 
+            resetDesiredBalance.run();
             // Reroute inline with the update, rather than using the RerouteService, in order to atomically update things like auto-expand
             // replicas to account for the shutdown metadata. If the reroute were separate then the get-shutdown API might observe the
             // intermediate state and report that nodes are ready to shut down prematurely. Even if the client were to wait for the
@@ -142,7 +146,8 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
         AllocationService allocationService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ShardsAllocator allocator
     ) {
         super(
             PutShutdownNodeAction.NAME,
@@ -157,6 +162,9 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
         );
         this.allocationService = allocationService;
         taskQueue = clusterService.createTaskQueue("put-shutdown", Priority.URGENT, new PutShutdownNodeExecutor());
+        this.resetDesiredBalance = allocator instanceof DesiredBalanceShardsAllocator desiredBalanceAllocator
+            ? desiredBalanceAllocator::resetDesiredBalance
+            : () -> {};
     }
 
     @Override

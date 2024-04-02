@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.engine.translog;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
@@ -42,6 +43,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -58,6 +60,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
     private final long fromSeqNo;
     private final long toSeqNo;
     private final long translogRecoveryStartFile;
+    private final BooleanSupplier isClosing;
 
     private final BlobContainer translogBlobContainer;
     private final Iterator<? extends Translog.Operation> operations;
@@ -83,6 +86,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
      * @param fromSeqNo                 each returned operation is equal or larger than this seq no
      * @param toSeqNo                   each returned operation is equal or smaller than this seq no
      * @param translogRecoveryStartFile the translog file to initiate recovery from
+     * @param isClosing                 indicates if the recovery should be cancelled because of engine shutdown
      * @throws IOException                related to listing blobs from the object store
      * @throws TranslogCorruptedException in case the checksum of the checkpoints of a compound translog file is incorrect, or an inner
      *                                    {@link IOException} occurred while reading from the translog file and/or the object store
@@ -92,9 +96,11 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
         final ShardId shardId,
         final long fromSeqNo,
         final long toSeqNo,
-        final long translogRecoveryStartFile
+        final long translogRecoveryStartFile,
+        BooleanSupplier isClosing
     ) throws IOException {
         this.translogRecoveryStartFile = translogRecoveryStartFile;
+        this.isClosing = isClosing;
         assert fromSeqNo <= toSeqNo : fromSeqNo + " > " + toSeqNo;
         assert fromSeqNo >= 0 : "fromSeqNo must be non-negative " + fromSeqNo;
         this.shardId = shardId;
@@ -121,7 +127,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
      */
     // This ctor is only used in tests
     public TranslogReplicatorReader(final BlobContainer translogBlobContainer, final ShardId shardId) throws IOException {
-        this(translogBlobContainer, shardId, 0, Long.MAX_VALUE, 0);
+        this(translogBlobContainer, shardId, 0, Long.MAX_VALUE, 0, () -> false);
     }
 
     @Override
@@ -130,6 +136,9 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
     }
 
     private Iterator<Translog.Operation> readBlobTranslogOperations(BlobMetadata blobMetadata) {
+        if (isClosing.getAsBoolean()) {
+            throw new AlreadyClosedException("Translog recovery cancelled because engine is closing.");
+        }
         long operationsReadStartNanos = System.nanoTime();
         try (
             StreamInput streamInput = new InputStreamStreamInput(

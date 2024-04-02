@@ -161,7 +161,6 @@ public class TransportVersions {
     public static final TransportVersion ESQL_REDUCER_NODE_FRAGMENT = def(8_620_00_0);
     public static final TransportVersion ML_INFERENCE_COHERE_RERANK = def(8_621_00_0);
 
-
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

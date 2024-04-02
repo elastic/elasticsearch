@@ -177,7 +177,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 out.writeEnum(getInputTypeToWrite(inputType, out.getTransportVersion()));
             }
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_RERANK) && query != null) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_RERANK)) {
                 out.writeOptionalString(query);
             }
         }
@@ -257,6 +257,22 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             public Request build() {
                 return new Request(taskType, inferenceEntityId, query, input, taskSettings, inputType);
             }
+        }
+
+        public String toString() {
+            return "InferenceAction.Request(taskType="
+                + this.getTaskType()
+                + ", inferenceEntityId="
+                + this.getInferenceEntityId()
+                + ", query="
+                + this.getQuery()
+                + ", input="
+                + this.getInput()
+                + ", taskSettings="
+                + this.getTaskSettings()
+                + ", inputType="
+                + this.getInputType()
+                + ")";
         }
     }
 

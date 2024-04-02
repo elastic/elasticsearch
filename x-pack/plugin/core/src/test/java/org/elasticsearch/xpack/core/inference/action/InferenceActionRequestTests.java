@@ -39,6 +39,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             randomFrom(TaskType.values()),
             randomAlphaOfLength(6),
             null,
+            // randomNullOrAlphaOfLength(10),
             randomList(1, 5, () -> randomAlphaOfLength(8)),
             randomMap(0, 3, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4))),
             randomFrom(InputType.values())
@@ -81,7 +82,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
 
     @Override
     protected InferenceAction.Request mutateInstance(InferenceAction.Request instance) throws IOException {
-        int select = randomIntBetween(0, 4);
+        int select = randomIntBetween(0, 5);
         return switch (select) {
             case 0 -> {
                 var nextTask = TaskType.values()[(instance.getTaskType().ordinal() + 1) % TaskType.values().length];
@@ -142,6 +143,16 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     nextInputType
                 );
             }
+            case 5 -> {
+                yield new InferenceAction.Request(
+                    instance.getTaskType(),
+                    instance.getInferenceEntityId(),
+                    instance.getQuery() == null ? randomAlphaOfLength(10) : instance.getQuery() + randomAlphaOfLength(1),
+                    instance.getInput(),
+                    instance.getTaskSettings(),
+                    instance.getInputType()
+                );
+            }
             default -> throw new UnsupportedOperationException();
         };
     }
@@ -187,6 +198,15 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                             instance.getInput(),
                             instance.getTaskSettings(),
                             InputType.UNSPECIFIED
+                        );
+                    } else if (version.before(TransportVersions.ML_INFERENCE_COHERE_RERANK)) {
+                        return new InferenceAction.Request(
+                            instance.getTaskType(),
+                            instance.getInferenceEntityId(),
+                            null,
+                            instance.getInput(),
+                            instance.getTaskSettings(),
+                            instance.getInputType()
                         );
                     }
 

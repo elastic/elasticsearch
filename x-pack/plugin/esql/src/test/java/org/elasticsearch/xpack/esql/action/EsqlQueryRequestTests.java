@@ -169,7 +169,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 }
                 """, validVersionString);
 
-            EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+            EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
             assertNull(request.validate());
 
             request = parseEsqlQueryRequestAsync(json);
@@ -187,11 +187,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             }
             """, invalidVersionString);
 
-        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
-        assertNotNull(request.validate());
-        assertThat(request.validate().getMessage(), containsString("[version] has invalid value [" + invalidVersionString + "]"));
-
-        request = parseEsqlQueryRequestAsync(json);
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         assertNotNull(request.validate());
         assertThat(request.validate().getMessage(), containsString("[version] has invalid value [" + invalidVersionString + "]"));
     }
@@ -205,7 +201,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             }
             """, esqlVersion);
 
-        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         request.onSnapshotBuild(true);
         assertNull(request.validate());
 
@@ -224,11 +220,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 "columnar": true,
                 "query": "row x = 1"
             }""";
-        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
-        assertNotNull(request.validate());
-        assertThat(request.validate().getMessage(), containsString("[version] is required"));
-
-        request = parseEsqlQueryRequestAsync(json);
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         assertNotNull(request.validate());
         assertThat(request.validate().getMessage(), containsString("[version] is required"));
     }
@@ -239,11 +231,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 "columnar": true,
                 "version": "nightly"
             }""";
-        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
-        assertNotNull(request.validate());
-        assertThat(request.validate().getMessage(), containsString("[query] is required"));
-
-        request = parseEsqlQueryRequestAsync(json);
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         assertNotNull(request.validate());
         assertThat(request.validate().getMessage(), containsString("[query] is required"));
     }
@@ -257,7 +245,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             }
             """);
 
-        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         request.onSnapshotBuild(true);
         assertNull(request.validate());
 
@@ -361,6 +349,10 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         e = expectThrows(IllegalArgumentException.class, () -> parseEsqlQueryRequestAsync(json));
         assertThat(e.getMessage(), containsString(message));
+    }
+
+    static EsqlQueryRequest parseEsqlQueryRequest(String json, boolean sync) throws IOException {
+        return sync ? parseEsqlQueryRequestSync(json) : parseEsqlQueryRequestAsync(json);
     }
 
     static EsqlQueryRequest parseEsqlQueryRequestSync(String json) throws IOException {

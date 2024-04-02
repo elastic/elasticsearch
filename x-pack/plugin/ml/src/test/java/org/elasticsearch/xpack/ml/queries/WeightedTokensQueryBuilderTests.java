@@ -41,7 +41,7 @@ import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults.QueryVector;
+import static org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults.WeightedToken;
 import static org.elasticsearch.xpack.ml.queries.WeightedTokensQueryBuilder.TOKENS_FIELD;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<WeightedTokensQueryBuilder> {
 
     private static final String RANK_FEATURES_FIELD = "rank";
-    private static final List<QueryVector> VECTOR_DIMENSIONS = List.of(new QueryVector("foo", .42f));
+    private static final List<WeightedToken> VECTOR_DIMENSIONS = List.of(new WeightedToken("foo", .42f));
     private static final int NUM_TOKENS = VECTOR_DIMENSIONS.size();
 
     @Override
@@ -213,13 +213,13 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
             );
             iw.addDocuments(documents);
 
-            List<QueryVector> inputTokens = List.of(
-                new QueryVector("the", .1f),      // Will be pruned - score too low, freq too high
-                new QueryVector("black", 5.3f),   // Will be pruned - does not exist in index
-                new QueryVector("dog", 7.5f),     // Will be kept - high score and low freq
-                new QueryVector("jumped", 4.5f),  // Will be kept - high score and low freq
-                new QueryVector("on", .1f),       // Will be kept - low score but also low freq
-                new QueryVector("me", 3.8f)       // Will be kept - high freq but also high score
+            List<WeightedToken> inputTokens = List.of(
+                new WeightedToken("the", .1f),      // Will be pruned - score too low, freq too high
+                new WeightedToken("black", 5.3f),   // Will be pruned - does not exist in index
+                new WeightedToken("dog", 7.5f),     // Will be kept - high score and low freq
+                new WeightedToken("jumped", 4.5f),  // Will be kept - high score and low freq
+                new WeightedToken("on", .1f),       // Will be kept - low score but also low freq
+                new WeightedToken("me", 3.8f)       // Will be kept - high freq but also high score
             );
             try (IndexReader reader = iw.getReader()) {
                 SearchExecutionContext context = createSearchExecutionContext(newSearcher(reader));
@@ -336,11 +336,11 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
     }
 
     public void testIllegalValues() {
-        List<QueryVector> queryVectors = List.of(new QueryVector("foo", 1.0f));
+        List<WeightedToken> weightedTokens = List.of(new WeightedToken("foo", 1.0f));
         {
             NullPointerException e = expectThrows(
                 NullPointerException.class,
-                () -> new WeightedTokensQueryBuilder(null, queryVectors, null)
+                () -> new WeightedTokensQueryBuilder(null, weightedTokens, null)
             );
             assertEquals("[weighted_tokens] requires a fieldName", e.getMessage());
         }
@@ -361,21 +361,21 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new WeightedTokensQueryBuilder("field name", queryVectors, new TokenPruningConfig(-1, 0.0f, false))
+                () -> new WeightedTokensQueryBuilder("field name", weightedTokens, new TokenPruningConfig(-1, 0.0f, false))
             );
             assertEquals("[tokens_freq_ratio_threshold] must be between [1] and [100], got -1.0", e.getMessage());
         }
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new WeightedTokensQueryBuilder("field name", queryVectors, new TokenPruningConfig(101, 0.0f, false))
+                () -> new WeightedTokensQueryBuilder("field name", weightedTokens, new TokenPruningConfig(101, 0.0f, false))
             );
             assertEquals("[tokens_freq_ratio_threshold] must be between [1] and [100], got 101.0", e.getMessage());
         }
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new WeightedTokensQueryBuilder("field name", queryVectors, new TokenPruningConfig(5, 5f, false))
+                () -> new WeightedTokensQueryBuilder("field name", weightedTokens, new TokenPruningConfig(5, 5f, false))
             );
             assertEquals("[tokens_weight_threshold] must be between 0 and 1", e.getMessage());
         }

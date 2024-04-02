@@ -29,7 +29,7 @@ import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults.QueryVector;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults.WeightedToken;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 
@@ -52,7 +52,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     private final String fieldName;
     private final String modelText;
     private final String modelId;
-    private final List<QueryVector> queryVectors;
+    private final List<WeightedToken> weightedTokens;
     private SetOnce<TextExpansionResults> weightedTokensSupplier;
     private final TokenPruningConfig tokenPruningConfig;
 
@@ -60,23 +60,23 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         String fieldName,
         String modelText,
         @Nullable String modelId,
-        @Nullable List<QueryVector> queryVectors
+        @Nullable List<WeightedToken> weightedTokens
     ) {
-        this(fieldName, modelText, modelId, queryVectors, null);
+        this(fieldName, modelText, modelId, weightedTokens, null);
     }
 
     public SparseVectorQueryBuilder(
         String fieldName,
         String modelText,
         @Nullable String modelId,
-        @Nullable List<QueryVector> queryVectors,
+        @Nullable List<WeightedToken> weightedTokens,
         @Nullable TokenPruningConfig tokenPruningConfig
     ) {
         if (fieldName == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires a fieldName");
         }
 
-        if ((queryVectors == null) == (modelId == null)) {
+        if ((weightedTokens == null) == (modelId == null)) {
             throw new IllegalArgumentException(
                 "[" + NAME + "] requires one of [" + MODEL_ID.getPreferredName() + "], or [" + QUERY_VECTOR.getPreferredName() + "]"
             );
@@ -90,7 +90,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         this.fieldName = fieldName;
         this.modelText = modelText;
         this.modelId = modelId;
-        this.queryVectors = queryVectors;
+        this.weightedTokens = weightedTokens;
         this.tokenPruningConfig = tokenPruningConfig;
     }
 
@@ -100,14 +100,14 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         this.modelText = in.readString();
         this.modelId = in.readOptionalString();
         this.tokenPruningConfig = in.readOptionalWriteable(TokenPruningConfig::new);
-        this.queryVectors = in.readOptionalCollectionAsList(QueryVector::new);
+        this.weightedTokens = in.readOptionalCollectionAsList(WeightedToken::new);
     }
 
     private SparseVectorQueryBuilder(SparseVectorQueryBuilder other, SetOnce<TextExpansionResults> weightedTokensSupplier) {
         this.fieldName = other.fieldName;
         this.modelText = other.modelText;
         this.modelId = other.modelId;
-        this.queryVectors = other.queryVectors;
+        this.weightedTokens = other.weightedTokens;
         this.tokenPruningConfig = other.tokenPruningConfig;
         this.boost = other.boost;
         this.queryName = other.queryName;
@@ -137,7 +137,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         out.writeString(modelText);
         out.writeOptionalString(modelId);
         out.writeOptionalWriteable(tokenPruningConfig);
-        out.writeOptionalCollection(queryVectors, StreamOutput::writeWriteable);
+        out.writeOptionalCollection(weightedTokens, StreamOutput::writeWriteable);
     }
 
     @Override
@@ -151,9 +151,9 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         if (tokenPruningConfig != null) {
             builder.field(PRUNING_CONFIG.getPreferredName(), tokenPruningConfig);
         }
-        if (queryVectors != null) {
+        if (weightedTokens != null) {
             builder.startObject(QUERY_VECTOR.getPreferredName());
-            for (var vectorDimension : queryVectors) {
+            for (var vectorDimension : weightedTokens) {
                 vectorDimension.toXContent(builder, params);
             }
             builder.endObject();
@@ -222,16 +222,16 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             return new SparseVectorQueryBuilder(this, textExpansionResultsSupplier);
 
         } else {
-            return queryVectorToQuery(fieldName, queryVectors);
+            return queryVectorToQuery(fieldName, weightedTokens);
         }
 
     }
 
-    private QueryBuilder queryVectorToQuery(String fieldName, List<QueryVector> queryVectors) {
+    private QueryBuilder queryVectorToQuery(String fieldName, List<WeightedToken> weightedTokens) {
         if (tokenPruningConfig != null) {
             WeightedTokensQueryBuilder weightedTokensQueryBuilder = new WeightedTokensQueryBuilder(
                 fieldName,
-                queryVectors,
+                weightedTokens,
                 tokenPruningConfig
             );
             weightedTokensQueryBuilder.queryName(queryName);
@@ -242,7 +242,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         // if no token pruning configuration is specified we fall back to a boolean query.
         // TODO this should be updated to always use a WeightedTokensQueryBuilder once it's in all supported versions.
         var boolQuery = QueryBuilders.boolQuery();
-        for (var weightedToken : queryVectors) {
+        for (var weightedToken : weightedTokens) {
             boolQuery.should(QueryBuilders.termQuery(fieldName, weightedToken.token()).boost(weightedToken.weight()));
         }
         boolQuery.minimumShouldMatch(1);
@@ -266,20 +266,20 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             && Objects.equals(modelText, other.modelText)
             && Objects.equals(modelId, other.modelId)
             && Objects.equals(tokenPruningConfig, other.tokenPruningConfig)
-            && Objects.equals(queryVectors, other.queryVectors)
+            && Objects.equals(weightedTokens, other.weightedTokens)
             && Objects.equals(weightedTokensSupplier, other.weightedTokensSupplier);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, modelText, modelId, tokenPruningConfig, queryVectors, weightedTokensSupplier);
+        return Objects.hash(fieldName, modelText, modelId, tokenPruningConfig, weightedTokens, weightedTokensSupplier);
     }
 
     public static SparseVectorQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String fieldName = null;
         String modelText = null;
         String modelId = null;
-        List<QueryVector> queryVectors = new ArrayList<>();
+        List<WeightedToken> weightedTokens = new ArrayList<>();
         TokenPruningConfig tokenPruningConfig = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
@@ -300,7 +300,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
                         } else if (QUERY_VECTOR.match(currentFieldName, parser.getDeprecationHandler())) {
                             var queryVectorMap = parser.map();
                             for (var e : queryVectorMap.entrySet()) {
-                                queryVectors.add(new QueryVector(e.getKey(), parseWeight(e.getKey(), e.getValue())));
+                                weightedTokens.add(new WeightedToken(e.getKey(), parseWeight(e.getKey(), e.getValue())));
                             }
                         } else {
                             throw new ParsingException(
@@ -345,7 +345,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             fieldName,
             modelText,
             modelId,
-            queryVectors.isEmpty() ? null : queryVectors,
+            weightedTokens.isEmpty() ? null : weightedTokens,
             tokenPruningConfig
         );
         queryBuilder.queryName(queryName);

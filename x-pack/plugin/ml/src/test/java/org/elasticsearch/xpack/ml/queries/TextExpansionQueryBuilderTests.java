@@ -100,9 +100,9 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
 
         // Randomisation cannot be used here as {@code #doAssertLuceneQuery}
         // asserts that 2 rewritten queries are the same
-        var tokens = new ArrayList<TextExpansionResults.QueryVector>();
+        var tokens = new ArrayList<TextExpansionResults.WeightedToken>();
         for (int i = 0; i < NUM_TOKENS; i++) {
-            tokens.add(new TextExpansionResults.QueryVector(Integer.toString(i), (i + 1) * 1.0f));
+            tokens.add(new TextExpansionResults.WeightedToken(Integer.toString(i), (i + 1) * 1.0f));
         }
 
         var response = InferModelAction.Response.builder()

@@ -51,8 +51,8 @@ import static org.hamcrest.Matchers.hasSize;
 public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseVectorQueryBuilder> {
 
     private static final String RANK_FEATURES_FIELD = "rank";
-    private static final List<TextExpansionResults.QueryVector> VECTOR_DIMENSIONS = List.of(
-        new TextExpansionResults.QueryVector("foo", .42f)
+    private static final List<TextExpansionResults.WeightedToken> VECTOR_DIMENSIONS = List.of(
+        new TextExpansionResults.WeightedToken("foo", .42f)
     );
     private static final int NUM_TOKENS = VECTOR_DIMENSIONS.size();
 
@@ -63,9 +63,9 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
             : null;
         String modelText = randomAlphaOfLength(4);
         String modelId = randomBoolean() ? randomAlphaOfLength(4) : null;
-        List<TextExpansionResults.QueryVector> queryVectors = modelId == null ? VECTOR_DIMENSIONS : null;
+        List<TextExpansionResults.WeightedToken> weightedTokens = modelId == null ? VECTOR_DIMENSIONS : null;
 
-        var builder = new SparseVectorQueryBuilder(RANK_FEATURES_FIELD, modelText, modelId, queryVectors, tokenPruningConfig);
+        var builder = new SparseVectorQueryBuilder(RANK_FEATURES_FIELD, modelText, modelId, weightedTokens, tokenPruningConfig);
         if (randomBoolean()) {
             builder.boost((float) randomDoubleBetween(0.1, 10.0, true));
         }
@@ -103,9 +103,9 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
 
         // Randomisation cannot be used here as {@code #doAssertLuceneQuery}
         // asserts that 2 rewritten queries are the same
-        var tokens = new ArrayList<TextExpansionResults.QueryVector>();
+        var tokens = new ArrayList<TextExpansionResults.WeightedToken>();
         for (int i = 0; i < NUM_TOKENS; i++) {
-            tokens.add(new TextExpansionResults.QueryVector(Integer.toString(i), (i + 1) * 1.0f));
+            tokens.add(new TextExpansionResults.WeightedToken(Integer.toString(i), (i + 1) * 1.0f));
         }
 
         var response = InferModelAction.Response.builder()

@@ -30,10 +30,10 @@ public class ChunkedSparseEmbeddingResultsTests extends AbstractWireSerializingT
         int numChunks = randomIntBetween(1, 5);
 
         for (int i = 0; i < numChunks; i++) {
-            var tokenWeights = new ArrayList<TextExpansionResults.QueryVector>();
+            var tokenWeights = new ArrayList<TextExpansionResults.WeightedToken>();
             int numTokens = randomIntBetween(1, 8);
             for (int j = 0; j < numTokens; j++) {
-                tokenWeights.add(new TextExpansionResults.QueryVector(Integer.toString(j), (float) randomDoubleBetween(0.0, 5.0, false)));
+                tokenWeights.add(new TextExpansionResults.WeightedToken(Integer.toString(j), (float) randomDoubleBetween(0.0, 5.0, false)));
             }
             chunks.add(new ChunkedTextExpansionResults.ChunkedResult(randomAlphaOfLength(6), tokenWeights));
         }
@@ -43,7 +43,7 @@ public class ChunkedSparseEmbeddingResultsTests extends AbstractWireSerializingT
 
     public void testToXContent_CreatesTheRightJsonForASingleChunk() {
         var entity = new ChunkedSparseEmbeddingResults(
-            List.of(new ChunkedTextExpansionResults.ChunkedResult("text", List.of(new TextExpansionResults.QueryVector("token", 0.1f))))
+            List.of(new ChunkedTextExpansionResults.ChunkedResult("text", List.of(new TextExpansionResults.WeightedToken("token", 0.1f))))
         );
 
         assertThat(

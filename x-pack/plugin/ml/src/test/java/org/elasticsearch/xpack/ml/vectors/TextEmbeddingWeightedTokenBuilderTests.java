@@ -26,7 +26,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
-public class TextEmbeddingQueryVectorBuilderTests extends AbstractQueryVectorBuilderTestCase<TextEmbeddingQueryVectorBuilder> {
+public class TextEmbeddingWeightedTokenBuilderTests extends AbstractQueryVectorBuilderTestCase<TextEmbeddingQueryVectorBuilder> {
 
     @Override
     protected List<SearchPlugin> additionalPlugins() {

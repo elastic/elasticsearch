@@ -47,6 +47,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private TimeValue waitForCompletionTimeout = DEFAULT_WAIT_FOR_COMPLETION;
     private TimeValue keepAlive = DEFAULT_KEEP_ALIVE;
     private boolean keepOnCompletion;
+    private boolean onSnapshotBuild = Build.current().isSnapshot();
 
     static EsqlQueryRequest syncEsqlQueryRequest() {
         return new EsqlQueryRequest(false);
@@ -78,7 +79,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
                     "[" + RequestXContent.ESQL_VERSION_FIELD + "] has invalid value [" + esqlVersion + "]",
                     validationException
                 );
-            } else if (version == EsqlVersion.NIGHTLY && Build.current().isSnapshot() == false) {
+            } else if (version == EsqlVersion.NIGHTLY && onSnapshotBuild == false) {
                 validationException = addValidationError(
                     "[" + RequestXContent.ESQL_VERSION_FIELD + "] with value [" + esqlVersion + "] only allowed in snapshot builds",
                     validationException
@@ -88,7 +89,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         if (Strings.hasText(query) == false) {
             validationException = addValidationError("[" + RequestXContent.QUERY_FIELD + "] is required", validationException);
         }
-        if (Build.current().isSnapshot() == false && pragmas.isEmpty() == false) {
+        if (onSnapshotBuild == false && pragmas.isEmpty() == false) {
             validationException = addValidationError(
                 "[" + RequestXContent.PRAGMA_FIELD + "] only allowed in snapshot builds",
                 validationException
@@ -205,5 +206,10 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         // Pass the query as the description
         return new CancellableTask(id, type, action, query, parentTaskId, headers);
+    }
+
+    // Setter for tests
+    void onSnapshotBuild(boolean onSnapshotBuild) {
+        this.onSnapshotBuild = onSnapshotBuild;
     }
 }

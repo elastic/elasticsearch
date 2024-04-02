@@ -196,6 +196,27 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertThat(request.validate().getMessage(), containsString("[version] has invalid value [" + invalidVersionString + "]"));
     }
 
+    public void testNightlyVersionIsOnlyValidOnSnapshot() throws IOException {
+        String esqlVersion = randomBoolean() ? "nightly" : "nightly.😴";
+        String json = String.format(Locale.ROOT, """
+            {
+                "version": "%s",
+                "query": "ROW x = 1"
+            }
+            """, esqlVersion);
+
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+        request.onSnapshotBuild(true);
+        assertNull(request.validate());
+
+        request.onSnapshotBuild(false);
+        assertNotNull(request.validate());
+        assertThat(
+            request.validate().getMessage(),
+            containsString("[version] with value [" + esqlVersion + "] only allowed in snapshot builds")
+        );
+    }
+
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104890")
     public void testMissingVersionIsNotValid() throws IOException {
         String json = """
@@ -225,6 +246,24 @@ public class EsqlQueryRequestTests extends ESTestCase {
         request = parseEsqlQueryRequestAsync(json);
         assertNotNull(request.validate());
         assertThat(request.validate().getMessage(), containsString("[query] is required"));
+    }
+
+    public void testPragmasOnlyValidOnSnapshot() throws IOException {
+        String json = String.format(Locale.ROOT, """
+            {
+                "version": "2024.04.01",
+                "query": "ROW x = 1",
+                "pragma": {"foo": "bar"}
+            }
+            """);
+
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+        request.onSnapshotBuild(true);
+        assertNull(request.validate());
+
+        request.onSnapshotBuild(false);
+        assertNotNull(request.validate());
+        assertThat(request.validate().getMessage(), containsString("[pragma] only allowed in snapshot builds"));
     }
 
     public void testTask() throws IOException {

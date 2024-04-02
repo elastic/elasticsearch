@@ -12,5 +12,4 @@ import java.util.List;
 /**
  * The context needed to retrieve fields.
  */
-public record FetchFieldsContext(List<FieldAndFormat> fields) {
-}
+public record FetchFieldsContext(List<FieldAndFormat> fields) {}

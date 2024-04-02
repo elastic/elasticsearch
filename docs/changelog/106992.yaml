@@ -1,0 +1,5 @@
+pr: 106992
+summary: "ESQL: Fix issues with ST_* functions and compound geometries"
+area: ES|QL
+type: bug
+issues: []

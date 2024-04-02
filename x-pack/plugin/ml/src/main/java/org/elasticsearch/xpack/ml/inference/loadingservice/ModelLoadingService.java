@@ -750,6 +750,7 @@ public class ModelLoadingService implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        logger.debug("Need to check trained model changes to flush the cache if needed");
         final boolean prefetchModels = event.state().nodes().getLocalNode().isIngestNode();
         // If we are not prefetching models and there were no model alias changes, don't bother handling the changes
         if ((prefetchModels == false)

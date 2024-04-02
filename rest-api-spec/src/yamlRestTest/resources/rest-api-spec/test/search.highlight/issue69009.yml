@@ -29,7 +29,7 @@ setup:
       search:
         index: test
         body: {
-          "query": { "match": { "fox" } },
+          "query": { "match": { "text": "fox" } },
           "highlight": {
             "type": "unified",
             "fields": { "*": { } },
@@ -45,7 +45,7 @@ setup:
       search:
         index: test
         body: {
-          "query": { "match": { "fox" } },
+          "query": { "match": { "text": "fox" } },
           "highlight": {
             "type": "plain",
             "fields": { "*": { } },
@@ -61,7 +61,7 @@ setup:
       search:
         index: test
         body: {
-          "query": { "match": { "fox" } },
+          "query": { "match": { "text": "fox" } },
           "highlight": {
             "type": "fvh",
             "fields": { "*": { } },

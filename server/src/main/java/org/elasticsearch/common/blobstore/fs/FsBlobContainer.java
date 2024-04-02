@@ -197,6 +197,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         assert BlobContainer.assertPurposeConsistency(purpose, blobName);
         final SeekableByteChannel channel = Files.newByteChannel(path.resolve(blobName));
         if (position > 0L) {
+            assert position < channel.size() : "reading from " + position + " exceeds file length " + channel.size();
             channel.position(position);
         }
         assert channel.position() == position;

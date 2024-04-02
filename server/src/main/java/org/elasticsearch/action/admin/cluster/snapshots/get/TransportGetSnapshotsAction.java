@@ -64,10 +64,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 import java.util.function.BooleanSupplier;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
-import java.util.stream.Stream;
 
 /**
  * Transport Action for get snapshots operation
@@ -180,7 +178,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         // results
         private final Map<String, ElasticsearchException> failuresByRepository = ConcurrentCollections.newConcurrentMap();
-        private final Queue<Stream<SnapshotInfo>> allSnapshotInfos = ConcurrentCollections.newQueue();
+        private final Queue<List<SnapshotInfo>> allSnapshotInfos = ConcurrentCollections.newQueue();
 
         /**
          * Accumulates number of snapshots that match the name/fromSortValue/slmPolicy predicates, to be returned in the response.
@@ -425,7 +423,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private void addResults(int repositoryTotalCount, List<SnapshotInfo> snapshots) {
             totalCount.addAndGet(repositoryTotalCount);
             resultsCount.addAndGet(snapshots.size());
-            allSnapshotInfos.add(snapshots.stream());
+            allSnapshotInfos.add(snapshots);
         }
 
         private void addSimpleSnapshotInfos(
@@ -482,7 +480,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             cancellableTask.ensureNotCancelled();
             int remaining = 0;
             final var resultsStream = allSnapshotInfos.stream()
-                .flatMap(Function.identity())
+                .flatMap(Collection::stream)
                 .peek(this::assertSatisfiesAllPredicates)
                 .sorted(sortBy.getSnapshotInfoComparator(order))
                 .skip(offset);
@@ -679,6 +677,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             }
             return indexCount;
         }
+    }
+
+    private record SnapshotsInRepo(List<SnapshotInfo> snapshotInfos, int totalCount, int remaining) {
+        private static final SnapshotsInRepo EMPTY = new SnapshotsInRepo(List.of(), 0, 0);
     }
 
     /**

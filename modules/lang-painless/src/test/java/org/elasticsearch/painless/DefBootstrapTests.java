@@ -21,9 +21,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 
+import static org.elasticsearch.painless.ScriptTestCase.PAINLESS_BASE_WHITELIST;
+
 public class DefBootstrapTests extends ESTestCase {
     private final PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromWhitelists(
-        PainlessPlugin.BASE_WHITELISTS,
+        PAINLESS_BASE_WHITELIST,
         new HashMap<>(),
         new HashMap<>()
     );

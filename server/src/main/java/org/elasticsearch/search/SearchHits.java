@@ -27,13 +27,9 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public final class SearchHits implements Writeable, ChunkedToXContent, RefCounted, Iterable<SearchHit> {
 
@@ -308,50 +304,6 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
             }
             return b;
         }), ChunkedToXContentHelper.array(Fields.HITS, Iterators.forArray(hits)), ChunkedToXContentHelper.endObject());
-    }
-
-    public static SearchHits fromXContent(XContentParser parser) throws IOException {
-        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            parser.nextToken();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-        }
-        XContentParser.Token token = parser.currentToken();
-        String currentFieldName = null;
-        List<SearchHit> hits = new ArrayList<>();
-        TotalHits totalHits = null;
-        float maxScore = 0f;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token.isValue()) {
-                if (Fields.TOTAL.equals(currentFieldName)) {
-                    // For BWC with nodes pre 7.0
-                    long value = parser.longValue();
-                    totalHits = value == -1 ? null : new TotalHits(value, Relation.EQUAL_TO);
-                } else if (Fields.MAX_SCORE.equals(currentFieldName)) {
-                    maxScore = parser.floatValue();
-                }
-            } else if (token == XContentParser.Token.VALUE_NULL) {
-                if (Fields.MAX_SCORE.equals(currentFieldName)) {
-                    maxScore = Float.NaN; // NaN gets rendered as null-field
-                }
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                if (Fields.HITS.equals(currentFieldName)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        hits.add(SearchHit.fromXContent(parser));
-                    }
-                } else {
-                    parser.skipChildren();
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if (Fields.TOTAL.equals(currentFieldName)) {
-                    totalHits = parseTotalHitsFragment(parser);
-                } else {
-                    parser.skipChildren();
-                }
-            }
-        }
-        return SearchHits.unpooled(hits.toArray(SearchHits.EMPTY), totalHits, maxScore);
     }
 
     @Override

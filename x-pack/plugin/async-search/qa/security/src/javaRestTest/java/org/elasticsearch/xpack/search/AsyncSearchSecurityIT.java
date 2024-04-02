@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.search;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
@@ -176,7 +177,9 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
      * the testWithUsers test is generally testing).
      * @throws IOException
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106871")
     public void testStatusWithUsersWhileSearchIsRunning() throws IOException {
+        assumeTrue("[error_query] is only available in snapshot builds", Build.current().isSnapshot());
         String user = randomFrom("user1", "user2");
         String other = user.equals("user1") ? "user2" : "user1";
         String indexName = "index-" + user;

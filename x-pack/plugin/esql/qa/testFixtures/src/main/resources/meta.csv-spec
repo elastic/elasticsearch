@@ -387,7 +387,7 @@ sinh          |double                                                           
 split         |keyword                                                                                                                     |[false, false]              |false           |false
 sqrt          |double                                                                                                                      |false                       |false           |false
 st_centroid   |"geo_point|cartesian_point"                                                                                                 |false                       |false           |true
-sw_contains   |boolean                                                                                                                     |[false, false]              |false           |false
+st_contains   |boolean                                                                                                                     |[false, false]              |false           |false
 st_intersects |boolean                                                                                                                     |[false, false]              |false           |false
 st_within     |boolean                                                                                                                     |[false, false]              |false           |false
 st_x          |double                                                                                                                      |false                       |false           |false

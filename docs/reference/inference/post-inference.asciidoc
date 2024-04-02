@@ -112,3 +112,32 @@ The API returns the following response:
 }
 ------------------------------------------------------------
 // NOTCONSOLE
+
+
+The next example performs a completion on the example question.
+
+
+[source,console]
+------------------------------------------------------------
+POST _inference/completion/openai_chat_completions
+{
+  "input": "What is Elastic?"
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+
+The API returns the following response:
+
+
+[source,console-result]
+------------------------------------------------------------
+{
+  "completion": [
+    {
+      "result": "Elastic is a company that provides a range of software solutions for search, logging, security, and analytics. Their flagship product is Elasticsearch, an open-source, distributed search engine that allows users to search, analyze, and visualize large volumes of data in real-time. Elastic also offers products such as Kibana, a data visualization tool, and Logstash, a log management and pipeline tool, as well as various other tools and solutions for data analysis and management."
+    }
+  ]
+}
+------------------------------------------------------------
+// NOTCONSOLE

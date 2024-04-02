@@ -1252,6 +1252,18 @@ centroid:cartesian_point    | count:long
 POINT (4783520.5 1661010.0) | 1
 ;
 
+cartesianPointIntersectsLiteralPolygonCount
+required_feature: esql.st_intersects
+
+FROM airports_web
+| WHERE ST_INTERSECTS(location, TO_CARTESIANSHAPE("POLYGON((0 -60000000, 120000000 -60000000, 120000000 60000000, 0 60000000, 0 -60000000))"))
+| STATS count=COUNT()
+;
+
+count:long
+444
+;
+
 ###############################################
 # Tests for ST_DISJOINT on CARTESIAN_POINT type
 
@@ -1301,6 +1313,34 @@ ROW disjoint = ST_DISJOINT(TO_CARTESIANPOINT("POINT(-1 0)"), TO_CARTESIANSHAPE("
 
 disjoint:boolean
 true
+;
+
+cartesianPointDisjointLiteralPolygonCount
+required_feature: esql.st_disjoint
+
+FROM airports_web
+| WHERE ST_DISJOINT(location, TO_CARTESIANSHAPE("POLYGON((0 -60000000, 120000000 -60000000, 120000000 60000000, 0 60000000, 0 -60000000))"))
+| STATS count=COUNT()
+;
+
+count:long
+405
+;
+
+cartesianPointIntersectsDisjointLiteralPolygonCount
+required_feature: esql.st_disjoint
+
+FROM airports_web
+| EVAL intersects = ST_INTERSECTS(location, TO_CARTESIANSHAPE("POLYGON((0 -60000000, 120000000 -60000000, 120000000 60000000, 0 60000000, 0 -60000000))"))
+| EVAL disjoint = ST_DISJOINT(location, TO_CARTESIANSHAPE("POLYGON((0 -60000000, 120000000 -60000000, 120000000 60000000, 0 60000000, 0 -60000000))"))
+| STATS count=COUNT() BY intersects, disjoint
+| SORT intersects DESC, disjoint DESC
+| KEEP intersects, disjoint, count
+;
+
+intersects:boolean  |  disjoint:boolean  |  count:long
+true                |  false             |  444
+false               |  true              |  405
 ;
 
 cartesianPointDisjointLiteralPolygon

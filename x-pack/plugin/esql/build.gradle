@@ -84,9 +84,9 @@ tasks.named("test").configure {
           // Slice out the newlines
           start = allExamples.indexOf('\n', start) + 1
           end = allExamples.lastIndexOf('\n', end)
-          String example = allExamples.substring(start, end);
+          String example = allExamples.substring(start, end)
           if (isJson) {
-            example = example.replaceAll("\n", "\\n").replaceAll("\"", "\\\"");
+            example = example.replace("\"", "\\\"").replace("\n", "\\n")
           }
           return example;
         })
@@ -100,7 +100,7 @@ tasks.named("test").configure {
           into "${rootDir}/docs/reference/esql/functions"
           include '**/*.asciidoc', '**/*.svg', '**/*.md', '**/*.json'
           preserve {
-            include '/*.asciidoc', '**/*.asciidoc', '**/*.md', '**/*.svg', 'README.md'
+            include '/*.asciidoc', '**/*.asciidoc', '**/*.md', '**/*.json', '**/*.svg', 'README.md'
           }
           filter readExample
         }

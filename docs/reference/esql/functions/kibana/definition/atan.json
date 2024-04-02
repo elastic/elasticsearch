@@ -54,6 +54,6 @@
     }
   ],
   "examples" : [
-    "ROW a=12.9n| EVAL atan=ATAN(a)"
+    "ROW a=12.9\n| EVAL atan=ATAN(a)"
   ]
 }

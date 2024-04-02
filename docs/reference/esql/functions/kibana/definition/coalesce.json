@@ -156,6 +156,6 @@
     }
   ],
   "examples" : [
-    "ROW a=null, b="b"n| EVAL COALESCE(a, b)"
+    "ROW a=null, b=\"b\"\n| EVAL COALESCE(a, b)"
   ]
 }

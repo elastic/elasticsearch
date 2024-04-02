@@ -54,6 +54,6 @@
     }
   ],
   "examples" : [
-    "ROW a=.9n| EVAL acos=ACOS(a)"
+    "ROW a=.9\n| EVAL acos=ACOS(a)"
   ]
 }

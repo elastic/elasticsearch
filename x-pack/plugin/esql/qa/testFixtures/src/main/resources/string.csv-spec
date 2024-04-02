@@ -70,7 +70,7 @@ emp_no:integer | last_name:keyword | gender:keyword | f_l:boolean
 10010 | Piveteau  | null | null
 ;
 
-stringCast
+stringCast#[skip:-8.13.99,reason:string literal cast added in 8.14]
 ROW a = 1 | eval ss = substring("abcd", "2"), l = left("abcd", "2"), r = right("abcd", "2");
 
 a:integer | ss:keyword | l:keyword | r:keyword
@@ -748,7 +748,7 @@ emp_no:integer | job_positions:keyword                                          
 10005          | null                                                                   | null                                                                   | null
 ;
 
-mvSliceCast
+mvSliceCast#[skip:-8.13.99,reason:string literal cast added in 8.14]
 required_feature: esql.mv_sort
 
 ROW a = ["1", "2", "3", "4"]

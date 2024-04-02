@@ -9,11 +9,17 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.db.Network;
+import com.maxmind.geoip2.DatabaseReader;
 import com.maxmind.geoip2.model.AbstractResponse;
+import com.maxmind.geoip2.model.AnonymousIpResponse;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
 import com.maxmind.geoip2.model.ConnectionTypeResponse;
 import com.maxmind.geoip2.model.CountryResponse;
+import com.maxmind.geoip2.model.DomainResponse;
+import com.maxmind.geoip2.model.EnterpriseResponse;
+import com.maxmind.geoip2.model.IpRiskResponse;
+import com.maxmind.geoip2.model.IspResponse;
 import com.maxmind.geoip2.record.MaxMind;
 
 import org.elasticsearch.test.ESTestCase;
@@ -24,6 +30,7 @@ import java.lang.reflect.Type;
 import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -38,168 +45,176 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MaxMindSupportTests extends ESTestCase {
 
+    private static final Set<String> ASN_SUPPORTED_FIELDS = Set.of("autonomousSystemNumber", "autonomousSystemOrganization", "network");
+    private static final Set<String> ASN_UNSUPPORTED_FIELDS = Set.of("ipAddress");
+
+    private static final Set<String> CITY_SUPPORTED_FIELDS = Set.of(
+        "city.name",
+        "continent.name",
+        "country.isoCode",
+        "country.name",
+        "location.latitude",
+        "location.longitude",
+        "location.timeZone",
+        "mostSpecificSubdivision.isoCode",
+        "mostSpecificSubdivision.name"
+    );
+    private static final Set<String> CITY_UNSUPPORTED_FIELDS = Set.of(
+        "city.confidence",
+        "city.geoNameId",
+        "city.names",
+        "continent.code",
+        "continent.geoNameId",
+        "continent.names",
+        "country.confidence",
+        "country.geoNameId",
+        "country.inEuropeanUnion",
+        "country.names",
+        "leastSpecificSubdivision.confidence",
+        "leastSpecificSubdivision.geoNameId",
+        "leastSpecificSubdivision.isoCode",
+        "leastSpecificSubdivision.name",
+        "leastSpecificSubdivision.names",
+        "location.accuracyRadius",
+        "location.averageIncome",
+        "location.metroCode",
+        "location.populationDensity",
+        "maxMind",
+        "mostSpecificSubdivision.confidence",
+        "mostSpecificSubdivision.geoNameId",
+        "mostSpecificSubdivision.names",
+        "postal.code",
+        "postal.confidence",
+        "registeredCountry.confidence",
+        "registeredCountry.geoNameId",
+        "registeredCountry.inEuropeanUnion",
+        "registeredCountry.isoCode",
+        "registeredCountry.name",
+        "registeredCountry.names",
+        "representedCountry.confidence",
+        "representedCountry.geoNameId",
+        "representedCountry.inEuropeanUnion",
+        "representedCountry.isoCode",
+        "representedCountry.name",
+        "representedCountry.names",
+        "representedCountry.type",
+        "subdivisions.confidence",
+        "subdivisions.geoNameId",
+        "subdivisions.isoCode",
+        "subdivisions.name",
+        "subdivisions.names",
+        "traits.anonymous",
+        "traits.anonymousProxy",
+        "traits.anonymousVpn",
+        "traits.anycast",
+        "traits.autonomousSystemNumber",
+        "traits.autonomousSystemOrganization",
+        "traits.connectionType",
+        "traits.domain",
+        "traits.hostingProvider",
+        "traits.ipAddress",
+        "traits.isp",
+        "traits.legitimateProxy",
+        "traits.mobileCountryCode",
+        "traits.mobileNetworkCode",
+        "traits.network",
+        "traits.organization",
+        "traits.publicProxy",
+        "traits.residentialProxy",
+        "traits.satelliteProvider",
+        "traits.staticIpScore",
+        "traits.torExitNode",
+        "traits.userCount",
+        "traits.userType"
+    );
+
+    private static final Set<String> COUNTRY_SUPPORTED_FIELDS = Set.of("continent.name", "country.isoCode", "country.name");
+    private static final Set<String> COUNTRY_UNSUPPORTED_FIELDS = Set.of(
+        "continent.code",
+        "continent.geoNameId",
+        "continent.names",
+        "country.confidence",
+        "country.geoNameId",
+        "country.inEuropeanUnion",
+        "country.names",
+        "maxMind",
+        "registeredCountry.confidence",
+        "registeredCountry.geoNameId",
+        "registeredCountry.inEuropeanUnion",
+        "registeredCountry.isoCode",
+        "registeredCountry.name",
+        "registeredCountry.names",
+        "representedCountry.confidence",
+        "representedCountry.geoNameId",
+        "representedCountry.inEuropeanUnion",
+        "representedCountry.isoCode",
+        "representedCountry.name",
+        "representedCountry.names",
+        "representedCountry.type",
+        "traits.anonymous",
+        "traits.anonymousProxy",
+        "traits.anonymousVpn",
+        "traits.anycast",
+        "traits.autonomousSystemNumber",
+        "traits.autonomousSystemOrganization",
+        "traits.connectionType",
+        "traits.domain",
+        "traits.hostingProvider",
+        "traits.ipAddress",
+        "traits.isp",
+        "traits.legitimateProxy",
+        "traits.mobileCountryCode",
+        "traits.mobileNetworkCode",
+        "traits.network",
+        "traits.organization",
+        "traits.publicProxy",
+        "traits.residentialProxy",
+        "traits.satelliteProvider",
+        "traits.staticIpScore",
+        "traits.torExitNode",
+        "traits.userCount",
+        "traits.userType"
+    );
+
+    private static final Map<Database, Set<String>> TYPE_TO_SUPPORTED_FIELDS_MAP = Map.of(
+        Database.Asn,
+        ASN_SUPPORTED_FIELDS,
+        Database.City,
+        CITY_SUPPORTED_FIELDS,
+        Database.Country,
+        COUNTRY_SUPPORTED_FIELDS
+    );
+    private static final Map<Database, Set<String>> TYPE_TO_UNSUPPORTED_FIELDS_MAP = Map.of(
+        Database.Asn,
+        ASN_UNSUPPORTED_FIELDS,
+        Database.City,
+        CITY_UNSUPPORTED_FIELDS,
+        Database.Country,
+        COUNTRY_UNSUPPORTED_FIELDS
+    );
+    private static final Map<Database, Class<? extends AbstractResponse>> TYPE_TO_MAX_MIND_CLASS = Map.of(
+        Database.Asn,
+        AsnResponse.class,
+        Database.City,
+        CityResponse.class,
+        Database.Country,
+        CountryResponse.class
+    );
+
+    private static final Set<Class<? extends AbstractResponse>> KNOWN_UNSUPPORTED_RESPONSE_CLASSES = Set.of(
+        AnonymousIpResponse.class,
+        ConnectionTypeResponse.class,
+        DomainResponse.class,
+        EnterpriseResponse.class,
+        IspResponse.class,
+        IpRiskResponse.class
+    );
+
     public void testMaxMindSupport() {
-
-        Set<String> asnSupportedFields = Set.of("autonomousSystemNumber", "autonomousSystemOrganization", "network");
-        Set<String> asnUnsupportedFields = Set.of("ipAddress");
-
-        Set<String> citySupportedFields = Set.of(
-            "city.name",
-            "continent.name",
-            "country.isoCode",
-            "country.name",
-            "location.latitude",
-            "location.longitude",
-            "location.timeZone",
-            "mostSpecificSubdivision.isoCode",
-            "mostSpecificSubdivision.name"
-        );
-        Set<String> cityUnsupportedFields = Set.of(
-            "city.confidence",
-            "city.geoNameId",
-            "city.names",
-            "continent.code",
-            "continent.geoNameId",
-            "continent.names",
-            "country.confidence",
-            "country.geoNameId",
-            "country.inEuropeanUnion",
-            "country.names",
-            "leastSpecificSubdivision.confidence",
-            "leastSpecificSubdivision.geoNameId",
-            "leastSpecificSubdivision.isoCode",
-            "leastSpecificSubdivision.name",
-            "leastSpecificSubdivision.names",
-            "location.accuracyRadius",
-            "location.averageIncome",
-            "location.metroCode",
-            "location.populationDensity",
-            "maxMind",
-            "mostSpecificSubdivision.confidence",
-            "mostSpecificSubdivision.geoNameId",
-            "mostSpecificSubdivision.names",
-            "postal.code",
-            "postal.confidence",
-            "registeredCountry.confidence",
-            "registeredCountry.geoNameId",
-            "registeredCountry.inEuropeanUnion",
-            "registeredCountry.isoCode",
-            "registeredCountry.name",
-            "registeredCountry.names",
-            "representedCountry.confidence",
-            "representedCountry.geoNameId",
-            "representedCountry.inEuropeanUnion",
-            "representedCountry.isoCode",
-            "representedCountry.name",
-            "representedCountry.names",
-            "representedCountry.type",
-            "subdivisions.confidence",
-            "subdivisions.geoNameId",
-            "subdivisions.isoCode",
-            "subdivisions.name",
-            "subdivisions.names",
-            "traits.anonymous",
-            "traits.anonymousProxy",
-            "traits.anonymousVpn",
-            "traits.anycast",
-            "traits.autonomousSystemNumber",
-            "traits.autonomousSystemOrganization",
-            "traits.connectionType",
-            "traits.domain",
-            "traits.hostingProvider",
-            "traits.ipAddress",
-            "traits.isp",
-            "traits.legitimateProxy",
-            "traits.mobileCountryCode",
-            "traits.mobileNetworkCode",
-            "traits.network",
-            "traits.organization",
-            "traits.publicProxy",
-            "traits.residentialProxy",
-            "traits.satelliteProvider",
-            "traits.staticIpScore",
-            "traits.torExitNode",
-            "traits.userCount",
-            "traits.userType"
-        );
-
-        Set<String> countrySupportedFields = Set.of("continent.name", "country.isoCode", "country.name");
-        Set<String> countryUnsupportedFields = Set.of(
-            "continent.code",
-            "continent.geoNameId",
-            "continent.names",
-            "country.confidence",
-            "country.geoNameId",
-            "country.inEuropeanUnion",
-            "country.names",
-            "maxMind",
-            "registeredCountry.confidence",
-            "registeredCountry.geoNameId",
-            "registeredCountry.inEuropeanUnion",
-            "registeredCountry.isoCode",
-            "registeredCountry.name",
-            "registeredCountry.names",
-            "representedCountry.confidence",
-            "representedCountry.geoNameId",
-            "representedCountry.inEuropeanUnion",
-            "representedCountry.isoCode",
-            "representedCountry.name",
-            "representedCountry.names",
-            "representedCountry.type",
-            "traits.anonymous",
-            "traits.anonymousProxy",
-            "traits.anonymousVpn",
-            "traits.anycast",
-            "traits.autonomousSystemNumber",
-            "traits.autonomousSystemOrganization",
-            "traits.connectionType",
-            "traits.domain",
-            "traits.hostingProvider",
-            "traits.ipAddress",
-            "traits.isp",
-            "traits.legitimateProxy",
-            "traits.mobileCountryCode",
-            "traits.mobileNetworkCode",
-            "traits.network",
-            "traits.organization",
-            "traits.publicProxy",
-            "traits.residentialProxy",
-            "traits.satelliteProvider",
-            "traits.staticIpScore",
-            "traits.torExitNode",
-            "traits.userCount",
-            "traits.userType"
-        );
-
-        Map<Database, Set<String>> typeToSupportedFieldsMap = Map.of(
-            Database.Asn,
-            asnSupportedFields,
-            Database.City,
-            citySupportedFields,
-            Database.Country,
-            countrySupportedFields
-        );
-        Map<Database, Set<String>> typeToUnsupportedFieldsMap = Map.of(
-            Database.Asn,
-            asnUnsupportedFields,
-            Database.City,
-            cityUnsupportedFields,
-            Database.Country,
-            countryUnsupportedFields
-        );
-        Map<Database, Class<? extends AbstractResponse>> typeToMaxMindClass = Map.of(
-            Database.Asn,
-            AsnResponse.class,
-            Database.City,
-            CityResponse.class,
-            Database.Country,
-            CountryResponse.class
-        );
-
         for (Database databaseType : Database.values()) {
-            Class<? extends AbstractResponse> maxMindClass = typeToMaxMindClass.get(databaseType);
-            Set<String> supportedFields = typeToSupportedFieldsMap.get(databaseType);
-            Set<String> unsupportedFields = typeToUnsupportedFieldsMap.get(databaseType);
+            Class<? extends AbstractResponse> maxMindClass = TYPE_TO_MAX_MIND_CLASS.get(databaseType);
+            Set<String> supportedFields = TYPE_TO_SUPPORTED_FIELDS_MAP.get(databaseType);
+            Set<String> unsupportedFields = TYPE_TO_UNSUPPORTED_FIELDS_MAP.get(databaseType);
             assertNotNull(
                 "A new Database type, "
                     + databaseType
@@ -240,6 +255,50 @@ public class MaxMindSupportTests extends ESTestCase {
                 equalTo(0)
             );
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testUnknownMaxMindResponseClassess() {
+        Set<Class<? extends AbstractResponse>> supportedMaxMindClasses = new HashSet<>(TYPE_TO_MAX_MIND_CLASS.values());
+        // First just a sanity check that there's no overlap between what's supported and what's not:
+        Set<Class<? extends AbstractResponse>> supportedAndUnsupportedMaxMindClasses = new HashSet<>(supportedMaxMindClasses);
+        supportedAndUnsupportedMaxMindClasses.retainAll(KNOWN_UNSUPPORTED_RESPONSE_CLASSES);
+        assertThat(
+            "We claim both to support and not support some MaxMind response classes: " + supportedAndUnsupportedMaxMindClasses,
+            supportedAndUnsupportedMaxMindClasses,
+            equalTo(Set.of())
+        );
+        Set<Class<? extends AbstractResponse>> allActualMaxMindClasses = new HashSet<>();
+
+        Method[] methods = DatabaseReader.class.getMethods();
+        for (Method method : methods) {
+            if (method.getName().startsWith("try")) {
+                if (method.getReturnType().equals(Optional.class)) {
+                    Type genericReturnType = method.getGenericReturnType();
+                    if (genericReturnType instanceof ParameterizedType parameterizedGenericReturnType) {
+                        Type[] actualTypes = parameterizedGenericReturnType.getActualTypeArguments();
+                        if (actualTypes != null && actualTypes.length == 1 && actualTypes[0] instanceof Class<?> actualTypeClass) {
+                            allActualMaxMindClasses.add((Class<? extends AbstractResponse>) actualTypeClass);
+                            if (KNOWN_UNSUPPORTED_RESPONSE_CLASSES.contains(actualTypeClass) == false) {
+                                assertTrue(
+                                    "MaxMind has added support for " + actualTypeClass.getSimpleName(),
+                                    supportedMaxMindClasses.contains(actualTypeClass)
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Now make sure that we're not claiming to support any maxmind classes that aren't ever read by DatabaseReader:
+        Set<Class<? extends AbstractResponse>> supportedMaxMindClassesThatDoNotExist = new HashSet<>(supportedMaxMindClasses);
+        supportedMaxMindClassesThatDoNotExist.removeAll(allActualMaxMindClasses);
+        assertThat(
+            "We claim both to support a MaxMind response class that MaxMind does not expose through DatabaseReader: "
+                + supportedMaxMindClassesThatDoNotExist,
+            supportedMaxMindClassesThatDoNotExist,
+            equalTo(Set.of())
+        );
     }
 
     /*

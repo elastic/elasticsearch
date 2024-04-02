@@ -19,7 +19,7 @@ import java.lang.invoke.MethodHandles;
 /**
  * Utility methods for calling into the native linker.
  */
-public class LinkerHelper {
+class LinkerHelper {
     private static final Linker LINKER = Linker.nativeLinker();
     private static final SymbolLookup SYMBOL_LOOKUP;
     private static final MethodHandles.Lookup MH_LOOKUP = MethodHandles.publicLookup();
@@ -32,15 +32,15 @@ public class LinkerHelper {
         SYMBOL_LOOKUP = (name) -> loaderLookup.find(name).or(() -> LINKER.defaultLookup().find(name));
     }
 
-    public static MemorySegment functionAddress(String function) {
+    static MemorySegment functionAddress(String function) {
         return SYMBOL_LOOKUP.find(function).orElseThrow(() -> new LinkageError("Native function " + function + " could not be found"));
     }
 
-    public static MethodHandle downcallHandle(String function, FunctionDescriptor functionDescriptor, Linker.Option... options) {
+    static MethodHandle downcallHandle(String function, FunctionDescriptor functionDescriptor, Linker.Option... options) {
         return LINKER.downcallHandle(functionAddress(function), functionDescriptor, options);
     }
 
-    public static MethodHandle upcallHandle(Class<?> clazz, String methodName, FunctionDescriptor functionDescriptor) {
+    static MethodHandle upcallHandle(Class<?> clazz, String methodName, FunctionDescriptor functionDescriptor) {
         try {
             return MH_LOOKUP.findVirtual(clazz, methodName, functionDescriptor.toMethodType());
         } catch (Throwable t) {
@@ -48,7 +48,7 @@ public class LinkerHelper {
         }
     }
 
-    public static <T> MemorySegment upcallStub(MethodHandle mh, T instance, FunctionDescriptor functionDescriptor, Arena arena) {
+    static <T> MemorySegment upcallStub(MethodHandle mh, T instance, FunctionDescriptor functionDescriptor, Arena arena) {
         try {
             mh = mh.bindTo(instance);
             return LINKER.upcallStub(mh, functionDescriptor, arena);

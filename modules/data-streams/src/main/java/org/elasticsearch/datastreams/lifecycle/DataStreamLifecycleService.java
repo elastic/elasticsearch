@@ -19,9 +19,9 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
+import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
@@ -738,7 +738,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         transportActionsDeduplicator.executeOnce(
             addIndexBlockRequest,
             new ErrorRecordingActionListener(
-                AddIndexBlockAction.NAME,
+                TransportAddIndexBlockAction.TYPE.name(),
                 indexName,
                 errorStore,
                 Strings.format("Data stream lifecycle service encountered an error trying to mark index [%s] as readonly", indexName),

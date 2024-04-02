@@ -347,9 +347,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             Set<Index> indicesToExcludeForRemainingRun = new HashSet<>();
 
             // This is the pre-rollover write index. It may or may not be the write index after maybeExecuteRollover has executed,
-            // depending on rollover criteria.
-            // The write index is excluded from the remaining run, as it's still getting writes and we'll have to roll it over
-            // when the conditions are met.
+            // depending on rollover criteria, for this reason we exclude it for the remaining run.
             indicesToExcludeForRemainingRun.addAll(maybeExecuteRollover(state, dataStream));
 
             // tsds indices that are still within their time bounds (i.e. now < time_series.end_time) - we don't want these indices to be

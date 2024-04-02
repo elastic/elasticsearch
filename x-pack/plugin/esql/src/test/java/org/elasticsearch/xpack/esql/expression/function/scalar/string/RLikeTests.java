@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
@@ -25,13 +24,13 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106533")
 public class RLikeTests extends AbstractFunctionTestCase {
     public RLikeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -39,10 +38,15 @@ public class RLikeTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameters(() -> randomAlphaOfLength(1) + "?");
+        return parameters(str -> {
+            for (String syntax : new String[] { "\\", ".", "?", "+", "*", "|", "{", "}", "[", "]", "(", ")", "\"", "<", ">" }) {
+                str = str.replace(syntax, "\\" + syntax);
+            }
+            return str;
+        }, () -> randomAlphaOfLength(1) + "?");
     }
 
-    static Iterable<Object[]> parameters(Supplier<String> optionalPattern) {
+    static Iterable<Object[]> parameters(Function<String, String> escapeString, Supplier<String> optionalPattern) {
         List<TestCaseSupplier> cases = new ArrayList<>();
         cases.add(
             new TestCaseSupplier(
@@ -60,12 +64,12 @@ public class RLikeTests extends AbstractFunctionTestCase {
                 )
             )
         );
-        casesForString(cases, "empty string", () -> "", false, optionalPattern);
-        casesForString(cases, "single ascii character", () -> randomAlphaOfLength(1), true, optionalPattern);
-        casesForString(cases, "ascii string", () -> randomAlphaOfLengthBetween(2, 100), true, optionalPattern);
-        casesForString(cases, "3 bytes, 1 code point", () -> "☕", false, optionalPattern);
-        casesForString(cases, "6 bytes, 2 code points", () -> "❗️", false, optionalPattern);
-        casesForString(cases, "100 random code points", () -> randomUnicodeOfCodepointLength(100), true, optionalPattern);
+        casesForString(cases, "empty string", () -> "", false, escapeString, optionalPattern);
+        casesForString(cases, "single ascii character", () -> randomAlphaOfLength(1), true, escapeString, optionalPattern);
+        casesForString(cases, "ascii string", () -> randomAlphaOfLengthBetween(2, 100), true, escapeString, optionalPattern);
+        casesForString(cases, "3 bytes, 1 code point", () -> "☕", false, escapeString, optionalPattern);
+        casesForString(cases, "6 bytes, 2 code points", () -> "❗️", false, escapeString, optionalPattern);
+        casesForString(cases, "100 random code points", () -> randomUnicodeOfCodepointLength(100), true, escapeString, optionalPattern);
         for (DataType type : EsqlDataTypes.types()) {
             if (type == DataTypes.KEYWORD || type == DataTypes.TEXT || type == DataTypes.NULL) {
                 continue;
@@ -98,24 +102,25 @@ public class RLikeTests extends AbstractFunctionTestCase {
         String title,
         Supplier<String> textSupplier,
         boolean canGenerateDifferent,
+        Function<String, String> escapeString,
         Supplier<String> optionalPattern
     ) {
         cases(cases, title + " matches self", () -> {
             String text = textSupplier.get();
-            return new TextAndPattern(text, text);
+            return new TextAndPattern(text, escapeString.apply(text));
         }, true);
         cases(cases, title + " doesn't match self with trailing", () -> {
             String text = textSupplier.get();
-            return new TextAndPattern(text, text + randomAlphaOfLength(1));
+            return new TextAndPattern(text, escapeString.apply(text) + randomAlphaOfLength(1));
         }, false);
         cases(cases, title + " matches self with optional trailing", () -> {
             String text = randomAlphaOfLength(1);
-            return new TextAndPattern(text, text + optionalPattern.get());
+            return new TextAndPattern(text, escapeString.apply(text) + optionalPattern.get());
         }, true);
         if (canGenerateDifferent) {
             cases(cases, title + " doesn't match different", () -> {
                 String text = textSupplier.get();
-                String different = randomValueOtherThan(text, textSupplier);
+                String different = escapeString.apply(randomValueOtherThan(text, textSupplier));
                 return new TextAndPattern(text, different);
             }, false);
         }
@@ -149,11 +154,9 @@ public class RLikeTests extends AbstractFunctionTestCase {
         Expression expression = args.get(0);
         Literal pattern = (Literal) args.get(1);
         Literal caseInsensitive = (Literal) args.get(2);
-        return new RLike(
-            source,
-            expression,
-            new RLikePattern(((BytesRef) pattern.fold()).utf8ToString()),
-            (Boolean) caseInsensitive.fold()
-        );
+        String patternString = ((BytesRef) pattern.fold()).utf8ToString();
+        boolean caseInsensitiveBool = (boolean) caseInsensitive.fold();
+        logger.info("pattern={} caseInsensitive={}", patternString, caseInsensitiveBool);
+        return new RLike(source, expression, new RLikePattern(patternString), caseInsensitiveBool);
     }
 }

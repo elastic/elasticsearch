@@ -122,9 +122,9 @@ public class MetadataRolloverService {
         boolean onlyValidate,
         @Nullable IndexMetadataStats sourceIndexStats,
         @Nullable AutoShardingResult autoShardingResult,
-        boolean rollOverFailureStore
+        boolean isFailureStoreRollover
     ) throws Exception {
-        validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest, rollOverFailureStore);
+        validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest, isFailureStoreRollover);
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
         return switch (indexAbstraction.getType()) {
             case ALIAS -> rolloverAlias(
@@ -148,7 +148,7 @@ public class MetadataRolloverService {
                 onlyValidate,
                 sourceIndexStats,
                 autoShardingResult,
-                rollOverFailureStore
+                isFailureStoreRollover
             );
             default ->
                 // the validate method above prevents this case
@@ -168,14 +168,14 @@ public class MetadataRolloverService {
         String rolloverTarget,
         String newIndexName,
         CreateIndexRequest createIndexRequest,
-        boolean rollOverFailureStore
+        boolean isFailureStoreRollover
     ) {
-        validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest, rollOverFailureStore);
+        validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest, isFailureStoreRollover);
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
         return switch (indexAbstraction.getType()) {
             case ALIAS -> resolveAliasRolloverNames(currentState.metadata(), indexAbstraction, newIndexName);
             case DATA_STREAM -> {
-                if (rollOverFailureStore) {
+                if (isFailureStoreRollover) {
                     yield resolveDataStreamFailureStoreRolloverNames(currentState.metadata(), (DataStream) indexAbstraction);
                 }
                 yield resolveDataStreamRolloverNames(currentState.getMetadata(), (DataStream) indexAbstraction);
@@ -277,7 +277,7 @@ public class MetadataRolloverService {
         boolean onlyValidate,
         @Nullable IndexMetadataStats sourceIndexStats,
         @Nullable AutoShardingResult autoShardingResult,
-        boolean rollOverFailureStore
+        boolean isFailureStoreRollover
     ) throws Exception {
 
         if (SnapshotsService.snapshottingDataStreams(currentState, Collections.singleton(dataStream.getName())).isEmpty() == false) {
@@ -305,8 +305,8 @@ public class MetadataRolloverService {
             templateV2 = systemDataStreamDescriptor.getComposableIndexTemplate();
         }
 
-        final Index originalWriteIndex = rollOverFailureStore ? dataStream.getFailureStoreWriteIndex() : dataStream.getWriteIndex();
-        final Tuple<String, Long> nextIndexAndGeneration = rollOverFailureStore
+        final Index originalWriteIndex = isFailureStoreRollover ? dataStream.getFailureStoreWriteIndex() : dataStream.getWriteIndex();
+        final Tuple<String, Long> nextIndexAndGeneration = isFailureStoreRollover
             ? dataStream.nextFailureStoreWriteIndexAndGeneration(currentState.metadata())
             : dataStream.nextWriteIndexAndGeneration(currentState.metadata());
         final String newWriteIndexName = nextIndexAndGeneration.v1();
@@ -317,7 +317,7 @@ public class MetadataRolloverService {
         }
 
         ClusterState newState;
-        if (rollOverFailureStore) {
+        if (isFailureStoreRollover) {
             newState = MetadataCreateDataStreamService.createFailureStoreIndex(
                 createIndexService,
                 "rollover_failure_store",
@@ -608,7 +608,7 @@ public class MetadataRolloverService {
         String rolloverTarget,
         String newIndexName,
         CreateIndexRequest request,
-        boolean rollOverFailureStore
+        boolean isFailureStoreRollover
     ) {
         final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(rolloverTarget);
         if (indexAbstraction == null) {
@@ -640,7 +640,7 @@ public class MetadataRolloverService {
                 );
             }
             var dataStream = (DataStream) indexAbstraction;
-            if (rollOverFailureStore && dataStream.isFailureStore() == false) {
+            if (isFailureStoreRollover && dataStream.isFailureStore() == false) {
                 throw new IllegalArgumentException(
                     "unable to roll over failure store because [" + indexAbstraction.getName() + "] does not have the failure store enabled"
                 );

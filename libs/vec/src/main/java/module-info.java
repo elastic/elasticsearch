@@ -10,5 +10,5 @@ module org.elasticsearch.vec {
     requires org.elasticsearch.nativeaccess;
     requires org.apache.lucene.core;
 
-    exports org.elasticsearch.vec;
+    exports org.elasticsearch.vec to org.elasticsearch.server;
 }

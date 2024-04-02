@@ -308,7 +308,7 @@ public class MaxMindSupportTests extends ESTestCase {
                 if (CONTAINER_TYPES.contains(returnType)) {
                     ParameterizedType genericReturnType = (ParameterizedType) method.getGenericReturnType();
                     for (Type actualType : genericReturnType.getActualTypeArguments()) {
-                        if (actualType instanceof Class actualTypeClass) {
+                        if (actualType instanceof Class<?> actualTypeClass) {
                             getFieldNamesUsedFromClass(fieldsSet, currentContext, actualTypeClass);
                         } else {
                             assert false : "This test needs to be updated to deal with this situation";

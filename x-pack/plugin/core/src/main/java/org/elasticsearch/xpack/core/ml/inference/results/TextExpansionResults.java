@@ -67,7 +67,7 @@ public class TextExpansionResults extends NlpInferenceResults {
         this.weightedTokens = in.readCollectionAsList(WeightedToken::new);
     }
 
-    public List<WeightedToken> getVectorDimensions() {
+    public List<WeightedToken> getWeightedTokens() {
         return weightedTokens;
     }
 

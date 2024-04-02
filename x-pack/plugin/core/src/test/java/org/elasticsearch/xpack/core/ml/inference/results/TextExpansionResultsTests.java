@@ -42,18 +42,14 @@ public class TextExpansionResultsTests extends InferenceResultsTestCase<TextExpa
 
     @Override
     protected TextExpansionResults mutateInstance(TextExpansionResults instance) {
-        return new TextExpansionResults(
-            instance.getResultsField() + "-FOO",
-            instance.getVectorDimensions(),
-            instance.isTruncated() == false
-        );
+        return new TextExpansionResults(instance.getResultsField() + "-FOO", instance.getWeightedTokens(), instance.isTruncated() == false);
     }
 
     @Override
     @SuppressWarnings("unchecked")
     void assertFieldValues(TextExpansionResults createdInstance, IngestDocument document, String parentField, String resultsField) {
         var ingestedTokens = (Map<String, Object>) document.getFieldValue(parentField + resultsField, Map.class);
-        var tokenMap = createdInstance.getVectorDimensions()
+        var tokenMap = createdInstance.getWeightedTokens()
             .stream()
             .collect(Collectors.toMap(TextExpansionResults.WeightedToken::token, TextExpansionResults.WeightedToken::weight));
         assertEquals(tokenMap.size(), ingestedTokens.size());

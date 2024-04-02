@@ -61,7 +61,7 @@ public class TextExpansionProcessorTests extends ESTestCase {
         var results = (TextExpansionResults) inferenceResult;
         assertEquals(results.getResultsField(), "foo");
 
-        var weightedTokens = results.getVectorDimensions();
+        var weightedTokens = results.getWeightedTokens();
         assertThat(weightedTokens, hasSize(3));
         assertEquals(new TextExpansionResults.WeightedToken("e", 4.0f), weightedTokens.get(0));
         assertEquals(new TextExpansionResults.WeightedToken("d", 3.0f), weightedTokens.get(1));
@@ -84,7 +84,7 @@ public class TextExpansionProcessorTests extends ESTestCase {
         var results = (TextExpansionResults) inferenceResult;
         assertEquals(results.getResultsField(), "foo");
 
-        var weightedTokens = results.getVectorDimensions();
+        var weightedTokens = results.getWeightedTokens();
         assertThat(weightedTokens, hasSize(6));
         assertEquals(new TextExpansionResults.WeightedToken("fff", 6.0f), weightedTokens.get(0));
         assertEquals(new TextExpansionResults.WeightedToken("XXX", 5.0f), weightedTokens.get(1));
@@ -112,7 +112,7 @@ public class TextExpansionProcessorTests extends ESTestCase {
         TokenizationResult tokenizationResult = new BertTokenizationResult(vocab, List.of(), 0);
 
         TextExpansionResults results = (TextExpansionResults) resultProcessor.processResult(tokenizationResult, pytorchResult, false);
-        var weightedTokens = results.getVectorDimensions();
+        var weightedTokens = results.getWeightedTokens();
         assertThat(weightedTokens, hasSize(5));
         assertEquals(new TextExpansionResults.WeightedToken("##__", 5.0f), weightedTokens.get(0));
         assertEquals(new TextExpansionResults.WeightedToken("__", 4.0f), weightedTokens.get(1));

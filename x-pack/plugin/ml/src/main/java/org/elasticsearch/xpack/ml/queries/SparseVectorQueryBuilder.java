@@ -252,7 +252,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     }
 
     private QueryBuilder textExpansionResultsToQuery(String fieldName, TextExpansionResults textExpansionResults) {
-        return queryVectorToQuery(fieldName, textExpansionResults.getVectorDimensions());
+        return queryVectorToQuery(fieldName, textExpansionResults.getWeightedTokens());
     }
 
     @Override

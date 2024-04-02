@@ -393,6 +393,14 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             .getBytes();
     }
 
+    public Executor getIOExecutor() {
+        return ioExecutor;
+    }
+
+    public Executor getBulkIOExecutor() {
+        return bulkIOExecutor;
+    }
+
     public int getRangeSize() {
         return rangeSize;
     }
@@ -1002,6 +1010,16 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final RangeAvailableHandler reader,
             final RangeMissingHandler writer
         ) throws Exception {
+            return populateAndRead(rangeToWrite, rangeToRead, reader, writer, ioExecutor);
+        }
+
+        public int populateAndRead(
+            final ByteRange rangeToWrite,
+            final ByteRange rangeToRead,
+            final RangeAvailableHandler reader,
+            final RangeMissingHandler writer,
+            final Executor executor
+        ) throws Exception {
             // some cache files can grow after being created, so rangeToWrite can be larger than the initial {@code length}
             assert rangeToWrite.start() >= 0 : rangeToWrite;
             assert assertOffsetsWithinFileLength(rangeToRead.start(), rangeToRead.length(), length);
@@ -1026,9 +1044,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final int startRegion = getRegion(rangeToWrite.start());
             final int endRegion = getEndingRegion(rangeToWrite.end());
             if (startRegion == endRegion) {
-                return readSingleRegion(rangeToWrite, rangeToRead, reader, writerInstrumentationDecorator, startRegion);
+                return readSingleRegion(rangeToWrite, rangeToRead, reader, writerInstrumentationDecorator, startRegion, executor);
             }
-            return readMultiRegions(rangeToWrite, rangeToRead, reader, writerInstrumentationDecorator, startRegion, endRegion);
+            return readMultiRegions(rangeToWrite, rangeToRead, reader, writerInstrumentationDecorator, startRegion, endRegion, executor);
         }
 
         private int readSingleRegion(
@@ -1036,7 +1054,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             ByteRange rangeToRead,
             RangeAvailableHandler reader,
             RangeMissingHandler writer,
-            int region
+            int region,
+            Executor executor
         ) throws InterruptedException, ExecutionException {
             final PlainActionFuture<Integer> readFuture = new PlainActionFuture<>();
             final CacheFileRegion fileRegion = get(cacheKey, length, region);
@@ -1046,7 +1065,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 mapSubRangeToRegion(rangeToRead, region),
                 readerWithOffset(reader, fileRegion, Math.toIntExact(rangeToRead.start() - regionStart)),
                 writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart)),
-                ioExecutor,
+                executor,
                 readFuture
             );
             return readFuture.get();
@@ -1058,7 +1077,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             RangeAvailableHandler reader,
             RangeMissingHandler writer,
             int startRegion,
-            int endRegion
+            int endRegion,
+            Executor executor
         ) throws InterruptedException, ExecutionException {
             final PlainActionFuture<Void> readsComplete = new PlainActionFuture<>();
             final AtomicInteger bytesRead = new AtomicInteger();
@@ -1078,7 +1098,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                             subRangeToRead,
                             readerWithOffset(reader, fileRegion, Math.toIntExact(rangeToRead.start() - regionStart)),
                             writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart)),
-                            ioExecutor,
+                            executor,
                             listener
                         );
                     } catch (Exception e) {

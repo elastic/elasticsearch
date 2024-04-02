@@ -28,7 +28,7 @@ abstract class AbstractIpScriptFieldQuery extends AbstractScriptFieldQuery<IpFie
     }
 
     @Override
-    protected boolean matches(IpFieldScript scriptContext, int docId) {
+    protected final boolean matches(IpFieldScript scriptContext, int docId) {
         scriptContext.runForDoc(docId);
         return matches(scriptContext.values(), scriptContext.count());
     }

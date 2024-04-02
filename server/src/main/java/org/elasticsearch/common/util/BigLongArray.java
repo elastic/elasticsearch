@@ -132,7 +132,7 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        writePages(out, Math.toIntExact(size), pages, Long.BYTES, LONG_PAGE_SIZE);
+        writePages(out, size, pages, Long.BYTES);
     }
 
     @Override
@@ -141,27 +141,21 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
     }
 
     static void readPages(StreamInput in, byte[][] pages) throws IOException {
-        int remained = in.readVInt();
-        for (int i = 0; i < pages.length - 1; i++) {
-            int len = pages[0].length;
+        int remainedBytes = in.readVInt();
+        for (int i = 0; i < pages.length && remainedBytes > 0; i++) {
+            int len = Math.min(remainedBytes, pages[0].length);
             in.readBytes(pages[i], 0, len);
-            remained -= len;
+            remainedBytes -= len;
         }
-        in.readBytes(pages[pages.length - 1], 0, remained);
     }
 
-    static void writePages(StreamOutput out, int size, byte[][] pages, int bytesPerValue, int pageSize) throws IOException {
-        out.writeVInt(size * bytesPerValue);
-        int lastPageEnd = size % pageSize;
-        if (lastPageEnd == 0) {
-            for (byte[] page : pages) {
-                out.write(page);
-            }
-            return;
+    static void writePages(StreamOutput out, long size, byte[][] pages, int bytesPerValue) throws IOException {
+        int remainedBytes = Math.toIntExact(size * bytesPerValue);
+        out.writeVInt(remainedBytes);
+        for (int i = 0; i < pages.length && remainedBytes > 0; i++) {
+            int len = Math.min(remainedBytes, pages[i].length);
+            out.writeBytes(pages[i], 0, len);
+            remainedBytes -= len;
         }
-        for (int i = 0; i < pages.length - 1; i++) {
-            out.write(pages[i]);
-        }
-        out.write(pages[pages.length - 1], 0, lastPageEnd * bytesPerValue);
     }
 }

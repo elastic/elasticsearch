@@ -258,8 +258,7 @@ public final class ConnectorTestUtils {
         return configMap;
     }
 
-    public static Connector getRandomConnector() {
-
+    private static Connector.Builder getRandomConnectorBuilder() {
         return new Connector.Builder().setApiKeyId(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setApiKeySecretId(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setConfiguration(getRandomConnectorConfiguration())
@@ -278,8 +277,15 @@ public final class ConnectorTestUtils {
             .setScheduling(getRandomConnectorScheduling())
             .setStatus(getRandomConnectorInitialStatus())
             .setSyncCursor(randomBoolean() ? Map.of(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)) : null)
-            .setSyncNow(randomBoolean())
-            .build();
+            .setSyncNow(randomBoolean());
+    }
+
+    public static Connector getRandomConnector() {
+        return getRandomConnectorBuilder().build();
+    }
+
+    public static Connector getRandomConnectorWithDetachedIndex() {
+        return getRandomConnectorBuilder().setIndexName(null).build();
     }
 
     private static BytesReference convertConnectorToBytesReference(Connector connector) {

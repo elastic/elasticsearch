@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
@@ -103,7 +104,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             inputTerms = termBuilder.build();
         }
         MappedFieldType uidField = new KeywordFieldMapper.KeywordFieldType("uid");
-        QueryList queryList = QueryList.termQueryList(uidField, mock(SearchExecutionContext.class), inputTerms);
+        QueryList queryList = QueryList.termQueryList(uidField, mock(SearchExecutionContext.class), inputTerms, KEYWORD);
         assertThat(queryList.getPositionCount(), equalTo(6));
         assertThat(queryList.getQuery(0), equalTo(new TermQuery(new Term("uid", new BytesRef("b2")))));
         assertThat(queryList.getQuery(1), equalTo(new TermInSetQuery("uid", new BytesRef("c1"), new BytesRef("a2"))));
@@ -218,7 +219,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             inputTerms = builder.build();
         }
         MappedFieldType uidField = new KeywordFieldMapper.KeywordFieldType("uid");
-        var queryList = QueryList.termQueryList(uidField, mock(SearchExecutionContext.class), inputTerms);
+        var queryList = QueryList.termQueryList(uidField, mock(SearchExecutionContext.class), inputTerms, KEYWORD);
         EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(blockFactory, queryList, reader);
         Map<Integer, Set<Integer>> actualPositions = new HashMap<>();
         while (queryOperator.isFinished() == false) {

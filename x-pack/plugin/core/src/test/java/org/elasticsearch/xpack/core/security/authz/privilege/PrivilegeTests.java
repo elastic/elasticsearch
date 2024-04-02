@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
@@ -531,8 +531,8 @@ public class PrivilegeTests extends ESTestCase {
     }
 
     public void testCancelTasksPrivilege() {
-        verifyClusterActionAllowed(ClusterPrivilegeResolver.CANCEL_TASK, CancelTasksAction.NAME);
-        verifyClusterActionAllowed(ClusterPrivilegeResolver.CANCEL_TASK, CancelTasksAction.NAME + "[n]");
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.CANCEL_TASK, TransportCancelTasksAction.NAME);
+        verifyClusterActionAllowed(ClusterPrivilegeResolver.CANCEL_TASK, TransportCancelTasksAction.NAME + "[n]");
         verifyClusterActionDenied(ClusterPrivilegeResolver.CANCEL_TASK, "cluster:admin/whatever");
     }
 }

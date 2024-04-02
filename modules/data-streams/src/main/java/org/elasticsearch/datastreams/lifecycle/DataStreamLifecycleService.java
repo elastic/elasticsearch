@@ -19,9 +19,9 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
+import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -737,7 +738,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         transportActionsDeduplicator.executeOnce(
             addIndexBlockRequest,
             new ErrorRecordingActionListener(
-                AddIndexBlockAction.NAME,
+                TransportAddIndexBlockAction.TYPE.name(),
                 indexName,
                 errorStore,
                 Strings.format("Data stream lifecycle service encountered an error trying to mark index [%s] as readonly", indexName),
@@ -796,7 +797,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             RolloverRequest rolloverRequest = getDefaultRolloverRequest(
                 rolloverConfiguration,
                 dataStream.getName(),
-                dataStream.getLifecycle().getEffectiveDataRetention()
+                dataStream.getLifecycle().getEffectiveDataRetention(DataStreamGlobalRetention.getFromClusterState(state))
             );
             transportActionsDeduplicator.executeOnce(
                 rolloverRequest,
@@ -823,14 +824,15 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      */
     private Set<Index> maybeExecuteRetention(ClusterState state, DataStream dataStream, Set<Index> indicesToExcludeForRemainingRun) {
         Metadata metadata = state.metadata();
-        List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesPastRetention(metadata::index, nowSupplier);
+        DataStreamGlobalRetention globalRetention = DataStreamGlobalRetention.getFromClusterState(state);
+        List<Index> backingIndicesOlderThanRetention = dataStream.getIndicesPastRetention(metadata::index, nowSupplier, globalRetention);
         if (backingIndicesOlderThanRetention.isEmpty()) {
             return Set.of();
         }
         Set<Index> indicesToBeRemoved = new HashSet<>();
         // We know that there is lifecycle and retention because there are indices to be deleted
         assert dataStream.getLifecycle() != null;
-        TimeValue effectiveDataRetention = dataStream.getLifecycle().getEffectiveDataRetention();
+        TimeValue effectiveDataRetention = dataStream.getLifecycle().getEffectiveDataRetention(globalRetention);
         for (Index index : backingIndicesOlderThanRetention) {
             if (indicesToExcludeForRemainingRun.contains(index) == false) {
                 IndexMetadata backingIndex = metadata.index(index);

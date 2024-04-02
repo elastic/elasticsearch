@@ -61,9 +61,9 @@ abstract class AbstractArrayBlock extends AbstractNonThreadSafeRefCounted implem
 
     private boolean assertInvariants() {
         if (firstValueIndexes != null) {
-            assert firstValueIndexes.length == getPositionCount() + 1;
+            assert firstValueIndexes.length >= getPositionCount() + 1 : firstValueIndexes.length + " < " + positionCount;
             for (int i = 0; i < getPositionCount(); i++) {
-                assert (firstValueIndexes[i + 1] - firstValueIndexes[i]) >= 0;
+                assert firstValueIndexes[i + 1] >= firstValueIndexes[i] : firstValueIndexes[i + 1] + " < " + firstValueIndexes[i];
             }
         }
         if (nullsMask != null) {

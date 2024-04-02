@@ -13,7 +13,7 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
@@ -119,7 +119,7 @@ public final class IndexPrivilege extends Privilege {
         )
     );
     private static final Automaton CREATE_INDEX_AUTOMATON = patterns(
-        CreateIndexAction.NAME,
+        TransportCreateIndexAction.TYPE.name(),
         AutoCreateAction.NAME,
         CreateDataStreamAction.NAME
     );

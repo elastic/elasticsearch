@@ -28,4 +28,18 @@ public interface NativeAccess {
     boolean definitelyRunningAsRoot();
 
     Systemd systemd();
+
+    /**
+     * Returns an accessor to zstd compression functions.
+     * @return an object used to compress and decompress bytes using zstd
+     */
+    Zstd getZstd();
+
+    /**
+     * Creates a new {@link CloseableByteBuffer}. The buffer must be used within the same thread
+     * that it is created.
+     * @param len the number of bytes the buffer should allocate
+     * @return the buffer
+     */
+    CloseableByteBuffer newBuffer(int len);
 }

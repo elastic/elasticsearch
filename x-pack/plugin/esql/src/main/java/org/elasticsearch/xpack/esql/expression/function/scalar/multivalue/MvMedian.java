@@ -26,10 +26,10 @@ import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToBigInteger;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsBigInteger;
 
 /**
  * Reduce a multivalued field to a single valued field containing the average value.
@@ -39,7 +39,7 @@ public class MvMedian extends AbstractMultivalueFunction {
         returnType = { "double", "integer", "long", "unsigned_long" },
         description = "Converts a multivalued field into a single valued field containing the median value."
     )
-    public MvMedian(Source source, @Param(name = "v", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
+    public MvMedian(Source source, @Param(name = "number", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
         super(source, field);
     }
 
@@ -156,9 +156,9 @@ public class MvMedian extends AbstractMultivalueFunction {
         Arrays.sort(longs.values, 0, longs.count);
         int middle = longs.count / 2;
         longs.count = 0;
-        BigInteger a = unsignedLongAsBigInteger(longs.values[middle - 1]);
-        BigInteger b = unsignedLongAsBigInteger(longs.values[middle]);
-        return asLongUnsigned(a.add(b).shiftRight(1).longValue());
+        BigInteger a = unsignedLongToBigInteger(longs.values[middle - 1]);
+        BigInteger b = unsignedLongToBigInteger(longs.values[middle]);
+        return bigIntegerToUnsignedLong(a.add(b).shiftRight(1));
     }
 
     /**
@@ -169,9 +169,9 @@ public class MvMedian extends AbstractMultivalueFunction {
         if (count % 2 == 1) {
             return values.getLong(middle);
         }
-        BigInteger a = unsignedLongAsBigInteger(values.getLong(middle - 1));
-        BigInteger b = unsignedLongAsBigInteger(values.getLong(middle));
-        return asLongUnsigned(a.add(b).shiftRight(1).longValue());
+        BigInteger a = unsignedLongToBigInteger(values.getLong(middle - 1));
+        BigInteger b = unsignedLongToBigInteger(values.getLong(middle));
+        return bigIntegerToUnsignedLong(a.add(b).shiftRight(1));
     }
 
     static class Ints {

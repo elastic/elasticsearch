@@ -22,8 +22,15 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.external.action.cohere.CohereActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -34,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
@@ -71,7 +79,7 @@ public class CohereService extends SenderService {
                 taskSettingsMap,
                 serviceSettingsMap,
                 TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
-                true
+                ConfigurationParseContext.REQUEST
             );
 
             throwIfNotEmptyMap(config, NAME);
@@ -92,7 +100,15 @@ public class CohereService extends SenderService {
         @Nullable Map<String, Object> secretSettings,
         String failureMessage
     ) {
-        return createModel(inferenceEntityId, taskType, serviceSettings, taskSettings, secretSettings, failureMessage, false);
+        return createModel(
+            inferenceEntityId,
+            taskType,
+            serviceSettings,
+            taskSettings,
+            secretSettings,
+            failureMessage,
+            ConfigurationParseContext.PERSISTENT
+        );
     }
 
     private static CohereModel createModel(
@@ -102,7 +118,7 @@ public class CohereService extends SenderService {
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage,
-        boolean logDeprecations
+        ConfigurationParseContext context
     ) {
         return switch (taskType) {
             case TEXT_EMBEDDING -> new CohereEmbeddingsModel(
@@ -112,7 +128,7 @@ public class CohereService extends SenderService {
                 serviceSettings,
                 taskSettings,
                 secretSettings,
-                logDeprecations
+                context
             );
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
@@ -183,7 +199,26 @@ public class CohereService extends SenderService {
         ChunkingOptions chunkingOptions,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
-        listener.onFailure(new ElasticsearchStatusException("Chunking not supported by the {} service", RestStatus.BAD_REQUEST, NAME));
+        ActionListener<InferenceServiceResults> inferListener = listener.delegateFailureAndWrap(
+            (delegate, response) -> delegate.onResponse(translateToChunkedResults(input, response))
+        );
+
+        doInfer(model, input, taskSettings, inputType, inferListener);
+    }
+
+    private static List<ChunkedInferenceServiceResults> translateToChunkedResults(
+        List<String> inputs,
+        InferenceServiceResults inferenceResults
+    ) {
+        if (inferenceResults instanceof TextEmbeddingResults textEmbeddingResults) {
+            return ChunkedTextEmbeddingResults.of(inputs, textEmbeddingResults);
+        } else if (inferenceResults instanceof TextEmbeddingByteResults textEmbeddingByteResults) {
+            return ChunkedTextEmbeddingByteResults.of(inputs, textEmbeddingByteResults);
+        } else if (inferenceResults instanceof ErrorInferenceResults error) {
+            return List.of(new ErrorChunkedInferenceResults(error.getException()));
+        } else {
+            throw createInvalidChunkedResultException(inferenceResults.getWriteableName());
+        }
     }
 
     /**
@@ -207,13 +242,16 @@ public class CohereService extends SenderService {
     }
 
     private CohereEmbeddingsModel updateModelWithEmbeddingDetails(CohereEmbeddingsModel model, int embeddingSize) {
+        var similarityFromModel = model.getServiceSettings().similarity();
+        var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+
         CohereEmbeddingsServiceSettings serviceSettings = new CohereEmbeddingsServiceSettings(
             new CohereServiceSettings(
-                model.getServiceSettings().getCommonSettings().getUri(),
-                SimilarityMeasure.DOT_PRODUCT,
+                model.getServiceSettings().getCommonSettings().uri(),
+                similarityToUse,
                 embeddingSize,
-                model.getServiceSettings().getCommonSettings().getMaxInputTokens(),
-                model.getServiceSettings().getCommonSettings().getModelId()
+                model.getServiceSettings().getCommonSettings().maxInputTokens(),
+                model.getServiceSettings().getCommonSettings().modelId()
             ),
             model.getServiceSettings().getEmbeddingType()
         );
@@ -223,6 +261,6 @@ public class CohereService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_CLASS_CLUSTER_ADDED;
+        return TransportVersions.ML_INFERENCE_L2_NORM_SIMILARITY_ADDED;
     }
 }

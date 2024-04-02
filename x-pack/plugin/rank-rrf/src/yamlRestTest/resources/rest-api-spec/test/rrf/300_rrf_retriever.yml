@@ -1,7 +1,7 @@
 setup:
-  - skip:
-      version: ' - 8.12.99'
-      reason: 'rrf retriever added in 8.13'
+  - requires:
+      cluster_features: 'rrf_retriever_supported'
+      reason: 'test requires rrf retriever implementation'
 
   - do:
       indices.create:
@@ -21,6 +21,10 @@ setup:
                 dims: 1
                 index: true
                 similarity: l2_norm
+                index_options:
+                  type: hnsw
+                  ef_construction: 100
+                  m: 16
 
   - do:
       index:

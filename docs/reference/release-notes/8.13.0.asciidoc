@@ -345,7 +345,7 @@ Machine Learning::
 * Conditionally send the dimensions field as part of the openai requests {es-pull}105299[#105299] (issue: {es-issue}105005[#105005])
 * Endpoint to find positions of Grok pattern matches {es-pull}104394[#104394]
 * Ensure unique IDs between inference models and trained model deployments {es-pull}103996[#103996]
-
+* Expose some ML metrics via APM {es-pull}102584[#102584]
 * Make `task_type` optional in `_inference` APIs {es-pull}104483[#104483]
 * Update `missingTrainedModel` message to include: you may need to create it {es-pull}104155[#104155]
 * Upgrade MKL to version 2024.0 on Linux x86_64 {ml-pull}2619[#2619]

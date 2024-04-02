@@ -1,0 +1,5 @@
+pr: 106934
+summary: Adjust array resizing in block builder
+area: ES|QL
+type: enhancement
+issues: []

@@ -67,7 +67,7 @@ public class TransportPutRoleAction extends TransportAction<PutRoleRequest, PutR
         if (validationException != null) {
             return validationException;
         }
-        if (reservedRoleNameChecker.isReserved(request.name(), request.restrictRequest())) {
+        if (reservedRoleNameChecker.isReserved(request.name())) {
             throw addValidationError("Role [" + request.name() + "] is reserved and may not be used.", null);
         }
         try {

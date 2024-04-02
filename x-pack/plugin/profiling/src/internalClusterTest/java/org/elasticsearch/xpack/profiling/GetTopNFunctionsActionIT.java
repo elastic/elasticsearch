@@ -29,7 +29,6 @@ public class GetTopNFunctionsActionIT extends ProfilingTestCase {
         );
         request.setAdjustSampleCount(true);
         GetTopNFunctionsResponse response = client().execute(GetTopNFunctionsAction.INSTANCE, request).get();
-        assertEquals(46, response.getTotalSamples());
         assertEquals(747, response.getTopN().size());
     }
 
@@ -52,7 +51,6 @@ public class GetTopNFunctionsActionIT extends ProfilingTestCase {
         request.setAdjustSampleCount(true);
         request.setLimit(50);
         GetTopNFunctionsResponse response = client().execute(GetTopNFunctionsAction.INSTANCE, request).get();
-        assertEquals(46, response.getTotalSamples());
         assertEquals(50, response.getTopN().size());
     }
 
@@ -78,7 +76,6 @@ public class GetTopNFunctionsActionIT extends ProfilingTestCase {
             null
         );
         GetTopNFunctionsResponse response = client().execute(GetTopNFunctionsAction.INSTANCE, request).get();
-        assertEquals(5, response.getTotalSamples());
         assertEquals(45, response.getTopN().size());
     }
 }

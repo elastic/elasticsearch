@@ -56,10 +56,8 @@ public class TransportGetTopNFunctionsActionTests extends ESTestCase {
 
         GetTopNFunctionsResponse response = TransportGetTopNFunctionsAction.buildTopNFunctions(stacktraces, null);
         assertNotNull(response);
-        assertEquals(1.0d, response.getSamplingRate(), 0.001d);
-        assertEquals(1, response.getTotalSamples());
-        assertEquals(1, response.getSelfCPU());
-        assertEquals(9, response.getTotalCPU());
+        assertEquals(1, response.getSelfCount());
+        assertEquals(9, response.getTotalCount());
 
         List<TopNFunction> topNFunctions = response.getTopN();
         assertNotNull(topNFunctions);
@@ -67,15 +65,15 @@ public class TransportGetTopNFunctionsActionTests extends ESTestCase {
 
         assertEquals(
             List.of(
-                topN("178196121", 1, "fr28zxcZ2UDasxYuu6dV-wAAAAAA-VK9", 16339645, 1L, 1L, 0.3d, 0.3d, 2.7d, 2.7d),
-                topN("181192637", 2, "fr28zxcZ2UDasxYuu6dV-wAAAAABJwvh", 19336161, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d),
-                topN("181190529", 3, "fr28zxcZ2UDasxYuu6dV-wAAAAABJwOl", 19334053, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d),
-                topN("180652335", 4, "fr28zxcZ2UDasxYuu6dV-wAAAAABHs1T", 18795859, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d),
-                topN("180479184", 5, "fr28zxcZ2UDasxYuu6dV-wAAAAABHCj0", 18622708, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d),
-                topN("180475689", 6, "fr28zxcZ2UDasxYuu6dV-wAAAAABHBtN", 18619213, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d),
-                topN("175515318", 7, "fr28zxcZ2UDasxYuu6dV-wAAAAAA0Gra", 13658842, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d),
-                topN("174846197", 8, "fr28zxcZ2UDasxYuu6dV-wAAAAAAxjUZ", 12989721, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d),
-                topN("174640828", 9, "fr28zxcZ2UDasxYuu6dV-wAAAAAAwxLg", 12784352, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d)
+                topN("178196121", 1, 16339645, 1L, 1L, 0.3d, 0.3d, 2.7d, 2.7d),
+                topN("181192637", 2, 19336161, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d),
+                topN("181190529", 3, 19334053, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d),
+                topN("180652335", 4, 18795859, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d),
+                topN("180479184", 5, 18622708, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d),
+                topN("180475689", 6, 18619213, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d),
+                topN("175515318", 7, 13658842, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d),
+                topN("174846197", 8, 12989721, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d),
+                topN("174640828", 9, 12784352, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d)
             ),
             topNFunctions
         );
@@ -123,10 +121,8 @@ public class TransportGetTopNFunctionsActionTests extends ESTestCase {
 
         GetTopNFunctionsResponse response = TransportGetTopNFunctionsAction.buildTopNFunctions(stacktraces, 3);
         assertNotNull(response);
-        assertEquals(1.0d, response.getSamplingRate(), 0.001d);
-        assertEquals(1, response.getTotalSamples());
-        assertEquals(1, response.getSelfCPU());
-        assertEquals(9, response.getTotalCPU());
+        assertEquals(1, response.getSelfCount());
+        assertEquals(9, response.getTotalCount());
 
         List<TopNFunction> topNFunctions = response.getTopN();
         assertNotNull(topNFunctions);
@@ -134,9 +130,9 @@ public class TransportGetTopNFunctionsActionTests extends ESTestCase {
 
         assertEquals(
             List.of(
-                topN("178196121", 1, "fr28zxcZ2UDasxYuu6dV-wAAAAAA-VK9", 16339645, 1L, 1L, 0.3d, 0.3d, 2.7d, 2.7d),
-                topN("181192637", 2, "fr28zxcZ2UDasxYuu6dV-wAAAAABJwvh", 19336161, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d),
-                topN("181190529", 3, "fr28zxcZ2UDasxYuu6dV-wAAAAABJwOl", 19334053, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d)
+                topN("178196121", 1, 16339645, 1L, 1L, 0.3d, 0.3d, 2.7d, 2.7d),
+                topN("181192637", 2, 19336161, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d),
+                topN("181190529", 3, 19334053, 0L, 1L, 0.0d, 0.3d, 0.0d, 2.7d)
             ),
             topNFunctions
         );
@@ -145,7 +141,6 @@ public class TransportGetTopNFunctionsActionTests extends ESTestCase {
     private TopNFunction topN(
         String id,
         int rank,
-        String frameId,
         int addressOrLine,
         long exclusiveCount,
         long inclusiveCount,
@@ -157,13 +152,10 @@ public class TransportGetTopNFunctionsActionTests extends ESTestCase {
         return new TopNFunction(
             id,
             rank,
-            frameId,
-            "fr28zxcZ2UDasxYuu6dV-w",
             3,
             false,
             addressOrLine,
             "",
-            0,
             "",
             0,
             "containerd",
@@ -181,10 +173,8 @@ public class TransportGetTopNFunctionsActionTests extends ESTestCase {
         GetStackTracesResponse stacktraces = new GetStackTracesResponse(Map.of(), Map.of(), Map.of(), Map.of(), 0, 1.0d, 0);
         GetTopNFunctionsResponse response = TransportGetTopNFunctionsAction.buildTopNFunctions(stacktraces, null);
         assertNotNull(response);
-        assertEquals(1.0d, response.getSamplingRate(), 0.001d);
-        assertEquals(0, response.getTotalSamples());
-        assertEquals(0, response.getSelfCPU());
-        assertEquals(0, response.getTotalCPU());
+        assertEquals(0, response.getSelfCount());
+        assertEquals(0, response.getTotalCount());
 
         List<TopNFunction> topNFunctions = response.getTopN();
         assertNotNull(topNFunctions);

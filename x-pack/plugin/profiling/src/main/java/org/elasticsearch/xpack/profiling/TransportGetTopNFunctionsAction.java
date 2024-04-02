@@ -51,7 +51,7 @@ public class TransportGetTopNFunctionsAction extends TransportAction<GetStackTra
     }
 
     static GetTopNFunctionsResponse buildTopNFunctions(GetStackTracesResponse response, Integer limit) {
-        TopNFunctionsBuilder builder = new TopNFunctionsBuilder(response.getSamplingRate(), response.getTotalSamples(), limit);
+        TopNFunctionsBuilder builder = new TopNFunctionsBuilder(limit);
         if (response.getTotalFrames() == 0) {
             return builder.build();
         }
@@ -85,13 +85,10 @@ public class TransportGetTopNFunctionsAction extends TransportAction<GetStackTra
                         builder.addTopNFunction(
                             new TopNFunction(
                                 frameGroupId,
-                                frameId,
-                                fileId,
                                 frameType,
                                 frame.inline(),
                                 addressOrLine,
                                 frame.functionName(),
-                                frame.functionOffset(),
                                 frame.fileName(),
                                 frame.lineNumber(),
                                 executable
@@ -104,16 +101,16 @@ public class TransportGetTopNFunctionsAction extends TransportAction<GetStackTra
                     }
                     if (frameGroupsPerStackTrace.contains(frameGroupId) == false) {
                         frameGroupsPerStackTrace.add(frameGroupId);
-                        current.addInclusiveCount(samples);
-                        current.addAnnualCO2TonsInclusive(annualCO2Tons);
-                        current.addAnnualCostsUSDInclusive(annualCostsUSD);
+                        current.addTotalCount(samples);
+                        current.addTotalAnnualCO2Tons(annualCO2Tons);
+                        current.addTotalAnnualCostsUSD(annualCostsUSD);
 
                     }
                     if (isLeafFrame && frame.last()) {
-                        // Leaf frame: sum up counts for exclusive CPU.
-                        current.addExclusiveCount(samples);
-                        current.addAnnualCO2TonsExclusive(annualCO2Tons);
-                        current.addAnnualCostsUSDExclusive(annualCostsUSD);
+                        // Leaf frame: sum up counts for self CPU.
+                        current.addSelfCount(samples);
+                        current.addSelfAnnualCO2Tons(annualCO2Tons);
+                        current.addSelfAnnualCostsUSD(annualCostsUSD);
 
                     }
                 });
@@ -124,14 +121,10 @@ public class TransportGetTopNFunctionsAction extends TransportAction<GetStackTra
     }
 
     private static class TopNFunctionsBuilder {
-        private final long totalSamples;
         private final Integer limit;
-        private final double samplingRate;
         private final HashMap<String, TopNFunction> topNFunctions;
 
-        TopNFunctionsBuilder(double samplingRate, long totalSamples, Integer limit) {
-            this.samplingRate = samplingRate;
-            this.totalSamples = totalSamples;
+        TopNFunctionsBuilder(Integer limit) {
             this.limit = limit;
             this.topNFunctions = new HashMap<>();
         }
@@ -139,19 +132,19 @@ public class TransportGetTopNFunctionsAction extends TransportAction<GetStackTra
         public GetTopNFunctionsResponse build() {
             List<TopNFunction> functions = new ArrayList<>(topNFunctions.values());
             functions.sort(Collections.reverseOrder());
-            long sumSelfCPU = 0;
-            long sumTotalCPU = 0;
+            long sumSelfCount = 0;
+            long sumTotalCount = 0;
             for (int i = 0; i < functions.size(); i++) {
                 TopNFunction topNFunction = functions.get(i);
                 topNFunction.setRank(i + 1);
-                sumSelfCPU += topNFunction.getExclusiveCount();
-                sumTotalCPU += topNFunction.getInclusiveCount();
+                sumSelfCount += topNFunction.getSelfCount();
+                sumTotalCount += topNFunction.getTotalCount();
             }
             // limit at the end so global stats are independent of the limit
             if (limit != null && limit > 0) {
                 functions = functions.subList(0, limit);
             }
-            return new GetTopNFunctionsResponse(samplingRate, totalSamples, sumSelfCPU, sumTotalCPU, functions);
+            return new GetTopNFunctionsResponse(sumSelfCount, sumTotalCount, functions);
         }
 
         public boolean isExists(String frameGroupID) {

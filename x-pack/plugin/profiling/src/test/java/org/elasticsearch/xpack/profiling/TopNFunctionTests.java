@@ -22,13 +22,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 
 public class TopNFunctionTests extends ESTestCase {
     public void testToXContent() throws IOException {
-        String frameID = "VZbhUAtQEfdUptXfb8HvNgAAAAAAsbAE";
         String fileID = "6tVKI4mSYDEJ-ABAIpYXcg";
         int frameType = 1;
         boolean inline = false;
         int addressOrLine = 23;
         String functionName = "PyDict_GetItemWithError";
-        int functionOffset = 2567;
         String sourceFilename = "/build/python3.9-RNBry6/python3.9-3.9.2/Objects/dictobject.c";
         int sourceLine = 1456;
         String exeFilename = "python3.9";
@@ -41,39 +39,33 @@ public class TopNFunctionTests extends ESTestCase {
             .field("id", frameGroupID)
             .field("rank", 1)
             .startObject("frame")
-            .field("frame_id", frameID)
-            .field("file_id", fileID)
             .field("frame_type", frameType)
             .field("inline", inline)
             .field("address_or_line", addressOrLine)
             .field("function_name", functionName)
-            .field("function_offset", functionOffset)
             .field("file_name", sourceFilename)
             .field("line_number", sourceLine)
             .field("executable_file_name", exeFilename)
             .endObject()
             .field("sub_groups", Map.of("basket", 7L))
-            .field("count_exclusive", 1)
-            .field("count_inclusive", 10)
-            .field("annual_co2_tons_exclusive")
+            .field("self_count", 1)
+            .field("total_count", 10)
+            .field("self_annual_co2_tons")
             .rawValue("2.2000")
-            .field("annual_co2_tons_inclusive")
+            .field("total_annual_co2_tons")
             .rawValue("22.0000")
-            .field("annual_costs_usd_exclusive", "12.0000")
-            .field("annual_costs_usd_inclusive", "120.0000")
+            .field("self_annual_costs_usd", "12.0000")
+            .field("total_annual_costs_usd", "120.0000")
             .endObject();
 
         XContentBuilder actualRequest = XContentFactory.contentBuilder(contentType);
         TopNFunction topNFunction = new TopNFunction(
             frameGroupID,
             1,
-            frameID,
-            fileID,
             frameType,
             inline,
             addressOrLine,
             functionName,
-            functionOffset,
             sourceFilename,
             sourceLine,
             exeFilename,
@@ -91,13 +83,11 @@ public class TopNFunctionTests extends ESTestCase {
     }
 
     public void testEquality() {
-        String frameID = "VZbhUAtQEfdUptXfb8HvNgAAAAAAsbAE";
         String fileID = "6tVKI4mSYDEJ-ABAIpYXcg";
         int frameType = 1;
         boolean inline = false;
         int addressOrLine = 23;
         String functionName = "PyDict_GetItemWithError";
-        int functionOffset = 2567;
         String sourceFilename = "/build/python3.9-RNBry6/python3.9-3.9.2/Objects/dictobject.c";
         int sourceLine = 1456;
         String exeFilename = "python3.9";
@@ -107,13 +97,10 @@ public class TopNFunctionTests extends ESTestCase {
         TopNFunction topNFunction = new TopNFunction(
             frameGroupID,
             1,
-            frameID,
-            fileID,
             frameType,
             inline,
             addressOrLine,
             functionName,
-            functionOffset,
             sourceFilename,
             sourceLine,
             exeFilename,

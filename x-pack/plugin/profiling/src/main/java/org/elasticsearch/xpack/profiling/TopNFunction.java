@@ -18,33 +18,27 @@ import java.util.Objects;
 final class TopNFunction implements Cloneable, ToXContentObject, Comparable<TopNFunction> {
     private final String id;
     private int rank;
-    private final String frameID;
-    private final String fileID;
     private final int frameType;
     private final boolean inline;
     private final int addressOrLine;
     private final String functionName;
-    private final int functionOffset;
     private final String sourceFilename;
     private final int sourceLine;
     private final String exeFilename;
-    private long exclusiveCount;
-    private long inclusiveCount;
-    private double annualCO2TonsExclusive;
-    private double annualCO2TonsInclusive;
-    private double annualCostsUSDExclusive;
-    private double annualCostsUSDInclusive;
+    private long selfCount;
+    private long totalCount;
+    private double selfAnnualCO2Tons;
+    private double totalAnnualCO2Tons;
+    private double selfAnnualCostsUSD;
+    private double totalAnnualCostsUSD;
     private final Map<String, Long> subGroups;
 
     TopNFunction(
         String id,
-        String frameID,
-        String fileID,
         int frameType,
         boolean inline,
         int addressOrLine,
         String functionName,
-        int functionOffset,
         String sourceFilename,
         int sourceLine,
         String exeFilename
@@ -52,13 +46,10 @@ final class TopNFunction implements Cloneable, ToXContentObject, Comparable<TopN
         this(
             id,
             0,
-            frameID,
-            fileID,
             frameType,
             inline,
             addressOrLine,
             functionName,
-            functionOffset,
             sourceFilename,
             sourceLine,
             exeFilename,
@@ -75,42 +66,36 @@ final class TopNFunction implements Cloneable, ToXContentObject, Comparable<TopN
     TopNFunction(
         String id,
         int rank,
-        String frameID,
-        String fileID,
         int frameType,
         boolean inline,
         int addressOrLine,
         String functionName,
-        int functionOffset,
         String sourceFilename,
         int sourceLine,
         String exeFilename,
-        long exclusiveCount,
-        long inclusiveCount,
-        double annualCO2TonsExclusive,
-        double annualCO2TonsInclusive,
-        double annualCostsUSDExclusive,
-        double annualCostsUSDInclusive,
+        long selfCount,
+        long totalCount,
+        double selfAnnualCO2Tons,
+        double totalAnnualCO2Tons,
+        double selfAnnualCostsUSD,
+        double totalAnnualCostsUSD,
         Map<String, Long> subGroups
     ) {
         this.id = id;
         this.rank = rank;
-        this.frameID = frameID;
-        this.fileID = fileID;
         this.frameType = frameType;
         this.inline = inline;
         this.addressOrLine = addressOrLine;
         this.functionName = functionName;
-        this.functionOffset = functionOffset;
         this.sourceFilename = sourceFilename;
         this.sourceLine = sourceLine;
         this.exeFilename = exeFilename;
-        this.exclusiveCount = exclusiveCount;
-        this.inclusiveCount = inclusiveCount;
-        this.annualCO2TonsExclusive = annualCO2TonsExclusive;
-        this.annualCO2TonsInclusive = annualCO2TonsInclusive;
-        this.annualCostsUSDExclusive = annualCostsUSDExclusive;
-        this.annualCostsUSDInclusive = annualCostsUSDInclusive;
+        this.selfCount = selfCount;
+        this.totalCount = totalCount;
+        this.selfAnnualCO2Tons = selfAnnualCO2Tons;
+        this.totalAnnualCO2Tons = totalAnnualCO2Tons;
+        this.selfAnnualCostsUSD = selfAnnualCostsUSD;
+        this.totalAnnualCostsUSD = totalAnnualCostsUSD;
         this.subGroups = subGroups;
     }
 
@@ -122,36 +107,36 @@ final class TopNFunction implements Cloneable, ToXContentObject, Comparable<TopN
         this.rank = rank;
     }
 
-    public long getExclusiveCount() {
-        return exclusiveCount;
+    public long getSelfCount() {
+        return selfCount;
     }
 
-    public void addExclusiveCount(long exclusiveCount) {
-        this.exclusiveCount += exclusiveCount;
+    public void addSelfCount(long selfCount) {
+        this.selfCount += selfCount;
     }
 
-    public long getInclusiveCount() {
-        return inclusiveCount;
+    public long getTotalCount() {
+        return totalCount;
     }
 
-    public void addInclusiveCount(long inclusiveCount) {
-        this.inclusiveCount += inclusiveCount;
+    public void addTotalCount(long totalCount) {
+        this.totalCount += totalCount;
     }
 
-    public void addAnnualCO2TonsExclusive(double annualCO2TonsExclusive) {
-        this.annualCO2TonsExclusive += annualCO2TonsExclusive;
+    public void addSelfAnnualCO2Tons(double co2Tons) {
+        this.selfAnnualCO2Tons += co2Tons;
     }
 
-    public void addAnnualCO2TonsInclusive(double annualCO2TonsInclusive) {
-        this.annualCO2TonsInclusive += annualCO2TonsInclusive;
+    public void addTotalAnnualCO2Tons(double co2Tons) {
+        this.totalAnnualCO2Tons += co2Tons;
     }
 
-    public void addAnnualCostsUSDExclusive(double annualCostsUSDExclusive) {
-        this.annualCostsUSDExclusive += annualCostsUSDExclusive;
+    public void addSelfAnnualCostsUSD(double costs) {
+        this.selfAnnualCostsUSD += costs;
     }
 
-    public void addAnnualCostsUSDInclusive(double annualCostsUSDInclusive) {
-        this.annualCostsUSDInclusive += annualCostsUSDInclusive;
+    public void addTotalAnnualCostsUSD(double costs) {
+        this.totalAnnualCostsUSD += costs;
     }
 
     public void addSubGroups(Map<String, Long> subGroups) {
@@ -166,22 +151,19 @@ final class TopNFunction implements Cloneable, ToXContentObject, Comparable<TopN
         return new TopNFunction(
             id,
             rank,
-            frameID,
-            fileID,
             frameType,
             inline,
             addressOrLine,
             functionName,
-            functionOffset,
             sourceFilename,
             sourceLine,
             exeFilename,
-            exclusiveCount,
-            inclusiveCount,
-            annualCO2TonsExclusive,
-            annualCO2TonsInclusive,
-            annualCostsUSDExclusive,
-            annualCostsUSDInclusive,
+            selfCount,
+            totalCount,
+            selfAnnualCO2Tons,
+            totalAnnualCO2Tons,
+            selfAnnualCostsUSD,
+            totalAnnualCostsUSD,
             new HashMap<>(subGroups)
         );
     }
@@ -189,28 +171,24 @@ final class TopNFunction implements Cloneable, ToXContentObject, Comparable<TopN
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        // TODO: Clarify with Cauê which fields we *really* need
         builder.field("id", this.id);
         builder.field("rank", this.rank);
         builder.startObject("frame");
-        builder.field("frame_id", this.frameID);
-        builder.field("file_id", this.fileID);
         builder.field("frame_type", this.frameType);
         builder.field("inline", this.inline);
         builder.field("address_or_line", this.addressOrLine);
         builder.field("function_name", this.functionName);
-        builder.field("function_offset", this.functionOffset);
         builder.field("file_name", this.sourceFilename);
         builder.field("line_number", this.sourceLine);
         builder.field("executable_file_name", this.exeFilename);
         builder.endObject();
         builder.field("sub_groups", subGroups);
-        builder.field("count_exclusive", this.exclusiveCount);
-        builder.field("count_inclusive", this.inclusiveCount);
-        builder.field("annual_co2_tons_exclusive").rawValue(NumberUtils.doubleToString(annualCO2TonsExclusive));
-        builder.field("annual_co2_tons_inclusive").rawValue(NumberUtils.doubleToString(annualCO2TonsInclusive));
-        builder.field("annual_costs_usd_exclusive").rawValue(NumberUtils.doubleToString(annualCostsUSDExclusive));
-        builder.field("annual_costs_usd_inclusive").rawValue(NumberUtils.doubleToString(annualCostsUSDInclusive));
+        builder.field("self_count", this.selfCount);
+        builder.field("total_count", this.totalCount);
+        builder.field("self_annual_co2_tons").rawValue(NumberUtils.doubleToString(selfAnnualCO2Tons));
+        builder.field("total_annual_co2_tons").rawValue(NumberUtils.doubleToString(totalAnnualCO2Tons));
+        builder.field("self_annual_costs_usd").rawValue(NumberUtils.doubleToString(selfAnnualCostsUSD));
+        builder.field("total_annual_costs_usd").rawValue(NumberUtils.doubleToString(totalAnnualCostsUSD));
         builder.endObject();
         return builder;
     }
@@ -226,22 +204,19 @@ final class TopNFunction implements Cloneable, ToXContentObject, Comparable<TopN
         TopNFunction that = (TopNFunction) o;
         return Objects.equals(id, that.id)
             && Objects.equals(rank, that.rank)
-            && Objects.equals(frameID, that.frameID)
-            && Objects.equals(fileID, that.fileID)
             && Objects.equals(frameType, that.frameType)
             && Objects.equals(inline, that.inline)
             && Objects.equals(addressOrLine, that.addressOrLine)
             && Objects.equals(functionName, that.functionName)
-            && Objects.equals(functionOffset, that.functionOffset)
             && Objects.equals(sourceFilename, that.sourceFilename)
             && Objects.equals(sourceLine, that.sourceLine)
             && Objects.equals(exeFilename, that.exeFilename)
-            && Objects.equals(exclusiveCount, that.exclusiveCount)
-            && Objects.equals(inclusiveCount, that.inclusiveCount)
-            && Objects.equals(annualCO2TonsExclusive, that.annualCO2TonsExclusive)
-            && Objects.equals(annualCO2TonsInclusive, that.annualCO2TonsInclusive)
-            && Objects.equals(annualCostsUSDExclusive, that.annualCostsUSDExclusive)
-            && Objects.equals(annualCostsUSDInclusive, that.annualCostsUSDInclusive)
+            && Objects.equals(selfCount, that.selfCount)
+            && Objects.equals(totalCount, that.totalCount)
+            && Objects.equals(selfAnnualCO2Tons, that.selfAnnualCO2Tons)
+            && Objects.equals(totalAnnualCO2Tons, that.totalAnnualCO2Tons)
+            && Objects.equals(selfAnnualCostsUSD, that.selfAnnualCostsUSD)
+            && Objects.equals(totalAnnualCostsUSD, that.totalAnnualCostsUSD)
             && Objects.equals(subGroups, that.subGroups);
     }
 
@@ -250,22 +225,19 @@ final class TopNFunction implements Cloneable, ToXContentObject, Comparable<TopN
         return Objects.hash(
             id,
             rank,
-            frameID,
-            fileID,
             frameType,
             inline,
             addressOrLine,
             functionName,
-            functionOffset,
             sourceFilename,
             sourceLine,
             exeFilename,
-            exclusiveCount,
-            inclusiveCount,
-            annualCO2TonsExclusive,
-            annualCO2TonsInclusive,
-            annualCostsUSDExclusive,
-            annualCostsUSDInclusive,
+            selfCount,
+            totalCount,
+            selfAnnualCO2Tons,
+            totalAnnualCO2Tons,
+            selfAnnualCostsUSD,
+            totalAnnualCostsUSD,
             subGroups
         );
     }
@@ -278,12 +250,6 @@ final class TopNFunction implements Cloneable, ToXContentObject, Comparable<TopN
             + '\''
             + ", rank="
             + rank
-            + ", frameID='"
-            + frameID
-            + '\''
-            + ", fileID='"
-            + fileID
-            + '\''
             + ", frameType="
             + frameType
             + ", inline="
@@ -293,8 +259,6 @@ final class TopNFunction implements Cloneable, ToXContentObject, Comparable<TopN
             + ", functionName='"
             + functionName
             + '\''
-            + ", functionOffset="
-            + functionOffset
             + ", sourceFilename='"
             + sourceFilename
             + '\''
@@ -303,18 +267,18 @@ final class TopNFunction implements Cloneable, ToXContentObject, Comparable<TopN
             + ", exeFilename='"
             + exeFilename
             + '\''
-            + ", exclusiveCount="
-            + exclusiveCount
-            + ", inclusiveCount="
-            + inclusiveCount
-            + ", annualCO2TonsExclusive="
-            + annualCO2TonsExclusive
-            + ", annualCO2TonsInclusive="
-            + annualCO2TonsInclusive
-            + ", annualCostsUSDExclusive="
-            + annualCostsUSDExclusive
-            + ", annualCostsUSDInclusive="
-            + annualCostsUSDInclusive
+            + ", selfCount="
+            + selfCount
+            + ", totalCount="
+            + totalCount
+            + ", selfAnnualCO2Tons="
+            + selfAnnualCO2Tons
+            + ", totalAnnualCO2Tons="
+            + totalAnnualCO2Tons
+            + ", selfAnnualCostsUSD="
+            + selfAnnualCostsUSD
+            + ", totalAnnualCostsUSD="
+            + totalAnnualCostsUSD
             + ", subGroups="
             + subGroups
             + '}';
@@ -322,10 +286,10 @@ final class TopNFunction implements Cloneable, ToXContentObject, Comparable<TopN
 
     @Override
     public int compareTo(TopNFunction that) {
-        if (this.exclusiveCount > that.exclusiveCount) {
+        if (this.selfCount > that.selfCount) {
             return 1;
         }
-        if (this.exclusiveCount < that.exclusiveCount) {
+        if (this.selfCount < that.selfCount) {
             return -1;
         }
         return this.id.compareTo(that.id);

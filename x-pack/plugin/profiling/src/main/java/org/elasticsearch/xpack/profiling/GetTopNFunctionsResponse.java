@@ -17,17 +17,13 @@ import java.io.IOException;
 import java.util.List;
 
 public class GetTopNFunctionsResponse extends ActionResponse implements ToXContentObject {
-    private final double samplingRate;
-    private final long totalSamples;
-    private final long selfCPU;
-    private final long totalCPU;
+    private final long selfCount;
+    private final long totalCount;
     private final List<TopNFunction> topNFunctions;
 
-    public GetTopNFunctionsResponse(double samplingRate, long totalSamples, long selfCPU, long totalCPU, List<TopNFunction> topNFunctions) {
-        this.samplingRate = samplingRate;
-        this.totalSamples = totalSamples;
-        this.selfCPU = selfCPU;
-        this.totalCPU = totalCPU;
+    public GetTopNFunctionsResponse(long selfCount, long totalCount, List<TopNFunction> topNFunctions) {
+        this.selfCount = selfCount;
+        this.totalCount = totalCount;
         this.topNFunctions = topNFunctions;
     }
 
@@ -36,20 +32,12 @@ public class GetTopNFunctionsResponse extends ActionResponse implements ToXConte
         TransportAction.localOnly();
     }
 
-    public double getSamplingRate() {
-        return samplingRate;
+    public long getSelfCount() {
+        return selfCount;
     }
 
-    public long getTotalSamples() {
-        return totalSamples;
-    }
-
-    public long getSelfCPU() {
-        return selfCPU;
-    }
-
-    public long getTotalCPU() {
-        return totalCPU;
+    public long getTotalCount() {
+        return totalCount;
     }
 
     public List<TopNFunction> getTopN() {
@@ -59,10 +47,8 @@ public class GetTopNFunctionsResponse extends ActionResponse implements ToXConte
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("sampling_rate", samplingRate);
-        builder.field("total_count", totalSamples);
-        builder.field("self_cpu", selfCPU);
-        builder.field("total_cpu", totalCPU);
+        builder.field("self_count", selfCount);
+        builder.field("total_count", totalCount);
         builder.xContentList("topn", topNFunctions);
         builder.endObject();
         return builder;

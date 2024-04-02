@@ -1521,36 +1521,28 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
         private static Aggregate removeAggDuplicates(Aggregate agg) {
             var groupings = agg.groupings();
-            var newGroupings = new LinkedHashSet<>(groupings);
-            // reuse existing objects
-            groupings = newGroupings.size() == groupings.size() ? groupings : new ArrayList<>(newGroupings);
-
             var aggregates = agg.aggregates();
-            var newAggregates = new ArrayList<>(aggregates);
-            var nameSet = Sets.newHashSetWithExpectedSize(newAggregates.size());
-            var groupNameSet = new LinkedHashSet<>(Expressions.names(groupings));
 
-            // remove duplicates in reverse to preserve the last one appearing
-            // skip groups though
-            for (int i = newAggregates.size() - groupings.size() - 1; i >= 0; i--) {
-                var aggregate = newAggregates.get(i);
-                var aggName = aggregate.name();
-                // if the agg name clashes with the group, remove it
-                if (groupNameSet.contains(aggName)) {
-                    newAggregates.remove(i);
-                }
-                // otherwise if it
-                else if (nameSet.add(aggName) == false) {
-                    newAggregates.remove(i);
+            groupings = removeDuplicateNames(groupings);
+            aggregates = removeDuplicateNames(aggregates);
+
+            // replace EsqlAggregate with Aggregate
+            return new Aggregate(agg.source(), agg.child(), groupings, aggregates);
+        }
+
+        private static <T extends Expression> List<T> removeDuplicateNames(List<T> list) {
+            var newList = new ArrayList<>(list);
+            var nameSet = Sets.newHashSetWithExpectedSize(list.size());
+
+            // remove duplicates
+            for (int i = list.size() - 1; i >= 0; i--) {
+                var element = list.get(i);
+                var name = Expressions.name(element);
+                if (nameSet.add(name) == false) {
+                    newList.remove(i);
                 }
             }
-            // reuse existing objects
-            aggregates = newAggregates.size() == aggregates.size() ? aggregates : newAggregates;
-            // replace aggregate if needed
-            agg = (groupings == agg.groupings() && newAggregates == agg.aggregates())
-                ? agg
-                : new Aggregate(agg.source(), agg.child(), groupings, aggregates);
-            return agg;
+            return newList.size() == list.size() ? list : newList;
         }
     }
 

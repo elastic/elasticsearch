@@ -85,6 +85,7 @@ public class VerifierTests extends ESTestCase {
         );
         // no agg function
         assertEquals("1:19: expected an aggregate function but found [5]", error("from test | stats 5 by emp_no"));
+
         // don't allow naked group
         assertEquals("1:19: grouping key [emp_no] already specified in the STATS BY clause", error("from test | stats emp_no BY emp_no"));
         // don't allow naked group - even when it's an expression
@@ -102,13 +103,13 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             message,
             containsString(
-                "column [emp_no] cannot be used as an aggregate, once declared in the STATS BY grouping key [e = languages + emp_no]"
+                "column [emp_no] cannot be used as an aggregate once declared in the STATS BY grouping key [e = languages + emp_no]"
             )
         );
         assertThat(
             message,
             containsString(
-                " column [languages] cannot be used as an aggregate, once declared in the STATS BY grouping key [e = languages + emp_no]"
+                " column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [e = languages + emp_no]"
             )
         );
     }
@@ -122,27 +123,27 @@ public class VerifierTests extends ESTestCase {
 
     public void testAggsWithInvalidGrouping() {
         assertEquals(
-            "1:35: column [languages] cannot be used as an aggregate, once declared in the STATS BY grouping key [l = languages % 3]",
+            "1:35: column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [l = languages % 3]",
             error("from test| stats max(languages) + languages by l = languages % 3")
         );
     }
 
     public void testGroupingAlias() throws Exception {
         assertEquals(
-            "1:23: column [languages] cannot be used as an aggregate, once declared in the STATS BY grouping key [l = languages % 3]",
+            "1:23: column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [l = languages % 3]",
             error("from test | stats l = languages + 3 by l = languages % 3 | keep l")
         );
     }
 
     public void testGroupingAliasDuplicate() throws Exception {
         assertEquals(
-            "1:22: column [languages] cannot be used as an aggregate, "
+            "1:22: column [languages] cannot be used as an aggregate "
                 + "once declared in the STATS BY grouping key [l = languages % 3, l = languages, l = languages % 2]",
             error("from test| stats l = languages + 3 by l = languages % 3, l = languages, l = languages % 2 | keep l")
         );
 
         assertEquals(
-            "1:22: column [languages] cannot be used as an aggregate, " + "once declared in the STATS BY grouping key [l = languages % 3]",
+            "1:22: column [languages] cannot be used as an aggregate " + "once declared in the STATS BY grouping key [l = languages % 3]",
             error("from test| stats l = languages + 3, l = languages % 2  by l = languages % 3 | keep l")
         );
 
@@ -152,7 +153,7 @@ public class VerifierTests extends ESTestCase {
         // the grouping column should appear verbatim - ignore canonical representation as they complicate things significantly
         // for no real benefit (1+languages != languages + 1)
         assertEquals(
-            "1:39: column [languages] cannot be used as an aggregate, once declared in the STATS BY grouping key [l = languages + 1]",
+            "1:39: column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [l = languages + 1]",
             error("from test| stats max(languages) + 1 + languages by l = languages + 1")
         );
     }

@@ -1205,6 +1205,50 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(Expressions.names(output), contains("b"));
     }
 
+    /**
+     * Expects
+     * Limit[1000[INTEGER]]
+     * \_EsqlAggregate[[emp_no{f}#9 + languages{f}#12 AS emp_no + languages],[MIN(emp_no{f}#9 + languages{f}#12) AS min(emp_no + langu
+     * ages), emp_no + languages{r}#7]]
+     *   \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     */
+    public void testAggsOverGroupingKey() throws Exception {
+        var plan = analyze("""
+            from test
+            | stats min(emp_no + languages) by emp_no + languages
+            """);
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var output = agg.output();
+        assertThat(output, hasSize(2));
+        var aggs = agg.aggregates();
+        var min = as(Alias.unwrap(aggs.get(0)), Min.class);
+        assertThat(min.arguments(), hasSize(1));
+        var group = Alias.unwrap(agg.groupings().get(0));
+        assertEquals(min.arguments().get(0), group);
+    }
+
+    /**
+     * Expects
+     * Limit[1000[INTEGER]]
+     * \_EsqlAggregate[[emp_no{f}#9 + languages{f}#12 AS a],[MIN(a{r}#7) AS min(a), a{r}#7]]
+     *   \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     */
+    public void testAggsOverGroupingKeyWithAlias() throws Exception {
+        var plan = analyze("""
+            from test
+            | stats min(a) by a = emp_no + languages
+            """);
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var output = agg.output();
+        assertThat(output, hasSize(2));
+        var aggs = agg.aggregates();
+        var min = as(Alias.unwrap(aggs.get(0)), Min.class);
+        assertThat(min.arguments(), hasSize(1));
+        assertEquals(Expressions.attribute(min.arguments().get(0)), Expressions.attribute(agg.groupings().get(0)));
+    }
+
     public void testAggsWithoutAgg() throws Exception {
         var plan = analyze("""
             row a = 1, b = 2

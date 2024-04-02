@@ -313,6 +313,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(aggregates), contains("x", "languages"));
         var alias = as(aggregates.get(0), Alias.class);
         var max = as(alias.child(), Max.class);
+        assertThat(Expressions.name(max.arguments().get(0)), equalTo("emp_no"));
     }
 
     // expected stats b by b (grouping overrides the rest of the aggs)

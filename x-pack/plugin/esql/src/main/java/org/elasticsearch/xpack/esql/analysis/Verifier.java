@@ -207,7 +207,9 @@ public class Verifier {
             // don't do anything
         } else if (groups.contains(e) || groupRefs.contains(e)) {
             if (level == 0) {
-                failures.add(fail(e, "grouping key [{}] already specified in the STATS BY clause", e.sourceText()));
+                failures.add(
+                    fail(e, "grouping key [{}] cannot be used as an aggregate once declared in the STATS BY clause", e.sourceText())
+                );
             }
         }
         // if a reference is found, mark it as an error
@@ -219,7 +221,7 @@ public class Verifier {
                     failures.add(
                         fail(
                             e,
-                            "column [{}] cannot be used as an aggregate, once declared in the STATS BY grouping key [{}]",
+                            "column [{}] cannot be used as an aggregate once declared in the STATS BY grouping key [{}]",
                             ne.name(),
                             g.sourceText()
                         )

@@ -1188,6 +1188,19 @@ e:i | l:i
 4   | 3
 ;
 
+nestedAggsOverGroupingTwiceWithAlias#[skip:-8.12.99,reason:supported in 8.13]
+FROM employees
+| STATS vals = COUNT() BY x = emp_no, x = languages
+| SORT x
+| LIMIT 3
+;
+
+vals: l| x:i
+15     | 1
+19     | 2
+17     | 3
+;
+
 nestedAggsOverGroupingWithAlias#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
 | STATS e = length(f) + 1, count(*) by f = first_name

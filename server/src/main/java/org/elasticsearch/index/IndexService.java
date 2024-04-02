@@ -1180,7 +1180,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     // this setting is intentionally not registered, it is only used in tests
     public static final Setting<TimeValue> RETENTION_LEASE_SYNC_INTERVAL_SETTING = Setting.timeSetting(
         "index.soft_deletes.retention_lease.sync_interval",
-        new TimeValue(30, TimeUnit.SECONDS),
+        new TimeValue(300, TimeUnit.DAYS),
         new TimeValue(0, TimeUnit.MILLISECONDS),
         Property.Dynamic,
         Property.IndexScope

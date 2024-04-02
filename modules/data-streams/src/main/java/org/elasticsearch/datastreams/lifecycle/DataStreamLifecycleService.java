@@ -773,6 +773,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         }
     }
 
+    /**
+     * This method will attempt to rollover the write index of a data stream. The rollover will occur only if the conditions
+     * apply. In any case, we return the write backing index back to the caller, so it can be excluded from the next steps.
+     * @return the write index of this data stream before rollover was requested.
+     */
     private Set<Index> maybeExecuteRollover(ClusterState state, DataStream dataStream) {
         Index currentRunWriteIndex = dataStream.getWriteIndex();
         try {

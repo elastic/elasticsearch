@@ -36,7 +36,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
-import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
@@ -44,15 +43,12 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.lookup.FieldLookup;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
-import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -661,6 +657,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     assertThat(hit.getSourceAsMap().size(), equalTo(1));
                     assertThat(hit.getSourceAsMap().get("text").toString(), equalTo("some text to entertain"));
                     assertEquals("some text to entertain", hit.getFields().get("text").getValue());
+                    assertEquals("some text to entertain", hit.getFields().get("text_stored_lookup").getValue());
                 }
             }
         );
@@ -1273,26 +1270,32 @@ public class TopHitsIT extends ESIntegTestCase {
     public static class FetchPlugin extends Plugin implements SearchPlugin {
         @Override
         public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
-            return Collections.singletonList(fetchContext -> new FetchSubPhaseProcessor() {
+            return Collections.singletonList(fetchContext -> {
+                if (fetchContext.getIndexName().equals("idx")) {
+                    return new FetchSubPhaseProcessor() {
 
-                private LeafSearchLookup leafSearchLookup;
+                        private LeafSearchLookup leafSearchLookup;
 
-                @Override
-                public void setNextReader(LeafReaderContext ctx) {
-                    leafSearchLookup = fetchContext.getSearchExecutionContext().lookup().getLeafSearchLookup(ctx);
+                        @Override
+                        public void setNextReader(LeafReaderContext ctx) {
+                            leafSearchLookup = fetchContext.getSearchExecutionContext().lookup().getLeafSearchLookup(ctx);
+                        }
+
+                        @Override
+                        public void process(FetchSubPhase.HitContext hitContext) {
+                            leafSearchLookup.setDocument(hitContext.docId());
+                            FieldLookup fieldLookup = leafSearchLookup.fields().get("text");
+                            hitContext.hit()
+                                .setDocumentField("text_stored_lookup", new DocumentField("text_stored_lookup", fieldLookup.getValues()));
+                        }
+
+                        @Override
+                        public StoredFieldsSpec storedFieldsSpec() {
+                            return StoredFieldsSpec.NO_REQUIREMENTS;
+                        }
+                    };
                 }
-
-                @Override
-                public void process(FetchSubPhase.HitContext hitContext) {
-                    leafSearchLookup.setDocument(hitContext.docId());
-                    FieldLookup fieldLookup = leafSearchLookup.fields().get("text");
-                    hitContext.hit().setDocumentField("text_stored_lookup", new DocumentField("text_stored_lookup", fieldLookup.getValues()));
-                }
-
-                @Override
-                public StoredFieldsSpec storedFieldsSpec() {
-                    return StoredFieldsSpec.NEEDS_SOURCE;
-                }
+                return null;
             });
         }
     }

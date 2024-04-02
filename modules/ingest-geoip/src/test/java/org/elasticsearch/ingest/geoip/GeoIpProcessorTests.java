@@ -14,7 +14,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.ingest.geoip.GeoIpProcessor.Property;
+import org.elasticsearch.ingest.geoip.Database.Property;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

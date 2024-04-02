@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -248,26 +247,16 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                                     }
                                 })
 
-                                .<SnapshotsInRepo>andThen((l, repositoryData) -> loadSnapshotInfos(repoName, repositoryData, l))
+                                .<Void>andThen((l, repositoryData) -> loadSnapshotInfos(repoName, repositoryData, l))
 
-                                .addListener(new DelegatingActionListener<>(listeners.acquire()) {
-                                    @Override
-                                    public void onResponse(SnapshotsInRepo snapshotsInRepo) {
-                                        allSnapshotInfos.add(snapshotsInRepo.snapshotInfos());
-                                        totalCount.addAndGet(snapshotsInRepo.totalCount());
-                                        delegate.onResponse(null);
+                                .addListener(listeners.acquire().delegateResponse((l, e) -> {
+                                    if (isMultiRepoRequest && e instanceof ElasticsearchException elasticsearchException) {
+                                        failuresByRepository.put(repoName, elasticsearchException);
+                                        l.onResponse(null);
+                                    } else {
+                                        l.onFailure(e);
                                     }
-
-                                    @Override
-                                    public void onFailure(Exception e) {
-                                        if (isMultiRepoRequest && e instanceof ElasticsearchException elasticsearchException) {
-                                            failuresByRepository.put(repoName, elasticsearchException);
-                                            delegate.onResponse(null);
-                                        } else {
-                                            delegate.onFailure(e);
-                                        }
-                                    }
-                                });
+                                }));
                         }
                     }
                 })
@@ -284,7 +273,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             }
         }
 
-        private void loadSnapshotInfos(String repo, @Nullable RepositoryData repositoryData, ActionListener<SnapshotsInRepo> listener) {
+        private void loadSnapshotInfos(String repo, @Nullable RepositoryData repositoryData, ActionListener<Void> listener) {
             assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT);
 
             if (cancellableTask.notifyIfCancelled(listener)) {
@@ -322,24 +311,17 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 assert fromSortValuePredicates.isMatchAll() : "filtering is not supported in non-verbose mode";
                 assert slmPolicyPredicate == SlmPolicyPredicate.MATCH_ALL_POLICIES : "filtering is not supported in non-verbose mode";
 
-                listener.onResponse(
-                    buildSimpleSnapshotInfos(
-                        toResolve,
-                        repo,
-                        repositoryData,
-                        snapshotsInProgress.forRepo(repo).stream().map(entry -> SnapshotInfo.inProgress(entry).basic()).toList()
-                    )
+                addSimpleSnapshotInfos(
+                    toResolve,
+                    repo,
+                    repositoryData,
+                    snapshotsInProgress.forRepo(repo).stream().map(entry -> SnapshotInfo.inProgress(entry).basic()).toList()
                 );
+                listener.onResponse(null);
             }
         }
 
-        /**
-         * Returns a list of snapshots from repository sorted by snapshot creation date
-         *
-         * @param repositoryName repository name
-         * @param snapshotIds    snapshots for which to fetch snapshot information
-         */
-        private void snapshots(String repositoryName, Collection<SnapshotId> snapshotIds, ActionListener<SnapshotsInRepo> listener) {
+        private void snapshots(String repositoryName, Collection<SnapshotId> snapshotIds, ActionListener<Void> listener) {
             if (cancellableTask.notifyIfCancelled(listener)) {
                 return;
             }
@@ -416,12 +398,14 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     }
                 })
 
-                .addListener(listener.safeMap(v ->
-                // no need to synchronize access to snapshots: Repository#getSnapshotInfo fails fast but we're on the success path here
-                applyAfterPredicate(snapshots)), executor, threadPool.getThreadContext());
+                .addListener(listener.safeMap(v -> {
+                    // no need to synchronize access to snapshots: Repository#getSnapshotInfo fails fast but we're on the success path here
+                    applyAfterPredicateAndAdd(snapshots);
+                    return null;
+                }), executor, threadPool.getThreadContext());
         }
 
-        private SnapshotsInRepo buildSimpleSnapshotInfos(
+        private void addSimpleSnapshotInfos(
             final Set<Snapshot> toResolve,
             final String repoName,
             final RepositoryData repositoryData,
@@ -429,7 +413,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         ) {
             if (repositoryData == null) {
                 // only want current snapshots
-                return applyAfterPredicate(currentSnapshots);
+                applyAfterPredicateAndAdd(currentSnapshots);
+                return;
             } // else want non-current snapshots as well, which are found in the repository data
 
             List<SnapshotInfo> snapshotInfos = new ArrayList<>();
@@ -460,11 +445,12 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     )
                 );
             }
-            return applyAfterPredicate(snapshotInfos);
+            applyAfterPredicateAndAdd(snapshotInfos);
         }
 
-        private SnapshotsInRepo applyAfterPredicate(List<SnapshotInfo> snapshotInfos) {
-            return new SnapshotsInRepo(snapshotInfos.stream().filter(afterPredicate).toList(), snapshotInfos.size());
+        private void applyAfterPredicateAndAdd(List<SnapshotInfo> snapshotInfos) {
+            allSnapshotInfos.add(snapshotInfos.stream().filter(afterPredicate).toList());
+            totalCount.addAndGet(snapshotInfos.size());
         }
 
         private GetSnapshotsResponse buildResponse() {
@@ -671,8 +657,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             return indexCount;
         }
     }
-
-    private record SnapshotsInRepo(List<SnapshotInfo> snapshotInfos, int totalCount) {}
 
     /**
      * Throttling executor for retrieving {@link SnapshotInfo} instances from the repository without spamming the SNAPSHOT_META threadpool

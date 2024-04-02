@@ -236,9 +236,25 @@ public class MaxMindSupportTests extends ESTestCase {
                     + "do not support for it. Update TYPE_TO_UNSUPPORTED_FIELDS_MAP",
                 unsupportedFields
             );
-            final SortedSet<String> fieldNames = getFieldNamesUsedFromClass(maxMindClass);
-            SortedSet<String> unusedFields = new TreeSet<>(fieldNames);
+            /*
+             * fieldNamesFromMaxMind:        The fields that MaxMind's Response object contains
+             * unusedFields:                 Fields that MaxMind's Response object contains that we do not claim to support
+             * unknownUnsupportedFieldNames: Fields that we document as unsupported that MaxMind's Response object doesn't even contain
+             * unknownSupportedFieldNames:   Fields that we document as supported that MaxMind's Response object doesn't even contain
+             */
+            final SortedSet<String> fieldNamesFromMaxMind = getFieldNamesUsedFromClass(maxMindClass);
+            SortedSet<String> unusedFields = new TreeSet<>(fieldNamesFromMaxMind);
             unusedFields.removeAll(supportedFields);
+            SortedSet<String> unknownUnsupportedFieldNames = new TreeSet<>(unsupportedFields);
+            unknownUnsupportedFieldNames.removeAll(unusedFields);
+            assertThat(
+                "We have documented fields in TYPE_TO_UNSUPPORTED_FIELDS_MAP that MaxMind does not actually support for "
+                    + databaseType
+                    + ": "
+                    + unknownUnsupportedFieldNames,
+                unknownUnsupportedFieldNames,
+                equalTo(Set.of())
+            );
             assertThat(
                 "New MaxMind fields have been added for "
                     + databaseType
@@ -247,12 +263,12 @@ public class MaxMindSupportTests extends ESTestCase {
                 unusedFields,
                 equalTo(new TreeSet<>(unsupportedFields))
             );
-            SortedSet<String> nonexistentFields = new TreeSet<>(supportedFields);
-            nonexistentFields.removeAll(fieldNames);
+            SortedSet<String> unknownSupportedFieldNames = new TreeSet<>(supportedFields);
+            unknownSupportedFieldNames.removeAll(fieldNamesFromMaxMind);
             assertThat(
-                "We are attempting to use fields that MaxMind does not support for " + databaseType,
-                nonexistentFields.size(),
-                equalTo(0)
+                "We are attempting to use fields that MaxMind does not support for " + databaseType + ": " + unknownSupportedFieldNames,
+                unknownSupportedFieldNames,
+                equalTo(Set.of())
             );
         }
     }

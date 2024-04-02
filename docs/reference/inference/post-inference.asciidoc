@@ -33,8 +33,8 @@ own model, use the <<ml-df-trained-models-apis>>.
 ==== {api-description-title}
 
 The perform {infer} API enables you to use {ml} models to perform specific tasks
-on data that you provide as an input. The API returns a response with the 
-resutls of the tasks. The {infer} model you use can perform one specific task
+on data that you provide as an input. The API returns a response with the
+results of the tasks. The {infer} model you use can perform one specific task
 that has been defined when the model was created with the <<put-inference-api>>.
 
 
@@ -60,6 +60,10 @@ The type of {infer} task that the model performs.
 (Required, array of strings)
 The text on which you want to perform the {infer} task.
 `input` can be a single string or an array.
+[NOTE]
+====
+Inference endpoints for the `completion` task type currently only support a single string as input.
+====
 
 
 [discrete]
@@ -104,6 +108,35 @@ The API returns the following response:
       (...)
     },
     (...)
+  ]
+}
+------------------------------------------------------------
+// NOTCONSOLE
+
+
+The next example performs a completion on the example question.
+
+
+[source,console]
+------------------------------------------------------------
+POST _inference/completion/openai_chat_completions
+{
+  "input": "What is Elastic?"
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+
+The API returns the following response:
+
+
+[source,console-result]
+------------------------------------------------------------
+{
+  "completion": [
+    {
+      "result": "Elastic is a company that provides a range of software solutions for search, logging, security, and analytics. Their flagship product is Elasticsearch, an open-source, distributed search engine that allows users to search, analyze, and visualize large volumes of data in real-time. Elastic also offers products such as Kibana, a data visualization tool, and Logstash, a log management and pipeline tool, as well as various other tools and solutions for data analysis and management."
+    }
   ]
 }
 ------------------------------------------------------------

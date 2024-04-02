@@ -11,9 +11,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
@@ -636,7 +636,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                 if (bulkRequest.numberOfActions() > 0) {
                     refs.mustIncRef();
                     clientWithOrigin.execute(
-                        BulkAction.INSTANCE,
+                        TransportBulkAction.TYPE,
                         bulkRequest,
                         ActionListener.releaseAfter(listeners.acquire(bulkResponse -> {
                             for (BulkItemResponse itemResponse : bulkResponse.getItems()) {

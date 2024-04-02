@@ -327,28 +327,19 @@ $endif$
     $else$
             if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
                 theBlock = blockFactory.newConstant$Type$BlockWith(values[0], 1, estimatedBytes);
+            } else if (estimatedBytes > blockFactory.maxPrimitiveArrayBytes()) {
+                theBlock = buildBigArraysBlock();
+            } else if (isDense() && singleValued()) {
+                theBlock = blockFactory.new$Type$ArrayVector(values, positionCount, estimatedBytes).asBlock();
             } else {
-                if (estimatedBytes > blockFactory.maxPrimitiveArrayBytes()) {
-                    theBlock = buildBigArraysBlock();
-                } else {
-                    if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-                        adjustBreaker(valueCount * elementSize());
-                        values = Arrays.copyOf(values, valueCount);
-                        adjustBreaker(-values.length * elementSize());
-                    }
-                    if (isDense() && singleValued()) {
-                        theBlock = blockFactory.new$Type$ArrayVector(values, positionCount, estimatedBytes).asBlock();
-                    } else {
-                        theBlock = blockFactory.new$Type$ArrayBlock(
-                            values,
-                            positionCount,
-                            firstValueIndexes,
-                            nullsMask,
-                            mvOrdering,
-                            estimatedBytes
-                        );
-                    }
-                }
+                theBlock = blockFactory.new$Type$ArrayBlock(
+                    values, // stylecheck
+                    positionCount,
+                    firstValueIndexes,
+                    nullsMask,
+                    mvOrdering,
+                    estimatedBytes
+                );
             }
     $endif$
             built();

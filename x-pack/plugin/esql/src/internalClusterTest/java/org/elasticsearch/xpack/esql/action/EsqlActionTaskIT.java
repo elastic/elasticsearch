@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.esql.action;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.collect.Iterators;
@@ -76,6 +76,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
     private String READ_DESCRIPTION;
     private String MERGE_DESCRIPTION;
     private String REDUCE_DESCRIPTION;
+    private boolean nodeLevelReduction;
 
     @Before
     public void setup() {
@@ -94,6 +95,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         REDUCE_DESCRIPTION = """
             \\_ExchangeSourceOperator[]
             \\_ExchangeSinkOperator""";
+        nodeLevelReduction = randomBoolean();
     }
 
     public void testTaskContents() throws Exception {
@@ -209,34 +211,43 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
     }
 
     private ActionFuture<EsqlQueryResponse> startEsql() {
+        return startEsql("from test | stats sum(pause_me)");
+    }
+
+    private ActionFuture<EsqlQueryResponse> startEsql(String query) {
         scriptPermits.drainPermits();
         scriptPermits.release(between(1, 5));
-        var pragmas = new QueryPragmas(
-            Settings.builder()
-                // Force shard partitioning because that's all the tests know how to match. It is easier to reason about too.
-                .put("data_partitioning", "shard")
-                // Limit the page size to something small so we do more than one page worth of work, so we get more status updates.
-                .put("page_size", pageSize())
-                // Report the status after every action
-                .put("status_interval", "0ms")
-                .build()
-        );
-        return EsqlQueryRequestBuilder.newSyncEsqlQueryRequestBuilder(client())
-            .query("from test | stats sum(pause_me)")
-            .pragmas(pragmas)
-            .execute();
+        var settingsBuilder = Settings.builder()
+            // Force shard partitioning because that's all the tests know how to match. It is easier to reason about too.
+            .put("data_partitioning", "shard")
+            // Limit the page size to something small so we do more than one page worth of work, so we get more status updates.
+            .put("page_size", pageSize())
+            // Report the status after every action
+            .put("status_interval", "0ms");
+
+        if (nodeLevelReduction == false) {
+            // explicitly set the default (false) or don't
+            if (randomBoolean()) {
+                settingsBuilder.put("node_level_reduction", nodeLevelReduction);
+            }
+        } else {
+            settingsBuilder.put("node_level_reduction", nodeLevelReduction);
+        }
+
+        var pragmas = new QueryPragmas(settingsBuilder.build());
+        return EsqlQueryRequestBuilder.newSyncEsqlQueryRequestBuilder(client()).query(query).pragmas(pragmas).execute();
     }
 
     private void cancelTask(TaskId taskId) {
         CancelTasksRequest request = new CancelTasksRequest().setTargetTaskId(taskId).setReason("test cancel");
         request.setWaitForCompletion(false);
         LOGGER.debug("--> cancelling task [{}] without waiting for completion", taskId);
-        client().admin().cluster().execute(CancelTasksAction.INSTANCE, request).actionGet();
+        client().admin().cluster().execute(TransportCancelTasksAction.TYPE, request).actionGet();
         scriptPermits.release(numberOfDocs());
         request = new CancelTasksRequest().setTargetTaskId(taskId).setReason("test cancel");
         request.setWaitForCompletion(true);
         LOGGER.debug("--> cancelling task [{}] with waiting for completion", taskId);
-        client().admin().cluster().execute(CancelTasksAction.INSTANCE, request).actionGet();
+        client().admin().cluster().execute(TransportCancelTasksAction.TYPE, request).actionGet();
     }
 
     /**
@@ -404,6 +415,67 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             }
         } finally {
             transportService.clearAllRules();
+        }
+    }
+
+    public void testTaskContentsForTopNQuery() throws Exception {
+        READ_DESCRIPTION = ("\\_LuceneTopNSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 1000, "
+            + "sorts = [{\"pause_me\":{\"order\":\"asc\",\"missing\":\"_last\",\"unmapped_type\":\"long\"}}]]\n"
+            + "\\_ValuesSourceReaderOperator[fields = [pause_me]]\n"
+            + "\\_ProjectOperator[projection = [1]]\n"
+            + "\\_ExchangeSinkOperator").replace("pageSize()", Integer.toString(pageSize()));
+        MERGE_DESCRIPTION = "\\_ExchangeSourceOperator[]\n"
+            + "\\_TopNOperator[count=1000, elementTypes=[LONG], encoders=[DefaultSortable], "
+            + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]\n"
+            + "\\_ProjectOperator[projection = [0]]\n"
+            + "\\_OutputOperator[columns = [pause_me]]";
+        REDUCE_DESCRIPTION = "\\_ExchangeSourceOperator[]\n"
+            + (nodeLevelReduction
+                ? "\\_TopNOperator[count=1000, elementTypes=[LONG], encoders=[DefaultSortable], "
+                    + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]\n"
+                : "")
+            + "\\_ExchangeSinkOperator";
+
+        ActionFuture<EsqlQueryResponse> response = startEsql("from test | sort pause_me | keep pause_me");
+        try {
+            getTasksStarting();
+            scriptPermits.release(pageSize());
+            getTasksRunning();
+        } finally {
+            // each scripted field "emit" is called by LuceneTopNSourceOperator and by ValuesSourceReaderOperator
+            scriptPermits.release(2 * numberOfDocs());
+            try (EsqlQueryResponse esqlResponse = response.get()) {
+                assertThat(Iterators.flatMap(esqlResponse.values(), i -> i).next(), equalTo(1L));
+            }
+        }
+    }
+
+    public void testTaskContentsForLimitQuery() throws Exception {
+        String limit = Integer.toString(randomIntBetween(pageSize() + 1, 2 * numberOfDocs()));
+        READ_DESCRIPTION = """
+            \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = limit()]
+            \\_ValuesSourceReaderOperator[fields = [pause_me]]
+            \\_ProjectOperator[projection = [1]]
+            \\_ExchangeSinkOperator""".replace("pageSize()", Integer.toString(pageSize())).replace("limit()", limit);
+        MERGE_DESCRIPTION = """
+            \\_ExchangeSourceOperator[]
+            \\_LimitOperator[limit = limit()]
+            \\_ProjectOperator[projection = [0]]
+            \\_OutputOperator[columns = [pause_me]]""".replace("limit()", limit);
+        REDUCE_DESCRIPTION = ("\\_ExchangeSourceOperator[]\n"
+            + (nodeLevelReduction ? "\\_LimitOperator[limit = limit()]\n" : "")
+            + "\\_ExchangeSinkOperator").replace("limit()", limit);
+
+        ActionFuture<EsqlQueryResponse> response = startEsql("from test | keep pause_me | limit " + limit);
+        try {
+            getTasksStarting();
+            scriptPermits.release(pageSize());
+            getTasksRunning();
+        } finally {
+            scriptPermits.release(numberOfDocs());
+            try (EsqlQueryResponse esqlResponse = response.get()) {
+                assertThat(Iterators.flatMap(esqlResponse.values(), i -> i).next(), equalTo(1L));
+            }
         }
     }
 

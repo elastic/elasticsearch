@@ -48,6 +48,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -78,7 +79,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonList;
@@ -809,8 +809,23 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         }
 
         @Override
-        public Function<String, Predicate<String>> getFieldFilter() {
-            return index -> field -> field.equals("playlist") == false;
+        public Function<String, FieldPredicate> getFieldFilter() {
+            return index -> new FieldPredicate() {
+                @Override
+                public boolean test(String field) {
+                    return field.equals("playlist") == false;
+                }
+
+                @Override
+                public String modifyHash(String hash) {
+                    return "not-playlist:" + hash;
+                }
+
+                @Override
+                public long ramBytesUsed() {
+                    return 0;
+                }
+            };
         }
     }
 

@@ -52,6 +52,10 @@ definition decompression and skips relevant validations.
 This deferral is useful for systems or users that know a good byte size estimate for their
 model and know that their model is valid and likely won't fail during inference.
 
+`wait_for_completion`::
+(Optional, boolean)
+Whether to wait for all child operations such as model download
+to complete, before returning or not. Defaults to `false`.
 
 [role="child_attributes"]
 [[ml-put-trained-models-request-body]]

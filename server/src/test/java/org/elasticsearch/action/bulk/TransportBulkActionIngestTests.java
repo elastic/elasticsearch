@@ -442,7 +442,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
-        verify(transportService).sendRequest(node.capture(), eq(BulkAction.NAME), any(), remoteResponseHandler.capture());
+        verify(transportService).sendRequest(node.capture(), eq(TransportBulkAction.NAME), any(), remoteResponseHandler.capture());
         boolean usedNode1 = node.getValue() == remoteNode1; // make sure we used one of the nodes
         if (usedNode1 == false) {
             assertSame(remoteNode2, node.getValue());
@@ -457,7 +457,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         // now make sure ingest nodes are rotated through with a subsequent request
         reset(transportService);
         ActionTestUtils.execute(action, null, bulkRequest, listener);
-        verify(transportService).sendRequest(node.capture(), eq(BulkAction.NAME), any(), remoteResponseHandler.capture());
+        verify(transportService).sendRequest(node.capture(), eq(TransportBulkAction.NAME), any(), remoteResponseHandler.capture());
         if (usedNode1) {
             assertSame(remoteNode2, node.getValue());
         } else {
@@ -482,7 +482,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
-        verify(transportService).sendRequest(node.capture(), eq(BulkAction.NAME), any(), remoteResponseHandler.capture());
+        verify(transportService).sendRequest(node.capture(), eq(TransportBulkAction.NAME), any(), remoteResponseHandler.capture());
         boolean usedNode1 = node.getValue() == remoteNode1; // make sure we used one of the nodes
         if (usedNode1 == false) {
             assertSame(remoteNode2, node.getValue());
@@ -500,7 +500,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         // now make sure ingest nodes are rotated through with a subsequent request
         reset(transportService);
         ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, listener);
-        verify(transportService).sendRequest(node.capture(), eq(BulkAction.NAME), any(), remoteResponseHandler.capture());
+        verify(transportService).sendRequest(node.capture(), eq(TransportBulkAction.NAME), any(), remoteResponseHandler.capture());
         if (usedNode1) {
             assertSame(remoteNode2, node.getValue());
         } else {

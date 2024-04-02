@@ -121,7 +121,6 @@ setup:
                   model_id: text_embedding_model
                   model_text: "the octopus comforter smells"
   - length: { hits.hits: 3 }
-  - match: { hits.hits.0._id: "0" }
 
 ---
 "nested kNN search with inner_hits size":

@@ -59,3 +59,7 @@ user-dls:
 user-cancel:
   cluster:
     - cancel_task
+
+user-monitor:
+  cluster:
+    - monitor

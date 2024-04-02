@@ -215,11 +215,14 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104890")
     public void testMissingVersionIsNotValid() throws IOException {
-        String json = """
+        String missingVersion = randomBoolean() ? "" : ", \"version\": \"\"";
+        String json = String.format("""
             {
                 "columnar": true,
                 "query": "row x = 1"
-            }""";
+                %s
+            }""", missingVersion);
+
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         assertNotNull(request.validate());
         assertThat(request.validate().getMessage(), containsString("[version] is required"));
@@ -237,13 +240,13 @@ public class EsqlQueryRequestTests extends ESTestCase {
     }
 
     public void testPragmasOnlyValidOnSnapshot() throws IOException {
-        String json = String.format(Locale.ROOT, """
+        String json = """
             {
                 "version": "2024.04.01",
                 "query": "ROW x = 1",
                 "pragma": {"foo": "bar"}
             }
-            """);
+            """;
 
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         request.onSnapshotBuild(true);

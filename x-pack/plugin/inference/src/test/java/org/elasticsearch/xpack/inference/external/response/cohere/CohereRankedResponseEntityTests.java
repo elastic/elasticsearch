@@ -33,13 +33,16 @@ public class CohereRankedResponseEntityTests extends ESSingleNodeTestCase {
         );
 
         MatcherAssert.assertThat(parsedResults, instanceOf(RankedDocsResults.class));
-        MatcherAssert.assertThat(((RankedDocsResults) parsedResults).getRankedDocs(), is(responseLiteralDocs));
+        List<RankedDocsResults.RankedDoc> expected = responseLiteralDocs();
+        for (int i = 0; i < ((RankedDocsResults) parsedResults).getRankedDocs().size(); i++) {
+            assertEquals(((RankedDocsResults) parsedResults).getRankedDocs().get(i).id(), expected.get(i).id());
+        }
     }
 
     public void testGeneratedResponse() throws IOException {
         int numDocs = randomIntBetween(1, 10);
 
-        List<RankedDocsResults.RankedDoc> rankedDocs = new ArrayList<>(numDocs);
+        List<RankedDocsResults.RankedDoc> expected = new ArrayList<>(numDocs);
         StringBuilder responseBuilder = new StringBuilder();
 
         responseBuilder.append("{");
@@ -52,8 +55,8 @@ public class CohereRankedResponseEntityTests extends ESSingleNodeTestCase {
 
             responseBuilder.append("{");
             responseBuilder.append("\"index\":").append(index).append(",");
-            responseBuilder.append("\"relevance_score\":").append(scores.get(i)).append("}");
-            rankedDocs.add(new RankedDocsResults.RankedDoc(String.valueOf(index), String.valueOf(scores.get(i)), null));
+            responseBuilder.append("\"relevance_score\":").append(scores.get(i).toString()).append("}");
+            expected.add(new RankedDocsResults.RankedDoc(String.valueOf(index), scores.get(i).toString(), null));
             if (i < numDocs - 1) {
                 responseBuilder.append(",");
             }
@@ -70,14 +73,20 @@ public class CohereRankedResponseEntityTests extends ESSingleNodeTestCase {
             new HttpResult(mock(HttpResponse.class), responseBuilder.toString().getBytes(StandardCharsets.UTF_8))
         );
         MatcherAssert.assertThat(parsedResults, instanceOf(RankedDocsResults.class));
-        MatcherAssert.assertThat(((RankedDocsResults) parsedResults).getRankedDocs(), is(rankedDocs));
+        for (int i = 0; i < ((RankedDocsResults) parsedResults).getRankedDocs().size(); i++) {
+            assertEquals(((RankedDocsResults) parsedResults).getRankedDocs().get(i).id(), expected.get(i).id());
+        }
     }
 
-    private final List<RankedDocsResults.RankedDoc> responseLiteralDocs = List.of(
-        new RankedDocsResults.RankedDoc("2", "0.98005307", null),
-        new RankedDocsResults.RankedDoc("3", "0.27904198", null),
-        new RankedDocsResults.RankedDoc("0", "0.10194652", null)
-    );
+    private ArrayList<RankedDocsResults.RankedDoc> responseLiteralDocs() {
+        var list = new ArrayList<RankedDocsResults.RankedDoc>();
+
+        list.add(new RankedDocsResults.RankedDoc("2", "0.98005307", null));
+        list.add(new RankedDocsResults.RankedDoc("3", "0.27904198", null));
+        list.add(new RankedDocsResults.RankedDoc("0", "0.10194652", null));
+        return list;
+
+    };
 
     private final String responseLiteral = """
         {

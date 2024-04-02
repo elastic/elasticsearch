@@ -50,9 +50,7 @@ public class RankedDocsResults implements InferenceServiceResults {
 
             builder.field(ID, id);
             builder.field(RELEVANCE_SCORE, relevanceScore);
-            if (text() != null) {
-                builder.field(TEXT, text);
-            }
+            builder.field(TEXT, text);
 
             builder.endObject();
 
@@ -68,6 +66,22 @@ public class RankedDocsResults implements InferenceServiceResults {
 
         public Map<String, Object> asMap() {
             return Map.of(NAME, Map.of(ID, id, RELEVANCE_SCORE, relevanceScore, TEXT, text));
+        }
+
+        public String toString() {
+            return "RankedDoc{"
+                + "id='"
+                + id
+                + '\''
+                + ", relevanceScore='"
+                + relevanceScore
+                + '\''
+                + ", text='"
+                + text
+                + '\''
+                + ", hashcode="
+                + hashCode()
+                + '}';
         }
     };
 

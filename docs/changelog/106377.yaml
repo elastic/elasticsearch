@@ -1,0 +1,5 @@
+pr: 106377
+summary: Add transport version for search load autoscaling
+area: Search
+type: enhancement
+issues: []

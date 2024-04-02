@@ -182,17 +182,14 @@ public class ServiceUtils {
     }
 
     public static SimilarityMeasure extractSimilarity(Map<String, Object> map, String scope, ValidationException validationException) {
-        String similarity = extractOptionalString(map, SIMILARITY, scope, validationException);
-
-        if (similarity != null) {
-            try {
-                return SimilarityMeasure.fromString(similarity);
-            } catch (IllegalArgumentException iae) {
-                validationException.addValidationError("[" + scope + "] Unknown similarity measure [" + similarity + "]");
-            }
-        }
-
-        return null;
+        return extractOptionalEnum(
+            map,
+            SIMILARITY,
+            scope,
+            SimilarityMeasure::fromString,
+            EnumSet.allOf(SimilarityMeasure.class),
+            validationException
+        );
     }
 
     public static String extractRequiredString(

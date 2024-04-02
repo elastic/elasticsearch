@@ -10,12 +10,16 @@ package org.elasticsearch.vec;
 
 import java.io.IOException;
 
+/** A scorer of vectors. */
 public interface VectorScorer {
 
+    /** Computes the score of the vectors at the given ordinals. */
     float score(int firstOrd, int secondOrd) throws IOException;
 
+    /** The per-vector dimension size. */
     int dims();
 
+    /** The maximum ordinal of vector this scorer can score. */
     int maxOrd();
 
 }

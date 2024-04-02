@@ -28,5 +28,3 @@ tasks.withType(CheckForbiddenApisTask).configureEach {
 
 // hack for now, fix the jarhell check for MRJar
 tasks.named("jarHell").configure { enabled = false }
-
-tasks.named("javadoc").configure { enabled = false }

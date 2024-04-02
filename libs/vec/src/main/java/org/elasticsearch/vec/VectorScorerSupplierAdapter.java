@@ -13,6 +13,7 @@ import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 
 import java.io.IOException;
 
+/** An adapter between VectorScorer and RandomVectorScorerSupplier. */
 public final class VectorScorerSupplierAdapter implements RandomVectorScorerSupplier {
 
     private final VectorScorer scorer;

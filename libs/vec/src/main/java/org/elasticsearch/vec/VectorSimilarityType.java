@@ -10,6 +10,7 @@ package org.elasticsearch.vec;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 
+/** Vector similarity type. */
 public enum VectorSimilarityType {
 
     COSINE,
@@ -20,6 +21,7 @@ public enum VectorSimilarityType {
 
     MAXIMUM_INNER_PRODUCT;
 
+    /** Converts from the given vector similarity type to this similarity type. */
     public static VectorSimilarityType of(VectorSimilarityFunction func) {
         return switch (func) {
             case EUCLIDEAN -> VectorSimilarityType.EUCLIDEAN;
@@ -29,6 +31,7 @@ public enum VectorSimilarityType {
         };
     }
 
+    /** Converts from this vector similarity type to VectorSimilarityFunction. */
     public static VectorSimilarityFunction of(VectorSimilarityType func) {
         return switch (func) {
             case EUCLIDEAN -> VectorSimilarityFunction.EUCLIDEAN;

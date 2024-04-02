@@ -12,7 +12,3 @@ dependencies {
   compileOnly project(':x-pack:plugin:core')
   clusterPlugins project(':qa:logging-spi')
 }
-
-tasks.named("javaRestTest").configure {
-  usesDefaultDistribution()
-}

@@ -17,6 +17,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -100,9 +102,14 @@ public final class RestQueryApiKeyAction extends ApiKeyBaseRestHandler {
     }
 
     @Override
+    protected Set<String> responseParams() {
+        return Set.of(RestSearchAction.TYPED_KEYS_PARAM);
+    }
+
+    @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final boolean withLimitedBy = request.paramAsBoolean("with_limited_by", false);
-
+        final boolean withProfileUid = request.paramAsBoolean("with_profile_uid", false);
         final QueryApiKeyRequest queryApiKeyRequest;
         if (request.hasContentOrSourceParam()) {
             final Payload payload = PARSER.parse(request.contentOrSourceParamParser(), null);
@@ -113,10 +120,11 @@ public final class RestQueryApiKeyAction extends ApiKeyBaseRestHandler {
                 payload.size,
                 payload.fieldSortBuilders,
                 payload.searchAfterBuilder,
-                withLimitedBy
+                withLimitedBy,
+                withProfileUid
             );
         } else {
-            queryApiKeyRequest = new QueryApiKeyRequest(null, null, null, null, null, null, withLimitedBy);
+            queryApiKeyRequest = new QueryApiKeyRequest(null, null, null, null, null, null, withLimitedBy, withProfileUid);
         }
         return channel -> client.execute(QueryApiKeyAction.INSTANCE, queryApiKeyRequest, new RestToXContentListener<>(channel));
     }

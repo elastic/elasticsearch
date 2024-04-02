@@ -1,0 +1,7 @@
+pr: 106793
+summary: Fail checkpoint on missing clusters
+area: Transform
+type: bug
+issues:
+ - 104533
+ - 106790

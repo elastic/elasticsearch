@@ -132,11 +132,7 @@ public class LifecyclePolicyUtils {
             for (var entry : composableTemplates) {
                 final boolean matched = entry.getValue().indexPatterns().stream().anyMatch(patternMatchPredicate);
                 if (matched) {
-                    Settings settings = MetadataIndexTemplateService.resolveSettings(
-                        entry.getValue(),
-                        state.metadata().componentTemplates()
-                    );
-                    return policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(settings));
+                    return true;
                 }
             }
             return false;

@@ -35,7 +35,7 @@ public class SpatialContainsTests extends SpatialRelatesFunctionTestCase {
         DataType[] cartesianDataTypes = { EsqlDataTypes.CARTESIAN_POINT, EsqlDataTypes.CARTESIAN_SHAPE };
         SpatialRelatesFunctionTestCase.addSpatialCombinations(suppliers, cartesianDataTypes);
         return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), SpatialContainsTests::typeErrorMessage)
+            errorsForCasesWithoutExamples(anyNullIsNull(suppliers), SpatialContainsTests::typeErrorMessage)
         );
     }
 

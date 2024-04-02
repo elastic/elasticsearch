@@ -115,12 +115,12 @@ public class RankedDocsResults implements InferenceServiceResults {
 
     @Override
     public List<? extends InferenceResults> transformToCoordinationFormat() {
-        return null; // TODO see if this is required
+        throw new UnsupportedOperationException("Coordination format not supported by " + NAME);
     }
 
     @Override
     public List<? extends InferenceResults> transformToLegacyFormat() {
-        return null; // TODO see if this is required
+        throw new UnsupportedOperationException("Legacy format not supported by " + NAME);
     }
 
     @Override

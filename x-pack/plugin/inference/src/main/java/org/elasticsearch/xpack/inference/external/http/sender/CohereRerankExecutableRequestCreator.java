@@ -29,7 +29,7 @@ public class CohereRerankExecutableRequestCreator implements ExecutableRequestCr
     private static final ResponseHandler HANDLER = createCohereResponseHandler();
 
     private static ResponseHandler createCohereResponseHandler() {
-        return new CohereResponseHandler("cohere rerank", CohereRankedResponseEntity::fromResponse);
+        return new CohereResponseHandler("cohere rerank", (request, response) -> CohereRankedResponseEntity.fromResponse(response));
     }
 
     private final CohereAccount account;

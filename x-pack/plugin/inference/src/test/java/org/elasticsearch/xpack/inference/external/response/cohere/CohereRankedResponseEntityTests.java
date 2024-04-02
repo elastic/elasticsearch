@@ -12,7 +12,6 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -28,7 +27,6 @@ public class CohereRankedResponseEntityTests extends ESSingleNodeTestCase {
 
     public void testResponseLiteral() throws IOException {
         InferenceServiceResults parsedResults = CohereRankedResponseEntity.fromResponse(
-            mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseLiteral.getBytes(StandardCharsets.UTF_8))
         );
 
@@ -69,7 +67,6 @@ public class CohereRankedResponseEntityTests extends ESSingleNodeTestCase {
         responseBuilder.append("\"search_units\":").append(randomIntBetween(1, 10)).append("}}}");
 
         InferenceServiceResults parsedResults = CohereRankedResponseEntity.fromResponse(
-            mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseBuilder.toString().getBytes(StandardCharsets.UTF_8))
         );
         MatcherAssert.assertThat(parsedResults, instanceOf(RankedDocsResults.class));
@@ -118,7 +115,6 @@ public class CohereRankedResponseEntityTests extends ESSingleNodeTestCase {
 
     public void testResponseLiteralWithDocuments() throws IOException {
         InferenceServiceResults parsedResults = CohereRankedResponseEntity.fromResponse(
-            mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseLiteralWithDocuments.getBytes(StandardCharsets.UTF_8))
         );
 

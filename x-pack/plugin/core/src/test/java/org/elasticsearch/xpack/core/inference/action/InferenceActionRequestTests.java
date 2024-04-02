@@ -38,8 +38,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         return new InferenceAction.Request(
             randomFrom(TaskType.values()),
             randomAlphaOfLength(6),
-            null,
-            // randomNullOrAlphaOfLength(10),
+            // null,
+            randomNullOrAlphaOfLength(10),
             randomList(1, 5, () -> randomAlphaOfLength(8)),
             randomMap(0, 3, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4))),
             randomFrom(InputType.values())
@@ -89,7 +89,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 yield new InferenceAction.Request(
                     nextTask,
                     instance.getInferenceEntityId(),
-                    null,
+                    instance.getQuery(),
                     instance.getInput(),
                     instance.getTaskSettings(),
                     instance.getInputType()
@@ -98,7 +98,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             case 1 -> new InferenceAction.Request(
                 instance.getTaskType(),
                 instance.getInferenceEntityId() + "foo",
-                null,
+                instance.getQuery(),
                 instance.getInput(),
                 instance.getTaskSettings(),
                 instance.getInputType()
@@ -109,7 +109,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 yield new InferenceAction.Request(
                     instance.getTaskType(),
                     instance.getInferenceEntityId(),
-                    null,
+                    instance.getQuery(),
                     changedInputs,
                     instance.getTaskSettings(),
                     instance.getInputType()
@@ -126,7 +126,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 yield new InferenceAction.Request(
                     instance.getTaskType(),
                     instance.getInferenceEntityId(),
-                    null,
+                    instance.getQuery(),
                     instance.getInput(),
                     taskSettings,
                     instance.getInputType()
@@ -137,7 +137,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 yield new InferenceAction.Request(
                     instance.getTaskType(),
                     instance.getInferenceEntityId(),
-                    null,
+                    instance.getQuery(),
                     instance.getInput(),
                     instance.getTaskSettings(),
                     nextInputType

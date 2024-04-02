@@ -231,9 +231,9 @@ public class SpatialRelatesQuery extends Query {
             SearchExecutionContext context
         ) {
             final boolean hasDocValues = context.getFieldType(fieldName).hasDocValues();
-            // only the intersects relation is supported for indexed cartesian point types
-            if (relation != ShapeField.QueryRelation.INTERSECTS) {
-                throw new QueryShardException(context, relation + " query relation not supported for Field [" + fieldName + "].");
+            if (geometry.type() != ShapeType.POINT && relation == ShapeField.QueryRelation.CONTAINS) {
+                // A point field can never contain a non-point geometry
+                return new MatchNoDocsQuery();
             }
             final Consumer<ShapeType> checker = t -> {
                 if (t == ShapeType.POINT || t == ShapeType.MULTIPOINT || t == ShapeType.LINESTRING || t == ShapeType.MULTILINESTRING) {

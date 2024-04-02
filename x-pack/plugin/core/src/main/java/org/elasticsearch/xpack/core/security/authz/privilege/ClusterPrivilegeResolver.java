@@ -106,7 +106,7 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MONITOR_TRANSFORM_PATTERN = Set.of("cluster:monitor/data_frame/*", "cluster:monitor/transform/*");
     private static final Set<String> MONITOR_WATCHER_PATTERN = Set.of("cluster:monitor/xpack/watcher/*");
     private static final Set<String> MONITOR_ROLLUP_PATTERN = Set.of("cluster:monitor/xpack/rollup/*");
-    private static final Set<String> MONITOR_ENRICH_PATTERN = Set.of("cluster:monitor/xpack/enrich/*");//, "cluster:admin/xpack/enrich/get");
+    private static final Set<String> MONITOR_ENRICH_PATTERN = Set.of("cluster:monitor/xpack/enrich/*", "cluster:admin/xpack/enrich/get");
 
     private static final Set<String> ALL_CLUSTER_PATTERN = Set.of(
         "cluster:*",
@@ -180,7 +180,9 @@ public class ClusterPrivilegeResolver {
         RemoteClusterNodesAction.TYPE.name(),
         XPackInfoAction.NAME,
         // esql enrich
-        "cluster:monitor/xpack/enrich/esql/resolve_policy"
+        "cluster:monitor/xpack/enrich/esql/resolve_policy",
+        "cluster:internal:data/read/esql/open_exchange",
+        "cluster:internal:data/read/esql/exchange"
     );
     private static final Set<String> CROSS_CLUSTER_REPLICATION_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,

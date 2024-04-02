@@ -129,7 +129,7 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
             builder.field(ACTION_FIELD);
             builder.startObject();
             builder.field(ACTION_TYPE_FIELD, action.actionType().getFieldName());
-            builder.array(ACTION_INDICES_FIELD, action.getOriginalIndices());
+            builder.array(ACTION_INDICES_FIELD, action.indices());
             builder.array(ACTION_ALIASES_FIELD, action.getOriginalAliases());
             builder.endObject();
 

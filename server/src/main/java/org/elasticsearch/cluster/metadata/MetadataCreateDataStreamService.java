@@ -267,6 +267,10 @@ public class MetadataCreateDataStreamService {
         final ComposableIndexTemplate template = isSystem
             ? systemDataStreamDescriptor.getComposableIndexTemplate()
             : lookupTemplateForDataStream(dataStreamName, currentState.metadata());
+        // The initial backing index and the initial failure store index will have the same initial generation.
+        // This is not a problem as both have different prefixes (`.ds-` vs `.fs-`) and both will be using the same `generation` field
+        // when rolling over in the future.
+        final long initialGeneration = 1;
 
         // If we need to create a failure store, do so first. Do not reroute during the creation since we will do
         // that as part of creating the backing index if required.
@@ -275,10 +279,7 @@ public class MetadataCreateDataStreamService {
             if (isSystem) {
                 throw new IllegalArgumentException("Failure stores are not supported on system data streams");
             }
-            // By hard coding `1` here, we're going to end up with a backing index _and_ a failure index with `generation` equal to 1.
-            // This is not a problem as both have different prefixes (`.ds-` vs `.fs-`) and both will be using the same `generation` field
-            // when rolling over in the future.
-            String failureStoreIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, request.getStartTime());
+            String failureStoreIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, initialGeneration, request.getStartTime());
             currentState = createFailureStoreIndex(
                 metadataCreateIndexService,
                 "initialize_data_stream",
@@ -294,7 +295,7 @@ public class MetadataCreateDataStreamService {
         }
 
         if (writeIndex == null) {
-            String firstBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, request.getStartTime());
+            String firstBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, initialGeneration, request.getStartTime());
             currentState = createBackingIndex(
                 metadataCreateIndexService,
                 currentState,
@@ -329,7 +330,7 @@ public class MetadataCreateDataStreamService {
         DataStream newDataStream = new DataStream(
             dataStreamName,
             dsBackingIndices,
-            1L,
+            initialGeneration,
             template.metadata() != null ? Map.copyOf(template.metadata()) : null,
             hidden,
             false,

@@ -211,7 +211,7 @@ public abstract class MapBinder<K, V> {
             Multibinder.checkNotNull(key, "key");
             Multibinder.checkConfiguration(isInitialized() == false, "MapBinder was already initialized");
 
-            Key<V> valueKey = Key.get(valueType, new RealElement(RealMultibinder.getSetName()));
+            Key<V> valueKey = Key.get(valueType, new RealElement());
             entrySetBinder.addBinding().toInstance(new MapEntry<>(key, binder.getProvider(valueKey)));
             return binder.bind(valueKey);
         }

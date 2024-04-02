@@ -18,11 +18,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -261,7 +261,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertThat(indexRequest.opType(), is(DocWriteRequest.OpType.CREATE));
             bulkActionInvoked.set(true);
             return null;
-        }).when(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
+        }).when(client).execute(eq(TransportBulkAction.TYPE), any(BulkRequest.class), any());
         service.createApiKey(authentication, createApiKeyRequest, Set.of(), new PlainActionFuture<>());
         assertBusy(() -> assertTrue(bulkActionInvoked.get()));
     }
@@ -627,7 +627,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 )
             );
             return null;
-        }).when(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
+        }).when(client).execute(eq(TransportBulkAction.TYPE), any(BulkRequest.class), any());
 
         final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache = service.getApiKeyAuthCache();
         assertNull(apiKeyAuthCache.get(createApiKeyRequest.getId()));

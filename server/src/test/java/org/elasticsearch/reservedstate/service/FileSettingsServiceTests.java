@@ -253,6 +253,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         deadThreadLatch.countDown();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106968")
     public void testStopWorksIfProcessingDidntReturnYet() throws Exception {
         var spiedController = spy(controller);
         var service = new FileSettingsService(clusterService, spiedController, env);

@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -335,7 +336,9 @@ public class MaxMindSupportTests extends ESTestCase {
     }
 
     private static String beanify(String prefix, String methodName) {
-        return methodName.substring(prefix.length(), prefix.length() + 1).toLowerCase() + methodName.substring(prefix.length() + 1);
+        return methodName.substring(prefix.length(), prefix.length() + 1).toLowerCase(Locale.ROOT) + methodName.substring(
+            prefix.length() + 1
+        );
     }
 
     /*

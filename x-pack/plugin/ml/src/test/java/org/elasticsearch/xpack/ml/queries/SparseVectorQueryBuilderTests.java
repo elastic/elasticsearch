@@ -61,8 +61,8 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
         TokenPruningConfig tokenPruningConfig = randomBoolean()
             ? new TokenPruningConfig(randomIntBetween(1, 100), randomFloat(), randomBoolean())
             : null;
-        String modelText = randomAlphaOfLength(4);
         String modelId = randomBoolean() ? randomAlphaOfLength(4) : null;
+        String modelText = modelId != null ? randomAlphaOfLength(4) : null;
         List<TextExpansionResults.WeightedToken> weightedTokens = modelId == null ? VECTOR_DIMENSIONS : null;
 
         var builder = new SparseVectorQueryBuilder(RANK_FEATURES_FIELD, modelText, modelId, weightedTokens, tokenPruningConfig);

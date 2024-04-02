@@ -89,8 +89,8 @@ public class TextExpansionResults extends NlpInferenceResults {
     @Override
     void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(resultsField);
-        for (var vectorDimension : weightedTokens) {
-            vectorDimension.toXContent(builder, params);
+        for (var weightedToken : weightedTokens) {
+            weightedToken.toXContent(builder, params);
         }
         builder.endObject();
     }

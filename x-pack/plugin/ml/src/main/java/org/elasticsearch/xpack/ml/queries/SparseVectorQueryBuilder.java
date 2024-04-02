@@ -67,7 +67,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
     public SparseVectorQueryBuilder(
         String fieldName,
-        String modelText,
+        @Nullable String modelText,
         @Nullable String modelId,
         @Nullable List<WeightedToken> weightedTokens,
         @Nullable TokenPruningConfig tokenPruningConfig
@@ -97,7 +97,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     public SparseVectorQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.fieldName = in.readString();
-        this.modelText = in.readString();
+        this.modelText = in.readOptionalString();
         this.modelId = in.readOptionalString();
         this.tokenPruningConfig = in.readOptionalWriteable(TokenPruningConfig::new);
         this.weightedTokens = in.readOptionalCollectionAsList(WeightedToken::new);
@@ -134,7 +134,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             throw new IllegalStateException("supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
         }
         out.writeString(fieldName);
-        out.writeString(modelText);
+        out.writeOptionalString(modelText);
         out.writeOptionalString(modelId);
         out.writeOptionalWriteable(tokenPruningConfig);
         out.writeOptionalCollection(weightedTokens, StreamOutput::writeWriteable);

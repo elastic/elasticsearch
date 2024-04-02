@@ -78,27 +78,6 @@ public class CaseTests extends AbstractFunctionTestCase {
         });
     }
 
-    // @Override
-    // protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
-    // if (nullBlock == 0) {
-    // assertThat(toJavaObject(value, 0), equalTo(data.get(2)));
-    // return;
-    // }
-    // if (((Boolean) data.get(0)).booleanValue()) {
-    // if (nullBlock == 1) {
-    // super.assertSimpleWithNulls(data, value, nullBlock);
-    // } else {
-    // assertThat(toJavaObject(value, 0), equalTo(data.get(1)));
-    // }
-    // return;
-    // }
-    // if (nullBlock == 2) {
-    // super.assertSimpleWithNulls(data, value, nullBlock);
-    // } else {
-    // assertThat(toJavaObject(value, 0), equalTo(data.get(2)));
-    // }
-    // }
-
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new Case(Source.EMPTY, args.get(0), args.subList(1, args.size()));

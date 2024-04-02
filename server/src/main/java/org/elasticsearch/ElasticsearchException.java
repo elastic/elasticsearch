@@ -32,6 +32,8 @@ import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.indices.FailureIndexNotSupportedException;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.ingest.GraphStructureException;
+import org.elasticsearch.persistent.NotPersistentTaskNodeException;
+import org.elasticsearch.persistent.PersistentTaskNodeNotAssignedException;
 import org.elasticsearch.rest.ApiNotAvailableException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchException;
@@ -1917,6 +1919,18 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             FailureIndexNotSupportedException::new,
             178,
             TransportVersions.ADD_FAILURE_STORE_INDICES_OPTIONS
+        ),
+        NOT_PERSISTENT_TASK_NODE_EXCEPTION(
+            NotPersistentTaskNodeException.class,
+            NotPersistentTaskNodeException::new,
+            179,
+            TransportVersions.ADD_PERSISTENT_TASK_EXCEPTIONS
+        ),
+        PERSISTENT_TASK_NODE_NOT_ASSIGNED_EXCEPTION(
+            PersistentTaskNodeNotAssignedException.class,
+            PersistentTaskNodeNotAssignedException::new,
+            180,
+            TransportVersions.ADD_PERSISTENT_TASK_EXCEPTIONS
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

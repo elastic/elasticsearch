@@ -12,14 +12,5 @@ import java.util.List;
 /**
  * The context needed to retrieve fields.
  */
-public class FetchFieldsContext {
-    private final List<FieldAndFormat> fields;
-
-    public FetchFieldsContext(List<FieldAndFormat> fields) {
-        this.fields = fields;
-    }
-
-    public List<FieldAndFormat> fields() {
-        return fields;
-    }
+public record FetchFieldsContext(List<FieldAndFormat> fields) {
 }

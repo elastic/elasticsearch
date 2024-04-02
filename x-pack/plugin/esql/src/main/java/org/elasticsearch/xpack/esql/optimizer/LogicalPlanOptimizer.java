@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equa
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -1584,6 +1585,16 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     }
 
     public static class FoldNull extends OptimizerRules.FoldNull {
+
+        @Override
+        public Expression rule(Expression e) {
+            // MvAppend does follow the "any null child makes it null" rule.
+            if (e.anyMatch(MvAppend.class::isInstance)) {
+                return e.children().stream().allMatch(Expressions::isNull) ? Literal.of(e, null) : e;
+            }
+            return super.rule(e);
+        }
+
         @Override
         protected Expression tryReplaceIsNullIsNotNull(Expression e) {
             return e;

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -42,6 +43,7 @@ public class MvAppendTests extends AbstractFunctionTestCase {
         longs(suppliers);
         doubles(suppliers);
         bytesRefs(suppliers);
+        nulls(suppliers);
         return parameterSuppliersFromTypedData(suppliers);
     }
 
@@ -268,8 +270,38 @@ public class MvAppendTests extends AbstractFunctionTestCase {
         }));
     }
 
+    private static void nulls(List<TestCaseSupplier> suppliers) {
+        suppliers.add(new TestCaseSupplier(List.of(DataTypes.INTEGER, DataTypes.INTEGER), () -> {
+            List<Integer> field2 = randomList(2, 10, () -> randomInt());
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(null, DataTypes.INTEGER, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataTypes.INTEGER, "field2")
+                ),
+                "MvAppendIntEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                DataTypes.INTEGER,
+                equalTo(field2)
+            );
+        }));
+        suppliers.add(new TestCaseSupplier(List.of(DataTypes.INTEGER, DataTypes.INTEGER), () -> {
+            List<Integer> field1 = randomList(2, 10, () -> randomInt());
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(field1, DataTypes.INTEGER, "field1"),
+                    new TestCaseSupplier.TypedData(null, DataTypes.INTEGER, "field2")
+                ),
+                "MvAppendIntEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                DataTypes.INTEGER,
+                equalTo(field1)
+            );
+        }));
+    }
+
+    @SuppressWarnings("unchecked")
     protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
-        // TODO
+        Object blockData = data.get(1 - nullBlock);
+        int size = blockData == null ? 0 : blockData instanceof Collection ? ((Collection<?>) blockData).size() : 1;
+        assertEquals(value.getTotalValueCount(), size);
     }
 
 }

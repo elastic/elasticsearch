@@ -140,8 +140,8 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
                 }
             }, threadPool) {
                 @Override
-                protected String getExecutorName() {
-                    return ThreadPool.Names.SAME;
+                protected Executor getExecutor() {
+                    return EsExecutors.DIRECT_EXECUTOR_SERVICE;
                 }
             };
             final var heartbeatFrequency = HEARTBEAT_FREQUENCY.get(settings);

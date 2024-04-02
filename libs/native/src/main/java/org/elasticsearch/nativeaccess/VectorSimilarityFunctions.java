@@ -19,7 +19,7 @@ import java.lang.invoke.MethodHandle;
  * which is not in the currently lowest compile version, JDK 17. Code consuming
  * the method handles will, by definition, require access to MemorySegment.
  */
-public final class VectorSimilarityFunctions {
+public final class VectorSimilarityFunctions implements VectorLibrary {
 
     private final VectorLibrary vectorLibrary;
 

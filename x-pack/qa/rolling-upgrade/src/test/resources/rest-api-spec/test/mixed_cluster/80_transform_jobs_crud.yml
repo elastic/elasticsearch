@@ -8,11 +8,11 @@
 
   - do:
       transform.put_transform:
-        transform_id: "mixed-simple-transform"
+        transform_id: "mixed-simple-batch-transform"
         body: >
           {
             "source": { "index": "transform-airline-data" },
-            "dest": { "index": "mixed-simple-transform-idx" },
+            "dest": { "index": "mixed-simple-batch-transform-idx" },
             "pivot": {
               "group_by": { "airline": {"terms": {"field": "airline"}}},
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
@@ -22,31 +22,19 @@
 
   - do:
       transform.start_transform:
-        transform_id: "mixed-simple-transform"
+        transform_id: "mixed-simple-batch-transform"
   - match: { acknowledged: true }
+
   - do:
       transform.get_transform_stats:
-        transform_id: "mixed-simple-transform"
+        transform_id: "mixed-simple-batch-transform"
   - match: { count: 1 }
-  - match: { transforms.0.id: "mixed-simple-transform" }
+  - match: { transforms.0.id: "mixed-simple-batch-transform" }
   - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
 
   - do:
-      transform.stop_transform:
-        transform_id: "mixed-simple-transform"
-        wait_for_completion: true
-  - match: { acknowledged: true }
-
-  - do:
-      transform.get_transform_stats:
-        transform_id: "mixed-simple-transform"
-  - match: { count: 1 }
-  - match: { transforms.0.id: "mixed-simple-transform" }
-  - match: { transforms.0.state: "stopped" }
-
-  - do:
       transform.put_transform:
-        transform_id: "mixed-complex-transform"
+        transform_id: "mixed-complex-batch-transform"
         body: >
           {
             "source": {
@@ -58,7 +46,7 @@
               }
             },
             "dest": {
-              "index": "mixed-complex-transform-idx",
+              "index": "mixed-complex-batch-transform-idx",
               "pipeline": "data_frame_simple_pipeline"
             },
             "pivot": {
@@ -74,35 +62,23 @@
 
   - do:
       transform.get_transform:
-        transform_id: "mixed-complex-transform"
+        transform_id: "mixed-complex-batch-transform"
   - match: { count: 1 }
-  - match: { transforms.0.id: "mixed-complex-transform" }
+  - match: { transforms.0.id: "mixed-complex-batch-transform" }
   - is_true: transforms.0.version
   - is_true: transforms.0.create_time
 
   - do:
       transform.start_transform:
-        transform_id: "mixed-complex-transform"
+        transform_id: "mixed-complex-batch-transform"
   - match: { acknowledged: true }
+
   - do:
       transform.get_transform_stats:
-        transform_id: "mixed-complex-transform"
+        transform_id: "mixed-complex-batch-transform"
   - match: { count: 1 }
-  - match: { transforms.0.id: "mixed-complex-transform" }
+  - match: { transforms.0.id: "mixed-complex-batch-transform" }
   - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
-
-  - do:
-      transform.stop_transform:
-        transform_id: "mixed-complex-transform"
-        wait_for_completion: true
-  - match: { acknowledged: true }
-
-  - do:
-      transform.get_transform_stats:
-        transform_id: "mixed-complex-transform"
-  - match: { count: 1 }
-  - match: { transforms.0.id: "mixed-complex-transform" }
-  - match: { transforms.0.state: "stopped" }
 
 ---
 "Test put continuous transform on mixed cluster":
@@ -146,6 +122,7 @@
       transform.start_transform:
         transform_id: "mixed-simple-continuous-transform"
   - match: { acknowledged: true }
+
   - do:
       transform.get_transform_stats:
         transform_id: "mixed-simple-continuous-transform"
@@ -165,6 +142,7 @@
   - match: { count: 1 }
   - match: { transforms.0.id: "mixed-simple-continuous-transform" }
   - match: { transforms.0.state: "stopped" }
+
   - do:
       transform.update_transform:
         transform_id: "mixed-simple-continuous-transform"
@@ -182,44 +160,28 @@
 
   - do:
       transform.get_transform:
-        transform_id: "old-simple-transform"
+        transform_id: "old-simple-batch-transform"
   - match: { count: 1 }
-  - match: { transforms.0.id: "old-simple-transform" }
+  - match: { transforms.0.id: "old-simple-batch-transform" }
   - match: { transforms.0.source.index.0: "transform-airline-data" }
-  - match: { transforms.0.dest.index: "old-simple-transform-idx" }
+  - match: { transforms.0.dest.index: "old-simple-batch-transform-idx" }
   - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
   - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
 
   - do:
-      transform.start_transform:
-        transform_id: "old-simple-transform"
-  - match: { acknowledged: true }
-  - do:
       transform.get_transform_stats:
-        transform_id: "old-simple-transform"
+        transform_id: "old-simple-batch-transform"
   - match: { count: 1 }
-  - match: { transforms.0.id: "old-simple-transform" }
+  - match: { transforms.0.id: "old-simple-batch-transform" }
   - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
 
   - do:
-      transform.stop_transform:
-        transform_id: "old-simple-transform"
-        wait_for_completion: true
-  - match: { acknowledged: true }
-  - do:
-      transform.get_transform_stats:
-        transform_id: "old-simple-transform"
-  - match: { count: 1 }
-  - match: { transforms.0.id: "old-simple-transform" }
-  - match: { transforms.0.state: "stopped" }
-
-  - do:
       transform.get_transform:
-        transform_id: "old-complex-transform"
+        transform_id: "old-complex-batch-transform"
   - match: { count: 1 }
-  - match: { transforms.0.id: "old-complex-transform" }
+  - match: { transforms.0.id: "old-complex-batch-transform" }
   - match: { transforms.0.source.index.0: "transform-airline-data" }
-  - match: { transforms.0.dest.index: "old-complex-transform-idx" }
+  - match: { transforms.0.dest.index: "old-complex-batch-transform-idx" }
   - match: { transforms.0.dest.pipeline: "data_frame_simple_pipeline" }
   - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
   - match: { transforms.0.pivot.group_by.day.date_histogram.field: "timestamp" }
@@ -227,33 +189,31 @@
   - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
 
   - do:
-      transform.start_transform:
-        transform_id: "old-complex-transform"
-  - match: { acknowledged: true }
-  - do:
       transform.get_transform_stats:
-        transform_id: "old-complex-transform"
+        transform_id: "old-complex-batch-transform"
   - match: { count: 1 }
-  - match: { transforms.0.id: "old-complex-transform" }
+  - match: { transforms.0.id: "old-complex-batch-transform" }
   - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
 
   - do:
       transform.stop_transform:
-        transform_id: "old-complex-transform"
+        transform_id: "old-complex-batch-transform"
         wait_for_completion: true
   - match: { acknowledged: true }
+
   - do:
       transform.get_transform_stats:
-        transform_id: "old-complex-transform"
+        transform_id: "old-complex-batch-transform"
   - match: { count: 1 }
-  - match: { transforms.0.id: "old-complex-transform" }
+  - match: { transforms.0.id: "old-complex-batch-transform" }
   - match: { transforms.0.state: "stopped" }
+
   - do:
       transform.update_transform:
-        transform_id: "old-complex-transform"
+        transform_id: "old-complex-batch-transform"
         body: >
           {
-            "description": "old complex transform"
+            "description": "old complex batch transform"
           }
 ---
 "Test GET, stop, start, old continuous transforms":
@@ -277,6 +237,7 @@
       transform.start_transform:
         transform_id: "old-simple-continuous-transform"
   - match: { acknowledged: true }
+
   - do:
       transform.get_transform_stats:
         transform_id: "old-simple-continuous-transform"
@@ -296,6 +257,7 @@
   - match: { count: 1 }
   - match: { transforms.0.id: "old-simple-continuous-transform" }
   - match: { transforms.0.state: "stopped" }
+
   - do:
       transform.update_transform:
         transform_id: "old-simple-continuous-transform"

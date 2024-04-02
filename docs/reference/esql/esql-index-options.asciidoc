@@ -1,0 +1,42 @@
+[[esql-index-options]]
+=== {esql} index options
+
+++++
+<titleabbrev>Index options</titleabbrev>
+++++
+
+Similar to the <<search-search-api-query-params,Search API>>, the `OPTIONS`
+directive of the <<esql-from,FROM>> command allows configuring the way {esql}
+accesses the data to be queried. The argument passed to this directive is a
+comma-separated list of option-name-value pairs, with the option name and the
+corresponding value quoted.
+
+[source,esql]
+----
+FROM index_pattern [OPTIONS "option1"="value1"[,...[,"optionN"="valueN"]]]
+----
+
+These options can only be provided part of a <<esql-from,FROM>> command, and
+they apply to all the indices provided or matched by an index pattern.
+
+The currently supported options are:
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+include::{es-repo-dir}/search/search.asciidoc[tag=search-preference]
+
+*Examples*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/from.csv-spec[tag=convertFromDatetimeWithOptions]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/from.csv-spec[tag=convertFromDatetimeWithOptions-result]
+|===
+

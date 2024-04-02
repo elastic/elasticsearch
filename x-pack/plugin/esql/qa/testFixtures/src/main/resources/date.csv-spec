@@ -477,7 +477,7 @@ date1:date          |         date2:date          |    dd_ms:integer
 // end::docsDateDiff-result[]
 ;
 
-evalDateDiffString#[skip:-8.13.99, reason:date_diff added in 8.14]
+evalDateDiffString#[skip:-8.13.99, reason:string literal cast added in 8.14]
 ROW date1 = TO_DATETIME("2023-12-02T11:00:00.000Z")
 | EVAL dd_ms = DATE_DIFF("microseconds", date1, "2023-12-02T11:00:00.001Z")
 ;
@@ -1061,7 +1061,7 @@ date:date                 | year:long
 // end::dateExtract-result[]
 ;
 
-dateExtractString
+dateExtractString#[skip:-8.13.99,reason:string literal cast added in 8.14]
 ROW date = DATE_PARSE("yyyy-MM-dd", "2022-05-06")
 | EVAL year = DATE_EXTRACT("year", "2022-05-06")
 ;
@@ -1100,7 +1100,7 @@ Anneke         |Preusig        |1989-06-02T00:00:00.000Z|1989-06-02
 // end::docsDateFormat-result[]
 ;
 
-evalDateFormatString
+evalDateFormatString#[skip:-8.13.99,reason:string literal cast added in 8.14]
 ROW a = 1
 | EVAL df = DATE_FORMAT("YYYY-MM-dd", "1989-06-02T00:00:00.000Z")
 ;
@@ -1127,7 +1127,7 @@ Anneke         |Preusig        |1989-06-02T00:00:00.000Z|1989-01-01T00:00:00.000
 // end::docsDateTrunc-result[]
 ;
 
-evalDateTruncString
+evalDateTruncString#[skip:-8.13.99,reason:string literal cast added in 8.14]
 ROW a = 1
 | EVAL year_hired = DATE_TRUNC(1 year, "1991-06-26T00:00:00.000Z")
 ;

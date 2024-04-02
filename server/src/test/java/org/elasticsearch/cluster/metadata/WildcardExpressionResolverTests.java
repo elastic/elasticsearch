@@ -297,10 +297,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
                 IndicesOptions.lenientExpandOpen(), // don't include hidden
                 SystemIndexAccessLevel.NONE
             );
-            assertThat(
-                newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.resolveAll(context)),
-                equalTo(newHashSet())
-            );
+            assertThat(newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.resolveAll(context)), equalTo(newHashSet()));
         }
 
         {
@@ -364,21 +361,30 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
             assertThat(
                 newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.resolveAll(context)),
-                equalTo(newHashSet(
-                    DataStream.getDefaultBackingIndexName("foo_logs", 1, epochMillis)
-                ))
+                equalTo(newHashSet(DataStream.getDefaultBackingIndexName("foo_logs", 1, epochMillis)))
             );
         }
 
         {
             // if data stream itself is hidden, backing indices should not be returned
             boolean hidden = true;
-            var dataStream = new DataStream(dataStreamName, List.of(firstBackingIndexMetadata.getIndex()), 1, null,
-                hidden, false, false, false, null, null, false, List.of(), null);
+            var dataStream = new DataStream(
+                dataStreamName,
+                List.of(firstBackingIndexMetadata.getIndex()),
+                1,
+                null,
+                hidden,
+                false,
+                false,
+                false,
+                null,
+                null,
+                false,
+                List.of(),
+                null
+            );
 
-            Metadata.Builder mdBuilder = Metadata.builder()
-                .put(firstBackingIndexMetadata, true)
-                .put(dataStream);
+            Metadata.Builder mdBuilder = Metadata.builder().put(firstBackingIndexMetadata, true).put(dataStream);
 
             ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
@@ -393,10 +399,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
                 NONE
             );
 
-            assertThat(
-                newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.resolveAll(context)),
-                equalTo(newHashSet())
-            );
+            assertThat(newHashSet(IndexNameExpressionResolver.WildcardExpressionResolver.resolveAll(context)), equalTo(newHashSet()));
         }
     }
 

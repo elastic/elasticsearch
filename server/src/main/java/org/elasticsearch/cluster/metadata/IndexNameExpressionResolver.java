@@ -1249,36 +1249,35 @@ public class IndexNameExpressionResolver {
          * Returns all the indices, datastreams, and aliases, considering the open/closed, system, and hidden context parameters.
          * Depending on the context, returns the names of the datastreams themselves or their backing indices.
          */
-            public static Collection<String> resolveAll(Context context) {
-                List<String> concreteIndices = resolveEmptyOrTrivialWildcard(context);
+        public static Collection<String> resolveAll(Context context) {
+            List<String> concreteIndices = resolveEmptyOrTrivialWildcard(context);
 
-                if (context.includeDataStreams() == false && context.getOptions().ignoreAliases()) {
-                    return concreteIndices;
-                }
-
-                Stream<IndexAbstraction> ias = context.getState()
-                    .metadata()
-                    .getIndicesLookup()
-                    .values()
-                    .stream()
-                    .filter(ia -> ia.getType() == Type.DATA_STREAM || ia.getType() == Type.ALIAS)
-                    .filter(ia -> ia.isSystem() == false || context.systemIndexAccessPredicate.test(ia.getName()));
-
-                if (context.getOptions().expandWildcardsHidden() == false) {
-                    ias = ias.filter(ia -> ia.isHidden() == false);
-                }
-                if (context.includeDataStreams() == false) {
-                    ias = ias.filter(ia -> ia.getType() != Type.DATA_STREAM);
-                }
-                if (context.getOptions().ignoreAliases()) {
-                    ias = ias.filter(ia -> ia.getType() != Type.ALIAS);
-                }
-
-                Set<String> resolved = expandToOpenClosed(context, ias).collect(Collectors.toSet());
-                resolved.addAll(concreteIndices);
-                return resolved;
+            if (context.includeDataStreams() == false && context.getOptions().ignoreAliases()) {
+                return concreteIndices;
             }
 
+            Stream<IndexAbstraction> ias = context.getState()
+                .metadata()
+                .getIndicesLookup()
+                .values()
+                .stream()
+                .filter(ia -> ia.getType() == Type.DATA_STREAM || ia.getType() == Type.ALIAS)
+                .filter(ia -> ia.isSystem() == false || context.systemIndexAccessPredicate.test(ia.getName()));
+
+            if (context.getOptions().expandWildcardsHidden() == false) {
+                ias = ias.filter(ia -> ia.isHidden() == false);
+            }
+            if (context.includeDataStreams() == false) {
+                ias = ias.filter(ia -> ia.getType() != Type.DATA_STREAM);
+            }
+            if (context.getOptions().ignoreAliases()) {
+                ias = ias.filter(ia -> ia.getType() != Type.ALIAS);
+            }
+
+            Set<String> resolved = expandToOpenClosed(context, ias).collect(Collectors.toSet());
+            resolved.addAll(concreteIndices);
+            return resolved;
+        }
 
         /**
          * Returns all the existing resource (index, alias and datastream) names that the {@param expressions} list resolves to.

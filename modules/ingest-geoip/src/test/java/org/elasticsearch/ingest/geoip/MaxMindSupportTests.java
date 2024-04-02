@@ -257,7 +257,6 @@ public class MaxMindSupportTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testUnknownMaxMindResponseClassess() {
         Set<Class<? extends AbstractResponse>> supportedMaxMindClasses = new HashSet<>(TYPE_TO_MAX_MIND_CLASS.values());
         // First just a sanity check that there's no overlap between what's supported and what's not:
@@ -278,7 +277,7 @@ public class MaxMindSupportTests extends ESTestCase {
                     if (genericReturnType instanceof ParameterizedType parameterizedGenericReturnType) {
                         Type[] actualTypes = parameterizedGenericReturnType.getActualTypeArguments();
                         if (actualTypes != null && actualTypes.length == 1 && actualTypes[0] instanceof Class<?> actualTypeClass) {
-                            allActualMaxMindClasses.add((Class<? extends AbstractResponse>) actualTypeClass);
+                            allActualMaxMindClasses.add(actualTypeClass.asSubclass(AbstractResponse.class));
                             if (KNOWN_UNSUPPORTED_RESPONSE_CLASSES.contains(actualTypeClass) == false) {
                                 assertTrue(
                                     "MaxMind has added support for " + actualTypeClass.getSimpleName(),
@@ -297,6 +296,32 @@ public class MaxMindSupportTests extends ESTestCase {
             "We claim both to support a MaxMind response class that MaxMind does not expose through DatabaseReader: "
                 + supportedMaxMindClassesThatDoNotExist,
             supportedMaxMindClassesThatDoNotExist,
+            equalTo(Set.of())
+        );
+    }
+
+    /*
+     * This tests that this test has a mapping in TYPE_TO_MAX_MIND_CLASS for all MaxMind classes exposed through GeoIpDatabase.
+     */
+    public void testUsedMaxMindResponseClassesAreAccountedFor() {
+        Set<Class<? extends AbstractResponse>> usedMaxMindResponseClasses = getUsedMaxMindResponseClasses();
+        Set<Class<? extends AbstractResponse>> supportedMaxMindClasses = new HashSet<>(TYPE_TO_MAX_MIND_CLASS.values());
+        Set<Class<? extends AbstractResponse>> usedButNotSupportedMaxMindResponseClasses = new HashSet<>(usedMaxMindResponseClasses);
+        usedButNotSupportedMaxMindResponseClasses.removeAll(supportedMaxMindClasses);
+        assertThat(
+            "GeoIpDatabase exposes MaxMind response classes that this test does not know what to do with. Add mappings to "
+                + "TYPE_TO_MAX_MIND_CLASS for the following: "
+                + usedButNotSupportedMaxMindResponseClasses,
+            usedButNotSupportedMaxMindResponseClasses,
+            equalTo(Set.of())
+        );
+        Set<Class<? extends AbstractResponse>> supportedButNotUsedMaxMindClasses = new HashSet<>(supportedMaxMindClasses);
+        supportedButNotUsedMaxMindClasses.removeAll(usedMaxMindResponseClasses);
+        assertThat(
+            "This test claims to support MaxMind response classes that are not exposed in GeoIpDatabase. Remove the following from "
+                + "TYPE_TO_MAX_MIND_CLASS: "
+                + supportedButNotUsedMaxMindClasses,
+            supportedButNotUsedMaxMindClasses,
             equalTo(Set.of())
         );
     }
@@ -415,5 +440,24 @@ public class MaxMindSupportTests extends ESTestCase {
             }
         }
         return result.toString();
+    }
+
+    /*
+     * This returns all AbstractResponse classes that are returned from getter methods on GeoIpDatabase.
+     */
+    private static Set<Class<? extends AbstractResponse>> getUsedMaxMindResponseClasses() {
+        Set<Class<? extends AbstractResponse>> result = new HashSet<>();
+        Method[] methods = GeoIpDatabase.class.getMethods();
+        for (Method method : methods) {
+            if (method.getName().startsWith("get")) {
+                Class<?> returnType = method.getReturnType();
+                try {
+                    result.add(returnType.asSubclass(AbstractResponse.class));
+                } catch (ClassCastException ignore) {
+                    // This is not what we were looking for, move on
+                }
+            }
+        }
+        return result;
     }
 }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -27,7 +28,7 @@ public class OpenAiEmbeddingsRequestTaskSettingsTests extends ESTestCase {
     }
 
     public void testFromMap_ReturnsUser() {
-        var settings = OpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.USER, "user")));
+        var settings = OpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user")));
         assertThat(settings.user(), is("user"));
     }
 
@@ -35,7 +36,7 @@ public class OpenAiEmbeddingsRequestTaskSettingsTests extends ESTestCase {
         var map = new HashMap<String, Object>();
 
         if (user != null) {
-            map.put(OpenAiEmbeddingsTaskSettings.USER, user);
+            map.put(OpenAiServiceFields.USER, user);
         }
 
         return map;

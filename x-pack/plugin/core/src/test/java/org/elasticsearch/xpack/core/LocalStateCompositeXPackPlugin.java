@@ -67,6 +67,7 @@ import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -454,8 +455,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    public Function<String, Predicate<String>> getFieldFilter() {
-        List<Function<String, Predicate<String>>> items = filterPlugins(MapperPlugin.class).stream()
+    public Function<String, FieldPredicate> getFieldFilter() {
+        List<Function<String, FieldPredicate>> items = filterPlugins(MapperPlugin.class).stream()
             .map(p -> p.getFieldFilter())
             .filter(p -> p.equals(NOOP_FIELD_FILTER) == false)
             .toList();

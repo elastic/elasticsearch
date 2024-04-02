@@ -377,3 +377,98 @@ setup:
   - match: { errors: true }
   - match: { items.0.update.status: 400 }
   - match: { items.0.update.error.reason: "Cannot apply update with a script on indices that contain [semantic_text] field(s)" }
+
+---
+"Fails when providing inference results and there is no value for field":
+  - do:
+      catch: /The field \[inference_field\] is referenced in the \[_inference\] metadata field but has no value/
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          _inference:
+            inference_field:
+              chunks:
+                - text: "inference test"
+                  inference:
+                    "hello": 0.123
+
+
+---
+"semantic_text copy_to calculate inference for source fields":
+  - do:
+      indices.create:
+        index: test-copy-to-index
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+              source_field:
+                type: text
+                copy_to: inference_field
+              another_source_field:
+                type: text
+                copy_to: inference_field
+
+  - do:
+      index:
+        index: test-copy-to-index
+        id: doc_1
+        body:
+          source_field: "copy_to inference test"
+          inference_field: "inference test"
+          another_source_field: "another copy_to inference test"
+
+  - do:
+      get:
+        index: test-copy-to-index
+        id: doc_1
+
+  - match:  { _source.inference_field: "inference test" }
+  - length: { _source._inference.inference_field.chunks: 3 }
+  - exists: _source._inference.inference_field.chunks.0.inference
+  - exists: _source._inference.inference_field.chunks.0.text
+  - exists: _source._inference.inference_field.chunks.1.inference
+  - exists: _source._inference.inference_field.chunks.1.text
+  - exists: _source._inference.inference_field.chunks.2.inference
+  - exists: _source._inference.inference_field.chunks.2.text
+
+
+---
+"semantic_text copy_to needs values for every source field for updates":
+  - do:
+      indices.create:
+        index: test-copy-to-index
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+              source_field:
+                type: text
+                copy_to: inference_field
+              another_source_field:
+                type: text
+                copy_to: inference_field
+
+  # Not every source field needed on creation
+  - do:
+      index:
+        index: test-copy-to-index
+        id: doc_1
+        body:
+          source_field: "a single source field provided"
+          inference_field: "inference test"
+
+  # Every source field needed on bulk updates
+  - do:
+      bulk:
+        body:
+          - '{"update": {"_index": "test-copy-to-index", "_id": "doc_1"}}'
+          - '{"doc": {"source_field": "a single source field is kept as provided via bulk", "inference_field": "updated inference test" }}'
+
+  - match: { items.0.update.status: 400 }
+  - match: { items.0.update.error.reason: "Field [another_source_field] must be specified on an update request to calculate inference for field [inference_field]" }

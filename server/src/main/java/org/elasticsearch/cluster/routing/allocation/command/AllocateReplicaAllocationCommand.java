@@ -64,8 +64,7 @@ public class AllocateReplicaAllocationCommand extends AbstractAllocateAllocation
 
     protected static class Builder extends AbstractAllocateAllocationCommand.Builder<AllocateReplicaAllocationCommand> {
 
-        @Override
-        public Builder parse(XContentParser parser) throws IOException {
+        private Builder parse(XContentParser parser) throws IOException {
             return REPLICA_PARSER.parse(parser, this, null);
         }
 

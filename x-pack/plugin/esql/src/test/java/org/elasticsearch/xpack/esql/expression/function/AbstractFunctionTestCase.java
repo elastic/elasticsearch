@@ -1223,7 +1223,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         writeToTempDir("layout", rendered, "asciidoc");
     }
 
-    private static String functionName() {
+    protected static String functionName() {
         Class<?> testClass = getTestClass();
         if (testClass.isAnnotationPresent(FunctionName.class)) {
             FunctionName functionNameAnnotation = testClass.getAnnotation(FunctionName.class);

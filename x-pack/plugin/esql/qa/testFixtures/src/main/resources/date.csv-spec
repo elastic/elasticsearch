@@ -159,6 +159,39 @@ x:date                  |hire_date:date
 1995-01-01T00:00:00.000Z|1995-01-27T00:00:00.000Z
 ;
 
+dateTruncHour
+  FROM sample_data
+| SORT @timestamp ASC
+| EVAL t = DATE_TRUNC(1 HOUR, @timestamp)
+| KEEP t;
+
+t:date
+2023-10-23T12:00:00
+2023-10-23T12:00:00
+2023-10-23T13:00:00
+2023-10-23T13:00:00
+2023-10-23T13:00:00
+2023-10-23T13:00:00
+2023-10-23T13:00:00
+;
+
+dateTruncMinute
+  FROM sample_data
+| SORT @timestamp ASC
+| EVAL t = DATE_TRUNC(1 MINUTE, @timestamp)
+| KEEP t;
+
+t:date
+2023-10-23T12:15:00
+2023-10-23T12:27:00
+2023-10-23T13:33:00
+2023-10-23T13:51:00
+2023-10-23T13:52:00
+2023-10-23T13:53:00
+2023-10-23T13:55:00
+;
+
+
 convertFromDatetime
 from employees | sort emp_no | keep birth_date | eval bd = to_datetime(birth_date) | limit 2;
 

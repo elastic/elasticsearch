@@ -102,7 +102,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private QueryBuilder aliasFilter;
     private boolean rewriteToNamedQueries = false;
 
-    private Integer requestSize = DEFAULT_SIZE;
+    private final Integer requestSize;
 
     /**
      * Build a {@linkplain SearchExecutionContext}.

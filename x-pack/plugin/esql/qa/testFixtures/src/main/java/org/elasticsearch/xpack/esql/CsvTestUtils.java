@@ -364,7 +364,7 @@ public final class CsvTestUtils {
                         continue;
                     }
                     if (value.startsWith("[")) {
-                        if (value.endsWith("]")) {
+                        if (false == value.endsWith("]")) {
                             throw new IllegalArgumentException(
                                 "Incomplete multi-value (opening and closing square brackets) found " + value + " on row " + values.size()
                             );

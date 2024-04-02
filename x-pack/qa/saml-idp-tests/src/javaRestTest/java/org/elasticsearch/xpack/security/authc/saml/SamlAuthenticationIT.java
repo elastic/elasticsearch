@@ -27,6 +27,7 @@ import org.apache.http.protocol.HttpContext;
 import org.apache.http.protocol.HttpCoreContext;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -80,6 +81,7 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  * An integration test for validating SAML authentication against a real Identity Provider (Shibboleth)
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106758")
 public class SamlAuthenticationIT extends ESRestTestCase {
 
     private static final String SAML_RESPONSE_FIELD = "SAMLResponse";

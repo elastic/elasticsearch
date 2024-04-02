@@ -3,3 +3,5 @@
 *Description*
 
 Returns whether the two geometries or geometry columns intersect.
+
+NOTE: The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters.

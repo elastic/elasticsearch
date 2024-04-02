@@ -203,8 +203,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         "[element_type] cannot be [" + elementType.getValue().toString() + "] when using index type [" + v.type + "]"
                     );
                 }
-            }).acceptsNull()
-                .setMergeValidator((previous, current, c) -> previous == null || previous.updatableTo(current));
+            }).acceptsNull().setMergeValidator((previous, current, c) -> previous == null || previous.updatableTo(current));
             if (defaultInt8Hnsw) {
                 this.indexOptions.alwaysSerialize();
             }

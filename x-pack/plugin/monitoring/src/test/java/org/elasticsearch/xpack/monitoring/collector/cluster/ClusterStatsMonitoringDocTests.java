@@ -522,7 +522,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                   },
                   "docs": {
                     "count": 0,
-                    "deleted": 0
+                    "deleted": 0,
+                    "total_size_in_bytes": 0
                   },
                   "store": {
                     "size_in_bytes": 0,

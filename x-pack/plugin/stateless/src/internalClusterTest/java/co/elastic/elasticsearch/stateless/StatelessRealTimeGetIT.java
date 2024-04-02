@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
@@ -56,7 +57,6 @@ import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
@@ -354,11 +354,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
             node,
             TransportGetFromTranslogAction.NAME,
             request,
-            new ActionListenerResponseHandler<>(
-                response,
-                TransportGetFromTranslogAction.Response::new,
-                transportService.getThreadPool().executor(ThreadPool.Names.SAME)
-            )
+            new ActionListenerResponseHandler<>(response, TransportGetFromTranslogAction.Response::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
         );
         return response.get();
     }

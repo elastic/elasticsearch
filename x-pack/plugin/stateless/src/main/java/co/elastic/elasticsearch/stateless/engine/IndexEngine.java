@@ -312,10 +312,10 @@ public class IndexEngine extends InternalEngine {
         // Sometimes a flush will have been performed meaning we are likely on the object store thread pool now. Dispatch back if the thread
         // has changed
         ThreadPool threadPool = engineConfig.getThreadPool();
-        if (Thread.currentThread() != originalThread) {
-            threadPool.executor(ThreadPool.Names.REFRESH).execute(refreshRunnable);
+        if (Thread.currentThread() == originalThread) {
+            refreshRunnable.run();
         } else {
-            threadPool.executor(ThreadPool.Names.SAME).execute(refreshRunnable);
+            threadPool.executor(ThreadPool.Names.REFRESH).execute(refreshRunnable);
         }
     }
 

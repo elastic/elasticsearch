@@ -42,6 +42,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
 public class StatelessElectionStrategy extends ElectionStrategy {
@@ -51,10 +52,12 @@ public class StatelessElectionStrategy extends ElectionStrategy {
     static final int MAX_READ_CURRENT_LEASE_TERM_RETRIES = 4;
     private final Supplier<BlobContainer> blobContainerSupplier;
     private final ThreadPool threadPool;
+    private final Executor snapshotMetaExecutor;
 
     public StatelessElectionStrategy(Supplier<BlobContainer> blobContainerSupplier, ThreadPool threadPool) {
         this.blobContainerSupplier = blobContainerSupplier;
         this.threadPool = threadPool;
+        this.snapshotMetaExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT_META);
     }
 
     @Override
@@ -214,39 +217,38 @@ public class StatelessElectionStrategy extends ElectionStrategy {
     }
 
     public void readLease(ActionListener<Optional<Lease>> listener) {
-        threadPool.executor(getExecutorName())
-            .execute(
-                ActionRunnable.wrap(
-                    listener,
-                    l -> blobContainer().getRegister(OperationPurpose.CLUSTER_STATE, LEASE_BLOB, l.map(optionalBytesReference -> {
-                        if (optionalBytesReference.isPresent()) {
-                            Lease result;
-                            BytesReference bytesReference = optionalBytesReference.bytesReference();
-                            if (bytesReference.length() == 0) {
-                                result = Lease.ZERO;
-                            } else if (bytesReference.length() == Long.BYTES) {
-                                result = new Lease(Long.reverseBytes(bytesReference.getLongLE(0)), Lease.UNSUPPORTED);
-                            } else if (bytesReference.length() == 2 * Long.BYTES) {
-                                result = new Lease(
-                                    Long.reverseBytes(bytesReference.getLongLE(0)),
-                                    Long.reverseBytes(bytesReference.getLongLE(Long.BYTES))
-                                );
-                            } else {
-                                throw new IllegalArgumentException(
-                                    "cannot read terms from BytesReference of length " + bytesReference.length()
-                                );
-                            }
-                            return Optional.of(result);
+        getExecutor().execute(
+            ActionRunnable.wrap(
+                listener,
+                l -> blobContainer().getRegister(OperationPurpose.CLUSTER_STATE, LEASE_BLOB, l.map(optionalBytesReference -> {
+                    if (optionalBytesReference.isPresent()) {
+                        Lease result;
+                        BytesReference bytesReference = optionalBytesReference.bytesReference();
+                        if (bytesReference.length() == 0) {
+                            result = Lease.ZERO;
+                        } else if (bytesReference.length() == Long.BYTES) {
+                            result = new Lease(Long.reverseBytes(bytesReference.getLongLE(0)), Lease.UNSUPPORTED);
+                        } else if (bytesReference.length() == 2 * Long.BYTES) {
+                            result = new Lease(
+                                Long.reverseBytes(bytesReference.getLongLE(0)),
+                                Long.reverseBytes(bytesReference.getLongLE(Long.BYTES))
+                            );
                         } else {
-                            return Optional.empty();
+                            throw new IllegalArgumentException(
+                                "cannot read terms from BytesReference of length " + bytesReference.length()
+                            );
                         }
-                    }))
-                )
-            );
+                        return Optional.of(result);
+                    } else {
+                        return Optional.empty();
+                    }
+                }))
+            )
+        );
     }
 
-    protected String getExecutorName() {
-        return ThreadPool.Names.SNAPSHOT_META;
+    protected Executor getExecutor() {
+        return snapshotMetaExecutor;
     }
 
     private BlobContainer blobContainer() {

@@ -33,6 +33,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Streams;
@@ -91,8 +92,7 @@ public class BlobStoreSyncDirectoryTests extends ESTestCase {
             var syncDirectory = new BlobStoreSyncDirectory(
                 new ByteBuffersDirectory(),
                 () -> statelessNode.objectStoreService.getClusterStateBlobContainerForTerm(term),
-                statelessNode.threadPool.executor(ThreadPool.Names.SAME) // Execute in the same thread pool, in order to get predictable
-                                                                         // ordering
+                EsExecutors.DIRECT_EXECUTOR_SERVICE // Execute in the same thread pool, in order to get predictable ordering
             )
         ) {
             int numberOfFiles = randomIntBetween(10, 20);
@@ -170,7 +170,7 @@ public class BlobStoreSyncDirectoryTests extends ESTestCase {
             var syncDirectory = new BlobStoreSyncDirectory(
                 new ByteBuffersDirectory(),
                 () -> statelessNode.objectStoreService.getClusterStateBlobContainerForTerm(1),
-                statelessNode.threadPool.executor(ThreadPool.Names.SAME)
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
             var indexWriter = new IndexWriter(syncDirectory, getIndexWriterConfig())
         ) {
@@ -244,7 +244,7 @@ public class BlobStoreSyncDirectoryTests extends ESTestCase {
             var dir = new BlobStoreSyncDirectory(
                 new ByteBuffersDirectory(),
                 () -> statelessNode.objectStoreService.getClusterStateBlobContainerForTerm(1),
-                statelessNode.threadPool.executor(ThreadPool.Names.SAME)
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
             var indexWriter = new IndexWriter(dir, getIndexWriterConfig())
         ) {

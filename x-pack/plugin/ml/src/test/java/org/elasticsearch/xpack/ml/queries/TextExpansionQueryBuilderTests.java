@@ -42,7 +42,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.xpack.ml.queries.VectorDimensionsQueryBuilder.TOKENS_FIELD;
+import static org.elasticsearch.xpack.ml.queries.WeightedTokensQueryBuilder.TOKENS_FIELD;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.hasSize;
@@ -100,9 +100,9 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
 
         // Randomisation cannot be used here as {@code #doAssertLuceneQuery}
         // asserts that 2 rewritten queries are the same
-        var tokens = new ArrayList<TextExpansionResults.VectorDimension>();
+        var tokens = new ArrayList<TextExpansionResults.QueryVector>();
         for (int i = 0; i < NUM_TOKENS; i++) {
-            tokens.add(new TextExpansionResults.VectorDimension(Integer.toString(i), (i + 1) * 1.0f));
+            tokens.add(new TextExpansionResults.QueryVector(Integer.toString(i), (i + 1) * 1.0f));
         }
 
         var response = InferModelAction.Response.builder()
@@ -263,7 +263,7 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
         if (queryBuilder.getTokenPruningConfig() == null) {
             assertTrue(rewrittenQueryBuilder instanceof BoolQueryBuilder);
         } else {
-            assertTrue(rewrittenQueryBuilder instanceof VectorDimensionsQueryBuilder);
+            assertTrue(rewrittenQueryBuilder instanceof WeightedTokensQueryBuilder);
         }
     }
 }

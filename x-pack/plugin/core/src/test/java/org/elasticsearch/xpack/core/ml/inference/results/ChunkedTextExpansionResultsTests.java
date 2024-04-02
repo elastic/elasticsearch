@@ -22,12 +22,10 @@ public class ChunkedTextExpansionResultsTests extends AbstractWireSerializingTes
         int numChunks = randomIntBetween(1, 5);
 
         for (int i = 0; i < numChunks; i++) {
-            var tokenWeights = new ArrayList<TextExpansionResults.VectorDimension>();
+            var tokenWeights = new ArrayList<TextExpansionResults.QueryVector>();
             int numTokens = randomIntBetween(1, 8);
             for (int j = 0; j < numTokens; j++) {
-                tokenWeights.add(
-                    new TextExpansionResults.VectorDimension(Integer.toString(j), (float) randomDoubleBetween(0.0, 5.0, false))
-                );
+                tokenWeights.add(new TextExpansionResults.QueryVector(Integer.toString(j), (float) randomDoubleBetween(0.0, 5.0, false)));
             }
             chunks.add(new ChunkedTextExpansionResults.ChunkedResult(randomAlphaOfLength(6), tokenWeights));
         }

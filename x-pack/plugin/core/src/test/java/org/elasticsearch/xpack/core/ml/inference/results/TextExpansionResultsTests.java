@@ -23,9 +23,9 @@ public class TextExpansionResultsTests extends InferenceResultsTestCase<TextExpa
 
     public static TextExpansionResults createRandomResults(int min, int max) {
         int numTokens = randomIntBetween(min, max);
-        List<TextExpansionResults.VectorDimension> tokenList = new ArrayList<>();
+        List<TextExpansionResults.QueryVector> tokenList = new ArrayList<>();
         for (int i = 0; i < numTokens; i++) {
-            tokenList.add(new TextExpansionResults.VectorDimension(Integer.toString(i), (float) randomDoubleBetween(0.0, 5.0, false)));
+            tokenList.add(new TextExpansionResults.QueryVector(Integer.toString(i), (float) randomDoubleBetween(0.0, 5.0, false)));
         }
         return new TextExpansionResults(randomAlphaOfLength(4), tokenList, randomBoolean());
     }
@@ -55,7 +55,7 @@ public class TextExpansionResultsTests extends InferenceResultsTestCase<TextExpa
         var ingestedTokens = (Map<String, Object>) document.getFieldValue(parentField + resultsField, Map.class);
         var tokenMap = createdInstance.getVectorDimensions()
             .stream()
-            .collect(Collectors.toMap(TextExpansionResults.VectorDimension::token, TextExpansionResults.VectorDimension::weight));
+            .collect(Collectors.toMap(TextExpansionResults.QueryVector::token, TextExpansionResults.QueryVector::weight));
         assertEquals(tokenMap.size(), ingestedTokens.size());
 
         assertEquals(tokenMap, ingestedTokens);

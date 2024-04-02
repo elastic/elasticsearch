@@ -97,9 +97,9 @@ setup:
         wait_for: started
 
 ---
-Test that sparse vector search requires a model ID and vector dimensions:
+Test that sparse vector search requires a model ID and query vector:
   - do:
-      catch: /\[sparse_vector\] requires one of \[model_id\], or \[vector_dimensions\]/
+      catch: /\[sparse_vector\] requires one of \[model_id\], or \[query_vector\]/
       search:
         index: index-with-sparse-vector
         body:
@@ -109,9 +109,9 @@ Test that sparse vector search requires a model ID and vector dimensions:
                 model_text: "the octopus comforter smells"
 
 ---
-Test that sparse vector search will not allow both a model ID and vector dimensions:
+Test that sparse vector search will not allow both a model ID and query vector:
   - do:
-      catch: /\[sparse_vector\] requires one of \[model_id\], or \[vector_dimensions\]/
+      catch: /\[sparse_vector\] requires one of \[model_id\], or \[query_vector\]/
       search:
         index: index-with-sparse-vector
         body:
@@ -119,7 +119,7 @@ Test that sparse vector search will not allow both a model ID and vector dimensi
             sparse_vector:
               ml.tokens:
                 model_id: my_sparse_vector_model
-                vector_dimensions:
+                query_vector:
                   the: 1
                   comforter: 1
                   smells: 1
@@ -152,7 +152,7 @@ Test that sparse vector search will not allow both a model ID and vector dimensi
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
-"Test sparse vector search with vector dimensions":
+"Test sparse vector search with query vector":
   - do:
       search:
         index: index-with-sparse-vector
@@ -160,7 +160,7 @@ Test that sparse vector search will not allow both a model ID and vector dimensi
           query:
             sparse_vector:
               ml.tokens:
-                vector_dimensions:
+                query_vector:
                   the: 1.0
                   comforter: 1.0
                   smells: 1.0
@@ -186,7 +186,7 @@ Test that sparse vector search will not allow both a model ID and vector dimensi
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
-"Test sparse vector search with vector dimensions and pruning config":
+"Test sparse vector search with query vector and pruning config":
   - do:
       search:
         index: index-with-sparse-vector
@@ -194,7 +194,7 @@ Test that sparse vector search will not allow both a model ID and vector dimensi
           query:
             sparse_vector:
               ml.tokens:
-                vector_dimensions:
+                query_vector:
                   the: 1.0
                   comforter: 1.0
                   smells: 1.0
@@ -258,7 +258,7 @@ Test that sparse vector search will not allow both a model ID and vector dimensi
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
-"Test sparse vector search with vector dimensions and default pruning config":
+"Test sparse vector search with query vector and default pruning config":
   - do:
       search:
         index: index-with-sparse-vector
@@ -266,7 +266,7 @@ Test that sparse vector search will not allow both a model ID and vector dimensi
           query:
             sparse_vector:
               ml.tokens:
-                vector_dimensions:
+                query_vector:
                   the: 1.0
                   comforter: 1.0
                   smells: 1.0
@@ -293,7 +293,7 @@ Test that sparse vector search will not allow both a model ID and vector dimensi
   - match: { hits.total.value: 0 }
 
 ---
-"Test sparse vector search with vector dimensions rescoring only pruned tokens":
+"Test sparse vector search with query vector rescoring only pruned tokens":
   - do:
       search:
         index: index-with-sparse-vector
@@ -301,7 +301,7 @@ Test that sparse vector search will not allow both a model ID and vector dimensi
           query:
             sparse_vector:
               ml.tokens:
-                vector_dimensions:
+                query_vector:
                   the: 1.0
                   comforter: 1.0
                   smells: 1.0

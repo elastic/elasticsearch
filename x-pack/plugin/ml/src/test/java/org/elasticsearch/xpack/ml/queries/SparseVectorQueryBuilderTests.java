@@ -43,7 +43,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.xpack.ml.queries.SparseVectorQueryBuilder.MODEL_ID;
-import static org.elasticsearch.xpack.ml.queries.VectorDimensionsQueryBuilder.TOKENS_FIELD;
+import static org.elasticsearch.xpack.ml.queries.WeightedTokensQueryBuilder.TOKENS_FIELD;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.hasSize;
@@ -51,8 +51,8 @@ import static org.hamcrest.Matchers.hasSize;
 public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseVectorQueryBuilder> {
 
     private static final String RANK_FEATURES_FIELD = "rank";
-    private static final List<TextExpansionResults.VectorDimension> VECTOR_DIMENSIONS = List.of(
-        new TextExpansionResults.VectorDimension("foo", .42f)
+    private static final List<TextExpansionResults.QueryVector> VECTOR_DIMENSIONS = List.of(
+        new TextExpansionResults.QueryVector("foo", .42f)
     );
     private static final int NUM_TOKENS = VECTOR_DIMENSIONS.size();
 
@@ -63,9 +63,9 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
             : null;
         String modelText = randomAlphaOfLength(4);
         String modelId = randomBoolean() ? randomAlphaOfLength(4) : null;
-        List<TextExpansionResults.VectorDimension> vectorDimensions = modelId == null ? VECTOR_DIMENSIONS : null;
+        List<TextExpansionResults.QueryVector> queryVectors = modelId == null ? VECTOR_DIMENSIONS : null;
 
-        var builder = new SparseVectorQueryBuilder(RANK_FEATURES_FIELD, modelText, modelId, vectorDimensions, tokenPruningConfig);
+        var builder = new SparseVectorQueryBuilder(RANK_FEATURES_FIELD, modelText, modelId, queryVectors, tokenPruningConfig);
         if (randomBoolean()) {
             builder.boost((float) randomDoubleBetween(0.1, 10.0, true));
         }
@@ -103,9 +103,9 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
 
         // Randomisation cannot be used here as {@code #doAssertLuceneQuery}
         // asserts that 2 rewritten queries are the same
-        var tokens = new ArrayList<TextExpansionResults.VectorDimension>();
+        var tokens = new ArrayList<TextExpansionResults.QueryVector>();
         for (int i = 0; i < NUM_TOKENS; i++) {
-            tokens.add(new TextExpansionResults.VectorDimension(Integer.toString(i), (i + 1) * 1.0f));
+            tokens.add(new TextExpansionResults.QueryVector(Integer.toString(i), (i + 1) * 1.0f));
         }
 
         var response = InferModelAction.Response.builder()
@@ -202,14 +202,14 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
                 IllegalArgumentException.class,
                 () -> new SparseVectorQueryBuilder("field name", "model text", null, null)
             );
-            assertEquals("[sparse_vector] requires one of [model_id], or [vector_dimensions]", e.getMessage());
+            assertEquals("[sparse_vector] requires one of [model_id], or [query_vector]", e.getMessage());
         }
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> new SparseVectorQueryBuilder("field name", "model text", "baz", VECTOR_DIMENSIONS)
             );
-            assertEquals("[sparse_vector] requires one of [model_id], or [vector_dimensions]", e.getMessage());
+            assertEquals("[sparse_vector] requires one of [model_id], or [query_vector]", e.getMessage());
         }
     }
 
@@ -233,7 +233,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
               "sparse_vector": {
                 "foo": {
                   "model_text": "bar",
-                  "vector_dimensions": {
+                  "query_vector": {
                     "foo": 0.42
                   }
                 }
@@ -269,7 +269,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
                     "tokens_freq_ratio_threshold": 4.0,
                     "tokens_weight_threshold": 0.3
                   },
-                  "vector_dimensions": {
+                  "query_vector": {
                     "foo": 0.42
                   }
                 }
@@ -307,7 +307,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
                     "tokens_weight_threshold": 0.3,
                     "only_score_pruned_tokens": true
                   },
-                  "vector_dimensions": {
+                  "query_vector": {
                     "foo": 0.42
                   }
                 }
@@ -328,7 +328,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
                     "tokens_weight_threshold" : 0.3,
                     "only_score_pruned_tokens" : true
                   },
-                  "vector_dimensions" : {
+                  "query_vector" : {
                     "foo" : 0.42
                   }
                 }
@@ -341,7 +341,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
         return new String[] {
             TOKENS_FIELD.getPreferredName(),
             MODEL_ID.getPreferredName(),
-            SparseVectorQueryBuilder.VECTOR_DIMENSIONS.getPreferredName() };
+            SparseVectorQueryBuilder.QUERY_VECTOR.getPreferredName() };
     }
 
     public void testThatTokensAreCorrectlyPruned() {
@@ -351,7 +351,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
         if (queryBuilder.getTokenPruningConfig() == null) {
             assertTrue(rewrittenQueryBuilder instanceof BoolQueryBuilder);
         } else {
-            assertTrue(rewrittenQueryBuilder instanceof VectorDimensionsQueryBuilder);
+            assertTrue(rewrittenQueryBuilder instanceof WeightedTokensQueryBuilder);
         }
     }
 }

@@ -27,7 +27,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults.VectorDimension;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults.QueryVector;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,21 +37,21 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder.AllowedFieldType;
 import static org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder.PRUNING_CONFIG;
 
-public class VectorDimensionsQueryBuilder extends AbstractQueryBuilder<VectorDimensionsQueryBuilder> {
-    // TODO Decide if we want to allow this to remain a query, but deprecated, or remove entirely since it's preview.
-    public static final String NAME = "weighted_tokens";
+public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTokensQueryBuilder> {
 
+    // TODO deprecate this query in favor of {@link SparseVectorQueryBuilder}
+    public static final String NAME = "weighted_tokens";
     public static final ParseField TOKENS_FIELD = new ParseField("tokens");
     private final String fieldName;
-    private final List<VectorDimension> tokens;
+    private final List<QueryVector> tokens;
     @Nullable
     private final TokenPruningConfig tokenPruningConfig;
 
-    public VectorDimensionsQueryBuilder(String fieldName, List<VectorDimension> tokens) {
+    public WeightedTokensQueryBuilder(String fieldName, List<QueryVector> tokens) {
         this(fieldName, tokens, null);
     }
 
-    public VectorDimensionsQueryBuilder(String fieldName, List<VectorDimension> tokens, @Nullable TokenPruningConfig tokenPruningConfig) {
+    public WeightedTokensQueryBuilder(String fieldName, List<QueryVector> tokens, @Nullable TokenPruningConfig tokenPruningConfig) {
         this.fieldName = Objects.requireNonNull(fieldName, "[" + NAME + "] requires a fieldName");
         this.tokens = Objects.requireNonNull(tokens, "[" + NAME + "] requires tokens");
         if (tokens.isEmpty()) {
@@ -60,10 +60,10 @@ public class VectorDimensionsQueryBuilder extends AbstractQueryBuilder<VectorDim
         this.tokenPruningConfig = tokenPruningConfig;
     }
 
-    public VectorDimensionsQueryBuilder(StreamInput in) throws IOException {
+    public WeightedTokensQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.fieldName = in.readString();
-        this.tokens = in.readCollectionAsList(VectorDimension::new);
+        this.tokens = in.readCollectionAsList(QueryVector::new);
         this.tokenPruningConfig = in.readOptionalWriteable(TokenPruningConfig::new);
     }
 
@@ -129,13 +129,8 @@ public class VectorDimensionsQueryBuilder extends AbstractQueryBuilder<VectorDim
      * Returns true if the token should be queried based on the {@code tokensFreqRatioThreshold} and {@code tokensWeightThreshold}
      * set on the query.
      */
-    private boolean shouldKeepToken(
-        IndexReader reader,
-        VectorDimension token,
-        int fieldDocCount,
-        float averageTokenFreqRatio,
-        float bestWeight
-    ) throws IOException {
+    private boolean shouldKeepToken(IndexReader reader, QueryVector token, int fieldDocCount, float averageTokenFreqRatio, float bestWeight)
+        throws IOException {
         if (this.tokenPruningConfig == null) {
             return true;
         }
@@ -173,7 +168,7 @@ public class VectorDimensionsQueryBuilder extends AbstractQueryBuilder<VectorDim
             : queryBuilderWithPrunedTokens(tokens, ft, context);
     }
 
-    private Query queryBuilderWithAllTokens(List<VectorDimension> tokens, MappedFieldType ft, SearchExecutionContext context) {
+    private Query queryBuilderWithAllTokens(List<QueryVector> tokens, MappedFieldType ft, SearchExecutionContext context) {
         var qb = new BooleanQuery.Builder();
 
         for (var token : tokens) {
@@ -182,11 +177,11 @@ public class VectorDimensionsQueryBuilder extends AbstractQueryBuilder<VectorDim
         return qb.setMinimumNumberShouldMatch(1).build();
     }
 
-    private Query queryBuilderWithPrunedTokens(List<VectorDimension> tokens, MappedFieldType ft, SearchExecutionContext context)
+    private Query queryBuilderWithPrunedTokens(List<QueryVector> tokens, MappedFieldType ft, SearchExecutionContext context)
         throws IOException {
         var qb = new BooleanQuery.Builder();
         int fieldDocCount = context.getIndexReader().getDocCount(fieldName);
-        float bestWeight = tokens.stream().map(VectorDimension::weight).reduce(0f, Math::max);
+        float bestWeight = tokens.stream().map(QueryVector::weight).reduce(0f, Math::max);
         float averageTokenFreqRatio = getAverageTokenFreqRatio(context.getIndexReader(), fieldDocCount);
         if (averageTokenFreqRatio == 0) {
             return new MatchNoDocsQuery("The \"" + getName() + "\" query is against an empty field");
@@ -204,7 +199,7 @@ public class VectorDimensionsQueryBuilder extends AbstractQueryBuilder<VectorDim
     }
 
     @Override
-    protected boolean doEquals(VectorDimensionsQueryBuilder other) {
+    protected boolean doEquals(WeightedTokensQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(tokenPruningConfig, other.tokenPruningConfig)
             && tokens.equals(other.tokens);
@@ -237,10 +232,10 @@ public class VectorDimensionsQueryBuilder extends AbstractQueryBuilder<VectorDim
         );
     }
 
-    public static VectorDimensionsQueryBuilder fromXContent(XContentParser parser) throws IOException {
+    public static WeightedTokensQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String currentFieldName = null;
         String fieldName = null;
-        List<VectorDimension> tokens = new ArrayList<>();
+        List<QueryVector> tokens = new ArrayList<>();
         TokenPruningConfig tokenPruningConfig = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String queryName = null;
@@ -265,7 +260,7 @@ public class VectorDimensionsQueryBuilder extends AbstractQueryBuilder<VectorDim
                     } else if (TOKENS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         var tokensMap = parser.map();
                         for (var e : tokensMap.entrySet()) {
-                            tokens.add(new VectorDimension(e.getKey(), parseWeight(e.getKey(), e.getValue())));
+                            tokens.add(new QueryVector(e.getKey(), parseWeight(e.getKey(), e.getValue())));
                         }
                     } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         boost = parser.floatValue();
@@ -284,7 +279,7 @@ public class VectorDimensionsQueryBuilder extends AbstractQueryBuilder<VectorDim
             throw new ParsingException(parser.getTokenLocation(), "No fieldname specified for query");
         }
 
-        var qb = new VectorDimensionsQueryBuilder(fieldName, tokens, tokenPruningConfig);
+        var qb = new WeightedTokensQueryBuilder(fieldName, tokens, tokenPruningConfig);
         qb.queryName(queryName);
         qb.boost(boost);
         return qb;

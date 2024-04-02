@@ -52,7 +52,7 @@ public class ChunkedSparseEmbeddingResults implements ChunkedInferenceServiceRes
     public static ChunkedSparseEmbeddingResults of(String input, SparseEmbeddingResults.Embedding embedding) {
         var weightedTokens = embedding.tokens()
             .stream()
-            .map(weightedToken -> new TextExpansionResults.VectorDimension(weightedToken.token(), weightedToken.weight()))
+            .map(weightedToken -> new TextExpansionResults.QueryVector(weightedToken.token(), weightedToken.weight()))
             .toList();
 
         return new ChunkedSparseEmbeddingResults(List.of(new ChunkedTextExpansionResults.ChunkedResult(input, weightedTokens)));

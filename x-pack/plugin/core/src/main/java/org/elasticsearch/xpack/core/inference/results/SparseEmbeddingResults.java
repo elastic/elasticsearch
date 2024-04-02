@@ -94,7 +94,7 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Infe
                     DEFAULT_RESULTS_FIELD,
                     embedding.tokens()
                         .stream()
-                        .map(weightedToken -> new TextExpansionResults.VectorDimension(weightedToken.token, weightedToken.weight))
+                        .map(weightedToken -> new TextExpansionResults.QueryVector(weightedToken.token, weightedToken.weight))
                         .toList(),
                     embedding.isTruncated
                 )
@@ -108,12 +108,12 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Infe
         public static final String IS_TRUNCATED = "is_truncated";
 
         public Embedding(StreamInput in) throws IOException {
-            this(in.readCollectionAsList(WeightedToken::new), in.readBoolean());
+            this(in.readCollectionAsList(SparseEmbeddingResults.WeightedToken::new), in.readBoolean());
         }
 
-        public static Embedding create(List<TextExpansionResults.VectorDimension> vectorDimensions, boolean isTruncated) {
+        public static Embedding create(List<TextExpansionResults.QueryVector> queryVectors, boolean isTruncated) {
             return new Embedding(
-                vectorDimensions.stream().map(token -> new WeightedToken(token.token(), token.weight())).toList(),
+                queryVectors.stream().map(token -> new WeightedToken(token.token(), token.weight())).toList(),
                 isTruncated
             );
         }
@@ -141,7 +141,8 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Infe
 
         public Map<String, Object> asMap() {
             var embeddingMap = new LinkedHashMap<String, Object>(
-                tokens.stream().collect(Collectors.toMap(WeightedToken::token, WeightedToken::weight))
+                tokens.stream()
+                    .collect(Collectors.toMap(SparseEmbeddingResults.WeightedToken::token, SparseEmbeddingResults.WeightedToken::weight))
             );
 
             return new LinkedHashMap<>(Map.of(IS_TRUNCATED, isTruncated, EMBEDDING, embeddingMap));

@@ -125,9 +125,9 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         private List<ChunkedInferenceServiceResults> makeChunkedResults(List<String> input) {
             var chunks = new ArrayList<ChunkedTextExpansionResults.ChunkedResult>();
             for (int i = 0; i < input.size(); i++) {
-                var tokens = new ArrayList<TextExpansionResults.VectorDimension>();
+                var tokens = new ArrayList<TextExpansionResults.QueryVector>();
                 for (int j = 0; j < 5; j++) {
-                    tokens.add(new TextExpansionResults.VectorDimension(Integer.toString(j), (float) j));
+                    tokens.add(new TextExpansionResults.QueryVector(Integer.toString(j), (float) j));
                 }
                 chunks.add(new ChunkedTextExpansionResults.ChunkedResult(input.get(i), tokens));
             }

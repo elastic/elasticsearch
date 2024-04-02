@@ -100,21 +100,19 @@ public class TextExpansionProcessor extends NlpTask.Processor {
         }
     }
 
-    static List<TextExpansionResults.VectorDimension> sparseVectorToTokenWeights(
+    static List<TextExpansionResults.QueryVector> sparseVectorToTokenWeights(
         double[] vector,
         TokenizationResult tokenization,
         Map<Integer, String> replacementVocab
     ) {
         // Anything with a score > 0.0 is retained.
-        List<TextExpansionResults.VectorDimension> vectorDimensions = new ArrayList<>();
+        List<TextExpansionResults.QueryVector> queryVectors = new ArrayList<>();
         for (int i = 0; i < vector.length; i++) {
             if (vector[i] > 0.0) {
-                vectorDimensions.add(
-                    new TextExpansionResults.VectorDimension(tokenForId(i, tokenization, replacementVocab), (float) vector[i])
-                );
+                queryVectors.add(new TextExpansionResults.QueryVector(tokenForId(i, tokenization, replacementVocab), (float) vector[i]));
             }
         }
-        return vectorDimensions;
+        return queryVectors;
     }
 
     static String tokenForId(int id, TokenizationResult tokenization, Map<Integer, String> replacementVocab) {

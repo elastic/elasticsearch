@@ -1277,6 +1277,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             builder.endObject();
         } else {
             for (Map.Entry<List<DataType>, DataType> sig : sortedSignatures()) {
+                if (sig.getKey().size() > description.args().size()) {
+                    // This is likely CASE or something funny that allows duplicates in a funny way
+                    continue;
+                }
                 builder.startObject();
                 builder.startArray("params");
                 for (int i = 0; i < sig.getKey().size(); i++) {
@@ -1289,6 +1293,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     builder.endObject();
                 }
                 builder.endArray();
+                builder.field("variadic", description.variadic());
                 builder.field("returnType", sig.getValue().typeName());
                 builder.endObject();
             }
@@ -1317,7 +1322,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Collections.sort(sortedSignatures, new Comparator<>() {
             @Override
             public int compare(Map.Entry<List<DataType>, DataType> lhs, Map.Entry<List<DataType>, DataType> rhs) {
-                for (int i = 0; i < lhs.getKey().size(); i++) {
+                int maxlen = Math.max(lhs.getKey().size(), rhs.getKey().size());
+                for (int i = 0; i < maxlen; i++) {
+                    if (lhs.getKey().size() <= i) {
+                        return -1;
+                    }
+                    if (rhs.getKey().size() <= i) {
+                        return 1;
+                    }
                     int c = lhs.getKey().get(i).typeName().compareTo(rhs.getKey().get(i).typeName());
                     if (c != 0) {
                         return c;

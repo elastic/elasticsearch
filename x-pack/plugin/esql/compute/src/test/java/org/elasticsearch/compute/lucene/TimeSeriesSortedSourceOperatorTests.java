@@ -39,6 +39,7 @@ import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -80,12 +81,12 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         // for now we emit at most one time series each page
         int offset = 0;
         for (Page page : results) {
-            assertThat(page.getBlockCount(), equalTo(5));
+            assertThat(page.getBlockCount(), equalTo(6));
             DocVector docVector = (DocVector) page.getBlock(0).asVector();
             BytesRefVector tsidVector = (BytesRefVector) page.getBlock(1).asVector();
             LongVector timestampVector = (LongVector) page.getBlock(2).asVector();
-            LongVector voltageVector = (LongVector) page.getBlock(3).asVector();
-            BytesRefVector hostnameVector = (BytesRefVector) page.getBlock(4).asVector();
+            LongVector voltageVector = (LongVector) page.getBlock(4).asVector();
+            BytesRefVector hostnameVector = (BytesRefVector) page.getBlock(5).asVector();
             for (int i = 0; i < page.getPositionCount(); i++) {
                 int expectedTsidOrd = offset / numSamplesPerTS;
                 String expectedHostname = String.format(Locale.ROOT, "host-%02d", expectedTsidOrd);
@@ -110,7 +111,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         List<Page> results = runDriver(limit, randomIntBetween(1, 1024), randomBoolean(), numTimeSeries, numSamplesPerTS, timestampStart);
         assertThat(results, hasSize(1));
         Page page = results.get(0);
-        assertThat(page.getBlockCount(), equalTo(5));
+        assertThat(page.getBlockCount(), equalTo(6));
 
         DocVector docVector = (DocVector) page.getBlock(0).asVector();
         assertThat(docVector.getPositionCount(), equalTo(limit));
@@ -121,10 +122,10 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         LongVector timestampVector = (LongVector) page.getBlock(2).asVector();
         assertThat(timestampVector.getPositionCount(), equalTo(limit));
 
-        LongVector voltageVector = (LongVector) page.getBlock(3).asVector();
+        LongVector voltageVector = (LongVector) page.getBlock(4).asVector();
         assertThat(voltageVector.getPositionCount(), equalTo(limit));
 
-        BytesRefVector hostnameVector = (BytesRefVector) page.getBlock(4).asVector();
+        BytesRefVector hostnameVector = (BytesRefVector) page.getBlock(5).asVector();
         assertThat(hostnameVector.getPositionCount(), equalTo(limit));
 
         assertThat(docVector.shards().getInt(0), equalTo(0));
@@ -156,6 +157,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
             limit,
             maxPageSize,
             randomBoolean(),
+            TimeValue.ZERO,
             writer -> {
                 Randomness.shuffle(docs);
                 for (Doc doc : docs) {
@@ -188,11 +190,11 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
                 assertThat(page.getPositionCount(), lessThanOrEqualTo(limit));
                 assertThat(page.getPositionCount(), lessThanOrEqualTo(maxPageSize));
             }
-            assertThat(page.getBlockCount(), equalTo(4));
+            assertThat(page.getBlockCount(), equalTo(5));
             DocVector docVector = (DocVector) page.getBlock(0).asVector();
             BytesRefVector tsidVector = (BytesRefVector) page.getBlock(1).asVector();
             LongVector timestampVector = (LongVector) page.getBlock(2).asVector();
-            LongVector metricVector = (LongVector) page.getBlock(3).asVector();
+            LongVector metricVector = (LongVector) page.getBlock(4).asVector();
             for (int i = 0; i < page.getPositionCount(); i++) {
                 Doc doc = docs.get(offset);
                 offset++;
@@ -207,7 +209,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple() {
-        return createTimeSeriesSourceOperator(directory, r -> this.reader = r, 1, 1, false, writer -> {
+        return createTimeSeriesSourceOperator(directory, r -> this.reader = r, 1, 1, false, TimeValue.ZERO, writer -> {
             long timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-01-01T00:00:00Z");
             writeTS(writer, timestamp, new Object[] { "hostname", "host-01" }, new Object[] { "voltage", 2 });
             return 1;
@@ -232,6 +234,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
             limit,
             maxPageSize,
             forceMerge,
+            TimeValue.ZERO,
             writer -> {
                 long timestamp = timestampStart;
                 for (int i = 0; i < numSamplesPerTS; i++) {
@@ -275,6 +278,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         int limit,
         int maxPageSize,
         boolean forceMerge,
+        TimeValue timeValue,
         CheckedFunction<RandomIndexWriter, Integer, IOException> indexingLogic
     ) {
         Sort sort = new Sort(
@@ -302,7 +306,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         }
         var ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         Function<ShardContext, Query> queryFunction = c -> new MatchAllDocsQuery();
-        return TimeSeriesSortedSourceOperatorFactory.create(limit, maxPageSize, 1, List.of(ctx), queryFunction);
+        return TimeSeriesSortedSourceOperatorFactory.create(limit, maxPageSize, 1, timeValue, List.of(ctx), queryFunction);
     }
 
     public static void writeTS(RandomIndexWriter iw, long timestamp, Object[] dimensions, Object[] metrics) throws IOException {

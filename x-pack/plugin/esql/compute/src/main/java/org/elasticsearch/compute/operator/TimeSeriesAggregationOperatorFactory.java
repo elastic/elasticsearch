@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.common.Rounding;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
@@ -19,7 +18,7 @@ import java.util.List;
 public record TimeSeriesAggregationOperatorFactory(
     AggregatorMode mode,
     int tsHashChannel,
-    int timestampChannel,
+    int timestampIntervalChannel,
     TimeValue timeSeriesPeriod,
     List<GroupingAggregator.Factory> aggregators,
     int maxPageSize
@@ -31,8 +30,8 @@ public record TimeSeriesAggregationOperatorFactory(
             + mode
             + ", tsHashChannel = "
             + tsHashChannel
-            + ", timestampChannel = "
-            + timestampChannel
+            + ", timestampIntervalChannel = "
+            + timestampIntervalChannel
             + ", timeSeriesPeriod = "
             + timeSeriesPeriod
             + ", maxPageSize = "
@@ -42,8 +41,7 @@ public record TimeSeriesAggregationOperatorFactory(
 
     @Override
     public Operator get(DriverContext driverContext) {
-        var rounding = timeSeriesPeriod.equals(TimeValue.ZERO) == false ? Rounding.builder(timeSeriesPeriod).build() : null;
-        BlockHash blockHash = new TimeSeriesBlockHash(mode, tsHashChannel, timestampChannel, rounding, driverContext);
+        BlockHash blockHash = new TimeSeriesBlockHash(tsHashChannel, timestampIntervalChannel, driverContext);
         return new HashAggregationOperator(aggregators, () -> blockHash, driverContext);
     }
 

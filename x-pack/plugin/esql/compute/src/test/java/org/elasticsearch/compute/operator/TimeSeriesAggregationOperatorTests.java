@@ -59,7 +59,7 @@ public class TimeSeriesAggregationOperatorTests extends AnyOperatorTestCase {
 
     @Override
     protected String expectedDescriptionOfSimple() {
-        return "TimeSeriesAggregationOperator[mode=FINAL, tsHashChannel = 0, timestampChannel = 1, "
+        return "TimeSeriesAggregationOperator[mode=FINAL, tsHashChannel = 0, timestampIntervalChannel = 1, "
             + "timeSeriesPeriod = 0s, maxPageSize = 100]";
     }
 
@@ -85,11 +85,11 @@ public class TimeSeriesAggregationOperatorTests extends AnyOperatorTestCase {
             actualRates,
             equalTo(
                 Map.of(
-                    new Group("\u0001\u0003pods\u0002p1", 112),
+                    new Group("\u0001\u0003pods\u0002p1", 0),
                     35.0 * unit / 111.0,
-                    new Group("\u0001\u0003pods\u0002p2", 14),
+                    new Group("\u0001\u0003pods\u0002p2", 0),
                     42.0 * unit / 13.0,
-                    new Group("\u0001\u0003pods\u0002p3", 22),
+                    new Group("\u0001\u0003pods\u0002p3", 0),
                     10.0 * unit / 20.0
                 )
             )
@@ -139,9 +139,9 @@ public class TimeSeriesAggregationOperatorTests extends AnyOperatorTestCase {
             Pod pod = new Pod("p" + p, times, values);
             pods.add(pod);
             if (numValues == 1) {
-                expectedRates.put(new Group("\u0001\u0003pods\u0002" + pod.name, times[times.length - 1]), null);
+                expectedRates.put(new Group("\u0001\u0003pods\u0002" + pod.name, 0), null);
             } else {
-                expectedRates.put(new Group("\u0001\u0003pods\u0002" + pod.name, times[times.length - 1]), pod.expectedRate(unit));
+                expectedRates.put(new Group("\u0001\u0003pods\u0002" + pod.name, 0), pod.expectedRate(unit));
             }
         }
         Map<Group, Double> actualRates = runRateTest(pods, unit, TimeValue.ZERO);
@@ -177,6 +177,7 @@ public class TimeSeriesAggregationOperatorTests extends AnyOperatorTestCase {
             Integer.MAX_VALUE,
             between(1, 100),
             randomBoolean(),
+            interval,
             writer -> {
                 List<Doc> docs = new ArrayList<>();
                 for (Pod pod : pods) {
@@ -194,12 +195,12 @@ public class TimeSeriesAggregationOperatorTests extends AnyOperatorTestCase {
         var ctx = driverContext();
 
         var aggregators = List.of(
-            new RateLongAggregatorFunctionSupplier(List.of(3, 2), unitInMillis).groupingAggregatorFactory(AggregatorMode.INITIAL)
+            new RateLongAggregatorFunctionSupplier(List.of(4, 2), unitInMillis).groupingAggregatorFactory(AggregatorMode.INITIAL)
         );
         Operator initialHash = new TimeSeriesAggregationOperatorFactory(
             AggregatorMode.INITIAL,
             1,
-            2,
+            3,
             interval,
             aggregators,
             randomIntBetween(1, 1000)
@@ -302,6 +303,7 @@ public class TimeSeriesAggregationOperatorTests extends AnyOperatorTestCase {
             Integer.MAX_VALUE,
             between(1, 100),
             randomBoolean(),
+            TimeValue.ZERO,
             writer -> {
                 List<Doc> docs = new ArrayList<>();
                 for (Pod pod : pods) {
@@ -333,10 +335,10 @@ public class TimeSeriesAggregationOperatorTests extends AnyOperatorTestCase {
         if (randomBoolean()) {
             HashAggregationOperator initialHash = new HashAggregationOperator(
                 List.of(
-                    new RateLongAggregatorFunctionSupplier(List.of(4, 2), unitInMillis).groupingAggregatorFactory(AggregatorMode.INITIAL)
+                    new RateLongAggregatorFunctionSupplier(List.of(5, 2), unitInMillis).groupingAggregatorFactory(AggregatorMode.INITIAL)
                 ),
                 () -> BlockHash.build(
-                    List.of(new HashAggregationOperator.GroupSpec(3, ElementType.BYTES_REF)),
+                    List.of(new HashAggregationOperator.GroupSpec(4, ElementType.BYTES_REF)),
                     ctx.blockFactory(),
                     randomIntBetween(1, 1000),
                     randomBoolean()
@@ -367,7 +369,7 @@ public class TimeSeriesAggregationOperatorTests extends AnyOperatorTestCase {
                 0,
                 "pod",
                 List.of(
-                    new RateLongAggregatorFunctionSupplier(List.of(3, 2), unitInMillis).groupingAggregatorFactory(AggregatorMode.INITIAL)
+                    new RateLongAggregatorFunctionSupplier(List.of(4, 2), unitInMillis).groupingAggregatorFactory(AggregatorMode.INITIAL)
                 ),
                 randomIntBetween(1, 1000),
                 ctx

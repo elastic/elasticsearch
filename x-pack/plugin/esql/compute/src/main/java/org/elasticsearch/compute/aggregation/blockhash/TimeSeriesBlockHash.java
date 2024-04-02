@@ -8,12 +8,10 @@
 package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongLongHash;
-import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -30,29 +28,19 @@ import java.util.Objects;
 
 public final class TimeSeriesBlockHash extends BlockHash {
 
-    private final AggregatorMode mode;
     private final int tsHashChannel;
-    private final int timestampChannel;
-    private final Rounding.Prepared preparedRounding;
+    private final int timestampIntervalChannel;
     private final BytesRefHash tsidHashes;
     private final LongLongHash intervalHash;
 
     long groupOrdinal = -1;
     BytesRef previousTsidHash;
-    long previousTimestamp;
+    long previousTimestampInterval;
 
-    public TimeSeriesBlockHash(
-        AggregatorMode mode,
-        int tsHashChannel,
-        int timestampChannel,
-        Rounding rounding,
-        DriverContext driverContext
-    ) {
+    public TimeSeriesBlockHash(int tsHashChannel, int timestampIntervalChannel, DriverContext driverContext) {
         super(driverContext.blockFactory());
-        this.mode = mode;
         this.tsHashChannel = tsHashChannel;
-        this.timestampChannel = timestampChannel;
-        this.preparedRounding = rounding != null ? rounding.prepareForUnknown() : null;
+        this.timestampIntervalChannel = timestampIntervalChannel;
         this.tsidHashes = new BytesRefHash(1, blockFactory.bigArrays());
         this.intervalHash = new LongLongHash(1, blockFactory.bigArrays());
     }
@@ -67,42 +55,25 @@ public final class TimeSeriesBlockHash extends BlockHash {
         BytesRefBlock tsHashBlock = page.getBlock(tsHashChannel);
         BytesRefVector tsHashVector = Objects.requireNonNull(tsHashBlock.asVector());
         try (var ordsBuilder = blockFactory.newIntVectorBuilder(tsHashVector.getPositionCount())) {
-            LongBlock timestampIntervalBlock = page.getBlock(timestampChannel);
+            LongBlock timestampIntervalBlock = page.getBlock(timestampIntervalChannel);
             BytesRef spare = new BytesRef();
-            if (preparedRounding != null) {
-                for (int i = 0; i < tsHashVector.getPositionCount(); i++) {
-                    BytesRef tsHash = tsHashVector.getBytesRef(i, spare);
-                    long timestampInterval = preparedRounding.round(timestampIntervalBlock.getLong(i));
-                    if (tsHash.equals(previousTsidHash) == false || timestampInterval != previousTimestamp) {
-                        long tsidOrdinal = tsidHashes.add(tsHash);
-                        if (tsidOrdinal < 0) {
-                            tsidOrdinal = -1 - tsidOrdinal;
-                        }
-                        groupOrdinal = intervalHash.add(tsidOrdinal, timestampInterval);
-                        if (groupOrdinal < 0) {
-                            groupOrdinal = -1 - groupOrdinal;
-                        }
-                        previousTsidHash = BytesRef.deepCopyOf(tsHash);
-                        previousTimestamp = timestampInterval;
+            for (int i = 0; i < tsHashVector.getPositionCount(); i++) {
+                BytesRef tsHash = tsHashVector.getBytesRef(i, spare);
+                long timestampInterval = timestampIntervalBlock.getLong(i);
+                // Optimization that relies on the fact that blocks are sorted by tsid hash and timestamp
+                if (tsHash.equals(previousTsidHash) == false || timestampInterval != previousTimestampInterval) {
+                    long tsidOrdinal = tsidHashes.add(tsHash);
+                    if (tsidOrdinal < 0) {
+                        tsidOrdinal = -1 - tsidOrdinal;
                     }
-                    ordsBuilder.appendInt(Math.toIntExact(groupOrdinal));
-                }
-            } else {
-                for (int i = 0; i < tsHashVector.getPositionCount(); i++) {
-                    BytesRef tsHash = tsHashVector.getBytesRef(i, spare);
-                    if (tsHash.equals(previousTsidHash) == false) {
-                        groupOrdinal = tsidHashes.add(tsHash);
-                        if (groupOrdinal < 0) {
-                            groupOrdinal = -1 - groupOrdinal;
-                        }
-                        previousTsidHash = BytesRef.deepCopyOf(tsHash);
-
-                        // keep last time stamp around:
-                        long timestamp = timestampIntervalBlock.getLong(i);
-                        intervalHash.add(groupOrdinal, timestamp);
+                    groupOrdinal = intervalHash.add(tsidOrdinal, timestampInterval);
+                    if (groupOrdinal < 0) {
+                        groupOrdinal = -1 - groupOrdinal;
                     }
-                    ordsBuilder.appendInt(Math.toIntExact(groupOrdinal));
+                    previousTsidHash = BytesRef.deepCopyOf(tsHash);
+                    previousTimestampInterval = timestampInterval;
                 }
+                ordsBuilder.appendInt(Math.toIntExact(groupOrdinal));
             }
             try (var ords = ordsBuilder.build()) {
                 addInput.add(0, ords);
@@ -147,7 +118,7 @@ public final class TimeSeriesBlockHash extends BlockHash {
         return "TimeSeriesBlockHash{keys=[BytesRefKey[channel="
             + tsHashChannel
             + "], LongKey[channel="
-            + timestampChannel
+            + timestampIntervalChannel
             + "]], entries="
             + groupOrdinal
             + "b}";

@@ -890,15 +890,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return new Literal(from.source(), to, desired);
             } catch (Exception e) {
                 String message = LoggerMessageFormat.format(
-                    "Implicit conversion of string [{}] literal to type [{}], error [{}]",
+                    "Cannot convert string [{}] to [{}], error [{}]",
                     from.fold(),
                     desired,
                     e.getMessage()
                 );
                 return new UnsupportedAttribute(
                     from.source(),
-                    message,
-                    new UnsupportedEsField(String.valueOf(from.fold()), from.dataType().typeName())
+                    String.valueOf(from.fold()),
+                    new UnsupportedEsField(String.valueOf(from.fold()), from.dataType().typeName()),
+                    message
                 );
             }
         }

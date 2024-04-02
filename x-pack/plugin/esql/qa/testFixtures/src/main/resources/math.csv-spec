@@ -1415,7 +1415,7 @@ Anneke         |Preusig        |1.56           |1.56
 //end::abs-employees-result[]
 ;
 
-evalAbsString
+evalAbsString#[skip:-8.13.99,reason:string literal cast added in 8.14]
 ROW number = -1.0
 | EVAL abs_number = ABS("10.0")
 ;

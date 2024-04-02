@@ -339,14 +339,13 @@ Machine Learning::
 * Add 3 automatic restarts for `pytorch_inference` processes that stop unexpectedly {es-pull}104433[#104433]
 * Add support for Cohere inference service {es-pull}104559[#104559]
 * Always test for spikes and dips as well as changes in the change point aggregation {es-pull}103922[#103922]
-* Apply windowing and chunking to long documents {es-pull}104363[#104363]
 * Automatically download the ELSER model when PUT in `_inference` {es-pull}104334[#104334]
 * Better handling of number of allocations in pytorch_inference in the case that hardware_concurrency fails {ml-pull}2607[#2607]
 * Change detection aggregation improvements {es-pull}102824[#102824]
 * Conditionally send the dimensions field as part of the openai requests {es-pull}105299[#105299] (issue: {es-issue}105005[#105005])
 * Endpoint to find positions of Grok pattern matches {es-pull}104394[#104394]
 * Ensure unique IDs between inference models and trained model deployments {es-pull}103996[#103996]
-* Expose some ML metrics via APM {es-pull}102584[#102584]
+
 * Make `task_type` optional in `_inference` APIs {es-pull}104483[#104483]
 * Update `missingTrainedModel` message to include: you may need to create it {es-pull}104155[#104155]
 * Upgrade MKL to version 2024.0 on Linux x86_64 {ml-pull}2619[#2619]

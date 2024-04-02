@@ -17,8 +17,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.License;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -31,8 +29,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class XPackInfoResponse extends ActionResponse implements ToXContentObject {
     /**
@@ -274,16 +270,6 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
         @Override
         public int hashCode() {
             return Objects.hash(hash, timestamp);
-        }
-
-        private static final ConstructingObjectParser<BuildInfo, Void> PARSER = new ConstructingObjectParser<>(
-            "build_info",
-            true,
-            (a, v) -> new BuildInfo((String) a[0], (String) a[1])
-        );
-        static {
-            PARSER.declareString(constructorArg(), new ParseField("hash"));
-            PARSER.declareString(constructorArg(), new ParseField("date"));
         }
 
         @Override

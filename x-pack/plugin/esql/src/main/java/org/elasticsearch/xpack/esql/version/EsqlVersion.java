@@ -17,7 +17,7 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
     /**
      * Breaking changes go here until the next version is released.
      */
-    NIGHTLY(Integer.MAX_VALUE, Integer.MAX_VALUE, "😴"),
+    NIGHTLY(Integer.MAX_VALUE, Byte.MAX_VALUE, "😴"),
     PARTY_POPPER(2024, 4, "🎉");
 
     static final Map<String, EsqlVersion> VERSION_MAP_WITH_AND_WITHOUT_EMOJI = versionMapWithAndWithoutEmoji();
@@ -40,18 +40,18 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
         this(year, month, 1, emoji);
     }
 
-    EsqlVersion(int year, int month, int numberThisMonth, String emoji) {
-        assert 0 < numberThisMonth && numberThisMonth < 100;
+    EsqlVersion(int year, int month, int revision, String emoji) {
+        assert 0 < revision && revision < 100;
+        assert 0 < month && month < 13;
         this.year = year;
-        this.month = month;
-        this.numberThisMonth = numberThisMonth;
+        this.month = (byte) month;
+        this.revision = (byte) revision;
         this.emoji = emoji;
     }
 
     private int year;
-    private int month;
-    // In case we really have to release more than one version in a given month, disambiguates between versions in the month.
-    private int numberThisMonth;
+    private byte month;
+    private byte revision;
     private String emoji;
 
     /**
@@ -59,7 +59,7 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
      * E.g. "2024.04.01.🎉" will be interpreted as {@link EsqlVersion#PARTY_POPPER}, but so will "2024.04.01".
      */
     public String versionStringWithoutEmoji() {
-        return this == NIGHTLY ? "nightly" : Strings.format("%d.%02d.%02d", year, month, numberThisMonth);
+        return this == NIGHTLY ? "nightly" : Strings.format("%d.%02d.%02d", year, month, revision);
     }
 
     public String emoji() {
@@ -77,6 +77,6 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
 
     @Override
     public int id() {
-        return this == NIGHTLY ? Integer.MAX_VALUE : (10000 * year + 100 * month + numberThisMonth);
+        return this == NIGHTLY ? Integer.MAX_VALUE : (10000 * year + 100 * month + revision);
     }
 }

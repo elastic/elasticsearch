@@ -20,6 +20,7 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -64,6 +65,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106964")
 public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     private static final IndexVersion INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION = IndexVersions.V_8_10_0;
@@ -247,7 +249,15 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         mapping = mapping(b -> {
             b.startObject("field");
-            b.field("type", "dense_vector").field("dims", 4).field("similarity", "cosine").field("index", true);
+            b.field("type", "dense_vector")
+                .field("dims", 4)
+                .field("similarity", "cosine")
+                .field("index", true)
+                .startObject("index_options")
+                .field("type", "int8_hnsw")
+                .field("m", 16)
+                .field("ef_construction", 100)
+                .endObject();
             b.endObject();
         });
         merge(mapperService, mapping);

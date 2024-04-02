@@ -93,6 +93,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.index.IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8_HNSW;
 
 /**
  * A {@link FieldMapper} for indexing a dense vector of floats.
@@ -108,6 +109,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersions.V_7_5_0;
     public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersions.FIRST_DETACHED_INDEX_VERSION;
     public static final IndexVersion NORMALIZE_COSINE = IndexVersions.NORMALIZED_VECTOR_COSINE;
+    public static final IndexVersion DEFAULT_TO_INT8 = DEFAULT_DENSE_VECTOR_TO_INT8_HNSW;
     public static final IndexVersion LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION = IndexVersions.V_8_9_0;
 
     public static final String CONTENT_TYPE = "dense_vector";
@@ -152,15 +154,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }, m -> toType(m).fieldType().dims, XContentBuilder::field, Object::toString).setSerializerCheck((id, ic, v) -> v != null)
             .setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current));
         private final Parameter<VectorSimilarity> similarity;
-        private final Parameter<IndexOptions> indexOptions = new Parameter<>(
-            "index_options",
-            false,
-            () -> null,
-            (n, c, o) -> o == null ? null : parseIndexOptions(n, o),
-            m -> toType(m).indexOptions,
-            XContentBuilder::field,
-            Objects::toString
-        ).setSerializerCheck((id, ic, v) -> v != null);
+        private final Parameter<IndexOptions> indexOptions;
         private final Parameter<Boolean> indexed;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -170,6 +164,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
             final boolean indexedByDefault = indexVersionCreated.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION);
+            final boolean defaultInt8Hnsw = indexVersionCreated.onOrAfter(DEFAULT_DENSE_VECTOR_TO_INT8_HNSW);
             this.indexed = Parameter.indexParam(m -> toType(m).fieldType().indexed, indexedByDefault);
             if (indexedByDefault) {
                 // Only serialize on newer index versions to prevent breaking existing indices when upgrading
@@ -182,6 +177,34 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 (Supplier<VectorSimilarity>) () -> indexedByDefault && indexed.getValue() ? VectorSimilarity.COSINE : null,
                 VectorSimilarity.class
             ).acceptsNull().setSerializerCheck((id, ic, v) -> v != null);
+            this.indexOptions = new Parameter<>(
+                "index_options",
+                false,
+                () -> defaultInt8Hnsw && elementType.getValue() != ElementType.BYTE && this.indexed.getValue()
+                    ? new Int8HnswIndexOptions(
+                        Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN,
+                        Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH,
+                        null
+                    )
+                    : null,
+                (n, c, o) -> o == null ? null : parseIndexOptions(n, o),
+                m -> toType(m).indexOptions,
+                (b, n, v) -> {
+                    if (v != null) {
+                        b.field(n, v);
+                    }
+                },
+                Objects::toString
+            ).setSerializerCheck((id, ic, v) -> v != null).addValidator(v -> {
+                if (v != null && v.supportsElementType(elementType.getValue()) == false) {
+                    throw new IllegalArgumentException(
+                        "[element_type] cannot be [" + elementType.getValue().toString() + "] when using index type [" + v.type + "]"
+                    );
+                }
+            }).acceptsNull();
+            if (defaultInt8Hnsw) {
+                this.indexOptions.alwaysSerialize();
+            }
             this.indexed.addValidator(v -> {
                 if (v) {
                     if (similarity.getValue() == null) {
@@ -198,13 +221,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                             "Field [index_options] can only be specified for a field of type [dense_vector] when it is indexed"
                         );
                     }
-                }
-            });
-            this.indexOptions.addValidator(v -> {
-                if (v != null && v.supportsElementType(elementType.getValue()) == false) {
-                    throw new IllegalArgumentException(
-                        "[element_type] cannot be [" + elementType.getValue().toString() + "] when using index type [" + v.type + "]"
-                    );
                 }
             });
         }

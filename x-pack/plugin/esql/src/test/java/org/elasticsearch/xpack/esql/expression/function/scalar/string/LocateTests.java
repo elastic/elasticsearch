@@ -13,14 +13,14 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -30,49 +30,17 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for {@link Locate} function.
  */
-public class LocateTests extends AbstractScalarFunctionTestCase {
+public class LocateTests extends AbstractFunctionTestCase {
     public LocateTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Locate basic test with keyword", () -> {
-            String str = randomAlphaOfLength(10);
-            String substr = str.substring(5);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(str), DataTypes.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(substr), DataTypes.KEYWORD, "substr")
-                ),
-                "LocateEvaluator[str=Attribute[channel=0], substr=Attribute[channel=1]]",
-                DataTypes.INTEGER,
-                equalTo(5)
-            );
-        }), new TestCaseSupplier("Locate basic test with text", () -> {
-            String str = randomAlphaOfLength(10);
-            String substr = str.substring(5);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(str), DataTypes.TEXT, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(substr), DataTypes.TEXT, "substr")
-                ),
-                "LocateEvaluator[str=Attribute[channel=0], substr=Attribute[channel=1]]",
-                DataTypes.INTEGER,
-                equalTo(5)
-            );
-        })));
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.INTEGER;
-    }
-
-    public Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
-        String str = ((BytesRef) typedData.get(0).data()).utf8ToString();
-        String substr = ((BytesRef) typedData.get(1).data()).utf8ToString();
-        return equalTo(str.indexOf(substr));
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        suppliers.add(supplier("keywords", DataTypes.KEYWORD, () -> randomAlphaOfLength(10), () -> randomAlphaOfLength(5)));
+        suppliers.add(supplier("texts", DataTypes.TEXT, () -> randomAlphaOfLength(10), () -> randomAlphaOfLength(5)));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, suppliers)));
     }
 
     public void testToString() {
@@ -81,11 +49,6 @@ public class LocateTests extends AbstractScalarFunctionTestCase {
                 .toString(),
             equalTo("LocateEvaluator[str=Attribute[channel=0], substr=Attribute[channel=1]]")
         );
-    }
-
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of(required(strings()), required(strings()));
     }
 
     @Override
@@ -109,4 +72,24 @@ public class LocateTests extends AbstractScalarFunctionTestCase {
         }
     }
 
+    private static TestCaseSupplier supplier(
+        String name,
+        DataType type,
+        Supplier<String> strValueSupplier,
+        Supplier<String> substrValueSupplier
+    ) {
+        return new TestCaseSupplier(name, List.of(type, type), () -> {
+            List<TestCaseSupplier.TypedData> values = new ArrayList<>();
+            String expectedToString = "LocateEvaluator[str=Attribute[channel=0], substr=Attribute[channel=1]]";
+
+            String value = strValueSupplier.get();
+            values.add(new TestCaseSupplier.TypedData(new BytesRef(value), type, "0"));
+
+            String substrValue = substrValueSupplier.get();
+            values.add(new TestCaseSupplier.TypedData(new BytesRef(substrValue), type, "1"));
+
+            int expectedValue = value.indexOf(substrValue);
+            return new TestCaseSupplier.TestCase(values, expectedToString, DataTypes.INTEGER, equalTo(expectedValue));
+        });
+    }
 }

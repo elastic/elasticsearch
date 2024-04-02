@@ -74,7 +74,7 @@ public class Locate extends EsqlScalarFunction {
 
     @Evaluator
     static int process(BytesRef str, BytesRef substr) {
-        if (str.length < substr.length) {
+        if (str == null || substr == null || str.length < substr.length) {
             return -1;
         }
         // TODO: make this at ByteBuffer level, not String

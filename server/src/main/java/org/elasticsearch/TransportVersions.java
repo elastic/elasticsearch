@@ -159,6 +159,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_ES_SOURCE_OPTIONS = def(8_618_00_0);
     public static final TransportVersion ADD_PERSISTENT_TASK_EXCEPTIONS = def(8_619_00_0);
     public static final TransportVersion ESQL_REDUCER_NODE_FRAGMENT = def(8_620_00_0);
+    public static final TransportVersion FAILURE_STORE_ROLLOVER = def(8_621_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

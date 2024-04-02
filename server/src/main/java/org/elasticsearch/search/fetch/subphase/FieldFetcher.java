@@ -73,12 +73,6 @@ public class FieldFetcher {
 
             for (String field : context.getMatchingFieldNames(fieldPattern)) {
                 MappedFieldType ft = context.getFieldType(field);
-                // NOTE: fields that are not allowed for security reasons behave as if they are unmapped.
-                // In that case we do not expect to return values for those fields so the ValueFetcher
-                // is not needed.
-                if (ft == null) {
-                    continue;
-                }
                 if ("_size".equals(field) && includeSizeMetadataField == false) {
                     continue;
                 }

@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.ml.annotations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.internal.Client;
@@ -88,14 +88,14 @@ public class AnnotationPersisterTests extends ESTestCase {
 
     public void testPersistAnnotation_Create() throws IOException {
         doAnswer(withResponse(new BulkResponse(new BulkItemResponse[] { bulkItemSuccess(ANNOTATION_ID) }, 0L))).when(client)
-            .execute(eq(BulkAction.INSTANCE), any(), any());
+            .execute(eq(TransportBulkAction.TYPE), any(), any());
 
         AnnotationPersister persister = new AnnotationPersister(resultsPersisterService);
         Annotation annotation = AnnotationTests.randomAnnotation(JOB_ID);
         Tuple<String, Annotation> result = persister.persistAnnotation(null, annotation);
         assertThat(result, is(equalTo(tuple(ANNOTATION_ID, annotation))));
 
-        verify(client).execute(eq(BulkAction.INSTANCE), bulkRequestCaptor.capture(), any());
+        verify(client).execute(eq(TransportBulkAction.TYPE), bulkRequestCaptor.capture(), any());
 
         List<BulkRequest> bulkRequests = bulkRequestCaptor.getAllValues();
         assertThat(bulkRequests, hasSize(1));
@@ -111,14 +111,14 @@ public class AnnotationPersisterTests extends ESTestCase {
 
     public void testPersistAnnotation_Update() throws IOException {
         doAnswer(withResponse(new BulkResponse(new BulkItemResponse[] { bulkItemSuccess(ANNOTATION_ID) }, 0L))).when(client)
-            .execute(eq(BulkAction.INSTANCE), any(), any());
+            .execute(eq(TransportBulkAction.TYPE), any(), any());
 
         AnnotationPersister persister = new AnnotationPersister(resultsPersisterService);
         Annotation annotation = AnnotationTests.randomAnnotation(JOB_ID);
         Tuple<String, Annotation> result = persister.persistAnnotation(ANNOTATION_ID, annotation);
         assertThat(result, is(equalTo(tuple(ANNOTATION_ID, annotation))));
 
-        verify(client).execute(eq(BulkAction.INSTANCE), bulkRequestCaptor.capture(), any());
+        verify(client).execute(eq(TransportBulkAction.TYPE), bulkRequestCaptor.capture(), any());
 
         List<BulkRequest> bulkRequests = bulkRequestCaptor.getAllValues();
         assertThat(bulkRequests, hasSize(1));
@@ -134,7 +134,7 @@ public class AnnotationPersisterTests extends ESTestCase {
 
     public void testPersistMultipleAnnotationsWithBulk() {
         doAnswer(withResponse(new BulkResponse(new BulkItemResponse[] { bulkItemSuccess(ANNOTATION_ID) }, 0L))).when(client)
-            .execute(eq(BulkAction.INSTANCE), any(), any());
+            .execute(eq(TransportBulkAction.TYPE), any(), any());
 
         AnnotationPersister persister = new AnnotationPersister(resultsPersisterService);
         persister.bulkPersisterBuilder(JOB_ID)
@@ -145,7 +145,7 @@ public class AnnotationPersisterTests extends ESTestCase {
             .persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
             .executeRequest();
 
-        verify(client).execute(eq(BulkAction.INSTANCE), bulkRequestCaptor.capture(), any());
+        verify(client).execute(eq(TransportBulkAction.TYPE), bulkRequestCaptor.capture(), any());
 
         List<BulkRequest> bulkRequests = bulkRequestCaptor.getAllValues();
         assertThat(bulkRequests, hasSize(1));
@@ -154,7 +154,7 @@ public class AnnotationPersisterTests extends ESTestCase {
 
     public void testPersistMultipleAnnotationsWithBulk_LowBulkLimit() {
         doAnswer(withResponse(new BulkResponse(new BulkItemResponse[] { bulkItemSuccess(ANNOTATION_ID) }, 0L))).when(client)
-            .execute(eq(BulkAction.INSTANCE), any(), any());
+            .execute(eq(TransportBulkAction.TYPE), any(), any());
 
         AnnotationPersister persister = new AnnotationPersister(resultsPersisterService, 2);
         persister.bulkPersisterBuilder(JOB_ID)
@@ -165,7 +165,7 @@ public class AnnotationPersisterTests extends ESTestCase {
             .persistAnnotation(AnnotationTests.randomAnnotation(JOB_ID))
             .executeRequest();
 
-        verify(client, times(3)).execute(eq(BulkAction.INSTANCE), bulkRequestCaptor.capture(), any());
+        verify(client, times(3)).execute(eq(TransportBulkAction.TYPE), bulkRequestCaptor.capture(), any());
 
         List<BulkRequest> bulkRequests = bulkRequestCaptor.getAllValues();
         assertThat(bulkRequests, hasSize(3));
@@ -184,7 +184,7 @@ public class AnnotationPersisterTests extends ESTestCase {
             .doAnswer(withResponse(new BulkResponse(new BulkItemResponse[] { bulkItemSuccess("1"), bulkItemFailure("2") }, 0L)))  // (2)
             .doAnswer(withResponse(new BulkResponse(new BulkItemResponse[] { bulkItemFailure("2") }, 0L)))  // (3)
             .when(client)
-            .execute(eq(BulkAction.INSTANCE), any(), any());
+            .execute(eq(TransportBulkAction.TYPE), any(), any());
 
         AnnotationPersister persister = new AnnotationPersister(resultsPersisterService);
         AnnotationPersister.Builder persisterBuilder = persister.bulkPersisterBuilder(JOB_ID)
@@ -193,7 +193,7 @@ public class AnnotationPersisterTests extends ESTestCase {
         ElasticsearchException e = expectThrows(ElasticsearchException.class, persisterBuilder::executeRequest);
         assertThat(e.getMessage(), containsString("Failed execution"));
 
-        verify(client, atLeastOnce()).execute(eq(BulkAction.INSTANCE), bulkRequestCaptor.capture(), any());
+        verify(client, atLeastOnce()).execute(eq(TransportBulkAction.TYPE), bulkRequestCaptor.capture(), any());
 
         List<BulkRequest> bulkRequests = bulkRequestCaptor.getAllValues();
         assertThat(bulkRequests.get(0).numberOfActions(), equalTo(2));  // Original bulk request of size 2

@@ -883,30 +883,37 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * the backing indices that are managed by the data stream lifecycle".
      */
     public List<Index> getNonWriteIndicesOlderThan(
-        TimeValue age,
+        TimeValue retentionPeriod,
         Function<String, IndexMetadata> indexMetadataSupplier,
         @Nullable Predicate<IndexMetadata> indicesPredicate,
         LongSupplier nowSupplier
     ) {
         List<Index> olderIndices = new ArrayList<>();
         for (Index index : indices) {
-            IndexMetadata indexMetadata = indexMetadataSupplier.apply(index.getName());
-            if (indexMetadata == null) {
-                // we would normally throw exception in a situation like this however, this is meant to be a helper method
-                // so let's ignore deleted indices
-                continue;
-            }
-            TimeValue indexLifecycleDate = getGenerationLifecycleDate(indexMetadata);
-            if (indexLifecycleDate != null) {
-                long nowMillis = nowSupplier.getAsLong();
-                if (nowMillis >= indexLifecycleDate.getMillis() + age.getMillis()) {
-                    if (indicesPredicate == null || indicesPredicate.test(indexMetadata)) {
-                        olderIndices.add(index);
-                    }
-                }
+            if (isIndexOderThan(index, retentionPeriod.getMillis(), nowSupplier.getAsLong(), indicesPredicate, indexMetadataSupplier)) {
+                olderIndices.add(index);
             }
         }
         return olderIndices;
+    }
+
+    private boolean isIndexOderThan(
+        Index index,
+        long retentionPeriod,
+        long now,
+        Predicate<IndexMetadata> indicesPredicate,
+        Function<String, IndexMetadata> indexMetadataSupplier
+    ) {
+        IndexMetadata indexMetadata = indexMetadataSupplier.apply(index.getName());
+        if (indexMetadata == null) {
+            // we would normally throw exception in a situation like this however, this is meant to be a helper method
+            // so let's ignore deleted indices
+            return false;
+        }
+        TimeValue indexLifecycleDate = getGenerationLifecycleDate(indexMetadata);
+        return indexLifecycleDate != null
+            && now >= indexLifecycleDate.getMillis() + retentionPeriod
+            && (indicesPredicate == null || indicesPredicate.test(indexMetadata));
     }
 
     /**

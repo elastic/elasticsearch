@@ -47,7 +47,6 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
     public void testNodeIndexingMetricsArePublishing() throws Exception {
 
         final String dataNode = internalCluster().startNode();
-        // data node + coordinating node
         ensureStableCluster(1);
 
         final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, dataNode)
@@ -61,8 +60,8 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         // index some documents
         final int docsCount = randomIntBetween(500, 1000);
         for (int i = 0; i < docsCount; i++) {
-            var indexResponse = client(dataNode)
-                .index(new IndexRequest("test").id("doc_" + i).source(Map.of("key", i, "val", i))).actionGet();
+            var indexResponse = client(dataNode).index(new IndexRequest("test").id("doc_" + i).source(Map.of("key", i, "val", i)))
+                .actionGet();
             // check that all documents were created successfully since metric counters below assume that
             assertThat(indexResponse.status(), equalTo(RestStatus.CREATED));
         }
@@ -202,6 +201,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             public void onResponse(BulkResponse bulkItemResponses) {
                 fail("This call is expected to fail");
             }
+
             @Override
             public void onFailure(Exception e) {
                 assertThat(e, instanceOf(EsRejectedExecutionException.class));
@@ -226,9 +226,9 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         // setting low Indexing Pressure limits to trigger primary rejections
         final String dataNode = internalCluster().startNode(Settings.builder().put(MAX_INDEXING_BYTES.getKey(), "1KB").build());
         // setting high Indexing Pressure limits to pass coordinating checks
-        final String coordinatingNode = internalCluster().startCoordinatingOnlyNode(Settings.builder()
-                .put(MAX_INDEXING_BYTES.getKey(), "10MB")
-            .build());
+        final String coordinatingNode = internalCluster().startCoordinatingOnlyNode(
+            Settings.builder().put(MAX_INDEXING_BYTES.getKey(), "10MB").build()
+        );
         ensureStableCluster(2);
 
         final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, dataNode)

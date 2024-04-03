@@ -544,9 +544,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                         .orElse(0L);
                     // rejections do not count towards `totalCoordinatingOperations`
                     var totalOps = totalCoordinatingOperations + totalCoordinatingRejections;
-                    return new DoubleWithAttributes(
-                        totalOps != 0 ? (double) totalCoordinatingRejections / totalOps : 0.0
-                    );
+                    return new DoubleWithAttributes(totalOps != 0 ? (double) totalCoordinatingRejections / totalOps : 0.0);
                 }
             )
         );
@@ -637,9 +635,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                         .orElse(0L);
                     // rejections do not count towards `totalPrimaryOperations`
                     var totalOps = totalPrimaryOperations + totalPrimaryRejections;
-                    return new DoubleWithAttributes(
-                        totalOps != 0 ? (double) totalPrimaryRejections / totalOps : 0.0
-                    );
+                    return new DoubleWithAttributes(totalOps != 0 ? (double) totalPrimaryRejections / totalOps : 0.0);
                 }
             )
         );

@@ -317,7 +317,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         String lhsName,
         String rhsName,
         List<String> warnings,
-        boolean allowRhsZero) {
+        boolean allowRhsZero
+    ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         List<DataType> numericTypes = List.of(DataTypes.INTEGER, DataTypes.LONG, DataTypes.DOUBLE);
 

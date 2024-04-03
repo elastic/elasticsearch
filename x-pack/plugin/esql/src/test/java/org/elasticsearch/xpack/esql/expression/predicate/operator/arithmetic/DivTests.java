@@ -57,7 +57,8 @@ public class DivTests extends AbstractFunctionTestCase {
                 "lhs",
                 "rhs",
                 List.of(),
-                false)
+                false
+            )
         );
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(

@@ -57,7 +57,8 @@ public class ModTests extends AbstractFunctionTestCase {
                 "lhs",
                 "rhs",
                 List.of(),
-                false)
+                false
+            )
         );
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(

@@ -65,7 +65,7 @@ public class Mod extends EsqlArithmeticOperation {
         return longToUnsignedLong(Long.remainderUnsigned(longToUnsignedLong(lhs, true), longToUnsignedLong(rhs, true)), true);
     }
 
-    @Evaluator(extraName = "Doubles", warnExceptions = {ArithmeticException.class})
+    @Evaluator(extraName = "Doubles", warnExceptions = { ArithmeticException.class })
     static double processDoubles(double lhs, double rhs) {
         double value = lhs % rhs;
         if (Double.isNaN(value) || Double.isInfinite(value)) {

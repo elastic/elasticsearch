@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -35,6 +36,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
@@ -48,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -145,23 +148,40 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
         assertNotNull(responseSetOnce.get());
     }
 
-    public void testAggsAndAggregationsTogether() throws Exception {
-        final String requestBody = """
+    public void testAggsAndAggregationsTogether() {
+        String agg1;
+        String agg2;
+        if (randomBoolean()) {
+            agg1 = "aggs";
+            agg2 = "aggregations";
+        } else {
+            agg1 = "aggregations";
+            agg2 = "aggs";
+        }
+        final String requestBody = Strings.format("""
             {
-              "query": {
-                "match_all": {}
+              "%s": {
+                "all_keys_by_type": {
+                  "composite": {
+                    "sources": [
+                      { "type": { "terms": { "field": "type" } } }
+                    ]
+                  }
+                }
               },
-              "from": 42,
-              "size": 20,
-              "sort": [ "name", { "creation_time": { "order": "desc", "format": "strict_date_time" } }, "username" ],
-              "search_after": [ "key-2048", "2021-07-01T00:00:59.000Z" ]
-            }""";
+              "%s": {
+                "type_cardinality": {
+                  "cardinality": {
+                    "field": "type"
+                  }
+                }
+              }
+            }""", agg1, agg2);
 
         final FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray(requestBody),
             XContentType.JSON
         ).build();
-
         final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
         final RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
             @Override
@@ -169,7 +189,6 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
                 responseSetOnce.set(restResponse);
             }
         };
-
         final var client = new NodeClient(Settings.EMPTY, threadPool) {
             @SuppressWarnings("unchecked")
             @Override
@@ -178,36 +197,18 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
                 Request request,
                 ActionListener<Response> listener
             ) {
-                QueryApiKeyRequest queryApiKeyRequest = (QueryApiKeyRequest) request;
-                final QueryBuilder queryBuilder = queryApiKeyRequest.getQueryBuilder();
-                assertNotNull(queryBuilder);
-                assertThat(queryBuilder.getClass(), is(MatchAllQueryBuilder.class));
-                assertThat(queryApiKeyRequest.getFrom(), equalTo(42));
-                assertThat(queryApiKeyRequest.getSize(), equalTo(20));
-                final List<FieldSortBuilder> fieldSortBuilders = queryApiKeyRequest.getFieldSortBuilders();
-                assertThat(fieldSortBuilders, hasSize(3));
-
-                assertThat(fieldSortBuilders.get(0), equalTo(new FieldSortBuilder("name")));
-                assertThat(
-                    fieldSortBuilders.get(1),
-                    equalTo(new FieldSortBuilder("creation_time").setFormat("strict_date_time").order(SortOrder.DESC))
-                );
-                assertThat(fieldSortBuilders.get(2), equalTo(new FieldSortBuilder("username")));
-
-                final SearchAfterBuilder searchAfterBuilder = queryApiKeyRequest.getSearchAfterBuilder();
-                assertThat(
-                    searchAfterBuilder,
-                    equalTo(new SearchAfterBuilder().setSortValues(new String[] { "key-2048", "2021-07-01T00:00:59.000Z" }))
-                );
-
+                fail("TEST failed, request parsing should've failed");
                 listener.onResponse((Response) QueryApiKeyResponse.EMPTY);
             }
         };
-
-        final RestQueryApiKeyAction restQueryApiKeyAction = new RestQueryApiKeyAction(Settings.EMPTY, mockLicenseState);
-        restQueryApiKeyAction.handleRequest(restRequest, restChannel, client);
-
-        assertNotNull(responseSetOnce.get());
+        RestQueryApiKeyAction restQueryApiKeyAction = new RestQueryApiKeyAction(Settings.EMPTY, mockLicenseState);
+        XContentParseException ex = expectThrows(
+            XContentParseException.class,
+            () -> restQueryApiKeyAction.handleRequest(restRequest, restChannel, client)
+        );
+        assertThat(ex.getCause().getMessage(), containsString("Duplicate 'aggs' or 'aggregations' field"));
+        assertThat(ex.getMessage(), containsString("Failed to build [query_api_key_request_payload]"));
+        assertNull(responseSetOnce.get());
     }
 
     public void testParsingSearchParameters() throws Exception {

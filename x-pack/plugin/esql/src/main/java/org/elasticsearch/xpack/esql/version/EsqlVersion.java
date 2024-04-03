@@ -20,7 +20,7 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
      * Breaking changes go here until the next version is released.
      */
     SNAPSHOT(Integer.MAX_VALUE, 12, 99, "📷"),
-    PARTY_POPPER(2024, 4, "🎉");
+    ROCKET(2024, 4, "🚀");
 
     static final Map<String, EsqlVersion> VERSION_MAP_WITH_AND_WITHOUT_EMOJI = versionMapWithAndWithoutEmoji();
 
@@ -44,7 +44,7 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
 
     /**
      * Accepts a version string with the emoji suffix or without it.
-     * E.g. both "2024.04.01.🎉" and "2024.04.01" will be interpreted as {@link EsqlVersion#PARTY_POPPER}.
+     * E.g. both "2024.04.01.🚀" and "2024.04.01" will be interpreted as {@link EsqlVersion#ROCKET}.
      */
     public static EsqlVersion parse(String versionString) {
         return VERSION_MAP_WITH_AND_WITHOUT_EMOJI.get(versionString);

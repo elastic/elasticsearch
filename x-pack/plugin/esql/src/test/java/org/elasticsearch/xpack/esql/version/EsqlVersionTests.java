@@ -18,17 +18,17 @@ import static org.hamcrest.Matchers.is;
 
 public class EsqlVersionTests extends ESTestCase {
     public void testLatestReleased() {
-        assertThat(EsqlVersion.latestReleased(), is(EsqlVersion.PARTY_POPPER));
+        assertThat(EsqlVersion.latestReleased(), is(EsqlVersion.ROCKET));
     }
 
     public void testVersionString() {
         assertThat(EsqlVersion.SNAPSHOT.toString(), equalTo("snapshot.📷"));
-        assertThat(EsqlVersion.PARTY_POPPER.toString(), equalTo("2024.04.01.🎉"));
+        assertThat(EsqlVersion.ROCKET.toString(), equalTo("2024.04.01.🚀"));
     }
 
     public void testVersionId() {
         assertThat(EsqlVersion.SNAPSHOT.id(), equalTo(Integer.MAX_VALUE));
-        assertThat(EsqlVersion.PARTY_POPPER.id(), equalTo(20240401));
+        assertThat(EsqlVersion.ROCKET.id(), equalTo(20240401));
 
         for (EsqlVersion version : EsqlVersion.values()) {
             assertTrue(EsqlVersion.SNAPSHOT.onOrAfter(version));

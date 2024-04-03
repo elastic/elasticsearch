@@ -20,8 +20,6 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -85,13 +83,12 @@ public class StoredFieldsPhase implements FetchSubPhase {
             @Override
             public void process(HitContext hitContext) {
                 Map<String, List<Object>> loadedFields = hitContext.loadedFields();
-                Map<String, DocumentField> docFields = new HashMap<>();
                 for (StoredField storedField : storedFields) {
                     if (storedField.hasValue(loadedFields)) {
-                        docFields.put(storedField.name, new DocumentField(storedField.name, storedField.process(loadedFields)));
+                        hitContext.hit()
+                            .setDocumentField(storedField.name, new DocumentField(storedField.name, storedField.process(loadedFields)));
                     }
                 }
-                hitContext.hit().addDocumentFields(docFields, Collections.emptyMap());
             }
 
             @Override

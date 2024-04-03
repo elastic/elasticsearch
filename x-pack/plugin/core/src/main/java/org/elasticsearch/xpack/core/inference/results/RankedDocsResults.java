@@ -34,21 +34,21 @@ public class RankedDocsResults implements InferenceServiceResults {
 
     /**
      * A record representing a document that has been ranked by the cohere rerank API
-     * @param id the index of the document when it was passed to the cohere rerank API
+     * @param index the index of the document when it was passed to the cohere rerank API
      * @param relevanceScore
      * @param text
      */
-    public record RankedDoc(String id, String relevanceScore, String text) implements Writeable, ToXContentObject {
+    public record RankedDoc(String index, String relevanceScore, String text) implements Writeable, ToXContentObject {
 
         public static final String NAME = "ranked_doc";
-        public static final String ID = "id";
+        public static final String INDEX = "index";
         public static final String RELEVANCE_SCORE = "relevance_score";
         public static final String TEXT = "text";
 
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
 
-            builder.field(ID, id);
+            builder.field(INDEX, index);
             builder.field(RELEVANCE_SCORE, relevanceScore);
             builder.field(TEXT, text);
 
@@ -59,19 +59,19 @@ public class RankedDocsResults implements InferenceServiceResults {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(id);
+            out.writeString(index);
             out.writeString(relevanceScore);
             out.writeString(text);
         }
 
         public Map<String, Object> asMap() {
-            return Map.of(NAME, Map.of(ID, id, RELEVANCE_SCORE, relevanceScore, TEXT, text));
+            return Map.of(NAME, Map.of(INDEX, index, RELEVANCE_SCORE, relevanceScore, TEXT, text));
         }
 
         public String toString() {
             return "RankedDoc{"
-                + "id='"
-                + id
+                + "index='"
+                + index
                 + '\''
                 + ", relevanceScore='"
                 + relevanceScore

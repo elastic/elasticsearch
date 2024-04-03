@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.external.response.cohere;
 
 import org.apache.http.HttpResponse;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.hamcrest.MatcherAssert;
@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
-public class CohereRankedResponseEntityTests extends ESSingleNodeTestCase {
+public class CohereRankedResponseEntityTests extends ESTestCase {
 
     public void testResponseLiteral() throws IOException {
         InferenceServiceResults parsedResults = CohereRankedResponseEntity.fromResponse(
@@ -33,7 +33,7 @@ public class CohereRankedResponseEntityTests extends ESSingleNodeTestCase {
         MatcherAssert.assertThat(parsedResults, instanceOf(RankedDocsResults.class));
         List<RankedDocsResults.RankedDoc> expected = responseLiteralDocs();
         for (int i = 0; i < ((RankedDocsResults) parsedResults).getRankedDocs().size(); i++) {
-            assertEquals(((RankedDocsResults) parsedResults).getRankedDocs().get(i).id(), expected.get(i).id());
+            assertEquals(((RankedDocsResults) parsedResults).getRankedDocs().get(i).index(), expected.get(i).index());
         }
     }
 
@@ -44,7 +44,7 @@ public class CohereRankedResponseEntityTests extends ESSingleNodeTestCase {
         StringBuilder responseBuilder = new StringBuilder();
 
         responseBuilder.append("{");
-        responseBuilder.append("\"id\":\"").append(randomAlphaOfLength(36)).append("\",");
+        responseBuilder.append("\"index\":\"").append(randomAlphaOfLength(36)).append("\",");
         responseBuilder.append("\"results\": [");
         List<Integer> indices = linear(numDocs);
         List<Double> scores = linearDoubles(numDocs);
@@ -71,7 +71,7 @@ public class CohereRankedResponseEntityTests extends ESSingleNodeTestCase {
         );
         MatcherAssert.assertThat(parsedResults, instanceOf(RankedDocsResults.class));
         for (int i = 0; i < ((RankedDocsResults) parsedResults).getRankedDocs().size(); i++) {
-            assertEquals(((RankedDocsResults) parsedResults).getRankedDocs().get(i).id(), expected.get(i).id());
+            assertEquals(((RankedDocsResults) parsedResults).getRankedDocs().get(i).index(), expected.get(i).index());
         }
     }
 
@@ -87,7 +87,7 @@ public class CohereRankedResponseEntityTests extends ESSingleNodeTestCase {
 
     private final String responseLiteral = """
         {
-            "id": "d0760819-5a73-4d58-b163-3956d3648b62",
+            "index": "d0760819-5a73-4d58-b163-3956d3648b62",
             "results": [
                 {
                     "index": 2,
@@ -124,7 +124,7 @@ public class CohereRankedResponseEntityTests extends ESSingleNodeTestCase {
 
     private final String responseLiteralWithDocuments = """
         {
-            "id": "44873262-1315-4c06-8433-fdc90c9790d0",
+            "index": "44873262-1315-4c06-8433-fdc90c9790d0",
             "results": [
                 {
                     "document": {

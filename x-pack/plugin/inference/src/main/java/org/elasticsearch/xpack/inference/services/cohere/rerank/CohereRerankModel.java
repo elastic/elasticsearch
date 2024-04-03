@@ -33,13 +33,13 @@ public class CohereRerankModel extends CohereModel {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext logDeprecations
+        ConfigurationParseContext context
     ) {
         this(
             modelId,
             taskType,
             service,
-            CohereRerankServiceSettings.fromMap(serviceSettings, logDeprecations),
+            CohereRerankServiceSettings.fromMap(serviceSettings, context),
             CohereRerankTaskSettings.fromMap(taskSettings),
             DefaultSecretSettings.fromMap(secrets)
         );

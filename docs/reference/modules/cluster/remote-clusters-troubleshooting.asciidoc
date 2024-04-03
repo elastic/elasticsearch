@@ -103,7 +103,7 @@ may time out or may appear to be stuck.
 
 ====== Resolution
 
-* Ensure the network between the clusters is as reliable as possible.
+* Ensure that the network between the clusters is as reliable as possible.
 
 * Ensure that the network is configured to permit <<long-lived-connections>>.
 

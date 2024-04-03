@@ -272,6 +272,9 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices(".logs-osquery_manager.actions-*")
                     .privileges("auto_configure", "create_index", "read", "index", "write", "delete")
                     .build(),
+
+                // Third party agent info logs indices. Kibana reads from these to display agent status/info to the user.
+                RoleDescriptor.IndicesPrivileges.builder().indices("logs-sentinel_one*", "logs-crowdstrike*").privileges("read").build(),
                 // For ILM policy for APM, Endpoint, & Synthetics packages that have delete action
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(

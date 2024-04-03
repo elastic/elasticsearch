@@ -80,7 +80,7 @@ public class MlDeprecationIT extends ESRestTestCase {
     }
 
     private Response buildAndPutJob(String jobId) throws Exception {
-        String jobConfig = """
+        Request request = new Request("PUT", "/_ml/anomaly_detectors/" + jobId).setOptions(REQUEST_OPTIONS).setJsonEntity("""
             {
                 "analysis_config" : {
                     "bucket_span": "3600s",
@@ -90,18 +90,12 @@ public class MlDeprecationIT extends ESRestTestCase {
                     "time_field":"time",
                     "time_format":"yyyy-MM-dd HH:mm:ssX"
                 }
-            }""";
-
-        Request request = new Request("PUT", "/_ml/anomaly_detectors/" + jobId);
-        request.setOptions(REQUEST_OPTIONS);
-        request.setJsonEntity(jobConfig);
+            }""");
         return client().performRequest(request);
     }
 
     private Response indexDoc(String index, String docId, String source) throws IOException {
-        Request request = new Request("PUT", "/" + index + "/_doc/" + docId);
-        request.setOptions(REQUEST_OPTIONS);
-        request.setJsonEntity(source);
+        Request request = new Request("PUT", "/" + index + "/_doc/" + docId).setOptions(REQUEST_OPTIONS).setJsonEntity(source);
         return client().performRequest(request);
     }
 

@@ -57,9 +57,7 @@ public class CreateDocsIndexPrivilegeTests extends AbstractPrivilegeTestCase {
 
     @Before
     public void insertBaseDocumentsAsAdmin() throws Exception {
-        Request request = new Request("PUT", "/" + INDEX_NAME + "/_doc/1");
-        request.setJsonEntity(jsonDoc);
-        request.addParameter("refresh", "true");
+        Request request = new Request("PUT", "/" + INDEX_NAME + "/_doc/1").setJsonEntity(jsonDoc).addParameter("refresh", "true");
         assertAccessIsAllowed("admin", request);
     }
 

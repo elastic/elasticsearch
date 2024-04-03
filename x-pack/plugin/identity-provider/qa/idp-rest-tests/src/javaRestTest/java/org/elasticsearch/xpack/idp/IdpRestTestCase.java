@@ -61,8 +61,9 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
             true
         );
         final String endpoint = "/_security/user/" + username;
-        final Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        final String body = Strings.format("""
+        final Request request = new Request(HttpPut.METHOD_NAME, endpoint).setJsonEntity(
+            Strings.format(
+                """
             {
                 "username": "%s",
                 "full_name": "%s",
@@ -70,10 +71,9 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
                 "password": "%s",
                 "roles": [ "%s" ]
             }
-            """, user.principal(), user.fullName(), user.email(), password.toString(), role);
-        request.setJsonEntity(body);
-        request.addParameters(Map.of("refresh", "true"));
-        request.setOptions(RequestOptions.DEFAULT);
+            """, user.principal(), user.fullName(), user.email(), password.toString(), role))
+            .addParameters(Map.of("refresh", "true"))
+            .setOptions(RequestOptions.DEFAULT);
         adminClient().performRequest(request);
 
         return user;
@@ -81,10 +81,9 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
 
     protected void deleteUser(String username) throws IOException {
         final String endpoint = "/_security/user/" + username;
-        final Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-        request.addParameters(Map.of("refresh", "true"));
-        request.setOptions(RequestOptions.DEFAULT);
-        adminClient().performRequest(request);
+        adminClient().performRequest(
+            new Request(HttpDelete.METHOD_NAME, endpoint).addParameters(Map.of("refresh", "true")).setOptions(RequestOptions.DEFAULT)
+        );
     }
 
     protected void createRole(

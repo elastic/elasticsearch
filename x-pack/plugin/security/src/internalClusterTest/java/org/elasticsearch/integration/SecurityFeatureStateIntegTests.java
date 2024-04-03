@@ -75,30 +75,27 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
 
         // create a new role
         final String roleName = "extra_role";
-        final Request createRoleRequest = new Request("PUT", "/_security/role/" + roleName);
-        createRoleRequest.addParameter("refresh", "wait_for");
-        createRoleRequest.setJsonEntity("""
-            {
-              "indices": [
+        final Request createRoleRequest = new Request("PUT", "/_security/role/" + roleName).addParameter("refresh", "wait_for")
+            .setJsonEntity("""
                 {
-                  "names": [ "test_index" ],
-                  "privileges": [ "create", "create_index", "create_doc" ]
-                }
-              ]
-            }""");
+                  "indices": [
+                    {
+                      "names": [ "test_index" ],
+                      "privileges": [ "create", "create_index", "create_doc" ]
+                    }
+                  ]
+                }""");
         performSuperuserRequest(createRoleRequest);
 
         // create a test user
-        final Request createUserRequest = new Request("PUT", "/_security/user/" + LOCAL_TEST_USER_NAME);
-        createUserRequest.addParameter("refresh", "wait_for");
-        createUserRequest.setJsonEntity(Strings.format("""
-            {  "password": "%s",  "roles": [ "%s" ]}
-            """, LOCAL_TEST_USER_PASSWORD, roleName));
+        final Request createUserRequest = new Request("PUT", "/_security/user/" + LOCAL_TEST_USER_NAME).addParameter("refresh", "wait_for")
+            .setJsonEntity(Strings.format("""
+                {  "password": "%s",  "roles": [ "%s" ]}
+                """, LOCAL_TEST_USER_PASSWORD, roleName));
         performSuperuserRequest(createUserRequest);
 
         // test user posts a document
-        final Request postTestDocument1 = new Request("POST", "/test_index/_doc");
-        postTestDocument1.setJsonEntity("""
+        final Request postTestDocument1 = new Request("POST", "/test_index/_doc").setJsonEntity("""
             {"message": "before snapshot"}
             """);
         performTestUserRequest(postTestDocument1);
@@ -112,14 +109,14 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
         waitForSnapshotToFinish(repositoryName, snapshotName);
 
         // modify user's roles
-        final Request modifyUserRequest = new Request("PUT", "/_security/user/" + LOCAL_TEST_USER_NAME);
-        modifyUserRequest.addParameter("refresh", "wait_for");
-        modifyUserRequest.setJsonEntity("{\"roles\": [] }");
+        final Request modifyUserRequest = new Request("PUT", "/_security/user/" + LOCAL_TEST_USER_NAME).addParameter("refresh", "wait_for")
+            .setJsonEntity("{\"roles\": [] }");
         performSuperuserRequest(modifyUserRequest);
 
         // new user has lost privileges and can't post a document
-        final Request postDocumentRequest2 = new Request("POST", "/test_index/_doc");
-        postDocumentRequest2.setJsonEntity("{\"message\": \"between snapshot and restore\"}");
+        final Request postDocumentRequest2 = new Request("POST", "/test_index/_doc").setJsonEntity(
+            "{\"message\": \"between snapshot and restore\"}"
+        );
         ResponseException exception = expectThrows(ResponseException.class, () -> performTestUserRequest(postDocumentRequest2));
 
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
@@ -138,8 +135,7 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
             .get();
 
         // user has privileges again
-        final Request postDocumentRequest3 = new Request("POST", "/test_index/_doc");
-        postDocumentRequest3.setJsonEntity("{\"message\": \"after restore\"}");
+        final Request postDocumentRequest3 = new Request("POST", "/test_index/_doc").setJsonEntity("{\"message\": \"after restore\"}");
         performTestUserRequest(postDocumentRequest3);
     }
 

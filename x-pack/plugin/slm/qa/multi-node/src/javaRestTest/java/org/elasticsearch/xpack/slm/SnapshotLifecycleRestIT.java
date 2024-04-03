@@ -690,16 +690,17 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
     private static void createComposableTemplate(RestClient client, String templateName, String indexPattern, Template template)
         throws IOException {
-        XContentBuilder builder = jsonBuilder();
-        template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        StringEntity templateJSON = new StringEntity(String.format(Locale.ROOT, """
-            {
-              "index_patterns": "%s",
-              "data_stream": {},
-              "template": %s
-            }""", indexPattern, Strings.toString(builder)), ContentType.APPLICATION_JSON);
-        Request createIndexTemplateRequest = new Request("PUT", "_index_template/" + templateName);
-        createIndexTemplateRequest.setEntity(templateJSON);
+        Request createIndexTemplateRequest = new Request("PUT", "_index_template/" + templateName).setEntity(
+            new StringEntity(
+                String.format(Locale.ROOT, """
+                    {
+                      "index_patterns": "%s",
+                      "data_stream": {},
+                      "template": %s
+                    }""", indexPattern, Strings.toString(template.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS))),
+                ContentType.APPLICATION_JSON
+            )
+        );
         client.performRequest(createIndexTemplateRequest);
     }
 

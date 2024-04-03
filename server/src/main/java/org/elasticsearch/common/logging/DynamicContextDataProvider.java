@@ -9,10 +9,12 @@
 package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.core.util.ContextDataProvider;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.plugins.internal.LoggingDataProvider;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -34,6 +36,12 @@ public class DynamicContextDataProvider implements ContextDataProvider {
     // This is not a set-once because some integration tests may try to set it twice
     private static final AtomicReference<List<? extends LoggingDataProvider>> DATA_PROVIDERS = new AtomicReference<>();
 
+    /**
+     * Use to track the largest map size we've produced so that we can pre-allocate the next map to be the same size and reduce
+     * reallocation costs
+     */
+    private final AtomicInteger mapSize = new AtomicInteger(0);
+
     public static void setDataProviders(List<? extends LoggingDataProvider> dataProviders) {
         DynamicContextDataProvider.DATA_PROVIDERS.compareAndSet(null, List.copyOf(dataProviders));
     }
@@ -42,8 +50,15 @@ public class DynamicContextDataProvider implements ContextDataProvider {
     public Map<String, String> supplyContextData() {
         final List<? extends LoggingDataProvider> providers = DATA_PROVIDERS.get();
         if (providers != null && providers.isEmpty() == false) {
-            final Map<String, String> data = new LinkedHashMap<>();
+            var expectedSize = mapSize.get();
+            if (expectedSize == 0) {
+                // This is the first map we've produced, so start with an allocation that ought to be big enough, but not too big
+                expectedSize = 10;
+            }
+            final Map<String, String> data = Maps.newLinkedHashMapWithExpectedSize(expectedSize);
             providers.forEach(p -> p.collectData(data));
+            final var newMapSize = data.size();
+            mapSize.updateAndGet(oldSize -> oldSize >= newMapSize ? oldSize : newMapSize);
             return data;
         } else {
             return Map.of();

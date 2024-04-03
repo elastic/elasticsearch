@@ -389,7 +389,9 @@ module org.elasticsearch.server {
             org.elasticsearch.metering,
             org.elasticsearch.settings.secure,
             org.elasticsearch.serverless.constants,
-            org.elasticsearch.serverless.apifiltering;
+            org.elasticsearch.serverless.apifiltering,
+            org.elasticsearch.internal.security;
+
     exports org.elasticsearch.telemetry.tracing;
     exports org.elasticsearch.telemetry;
     exports org.elasticsearch.telemetry.metric;
@@ -408,7 +410,7 @@ module org.elasticsearch.server {
     uses org.elasticsearch.internal.VersionExtension;
     uses org.elasticsearch.internal.BuildExtension;
     uses org.elasticsearch.features.FeatureSpecification;
-    uses org.elasticsearch.common.logging.LoggingDataProvider;
+    uses org.elasticsearch.plugins.internal.LoggingDataProvider;
 
     provides org.elasticsearch.features.FeatureSpecification
         with

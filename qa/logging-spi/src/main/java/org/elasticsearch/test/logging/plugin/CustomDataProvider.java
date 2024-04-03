@@ -8,7 +8,7 @@
 
 package org.elasticsearch.test.logging.plugin;
 
-import org.elasticsearch.common.logging.LoggingDataProvider;
+import org.elasticsearch.plugins.internal.LoggingDataProvider;
 
 import java.util.Map;
 

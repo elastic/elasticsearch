@@ -6,7 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.logging;
+package org.elasticsearch.plugins.internal;
+
+import org.elasticsearch.common.logging.DynamicContextDataProvider;
 
 import java.util.Map;
 

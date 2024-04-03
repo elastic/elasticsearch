@@ -23,6 +23,7 @@
 * <<esql-pi>>
 * <<esql-pow>>
 * <<esql-round>>
+* <<esql-signum>>
 * <<esql-sin>>
 * <<esql-sinh>>
 * <<esql-sqrt>>
@@ -37,8 +38,8 @@ include::layout/asin.asciidoc[]
 include::layout/atan.asciidoc[]
 include::layout/atan2.asciidoc[]
 include::layout/ceil.asciidoc[]
-include::cos.asciidoc[]
-include::cosh.asciidoc[]
+include::layout/cos.asciidoc[]
+include::layout/cosh.asciidoc[]
 include::e.asciidoc[]
 include::floor.asciidoc[]
 include::log.asciidoc[]
@@ -47,9 +48,9 @@ include::pi.asciidoc[]
 include::pow.asciidoc[]
 include::round.asciidoc[]
 include::layout/signum.asciidoc[]
-include::sin.asciidoc[]
-include::sinh.asciidoc[]
+include::layout/sin.asciidoc[]
+include::layout/sinh.asciidoc[]
 include::sqrt.asciidoc[]
-include::tan.asciidoc[]
-include::tanh.asciidoc[]
+include::layout/tan.asciidoc[]
+include::layout/tanh.asciidoc[]
 include::tau.asciidoc[]

@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2Ds;
 
 /**
  * SpatialRelatesFunction classes, like SpatialIntersects, support various combinations of incoming types, which can be sourced from
@@ -38,7 +39,7 @@ abstract class SpatialEvaluatorFactory<V, T> {
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     );
 
-    public static EvalOperator.ExpressionEvaluator.Factory makeSpatialEvaluator(
+    static EvalOperator.ExpressionEvaluator.Factory makeSpatialEvaluator(
         SpatialSourceSupplier s,
         Map<SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorRules,
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
@@ -123,6 +124,10 @@ abstract class SpatialEvaluatorFactory<V, T> {
         }
     }
 
+    /**
+     * This evaluator factory is used when both sides are not constants or literal, and need to be evaluated.
+     * They could be sourced from the index, or from previous evaluators.
+     */
     protected static class SpatialEvaluatorFactoryWithFields extends SpatialEvaluatorFactory<
         EvalOperator.ExpressionEvaluator.Factory,
         EvalOperator.ExpressionEvaluator.Factory> {
@@ -145,6 +150,10 @@ abstract class SpatialEvaluatorFactory<V, T> {
         }
     }
 
+    /**
+     * This evaluator factory is used when the right hand side is a constant or literal,
+     * and the left is sourced from the index, or from previous evaluators.
+     */
     protected static class SpatialEvaluatorWithConstantFactory extends SpatialEvaluatorFactory<
         EvalOperator.ExpressionEvaluator.Factory,
         Component2D> {
@@ -168,9 +177,38 @@ abstract class SpatialEvaluatorFactory<V, T> {
         }
     }
 
+    /**
+     * This evaluator factory is used when the right hand side is a constant or literal,
+     * and the left is sourced from the index, or from previous evaluators.
+     * It uses an array of Component2Ds to model the constant side for use within CONTAINS which is does not directly support multi-shapes,
+     * so we need to split the shapes into multiple components and perform operations on each.
+     */
+    protected static class SpatialEvaluatorWithConstantArrayFactory extends SpatialEvaluatorFactory<
+        EvalOperator.ExpressionEvaluator.Factory,
+        Component2D[]> {
+
+        SpatialEvaluatorWithConstantArrayFactory(
+            TriFunction<
+                Source,
+                EvalOperator.ExpressionEvaluator.Factory,
+                Component2D[],
+                EvalOperator.ExpressionEvaluator.Factory> factoryCreator
+        ) {
+            super(factoryCreator);
+        }
+
+        @Override
+        public EvalOperator.ExpressionEvaluator.Factory get(
+            SpatialSourceSupplier s,
+            Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
+        ) {
+            return factoryCreator.apply(s.source(), toEvaluator.apply(s.left()), asLuceneComponent2Ds(s.crsType(), s.right()));
+        }
+    }
+
     protected record SpatialEvaluatorFieldKey(DataType dataType, boolean isConstant) {}
 
-    protected record SpatialEvaluatorKey(
+    record SpatialEvaluatorKey(
         SpatialRelatesFunction.SpatialCrsType crsType,
         boolean leftDocValues,
         boolean rightDocValues,

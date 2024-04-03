@@ -8,13 +8,10 @@
 
 package org.elasticsearch.tasks;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ContextParser;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -86,15 +83,6 @@ public final class TaskId implements Writeable {
             return;
         }
         out.writeLong(id);
-    }
-
-    public static ContextParser<Void, TaskId> parser() {
-        return (p, c) -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return new TaskId(p.text());
-            }
-            throw new ElasticsearchParseException("Expected a string but found [{}] instead", p.currentToken());
-        };
     }
 
     public String getNodeId() {

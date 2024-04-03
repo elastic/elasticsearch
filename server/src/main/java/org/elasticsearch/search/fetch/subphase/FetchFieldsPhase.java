@@ -37,7 +37,7 @@ import java.util.Map;
  */
 public final class FetchFieldsPhase implements FetchSubPhase {
 
-    private static final List<FieldAndFormat> METADATA_FIELDS = List.of(
+    private static final List<FieldAndFormat> METADATA_FIELDS_FETCHED_BY_DEFAULT = List.of(
         new FieldAndFormat(IgnoredFieldMapper.NAME, null),
         new FieldAndFormat(RoutingFieldMapper.NAME, null),
         new FieldAndFormat(LegacyTypeFieldMapper.NAME, null)
@@ -63,10 +63,10 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         } else {
             List<FieldAndFormat> fields;
             if (storedFieldsContext.fieldNames() == null) {
-                fields = METADATA_FIELDS;
+                fields = METADATA_FIELDS_FETCHED_BY_DEFAULT;
             } else {
                 SearchExecutionContext searchExecutionContext = fetchContext.getSearchExecutionContext();
-                fields = new ArrayList<>(METADATA_FIELDS);
+                fields = new ArrayList<>(METADATA_FIELDS_FETCHED_BY_DEFAULT);
                 for (String field : storedFieldsContext.fieldNames()) {
                     // stored_fields: * gets resolved to all stored fields including metadata fields
                     // whereas fields:* will exclude metadata fields, which can only be requested explicitly

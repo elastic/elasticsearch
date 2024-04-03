@@ -29,6 +29,7 @@ dependencies {
     compileOnly(project(":libs:serverless-shared-constants"))
     internalClusterTestImplementation(testArtifact(xpackModule("core")))
     internalClusterTestImplementation(xpackModule("shutdown"))
+    internalClusterTestImplementation("org.elasticsearch.plugin:data-streams")
     testImplementation(project(":libs:serverless-shared-constants"))
     testImplementation(testArtifact(xpackModule("searchable-snapshots")))
     testImplementation("com.amazonaws:aws-java-sdk-core")

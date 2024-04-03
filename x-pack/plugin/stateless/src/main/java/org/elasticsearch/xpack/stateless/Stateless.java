@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.serverless.constants.ProjectType;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.allocation.StatelessAllocationDecider;
@@ -189,6 +190,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.PROJECT_TYPE;
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING;
@@ -262,6 +264,8 @@ public class Stateless extends Plugin
 
     private final boolean hasSearchRole;
     private final boolean hasIndexRole;
+    private final ProjectType projectType;
+    private final StatelessIndexSettingProvider statelessIndexSettingProvider;
 
     private ObjectStoreService getObjectStoreService() {
         return Objects.requireNonNull(this.objectStoreService.get());
@@ -279,6 +283,8 @@ public class Stateless extends Plugin
         sharedCacheMmapExplicitlySet = SharedBlobCacheService.SHARED_CACHE_MMAP.exists(settings);
         hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         hasIndexRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE);
+        projectType = PROJECT_TYPE.get(settings);
+        this.statelessIndexSettingProvider = new StatelessIndexSettingProvider(projectType);
     }
 
     @Override
@@ -492,6 +498,8 @@ public class Stateless extends Plugin
         components.add(searchMetricsService);
 
         recoveryCommitRegistrationHandler.set(new RecoveryCommitRegistrationHandler(client, clusterService));
+
+        statelessIndexSettingProvider.initialize(services.indexNameExpressionResolver());
 
         if (hasIndexRole) {
             components.add(new IndexingDiskController(nodeEnvironment, settings, threadPool, indicesService, commitService));
@@ -969,7 +977,7 @@ public class Stateless extends Plugin
 
     @Override
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
-        return List.of(new StatelessIndexSettingProvider());
+        return List.of(statelessIndexSettingProvider);
     }
 
     @Override

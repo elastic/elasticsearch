@@ -63,6 +63,7 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         // Always load _ignored to be explicit about ignored fields
         // This works because _ignored is added as the first metadata mapper,
         // so its stored fields always appear first in the list.
+        // TODO can we remove this?
         if (IgnoredFieldMapper.NAME.equals(fieldInfo.name)) {
             return Status.YES;
         }
@@ -100,7 +101,7 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         binaryField(fieldInfo, new BytesRef(value));
     }
 
-    public void binaryField(FieldInfo fieldInfo, BytesRef value) {
+    private void binaryField(FieldInfo fieldInfo, BytesRef value) {
         if (sourceFieldName.equals(fieldInfo.name)) {
             source = new BytesArray(value);
         } else if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
@@ -147,12 +148,6 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         addValue(fieldInfo.name, value);
     }
 
-    public void objectField(FieldInfo fieldInfo, Object object) {
-        assert IdFieldMapper.NAME.equals(fieldInfo.name) == false : "_id field must go through binaryField";
-        assert sourceFieldName.equals(fieldInfo.name) == false : "source field must go through binaryField";
-        addValue(fieldInfo.name, object);
-    }
-
     public BytesReference source() {
         return source;
     }
@@ -178,7 +173,9 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
     }
 
     public void reset() {
-        if (fieldsValues != null) fieldsValues.clear();
+        if (fieldsValues != null) {
+            fieldsValues.clear();
+        }
         source = null;
         id = null;
 
@@ -193,11 +190,7 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
             fieldsValues = new HashMap<>();
         }
 
-        List<Object> values = fieldsValues.get(name);
-        if (values == null) {
-            values = new ArrayList<>(2);
-            fieldsValues.put(name, values);
-        }
+        List<Object> values = fieldsValues.computeIfAbsent(name, k -> new ArrayList<>(2));
         values.add(value);
     }
 }

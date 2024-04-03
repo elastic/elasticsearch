@@ -10,24 +10,20 @@ package org.elasticsearch.index.fieldvisitor;
 import org.apache.lucene.index.FieldInfo;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 /**
  * A field visitor that allows to load a selection of the stored fields by exact name
- * {@code _id} and {@code _routing} fields are always loaded.
  */
 public class CustomFieldsVisitor extends FieldsVisitor {
-
     private final Set<String> fields;
 
     public CustomFieldsVisitor(Set<String> fields, boolean loadSource) {
         super(loadSource);
-        this.fields = new HashSet<>(fields);
-        // metadata fields are already handled by FieldsVisitor, so removing
-        // them here means that if the only fields requested are metadata
-        // fields then we can shortcut loading
-        List.of("_id", "_routing", "_source").forEach(this.fields::remove);
+        assert fields.contains("_id") == false;
+        assert fields.contains("_routing") == false;
+        assert fields.contains("_source") == false;
+        this.fields = fields;
     }
 
     @Override

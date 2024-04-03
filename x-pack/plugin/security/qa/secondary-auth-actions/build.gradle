@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.util.GradleUtils
+
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.base-internal-es-plugin'
 
@@ -12,8 +14,7 @@ dependencies {
   compileOnly project(':x-pack:plugin:core')
   compileOnly project(':x-pack:plugin:security')
   javaRestTestImplementation project(':test:framework')
-  // let the javaRestTest see the classpath of main
-  javaRestTestImplementation project.sourceSets.main.runtimeClasspath
+  GradleUtils.extendSourceSet(project, 'main', 'javaRestTest')
 }
 
 dependencies {

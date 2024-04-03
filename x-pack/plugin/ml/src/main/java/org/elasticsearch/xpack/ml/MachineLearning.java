@@ -194,7 +194,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXCo
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStatsNamedWriteablesProvider;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelMetadata;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelCacheMetadata;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
@@ -335,6 +335,7 @@ import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankRescorerBuilder;
 import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankService;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelCacheMetadataService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.BlackHolePyTorchProcess;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.NativePyTorchProcessFactory;
@@ -1133,7 +1134,8 @@ public class MachineLearning extends Plugin
             clusterService,
             threadPool
         );
-        final TrainedModelProvider trainedModelProvider = new TrainedModelProvider(client, xContentRegistry);
+        final TrainedModelCacheMetadataService trainedModelCacheMetadataService = new TrainedModelCacheMetadataService(clusterService);
+        final TrainedModelProvider trainedModelProvider = new TrainedModelProvider(client, trainedModelCacheMetadataService, xContentRegistry);
         final ModelLoadingService modelLoadingService = new ModelLoadingService(
             trainedModelProvider,
             inferenceAuditor,
@@ -1825,8 +1827,8 @@ public class MachineLearning extends Plugin
         namedXContent.add(
             new NamedXContentRegistry.Entry(
                 Metadata.Custom.class,
-                new ParseField((TrainedModelMetadata.NAME)),
-                TrainedModelMetadata::fromXContent
+                new ParseField((TrainedModelCacheMetadata.NAME)),
+                TrainedModelCacheMetadata::fromXContent
             )
         );
         namedXContent.add(
@@ -1867,8 +1869,8 @@ public class MachineLearning extends Plugin
         // Custom metadata
         namedWriteables.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, "ml", MlMetadata::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, "ml", MlMetadata.MlMetadataDiff::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, TrainedModelMetadata.NAME, TrainedModelMetadata::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, TrainedModelMetadata.NAME, TrainedModelMetadata::readDiffFrom));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, TrainedModelCacheMetadata.NAME, TrainedModelCacheMetadata::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, TrainedModelCacheMetadata.NAME, TrainedModelCacheMetadata::readDiffFrom));
         namedWriteables.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, ModelAliasMetadata.NAME, ModelAliasMetadata::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelAliasMetadata.NAME, ModelAliasMetadata::readDiffFrom));
         namedWriteables.add(

@@ -127,9 +127,11 @@ public class TrainedModelProvider {
     private static final Logger logger = LogManager.getLogger(TrainedModelProvider.class);
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
+    private final TrainedModelCacheMetadataService modelCacheMetadataService;
 
-    public TrainedModelProvider(Client client, NamedXContentRegistry xContentRegistry) {
+    public TrainedModelProvider(Client client, TrainedModelCacheMetadataService modelCacheMetadataService, NamedXContentRegistry xContentRegistry) {
         this.client = client;
+        this.modelCacheMetadataService = modelCacheMetadataService;
         this.xContentRegistry = xContentRegistry;
     }
 
@@ -894,7 +896,11 @@ public class TrainedModelProvider {
                 listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
                 return;
             }
-            listener.onResponse(true);
+
+            modelCacheMetadataService.deleteCacheMetadataEntry(modelId, ActionListener.wrap(
+                acknowledgedResponse -> listener.onResponse(true),
+                listener::onFailure
+            ));
         }, e -> {
             if (e.getClass() == IndexNotFoundException.class) {
                 listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));

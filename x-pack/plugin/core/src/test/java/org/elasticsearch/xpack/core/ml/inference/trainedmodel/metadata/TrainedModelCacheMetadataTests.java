@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class TrainedModelMetadataTests extends AbstractBWCSerializationTestCase<TrainedModelMetadata> {
+public class TrainedModelCacheMetadataTests extends AbstractBWCSerializationTestCase<TrainedModelMetadata> {
 
     private boolean lenient;
 

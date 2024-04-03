@@ -247,6 +247,7 @@ greatest      |Returns the maximum value from many columns.
 least         |Returns the minimum value from many columns.
 left          |Returns the substring that extracts 'length' chars from 'string' starting from the left.
 length        |Returns the character length of a string.
+locate        |Returns an integer that indicates the position of a keyword substring within another string
 log           |Returns the logarithm of a number to a base.
 log10         |Returns the log base 10.
 ltrim         |Removes leading whitespaces from a string.

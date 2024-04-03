@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -65,28 +66,33 @@ public class LocateTests extends AbstractFunctionTestCase {
     }
 
     public void testPrefixString() {
-        assertThat(process("a tiger", "a t"), equalTo(0));
-        assertThat(process("a tiger", "a"), equalTo(0));
+        assertThat(process("a tiger", "a t"), equalTo(1));
+        assertThat(process("a tiger", "a"), equalTo(1));
+        assertThat(process("界世", "界"), equalTo(1));
     }
 
     public void testSuffixString() {
-        assertThat(process("a tiger", "er"), equalTo(5));
-        assertThat(process("a tiger", "r"), equalTo(6));
+        assertThat(process("a tiger", "er"), equalTo(6));
+        assertThat(process("a tiger", "r"), equalTo(7));
+        assertThat(process("世界", "界"), equalTo(1));
     }
 
     public void testMidString() {
-        assertThat(process("a tiger", "ti"), equalTo(2));
-        assertThat(process("a tiger", "ige"), equalTo(3));
+        assertThat(process("a tiger", "ti"), equalTo(3));
+        assertThat(process("a tiger", "ige"), equalTo(4));
+        assertThat(process("世界世", "界"), equalTo(2));
     }
 
     public void testOutOfRange() {
-        assertThat(process("a tiger", "tigers"), equalTo(-1));
-        assertThat(process("a tiger", "ipa"), equalTo(-1));
+        assertThat(process("a tiger", "tigers"), equalTo(0));
+        assertThat(process("a tiger", "ipa"), equalTo(0));
+        assertThat(process("世界世", "\uD83C\uDF0D"), equalTo(0));
     }
 
     public void testExactString() {
-        assertThat(process("a tiger", "a tiger"), equalTo(0));
-        assertThat(process("tigers", "tigers"), equalTo(0));
+        assertThat(process("a tiger", "a tiger"), equalTo(1));
+        assertThat(process("tigers", "tigers"), equalTo(1));
+        assertThat(process("界世", "界世"), equalTo(1));
     }
 
     private Integer process(String str, String substr) {
@@ -96,7 +102,7 @@ public class LocateTests extends AbstractFunctionTestCase {
             ).get(driverContext());
             Block block = eval.eval(row(List.of(new BytesRef(str), new BytesRef(substr))))
         ) {
-            return block.isNull(0) ? Integer.valueOf(-1) : ((Integer) toJavaObject(block, 0));
+            return block.isNull(0) ? Integer.valueOf(0) : ((Integer) toJavaObject(block, 0));
         }
     }
 
@@ -117,7 +123,7 @@ public class LocateTests extends AbstractFunctionTestCase {
             String substrValue = substrValueSupplier.get();
             values.add(new TestCaseSupplier.TypedData(new BytesRef(substrValue), secondType, "1"));
 
-            int expectedValue = value.indexOf(substrValue);
+            int expectedValue = 1 + value.indexOf(substrValue);
             return new TestCaseSupplier.TestCase(values, expectedToString, DataTypes.INTEGER, equalTo(expectedValue));
         });
     }

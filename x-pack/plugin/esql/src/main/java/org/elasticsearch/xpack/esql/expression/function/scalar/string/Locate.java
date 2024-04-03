@@ -42,8 +42,8 @@ public class Locate extends EsqlScalarFunction {
     )
     public Locate(
         Source source,
-        @Param(name = "str", type = { "keyword", "text" }) Expression str,
-        @Param(name = "substr", type = { "keyword", "text" }) Expression substr
+        @Param(name = "str", type = { "keyword", "text" }, description = "An input string") Expression str,
+        @Param(name = "substr", type = { "keyword", "text" }, description = "a substring to locate in the input string") Expression substr
     ) {
         super(source, Arrays.asList(str, substr));
         this.str = str;
@@ -76,7 +76,7 @@ public class Locate extends EsqlScalarFunction {
     @Evaluator
     static int process(BytesRef str, BytesRef substr) {
         if (str == null || substr == null || str.length < substr.length) {
-            return -1;
+            return 0;
         }
         int strCodePoints = UnicodeUtil.codePointCount(str);
         int substrCodePoints = UnicodeUtil.codePointCount(substr);
@@ -97,7 +97,7 @@ public class Locate extends EsqlScalarFunction {
                 break;
             }
         }
-        return locateIndex;
+        return 1 + locateIndex;
     }
 
     @Override

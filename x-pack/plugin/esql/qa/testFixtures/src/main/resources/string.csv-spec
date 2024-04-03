@@ -1173,43 +1173,43 @@ locate#[skip:-8.13.99,reason:new string function added in 8.14]
 row a = "hello" | eval a_ll = locate(a, "ll");
 
 a:keyword | a_ll:integer
-hello | 2
+hello | 3
 ;
 
 locateFail#[skip:-8.13.99,reason:new string function added in 8.14]
 row a = "hello" | eval a_ll = locate(a, "int");
 
 a:keyword | a_ll:integer
-hello | -1
+hello | 0
 ;
 
 locateLongerSubstr#[skip:-8.13.99,reason:new string function added in 8.14]
 row a = "hello" | eval a_ll = locate(a, "farewell");
 
 a:keyword | a_ll:integer
-hello | -1
+hello | 0
 ;
 
 locateSame#[skip:-8.13.99,reason:new string function added in 8.14]
 row a = "hello" | eval a_ll = locate(a, "hello");
 
 a:keyword | a_ll:integer
-hello | 0
+hello | 1
 ;
 
 locateWithSubstring#[skip:-8.13.99,reason:new string function added in 8.14]
-from employees | where emp_no <= 10010 | eval f_s = substring(last_name, 2) | eval f_l = locate(last_name, f_s) | keep emp_no, last_name, f_l;
+from employees | where emp_no <= 10010 | eval f_s = substring(last_name, 2) | eval f_l = locate(last_name, f_s) | keep emp_no, last_name, f_s, f_l;
 ignoreOrder:true
 
-emp_no:integer | last_name:keyword | f_l:integer
-10001 | Facello   | 1
-10002 | Simmel    | 1
-10003 | Bamford   | 1
-10004 | Koblick   | 1
-10005 | Maliniak  | 1
-10006 | Preusig   | 1
-10007 | Zielinski | 1
-10008 | Kalloufi  | 1
-10009 | Peac      | 1
-10010 | Piveteau  | 1
+emp_no:integer | last_name:keyword | f_s:keyword | f_l:integer
+10001 | Facello   | acello | 2
+10002 | Simmel    | immel | 2
+10003 | Bamford   | amford | 2
+10004 | Koblick   | oblick | 2
+10005 | Maliniak  | aliniak | 2
+10006 | Preusig   | reusig | 2
+10007 | Zielinski | ielinski | 2
+10008 | Kalloufi  | alloufi | 2
+10009 | Peac      | eac | 2
+10010 | Piveteau  | iveteau | 2
 ;

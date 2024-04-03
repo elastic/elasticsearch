@@ -200,20 +200,19 @@ public class DownsampleIT extends ParameterizedRollingUpgradeTestCase {
         logger.info("rollover complete");
     }
 
-    private void runQuery() throws IOException, InterruptedException {
+    private void runQuery() throws Exception {
         String rollup = waitAndGetRollupIndexName();
         assertFalse(rollup.isEmpty());
 
-        Request request = new Request("POST", "/" + dataStream + "/_search");
-        var map = entityAsMap(client().performRequest(request));
-        var hits = (List<?>) ((Map<?, ?>) map.get("hits")).get("hits");
-        if (hits.size() == 8) {
-            // Downsampling hasn't completed yet.
-            return;
-        }
-        assertEquals(4, hits.size());
-        var hit = (Map<?, ?>) hits.get(0);
-        assertTrue(hit.get("_index").toString(), ((String) hit.get("_index")).startsWith("downsample-" + FIXED_INTERVAL + "-" + index));
+        // Retry until the downsample index is populated.
+        assertBusy(() -> {
+            Request request = new Request("POST", "/" + dataStream + "/_search");
+            var map = entityAsMap(client().performRequest(request));
+            var hits = (List<?>) ((Map<?, ?>) map.get("hits")).get("hits");
+            assertEquals(4, hits.size());
+            var hit = (Map<?, ?>) hits.get(0);
+            assertEquals(rollup, hit.get("_index"));
+        }, 30, TimeUnit.SECONDS);
     }
 
     private String waitAndGetRollupIndexName() throws InterruptedException, IOException {

@@ -24,9 +24,19 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+/**
+ * Response with error information for a request to add/remove aliases for one or more indices.
+ * Contains an acknowledged boolean, an errors boolean, and a list of results.
+ * The result list is only present if there are errors, and contains a result for every input action.
+ * This response replaces AcknowledgedResponse, and knows how to de/serialize from/to AcknowledgedResponse
+ * in case of mixed version clusters.
+ */
 public class IndicesAliasesResponse extends AcknowledgedResponse {
 
+    // Response without any error information, analogous to AcknowledgedResponse.FALSE
     public static final IndicesAliasesResponse NOT_ACKNOWLEDGED = new IndicesAliasesResponse(false, false, List.of());
+
+    // Response without any error information, analogous to AcknowledgedResponse.TRUE
     public static final IndicesAliasesResponse ACKNOWLEDGED_NO_ERRORS = new IndicesAliasesResponse(true, false, List.of());
 
     private static final String ACTION_RESULTS_FIELD = "action_results";
@@ -47,7 +57,12 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
         }
     }
 
-    public IndicesAliasesResponse(boolean acknowledged, boolean errors, final List<AliasActionResult> actionResults) {
+    /**
+     * @param acknowledged  whether the update was acknowledged by all the relevant nodes in the cluster
+     * @param errors true if any of the requested actions failed
+     * @param actionResults the list of results for each input action, only present if there are errors
+     */
+    IndicesAliasesResponse(boolean acknowledged, boolean errors, final List<AliasActionResult> actionResults) {
         super(acknowledged);
         this.errors = errors;
         this.actionResults = actionResults;
@@ -61,6 +76,12 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
         return errors;
     }
 
+    /**
+     *  Build a response from a list of action results. Sets the errors boolean based
+     *  on whether an of the individual results contain an error.
+     * @param actionResults an action result for each of the requested alias actions
+     * @return response containing all action results
+     */
     public static IndicesAliasesResponse build(final List<AliasActionResult> actionResults) {
         final boolean errors = actionResults.stream().anyMatch(a -> a.error != null);
         return new IndicesAliasesResponse(true, errors, actionResults);
@@ -100,11 +121,27 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
         return Objects.hash(super.hashCode(), actionResults, errors);
     }
 
+    /**
+     * Result for a single alias add/remove action
+     */
     public static class AliasActionResult implements Writeable, ToXContentObject {
+
+        /**
+         * Resolved indices to which the action applies. This duplicates information
+         * which exists in the action, but is included because the action indices may
+         * or may not be resolved depending on if the security layer is used or not.
+         */
         private final List<String> indices;
         private final AliasActions action;
         private final ElasticsearchException error;
 
+        /**
+         * Build result that could be either a success or failure
+         * @param indices the resolved indices to which the associated action applies
+         * @param action the alias action consisting of add/remove, aliases, and indices
+         * @param numAliasesRemoved the number of aliases remove, if any
+         * @return the action result
+         */
         public static AliasActionResult build(List<String> indices, AliasActions action, int numAliasesRemoved) {
             if (action.actionType() == AliasActions.Type.REMOVE && numAliasesRemoved == 0) {
                 return buildRemoveError(indices, action);
@@ -112,10 +149,16 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
             return buildSuccess(indices, action);
         }
 
+        /**
+         * Build an error result for a failed remove action.
+         */
         private static AliasActionResult buildRemoveError(List<String> indices, AliasActions action) {
             return new AliasActionResult(indices, action, new AliasesNotFoundException((action.getOriginalAliases())));
         }
 
+        /**
+         * Build a success action result with no errors.
+         */
         public static AliasActionResult buildSuccess(List<String> indices, AliasActions action) {
             return new AliasActionResult(indices, action, null);
         }

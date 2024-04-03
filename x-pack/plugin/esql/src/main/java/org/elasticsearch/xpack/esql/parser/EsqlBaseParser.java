@@ -1885,11 +1885,11 @@ public class EsqlBaseParser extends Parser {
     public TerminalNode COMMA(int i) {
       return getToken(EsqlBaseParser.COMMA, i);
     }
-    public FromOptionsContext fromOptions() {
-      return getRuleContext(FromOptionsContext.class,0);
-    }
     public MetadataContext metadata() {
       return getRuleContext(MetadataContext.class,0);
+    }
+    public FromOptionsContext fromOptions() {
+      return getRuleContext(FromOptionsContext.class,0);
     }
     @SuppressWarnings("this-escape")
     public FromCommandContext(ParserRuleContext parent, int invokingState) {
@@ -1946,7 +1946,7 @@ public class EsqlBaseParser extends Parser {
       case 1:
         {
         setState(277);
-        fromOptions();
+        metadata();
         }
         break;
       }
@@ -1956,7 +1956,7 @@ public class EsqlBaseParser extends Parser {
       case 1:
         {
         setState(280);
-        metadata();
+        fromOptions();
         }
         break;
       }
@@ -4959,8 +4959,8 @@ public class EsqlBaseParser extends Parser {
     "\u0000\u0000\u0000\u0111\u0114\u0001\u0000\u0000\u0000\u0112\u0110\u0001"+
     "\u0000\u0000\u0000\u0112\u0113\u0001\u0000\u0000\u0000\u0113\u0116\u0001"+
     "\u0000\u0000\u0000\u0114\u0112\u0001\u0000\u0000\u0000\u0115\u0117\u0003"+
-    " \u0010\u0000\u0116\u0115\u0001\u0000\u0000\u0000\u0116\u0117\u0001\u0000"+
-    "\u0000\u0000\u0117\u0119\u0001\u0000\u0000\u0000\u0118\u011a\u0003$\u0012"+
+    "$\u0012\u0000\u0116\u0115\u0001\u0000\u0000\u0000\u0116\u0117\u0001\u0000"+
+    "\u0000\u0000\u0117\u0119\u0001\u0000\u0000\u0000\u0118\u011a\u0003 \u0010"+
     "\u0000\u0119\u0118\u0001\u0000\u0000\u0000\u0119\u011a\u0001\u0000\u0000"+
     "\u0000\u011a\u001d\u0001\u0000\u0000\u0000\u011b\u011c\u0007\u0002\u0000"+
     "\u0000\u011c\u001f\u0001\u0000\u0000\u0000\u011d\u011e\u0005G\u0000\u0000"+

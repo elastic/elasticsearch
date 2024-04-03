@@ -705,7 +705,7 @@ public class StatementParserTests extends ESTestCase {
     }
 
     public void testFromOptionsWithMetadata() {
-        var plan = statement(FROM + " OPTIONS \"preference\"=\"foo\" METADATA _id");
+        var plan = statement(FROM + " METADATA _id OPTIONS \"preference\"=\"foo\"");
         var unresolved = as(plan, EsqlUnresolvedRelation.class);
         assertNotNull(unresolved.esSourceOptions());
         assertThat(unresolved.esSourceOptions().preference(), is("foo"));

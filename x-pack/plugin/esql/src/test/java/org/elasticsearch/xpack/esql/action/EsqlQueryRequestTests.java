@@ -24,6 +24,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.parser.TypedParamValue;
+import org.elasticsearch.xpack.esql.version.EsqlVersion;
+import org.elasticsearch.xpack.esql.version.EsqlVersionTests;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,20 +46,23 @@ public class EsqlQueryRequestTests extends ESTestCase {
         boolean columnar = randomBoolean();
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
+        EsqlVersion esqlVersion = randomFrom(EsqlVersion.values());
 
         List<TypedParamValue> params = randomParameters();
         boolean hasParams = params.isEmpty() == false;
         StringBuilder paramsString = paramsString(params, hasParams);
         String json = String.format(Locale.ROOT, """
             {
+                "version": "%s",
                 "query": "%s",
                 "columnar": %s,
                 "locale": "%s",
                 "filter": %s
-                %s""", query, columnar, locale.toLanguageTag(), filter, paramsString);
+                %s""", esqlVersion, query, columnar, locale.toLanguageTag(), filter, paramsString);
 
         EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
 
+        assertEquals(esqlVersion.toString(), request.esqlVersion());
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
@@ -75,6 +80,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         boolean columnar = randomBoolean();
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
+        EsqlVersion esqlVersion = randomFrom(EsqlVersion.values());
 
         List<TypedParamValue> params = randomParameters();
         boolean hasParams = params.isEmpty() == false;
@@ -86,6 +92,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
             Locale.ROOT,
             """
                 {
+                    "version": "%s",
                     "query": "%s",
                     "columnar": %s,
                     "locale": "%s",
@@ -94,6 +101,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                     "wait_for_completion_timeout": "%s",
                     "keep_alive": "%s"
                     %s""",
+            esqlVersion,
             query,
             columnar,
             locale.toLanguageTag(),
@@ -106,6 +114,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         EsqlQueryRequest request = parseEsqlQueryRequestAsync(json);
 
+        assertEquals(esqlVersion.toString(), request.esqlVersion());
         assertEquals(query, request.query());
         assertEquals(columnar, request.columnar());
         assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
@@ -149,18 +158,123 @@ public class EsqlQueryRequestTests extends ESTestCase {
             }""", "unknown field [asdf]");
     }
 
-    public void testMissingQueryIsNotValidation() throws IOException {
+    public void testKnownVersionIsValid() throws IOException {
+        for (EsqlVersion version : EsqlVersion.values()) {
+            String validVersionString = randomBoolean() ? version.versionStringWithoutEmoji() : version.toString();
+
+            String json = String.format(Locale.ROOT, """
+                {
+                    "version": "%s",
+                    "query": "ROW x = 1"
+                }
+                """, validVersionString);
+
+            EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+            assertNull(request.validate());
+
+            request = parseEsqlQueryRequestAsync(json);
+            assertNull(request.validate());
+        }
+    }
+
+    public void testUnknownVersionIsNotValid() throws IOException {
+        String invalidVersionString = EsqlVersionTests.randomInvalidVersionString();
+
+        String json = String.format(Locale.ROOT, """
+            {
+                "version": "%s",
+                "query": "ROW x = 1"
+            }
+            """, invalidVersionString);
+
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertNotNull(request.validate());
+        assertThat(
+            request.validate().getMessage(),
+            containsString(
+                "[version] has invalid value ["
+                    + invalidVersionString
+                    + "], latest available version is ["
+                    + EsqlVersion.latestReleased().versionStringWithoutEmoji()
+                    + "]"
+            )
+        );
+    }
+
+    public void testSnapshotVersionIsOnlyValidOnSnapshot() throws IOException {
+        String esqlVersion = randomBoolean() ? "snapshot" : "snapshot.📷";
+        String json = String.format(Locale.ROOT, """
+            {
+                "version": "%s",
+                "query": "ROW x = 1"
+            }
+            """, esqlVersion);
+
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        request.onSnapshotBuild(true);
+        assertNull(request.validate());
+
+        request.onSnapshotBuild(false);
+        assertNotNull(request.validate());
+        assertThat(
+            request.validate().getMessage(),
+            containsString(
+                "[version] with value ["
+                    + esqlVersion
+                    + "] only allowed in snapshot builds, latest available version is ["
+                    + EsqlVersion.latestReleased().versionStringWithoutEmoji()
+                    + "]"
+            )
+        );
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104890")
+    public void testMissingVersionIsNotValid() throws IOException {
+        String missingVersion = randomBoolean() ? "" : ", \"version\": \"\"";
+        String json = String.format(Locale.ROOT, """
+            {
+                "columnar": true,
+                "query": "row x = 1"
+                %s
+            }""", missingVersion);
+
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        assertNotNull(request.validate());
+        assertThat(
+            request.validate().getMessage(),
+            containsString(
+                "[version] is required, latest available version is [" + EsqlVersion.latestReleased().versionStringWithoutEmoji() + "]"
+            )
+        );
+    }
+
+    public void testMissingQueryIsNotValid() throws IOException {
         String json = """
             {
-                "columnar": true
+                "columnar": true,
+                "version": "snapshot"
             }""";
-        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         assertNotNull(request.validate());
         assertThat(request.validate().getMessage(), containsString("[query] is required"));
+    }
 
-        request = parseEsqlQueryRequestAsync(json);
+    public void testPragmasOnlyValidOnSnapshot() throws IOException {
+        String json = """
+            {
+                "version": "2024.04.01",
+                "query": "ROW x = 1",
+                "pragma": {"foo": "bar"}
+            }
+            """;
+
+        EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+        request.onSnapshotBuild(true);
+        assertNull(request.validate());
+
+        request.onSnapshotBuild(false);
         assertNotNull(request.validate());
-        assertThat(request.validate().getMessage(), containsString("[query] is required"));
+        assertThat(request.validate().getMessage(), containsString("[pragma] only allowed in snapshot builds"));
     }
 
     public void testTask() throws IOException {
@@ -258,6 +372,10 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         e = expectThrows(IllegalArgumentException.class, () -> parseEsqlQueryRequestAsync(json));
         assertThat(e.getMessage(), containsString(message));
+    }
+
+    static EsqlQueryRequest parseEsqlQueryRequest(String json, boolean sync) throws IOException {
+        return sync ? parseEsqlQueryRequestSync(json) : parseEsqlQueryRequestAsync(json);
     }
 
     static EsqlQueryRequest parseEsqlQueryRequestSync(String json) throws IOException {

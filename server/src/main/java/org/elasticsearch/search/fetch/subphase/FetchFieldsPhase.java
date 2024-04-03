@@ -10,10 +10,12 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -23,6 +25,7 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -62,10 +65,19 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             if (storedFieldsContext.fieldNames() == null) {
                 fields = METADATA_FIELDS;
             } else {
+                SearchExecutionContext searchExecutionContext = fetchContext.getSearchExecutionContext();
                 fields = new ArrayList<>(METADATA_FIELDS);
-                for (String fieldName : storedFieldsContext.fieldNames()) {
-                    if (fieldName.equals(SourceFieldMapper.NAME) == false) {
-                        fields.add(new FieldAndFormat(fieldName, null));
+                for (String field : storedFieldsContext.fieldNames()) {
+                    // stored_fields: * gets resolved to all stored fields including metadata fields
+                    // whereas fields:* will exclude metadata fields, which can only be requested explicitly
+                    Collection<String> fieldNames = searchExecutionContext.getMatchingFieldNames(field);
+                    for (String fieldName : fieldNames) {
+                        if (fieldName.equals(SourceFieldMapper.NAME) == false && searchExecutionContext.isMetadataField(fieldName)) {
+                            // TODO only metadata field that's not stored, it should be excluded in some other way?
+                            if (fieldName.equals(FieldNamesFieldMapper.NAME) == false) {
+                                fields.add(new FieldAndFormat(fieldName, null));
+                            }
+                        }
                     }
                 }
             }

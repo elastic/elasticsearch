@@ -195,6 +195,20 @@ public class MetadataMigrateToDataStreamService {
         Function<IndexMetadata, MapperService> mapperSupplier,
         boolean removeAlias
     ) throws IOException {
+        prepareBackingIndex(b, im, dataStreamName, mapperSupplier, removeAlias, false, Settings.EMPTY);
+    }
+
+
+    // hides the index, optionally removes the alias, and adds data stream timestamp field mapper
+    static void prepareBackingIndex(
+        Metadata.Builder b,
+        IndexMetadata im,
+        String dataStreamName,
+        Function<IndexMetadata, MapperService> mapperSupplier,
+        boolean removeAlias,
+        boolean failureStore,
+        Settings nodeSettings
+    ) throws IOException {
         MappingMetadata mm = im.mapping();
         if (mm == null) {
             throw new IllegalArgumentException("backing index [" + im.getIndex().getName() + "] must have mappings for a timestamp field");
@@ -210,12 +224,17 @@ public class MetadataMigrateToDataStreamService {
             imb.removeAlias(dataStreamName);
         }
 
-        b.put(
-            imb.settings(Settings.builder().put(im.getSettings()).put("index.hidden", "true").build())
-                .settingsVersion(im.getSettingsVersion() + 1)
-                .mappingVersion(im.getMappingVersion() + 1)
-                .putMapping(new MappingMetadata(mapper))
-        );
+        Settings.Builder settingsUpdate = Settings.builder().put(im.getSettings()).put("index.hidden", "true");
+
+        if (failureStore) {
+            DataStreamFailureStoreDefinition.applyFailureStoreSettings(nodeSettings, settingsUpdate);
+        }
+
+        imb.settings(settingsUpdate.build())
+            .settingsVersion(im.getSettingsVersion() + 1)
+            .mappingVersion(im.getMappingVersion() + 1)
+            .putMapping(new MappingMetadata(mapper));
+        b.put(imb);
     }
 
     // package-visible for testing

@@ -46,7 +46,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -272,12 +271,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 return;
             }
 
-            if (commitState.markUploadStarting(reference.getPrimaryTerm(), generation) == false) {
+            assert reference.getPrimaryTerm() == commitState.allocationPrimaryTerm;
+            if (closedOrRelocated(commitState.state)) {
                 logger.debug(
-                    "{} aborting commit upload [state={}][{}][{}]",
+                    "{} aborting commit creation [state={}][primary term={}][generation={}]",
                     shardId,
                     commitState.state,
-                    reference.getSegmentsFileName(),
+                    reference.getPrimaryTerm(),
                     generation
                 );
                 IOUtils.closeWhileHandlingException(reference);
@@ -296,6 +296,18 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             final boolean frozenByThisThread = virtualBcc.freeze();
             assert frozenByThisThread;
             // TODO return earlier if not the VBCC is concurrently frozen by a different thread
+
+            if (commitState.addPendingUpload(virtualBcc) == false) {
+                logger.debug(
+                    "{} aborting commit upload [state={}][primary term={}][generation={}]",
+                    shardId,
+                    commitState.state,
+                    reference.getPrimaryTerm(),
+                    generation
+                );
+                IOUtils.closeWhileHandlingException(virtualBcc);
+                return;
+            }
 
             logger.debug("{} uploading batch compound commit [{}][{}]", shardId, reference.getSegmentsFileName(), generation);
             // TODO: Ensure blobLocations are always updated before appending the next CC.
@@ -472,12 +484,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         private void checkReadyToUpload(ActionListener<Void> readyListener, ActionListener<BatchedCompoundCommit> notReadyListener) {
-            OptionalLong missing = shardCommitState.pendingUploadGenerations.stream().mapToLong(l -> l).filter(g -> g < generation).max();
+            OptionalLong missing = shardCommitState.getMaxPendingUploadBeforeGeneration(generation);
             if (missing.isPresent()) {
                 long missingGeneration = missing.getAsLong();
                 logger.trace("{} waiting for commit [{}] to finish before uploading commit [{}]", shardId, missingGeneration, generation);
                 shardCommitState.addListenerForUploadedGeneration(missingGeneration, notReadyListener.delegateFailure((l, unused) -> {
-                    assert shardCommitState.pendingUploadGenerations.contains(missingGeneration) == false
+                    assert shardCommitState.pendingUploadGenerations.containsKey(missingGeneration) == false
                         : "missingGeneration [" + missingGeneration + "] still in " + shardCommitState.pendingUploadGenerations;
                     executeUpload(notReadyListener);
                 }));
@@ -617,7 +629,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         private final ShardId shardId;
         private final long allocationPrimaryTerm;
-        private final Set<Long> pendingUploadGenerations = ConcurrentCollections.newConcurrentSet();
+        // A map of VBCC generation to VBCC to keep track of the VBCCs that are pending upload.
+        // The VBCCs are used to serve data fetching request from search nodes.
+        // A VBCC is removed from this map once it is uploaded to object store.
+        private final Map<Long, VirtualBatchedCompoundCommit> pendingUploadGenerations = new ConcurrentHashMap<>();
         private List<Tuple<Long, ActionListener<Void>>> generationListeners = null;
         private List<Consumer<UploadedCommitInfo>> uploadedCommitConsumers = null;
         private volatile long recoveredGeneration = -1;
@@ -757,18 +772,26 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             handleUploadedCommit(recoveredCommit, false);
         }
 
-        // Returns true if the upload should proceed. False if the upload should be skipped because shard stopping.
-        private boolean markUploadStarting(long primaryTerm, long generation) {
-            assert primaryTerm == allocationPrimaryTerm;
+        private boolean addPendingUpload(VirtualBatchedCompoundCommit virtualBcc) {
+            assert virtualBcc.getPrimaryTerm() == allocationPrimaryTerm;
 
             synchronized (this) {
                 if (closedOrRelocated(state)) {
                     return false;
                 } else {
-                    pendingUploadGenerations.add(generation);
+                    final var previous = pendingUploadGenerations.put(virtualBcc.getGeneration(), virtualBcc);
+                    assert previous == null : "expected null, but got " + previous;
                     return true;
                 }
             }
+        }
+
+        private OptionalLong getMaxPendingUploadGeneration() {
+            return pendingUploadGenerations.keySet().stream().mapToLong(l -> l).max();
+        }
+
+        private OptionalLong getMaxPendingUploadBeforeGeneration(long generation) {
+            return pendingUploadGenerations.keySet().stream().mapToLong(l -> l).filter(g -> g < generation).max();
         }
 
         /**
@@ -955,8 +978,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 latestUploadedCommit = commit;
                 if (isUpload) {
                     // Remove the commit from the pending list *after* upload consumers but *before* generation listeners are fired
-                    boolean removed = pendingUploadGenerations.remove(newGeneration);
-                    assert removed;
+                    var removed = pendingUploadGenerations.remove(newGeneration);
+                    assert removed != null : newGeneration + "not found";
                 }
                 if (generationListeners != null) {
                     List<Tuple<Long, ActionListener<Void>>> listenersToReregister = null;
@@ -1184,7 +1207,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private void markRelocating(long minRelocatedGeneration, ActionListener<Void> listener) {
             long toWaitFor;
             synchronized (this) {
-                OptionalLong maxPending = pendingUploadGenerations.stream().mapToLong(l -> l).max();
+                OptionalLong maxPending = getMaxPendingUploadGeneration();
 
                 // We wait for the max generation we see at the moment to be uploaded. Generations are always uploaded in order so this
                 // logic works. Additionally, at minimum we wait for minRelocatedGeneration to be uploaded. It is possible it has already

@@ -208,7 +208,7 @@ public class DownsampleIT extends ParameterizedRollingUpgradeTestCase {
             var hits = (List<?>) ((Map<?, ?>) map.get("hits")).get("hits");
             assertEquals(4, hits.size());
             for (var hit : hits) {
-                assertEquals(rollup, ((Map<?,?>) hit).get("_index"));
+                assertEquals(rollup, ((Map<?, ?>) hit).get("_index"));
             }
         }, 30, TimeUnit.SECONDS);
     }

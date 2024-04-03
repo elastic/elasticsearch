@@ -61,9 +61,7 @@ public abstract class IdpRestTestCase extends ESRestTestCase {
             true
         );
         final String endpoint = "/_security/user/" + username;
-        final Request request = new Request(HttpPut.METHOD_NAME, endpoint).setJsonEntity(
-            Strings.format(
-                """
+        final Request request = new Request(HttpPut.METHOD_NAME, endpoint).setJsonEntity(Strings.format("""
             {
                 "username": "%s",
                 "full_name": "%s",

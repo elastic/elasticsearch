@@ -34,10 +34,6 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         new FieldAndFormat(LegacyTypeFieldMapper.NAME, null)
     );
 
-    public static boolean isMetadataField(final String field) {
-        return METADATA_FIELDS.stream().map(fieldAndFormat -> fieldAndFormat.field).anyMatch(fieldName -> fieldName.equals(field));
-    }
-
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
         final FetchFieldsContext fetchFieldsContext = fetchContext.fetchFieldsContext();

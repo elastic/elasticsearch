@@ -84,26 +84,26 @@ public final class TimeSeriesBlockHash extends BlockHash {
     @Override
     public Block[] getKeys() {
         int positions = (int) intervalHash.size();
-        BytesRefVector k1 = null;
-        LongVector k2 = null;
+        BytesRefVector tsidHashes = null;
+        LongVector timestampIntervals = null;
         try (
-            BytesRefVector.Builder tsidHashes = blockFactory.newBytesRefVectorBuilder(positions);
-            LongVector.Builder timestampIntervals = blockFactory.newLongVectorFixedBuilder(positions)
+            BytesRefVector.Builder tsidHashesBuilder = blockFactory.newBytesRefVectorBuilder(positions);
+            LongVector.Builder timestampIntervalsBuilder = blockFactory.newLongVectorFixedBuilder(positions)
         ) {
             BytesRef scratch = new BytesRef();
             for (long i = 0; i < positions; i++) {
                 BytesRef key1 = this.tsidHashes.get(intervalHash.getKey1(i), scratch);
-                tsidHashes.appendBytesRef(key1);
-                timestampIntervals.appendLong(intervalHash.getKey2(i));
+                tsidHashesBuilder.appendBytesRef(key1);
+                timestampIntervalsBuilder.appendLong(intervalHash.getKey2(i));
             }
-            k1 = tsidHashes.build();
-            k2 = timestampIntervals.build();
+            tsidHashes = tsidHashesBuilder.build();
+            timestampIntervals = timestampIntervalsBuilder.build();
         } finally {
-            if (k2 == null) {
-                Releasables.closeExpectNoException(k1);
+            if (timestampIntervals == null) {
+                Releasables.closeExpectNoException(tsidHashes);
             }
         }
-        return new Block[] { k1.asBlock(), k2.asBlock() };
+        return new Block[] { tsidHashes.asBlock(), timestampIntervals.asBlock() };
     }
 
     @Override

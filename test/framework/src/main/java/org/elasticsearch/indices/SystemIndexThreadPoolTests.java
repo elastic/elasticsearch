@@ -67,6 +67,7 @@ public abstract class SystemIndexThreadPoolTests extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106957")
     public void testUserThreadPoolsAreBlocked() {
         assertAcked(client().admin().indices().prepareCreate(USER_INDEX));
 

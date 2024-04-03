@@ -18,6 +18,11 @@ public class EsqlQueryRequestBuilder extends ActionRequestBuilder<EsqlQueryReque
         super(client, EsqlQueryAction.INSTANCE, new EsqlQueryRequest());
     }
 
+    public EsqlQueryRequestBuilder esqlVersion(String esqlVersion) {
+        request.esqlVersion(esqlVersion);
+        return this;
+    }
+
     public EsqlQueryRequestBuilder query(String query) {
         request.query(query);
         return this;

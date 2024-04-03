@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.esql.parser.ContentLocation;
 import org.elasticsearch.xpack.esql.parser.TypedParamValue;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.version.EsqlVersion;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -57,6 +58,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         PARAM_PARSER.declareString(constructorArg(), TYPE);
     }
 
+    private static final ParseField ESQL_VERSION_FIELD = new ParseField("version");
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField COLUMNAR_FIELD = new ParseField("columnar");
     private static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
@@ -67,6 +69,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
 
     private static final ObjectParser<EsqlQueryRequest, Void> PARSER = objectParser(EsqlQueryRequest::new);
 
+    private String esqlVersion;
     private String query;
     private boolean columnar;
     private ZoneId zoneId;
@@ -74,6 +77,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
     private QueryBuilder filter;
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
     private List<TypedParamValue> params = List.of();
+    private boolean onSnapshotBuild = Build.current().isSnapshot();
 
     public EsqlQueryRequest(StreamInput in) throws IOException {
         super(in);
@@ -82,16 +86,52 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (Strings.hasText(query) == false) {
-            validationException = addValidationError("[query] is required", validationException);
+        if (Strings.hasText(esqlVersion) == false) {
+            // TODO: make this required
+            // "https://github.com/elastic/elasticsearch/issues/104890"
+            // validationException = addValidationError(invalidVersion("is required"), validationException);
+        } else {
+            EsqlVersion version = EsqlVersion.parse(esqlVersion);
+            if (version == null) {
+                validationException = addValidationError(invalidVersion("has invalid value [" + esqlVersion + "]"), validationException);
+            } else if (version == EsqlVersion.SNAPSHOT && onSnapshotBuild == false) {
+                validationException = addValidationError(
+                    invalidVersion("with value [" + esqlVersion + "] only allowed in snapshot builds"),
+                    validationException
+                );
+            }
         }
-        if (Build.current().isSnapshot() == false && pragmas.isEmpty() == false) {
-            validationException = addValidationError("[pragma] only allowed in snapshot builds", validationException);
+        if (Strings.hasText(query) == false) {
+            validationException = addValidationError("[" + QUERY_FIELD + "] is required", validationException);
+        }
+        if (onSnapshotBuild == false && pragmas.isEmpty() == false) {
+            validationException = addValidationError(
+                "[" + PRAGMA_FIELD + "] only allowed in snapshot builds",
+                validationException
+            );
         }
         return validationException;
     }
 
+    private static String invalidVersion(String reason) {
+        return "["
+            + ESQL_VERSION_FIELD
+            + "] "
+            + reason
+            + ", latest available version is ["
+            + EsqlVersion.latestReleased().versionStringWithoutEmoji()
+            + "]";
+    }
+
     public EsqlQueryRequest() {}
+
+    public void esqlVersion(String esqlVersion) {
+        this.esqlVersion = esqlVersion;
+    }
+
+    public String esqlVersion() {
+        return esqlVersion;
+    }
 
     public void query(String query) {
         this.query = query;
@@ -155,6 +195,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
 
     private static ObjectParser<EsqlQueryRequest, Void> objectParser(Supplier<EsqlQueryRequest> supplier) {
         ObjectParser<EsqlQueryRequest, Void> parser = new ObjectParser<>("esql/query", false, supplier);
+        parser.declareString(EsqlQueryRequest::esqlVersion, ESQL_VERSION_FIELD);
         parser.declareString(EsqlQueryRequest::query, QUERY_FIELD);
         parser.declareBoolean(EsqlQueryRequest::columnar, COLUMNAR_FIELD);
         parser.declareString((request, zoneId) -> request.zoneId(ZoneId.of(zoneId)), TIME_ZONE_FIELD);
@@ -255,4 +296,8 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
         return new org.elasticsearch.xcontent.XContentLocation(fromProto.lineNumber, fromProto.columnNumber);
     }
 
+    // Setter for tests
+    void onSnapshotBuild(boolean onSnapshotBuild) {
+        this.onSnapshotBuild = onSnapshotBuild;
+    }
 }

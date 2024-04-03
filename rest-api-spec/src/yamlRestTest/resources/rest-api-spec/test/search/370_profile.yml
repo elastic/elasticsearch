@@ -165,8 +165,7 @@ disabling stored fields removes fetch sub phases:
 
   - match: { hits.hits.0._index: test }
   - match: { profile.shards.0.fetch.debug.stored_fields: [] }
-  - length: { profile.shards.0.fetch.children: 1 }
-  - match: { profile.shards.0.fetch.children.0.type: FetchFieldsPhase }
+  - is_false: profile.shards.0.fetch.children
 
 ---
 dfs knn vector profiling:

@@ -54,12 +54,14 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         InferenceFieldMetadata that = (InferenceFieldMetadata) o;
-        return inferenceId.equals(that.inferenceId) && Arrays.equals(sourceFields, that.sourceFields);
+        return Objects.equals(name, that.name)
+            && Objects.equals(inferenceId, that.inferenceId)
+            && Arrays.equals(sourceFields, that.sourceFields);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(inferenceId);
+        int result = Objects.hash(name, inferenceId);
         result = 31 * result + Arrays.hashCode(sourceFields);
         return result;
     }

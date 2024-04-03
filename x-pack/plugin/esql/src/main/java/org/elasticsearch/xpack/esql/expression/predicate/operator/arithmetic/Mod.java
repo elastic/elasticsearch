@@ -44,7 +44,7 @@ public class Mod extends EsqlArithmeticOperation {
     @Evaluator(extraName = "Ints", warnExceptions = { ArithmeticException.class })
     static int processInts(int lhs, int rhs) {
         if (rhs == 0) {
-            throw new ArithmeticException("% by zero");
+            throw new ArithmeticException("/ by zero");
         }
         return lhs % rhs;
     }
@@ -52,7 +52,7 @@ public class Mod extends EsqlArithmeticOperation {
     @Evaluator(extraName = "Longs", warnExceptions = { ArithmeticException.class })
     static long processLongs(long lhs, long rhs) {
         if (rhs == 0L) {
-            throw new ArithmeticException("% by zero");
+            throw new ArithmeticException("/ by zero");
         }
         return lhs % rhs;
     }
@@ -60,7 +60,7 @@ public class Mod extends EsqlArithmeticOperation {
     @Evaluator(extraName = "UnsignedLongs", warnExceptions = { ArithmeticException.class })
     static long processUnsignedLongs(long lhs, long rhs) {
         if (rhs == NumericUtils.ZERO_AS_UNSIGNED_LONG) {
-            throw new ArithmeticException("% by zero");
+            throw new ArithmeticException("/ by zero");
         }
         return longToUnsignedLong(Long.remainderUnsigned(longToUnsignedLong(lhs, true), longToUnsignedLong(rhs, true)), true);
     }
@@ -69,7 +69,7 @@ public class Mod extends EsqlArithmeticOperation {
     static double processDoubles(double lhs, double rhs) {
         double value = lhs % rhs;
         if (Double.isNaN(value) || Double.isInfinite(value)) {
-            throw new ArithmeticException("% by zero");
+            throw new ArithmeticException("/ by zero");
         }
         return value;
     }

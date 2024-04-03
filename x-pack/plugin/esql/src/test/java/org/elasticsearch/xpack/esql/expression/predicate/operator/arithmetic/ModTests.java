@@ -120,7 +120,7 @@ public class ModTests extends AbstractFunctionTestCase {
                     evaluatorToString,
                     List.of(
                         "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                        "Line -1:-1: java.lang.ArithmeticException: % by zero"
+                        "Line -1:-1: java.lang.ArithmeticException: / by zero"
                     ),
                     suppliers,
                     expected,
@@ -140,7 +140,7 @@ public class ModTests extends AbstractFunctionTestCase {
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.ZERO, true),
                 List.of(
                     "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.ArithmeticException: % by zero"
+                    "Line -1:-1: java.lang.ArithmeticException: / by zero"
                 ),
                 false
             )

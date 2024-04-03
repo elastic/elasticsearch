@@ -178,7 +178,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
     }
 
     public void testUnknownVersionIsNotValid() throws IOException {
-        String invalidVersionString = EsqlVersionTests.invalidVersionString();
+        String invalidVersionString = EsqlVersionTests.randomInvalidVersionString();
 
         String json = String.format(Locale.ROOT, """
             {
@@ -216,7 +216,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104890")
     public void testMissingVersionIsNotValid() throws IOException {
         String missingVersion = randomBoolean() ? "" : ", \"version\": \"\"";
-        String json = String.format("""
+        String json = String.format(Locale.ROOT, """
             {
                 "columnar": true,
                 "query": "row x = 1"

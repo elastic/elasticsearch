@@ -26,14 +26,18 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
         Map<String, EsqlVersion> stringToVersion = new LinkedHashMap<>(EsqlVersion.values().length * 2);
 
         for (EsqlVersion version : EsqlVersion.values()) {
-            EsqlVersion existingVersionForKey = null;
-            existingVersionForKey = stringToVersion.put(version.versionStringWithoutEmoji(), version);
-            assert existingVersionForKey == null;
-            existingVersionForKey = stringToVersion.put(version.toString(), version);
-            assert existingVersionForKey == null;
+            putVersionAssertNoDups(stringToVersion, version.versionStringWithoutEmoji(), version);
+            putVersionAssertNoDups(stringToVersion, version.toString(), version);
         }
 
         return stringToVersion;
+    }
+
+    private static void putVersionAssertNoDups(Map<String, EsqlVersion> stringToVersion, String versionString, EsqlVersion version) {
+        EsqlVersion existingVersionForKey = stringToVersion.put(versionString, version);
+        if (existingVersionForKey != null) {
+            throw new AssertionError("Duplicate esql version with version string [" + versionString + "]");
+        }
     }
 
     EsqlVersion(int year, int month, String emoji) {
@@ -54,20 +58,32 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
     private byte revision;
     private String emoji;
 
-    /**
-     * Version prefix that we accept when parsing. If a version string starts with the given prefix, we consider the version string valid.
-     * E.g. "2024.04.01.🎉" will be interpreted as {@link EsqlVersion#PARTY_POPPER}, but so will "2024.04.01".
-     */
-    public String versionStringWithoutEmoji() {
-        return this == NIGHTLY ? "nightly" : Strings.format("%d.%02d.%02d", year, month, revision);
+    public int year() {
+        return year;
+    }
+
+    public byte month() {
+        return month;
+    }
+
+    public byte revision() {
+        return revision;
     }
 
     public String emoji() {
         return emoji;
     }
 
+    /**
+     * Accepts a version string with the emoji suffix or without it.
+     * E.g. both "2024.04.01.🎉" and "2024.04.01" will be interpreted as {@link EsqlVersion#PARTY_POPPER}.
+     */
     public static EsqlVersion parse(String versionString) {
         return VERSION_MAP_WITH_AND_WITHOUT_EMOJI.get(versionString);
+    }
+
+    public String versionStringWithoutEmoji() {
+        return this == NIGHTLY ? "nightly" : Strings.format("%d.%02d.%02d", year, month, revision);
     }
 
     @Override

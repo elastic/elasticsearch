@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.version;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -23,6 +25,22 @@ public class EsqlVersionTests extends ESTestCase {
     public void testVersionId() {
         assertThat(EsqlVersion.NIGHTLY.id(), equalTo(Integer.MAX_VALUE));
         assertThat(EsqlVersion.PARTY_POPPER.id(), equalTo(20240401));
+
+        for (EsqlVersion version : EsqlVersion.values()) {
+            assertTrue(EsqlVersion.NIGHTLY.onOrAfter(version));
+            if (version != EsqlVersion.NIGHTLY) {
+                assertTrue(version.before(EsqlVersion.NIGHTLY));
+            } else {
+                assertTrue(version.onOrAfter(EsqlVersion.NIGHTLY));
+            }
+        }
+
+        List<EsqlVersion> versionsSortedAsc = Arrays.stream(EsqlVersion.values())
+            .sorted(Comparator.comparing(EsqlVersion::year).thenComparing(EsqlVersion::month).thenComparing(EsqlVersion::revision))
+            .toList();
+        for (int i = 0; i < versionsSortedAsc.size() - 1; i++) {
+            assertTrue(versionsSortedAsc.get(i).before(versionsSortedAsc.get(i + 1)));
+        }
     }
 
     public void testVersionStringNoEmoji() {
@@ -43,10 +61,10 @@ public class EsqlVersionTests extends ESTestCase {
             assertThat(EsqlVersion.parse(versionStringWithoutEmoji + "." + version.emoji()), is(version));
         }
 
-        assertNull(EsqlVersion.parse(invalidVersionString()));
+        assertNull(EsqlVersion.parse(randomInvalidVersionString()));
     }
 
-    public static String invalidVersionString() {
+    public static String randomInvalidVersionString() {
         String[] invalidVersionString = new String[1];
 
         do {

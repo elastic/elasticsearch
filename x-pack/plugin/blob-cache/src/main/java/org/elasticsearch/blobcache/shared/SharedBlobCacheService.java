@@ -1174,7 +1174,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     private class LRUCache implements Cache<KeyType, CacheFileRegion> {
 
-        static class LRUCacheList {
+        class LRUCacheList {
             volatile LRUCacheEntry head;
             LRUCacheEntry tail;
             int size;
@@ -1354,7 +1354,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
         private synchronized boolean invariant(final LRUCacheEntry e, boolean present) {
             boolean found = false;
-            for (LRUCacheList list : new LRUCacheList[]{front, middle}) {
+            for (LRUCacheList list : List.of(front, middle)) {
                 for (LRUCacheEntry entry = list.head; entry != null; entry = entry.next) {
                     assert entry.next == null || entry.next.prev == entry;
                     assert entry.prev == null || entry.prev.next == entry;

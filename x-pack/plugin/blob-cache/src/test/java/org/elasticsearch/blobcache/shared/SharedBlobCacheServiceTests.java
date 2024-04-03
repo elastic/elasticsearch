@@ -855,7 +855,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final Map<Object, SharedBlobCacheService<Object>.CacheFileRegion> cacheEntries = new HashMap<>();
 
             assertThat("All regions are free", cacheService.freeRegionCount(), equalTo(numRegions));
-            assertThat("Cache has no entries", cacheService.maybeEvictLeastUsed(), is(false));
+            assertThat("Cache has no entries", cacheService.maybeEvictLeastRecent(), is(false));
 
             // use all regions in cache
             for (int i = 0; i < numRegions; i++) {
@@ -872,12 +872,12 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             }
 
             assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
-            assertThat("Cache entries are not old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(false));
+            assertThat("Cache entries are not old enough to be evicted", cacheService.maybeEvictLeastRecent(), is(false));
 
             taskQueue.runAllRunnableTasks();
 
             assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
-            assertThat("Cache entries are not old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(false));
+            assertThat("Cache entries are not old enough to be evicted", cacheService.maybeEvictLeastRecent(), is(false));
 
             cacheService.maybeScheduleDecayAndNewEpoch();
             taskQueue.runAllRunnableTasks();
@@ -895,7 +895,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             );
 
             assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
-            assertThat("Cache entries are not old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(false));
+            assertThat("Cache entries are not old enough to be evicted", cacheService.maybeEvictLeastRecent(), is(false));
 
             cacheService.maybeScheduleDecayAndNewEpoch();
             taskQueue.runAllRunnableTasks();
@@ -908,11 +908,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             var zeroFrequencyCacheEntries = cacheEntries.size() - usedCacheKeys.size();
             for (int i = 0; i < zeroFrequencyCacheEntries; i++) {
                 assertThat(cacheService.freeRegionCount(), equalTo(i));
-                assertThat("Cache entry is old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(true));
+                assertThat("Cache entry is old enough to be evicted", cacheService.maybeEvictLeastRecent(), is(true));
                 assertThat(cacheService.freeRegionCount(), equalTo(i + 1));
             }
 
-            assertThat("No more cache entries old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(false));
+            assertThat("No more cache entries old enough to be evicted", cacheService.maybeEvictLeastRecent(), is(false));
             assertThat(cacheService.freeRegionCount(), equalTo(zeroFrequencyCacheEntries));
         }
     }

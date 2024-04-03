@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
@@ -21,7 +22,7 @@ import java.util.Arrays;
 public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBuilder, Releasable, Block.Builder {
     private final BlockFactory blockFactory;
     private final SortedDocValues docValues;
-    private int[] ords;
+    private final int[] ords;
     private int count;
 
     public SingletonOrdinalsBuilder(BlockFactory blockFactory, SortedDocValues docValues, int count) {
@@ -53,8 +54,53 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
         throw new UnsupportedOperationException("should only have one value per doc");
     }
 
-    @Override
-    public BytesRefBlock build() {
+    BytesRefBlock buildOrdinal() {
+        int valueCount = docValues.getValueCount();
+        long breakerSize = ordsSize(valueCount);
+        blockFactory.adjustBreaker(breakerSize);
+        BytesRefVector bytesVector = null;
+        IntBlock ordinalBlock = null;
+        try {
+            int[] newOrds = new int[valueCount];
+            Arrays.fill(newOrds, -1);
+            for (int ord : ords) {
+                if (ord != -1) {
+                    newOrds[ord] = 0;
+                }
+            }
+            // resolve the ordinals and remaps the ordinals
+            int nextOrd = -1;
+            try (BytesRefVector.Builder bytesBuilder = blockFactory.newBytesRefVectorBuilder(Math.min(valueCount, ords.length))) {
+                for (int i = 0; i < newOrds.length; i++) {
+                    if (newOrds[i] != -1) {
+                        newOrds[i] = ++nextOrd;
+                        bytesBuilder.appendBytesRef(docValues.lookupOrd(i));
+                    }
+                }
+                bytesVector = bytesBuilder.build();
+            } catch (IOException e) {
+                throw new UncheckedIOException("error resolving ordinals", e);
+            }
+            try (IntBlock.Builder ordinalsBuilder = blockFactory.newIntBlockBuilder(ords.length)) {
+                for (int ord : ords) {
+                    if (ord == -1) {
+                        ordinalsBuilder.appendNull();
+                    } else {
+                        ordinalsBuilder.appendInt(newOrds[ord]);
+                    }
+                }
+                ordinalBlock = ordinalsBuilder.build();
+            }
+            final OrdinalBytesRefBlock result = new OrdinalBytesRefBlock(ordinalBlock, bytesVector);
+            bytesVector = null;
+            ordinalBlock = null;
+            return result;
+        } finally {
+            Releasables.close(() -> blockFactory.adjustBreaker(-breakerSize), ordinalBlock, bytesVector);
+        }
+    }
+
+    BytesRefBlock buildRegularBlock() {
         try {
             long breakerSize = ordsSize(ords.length);
             // Increment breaker for sorted ords.
@@ -102,6 +148,15 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
             }
         } catch (IOException e) {
             throw new UncheckedIOException("error resolving ordinals", e);
+        }
+    }
+
+    @Override
+    public BytesRefBlock build() {
+        if (ords.length >= 2 * docValues.getValueCount() && ords.length >= 32) {
+            return buildOrdinal();
+        } else {
+            return buildRegularBlock();
         }
     }
 

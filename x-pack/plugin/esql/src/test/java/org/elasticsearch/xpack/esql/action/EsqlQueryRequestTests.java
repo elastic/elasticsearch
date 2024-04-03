@@ -218,7 +218,13 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertNotNull(request.validate());
         assertThat(
             request.validate().getMessage(),
-            containsString("[version] with value [" + esqlVersion + "] only allowed in snapshot builds")
+            containsString(
+                "[version] with value ["
+                    + esqlVersion
+                    + "] only allowed in snapshot builds, latest available version is ["
+                    + EsqlVersion.latestReleased()
+                    + "]"
+            )
         );
     }
 

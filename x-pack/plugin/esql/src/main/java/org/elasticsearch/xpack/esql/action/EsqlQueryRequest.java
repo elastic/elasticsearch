@@ -71,30 +71,14 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         if (Strings.hasText(esqlVersion) == false) {
             // TODO: make this required
             // "https://github.com/elastic/elasticsearch/issues/104890"
-            // validationException = addValidationError(
-            // "["
-            // + RequestXContent.ESQL_VERSION_FIELD
-            // + "] is required, latest available version is ["
-            // + EsqlVersion.latestReleased()
-            // + "]",
-            // validationException
-            // );
+            // validationException = addValidationError(invalidVersion("is required"), validationException);
         } else {
             EsqlVersion version = EsqlVersion.parse(esqlVersion);
             if (version == null) {
-                validationException = addValidationError(
-                    "["
-                        + RequestXContent.ESQL_VERSION_FIELD
-                        + "] has invalid value ["
-                        + esqlVersion
-                        + "], latest available version is ["
-                        + EsqlVersion.latestReleased()
-                        + "]",
-                    validationException
-                );
+                validationException = addValidationError(invalidVersion("has invalid value [" + esqlVersion + "]"), validationException);
             } else if (version == EsqlVersion.SNAPSHOT && onSnapshotBuild == false) {
                 validationException = addValidationError(
-                    "[" + RequestXContent.ESQL_VERSION_FIELD + "] with value [" + esqlVersion + "] only allowed in snapshot builds",
+                    invalidVersion("with value [" + esqlVersion + "] only allowed in snapshot builds"),
                     validationException
                 );
             }
@@ -109,6 +93,16 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
             );
         }
         return validationException;
+    }
+
+    private static String invalidVersion(String reason) {
+        return "["
+            + RequestXContent.ESQL_VERSION_FIELD
+            + "] "
+            + reason
+            + ", latest available version is ["
+            + EsqlVersion.latestReleased()
+            + "]";
     }
 
     public EsqlQueryRequest() {}

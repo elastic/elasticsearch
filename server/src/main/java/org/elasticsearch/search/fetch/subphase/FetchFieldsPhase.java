@@ -10,6 +10,7 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -72,7 +73,11 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                     // whereas fields:* will exclude metadata fields, which can only be requested explicitly
                     Collection<String> fieldNames = searchExecutionContext.getMatchingFieldNames(field);
                     for (String fieldName : fieldNames) {
-                        if (fieldName.equals(SourceFieldMapper.NAME) == false && searchExecutionContext.isMetadataField(fieldName)) {
+                        // _source and _id are fetched separately and always from stored fields, see FieldsVisitor.
+                        // no need to retrieve them via value fetchers too.
+                        if (fieldName.equals(SourceFieldMapper.NAME) == false
+                            && fieldName.equals(IdFieldMapper.NAME) == false
+                            && searchExecutionContext.isMetadataField(fieldName)) {
                             MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
                             // TODO this is for bw comp with previous behaviour of _stored_fields: there's a bunch of metadata fields that
                             // are stored and were never exposed to fetch.

@@ -145,6 +145,71 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
         assertNotNull(responseSetOnce.get());
     }
 
+    public void testAggsAndAggregationsTogether() throws Exception {
+        final String requestBody = """
+            {
+              "query": {
+                "match_all": {}
+              },
+              "from": 42,
+              "size": 20,
+              "sort": [ "name", { "creation_time": { "order": "desc", "format": "strict_date_time" } }, "username" ],
+              "search_after": [ "key-2048", "2021-07-01T00:00:59.000Z" ]
+            }""";
+
+        final FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+            new BytesArray(requestBody),
+            XContentType.JSON
+        ).build();
+
+        final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
+        final RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
+            @Override
+            public void sendResponse(RestResponse restResponse) {
+                responseSetOnce.set(restResponse);
+            }
+        };
+
+        final var client = new NodeClient(Settings.EMPTY, threadPool) {
+            @SuppressWarnings("unchecked")
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                QueryApiKeyRequest queryApiKeyRequest = (QueryApiKeyRequest) request;
+                final QueryBuilder queryBuilder = queryApiKeyRequest.getQueryBuilder();
+                assertNotNull(queryBuilder);
+                assertThat(queryBuilder.getClass(), is(MatchAllQueryBuilder.class));
+                assertThat(queryApiKeyRequest.getFrom(), equalTo(42));
+                assertThat(queryApiKeyRequest.getSize(), equalTo(20));
+                final List<FieldSortBuilder> fieldSortBuilders = queryApiKeyRequest.getFieldSortBuilders();
+                assertThat(fieldSortBuilders, hasSize(3));
+
+                assertThat(fieldSortBuilders.get(0), equalTo(new FieldSortBuilder("name")));
+                assertThat(
+                    fieldSortBuilders.get(1),
+                    equalTo(new FieldSortBuilder("creation_time").setFormat("strict_date_time").order(SortOrder.DESC))
+                );
+                assertThat(fieldSortBuilders.get(2), equalTo(new FieldSortBuilder("username")));
+
+                final SearchAfterBuilder searchAfterBuilder = queryApiKeyRequest.getSearchAfterBuilder();
+                assertThat(
+                    searchAfterBuilder,
+                    equalTo(new SearchAfterBuilder().setSortValues(new String[] { "key-2048", "2021-07-01T00:00:59.000Z" }))
+                );
+
+                listener.onResponse((Response) QueryApiKeyResponse.EMPTY);
+            }
+        };
+
+        final RestQueryApiKeyAction restQueryApiKeyAction = new RestQueryApiKeyAction(Settings.EMPTY, mockLicenseState);
+        restQueryApiKeyAction.handleRequest(restRequest, restChannel, client);
+
+        assertNotNull(responseSetOnce.get());
+    }
+
     public void testParsingSearchParameters() throws Exception {
         final String requestBody = """
             {

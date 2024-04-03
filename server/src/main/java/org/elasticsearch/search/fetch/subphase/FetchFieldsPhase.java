@@ -21,10 +21,10 @@ import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 /**
  * A fetch sub-phase for high-level field retrieval. Given a list of fields, it
@@ -53,18 +53,21 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             ? null
             : FieldFetcher.create(fetchContext.getSearchExecutionContext(), fetchFieldsContext.fields());
 
-        FieldFetcher fieldFetcherMetadataFields = storedFieldsContext == null || storedFieldsContext.fetchFields() == false
-            ? null
-            : FieldFetcher.create(
-                fetchContext.getSearchExecutionContext(),
-                Stream.concat(
-                    METADATA_FIELDS.stream(),
-                    storedFieldsContext.fieldNames()
-                        .stream()
-                        .filter(s -> fetchContext.getSearchExecutionContext().isMetadataField(s))
-                        .map(s -> new FieldAndFormat(s, null))
-                ).toList()
-            );
+        final FieldFetcher fieldFetcherMetadataFields;
+        if (storedFieldsContext == null || storedFieldsContext.fetchFields() == false) {
+            fieldFetcherMetadataFields = null;
+        } else {
+            List<FieldAndFormat> fields;
+            if (storedFieldsContext.fieldNames() == null) {
+                fields = METADATA_FIELDS;
+            } else {
+                fields = new ArrayList<>(METADATA_FIELDS);
+                for (String fieldName : storedFieldsContext.fieldNames()) {
+                    fields.add(new FieldAndFormat(fieldName, null));
+                }
+            }
+            fieldFetcherMetadataFields = FieldFetcher.create(fetchContext.getSearchExecutionContext(), fields);
+        }
 
         return new FetchSubPhaseProcessor() {
             @Override

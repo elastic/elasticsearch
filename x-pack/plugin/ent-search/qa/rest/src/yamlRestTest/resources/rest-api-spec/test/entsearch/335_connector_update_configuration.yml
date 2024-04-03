@@ -198,7 +198,8 @@ setup:
       connector.get:
         connector_id: test-connector
 
-  - match: { configuration.some_field.tooltip: null }
+  - match: { configuration.some_field.options.0.value: 10 }
+  - match: { configuration.some_field.options.1.value: 5 }
 
 ---
 "Update Connector Configuration - Connector doesn't exist":

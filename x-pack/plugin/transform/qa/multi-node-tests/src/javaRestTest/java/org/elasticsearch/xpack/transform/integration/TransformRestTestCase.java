@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.integration;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -94,9 +95,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         assertBusy(() -> {
             try {
                 refreshIndex(TransformInternalIndexConstants.AUDIT_INDEX_PATTERN, RequestOptions.DEFAULT);
-                Response searchResponse = client().performRequest(searchRequest);
-
-                Map<String, Object> searchResult = entityAsMap(searchResponse);
+                Map<String, Object> searchResult = entityAsMap(client().performRequest(searchRequest));
                 List<Map<String, Object>> searchHits = (List<Map<String, Object>>) XContentMapValues.extractValue(
                     "hits.hits",
                     searchResult
@@ -143,7 +142,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     protected void refreshIndex(String index, RequestOptions options) throws IOException {
         var r = new Request("POST", index + "/_refresh");
         r.setOptions(options);
-        assertOK(adminClient().performRequest(r));
+        assertOKAndConsume(adminClient().performRequest(r));
     }
 
     protected Map<String, Object> getIndexMapping(String index, RequestOptions options) throws IOException {
@@ -225,15 +224,15 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         if (force) {
             request.addParameter(TransformField.FORCE.getPreferredName(), "true");
         }
-        assertOK(adminClient().performRequest(request));
+        assertAcknowledged(adminClient().performRequest(request));
         createdTransformIds.remove(id);
     }
 
-    protected Response putTransform(String id, String config, RequestOptions options) throws IOException {
-        return putTransform(id, config, false, options);
+    protected void putTransform(String id, String config, RequestOptions options) throws IOException {
+        putTransform(id, config, false, options);
     }
 
-    protected Response putTransform(String id, String config, boolean deferValidation, RequestOptions options) throws IOException {
+    protected void putTransform(String id, String config, boolean deferValidation, RequestOptions options) throws IOException {
         if (createdTransformIds.contains(id)) {
             throw new IllegalArgumentException("transform [" + id + "] is already registered");
         }
@@ -244,9 +243,8 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             request.addParameter("defer_validation", "true");
         }
         request.setOptions(options);
-        Response response = assertOK(client().performRequest(request));
+        assertAcknowledged(client().performRequest(request));
         createdTransformIds.add(id);
-        return response;
     }
 
     protected Map<String, Object> previewTransform(String transformConfig, RequestOptions options) throws IOException {
@@ -271,8 +269,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         var request = new Request("GET", TRANSFORM_ENDPOINT + id + "/_stats");
         request.addParameter(BASIC_STATS.getPreferredName(), "true");
         request.setOptions(RequestOptions.DEFAULT);
-        Response response = client().performRequest(request);
-        List<Map<String, Object>> stats = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", entityAsMap(response));
+        var stats = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", entityAsMap(client().performRequest(request)));
         assertThat(stats, hasSize(1));
         return stats.get(0);
     }
@@ -283,11 +280,10 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     protected Map<String, Object> getTransform(String id) throws IOException {
-        Request request = new Request("GET", TRANSFORM_ENDPOINT + id);
-        Response response = client().performRequest(request);
-        List<Map<String, Object>> transformConfigs = (List<Map<String, Object>>) XContentMapValues.extractValue(
+        var request = new Request("GET", TRANSFORM_ENDPOINT + id);
+        var transformConfigs = (List<Map<String, Object>>) XContentMapValues.extractValue(
             "transforms",
-            entityAsMap(response)
+            entityAsMap(client().performRequest(request))
         );
         assertThat(transformConfigs, hasSize(1));
         return transformConfigs.get(0);
@@ -312,14 +308,6 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
     protected long getCheckpoint(Map<String, Object> stats) {
         return ((Integer) XContentMapValues.extractValue("checkpointing.last.checkpoint", stats)).longValue();
-    }
-
-    protected DateHistogramGroupSource createDateHistogramGroupSourceWithFixedInterval(
-        String field,
-        DateHistogramInterval interval,
-        ZoneId zone
-    ) {
-        return new DateHistogramGroupSource(field, null, false, new DateHistogramGroupSource.FixedInterval(interval), zone, null);
     }
 
     protected DateHistogramGroupSource createDateHistogramGroupSourceWithCalendarInterval(
@@ -414,7 +402,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         String destinationIndex,
         QueryConfig queryConfig,
         String... sourceIndices
-    ) throws Exception {
+    ) {
         return TransformConfig.builder()
             .setId(id)
             .setSource(new SourceConfig(sourceIndices, queryConfig, Collections.emptyMap()))
@@ -434,7 +422,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         }
         updateRequest.setJsonEntity(update);
         updateRequest.setOptions(options);
-        assertOK(client().performRequest(updateRequest));
+        assertOKAndConsume(client().performRequest(updateRequest));
     }
 
     protected void createReviewsIndex(
@@ -504,7 +492,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             Request req = new Request("PUT", indexName);
             req.setEntity(indexMappings);
             req.setOptions(RequestOptions.DEFAULT);
-            assertOK(adminClient().performRequest(req));
+            assertAcknowledged(adminClient().performRequest(req));
         }
 
         // create index
@@ -546,9 +534,12 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         bulkRequest.setJsonEntity(bulkDocuments);
         bulkRequest.setOptions(RequestOptions.DEFAULT);
         Response bulkResponse = adminClient().performRequest(bulkRequest);
-        assertOK(bulkResponse);
-        var bulkMap = entityAsMap(bulkResponse);
-        assertThat((boolean) bulkMap.get("errors"), is(equalTo(false)));
+        try {
+            var bulkMap = entityAsMap(assertOK(bulkResponse));
+            assertThat((boolean) bulkMap.get("errors"), is(equalTo(false)));
+        } finally {
+            EntityUtils.consumeQuietly(bulkResponse.getEntity());
+        }
     }
 
     protected Map<String, Object> matchAllSearch(String index, int size, RequestOptions options) throws IOException {
@@ -556,8 +547,11 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         request.addParameter("size", Integer.toString(size));
         request.setOptions(options);
         Response response = client().performRequest(request);
-        assertOK(response);
-        return entityAsMap(response);
+        try {
+            return entityAsMap(assertOK(response));
+        } finally {
+            EntityUtils.consumeQuietly(response.getEntity());
+        }
     }
 
     private void waitForPendingTasks() {
@@ -572,7 +566,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         );
         request.addParameters(parameters);
         try {
-            adminClient().performRequest(request);
+            EntityUtils.consumeQuietly(adminClient().performRequest(request).getEntity());
         } catch (Exception e) {
             throw new AssertionError("Failed to wait for pending tasks to complete", e);
         }

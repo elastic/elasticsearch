@@ -1,0 +1,5 @@
+pr: 107078
+summary: Add ability to create REST client requests in a builder style
+area: Java Low Level REST Client
+type: enhancement
+issues: []

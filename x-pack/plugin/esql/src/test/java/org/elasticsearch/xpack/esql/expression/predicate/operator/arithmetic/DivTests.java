@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -23,10 +24,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsBigInteger;
-
-public class DivTests extends AbstractArithmeticTestCase {
+public class DivTests extends AbstractFunctionTestCase {
     public DivTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -150,64 +148,6 @@ public class DivTests extends AbstractArithmeticTestCase {
         return parameterSuppliersFromTypedData(suppliers);
     }
 
-    // run dedicated test to avoid the JVM optimized ArithmeticException that lacks a message
-    /*
-    public void testDivisionByZero() {
-        DataType testCaseType = testCase.getData().get(0).type();
-        List<Object> data = switch (testCaseType.typeName()) {
-            case "INTEGER" -> List.of(randomInt(), 0);
-            case "LONG" -> List.of(randomLong(), 0L);
-            case "UNSIGNED_LONG" -> List.of(randomLong(), ZERO_AS_UNSIGNED_LONG);
-            default -> null;
-        };
-        if (data != null) {
-            var op = build(Source.EMPTY, field("lhs", testCaseType), field("rhs", testCaseType));
-            try (Block block = evaluator(op).get(driverContext()).eval(row(data))) {
-                assertCriticalWarnings(
-                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.ArithmeticException: / by zero"
-                );
-                assertNull(toJavaObject(block, 0));
-            }
-        }
-    }
-
-     */
-
-    @Override
-    protected boolean rhsOk(Object o) {
-        if (o instanceof Number n) {
-            return n.doubleValue() != 0;
-        }
-        return true;
-    }
-
-    @Override
-    protected Div build(Source source, Expression lhs, Expression rhs) {
-        return new Div(source, lhs, rhs);
-    }
-
-    @Override
-    protected double expectedValue(double lhs, double rhs) {
-        return lhs / rhs;
-    }
-
-    @Override
-    protected int expectedValue(int lhs, int rhs) {
-        return lhs / rhs;
-    }
-
-    @Override
-    protected long expectedValue(long lhs, long rhs) {
-        return lhs / rhs;
-    }
-
-    @Override
-    protected long expectedUnsignedLongValue(long lhs, long rhs) {
-        BigInteger lhsBI = unsignedLongAsBigInteger(lhs);
-        BigInteger rhsBI = unsignedLongAsBigInteger(rhs);
-        return asLongUnsigned(lhsBI.divide(rhsBI).longValue());
-    }
     private static String divErrorMessageString(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
         try {
             return typeErrorMessage(includeOrdinal, validPerPosition, types);
@@ -216,5 +156,10 @@ public class DivTests extends AbstractArithmeticTestCase {
             return "[/] has arguments with incompatible types [" + types.get(0).typeName() + "] and [" + types.get(1).typeName() + "]";
 
         }
+    }
+
+    @Override
+    protected Expression build(Source source, List<Expression> args) {
+        return new Div(source, args.get(0), args.get(1));
     }
 }

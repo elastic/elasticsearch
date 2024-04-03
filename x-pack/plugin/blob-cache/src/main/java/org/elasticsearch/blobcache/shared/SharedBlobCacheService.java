@@ -55,7 +55,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
@@ -262,12 +261,12 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     // used in tests
     void maybeScheduleDecayAndNewEpoch() {
-        //TODO: remove this
+        // TODO: remove this
     }
 
     // used in tests
     long epoch() {
-        //TODO: remove this
+        // TODO: remove this
         return -1L;
     }
 
@@ -572,7 +571,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     // used by tests
     boolean maybeEvictLeastRecent() {
-        if (cache instanceof SharedBlobCacheService.LRUCache LRUCache) {
+        if (cache instanceof LRUCache LRUCache) {
             return LRUCache.maybeEvictLeastRecent();
         }
         return false;
@@ -617,7 +616,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     // used by tests
     int getFreq(CacheFileRegion cacheFileRegion) {
-        //TODO: remove this
+        // TODO: remove this
         return -1;
     }
 
@@ -1455,7 +1454,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
          *
          * @return true if an entry was evicted, false otherwise.
          */
-         public boolean maybeEvictLeastRecent() {
+        public boolean maybeEvictLeastRecent() {
             synchronized (SharedBlobCacheService.this) {
                 LRUCacheEntry entry = middle.tail;
                 if (entry != null) {

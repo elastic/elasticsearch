@@ -1,5 +1,3 @@
-[role="xpack"]
-
 [[example-using-index-lifecycle-policy]]
 === Tutorial: Customize built-in {ilm-init} policies
 
@@ -9,9 +7,9 @@
 
 {es} includes the following built-in {ilm-init} policies:
 
-- `logs`
-- `metrics`
-- `synthetics`
+- `logs@lifecycle`
+- `metrics@lifecycle`
+- `synthetics@lifecycle`
 
 {agent} uses these policies to manage backing indices for its data streams.
 This tutorial shows you how to use {kib}’s **Index Lifecycle Policies** to
@@ -68,19 +66,24 @@ cluster.
 
 [discrete]
 [[example-using-index-lifecycle-policy-view-ilm-policy]]
-==== View the policy
+==== View and edit the policy
 
 {agent} uses data streams with an index pattern of `logs-*-*` to store log
-monitoring data. The built-in `logs` {ilm-init} policy automatically manages
-backing indices for these data streams.
+monitoring data. The managed `logs@lifecycle` {ilm-init} policy automatically manages
+backing indices for these data streams. 
 
-To view the `logs` policy in {kib}:
+If you don't want to use the policy defaults, then you can duplicate the managed policy and customize it.
+
+You should only edit duplicates of managed policies. Changes to managed policies might be rolled back or overwritten.
+
+To duplicate the `logs@lifecycle` policy in {kib}:
 
 . Open the menu and go to **Stack Management > Index Lifecycle Policies**.
-. Select **Include managed system policies**.
-. Select the `logs` policy.
+. Toggle **Include managed system policies**.
+. Select the `logs@lifecycle` policy.
+. On the **Edit policy logs** page, toggle **Save as new policy**, and then provide a new name for the policy.
 
-The `logs` policy uses the recommended rollover defaults: Start writing to a new
+The `logs@lifecycle` policy uses the recommended rollover defaults: Start writing to a new
 index when the current write index reaches 50GB or becomes 30 days old.
 
 To view or change the rollover settings, click **Advanced settings** for the hot
@@ -90,16 +93,12 @@ settings.
 [role="screenshot"]
 image::images/ilm/tutorial-ilm-hotphaserollover-default.png[View rollover defaults]
 
-Note that {kib} displays a warning that editing a managed policy can break
-Kibana. For this tutorial, you can ignore that warning and proceed with
-modifying the policy.
-
 [discrete]
 [[ilm-ex-modify-policy]]
 ==== Modify the policy
 
-The default `logs` policy is designed to prevent the creation of many tiny daily
-indices. You can modify the policy to meet your performance requirements and
+The default `logs@lifecycle` policy is designed to prevent the creation of many tiny daily
+indices. You can modify your copy of the policy to meet your performance requirements and
 manage resource usage.
 
 . Activate the warm phase and click **Advanced settings**.
@@ -127,4 +126,12 @@ deletes indices 90 days after rollover.
 [role="screenshot"]
 image::images/ilm/tutorial-ilm-delete-rollover.png[Add a delete phase]
 
-. Click **Save Policy**.
+. Click **Save as new policy**.
+
+[discrete]
+[[ilm-ex-next-steps]]
+==== Next steps
+
+- Configure a settings <<indices-component-template,component template>> that uses the new {ilm-init} policy. Consider cloning the managed **logs@settings** template and updating the `index.lifecycle.name` setting.
+- Use your new {ilm-init} policy or component template in an <<index-templates,index template>>. Consider cloning the managed **logs** index template. Make sure to set the index template priority to a higher value than the managed template.
+- Optional: Copies of managed {ilm-init} policies are also marked as **Managed**. Use the <<ilm-put-lifecycle,Create or update lifecycle policy API>> to update the `_meta.managed` parameter to `false`.

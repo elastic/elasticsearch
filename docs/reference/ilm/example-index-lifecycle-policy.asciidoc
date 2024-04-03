@@ -134,11 +134,13 @@ TIP:  Copies of managed {ilm-init} policies are also marked as **Managed**. You 
 [[example-using-index-lifecycle-policy-apply-policy]]
 ==== Apply the policy
 
-To apply your new {ilm-init} policy to the `logs` index template, edit the `logs@settings` component template.
+To apply your new {ilm-init} policy to the `logs` index template, create or edit the `logs@custom` component template. 
 
-. Click on the **Component Template** tab and search for `logs`.
-. Select the `logs@settings` template and click **Manage** > **Edit**.
-. Under **Index settings**, set the ILM policy name created in the previous step:
+A `*@custom` component template allows you to customize the mappings and settings of managed index templates, without having to override managed index templates or component templates. This type of component template is automatically picked up by the index template. <<put-component-template-api-path-params,Learn more>>.
+
+. Click on the **Component Template** tab and click **Create component template**.
+. Under **Logistics**, name the component template `logs@custom`.
+. Under **Index settings**, set the {ilm-init} policy name created in the previous step:
 +
 [source,console]
 --------------------------------------------------
@@ -152,3 +154,5 @@ To apply your new {ilm-init} policy to the `logs` index template, edit the `logs
 --------------------------------------------------
 +
 . Continue to **Review**, and then click **Save component template**.
+. Click the **Index Templates**, tab, and then select the `logs` index template.
+. In the summary, view the **Component templates** list. `logs@custom` should be listed.

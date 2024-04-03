@@ -16,7 +16,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.junit.Before;
 
@@ -249,7 +248,6 @@ public class DownsampleIT extends ParameterizedRollingUpgradeTestCase {
             "Downsample got many stability improvements in 8.10.0",
             oldClusterHasFeature(RestTestLegacyFeatures.TSDB_DOWNSAMPLING_STABLE)
         );
-        DateHistogramInterval fixedInterval = new DateHistogramInterval("10s");
         if (isOldCluster()) {
             createIlmPolicy();
             createIndex();

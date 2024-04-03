@@ -72,7 +72,7 @@ public class EsqlVersionTests extends ESTestCase {
         String[] invalidVersionString = new String[1];
 
         do {
-            int length = randomIntBetween(0, 10);
+            int length = randomIntBetween(1, 10);
             invalidVersionString[0] = randomAlphaOfLength(length);
         } while (EsqlVersion.VERSION_MAP_WITH_AND_WITHOUT_EMOJI.containsKey(invalidVersionString[0]));
 

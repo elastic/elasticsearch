@@ -555,7 +555,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
 
-            final List<InternalAggregation> aggregations = new ArrayList<>(size);
+            private List<InternalAggregation> aggregations = new ArrayList<>(size);
 
             @Override
             public void accept(InternalAggregation aggregation) {
@@ -564,8 +564,15 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
 
             @Override
             public InternalAggregation get() {
-                List<InternalAggregation> processed = getProcessedAggs(aggregations, needsPromotionToDouble(aggregations));
-                return ((AbstractInternalTerms<?, ?>) processed.get(0)).doReduce(processed, reduceContext);
+                final List<InternalAggregation> processed = getProcessedAggs(aggregations, needsPromotionToDouble(aggregations));
+                try (
+                    AggregatorReducer processor = ((AbstractInternalTerms<?, ?>) processed.get(0))
+                        .termsAggregationReducer(reduceContext, size)
+                ) {
+                    aggregations.forEach(processor::accept);
+                    aggregations = null; // release memory
+                    return processor.get();
+                }
             }
         };
     }

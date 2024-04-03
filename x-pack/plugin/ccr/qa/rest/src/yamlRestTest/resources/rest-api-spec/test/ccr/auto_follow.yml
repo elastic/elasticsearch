@@ -201,6 +201,7 @@
   - do:
       ccr.put_auto_follow_pattern:
         name: pattern_test
+        master_timeout: 10s
         body:
           remote_cluster: local
           leader_index_patterns: ['logs-*']
@@ -224,6 +225,7 @@
   - do:
       ccr.pause_auto_follow_pattern:
         name: pattern_test
+        master_timeout: 10s
   - is_true: acknowledged
 
   - do:
@@ -243,6 +245,7 @@
   - do:
       ccr.resume_auto_follow_pattern:
         name: pattern_test
+        master_timeout: 10s
   - is_true: acknowledged
 
   - do:

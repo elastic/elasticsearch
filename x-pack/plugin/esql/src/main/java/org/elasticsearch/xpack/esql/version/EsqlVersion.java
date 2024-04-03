@@ -45,8 +45,15 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
     }
 
     EsqlVersion(int year, int month, int revision, String emoji) {
-        assert 0 < revision && revision < 100;
-        assert 0 < month && month < 13;
+        if ((1 <= revision && revision <= 99) == false) {
+            throw new AssertionError("Version revision number must be between 1 and 99 but was [" + revision + "]");
+        }
+        if ((1 <= month && month <= 12) == false) {
+            throw new AssertionError("Version month must be between 1 and 12 but was [" + month + "]");
+        }
+        if ((emoji.codePointCount(0, emoji.length()) == 1) == false) {
+            throw new AssertionError("Version emoji must be a single unicode character but was [" + emoji + "]");
+        }
         this.year = year;
         this.month = (byte) month;
         this.revision = (byte) revision;

@@ -35,29 +35,12 @@ import java.util.Set;
  */
 public class FieldFetcher {
 
-    private record ResolvedField(
-        String field,
-        String matchingPattern,
-        MappedFieldType mappedFieldType,
-        String format,
-        boolean isMetadataField
-    ) {}
+    private record ResolvedField(String field, String matchingPattern, MappedFieldType ft, String format) {}
 
     /**
-     * Build a FieldFetcher for a given search context and collection of fields and formats.
-     * See {@link org.elasticsearch.index.query.QueryRewriteContext} to see why we
-     * skip null {@link MappedFieldType}.
-     *
-     * @param context The {@link SearchExecutionContext} used to retrieve the {@link MappedFieldType}.
-     * @param fieldAndFormats field names to fetch and their display format.
-     * @param fetchStoredFields whether stored fields should be fetched or not.
-     * @return an instance of {@link FieldFetcher} which we can use to fetch fields calling {@link FieldFetcher#fetch(Source, int)}.
+     * Build a FieldFetcher for a given search context and collection of fields and formats
      */
-    public static FieldFetcher create(
-        SearchExecutionContext context,
-        Collection<FieldAndFormat> fieldAndFormats,
-        boolean fetchStoredFields
-    ) {
+    public static FieldFetcher create(SearchExecutionContext context, Collection<FieldAndFormat> fieldAndFormats) {
 
         List<String> unmappedFetchPattern = new ArrayList<>();
         List<ResolvedField> resolvedFields = new ArrayList<>();
@@ -75,15 +58,12 @@ public class FieldFetcher {
                 if (context.isMetadataField(field) && matchingPattern != null) {
                     continue;
                 }
-                if (ft.isStored() && fetchStoredFields == false) {
-                    continue;
-                }
-                resolvedFields.add(new ResolvedField(field, matchingPattern, ft, fieldAndFormat.format, context.isMetadataField(field)));
+                resolvedFields.add(new ResolvedField(field, matchingPattern, ft, fieldAndFormat.format));
             }
         }
 
         // The fields need to be sorted so that the nested partition functions will work correctly.
-        resolvedFields.sort(Comparator.comparing(resolvedField -> resolvedField.mappedFieldType.name()));
+        resolvedFields.sort(Comparator.comparing(f -> f.field));
 
         Map<String, FieldContext> fieldContexts = buildFieldContexts(context, "", resolvedFields, unmappedFetchPattern);
 
@@ -108,13 +88,13 @@ public class FieldFetcher {
         return new UnmappedFieldFetcher(mappedFields, context.nestedLookup().getImmediateChildMappers(nestedScope), unmappedFetchPatterns);
     }
 
-    private static ValueFetcher buildValueFetcher(SearchExecutionContext context, ResolvedField resolvedField) {
+    private static ValueFetcher buildValueFetcher(SearchExecutionContext context, ResolvedField fieldAndFormat) {
         try {
-            return resolvedField.mappedFieldType.valueFetcher(context, resolvedField.format);
+            return fieldAndFormat.ft.valueFetcher(context, fieldAndFormat.format);
         } catch (IllegalArgumentException e) {
-            StringBuilder error = new StringBuilder("error fetching [").append(resolvedField.field).append(']');
-            if (resolvedField.matchingPattern != null) {
-                error.append(" which matched [").append(resolvedField.matchingPattern).append(']');
+            StringBuilder error = new StringBuilder("error fetching [").append(fieldAndFormat.field).append(']');
+            if (fieldAndFormat.matchingPattern != null) {
+                error.append(" which matched [").append(fieldAndFormat.matchingPattern).append(']');
             }
             error.append(": ").append(e.getMessage());
             throw new IllegalArgumentException(error.toString(), e);
@@ -138,7 +118,7 @@ public class FieldFetcher {
             nestedScope,
             context.nestedLookup().getImmediateChildMappers(nestedScope),
             fields,
-            resolvedField -> resolvedField.mappedFieldType.name()
+            f -> f.field
         );
 
         // Keep the outputs sorted for easier testing
@@ -146,11 +126,8 @@ public class FieldFetcher {
         for (String scope : fieldsByNestedMapper.keySet()) {
             if (nestedScope.equals(scope)) {
                 // These are fields in the current scope, so add them directly to the output map
-                for (ResolvedField resolvedField : fieldsByNestedMapper.get(nestedScope)) {
-                    output.put(
-                        resolvedField.field,
-                        new FieldContext(resolvedField.field, buildValueFetcher(context, resolvedField), resolvedField.isMetadataField)
-                    );
+                for (ResolvedField ff : fieldsByNestedMapper.get(nestedScope)) {
+                    output.put(ff.field, new FieldContext(ff.field, buildValueFetcher(context, ff)));
                 }
             } else {
                 // don't create nested fetchers if no children have been requested as part of the fields
@@ -170,7 +147,7 @@ public class FieldFetcher {
                         unmappedFetchPatterns
                     );
                     NestedValueFetcher nvf = new NestedValueFetcher(scope, new FieldFetcher(scopedFields, unmappedFieldFetcher));
-                    output.put(scope, new FieldContext(scope, nvf, FetchFieldsPhase.isMetadataField(scope)));
+                    output.put(scope, new FieldContext(scope, nvf));
                 }
             }
         }
@@ -184,44 +161,32 @@ public class FieldFetcher {
     private FieldFetcher(Map<String, FieldContext> fieldContexts, UnmappedFieldFetcher unmappedFieldFetcher) {
         this.fieldContexts = fieldContexts;
         this.unmappedFieldFetcher = unmappedFieldFetcher;
-        this.storedFieldsSpec = StoredFieldsSpec.build(
-            fieldContexts.values().stream().filter(f -> f.isMetadataField == false).toList(),
-            fieldContext -> fieldContext.valueFetcher.storedFieldsSpec()
-        );
+        this.storedFieldsSpec = StoredFieldsSpec.build(fieldContexts.values(), fc -> fc.valueFetcher.storedFieldsSpec());
     }
 
     public StoredFieldsSpec storedFieldsSpec() {
         return storedFieldsSpec;
     }
 
-    /**
-     * Collects document and metadata fields as two separate maps
-     * mapping the field name to the actual {@link DocumentField}.
-     */
-    public record DocAndMetaFields(Map<String, DocumentField> documentFields, Map<String, DocumentField> metadataFields) {}
-
-    public DocAndMetaFields fetch(Source source, int doc) throws IOException {
+    public Map<String, DocumentField> fetch(Source source, int doc) throws IOException {
         Map<String, DocumentField> documentFields = new HashMap<>();
-        Map<String, DocumentField> metadataFields = new HashMap<>();
-        for (FieldContext fieldContext : fieldContexts.values()) {
-            final DocumentField value = fieldContext.valueFetcher.fetchDocumentField(fieldContext.fieldName, source, doc);
-            if (value != null) {
-                if (fieldContext.isMetadataField) {
-                    metadataFields.put(fieldContext.fieldName, value);
-                } else {
-                    documentFields.put(fieldContext.fieldName, value);
-                }
+        for (FieldContext context : fieldContexts.values()) {
+            String field = context.fieldName;
+            ValueFetcher valueFetcher = context.valueFetcher;
+            final DocumentField docField = valueFetcher.fetchDocumentField(field, source, doc);
+            if (docField != null) {
+                documentFields.put(field, docField);
             }
         }
         unmappedFieldFetcher.collectUnmapped(documentFields, source);
-        return new DocAndMetaFields(documentFields, metadataFields);
+        return documentFields;
     }
 
     public void setNextReader(LeafReaderContext readerContext) {
-        for (FieldContext fieldContext : fieldContexts.values()) {
-            fieldContext.valueFetcher.setNextReader(readerContext);
+        for (FieldContext field : fieldContexts.values()) {
+            field.valueFetcher.setNextReader(readerContext);
         }
     }
 
-    private record FieldContext(String fieldName, ValueFetcher valueFetcher, boolean isMetadataField) {}
+    private record FieldContext(String fieldName, ValueFetcher valueFetcher) {}
 }

@@ -15,13 +15,11 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
-import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Stream;
 
 /**
  * A fetch sub-phase for high-level field retrieval. Given a list of fields, it
@@ -33,8 +31,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
     private static final List<FieldAndFormat> METADATA_FIELDS = List.of(
         new FieldAndFormat(IgnoredFieldMapper.NAME, null),
         new FieldAndFormat(RoutingFieldMapper.NAME, null),
-        new FieldAndFormat(LegacyTypeFieldMapper.NAME, null),
-        new FieldAndFormat("_size", null)
+        new FieldAndFormat(LegacyTypeFieldMapper.NAME, null)
     );
 
     public static boolean isMetadataField(final String field) {
@@ -44,34 +41,33 @@ public final class FetchFieldsPhase implements FetchSubPhase {
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
         final FetchFieldsContext fetchFieldsContext = fetchContext.fetchFieldsContext();
-        final StoredFieldsContext storedFieldsContext = fetchContext.storedFieldsContext();
 
         final List<FieldAndFormat> fetchFields = fetchFieldsContext == null ? Collections.emptyList()
             : fetchFieldsContext.fields() == null ? Collections.emptyList()
             : fetchFieldsContext.fields();
 
-        boolean fetchStoredFields = storedFieldsContext != null && storedFieldsContext.fetchFields();
-        final FieldFetcher fieldFetcher = FieldFetcher.create(
-            fetchContext.getSearchExecutionContext(),
-            Stream.concat(fetchFields.stream(), METADATA_FIELDS.stream()).toList(),
-            fetchStoredFields
-        );
+        final FieldFetcher fieldFetcher = FieldFetcher.create(fetchContext.getSearchExecutionContext(), fetchFields);
+        final FieldFetcher metadataFieldFetcher = FieldFetcher.create(fetchContext.getSearchExecutionContext(), METADATA_FIELDS);
 
         return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
                 fieldFetcher.setNextReader(readerContext);
+                metadataFieldFetcher.setNextReader(readerContext);
             }
 
             @Override
             public StoredFieldsSpec storedFieldsSpec() {
-                return fieldFetcher.storedFieldsSpec();
+                return fieldFetcher.storedFieldsSpec().merge(metadataFieldFetcher.storedFieldsSpec());
             }
 
             @Override
             public void process(HitContext hitContext) throws IOException {
-                final FieldFetcher.DocAndMetaFields fields = fieldFetcher.fetch(hitContext.source(), hitContext.docId());
-                hitContext.hit().addDocumentFields(fields.documentFields(), fields.metadataFields());
+                hitContext.hit()
+                    .addDocumentFields(
+                        fieldFetcher.fetch(hitContext.source(), hitContext.docId()),
+                        metadataFieldFetcher.fetch(hitContext.source(), hitContext.docId())
+                    );
             }
         };
     }

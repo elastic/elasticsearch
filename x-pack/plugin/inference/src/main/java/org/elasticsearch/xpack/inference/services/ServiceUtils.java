@@ -121,6 +121,10 @@ public class ServiceUtils {
         return Strings.format("[%s] Invalid value empty string. [%s] must be a non-empty string", scope, settingName);
     }
 
+    public static String mustBeNonNonNull(String settingName, String scope) {
+        return Strings.format("[%s] Invalid value empty string. [%s] must be non-null", scope, settingName);
+    }
+
     public static String invalidValue(String settingName, String scope, String invalidType, String[] requiredValues) {
         var copyOfRequiredValues = requiredValues.clone();
         Arrays.sort(copyOfRequiredValues);
@@ -232,6 +236,25 @@ public class ServiceUtils {
         return optionalField;
     }
 
+    public static Integer extractOptionalPositiveInteger(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        Integer optionalField = ServiceUtils.removeAsType(map, settingName, Integer.class);
+
+        if (optionalField != null && optionalField <= 0) {
+            validationException.addValidationError(ServiceUtils.mustBeAPositiveNumberErrorMessage(settingName, optionalField));
+        }
+
+        if (validationException.validationErrors().isEmpty() == false) {
+            return null;
+        }
+
+        return optionalField;
+    }
+
     public static <E extends Enum<E>> E extractOptionalEnum(
         Map<String, Object> map,
         String settingName,
@@ -257,6 +280,21 @@ public class ServiceUtils {
         }
 
         return null;
+    }
+
+    public static Boolean extractOptionalBoolean(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        Boolean optionalField = ServiceUtils.removeAsType(map, settingName, Boolean.class);
+
+        if (validationException.validationErrors().isEmpty() == false) {
+            return null;
+        }
+
+        return optionalField;
     }
 
     private static <E extends Enum<E>> void validateEnumValue(E enumValue, EnumSet<E> validValues) {
@@ -310,27 +348,36 @@ public class ServiceUtils {
     public static void getEmbeddingSize(Model model, InferenceService service, ActionListener<Integer> listener) {
         assert model.getTaskType() == TaskType.TEXT_EMBEDDING;
 
-        service.infer(model, List.of(TEST_EMBEDDING_INPUT), Map.of(), InputType.INGEST, listener.delegateFailureAndWrap((delegate, r) -> {
-            if (r instanceof TextEmbedding embeddingResults) {
-                try {
-                    delegate.onResponse(embeddingResults.getFirstEmbeddingSize());
-                } catch (Exception e) {
-                    delegate.onFailure(new ElasticsearchStatusException("Could not determine embedding size", RestStatus.BAD_REQUEST, e));
+        service.infer(
+            model,
+            null,
+            List.of(TEST_EMBEDDING_INPUT),
+            Map.of(),
+            InputType.INGEST,
+            listener.delegateFailureAndWrap((delegate, r) -> {
+                if (r instanceof TextEmbedding embeddingResults) {
+                    try {
+                        delegate.onResponse(embeddingResults.getFirstEmbeddingSize());
+                    } catch (Exception e) {
+                        delegate.onFailure(
+                            new ElasticsearchStatusException("Could not determine embedding size", RestStatus.BAD_REQUEST, e)
+                        );
+                    }
+                } else {
+                    delegate.onFailure(
+                        new ElasticsearchStatusException(
+                            "Could not determine embedding size. "
+                                + "Expected a result of type ["
+                                + TextEmbeddingResults.NAME
+                                + "] got ["
+                                + r.getWriteableName()
+                                + "]",
+                            RestStatus.BAD_REQUEST
+                        )
+                    );
                 }
-            } else {
-                delegate.onFailure(
-                    new ElasticsearchStatusException(
-                        "Could not determine embedding size. "
-                            + "Expected a result of type ["
-                            + TextEmbeddingResults.NAME
-                            + "] got ["
-                            + r.getWriteableName()
-                            + "]",
-                        RestStatus.BAD_REQUEST
-                    )
-                );
-            }
-        }));
+            })
+        );
     }
 
     private static final String TEST_EMBEDDING_INPUT = "how big";

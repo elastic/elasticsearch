@@ -1047,6 +1047,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         return RandomizedTest.randomAsciiOfLength(codeUnits);
     }
 
+    public static String randomNullOrAlphaOfLength(int codeUnits) {
+        return randomBoolean() ? null : randomAlphaOfLength(codeUnits);
+    }
+
     /**
      * Creates a valid random identifier such as node id or index name
      */

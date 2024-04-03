@@ -52,7 +52,7 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
         return readFrom((BlockStreamInput) in);
     }
 
-    private static BooleanBlock readFrom(BlockStreamInput in) throws IOException {
+    static BooleanBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
         return switch (serializationType) {
             case SERIALIZE_BLOCK_VALUES -> BooleanBlock.readValues(in);

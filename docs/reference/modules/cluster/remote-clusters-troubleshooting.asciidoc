@@ -95,7 +95,9 @@ report the following message in its logs:
 ----
 
 However note that with some network configurations it could take minutes or
-hours to detect that a connection has stopped working.
+hours to detect that a connection has stopped working. Until the failure is
+detected and reported to {es}, requests involving the remote cluster may appear
+to be stuck.
 
 ====== Resolution
 

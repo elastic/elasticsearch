@@ -542,8 +542,10 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                         .map(NodeStats::getIndexingPressureStats)
                         .map(IndexingPressureStats::getCoordinatingRejections)
                         .orElse(0L);
+                    // rejections do not count towards `totalCoordinatingOperations`
+                    var totalOps = totalCoordinatingOperations + totalCoordinatingRejections;
                     return new DoubleWithAttributes(
-                        totalCoordinatingOperations != 0 ? (double) totalCoordinatingRejections / totalCoordinatingOperations : 0.0
+                        totalOps != 0 ? (double) totalCoordinatingRejections / totalOps : 0.0
                     );
                 }
             )
@@ -633,8 +635,10 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                         .map(NodeStats::getIndexingPressureStats)
                         .map(IndexingPressureStats::getPrimaryRejections)
                         .orElse(0L);
+                    // rejections do not count towards `totalPrimaryOperations`
+                    var totalOps = totalPrimaryOperations + totalPrimaryRejections;
                     return new DoubleWithAttributes(
-                        totalPrimaryOperations != 0 ? (double) totalPrimaryRejections / totalPrimaryOperations : 0.0
+                        totalOps != 0 ? (double) totalPrimaryRejections / totalOps : 0.0
                     );
                 }
             )

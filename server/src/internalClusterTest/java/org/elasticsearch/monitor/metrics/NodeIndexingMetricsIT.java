@@ -8,7 +8,14 @@
 
 package org.elasticsearch.monitor.metrics;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
@@ -16,14 +23,18 @@ import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.IndexingPressure.MAX_INDEXING_BYTES;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class NodeIndexingMetricsIT extends ESIntegTestCase {
@@ -35,23 +46,31 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
 
     public void testNodeIndexingMetricsArePublishing() throws Exception {
 
-        final String node = internalCluster().startNode();
+        final String dataNode = internalCluster().startNode();
+        // data node + coordinating node
         ensureStableCluster(1);
 
-        final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, node)
+        final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, dataNode)
             .filterPlugins(TestTelemetryPlugin.class)
             .findFirst()
             .orElseThrow();
-
         plugin.resetMeter();
 
-        assertAcked(prepareCreate("test", 1).get());
+        assertAcked(prepareCreate("test").get());
 
+        // index some documents
         final int docsCount = randomIntBetween(500, 1000);
         for (int i = 0; i < docsCount; i++) {
-            var indexResponse = client().index(new IndexRequest("test").id("doc_" + i).source(Map.of("key", i, "val", i))).actionGet();
+            var indexResponse = client(dataNode)
+                .index(new IndexRequest("test").id("doc_" + i).source(Map.of("key", i, "val", i))).actionGet();
             // check that all documents were created successfully since metric counters below assume that
             assertThat(indexResponse.status(), equalTo(RestStatus.CREATED));
+        }
+
+        // delete documents
+        final int deletesCount = randomIntBetween(1, 50);
+        for (int i = 0; i < deletesCount; i++) {
+            client(dataNode).delete(new DeleteRequest().index("test").id("doc_" + i)).actionGet();
         }
 
         // simulate async apm `polling` call for metrics
@@ -68,7 +87,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             assertThat(indexingFailedTotal.getLong(), equalTo(0L));
 
             var deletionTotal = getRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.deletion.docs.total");
-            assertThat(deletionTotal.getLong(), equalTo(0L));
+            assertThat(deletionTotal.getLong(), equalTo((long) deletesCount));
 
             var deletionCurrent = getRecordedMetric(plugin::getLongGaugeMeasurement, "es.indexing.deletion.docs.current.total");
             assertThat(deletionCurrent.getLong(), equalTo(0L));
@@ -77,7 +96,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             assertThat(indexingTime.getLong(), greaterThan(0L));
 
             var deletionTime = getRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.deletion.time");
-            assertThat(deletionTime.getLong(), equalTo(0L));
+            assertThat(deletionTime.getLong(), greaterThanOrEqualTo(0L));
 
             var throttleTime = getRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indices.throttle.time");
             assertThat(throttleTime.getLong(), equalTo(0L));
@@ -95,7 +114,8 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
                 plugin::getLongAsyncCounterMeasurement,
                 "es.indexing.coordinating_operations.total"
             );
-            assertThat(coordinatingOperationsTotal.getLong(), equalTo((long) docsCount));
+            // Note: `delete` request goes thru `TransportBulkAction` invoking coordinating/primary limit checks
+            assertThat(coordinatingOperationsTotal.getLong(), equalTo((long) docsCount + deletesCount));
 
             var coordinatingOperationsCurrentSize = getRecordedMetric(
                 plugin::getLongGaugeMeasurement,
@@ -125,7 +145,8 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             assertThat(primaryOperationsSize.getLong(), greaterThan(0L));
 
             var primaryOperationsTotal = getRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.primary_operations.total");
-            assertThat(primaryOperationsTotal.getLong(), equalTo((long) docsCount));
+            // Note: `delete` request goes thru `TransportBulkAction` invoking coordinating/primary limit checks
+            assertThat(primaryOperationsTotal.getLong(), equalTo((long) docsCount + deletesCount));
 
             var primaryOperationsCurrentSize = getRecordedMetric(
                 plugin::getLongGaugeMeasurement,
@@ -151,6 +172,96 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             );
             assertThat(primaryOperationsRejectionsRatio.getDouble(), equalTo(0.0));
 
+        });
+
+    }
+
+    public void testCoordinatingRejectionMetricsArePublishing() throws Exception {
+
+        // lower Indexing Pressure limits to trigger coordinating rejections
+        final String dataNode = internalCluster().startNode(Settings.builder().put(MAX_INDEXING_BYTES.getKey(), "1KB"));
+        ensureStableCluster(1);
+
+        final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, dataNode)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        plugin.resetMeter();
+
+        assertAcked(prepareCreate("test").get());
+
+        final BulkRequest bulkRequest = new BulkRequest();
+        final int batchCount = randomIntBetween(100, 1000);
+        for (int i = 0; i < batchCount; i++) {
+            bulkRequest.add(new IndexRequest("test").source("field", randomAlphaOfLength(100)));
+        }
+
+        // big batch should not pass thru coordinating limit check
+        client(dataNode).bulk(bulkRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(BulkResponse bulkItemResponses) {
+                fail("This call is expected to fail");
+            }
+            @Override
+            public void onFailure(Exception e) {
+                assertThat(e, instanceOf(EsRejectedExecutionException.class));
+            }
+        });
+
+        // simulate async apm `polling` call for metrics
+        plugin.collect();
+
+        // this bulk request is too big to pass coordinating limit check
+        assertBusy(() -> {
+            var coordinatingOperationsRejectionsTotal = getRecordedMetric(
+                plugin::getLongAsyncCounterMeasurement,
+                "es.indexing.coordinating_operations.rejections.total"
+            );
+            assertThat(coordinatingOperationsRejectionsTotal.getLong(), equalTo(1L));
+        });
+    }
+
+    public void testPrimaryRejectionMetricsArePublishing() throws Exception {
+
+        // setting low Indexing Pressure limits to trigger primary rejections
+        final String dataNode = internalCluster().startNode(Settings.builder().put(MAX_INDEXING_BYTES.getKey(), "1KB").build());
+        // setting high Indexing Pressure limits to pass coordinating checks
+        final String coordinatingNode = internalCluster().startCoordinatingOnlyNode(Settings.builder()
+                .put(MAX_INDEXING_BYTES.getKey(), "10MB")
+            .build());
+        ensureStableCluster(2);
+
+        final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, dataNode)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        plugin.resetMeter();
+
+        final int numberOfShards = randomIntBetween(1, 5);
+        assertAcked(prepareCreate("test", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)).get());
+
+        final BulkRequest bulkRequest = new BulkRequest();
+        final int batchCount = randomIntBetween(50, 100);
+        for (int i = 0; i < batchCount; i++) {
+            bulkRequest.add(new IndexRequest("test").source("field", randomAlphaOfLength(2048)));
+        }
+
+        // big batch should pass thru coordinating limit check but fail on primary
+        // note the bulk request is sent to coordinating client
+        final BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+        assertThat(bulkResponse.hasFailures(), equalTo(true));
+        assertThat(Arrays.stream(bulkResponse.getItems()).allMatch(item -> item.status() == RestStatus.TOO_MANY_REQUESTS), equalTo(true));
+
+        // simulate async apm `polling` call for metrics
+        plugin.collect();
+
+        // this bulk request is too big to pass coordinating limit check
+        assertBusy(() -> {
+            var primaryOperationsRejectionsTotal = getRecordedMetric(
+                plugin::getLongAsyncCounterMeasurement,
+                "es.indexing.primary_operations.rejections.total"
+            );
+            assertThat(primaryOperationsRejectionsTotal.getLong(), equalTo((long) numberOfShards));
         });
 
     }

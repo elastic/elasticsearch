@@ -5,11 +5,10 @@
 <titleabbrev>Index options</titleabbrev>
 ++++
 
-Similar to the <<search-search-api-query-params,Search API>>, the `OPTIONS`
-directive of the <<esql-from,FROM>> command allows configuring the way {esql}
-accesses the data to be queried. The argument passed to this directive is a
-comma-separated list of option-name-value pairs, with the option name and the
-corresponding value quoted.
+The `OPTIONS` directive of the <<esql-from,FROM>> command allows configuring
+the way {esql} accesses the data to be queried. The argument passed to this
+directive is a comma-separated list of option name-value pairs, with the option
+name and the corresponding value double-quoted.
 
 [source,esql]
 ----
@@ -19,13 +18,24 @@ FROM index_pattern [OPTIONS "option1"="value1"[,...[,"optionN"="valueN"]]]
 These options can only be provided part of a <<esql-from,FROM>> command, and
 they apply to all the indices provided or matched by an index pattern.
 
+The option names and their values are the same as used by the
+<<search-search-api-query-params,Search API>>, however note that the default
+values may differ.
+
 The currently supported options are:
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+// unlike "allow-no-indices", "index-ignore-unavailable" includes a default
+// in common-parms.asciidoc, which is different from QL's -- we need to
+// provide the full text here.
+`ignore_unavailable`::
+(Optional, Boolean) If `false`, the request returns an error if it targets a
+missing or closed index.
++
+Defaults to `true`.
 
 include::{es-repo-dir}/search/search.asciidoc[tag=search-preference]
 

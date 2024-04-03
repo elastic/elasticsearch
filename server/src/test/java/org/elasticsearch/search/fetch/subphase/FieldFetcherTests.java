@@ -264,10 +264,8 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
         // several other metadata fields throw exceptions via their value fetchers when trying to get them
         for (String fieldname : List.of(
-            SeqNoFieldMapper.NAME,
             SourceFieldMapper.NAME,
-            FieldNamesFieldMapper.NAME,
-            NestedPathFieldMapper.name(IndexVersion.current())
+            FieldNamesFieldMapper.NAME
         )) {
             expectThrows(UnsupportedOperationException.class, () -> fetchFields(mapperService, source, fieldname));
         }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -77,8 +78,29 @@ public class Locate extends EsqlScalarFunction {
         if (str == null || substr == null || str.length < substr.length) {
             return -1;
         }
-        // TODO: make this at ByteBuffer level, not String
-        return str.utf8ToString().indexOf(substr.utf8ToString());
+        int strCodePoints = UnicodeUtil.codePointCount(str);
+        int substrCodePoints = UnicodeUtil.codePointCount(substr);
+        int strIndex = 0;
+        int substrIndex = 0;
+        int locateIndex = -1;
+        UnicodeUtil.UTF8CodePoint strReuse = null;
+        UnicodeUtil.UTF8CodePoint substrReuse = null;
+        while (strIndex < strCodePoints) {
+            strReuse = UnicodeUtil.codePointAt(str.bytes, strIndex, strReuse);
+            substrReuse = UnicodeUtil.codePointAt(substr.bytes, substrIndex, substrReuse);
+            strIndex += 1;
+            if (strReuse.codePoint == substrReuse.codePoint) {
+                substrIndex += 1;
+            }
+            if (substrIndex == substrCodePoints) {
+                locateIndex = strIndex - substrCodePoints;
+                break;
+            }
+            if (strIndex + substrCodePoints -1 > strCodePoints) {
+                break;
+            }
+        }
+        return locateIndex;
     }
 
     @Override

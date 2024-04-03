@@ -66,7 +66,17 @@ public class LocateTests extends AbstractFunctionTestCase {
 
     public void testPrefixString() {
         assertThat(process("a tiger", "a t"), equalTo(0));
-        assertThat(process("a tiger", "a t"), equalTo(0));
+        assertThat(process("a tiger", "a"), equalTo(0));
+    }
+
+    public void testSuffixString() {
+        assertThat(process("a tiger", "er"), equalTo(5));
+        assertThat(process("a tiger", "r"), equalTo(6));
+    }
+
+    public void testMidString() {
+        assertThat(process("a tiger", "ti"), equalTo(2));
+        assertThat(process("a tiger", "ige"), equalTo(3));
     }
 
     private Integer process(String str, String substr) {

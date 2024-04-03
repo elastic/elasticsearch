@@ -64,8 +64,9 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             } else {
                 fields = new ArrayList<>(METADATA_FIELDS);
                 for (String fieldName : storedFieldsContext.fieldNames()) {
-                    if (fieldName.equals(SourceFieldMapper.NAME) == false)
-                    fields.add(new FieldAndFormat(fieldName, null));
+                    if (fieldName.equals(SourceFieldMapper.NAME) == false) {
+                        fields.add(new FieldAndFormat(fieldName, null));
+                    }
                 }
             }
             fieldFetcherMetadataFields = FieldFetcher.create(fetchContext.getSearchExecutionContext(), fields);

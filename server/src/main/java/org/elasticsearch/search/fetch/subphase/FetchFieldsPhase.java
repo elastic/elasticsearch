@@ -13,6 +13,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -63,6 +64,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             } else {
                 fields = new ArrayList<>(METADATA_FIELDS);
                 for (String fieldName : storedFieldsContext.fieldNames()) {
+                    if (fieldName.equals(SourceFieldMapper.NAME) == false)
                     fields.add(new FieldAndFormat(fieldName, null));
                 }
             }

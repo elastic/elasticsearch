@@ -33,7 +33,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
@@ -100,29 +99,6 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
         boolean leftDV = leftDocValues || foundField(left(), attributes);
         boolean rightDV = rightDocValues || foundField(right(), attributes);
         return new SpatialDisjoint(source(), left(), right(), leftDV, rightDV);
-    }
-
-    /**
-     * Push-down to Lucene is only possible if one field is an indexed spatial field, and the other is a constant spatial or string column.
-     * In addition, for DISJOINT, the XYDocValuesField class in Lucene used for point indices does not support the disjoint relation.
-     */
-    @Override
-    public boolean canPushToSource(Predicate<FieldAttribute> isAggregatable) {
-        // The XYDocValuesField class in Lucene used for point indices does not support the disjoint relation.
-        return (crsType() == SpatialCrsType.GEO || isPointField == false) && super.canPushToSource(isAggregatable);
-    }
-
-    private boolean isPointField = false;
-
-    /**
-     * The other relates functions do not need to differentiate between point and shape fields,
-     * but since DISJOINT does not work with lucene push-down on cartesian point indices
-     * we need to persist that knowledge during type resolution.
-     */
-    @Override
-    protected void setCrsType(DataType dataType) {
-        super.setCrsType(dataType);
-        this.isPointField = EsqlDataTypes.isSpatialPoint(dataType);
     }
 
     @Override

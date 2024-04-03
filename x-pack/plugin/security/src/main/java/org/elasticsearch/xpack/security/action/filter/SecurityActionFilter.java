@@ -104,7 +104,6 @@ public class SecurityActionFilter implements ActionFilter {
             threadContext
         );
         final boolean useSystemUser = AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action);
-
         try {
             if (useSystemUser) {
                 securityContext.executeAsSystemUser(original -> applyInternal(task, chain, action, request, contextPreservingListener));
@@ -172,7 +171,6 @@ public class SecurityActionFilter implements ActionFilter {
          here if a request is not associated with any other user.
          */
         final String securityAction = SecurityActionMapper.action(action, request);
-
         authcService.authenticate(securityAction, request, InternalUsers.SYSTEM_USER, listener.delegateFailureAndWrap((delegate, authc) -> {
             if (authc != null) {
                 final String requestId = AuditUtil.extractRequestId(threadContext);

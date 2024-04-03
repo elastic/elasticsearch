@@ -46,8 +46,8 @@ public class Log extends EsqlScalarFunction implements OptionalArgument {
         @Param(
             name = "base",
             type = { "integer", "unsigned_long", "long", "double" },
-            description = "Numeric expression. If `null`, the function returns `null`. The base is an optional input parameter. "
-                + "If a base is not provided, this function returns the natural logarithm (base e) of a value.",
+            description = "Base of logarithm. If `null`, the function returns `null`. "
+                + "If not provided, this function returns the natural logarithm (base e) of a value.",
             optional = true
         ) Expression base,
         @Param(

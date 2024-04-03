@@ -181,7 +181,7 @@ public class UpdateHelper {
     Result prepareUpdateIndexRequest(ShardId shardId, UpdateRequest request, GetResult getResult, boolean detectNoop) {
         final IndexRequest currentRequest = request.doc();
         final String routing = calculateRouting(getResult, currentRequest);
-        final DocumentSizeObserver documentSizeObserver = documentParsingProvider.newDocumentSizeObserver(currentRequest.index());
+        final DocumentSizeObserver documentSizeObserver = documentParsingProvider.newDocumentSizeObserver(request.index());
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         final XContentType updateSourceContentType = sourceAndContent.v1();
         final Map<String, Object> updatedSourceAsMap = sourceAndContent.v2();

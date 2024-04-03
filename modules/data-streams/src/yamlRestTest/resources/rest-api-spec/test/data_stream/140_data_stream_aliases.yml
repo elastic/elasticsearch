@@ -385,8 +385,8 @@
   - is_true: errors
   - length: { action_results: 2 }
   - match: { action_results.0.status: 200}
-  - match: { action_results.0.action: { 'type': 'add', 'indices': ['log-test-*'], 'aliases': ['test_alias1'] } }
+  - match: { action_results.0.action: { 'type': 'add', 'indices': ['log-test-1', 'log-test-2'], 'aliases': ['test_alias1'] } }
   - match: { action_results.0.error: null }
   - match: { action_results.1.status: 404 }
-  - match: { action_results.1.action: { 'type': 'remove', 'indices': ['log-test-*'], 'aliases': ['test_non_existing'] } }
+  - match: { action_results.1.action: { 'type': 'remove', 'indices': ['log-test-1', 'log-test-2'], 'aliases': ['test_non_existing'] } }
   - match: { action_results.1.error.type: aliases_not_found_exception }

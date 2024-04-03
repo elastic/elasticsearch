@@ -84,8 +84,8 @@ public final class TimeSeriesBlockHash extends BlockHash {
     @Override
     public Block[] getKeys() {
         int positions = (int) intervalHash.size();
-        BytesRefVector k1;
-        LongVector k2;
+        BytesRefVector k1 = null;
+        LongVector k2 = null;
         try (
             BytesRefVector.Builder tsidHashes = blockFactory.newBytesRefVectorBuilder(positions);
             LongVector.Builder timestampIntervals = blockFactory.newLongVectorFixedBuilder(positions)
@@ -98,6 +98,10 @@ public final class TimeSeriesBlockHash extends BlockHash {
             }
             k1 = tsidHashes.build();
             k2 = timestampIntervals.build();
+        } finally {
+            if (k2 == null) {
+                Releasables.closeExpectNoException(k1);
+            }
         }
         return new Block[] { k1.asBlock(), k2.asBlock() };
     }

@@ -10,8 +10,6 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -176,7 +174,7 @@ public class DownsampleIT extends ParameterizedRollingUpgradeTestCase {
 
     private void createIlmPolicy() throws IOException {
         Request request = new Request("PUT", "_ilm/policy/" + policy);
-        request.setEntity(new StringEntity(POLICY.replace("$interval", FIXED_INTERVAL), ContentType.APPLICATION_JSON));
+        request.setJsonEntity(POLICY.replace("$interval", FIXED_INTERVAL));
         client().performRequest(request);
     }
 
@@ -224,7 +222,7 @@ public class DownsampleIT extends ParameterizedRollingUpgradeTestCase {
             } catch (IOException e) {
                 return false;
             }
-        }, 120, TimeUnit.SECONDS); // High timeout in case we're unlucky and end_time has been increased.
+        }, 120, TimeUnit.SECONDS);
         if (rollupIndexName[0] == null) {
             logger.warn("--> rollup index name is NULL");
         } else {

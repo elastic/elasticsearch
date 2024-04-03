@@ -14,8 +14,9 @@ dependencies {
   compileOnly project(':x-pack:plugin:core')
   compileOnly project(':x-pack:plugin:security')
   javaRestTestImplementation project(':test:framework')
-  GradleUtils.extendSourceSet(project, 'main', 'javaRestTest')
 }
+
+GradleUtils.extendSourceSet(project, 'main', 'javaRestTest')
 
 dependencies {
   clusterPlugins project(':x-pack:plugin:security:qa:secondary-auth-actions')

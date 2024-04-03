@@ -246,7 +246,10 @@ public class DownsampleIT extends ParameterizedRollingUpgradeTestCase {
     }
 
     public void testRollupIndex() throws Exception {
-        assumeTrue("TSDB was GA-ed in 8.7.0", oldClusterHasFeature(RestTestLegacyFeatures.TSDB_GENERALLY_AVAILABLE));
+        assumeTrue(
+            "Downsample got many stability improvements in 8.10.0",
+            oldClusterHasFeature(RestTestLegacyFeatures.TSDB_DOWNSAMPLING_STABLE)
+        );
         DateHistogramInterval fixedInterval = new DateHistogramInterval("10s");
         if (isOldCluster()) {
             createIlmPolicy();

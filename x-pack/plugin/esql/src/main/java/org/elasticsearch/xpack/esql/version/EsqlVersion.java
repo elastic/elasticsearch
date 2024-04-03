@@ -28,17 +28,17 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
         Map<String, EsqlVersion> stringToVersion = new LinkedHashMap<>(EsqlVersion.values().length * 2);
 
         for (EsqlVersion version : EsqlVersion.values()) {
-            putVersionAssertNoDups(stringToVersion, version.versionStringWithoutEmoji(), version);
-            putVersionAssertNoDups(stringToVersion, version.toString(), version);
+            putVersionCheckNoDups(stringToVersion, version.versionStringWithoutEmoji(), version);
+            putVersionCheckNoDups(stringToVersion, version.toString(), version);
         }
 
         return stringToVersion;
     }
 
-    private static void putVersionAssertNoDups(Map<String, EsqlVersion> stringToVersion, String versionString, EsqlVersion version) {
+    private static void putVersionCheckNoDups(Map<String, EsqlVersion> stringToVersion, String versionString, EsqlVersion version) {
         EsqlVersion existingVersionForKey = stringToVersion.put(versionString, version);
         if (existingVersionForKey != null) {
-            throw new AssertionError("Duplicate esql version with version string [" + versionString + "]");
+            throw new IllegalArgumentException("Duplicate esql version with version string [" + versionString + "]");
         }
     }
 
@@ -65,13 +65,13 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
 
     EsqlVersion(int year, int month, int revision, String emoji) {
         if ((1 <= revision && revision <= 99) == false) {
-            throw new AssertionError("Version revision number must be between 1 and 99 but was [" + revision + "]");
+            throw new IllegalArgumentException("Version revision number must be between 1 and 99 but was [" + revision + "]");
         }
         if ((1 <= month && month <= 12) == false) {
-            throw new AssertionError("Version month must be between 1 and 12 but was [" + month + "]");
+            throw new IllegalArgumentException("Version month must be between 1 and 12 but was [" + month + "]");
         }
         if ((emoji.codePointCount(0, emoji.length()) == 1) == false) {
-            throw new AssertionError("Version emoji must be a single unicode character but was [" + emoji + "]");
+            throw new IllegalArgumentException("Version emoji must be a single unicode character but was [" + emoji + "]");
         }
         this.year = year;
         this.month = (byte) month;

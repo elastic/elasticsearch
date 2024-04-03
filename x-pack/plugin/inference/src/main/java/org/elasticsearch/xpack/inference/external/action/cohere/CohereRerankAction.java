@@ -11,10 +11,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.http.sender.CohereEmbeddingsExecutableRequestCreator;
+import org.elasticsearch.xpack.inference.external.http.sender.CohereRerankExecutableRequestCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 
 import java.util.Objects;
 
@@ -22,19 +22,19 @@ import static org.elasticsearch.xpack.inference.external.action.ActionUtils.cons
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.createInternalServerError;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.wrapFailuresInElasticsearchException;
 
-public class CohereEmbeddingsAction implements ExecutableAction {
+public class CohereRerankAction implements ExecutableAction {
     private final String failedToSendRequestErrorMessage;
     private final Sender sender;
-    private final CohereEmbeddingsExecutableRequestCreator requestCreator;
+    private final CohereRerankExecutableRequestCreator requestCreator;
 
-    public CohereEmbeddingsAction(Sender sender, CohereEmbeddingsModel model) {
+    public CohereRerankAction(Sender sender, CohereRerankModel model) {
         Objects.requireNonNull(model);
         this.sender = Objects.requireNonNull(sender);
         this.failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
             model.getServiceSettings().getCommonSettings().uri(),
-            "Cohere embeddings"
+            "Cohere rerank"
         );
-        requestCreator = new CohereEmbeddingsExecutableRequestCreator(model);
+        requestCreator = new CohereRerankExecutableRequestCreator(model);
     }
 
     @Override

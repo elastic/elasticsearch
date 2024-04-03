@@ -88,13 +88,12 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dataTypeCastingPriority;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isString;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
-import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
@@ -105,7 +104,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
     // marker list of attributes for plans that do not have any concrete fields to return, but have other computed columns to return
@@ -829,31 +828,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<String[]> metaData = getMetaData(f);
             List<Expression> newChildren = new ArrayList<>(args.size());
             boolean childrenChanged = false;
-            List<DataType> supportedTypes = new ArrayList<>();
+            DataType targetDataType = NULL;
+            Expression arg;
             for (int i = 0; i < args.size(); i++) {
-                if (args.get(i).dataType() == KEYWORD && args.get(i).foldable()) {
+                arg = args.get(i);
+                if (arg.dataType() == KEYWORD && arg.foldable()) {
                     if (i < metaData.size()) {
-                        supportedTypes = getSupportedTypes(metaData.get(i));
+                        targetDataType = getTargetType(metaData.get(i));
                     }
-                    if (supportedTypes.contains(KEYWORD) == false && supportedTypes.contains(TEXT) == false) {
-                        DataType desired = supportedTypes.contains(DATETIME) ? DATETIME
-                            : supportedTypes.contains(DOUBLE) ? DOUBLE
-                            : supportedTypes.contains(LONG) ? LONG
-                            : supportedTypes.contains(INTEGER) ? INTEGER
-                            : supportedTypes.contains(IP) ? IP
-                            : supportedTypes.contains(VERSION) ? VERSION
-                            : supportedTypes.contains(GEO_POINT) ? GEO_POINT
-                            : supportedTypes.contains(GEO_SHAPE) ? GEO_SHAPE
-                            : supportedTypes.contains(CARTESIAN_POINT) ? CARTESIAN_POINT
-                            : supportedTypes.contains(CARTESIAN_SHAPE) ? CARTESIAN_SHAPE
-                            : supportedTypes.contains(BOOLEAN) ? BOOLEAN
-                            : NULL;
-                        if (desired != NULL) {
-                            Expression e = castStringLiteral(args.get(i), desired);
-                            childrenChanged = true;
-                            newChildren.add(e);
-                            continue;
-                        }
+                    if (targetDataType != NULL && targetDataType != UNSUPPORTED) {
+                        Expression e = castStringLiteral(arg, targetDataType);
+                        childrenChanged = true;
+                        newChildren.add(e);
+                        continue;
                     }
                 }
                 newChildren.add(args.get(i));
@@ -864,8 +851,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static List<String[]> getMetaData(EsqlScalarFunction f) {
             List<String[]> paramTypes = new ArrayList<>();
             var constructors = f.getClass().getConstructors();
-            Constructor<?> constructor = constructors[0];
-            var params = constructor.getParameters(); // no multiple c'tors supported
+            Constructor<?> constructor = constructors[0]; // no multiple c'tors supported
+            var params = constructor.getParameters();
             for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
                 if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
                     Param paramInfo = params[i].getAnnotation(Param.class);
@@ -876,23 +863,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return paramTypes;
         }
 
-        private static List<DataType> getSupportedTypes(String[] names) {
-            List<DataType> supportedTypes = new ArrayList<>();
+        private static DataType getTargetType(String[] names) {
+            List<DataType> types = new ArrayList<>();
             for (String name : names) {
-                supportedTypes.add(DataTypes.fromEs(name));
+                types.add(DataTypes.fromEs(name));
             }
-            return supportedTypes;
+            try {
+                types.sort((dt1, dt2) -> dataTypeCastingPriority.get(dt1).compareTo(dataTypeCastingPriority.get(dt2)));
+            } catch (Exception e) {
+                return NULL;
+            }
+            return types.size() == 0 || isString(types.get(0)) ? NULL : types.get(0);
         }
 
-        private static Expression castStringLiteral(Expression from, DataType desired) {
+        private static Expression castStringLiteral(Expression from, DataType target) {
             try {
-                Object to = EsqlDataTypeConverter.convert(from.fold(), desired);
-                return new Literal(from.source(), to, desired);
+                Object to = EsqlDataTypeConverter.convert(from.fold(), target);
+                return new Literal(from.source(), to, target);
             } catch (Exception e) {
                 String message = LoggerMessageFormat.format(
                     "Cannot convert string [{}] to [{}], error [{}]",
                     from.fold(),
-                    desired,
+                    target,
                     e.getMessage()
                 );
                 return new UnsupportedAttribute(

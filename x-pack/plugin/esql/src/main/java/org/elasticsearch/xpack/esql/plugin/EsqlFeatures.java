@@ -95,6 +95,11 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature FROM_OPTIONS = new NodeFeature("esql.from_options");
 
+    /**
+     * Cast string literals to a desired data type.
+     */
+    public static final NodeFeature STRING_LITERAL_AUTO_CASTING = new NodeFeature("esql.string_literal_auto_casting");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
@@ -108,7 +113,8 @@ public class EsqlFeatures implements FeatureSpecification {
             SPATIAL_SHAPES,
             ST_CENTROID,
             ST_INTERSECTS,
-            ST_CONTAINS_WITHIN
+            ST_CONTAINS_WITHIN,
+            STRING_LITERAL_AUTO_CASTING
         );
     }
 

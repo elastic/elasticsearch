@@ -1415,7 +1415,9 @@ Anneke         |Preusig        |1.56           |1.56
 //end::abs-employees-result[]
 ;
 
-evalAbsString#[skip:-8.13.99,reason:string literal cast added in 8.14]
+evalAbsString
+required_feature: esql.string_literal_auto_casting
+
 ROW number = -1.0
 | EVAL abs_number = ABS("10.0")
 ;

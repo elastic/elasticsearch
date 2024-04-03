@@ -33,7 +33,10 @@ import java.time.Period;
 import java.time.ZoneId;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAmount;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeDoubleToLong;
@@ -55,6 +58,28 @@ public class EsqlDataTypeConverter {
     public static final DateFormatter DEFAULT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
 
     public static final DateFormatter HOUR_MINUTE_SECOND = DateFormatter.forPattern("strict_hour_minute_second_fraction");
+
+    public static final Map<DataType, Integer> dataTypeCastingPriority;
+
+    static {
+        Map<DataType, Integer> map = new HashMap<>();
+        map.put(DataTypes.KEYWORD, 1);
+        map.put(DataTypes.TEXT, 2);
+        map.put(DataTypes.DATETIME, 3);
+        map.put(DataTypes.DOUBLE, 4);
+        map.put(DataTypes.LONG, 5);
+        map.put(DataTypes.INTEGER, 6);
+        map.put(DataTypes.IP, 7);
+        map.put(DataTypes.VERSION, 8);
+        map.put(EsqlDataTypes.GEO_POINT, 9);
+        map.put(EsqlDataTypes.GEO_SHAPE, 10);
+        map.put(EsqlDataTypes.CARTESIAN_POINT, 11);
+        map.put(EsqlDataTypes.CARTESIAN_SHAPE, 12);
+        map.put(DataTypes.BOOLEAN, 13);
+        map.put(DataTypes.UNSIGNED_LONG, 14);
+        map.put(DataTypes.UNSUPPORTED, 15);
+        dataTypeCastingPriority = Collections.unmodifiableMap(map);
+    }
 
     /**
      * Returns true if the from type can be converted to the to type, false - otherwise

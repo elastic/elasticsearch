@@ -377,10 +377,6 @@ public class MaxMindSupportTests extends ESTestCase {
      */
     private static final Set<Method> IGNORED_METHODS = Arrays.stream(Object.class.getMethods()).collect(Collectors.toUnmodifiableSet());
 
-    /*
-
-     */
-
     /**
      * Returns the set of bean-property-like field names referenced from aClass, sorted alphabetically. This method calls itself
      * recursively for all methods until it reaches one of the types in TERMINAL_TYPES. The name of the method returning one of those

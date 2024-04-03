@@ -67,9 +67,7 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
     @FunctionInfo(
         returnType = { "boolean" },
         description = "Returns whether the two geometries or geometry columns are disjoint.",
-        note = "The second parameter must also have the same coordinate system as the first. "
-            + "This means it is not possible to combine `geo_*` and `cartesian_*` parameters.",
-        examples = @Example(file = "spatial", tag = "st_disjoint-airports")
+        examples = @Example(file = "spatial", tag = "st_disjoint-airport_city_boundaries")
     )
     public SpatialDisjoint(
         Source source,

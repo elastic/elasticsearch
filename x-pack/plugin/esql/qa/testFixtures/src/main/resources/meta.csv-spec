@@ -137,8 +137,8 @@ greatest      |first                               |"integer|long|double|boolean
 least         |first                               |"integer|long|double|boolean|keyword|text|ip|version"                                                                             |[""]
 left          |[string, length]                    |["keyword|text", integer]                                                                                                         |[The string from which to return a substring., The number of characters to return.]
 length        |string                              |"keyword|text"                                                                                                                    |[""]
-log           |[base, number]                      |["integer|unsigned_long|long|double", "integer|unsigned_long|long|double"]                                                        |[, ]
-log10         |number                              |"double|integer|long|unsigned_long"                                                                                               |[""]
+log           |[base, number]                      |["integer|unsigned_long|long|double", "integer|unsigned_long|long|double"]                                                        |["Base of logarithm. If `null`\, the function returns `null`. If not provided\, this function returns the natural logarithm (base e) of a value.", "Numeric expression. If `null`\, the function returns `null`."]
+log10         |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 ltrim         |string                              |"keyword|text"                                                                                                                    |[""]
 max           |number                              |"double|integer|long"                                                                                                             |[""]
 median        |number                              |"double|integer|long"                                                                                                             |[""]
@@ -245,8 +245,8 @@ greatest      |Returns the maximum value from many columns.
 least         |Returns the minimum value from many columns.
 left          |Returns the substring that extracts 'length' chars from 'string' starting from the left.
 length        |Returns the character length of a string.
-log           |Returns the logarithm of a number to a base.
-log10         |Returns the log base 10.
+log           |Returns the logarithm of a value to a base. The input can be any numeric value, the return value is always a double.  Logs of zero, negative numbers, and base of one return `null` as well as a warning.
+log10         |Returns the logarithm of a value to base 10. The input can be any numeric value, the return value is always a double.  Logs of 0 and negative numbers return `null` as well as a warning.
 ltrim         |Removes leading whitespaces from a string.
 max           |The maximum value of a numeric field.
 median        |The value that is greater than half of all values and less than half of all values.

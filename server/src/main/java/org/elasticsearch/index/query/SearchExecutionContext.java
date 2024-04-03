@@ -196,7 +196,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
             allowExpensiveQueries,
             valuesSourceRegistry,
             parseRuntimeMappings(runtimeMappings, mapperService, indexSettings, mappingLookup),
-            null,
             requestSize
         );
     }
@@ -222,7 +221,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.allowExpensiveQueries,
             source.getValuesSourceRegistry(),
             source.runtimeMappings,
-            source.allowedFields,
             source.requestSize
         );
     }
@@ -247,7 +245,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
         BooleanSupplier allowExpensiveQueries,
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, MappedFieldType> runtimeMappings,
-        Predicate<String> allowedFields,
         Integer requestSize
     ) {
         super(
@@ -257,7 +254,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
             mapperService,
             mappingLookup,
             runtimeMappings,
-            allowedFields,
             indexSettings,
             fullyQualifiedIndex,
             indexNameMatcher,

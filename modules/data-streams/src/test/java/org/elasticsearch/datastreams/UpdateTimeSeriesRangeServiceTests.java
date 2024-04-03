@@ -140,23 +140,7 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
         ).getMetadata();
         DataStream d = metadata.dataStreams().get(dataStreamName);
         metadata = Metadata.builder(metadata)
-            .put(
-                new DataStream(
-                    d.getName(),
-                    d.getIndices(),
-                    d.getGeneration(),
-                    d.getMetadata(),
-                    d.isHidden(),
-                    true,
-                    d.isSystem(),
-                    d.isAllowCustomRouting(),
-                    d.getIndexMode(),
-                    d.getLifecycle(),
-                    d.isFailureStore(),
-                    d.getFailureIndices(),
-                    null
-                )
-            )
+            .put(new DataStream.Builder(d).setReplicated(true).setRolloverOnWrite(false).setAutoShardingEvent(null).build())
             .build();
 
         now = now.plus(1, ChronoUnit.HOURS);

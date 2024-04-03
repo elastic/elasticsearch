@@ -199,21 +199,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         IndexMode indexMode = randomBoolean() ? IndexMode.STANDARD : null;
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
         // Unsure index_mode=null
-        ds = new DataStream(
-            ds.getName(),
-            ds.getIndices(),
-            ds.getGeneration(),
-            ds.getMetadata(),
-            ds.isHidden(),
-            ds.isReplicated(),
-            ds.isSystem(),
-            ds.isAllowCustomRouting(),
-            indexMode,
-            ds.getLifecycle(),
-            ds.isFailureStore(),
-            ds.getFailureIndices(),
-            ds.getAutoShardingEvent()
-        );
+        ds = new DataStream.Builder(ds).setIndexMode(indexMode).setRolloverOnWrite(false).build();
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
         var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), true, null);
@@ -227,21 +213,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
     public void testRolloverDowngradeToRegularDataStream() {
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
-        ds = new DataStream(
-            ds.getName(),
-            ds.getIndices(),
-            ds.getGeneration(),
-            ds.getMetadata(),
-            ds.isHidden(),
-            ds.isReplicated(),
-            ds.isSystem(),
-            ds.isAllowCustomRouting(),
-            IndexMode.TIME_SERIES,
-            ds.getLifecycle(),
-            ds.isFailureStore(),
-            ds.getFailureIndices(),
-            ds.getAutoShardingEvent()
-        );
+        ds = new DataStream.Builder(ds).setIndexMode(IndexMode.TIME_SERIES).setRolloverOnWrite(false).build();
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
         var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), false, null);
@@ -616,21 +588,12 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         postSnapshotIndices.removeAll(indicesToRemove);
         postSnapshotIndices.addAll(indicesToAdd);
 
-        var postSnapshotDataStream = new DataStream(
-            preSnapshotDataStream.getName(),
-            postSnapshotIndices,
-            preSnapshotDataStream.getGeneration() + randomIntBetween(0, 5),
-            preSnapshotDataStream.getMetadata() == null ? null : new HashMap<>(preSnapshotDataStream.getMetadata()),
-            preSnapshotDataStream.isHidden(),
-            preSnapshotDataStream.isReplicated() && randomBoolean(),
-            preSnapshotDataStream.isSystem(),
-            preSnapshotDataStream.isAllowCustomRouting(),
-            preSnapshotDataStream.getIndexMode(),
-            preSnapshotDataStream.getLifecycle(),
-            preSnapshotDataStream.isFailureStore(),
-            preSnapshotDataStream.getFailureIndices(),
-            preSnapshotDataStream.getAutoShardingEvent()
-        );
+        var postSnapshotDataStream = new DataStream.Builder(preSnapshotDataStream).setIndices(postSnapshotIndices)
+            .setGeneration(preSnapshotDataStream.getGeneration() + randomIntBetween(0, 5))
+            .setMetadata(preSnapshotDataStream.getMetadata() == null ? null : new HashMap<>(preSnapshotDataStream.getMetadata()))
+            .setReplicated(preSnapshotDataStream.isReplicated() && randomBoolean())
+            .setRolloverOnWrite(false)
+            .build();
 
         var reconciledDataStream = postSnapshotDataStream.snapshot(
             preSnapshotDataStream.getIndices().stream().map(Index::getName).toList()
@@ -657,21 +620,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var preSnapshotDataStream = DataStreamTestHelper.randomInstance();
         var indicesToAdd = randomNonEmptyIndexInstances();
 
-        var postSnapshotDataStream = new DataStream(
-            preSnapshotDataStream.getName(),
-            indicesToAdd,
-            preSnapshotDataStream.getGeneration(),
-            preSnapshotDataStream.getMetadata(),
-            preSnapshotDataStream.isHidden(),
-            preSnapshotDataStream.isReplicated(),
-            preSnapshotDataStream.isSystem(),
-            preSnapshotDataStream.isAllowCustomRouting(),
-            preSnapshotDataStream.getIndexMode(),
-            preSnapshotDataStream.getLifecycle(),
-            preSnapshotDataStream.isFailureStore(),
-            preSnapshotDataStream.getFailureIndices(),
-            preSnapshotDataStream.getAutoShardingEvent()
-        );
+        var postSnapshotDataStream = new DataStream.Builder(preSnapshotDataStream).setIndices(indicesToAdd)
+            .setRolloverOnWrite(false)
+            .build();
 
         assertNull(postSnapshotDataStream.snapshot(preSnapshotDataStream.getIndices().stream().map(Index::getName).toList()));
     }

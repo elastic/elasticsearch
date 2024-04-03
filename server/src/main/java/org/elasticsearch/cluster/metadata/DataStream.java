@@ -494,21 +494,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(writeIndex);
-        return new DataStream(
-            name,
-            backingIndices,
-            generation,
-            metadata,
-            hidden,
-            false,
-            system,
-            allowCustomRouting,
-            indexMode,
-            lifecycle,
-            failureStore,
-            failureIndices,
-            autoShardingEvent
-        );
+        return new Builder(this).setIndices(backingIndices)
+            .setGeneration(generation)
+            .setReplicated(false)
+            .setIndexMode(indexMode)
+            .setAutoShardingEvent(autoShardingEvent)
+            .setRolloverOnWrite(false)
+            .build();
     }
 
     /**
@@ -531,21 +523,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public DataStream unsafeRolloverFailureStore(Index writeIndex, long generation) {
         List<Index> failureIndices = new ArrayList<>(this.failureIndices);
         failureIndices.add(writeIndex);
-        return new DataStream(
-            name,
-            indices,
-            generation,
-            metadata,
-            hidden,
-            false,
-            system,
-            allowCustomRouting,
-            indexMode,
-            lifecycle,
-            failureStore,
-            failureIndices,
-            autoShardingEvent
-        );
+        return new Builder(this).setGeneration(generation)
+            .setReplicated(false)
+            .setFailureIndices(failureIndices)
+            .setRolloverOnWrite(false)
+            .build();
     }
 
     /**
@@ -633,21 +615,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.remove(index);
         assert backingIndices.size() == indices.size() - 1;
-        return new DataStream(
-            name,
-            backingIndices,
-            generation + 1,
-            metadata,
-            hidden,
-            replicated,
-            system,
-            allowCustomRouting,
-            indexMode,
-            lifecycle,
-            failureStore,
-            failureIndices,
-            autoShardingEvent
-        );
+        return new Builder(this).setIndices(backingIndices).setGeneration(generation + 1).setRolloverOnWrite(false).build();
     }
 
     /**
@@ -679,21 +647,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             );
         }
         backingIndices.set(backingIndexPosition, newBackingIndex);
-        return new DataStream(
-            name,
-            backingIndices,
-            generation + 1,
-            metadata,
-            hidden,
-            replicated,
-            system,
-            allowCustomRouting,
-            indexMode,
-            lifecycle,
-            failureStore,
-            failureIndices,
-            autoShardingEvent
-        );
+        return new Builder(this).setIndices(backingIndices).setGeneration(generation + 1).setRolloverOnWrite(false).build();
     }
 
     /**
@@ -740,41 +694,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(0, index);
         assert backingIndices.size() == indices.size() + 1;
-        return new DataStream(
-            name,
-            backingIndices,
-            generation + 1,
-            metadata,
-            hidden,
-            replicated,
-            system,
-            allowCustomRouting,
-            indexMode,
-            lifecycle,
-            failureStore,
-            failureIndices,
-            autoShardingEvent
-        );
+        return new Builder(this).setIndices(backingIndices).setGeneration(generation + 1).setRolloverOnWrite(false).build();
     }
 
     public DataStream promoteDataStream() {
-        return new DataStream(
-            name,
-            indices,
-            getGeneration(),
-            metadata,
-            hidden,
-            false,
-            system,
-            timeProvider,
-            allowCustomRouting,
-            indexMode,
-            lifecycle,
-            failureStore,
-            failureIndices,
-            rolloverOnWrite,
-            autoShardingEvent
-        );
+        return new Builder(this).setReplicated(false).build();
     }
 
     /**
@@ -797,21 +721,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             return null;
         }
 
-        return new DataStream(
-            name,
-            reconciledIndices,
-            generation,
-            metadata == null ? null : new HashMap<>(metadata),
-            hidden,
-            replicated,
-            system,
-            allowCustomRouting,
-            indexMode,
-            lifecycle,
-            failureStore,
-            failureIndices,
-            autoShardingEvent
-        );
+        return new Builder(this).setIndices(reconciledIndices)
+            .setMetadata(metadata == null ? null : new HashMap<>(metadata))
+            .setRolloverOnWrite(false)
+            .build();
     }
 
     /**
@@ -1395,5 +1308,140 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     public static Instant getCanonicalTimestampBound(Instant time) {
         return time.truncatedTo(ChronoUnit.SECONDS);
+    }
+
+    public static class Builder {
+        private LongSupplier timeProvider;
+        private String name;
+        private List<Index> indices;
+        private long generation;
+        private Map<String, Object> metadata;
+        private boolean hidden;
+        private boolean replicated;
+        private boolean system;
+        private boolean allowCustomRouting;
+        private IndexMode indexMode;
+        @Nullable
+        private DataStreamLifecycle lifecycle;
+        private boolean rolloverOnWrite;
+        private boolean failureStore;
+        private List<Index> failureIndices;
+        @Nullable
+        private DataStreamAutoShardingEvent autoShardingEvent;
+
+        public Builder() {}
+
+        public Builder(DataStream dataStream) {
+            timeProvider = dataStream.timeProvider;
+            name = dataStream.name;
+            indices = dataStream.indices;
+            generation = dataStream.generation;
+            metadata = dataStream.metadata;
+            hidden = dataStream.hidden;
+            replicated = dataStream.replicated;
+            system = dataStream.system;
+            allowCustomRouting = dataStream.allowCustomRouting;
+            indexMode = dataStream.indexMode;
+            lifecycle = dataStream.lifecycle;
+            rolloverOnWrite = dataStream.rolloverOnWrite;
+            failureStore = dataStream.failureStore;
+            failureIndices = dataStream.failureIndices;
+            autoShardingEvent = dataStream.autoShardingEvent;
+        }
+
+        public Builder setTimeProvider(LongSupplier timeProvider) {
+            this.timeProvider = timeProvider;
+            return this;
+        }
+
+        public Builder setName(String name) {
+            this.name = name;
+            return this;
+        }
+
+        public Builder setIndices(List<Index> indices) {
+            this.indices = indices;
+            return this;
+        }
+
+        public Builder setGeneration(long generation) {
+            this.generation = generation;
+            return this;
+        }
+
+        public Builder setMetadata(Map<String, Object> metadata) {
+            this.metadata = metadata;
+            return this;
+        }
+
+        public Builder setHidden(boolean hidden) {
+            this.hidden = hidden;
+            return this;
+        }
+
+        public Builder setReplicated(boolean replicated) {
+            this.replicated = replicated;
+            return this;
+        }
+
+        public Builder setSystem(boolean system) {
+            this.system = system;
+            return this;
+        }
+
+        public Builder setAllowCustomRouting(boolean allowCustomRouting) {
+            this.allowCustomRouting = allowCustomRouting;
+            return this;
+        }
+
+        public Builder setIndexMode(IndexMode indexMode) {
+            this.indexMode = indexMode;
+            return this;
+        }
+
+        public Builder setLifecycle(DataStreamLifecycle lifecycle) {
+            this.lifecycle = lifecycle;
+            return this;
+        }
+
+        public Builder setRolloverOnWrite(boolean rolloverOnWrite) {
+            this.rolloverOnWrite = rolloverOnWrite;
+            return this;
+        }
+
+        public Builder setFailureStore(boolean failureStore) {
+            this.failureStore = failureStore;
+            return this;
+        }
+
+        public Builder setFailureIndices(List<Index> failureIndices) {
+            this.failureIndices = failureIndices;
+            return this;
+        }
+
+        public Builder setAutoShardingEvent(DataStreamAutoShardingEvent autoShardingEvent) {
+            this.autoShardingEvent = autoShardingEvent;
+            return this;
+        }
+
+        public DataStream build() {
+            return new DataStream(
+                name,
+                indices,
+                generation,
+                metadata,
+                hidden,
+                replicated,
+                system,
+                timeProvider,
+                allowCustomRouting,
+                indexMode,
+                lifecycle,
+                failureStore,
+                failureIndices,
+                rolloverOnWrite,
+                autoShardingEvent
+            );
+        }
     }
 }

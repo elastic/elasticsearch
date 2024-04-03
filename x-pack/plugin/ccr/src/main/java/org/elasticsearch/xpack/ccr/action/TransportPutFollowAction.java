@@ -328,21 +328,11 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         if (localDataStream == null) {
             // The data stream and the backing indices have been created and validated in the remote cluster,
             // just copying the data stream is in this case safe.
-            return new DataStream(
-                localDataStreamName,
-                List.of(backingIndexToFollow),
-                remoteDataStream.getGeneration(),
-                remoteDataStream.getMetadata(),
-                remoteDataStream.isHidden(),
-                true,
-                remoteDataStream.isSystem(),
-                remoteDataStream.isAllowCustomRouting(),
-                remoteDataStream.getIndexMode(),
-                remoteDataStream.getLifecycle(),
-                remoteDataStream.isFailureStore(),
-                remoteDataStream.getFailureIndices(),
-                remoteDataStream.getAutoShardingEvent()
-            );
+            return new DataStream.Builder(remoteDataStream).setName(localDataStreamName)
+                .setIndices(List.of(backingIndexToFollow))
+                .setReplicated(true)
+                .setRolloverOnWrite(false)
+                .build();
         } else {
             if (localDataStream.isReplicated() == false) {
                 throw new IllegalArgumentException(
@@ -382,21 +372,11 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 backingIndices = localDataStream.getIndices();
             }
 
-            return new DataStream(
-                localDataStream.getName(),
-                backingIndices,
-                remoteDataStream.getGeneration(),
-                remoteDataStream.getMetadata(),
-                localDataStream.isHidden(),
-                localDataStream.isReplicated(),
-                localDataStream.isSystem(),
-                localDataStream.isAllowCustomRouting(),
-                localDataStream.getIndexMode(),
-                localDataStream.getLifecycle(),
-                localDataStream.isFailureStore(),
-                localDataStream.getFailureIndices(),
-                localDataStream.getAutoShardingEvent()
-            );
+            return new DataStream.Builder(localDataStream).setIndices(backingIndices)
+                .setGeneration(remoteDataStream.getGeneration())
+                .setMetadata(remoteDataStream.getMetadata())
+                .setRolloverOnWrite(false)
+                .build();
         }
     }
 

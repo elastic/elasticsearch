@@ -269,7 +269,13 @@ public class TransformIT extends TransformRestTestCase {
                 deleteTransform(transformId);
             } catch (AssertionError | Exception e) {
                 throw new AssertionError(
-                    format("Failure at iteration %d (sleepAfterStartMillis=%s,force=%s): %s", sleepAfterStartMillis, force, e.getMessage()),
+                    format(
+                        "Failure at iteration %d (sleepAfterStartMillis=%s,force=%s): %s",
+                        i,
+                        sleepAfterStartMillis,
+                        force,
+                        e.getMessage()
+                    ),
                     e
                 );
             }
@@ -297,6 +303,9 @@ public class TransformIT extends TransformRestTestCase {
         return Strings.toString(config);
     }
 
+    /**
+     * Returns the list of transform tasks as reported by _tasks API.
+     */
     @SuppressWarnings("unchecked")
     protected List<String> getTransformTasks() throws IOException {
         final Request tasksRequest = new Request("GET", "/_tasks");
@@ -320,19 +329,22 @@ public class TransformIT extends TransformRestTestCase {
     }
 
     /**
-     * Verifies that the given transform tasks exists in cluster state.
+     * Verifies that the given transform task exists in cluster state.
      */
     private void assertThatTransformTaskExists(String transformId) throws IOException {
         assertThatTransformTaskCountIsEqualTo(transformId, 1);
     }
 
     /**
-     * Verifies that the given transform tasks does not exist in cluster state.
+     * Verifies that the given transform task does not exist in cluster state.
      */
     private void assertThatTransformTaskDoesNotExist(String transformId) throws IOException {
         assertThatTransformTaskCountIsEqualTo(transformId, 0);
     }
 
+    /**
+     * Verifies that the number of transform tasks in cluster state for the given transform is as expected.
+     */
     @SuppressWarnings("unchecked")
     private void assertThatTransformTaskCountIsEqualTo(String transformId, int expectedCount) throws IOException {
         Request request = new Request("GET", "_cluster/state");

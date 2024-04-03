@@ -462,11 +462,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
      */
     private static DocumentSizeObserver getDocumentSizeObserver(DocumentParsingProvider documentParsingProvider, IndexRequest request) {
         if (request.getNormalisedBytesParsed() != -1) {
-            return documentParsingProvider.newFixedSizeDocumentObserver(request.getNormalisedBytesParsed());
+            return documentParsingProvider.newFixedSizeDocumentObserver(request.getNormalisedBytesParsed(), request.index());
         } else if (request.getNormalisedBytesParsed() == 0) {
             return DocumentSizeObserver.EMPTY_INSTANCE;
         }
-        return documentParsingProvider.newDocumentSizeObserver();
+        return documentParsingProvider.newDocumentSizeObserver(request.index());
     }
 
     private static Engine.Result exceptionToResult(Exception e, IndexShard primary, boolean isDelete, long version, String id) {

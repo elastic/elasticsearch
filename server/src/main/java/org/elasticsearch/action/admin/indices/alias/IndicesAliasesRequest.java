@@ -9,7 +9,6 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.IndicesRequest;

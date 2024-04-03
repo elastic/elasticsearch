@@ -118,6 +118,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         Set<String> aliases = new HashSet<>();
         for (AliasActions action : actions) {
             int numAliasesRemoved = 0;
+            List<String> resolvedIndices = new ArrayList<>();
 
             List<String> concreteDataStreams = indexNameExpressionResolver.dataStreamNames(
                 state,
@@ -165,7 +166,8 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                                 finalActions.add(new AddDataStreamAlias(alias, dataStreamName, action.writeIndex(), action.filter()));
                             }
                         }
-                        actionResults.add(AliasActionResult.buildSuccess(action));
+
+                        actionResults.add(AliasActionResult.buildSuccess(concreteDataStreams, action));
                         continue;
                     }
                     case REMOVE -> {
@@ -175,11 +177,13 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                                 numAliasesRemoved++;
                             }
                         }
+
                         if (nonBackingIndices.isEmpty() == false) {
                             // Regular aliases/indices match as well with the provided expression.
                             // (Only when adding new aliases, matching both data streams and indices is disallowed)
+                            resolvedIndices.addAll(concreteDataStreams);
                         } else {
-                            actionResults.add(AliasActionResult.build(action, numAliasesRemoved));
+                            actionResults.add(AliasActionResult.build(concreteDataStreams, action, numAliasesRemoved));
                             continue;
                         }
                     }
@@ -242,7 +246,8 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                 }
             }
 
-            actionResults.add(AliasActionResult.build(action, numAliasesRemoved));
+            Arrays.stream(concreteIndices).map(Index::getName).forEach(resolvedIndices::add);
+            actionResults.add(AliasActionResult.build(resolvedIndices, action, numAliasesRemoved));
         }
         if (finalActions.isEmpty() && false == actions.isEmpty()) {
             throw new AliasesNotFoundException(aliases.toArray(new String[aliases.size()]));

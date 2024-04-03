@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class IndicesAliasesResponse extends AcknowledgedResponse {
 
@@ -45,7 +46,7 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
         }
     }
 
-    private IndicesAliasesResponse(boolean acknowledged, boolean errors, final List<AliasActionResult> actionResults) {
+    public IndicesAliasesResponse(boolean acknowledged, boolean errors, final List<AliasActionResult> actionResults) {
         super(acknowledged);
         this.errors = errors;
         this.actionResults = actionResults;
@@ -75,41 +76,45 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
     }
 
     public static class AliasActionResult implements Writeable, ToXContentObject {
-
+        private final List<String> indices;
         private final AliasActions action;
         private final ElasticsearchException error;
 
-        public static AliasActionResult build(AliasActions action, int numAliasesRemoved) {
+        public static AliasActionResult build(List<String> indices, AliasActions action, int numAliasesRemoved) {
             if (action.actionType() == AliasActions.Type.REMOVE && numAliasesRemoved == 0) {
-                return buildRemoveError(action);
+                return buildRemoveError(indices, action);
             }
-            return buildSuccess(action);
+            return buildSuccess(indices, action);
         }
 
-        private static AliasActionResult buildRemoveError(AliasActions action) {
-            return new AliasActionResult(action, new AliasesNotFoundException((action.getOriginalAliases())));
+        private static AliasActionResult buildRemoveError(List<String> indices, AliasActions action) {
+            return new AliasActionResult(indices, action, new AliasesNotFoundException((action.getOriginalAliases())));
         }
 
-        public static AliasActionResult buildSuccess(AliasActions action) {
-            return new AliasActionResult(action, null);
+        public static AliasActionResult buildSuccess(List<String> indices, AliasActions action) {
+            return new AliasActionResult(indices, action, null);
         }
 
         private int getStatus() {
             return error == null ? 200 : error.status().getStatus();
         }
 
-        private AliasActionResult(AliasActions action, ElasticsearchException error) {
+        private AliasActionResult(List<String> indices, AliasActions action, ElasticsearchException error) {
+            assert indices.isEmpty() == false : "Alias action result must be instantiated with at least one index";
+            this.indices = indices;
             this.action = action;
             this.error = error;
         }
 
         private AliasActionResult(StreamInput in) throws IOException {
+            this.indices = in.readStringCollectionAsList();
             this.action = new AliasActions(in);
             this.error = in.readException();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            out.writeStringCollection(indices);
             action.writeTo(out);
             out.writeException(error);
         }
@@ -129,7 +134,7 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
             builder.field(ACTION_FIELD);
             builder.startObject();
             builder.field(ACTION_TYPE_FIELD, action.actionType().getFieldName());
-            builder.array(ACTION_INDICES_FIELD, action.indices());
+            builder.field(ACTION_INDICES_FIELD, indices.stream().sorted().collect(Collectors.toList()));
             builder.array(ACTION_ALIASES_FIELD, action.getOriginalAliases());
             builder.endObject();
 

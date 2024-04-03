@@ -31,9 +31,10 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 public class Log10 extends UnaryScalarFunction {
     @FunctionInfo(
         returnType = "double",
-        description = "Returns the logarithm to base 10. The input can be any numeric value, the return value is always a double.\n"
+        description = "Returns the logarithm of a value to base 10. The input can "
+            + "be any numeric value, the return value is always a double.\n"
             + "\n"
-            + "Logs of 0, negative numbers, and infinities return `null` as well as a warning.",
+            + "Logs of 0 and negative numbers return `null` as well as a warning.",
         examples = @Example(file = "math", tag = "log10")
     )
     public Log10(

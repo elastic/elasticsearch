@@ -244,8 +244,10 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
             @Override
             public InternalAggregation get() {
                 try (
-                    AggregatorReducer processor = ((AbstractInternalTerms<?, ?>) aggregations.get(0))
-                        .termsAggregationReducer(reduceContext, size)
+                    AggregatorReducer processor = ((AbstractInternalTerms<?, ?>) aggregations.get(0)).termsAggregationReducer(
+                        reduceContext,
+                        size
+                    )
                 ) {
                     aggregations.forEach(processor::accept);
                     aggregations = null; // release memory

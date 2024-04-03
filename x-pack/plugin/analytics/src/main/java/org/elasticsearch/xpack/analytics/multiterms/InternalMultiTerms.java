@@ -566,8 +566,10 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
             public InternalAggregation get() {
                 final List<InternalAggregation> processed = getProcessedAggs(aggregations, needsPromotionToDouble(aggregations));
                 try (
-                    AggregatorReducer processor = ((AbstractInternalTerms<?, ?>) processed.get(0))
-                        .termsAggregationReducer(reduceContext, size)
+                    AggregatorReducer processor = ((AbstractInternalTerms<?, ?>) processed.get(0)).termsAggregationReducer(
+                        reduceContext,
+                        size
+                    )
                 ) {
                     aggregations.forEach(processor::accept);
                     aggregations = null; // release memory

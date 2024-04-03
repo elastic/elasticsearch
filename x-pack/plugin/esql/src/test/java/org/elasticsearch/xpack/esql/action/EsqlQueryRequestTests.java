@@ -189,7 +189,16 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         assertNotNull(request.validate());
-        assertThat(request.validate().getMessage(), containsString("[version] has invalid value [" + invalidVersionString + "]"));
+        assertThat(
+            request.validate().getMessage(),
+            containsString(
+                "[version] has invalid value ["
+                    + invalidVersionString
+                    + "], latest available version is ["
+                    + EsqlVersion.latestReleased()
+                    + "]"
+            )
+        );
     }
 
     public void testSnapshotVersionIsOnlyValidOnSnapshot() throws IOException {

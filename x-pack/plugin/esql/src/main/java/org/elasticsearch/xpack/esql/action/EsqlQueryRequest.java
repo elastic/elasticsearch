@@ -83,7 +83,13 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
             EsqlVersion version = EsqlVersion.parse(esqlVersion);
             if (version == null) {
                 validationException = addValidationError(
-                    "[" + RequestXContent.ESQL_VERSION_FIELD + "] has invalid value [" + esqlVersion + "]",
+                    "["
+                        + RequestXContent.ESQL_VERSION_FIELD
+                        + "] has invalid value ["
+                        + esqlVersion
+                        + "], latest available version is ["
+                        + EsqlVersion.latestReleased()
+                        + "]",
                     validationException
                 );
             } else if (version == EsqlVersion.SNAPSHOT && onSnapshotBuild == false) {

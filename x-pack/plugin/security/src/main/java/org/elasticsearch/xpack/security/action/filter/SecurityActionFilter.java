@@ -104,6 +104,7 @@ public class SecurityActionFilter implements ActionFilter {
             threadContext
         );
         final boolean useSystemUser = AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action);
+
         try {
             if (useSystemUser) {
                 securityContext.executeAsSystemUser(original -> applyInternal(task, chain, action, request, contextPreservingListener));
@@ -114,12 +115,14 @@ public class SecurityActionFilter implements ActionFilter {
                     TransportVersion.current(), // current version since this is on the same node
                     (original) -> { applyInternal(task, chain, action, request, contextPreservingListener); }
                 );
-            } else if (secondaryAuthActions.get().contains(action)) {
+            } else if (secondaryAuthActions.get().contains(action) && threadContext.getHeader("secondary_auth_action_applied") == null) {
                 SecondaryAuthentication secondaryAuth = securityContext.getSecondaryAuthentication();
                 if (secondaryAuth == null) {
                     throw new IllegalArgumentException("es-secondary-authorization header must be used to call action [" + action + "]");
                 } else {
                     secondaryAuth.execute(ignore -> {
+                        // this header exists to ensure that if this action goes across nodes we don't attempt to swap out the user again
+                        threadContext.putHeader("secondary_auth_action_applied", "true");
                         applyInternal(task, chain, action, request, contextPreservingListener);
                         return null;
                     });

@@ -37,6 +37,10 @@ public class SecondaryAuthActionsIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
+        .nodes(2)
+        // ensure secondary auth actions go across the cluster, so we don't attempt to double swap out the user in context
+        .node(0, n -> n.setting("node.roles", "[master]"))
+        .node(1, n -> n.setting("node.roles", "[data]"))
         .setting("xpack.watcher.enabled", "false")
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.security.enabled", "true")
@@ -45,6 +49,7 @@ public class SecondaryAuthActionsIT extends ESRestTestCase {
         .user("test_admin", "x-pack-test-password", "superuser", false)
         .user("test_user", "x-pack-test-password", "logsrole", false)
         .plugin("secondary-auth-actions-extension")
+
         .build();
 
     @Before

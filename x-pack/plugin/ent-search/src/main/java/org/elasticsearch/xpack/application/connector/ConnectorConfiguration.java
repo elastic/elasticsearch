@@ -387,7 +387,7 @@ public class ConnectorConfiguration implements Writeable, ToXContentObject {
         out.writeGenericValue(value);
     }
 
-    public Map<String, Object> togti Map() {
+    public Map<String, Object> toMap() {
         Map<String, Object> map = new HashMap<>();
 
         Optional.ofNullable(category).ifPresent(c -> map.put(CATEGORY_FIELD.getPreferredName(), c));

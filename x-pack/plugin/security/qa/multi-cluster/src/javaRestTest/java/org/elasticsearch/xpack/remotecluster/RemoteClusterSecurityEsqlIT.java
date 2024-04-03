@@ -36,7 +36,10 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -284,7 +287,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         wipe.accept(client());
     }
 
-    @AwaitsFix(bugUrl = "cross-clusters query doesn't work with RCS 2.0")
+    @SuppressWarnings("unchecked")
     public void testCrossClusterQuery() throws Exception {
         configureRemoteCluster();
         populateData();
@@ -297,7 +300,15 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                     | LIMIT 2
                     | KEEP emp_id, department"""));
                 assertOK(response);
-                Map<String, Object> values = entityAsMap(response);
+                Map<String, Object> responseAsMap = entityAsMap(response);
+                List<?> columns = (List<?>) responseAsMap.get("columns");
+                List<?> values = (List<?>) responseAsMap.get("values");
+                assertEquals(2, columns.size());
+                assertEquals(2, values.size());
+                List<String> flatList = values.stream()
+                    .flatMap(innerList -> innerList instanceof List ? ((List<String>) innerList).stream() : Stream.empty())
+                    .collect(Collectors.toList());
+                assertThat(flatList, containsInAnyOrder("1", "3", "engineering", "sales"));
             }
             {
                 Response response = performRequestWithRemoteSearchUser(esqlRequest("""
@@ -306,28 +317,122 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                     | LIMIT 10"""));
                 assertOK(response);
 
-            }
-            // Check that authentication fails if we use a non-existent API key
-            updateClusterSettings(
-                randomBoolean()
-                    ? Settings.builder()
-                        .put("cluster.remote.invalid_remote.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0))
-                        .build()
-                    : Settings.builder()
-                        .put("cluster.remote.invalid_remote.mode", "proxy")
-                        .put("cluster.remote.invalid_remote.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
-                        .build()
-            );
-            for (String indices : List.of("my_remote_cluster:employees,employees", "my_remote_cluster:employees")) {
-                ResponseException error = expectThrows(ResponseException.class, () -> {
-                    var q = "FROM " + indices + "|  SORT emp_id DESC | LIMIT 10";
-                    performRequestWithLocalSearchUser(esqlRequest(q));
-                });
-                assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-                assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-                assertThat(error.getMessage(), containsString("unable to find apikey"));
+                Map<String, Object> responseAsMap = entityAsMap(response);
+                List<?> columns = (List<?>) responseAsMap.get("columns");
+                List<?> values = (List<?>) responseAsMap.get("values");
+                assertEquals(2, columns.size());
+                assertEquals(9, values.size());
+                List<String> flatList = values.stream()
+                    .flatMap(innerList -> innerList instanceof List ? ((List<String>) innerList).stream() : Stream.empty())
+                    .collect(Collectors.toList());
+                assertThat(
+                    flatList,
+                    containsInAnyOrder(
+                        "1",
+                        "2",
+                        "3",
+                        "4",
+                        "5",
+                        "6",
+                        "7",
+                        "8",
+                        "9",
+                        "engineering",
+                        "engineering",
+                        "engineering",
+                        "management",
+                        "sales",
+                        "sales",
+                        "marketing",
+                        "marketing",
+                        "support"
+                    )
+                );
             }
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "this trips ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION)")
+    // comment out those assertions in EsqlIndexResolver and TransportFieldCapabilitiesAction to see this test pass
+    public void testCrossClusterQueryAgainstInvalidRemote() throws Exception {
+        configureRemoteCluster();
+        populateData();
+
+        // avoids getting 404 errors
+        updateClusterSettings(
+            randomBoolean()
+                ? Settings.builder().put("cluster.remote.invalid_remote.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0)).build()
+                : Settings.builder()
+                    .put("cluster.remote.invalid_remote.mode", "proxy")
+                    .put("cluster.remote.invalid_remote.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                    .build()
+        );
+
+        // invalid remote with local index should return local results
+        var q = "FROM invalid_remote:employees,employees |  SORT emp_id DESC | LIMIT 10";
+        Response response = performRequestWithRemoteSearchUser(esqlRequest(q));
+        assertOK(response);
+        Map<String, Object> responseAsMap = entityAsMap(response);
+        List<?> columns = (List<?>) responseAsMap.get("columns");
+        List<?> values = (List<?>) responseAsMap.get("values");
+        assertEquals(2, columns.size());
+        assertEquals(4, values.size());
+        List<String> flatList = values.stream()
+            .flatMap(innerList -> innerList instanceof List ? ((List<String>) innerList).stream() : Stream.empty())
+            .collect(Collectors.toList());
+        // local results
+        assertThat(flatList, containsInAnyOrder("2", "4", "6", "8", "support", "management", "engineering", "marketing"));
+
+        // only calling an invalid remote should error
+        ResponseException error = expectThrows(ResponseException.class, () -> {
+            var q2 = "FROM invalid_remote:employees |  SORT emp_id DESC | LIMIT 10";
+            performRequestWithRemoteSearchUser(esqlRequest(q2));
+        });
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+        assertThat(error.getMessage(), containsString("unable to find apikey"));
+    }
+
+    @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "cross-clusters search should not require local index permissions")
+    // will work if you add change "indices": [] to : "indices": [ { "names": [""], "privileges": ["indices:data/read/esql"] } ]
+    // however that should not be required to executed search across clusters
+    public void testCrossClusterQueryWithOnlyRemotePrivs() throws Exception {
+        configureRemoteCluster();
+        populateData();
+
+        // Query cluster
+        final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
+
+        putRoleRequest.setJsonEntity("""
+            {
+              "indices": [],
+              "remote_indices": [
+                {
+                  "names": ["employees"],
+                  "privileges": ["read", "read_cross_cluster"],
+                  "clusters": ["my_remote_cluster"]
+                }
+              ]
+            }""");
+        assertOK(adminClient().performRequest(putRoleRequest));
+
+        // Query cluster
+        Response response = performRequestWithRemoteSearchUser(esqlRequest("""
+            FROM my_remote_cluster:employees
+            | SORT emp_id ASC
+            | LIMIT 2
+            | KEEP emp_id, department"""));
+        assertOK(response);
+        Map<String, Object> responseAsMap = entityAsMap(response);
+        List<?> columns = (List<?>) responseAsMap.get("columns");
+        List<?> values = (List<?>) responseAsMap.get("values");
+        assertEquals(2, columns.size());
+        assertEquals(2, values.size());
+        List<String> flatList = values.stream()
+            .flatMap(innerList -> innerList instanceof List ? ((List<String>) innerList).stream() : Stream.empty())
+            .collect(Collectors.toList());
+        assertThat(flatList, containsInAnyOrder("1", "3", "engineering", "sales"));
     }
 
     @AwaitsFix(bugUrl = "cross-clusters enrich doesn't work with RCS 2.0")

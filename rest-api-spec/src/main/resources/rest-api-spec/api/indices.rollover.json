@@ -66,7 +66,9 @@
       },
       "failure_store":{
         "type":"boolean",
-        "description":"If set to true, the rollover action will be applied on the failure store of the data stream."
+        "description":"If set to true, the rollover action will be applied on the failure store of the data stream.",
+        "visibility": "feature_flag",
+        "feature_flag": "es.failure_store_feature_flag_enabled"
       }
     },
     "body":{

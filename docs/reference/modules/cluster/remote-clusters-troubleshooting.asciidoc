@@ -111,8 +111,11 @@ may time out or may appear to be stuck.
   In particular, you must enable and fully support TCP keepalives, and set a
   short <<system-config-tcpretries,retransmission timeout>>.
 
-On Linux systems, execute `ss -tonie` to verify the details of the
-configuration of each network connection between the clusters.
+* On Linux systems, execute `ss -tonie` to verify the details of the
+  configuration of each network connection between the clusters.
+
+* If the problems persist, capture network packets at both ends of the
+  connection and analyse the traffic to look for delays and lost messages.
 
 [[remote-clusters-troubleshooting-tls-trust]]
 ===== TLS trust not established

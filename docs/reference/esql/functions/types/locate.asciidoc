@@ -6,5 +6,7 @@
 |===
 str | substr | result
 keyword | keyword | integer
+keyword | text | integer
+text | keyword | integer
 text | text | integer
 |===

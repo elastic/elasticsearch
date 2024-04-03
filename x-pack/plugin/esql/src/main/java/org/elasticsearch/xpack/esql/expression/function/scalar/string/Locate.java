@@ -78,26 +78,7 @@ public class Locate extends EsqlScalarFunction {
         if (str == null || substr == null || str.length < substr.length) {
             return 0;
         }
-        int strCodePoints = UnicodeUtil.codePointCount(str);
-        int substrCodePoints = UnicodeUtil.codePointCount(substr);
-        int strIndex = 0;
-        int substrIndex = 0;
-        int locateIndex = -1;
-        UnicodeUtil.UTF8CodePoint strReuse = null;
-        UnicodeUtil.UTF8CodePoint substrReuse = null;
-        while (strIndex < strCodePoints) {
-            strReuse = UnicodeUtil.codePointAt(str.bytes, strIndex, strReuse);
-            substrReuse = UnicodeUtil.codePointAt(substr.bytes, substrIndex, substrReuse);
-            strIndex += 1;
-            if (strReuse.codePoint == substrReuse.codePoint) {
-                substrIndex += 1;
-            }
-            if (substrIndex == substrCodePoints) {
-                locateIndex = strIndex - substrCodePoints;
-                break;
-            }
-        }
-        return 1 + locateIndex;
+        return 1 + str.utf8ToString().indexOf(substr.utf8ToString());
     }
 
     @Override

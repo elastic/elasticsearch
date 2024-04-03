@@ -51,14 +51,12 @@ public class FieldFetcher {
      * @param context The {@link SearchExecutionContext} used to retrieve the {@link MappedFieldType}.
      * @param fieldAndFormats field names to fetch and their display format.
      * @param fetchStoredFields whether stored fields should be fetched or not.
-     * @param includeSizeMetadataField if the _size metadata field should be included or not whe fetching fields
      * @return an instance of {@link FieldFetcher} which we can use to fetch fields calling {@link FieldFetcher#fetch(Source, int)}.
      */
     public static FieldFetcher create(
         SearchExecutionContext context,
         Collection<FieldAndFormat> fieldAndFormats,
-        boolean fetchStoredFields,
-        boolean includeSizeMetadataField
+        boolean fetchStoredFields
     ) {
 
         List<String> unmappedFetchPattern = new ArrayList<>();
@@ -73,9 +71,6 @@ public class FieldFetcher {
 
             for (String field : context.getMatchingFieldNames(fieldPattern)) {
                 MappedFieldType ft = context.getFieldType(field);
-                if ("_size".equals(field) && includeSizeMetadataField == false) {
-                    continue;
-                }
                 // we want to skip metadata fields if we have a wildcard pattern
                 if (context.isMetadataField(field) && matchingPattern != null) {
                     continue;
@@ -83,9 +78,7 @@ public class FieldFetcher {
                 if (ft.isStored() && fetchStoredFields == false) {
                     continue;
                 }
-                resolvedFields.add(
-                    new ResolvedField(field, matchingPattern, ft, fieldAndFormat.format, FetchFieldsPhase.isMetadataField(field))
-                );
+                resolvedFields.add(new ResolvedField(field, matchingPattern, ft, fieldAndFormat.format, context.isMetadataField(field)));
             }
         }
 

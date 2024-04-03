@@ -54,8 +54,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         final FieldFetcher fieldFetcher = FieldFetcher.create(
             fetchContext.getSearchExecutionContext(),
             Stream.concat(fetchFields.stream(), METADATA_FIELDS.stream()).toList(),
-            fetchStoredFields,
-            includeSizeMetadataField(fetchFields)
+            fetchStoredFields
         );
 
         return new FetchSubPhaseProcessor() {
@@ -75,16 +74,5 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                 hitContext.hit().addDocumentFields(fields.documentFields(), fields.metadataFields());
             }
         };
-    }
-
-    /**
-     * _size must be excluded from metadata fields returned if the requests filters 'fields' using a wildcard.
-     * Put it another way, _size is returned only if requested explicitly through 'fields' or if the wildcard
-     * filter is used in combination with 'stored_fields'.
-     * @param fields List of fields requested as plain field names or including the wildcard character
-     * @return if we have to include the _size field or not
-     */
-    private static boolean includeSizeMetadataField(final List<FieldAndFormat> fields) {
-        return fields.stream().map(field -> field.field).noneMatch("*"::equals);
     }
 }

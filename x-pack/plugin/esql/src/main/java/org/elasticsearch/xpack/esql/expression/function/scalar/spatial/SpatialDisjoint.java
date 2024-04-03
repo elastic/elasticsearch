@@ -66,7 +66,7 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
     @FunctionInfo(
         returnType = { "boolean" },
         description = "Returns whether the two geometries or geometry columns are disjoint.",
-        examples = @Example(file = "spatial", tag = "st_disjoint-airport_city_boundaries")
+        examples = @Example(file = "spatial_shapes", tag = "st_disjoint-airport_city_boundaries")
     )
     public SpatialDisjoint(
         Source source,

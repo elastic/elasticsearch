@@ -71,7 +71,14 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         if (Strings.hasText(esqlVersion) == false) {
             // TODO: make this required
             // "https://github.com/elastic/elasticsearch/issues/104890"
-            // validationException = addValidationError("[" + RequestXContent.ESQL_VERSION_FIELD + "] is required", validationException);
+            // validationException = addValidationError(
+            // "["
+            // + RequestXContent.ESQL_VERSION_FIELD
+            // + "] is required, latest available version is ["
+            // + EsqlVersion.latestReleased()
+            // + "]",
+            // validationException
+            // );
         } else {
             EsqlVersion version = EsqlVersion.parse(esqlVersion);
             if (version == null) {

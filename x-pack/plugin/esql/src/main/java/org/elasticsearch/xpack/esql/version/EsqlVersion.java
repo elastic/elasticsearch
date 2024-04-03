@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.VersionId;
 
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -40,6 +42,23 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
         }
     }
 
+    /**
+     * Accepts a version string with the emoji suffix or without it.
+     * E.g. both "2024.04.01.🎉" and "2024.04.01" will be interpreted as {@link EsqlVersion#PARTY_POPPER}.
+     */
+    public static EsqlVersion parse(String versionString) {
+        return VERSION_MAP_WITH_AND_WITHOUT_EMOJI.get(versionString);
+    }
+
+    public static EsqlVersion latestReleased() {
+        return Arrays.stream(EsqlVersion.values()).filter(v -> v != SNAPSHOT).max(Comparator.comparingInt(EsqlVersion::id)).get();
+    }
+
+    private int year;
+    private byte month;
+    private byte revision;
+    private String emoji;
+
     EsqlVersion(int year, int month, String emoji) {
         this(year, month, 1, emoji);
     }
@@ -60,11 +79,6 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
         this.emoji = emoji;
     }
 
-    private int year;
-    private byte month;
-    private byte revision;
-    private String emoji;
-
     public int year() {
         return year;
     }
@@ -79,14 +93,6 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
 
     public String emoji() {
         return emoji;
-    }
-
-    /**
-     * Accepts a version string with the emoji suffix or without it.
-     * E.g. both "2024.04.01.🎉" and "2024.04.01" will be interpreted as {@link EsqlVersion#PARTY_POPPER}.
-     */
-    public static EsqlVersion parse(String versionString) {
-        return VERSION_MAP_WITH_AND_WITHOUT_EMOJI.get(versionString);
     }
 
     public String versionStringWithoutEmoji() {

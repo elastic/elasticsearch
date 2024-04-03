@@ -17,6 +17,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class EsqlVersionTests extends ESTestCase {
+    public void testLatestReleased() {
+        assertThat(EsqlVersion.latestReleased(), is(EsqlVersion.PARTY_POPPER));
+    }
+
     public void testVersionString() {
         assertThat(EsqlVersion.SNAPSHOT.toString(), equalTo("snapshot.📷"));
         assertThat(EsqlVersion.PARTY_POPPER.toString(), equalTo("2024.04.01.🎉"));

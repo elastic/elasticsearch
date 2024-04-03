@@ -225,7 +225,10 @@ public class EsqlQueryRequestTests extends ESTestCase {
 
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         assertNotNull(request.validate());
-        assertThat(request.validate().getMessage(), containsString("[version] is required"));
+        assertThat(
+            request.validate().getMessage(),
+            containsString("[version] is required, latest available version is [" + EsqlVersion.latestReleased() + "]")
+        );
     }
 
     public void testMissingQueryIsNotValid() throws IOException {

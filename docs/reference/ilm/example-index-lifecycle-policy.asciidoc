@@ -65,23 +65,23 @@ node.roles: [ data_warm ]
 cluster.
 
 [discrete]
-[[example-using-index-lifecycle-policy-view-ilm-policy]]
-==== View and edit the policy
+[[example-using-index-lifecycle-policy-duplicate-ilm-policy]]
+==== Duplicate the policy
 
 {agent} uses data streams with an index pattern of `logs-*-*` to store log
 monitoring data. The managed `logs@lifecycle` {ilm-init} policy automatically manages
 backing indices for these data streams. 
 
-If you don't want to use the policy defaults, then you can duplicate the managed policy and customize it.
+If you don't want to use the policy defaults, then you can customize the managed policy and then save it as a new policy. You can then use the new policy in related component templates and index templates.
 
-You should only edit duplicates of managed policies. Changes to managed policies might be rolled back or overwritten.
+CAUTION: You should never edit managed policies directly. Changes to managed policies might be rolled back or overwritten.
 
-To duplicate the `logs@lifecycle` policy in {kib}:
+To save the `logs@lifecycle` policy as a new policy in {kib}:
 
-. Open the menu and go to **Stack Management > Index Lifecycle Policies**.
+. Open the menu and go to **Stack Management** > **Index Lifecycle Policies**.
 . Toggle **Include managed system policies**.
 . Select the `logs@lifecycle` policy.
-. On the **Edit policy logs** page, toggle **Save as new policy**, and then provide a new name for the policy.
+. On the **Edit policy logs** page, toggle **Save as new policy**, and then provide a new name for the policy, for example, `logs-custom`.
 
 The `logs@lifecycle` policy uses the recommended rollover defaults: Start writing to a new
 index when the current write index reaches 50GB or becomes 30 days old.
@@ -128,10 +128,27 @@ image::images/ilm/tutorial-ilm-delete-rollover.png[Add a delete phase]
 
 . Click **Save as new policy**.
 
-[discrete]
-[[ilm-ex-next-steps]]
-==== Next steps
+TIP:  Copies of managed {ilm-init} policies are also marked as **Managed**. You can use the <<ilm-put-lifecycle,Create or update lifecycle policy API>> to update the `_meta.managed` parameter to `false`.
 
-- Configure a settings <<indices-component-template,component template>> that uses the new {ilm-init} policy. Consider cloning the managed **logs@settings** template and updating the `index.lifecycle.name` setting.
-- Use your new {ilm-init} policy or component template in an <<index-templates,index template>>. Consider cloning the managed **logs** index template. Make sure to set the index template priority to a higher value than the managed template.
-- Optional: Copies of managed {ilm-init} policies are also marked as **Managed**. Use the <<ilm-put-lifecycle,Create or update lifecycle policy API>> to update the `_meta.managed` parameter to `false`.
+[discrete]
+[[example-using-index-lifecycle-policy-apply-policy]]
+==== Apply the policy
+
+To apply your new {ilm-init} policy to the `logs` index template, edit the `logs@settings` component template.
+
+. Click on the **Component Template** tab and search for `logs`.
+. Select the `logs@settings` template and click **Manage** > **Edit**.
+. Under **Index settings**, set the ILM policy name created in the previous step:
++
+[source,console]
+--------------------------------------------------
+{
+    "index": {
+        "lifecycle": {
+            "name": "logs-custom"
+        }
+    }
+}
+--------------------------------------------------
++
+. Continue to **Review**, and then click **Save component template**.

@@ -1218,9 +1218,9 @@ tag::timeoutparms[]
 tag::master-timeout[]
 `master_timeout`::
 (Optional, <<time-units, time units>>)
-Period to wait for a connection to the master node. If no response is received
-before the timeout expires, the request fails and returns an error. Defaults to
-`30s`.
+Period to wait for the master node. If the master node is not available before
+the timeout expires, the request fails and returns an error. Defaults to `30s`.
+The special value `-1` means to wait forever.
 end::master-timeout[]
 
 tag::timeout[]

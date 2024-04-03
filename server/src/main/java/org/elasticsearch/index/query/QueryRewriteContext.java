@@ -390,6 +390,6 @@ public class QueryRewriteContext {
 
     public Map<String, IndexMetadata> getIndexMetadataMap() {
         Map<String, IndexMetadata> indexMetadataMap = indexMetadataMapSupplier != null ? indexMetadataMapSupplier.get() : null;
-        return indexMetadataMap != null ? indexMetadataMap : Collections.emptyMap();
+        return indexMetadataMap != null ? Collections.unmodifiableMap(indexMetadataMap) : Collections.emptyMap();
     }
 }

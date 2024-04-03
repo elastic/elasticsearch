@@ -34,7 +34,7 @@ import java.util.Set;
 public class StoredFieldsPhase implements FetchSubPhase {
 
     /** Associates a field name with a mapped field type and whether or not it is a metadata field */
-    private record StoredField(String name, MappedFieldType ft, boolean isMetadataField) {
+    private record StoredField(String name, MappedFieldType ft) {
 
         /** Processes a set of stored fields using field type information */
         List<Object> process(Map<String, List<Object>> loadedFields) {
@@ -71,7 +71,7 @@ public class StoredFieldsPhase implements FetchSubPhase {
                         if (ft.isStored() == false || sec.isMetadataField(fieldName)) {
                             continue;
                         }
-                        storedFields.add(new StoredField(fieldName, ft, sec.isMetadataField(ft.name())));
+                        storedFields.add(new StoredField(fieldName, ft));
                         fieldsToLoad.add(ft.name());
                     }
                 }

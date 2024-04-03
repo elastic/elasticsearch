@@ -108,7 +108,7 @@ setup:
 ---
 "Test pinned query with docs and no index fail in previous versions":
   - skip:
-      version: "8.10.99 - "
+      cluster_features: ["gte_v8.10.99"]
       reason: "'_index' was made optional in 8.11, this test is for explicit failure tests"
   - do:
       catch: bad_request

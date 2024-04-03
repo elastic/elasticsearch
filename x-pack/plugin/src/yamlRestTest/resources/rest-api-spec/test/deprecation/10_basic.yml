@@ -17,7 +17,7 @@ setup:
 ---
 "Test ml":
   - skip:
-      cluster_features: ["gte_v7.0.0”]
+      cluster_features: ["gte_v7.0.0"]
   - requires:
       test_runner_features: ["headers", "warnings"]
       reason: this test needs adjusting to contain syntax deprecated in 7.x and removed in 8.0

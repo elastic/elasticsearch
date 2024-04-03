@@ -388,10 +388,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     // item was already aborted/processed by a filter in the chain upstream (e.g. security)
                     continue;
                 }
+                boolean isUpdateRequest = false;
                 final IndexRequest indexRequest;
                 if (item.request() instanceof IndexRequest ir) {
                     indexRequest = ir;
                 } else if (item.request() instanceof UpdateRequest updateRequest) {
+                    isUpdateRequest = true;
                     if (updateRequest.script() != null) {
                         addInferenceResponseFailure(
                             item.id(),
@@ -417,35 +419,50 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     String field = entry.getName();
                     String inferenceId = entry.getInferenceId();
                     Object inferenceResult = inferenceMap.remove(field);
-                    var value = XContentMapValues.extractValue(field, docMap);
-                    if (value == null) {
-                        if (inferenceResult != null) {
+                    for (var sourceField : entry.getSourceFields()) {
+                        var value = XContentMapValues.extractValue(sourceField, docMap);
+                        if (value == null) {
+                            if (isUpdateRequest) {
+                                addInferenceResponseFailure(
+                                    item.id(),
+                                    new ElasticsearchStatusException(
+                                        "Field [{}] must be specified on an update request to calculate inference for field [{}]",
+                                        RestStatus.BAD_REQUEST,
+                                        sourceField,
+                                        field
+                                    )
+                                );
+                            } else if (inferenceResult != null) {
+                                addInferenceResponseFailure(
+                                    item.id(),
+                                    new ElasticsearchStatusException(
+                                        "The field [{}] is referenced in the [{}] metadata field but has no value",
+                                        RestStatus.BAD_REQUEST,
+                                        field,
+                                        InferenceMetadataFieldMapper.NAME
+                                    )
+                                );
+                            }
+                            continue;
+                        }
+                        ensureResponseAccumulatorSlot(item.id());
+                        if (value instanceof String valueStr) {
+                            List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(
+                                inferenceId,
+                                k -> new ArrayList<>()
+                            );
+                            fieldRequests.add(new FieldInferenceRequest(item.id(), field, valueStr));
+                        } else {
                             addInferenceResponseFailure(
                                 item.id(),
                                 new ElasticsearchStatusException(
-                                    "The field [{}] is referenced in the [{}] metadata field but has no value",
+                                    "Invalid format for field [{}], expected [String] got [{}]",
                                     RestStatus.BAD_REQUEST,
                                     field,
-                                    InferenceMetadataFieldMapper.NAME
+                                    value.getClass().getSimpleName()
                                 )
                             );
                         }
-                        continue;
-                    }
-                    ensureResponseAccumulatorSlot(item.id());
-                    if (value instanceof String valueStr) {
-                        List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
-                        fieldRequests.add(new FieldInferenceRequest(item.id(), field, valueStr));
-                    } else {
-                        addInferenceResponseFailure(
-                            item.id(),
-                            new ElasticsearchStatusException(
-                                "Invalid format for field [{}], expected [String] got [{}]",
-                                RestStatus.BAD_REQUEST,
-                                field,
-                                value.getClass().getSimpleName()
-                            )
-                        );
                     }
                 }
             }

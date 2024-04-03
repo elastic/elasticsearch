@@ -10,9 +10,9 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -73,8 +73,12 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                     Collection<String> fieldNames = searchExecutionContext.getMatchingFieldNames(field);
                     for (String fieldName : fieldNames) {
                         if (fieldName.equals(SourceFieldMapper.NAME) == false && searchExecutionContext.isMetadataField(fieldName)) {
-                            // TODO only metadata field that's not stored, it should be excluded in some other way?
-                            if (fieldName.equals(FieldNamesFieldMapper.NAME) == false) {
+                            MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
+                            // TODO this is for bw comp with previous behaviour of _stored_fields: there's a bunch of metadata fields that
+                            // are stored and were never exposed to fetch.
+                            // Some are fetchable via doc_values, but they can't be fetched either from fields, hence it makes sense to keep
+                            // this conditional for the time being?
+                            if (fieldType.isStored()) {
                                 fields.add(new FieldAndFormat(fieldName, null));
                             }
                         }

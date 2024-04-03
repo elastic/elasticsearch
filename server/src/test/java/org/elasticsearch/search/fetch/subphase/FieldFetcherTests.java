@@ -27,9 +27,7 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
-import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
@@ -263,10 +261,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         });
 
         // several other metadata fields throw exceptions via their value fetchers when trying to get them
-        for (String fieldname : List.of(
-            SourceFieldMapper.NAME,
-            FieldNamesFieldMapper.NAME
-        )) {
+        for (String fieldname : List.of(SourceFieldMapper.NAME, FieldNamesFieldMapper.NAME)) {
             expectThrows(UnsupportedOperationException.class, () -> fetchFields(mapperService, source, fieldname));
         }
     }

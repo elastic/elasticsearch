@@ -16,26 +16,26 @@ import org.elasticsearch.xpack.inference.external.cohere.CohereAccount;
 import org.elasticsearch.xpack.inference.external.cohere.CohereResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.request.cohere.CohereEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.external.response.cohere.CohereEmbeddingsResponseEntity;
-import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
+import org.elasticsearch.xpack.inference.external.request.cohere.CohereRerankRequest;
+import org.elasticsearch.xpack.inference.external.response.cohere.CohereRankedResponseEntity;
+import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-public class CohereEmbeddingsExecutableRequestCreator implements ExecutableRequestCreator {
-    private static final Logger logger = LogManager.getLogger(CohereEmbeddingsExecutableRequestCreator.class);
-    private static final ResponseHandler HANDLER = createEmbeddingsHandler();
+public class CohereRerankExecutableRequestCreator implements ExecutableRequestCreator {
+    private static final Logger logger = LogManager.getLogger(CohereRerankExecutableRequestCreator.class);
+    private static final ResponseHandler HANDLER = createCohereResponseHandler();
 
-    private static ResponseHandler createEmbeddingsHandler() {
-        return new CohereResponseHandler("cohere text embedding", CohereEmbeddingsResponseEntity::fromResponse);
+    private static ResponseHandler createCohereResponseHandler() {
+        return new CohereResponseHandler("cohere rerank", (request, response) -> CohereRankedResponseEntity.fromResponse(response));
     }
 
     private final CohereAccount account;
-    private final CohereEmbeddingsModel model;
+    private final CohereRerankModel model;
 
-    public CohereEmbeddingsExecutableRequestCreator(CohereEmbeddingsModel model) {
+    public CohereRerankExecutableRequestCreator(CohereRerankModel model) {
         this.model = Objects.requireNonNull(model);
         account = new CohereAccount(this.model.getServiceSettings().getCommonSettings().uri(), this.model.getSecretSettings().apiKey());
     }
@@ -49,7 +49,7 @@ public class CohereEmbeddingsExecutableRequestCreator implements ExecutableReque
         HttpClientContext context,
         ActionListener<InferenceServiceResults> listener
     ) {
-        CohereEmbeddingsRequest request = new CohereEmbeddingsRequest(account, input, model);
+        CohereRerankRequest request = new CohereRerankRequest(account, query, input, model);
 
         return new ExecutableInferenceRequest(requestSender, logger, request, context, HANDLER, hasRequestCompletedFunction, listener);
     }

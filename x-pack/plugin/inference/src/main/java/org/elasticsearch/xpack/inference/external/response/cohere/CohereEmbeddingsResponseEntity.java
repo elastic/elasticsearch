@@ -50,7 +50,7 @@ public class CohereEmbeddingsResponseEntity {
     }
 
     /**
-     * Parses the OpenAI json response.
+     * Parses the Cohere embed json response.
      * For a request like:
      *
      * <pre>

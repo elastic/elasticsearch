@@ -993,10 +993,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
         });
 
-        // Tests for third-party agent indices that kibana system has only `read` access
+        // Tests for third-party agent indices that `kibana_system` has only `read` access
         Arrays.asList(
-            "logs-sentinel_one" + randomAlphaOfLength(randomIntBetween(0, 13)),
-            "logs-crowdstrike" + randomAlphaOfLength(randomIntBetween(0, 13))
+            "logs-sentinel_one." + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-crowdstrike." + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach((index) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));

@@ -192,8 +192,8 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertThat(request.validate().getMessage(), containsString("[version] has invalid value [" + invalidVersionString + "]"));
     }
 
-    public void testNightlyVersionIsOnlyValidOnSnapshot() throws IOException {
-        String esqlVersion = randomBoolean() ? "nightly" : "nightly.😴";
+    public void testSnapshotVersionIsOnlyValidOnSnapshot() throws IOException {
+        String esqlVersion = randomBoolean() ? "snapshot" : "snapshot.📷";
         String json = String.format(Locale.ROOT, """
             {
                 "version": "%s",
@@ -232,7 +232,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
         String json = """
             {
                 "columnar": true,
-                "version": "nightly"
+                "version": "snapshot"
             }""";
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
         assertNotNull(request.validate());

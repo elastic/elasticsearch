@@ -17,7 +17,7 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
     /**
      * Breaking changes go here until the next version is released.
      */
-    NIGHTLY(Integer.MAX_VALUE, 12, 99, "😴"),
+    SNAPSHOT(Integer.MAX_VALUE, 12, 99, "📷"),
     PARTY_POPPER(2024, 4, "🎉");
 
     static final Map<String, EsqlVersion> VERSION_MAP_WITH_AND_WITHOUT_EMOJI = versionMapWithAndWithoutEmoji();
@@ -90,7 +90,7 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
     }
 
     public String versionStringWithoutEmoji() {
-        return this == NIGHTLY ? "nightly" : Strings.format("%d.%02d.%02d", year, month, revision);
+        return this == SNAPSHOT ? "snapshot" : Strings.format("%d.%02d.%02d", year, month, revision);
     }
 
     @Override
@@ -100,6 +100,6 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
 
     @Override
     public int id() {
-        return this == NIGHTLY ? Integer.MAX_VALUE : (10000 * year + 100 * month + revision);
+        return this == SNAPSHOT ? Integer.MAX_VALUE : (10000 * year + 100 * month + revision);
     }
 }

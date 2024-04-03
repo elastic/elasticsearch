@@ -79,7 +79,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
                     "[" + RequestXContent.ESQL_VERSION_FIELD + "] has invalid value [" + esqlVersion + "]",
                     validationException
                 );
-            } else if (version == EsqlVersion.NIGHTLY && onSnapshotBuild == false) {
+            } else if (version == EsqlVersion.SNAPSHOT && onSnapshotBuild == false) {
                 validationException = addValidationError(
                     "[" + RequestXContent.ESQL_VERSION_FIELD + "] with value [" + esqlVersion + "] only allowed in snapshot builds",
                     validationException

@@ -1063,7 +1063,7 @@ FROM airports_web
 | WHERE ST_INTERSECTS(location, TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"))
 ;
 
-abbrev:keyword | location:cartesian_point                     |  name:text     |  scalerank:i  |  type:k
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
 HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
 ;
 
@@ -1079,6 +1079,92 @@ ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 wkt:keyword   | pt:cartesian_point
 "POINT(1 1)"  | POINT(1 1)
 "POINT(1 -1)" | POINT(1 -1)
+;
+
+cartesianPointIntersectsPointShape
+required_feature: esql.st_intersects
+
+FROM airports_web
+| WHERE ST_INTERSECTS(location, TO_CARTESIANSHAPE("POINT(4783520.559160681 1661010.0197476079)"))
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+;
+
+cartesianPointIntersectsPoint
+required_feature: esql.st_intersects
+
+FROM airports_web
+| WHERE ST_INTERSECTS(location, TO_CARTESIANPOINT("POINT(4783520.559160681 1661010.0197476079)"))
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+;
+
+cartesianPointIntersectsMultiPoint
+required_feature: esql.st_intersects
+
+FROM airports_web
+| WHERE ST_INTERSECTS(location, TO_CARTESIANSHAPE("MULTIPOINT(4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096)"))
+| SORT abbrev DESC
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+CPH            | POINT (1408119.2975413958 7484813.53657096)  | Copenhagen     | 3             | major
+;
+
+cartesianPointIntersectsLineString
+required_feature: esql.st_intersects
+
+FROM airports_web
+| WHERE ST_INTERSECTS(location, TO_CARTESIANSHAPE("LINESTRING(4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096)"))
+| SORT abbrev DESC
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+CPH            | POINT (1408119.2975413958 7484813.53657096)  | Copenhagen     | 3             | major
+;
+
+cartesianPointIntersectsMultiLineString
+required_feature: esql.st_intersects
+
+FROM airports_web
+| WHERE ST_INTERSECTS(location, TO_CARTESIANSHAPE("MULTILINESTRING((4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096),(1408119.2975413958 7484813.53657096, 1996039.722208033 8322469.9470024165))"))
+| SORT abbrev DESC
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+CPH            | POINT (1408119.2975413958 7484813.53657096)  | Copenhagen     | 3             | major
+ARN            | POINT(1996039.722208033 8322469.9470024165)  | Arlanda        | 2             | major
+;
+
+cartesianPointIntersectsPointShapeWithCentroid
+required_feature: esql.st_intersects
+
+FROM airports_web
+| WHERE ST_INTERSECTS(location, TO_CARTESIANSHAPE("POINT(4783520.559160681 1661010.0197476079)"))
+| STATS centroid=ST_CENTROID(location), count=COUNT()
+;
+
+centroid:cartesian_point    | count:long
+POINT (4783520.5 1661010.0) | 1
+;
+
+cartesianPointIntersectsPointWithCentroid
+required_feature: esql.st_intersects
+
+FROM airports_web
+| WHERE ST_INTERSECTS(location, TO_CARTESIANPOINT("POINT(4783520.559160681 1661010.0197476079)"))
+| STATS centroid=ST_CENTROID(location), count=COUNT()
+;
+
+centroid:cartesian_point    | count:long
+POINT (4783520.5 1661010.0) | 1
 ;
 
 ###############################################
@@ -1103,7 +1189,7 @@ FROM airports_web
 | WHERE ST_CONTAINS(TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"), location)
 ;
 
-abbrev:keyword | location:cartesian_point                     |  name:text     |  scalerank:i  |  type:k
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
 HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
 ;
 
@@ -1155,6 +1241,85 @@ ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 wkt:keyword   | pt:cartesian_point
 ;
 
+cartesianPointContainsPointShape
+required_feature: esql.st_intersects
+
+FROM airports_web
+| WHERE ST_CONTAINS(location, TO_CARTESIANSHAPE("POINT(4783520.559160681 1661010.0197476079)"))
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+;
+
+cartesianPointContainsPoint
+required_feature: esql.st_intersects
+
+FROM airports_web
+| WHERE ST_CONTAINS(location, TO_CARTESIANPOINT("POINT(4783520.559160681 1661010.0197476079)"))
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+;
+
+cartesianPointContainsMultiPoint
+required_feature: esql.st_intersects
+
+FROM airports_web
+| WHERE ST_CONTAINS(location, TO_CARTESIANSHAPE("MULTIPOINT(4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096)"))
+| SORT abbrev DESC
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+;
+
+cartesianPointContainsLineString
+required_feature: esql.st_intersects
+
+FROM airports_web
+| WHERE ST_CONTAINS(location, TO_CARTESIANSHAPE("LINESTRING(4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096)"))
+| SORT abbrev DESC
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+;
+
+cartesianPointContainsMultiLineString
+required_feature: esql.st_intersects
+
+FROM airports_web
+| WHERE ST_CONTAINS(location, TO_CARTESIANSHAPE("MULTILINESTRING((4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096),(1408119.2975413958 7484813.53657096, 1996039.722208033 8322469.9470024165))"))
+| SORT abbrev DESC
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+;
+
+cartesianPointContainsPointShapeWithCentroid
+required_feature: esql.st_intersects
+
+FROM airports_web
+| WHERE ST_CONTAINS(location, TO_CARTESIANSHAPE("POINT(4783520.559160681 1661010.0197476079)"))
+| STATS centroid=ST_CENTROID(location), count=COUNT()
+;
+
+centroid:cartesian_point    | count:long
+POINT (4783520.5 1661010.0) | 1
+;
+
+cartesianPointContainsPointWithCentroid
+required_feature: esql.st_intersects
+
+FROM airports_web
+| WHERE ST_CONTAINS(location, TO_CARTESIANPOINT("POINT(4783520.559160681 1661010.0197476079)"))
+| STATS centroid=ST_CENTROID(location), count=COUNT()
+;
+
+centroid:cartesian_point    | count:long
+POINT (4783520.5 1661010.0) | 1
+;
+
 ###############################################
 # Tests for ST_WITHIN on CARTESIAN_POINT type
 
@@ -1177,7 +1342,7 @@ FROM airports_web
 | WHERE ST_WITHIN(location, TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"))
 ;
 
-abbrev:keyword | location:cartesian_point                     |  name:text     |  scalerank:i  |  type:k
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
 HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
 ;
 
@@ -1193,6 +1358,92 @@ ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 wkt:keyword   | pt:cartesian_point
 "POINT(1 1)"  | POINT(1 1)
 "POINT(1 -1)" | POINT(1 -1)
+;
+
+cartesianPointWithinPointShape
+required_feature: esql.st_intersects
+
+FROM airports_web
+| WHERE ST_WITHIN(location, TO_CARTESIANSHAPE("POINT(4783520.559160681 1661010.0197476079)"))
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+;
+
+cartesianPointWithinPoint
+required_feature: esql.st_intersects
+
+FROM airports_web
+| WHERE ST_WITHIN(location, TO_CARTESIANPOINT("POINT(4783520.559160681 1661010.0197476079)"))
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+;
+
+cartesianPointWithinMultiPoint
+required_feature: esql.st_intersects
+
+FROM airports_web
+| WHERE ST_WITHIN(location, TO_CARTESIANSHAPE("MULTIPOINT(4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096)"))
+| SORT abbrev DESC
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+CPH            | POINT (1408119.2975413958 7484813.53657096)  | Copenhagen     | 3             | major
+;
+
+cartesianPointWithinLineString
+required_feature: esql.st_intersects
+
+FROM airports_web
+| WHERE ST_WITHIN(location, TO_CARTESIANSHAPE("LINESTRING(4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096)"))
+| SORT abbrev DESC
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+CPH            | POINT (1408119.2975413958 7484813.53657096)  | Copenhagen     | 3             | major
+;
+
+cartesianPointWithinMultiLineString
+required_feature: esql.st_intersects
+
+FROM airports_web
+| WHERE ST_WITHIN(location, TO_CARTESIANSHAPE("MULTILINESTRING((4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096),(1408119.2975413958 7484813.53657096, 1996039.722208033 8322469.9470024165))"))
+| SORT abbrev DESC
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+CPH            | POINT (1408119.2975413958 7484813.53657096)  | Copenhagen     | 3             | major
+ARN            | POINT(1996039.722208033 8322469.9470024165)  | Arlanda        | 2             | major
+;
+
+cartesianPointWithinPointShapeWithCentroid
+required_feature: esql.st_intersects
+
+FROM airports_web
+| WHERE ST_WITHIN(location, TO_CARTESIANSHAPE("POINT(4783520.559160681 1661010.0197476079)"))
+| STATS centroid=ST_CENTROID(location), count=COUNT()
+;
+
+centroid:cartesian_point    | count:long
+POINT (4783520.5 1661010.0) | 1
+;
+
+cartesianPointWithinPointWithCentroid
+required_feature: esql.st_intersects
+
+FROM airports_web
+| WHERE ST_WITHIN(location, TO_CARTESIANPOINT("POINT(4783520.559160681 1661010.0197476079)"))
+| STATS centroid=ST_CENTROID(location), count=COUNT()
+;
+
+centroid:cartesian_point    | count:long
+POINT (4783520.5 1661010.0) | 1
 ;
 
 ###############################################

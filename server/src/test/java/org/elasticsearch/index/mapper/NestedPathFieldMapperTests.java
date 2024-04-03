@@ -14,6 +14,8 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.empty;
 
@@ -41,5 +43,10 @@ public class NestedPathFieldMapperTests extends MetadataMapperTestCase {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
         ParsedDocument document = mapper.parse(new SourceToParse("id", new BytesArray("{}"), XContentType.JSON));
         assertThat(document.rootDoc().getFields(NestedPathFieldMapper.NAME), empty());
+    }
+
+    public void testFetchStoredValue() throws IOException {
+        List<?> values = fetchStoredValue(NestedPathFieldMapper.INSTANCE.fieldType(), Collections.singletonList("path"), null);
+        assertEquals("path", values.get(0));
     }
 }

@@ -74,7 +74,7 @@ public class StoredFieldsPhase implements FetchSubPhase {
             SearchExecutionContext sec = fetchContext.getSearchExecutionContext();
             for (String field : storedFieldsContext.fieldNames()) {
                 if (SourceFieldMapper.NAME.equals(field) == false) {
-                    Collection<String> fieldNames = sec.getMatchingFieldNames(field);
+                    /*Collection<String> fieldNames = sec.getMatchingFieldNames(field);
                     for (String fieldName : fieldNames) {
                         MappedFieldType ft = sec.getFieldType(fieldName);
                         if (ft.isStored() == false) {
@@ -82,7 +82,14 @@ public class StoredFieldsPhase implements FetchSubPhase {
                         }
                         storedFields.add(new StoredField(fieldName, ft, sec.isMetadataField(ft.name())));
                         fieldsToLoad.add(ft.name());
+                    }*/
+                    //TODO temporary removal of wildcard resolution: see what tests fail
+                    MappedFieldType ft = sec.getFieldType(field);
+                    if (ft.isStored() == false) {
+                        continue;
                     }
+                    storedFields.add(new StoredField(field, ft, sec.isMetadataField(ft.name())));
+                    fieldsToLoad.add(ft.name());
                 }
             }
         }

@@ -26,7 +26,7 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_nested_path";
 
-    private static final NestedPathFieldMapper INSTANCE = new NestedPathFieldMapper(NAME);
+    static final NestedPathFieldMapper INSTANCE = new NestedPathFieldMapper(NAME);
     private static final NestedPathFieldMapper INSTANCE_PRE_V8 = new NestedPathFieldMapper(NAME_PRE_V8);
 
     public static String name(IndexVersion version) {
@@ -66,7 +66,7 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+            return new StoredValueFetcher(context.lookup(), NAME);
         }
 
         @Override

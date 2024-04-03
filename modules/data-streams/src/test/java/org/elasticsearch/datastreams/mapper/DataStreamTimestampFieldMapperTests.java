@@ -17,6 +17,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.MetadataMapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
@@ -24,6 +25,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -199,5 +201,11 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
             assertThat(mapperService.documentMapper().mappers().getMapper("@timestamp"), notNullValue());
             assertThat(((DateFieldMapper) mapperService.documentMapper().mappers().getMapper("@timestamp")).ignoreMalformed(), is(false));
         }
+    }
+
+    public void testFetchStoredValue() throws IOException {
+        MetadataFieldMapper metadataFieldMapper = new DataStreamTimestampFieldMapper.Builder().build();
+        List<?> values = fetchStoredValue(metadataFieldMapper.fieldType(), Collections.singletonList("2021-01-01"), null);
+        assertEquals("2021-01-01", values.get(0));
     }
 }

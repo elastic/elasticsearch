@@ -11,6 +11,7 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.hamcrest.Matchers;
@@ -20,6 +21,7 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106933")
 public class HealthNodeUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
     public HealthNodeUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {

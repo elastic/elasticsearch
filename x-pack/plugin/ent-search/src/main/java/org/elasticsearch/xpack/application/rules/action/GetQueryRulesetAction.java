@@ -154,14 +154,6 @@ public class GetQueryRulesetAction {
             return Objects.hash(queryRuleset);
         }
 
-        private static final ConstructingObjectParser<Response, String> PARSER = new ConstructingObjectParser<>(
-            "get_query_ruleset_response",
-            p -> new Response((QueryRuleset) p[0])
-        );
-        static {
-            PARSER.declareObject(constructorArg(), (p, c) -> QueryRuleset.fromXContent(c, p), QUERY_RULESET_FIELD);
-        }
-
         public static Response fromXContent(String resourceName, XContentParser parser) throws IOException {
             return new Response(QueryRuleset.fromXContent(resourceName, parser));
         }

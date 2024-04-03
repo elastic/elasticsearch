@@ -18,6 +18,7 @@ import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -40,21 +41,35 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 
+/**
+ * This is the primary class for supporting the function ST_INTERSECTS.
+ * The bulk of the capabilities are within the parent class SpatialRelatesFunction,
+ * which supports all the relations in the ShapeField.QueryRelation enum.
+ * Here we simply wire the rules together specific to ST_INTERSECTS and QueryRelation.INTERSECTS.
+ */
 public class SpatialIntersects extends SpatialRelatesFunction {
-    protected static final SpatialRelations GEO = new SpatialRelations(
+    // public for test access with reflection
+    public static final SpatialRelations GEO = new SpatialRelations(
         ShapeField.QueryRelation.INTERSECTS,
         SpatialCoordinateTypes.GEO,
         CoordinateEncoder.GEO,
         new GeoShapeIndexer(Orientation.CCW, "ST_Intersects")
     );
-    protected static final SpatialRelations CARTESIAN = new SpatialRelations(
+    // public for test access with reflection
+    public static final SpatialRelations CARTESIAN = new SpatialRelations(
         ShapeField.QueryRelation.INTERSECTS,
         SpatialCoordinateTypes.CARTESIAN,
         CoordinateEncoder.CARTESIAN,
         new CartesianShapeIndexer("ST_Intersects")
     );
 
-    @FunctionInfo(returnType = { "boolean" }, description = "Returns whether the two geometries or geometry columns intersect.")
+    @FunctionInfo(
+        returnType = { "boolean" },
+        description = "Returns whether the two geometries or geometry columns intersect.",
+        note = "The second parameter must also have the same coordinate system as the first. "
+            + "This means it is not possible to combine `geo_*` and `cartesian_*` parameters.",
+        examples = @Example(file = "spatial", tag = "st_intersects-airports")
+    )
     public SpatialIntersects(
         Source source,
         @Param(
@@ -112,7 +127,7 @@ public class SpatialIntersects extends SpatialRelatesFunction {
     }
 
     @Override
-    protected Map<SpatialEvaluatorFactory.SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorRules() {
+    Map<SpatialEvaluatorFactory.SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorRules() {
         return evaluatorMap;
     }
 

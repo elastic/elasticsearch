@@ -65,8 +65,8 @@ public class AddTests extends AbstractFunctionTestCase {
                 ),
                 "lhs",
                 "rhs",
-                List.of()
-            )
+                List.of(),
+                true)
         );
 
         // Unsigned Long cases
@@ -79,9 +79,9 @@ public class AddTests extends AbstractFunctionTestCase {
                 "rhs",
                 (l, r) -> (((BigInteger) l).add((BigInteger) r)),
                 DataTypes.UNSIGNED_LONG,
-                TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE)),
-                TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE)),
-                List.of()
+                TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE), true),
+                TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE), true),
+                List.of(), true
             )
         );
 
@@ -96,7 +96,7 @@ public class AddTests extends AbstractFunctionTestCase {
                 EsqlDataTypes.DATE_PERIOD,
                 TestCaseSupplier.datePeriodCases(),
                 TestCaseSupplier.datePeriodCases(),
-                List.of()
+                List.of(), true
             )
         );
         suppliers.addAll(
@@ -108,7 +108,7 @@ public class AddTests extends AbstractFunctionTestCase {
                 EsqlDataTypes.TIME_DURATION,
                 TestCaseSupplier.timeDurationCases(),
                 TestCaseSupplier.timeDurationCases(),
-                List.of()
+                List.of(), true
             )
         );
 
@@ -134,7 +134,7 @@ public class AddTests extends AbstractFunctionTestCase {
                 DataTypes.DATETIME,
                 TestCaseSupplier.dateCases(),
                 TestCaseSupplier.datePeriodCases(),
-                List.of()
+                List.of(), true
             )
         );
         suppliers.addAll(
@@ -159,7 +159,7 @@ public class AddTests extends AbstractFunctionTestCase {
                 DataTypes.DATETIME,
                 TestCaseSupplier.dateCases(),
                 TestCaseSupplier.timeDurationCases(),
-                List.of()
+                List.of(), true
             )
         );
         suppliers.addAll(TestCaseSupplier.dateCases().stream().<TestCaseSupplier>mapMulti((tds, consumer) -> {

@@ -93,11 +93,13 @@ report the following message in its logs:
 ----
 [2023-06-28T16:36:47,264][INFO ][o.e.t.ClusterConnectionManager] [local-node] transport connection to [{my-remote#192.168.0.42:9443}{...}] closed by remote
 ----
+This message will also be logged if the node of the remote cluster to which
+{es} is connected is shut down or restarted.
 
-However note that with some network configurations it could take minutes or
-hours to detect that a connection has stopped working. Until the failure is
-detected and reported to {es}, requests involving the remote cluster may appear
-to be stuck.
+Note that with some network configurations it could take minutes or hours for
+the operating system to detect that a connection has stopped working. Until the
+failure is detected and reported to {es}, requests involving the remote cluster
+may time out or may appear to be stuck.
 
 ====== Resolution
 

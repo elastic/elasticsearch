@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "Universal Profiling test infrastructure is available in 8.12+"
 
   - do:

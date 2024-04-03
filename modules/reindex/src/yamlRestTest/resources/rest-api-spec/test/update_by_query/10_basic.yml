@@ -245,8 +245,8 @@
 
 ---
 "Limit by max_docs in URL":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "max_docs introduced in 7.3.0"
 
   - do:
@@ -275,8 +275,8 @@
 
 ---
 "Limit by max_docs in body":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "max_docs introduced in 7.3.0"
 
   - do:

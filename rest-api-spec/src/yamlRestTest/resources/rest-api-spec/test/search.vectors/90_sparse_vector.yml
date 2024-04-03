@@ -1,8 +1,8 @@
 ---
 "Indexing and searching sparse vectors in >=8.11":
 
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason: "sparse_vector field type reintroduced in 8.11"
 
   - do:

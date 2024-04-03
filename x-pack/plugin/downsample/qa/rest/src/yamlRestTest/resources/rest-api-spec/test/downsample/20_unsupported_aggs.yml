@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "downsampling: unsupported aggregations errors added in 8.5.0"
 
   - do:
@@ -42,8 +42,8 @@ setup:
 
 ---
 "Histogram aggregation on aggregate_metric_double field":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "downsampling: unsupported aggregations errors added in 8.5.0"
 
   - do:
@@ -67,8 +67,8 @@ setup:
 
 ---
 "Range aggregation on aggregate_metric_double field":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "downsample: unsupported aggregations errors added in 8.5.0"
 
   - do:
@@ -99,8 +99,8 @@ setup:
 
 ---
 "Cardinality aggregation on aggregate_metric_double field":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "downsampling: unsupported aggregations errors added in 8.5.0"
 
   - do:
@@ -122,8 +122,8 @@ setup:
 
 ---
 "Percentiles aggregation on aggregate_metric_double field":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "downsampling: unsupported aggregations errors added in 8.5.0"
 
   - do:
@@ -146,8 +146,8 @@ setup:
 
 ---
 "Top-metrics aggregation on aggregate_metric_double field":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "downsampling: unsupported aggregations errors added in 8.5.0"
 
   - do:

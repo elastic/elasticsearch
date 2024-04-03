@@ -34,8 +34,8 @@
 ---
 "Test User Profile feature will work in a mixed cluster":
 
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "response format is changed to support multiple UIDs #89023"
 
   - do:

@@ -78,8 +78,8 @@ setup:
 
 ---
 "Paging through results with PIT cursor":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: PIT cursors introduced in 8.2 no longer return empty last page
   - do:
       sql.query:

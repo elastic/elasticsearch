@@ -145,8 +145,8 @@ teardown:
 
 ---
 "Test text expansion search with pruning config":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "pruning introduced in 8.13.0"
 
   - do:
@@ -166,8 +166,8 @@ teardown:
 
 ---
 "Test named, boosted text expansion search with pruning config":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "pruning introduced in 8.13.0"
   - do:
       search:
@@ -206,8 +206,8 @@ teardown:
 
 ---
 "Test text expansion search with default pruning config":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "pruning introduced in 8.13.0"
 
   - do:
@@ -225,8 +225,8 @@ teardown:
 
 ---
 "Test text expansion search with weighted tokens rescoring only pruned tokens":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "pruning introduced in 8.13.0"
 
   - do:
@@ -246,8 +246,8 @@ teardown:
 
 ---
 "Test weighted tokens search":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "weighted token search introduced in 8.13.0"
 
   - do:
@@ -267,8 +267,8 @@ teardown:
 
 ---
 "Test weighted tokens search with default pruning config":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "weighted token search introduced in 8.13.0"
 
   - do:
@@ -285,8 +285,8 @@ teardown:
 
 ---
 "Test weighted tokens search only scoring pruned tokens":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "weighted token search introduced in 8.13.0"
 
   - do:
@@ -305,8 +305,8 @@ teardown:
 
 ---
 "Test weighted tokens search that prunes tokens based on frequency":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "weighted token search introduced in 8.13.0"
 
   - do:

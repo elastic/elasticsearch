@@ -41,10 +41,10 @@
 
 ---
 "Create index with camel case on format (when bwc version is > 8.0.0)":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason:  "at version 8.0.0, camel case is not allowed"
-      features: "warnings"
+      test_runner_features: "warnings"
   - do:
       indices.create:
         index: camel_case_on_format

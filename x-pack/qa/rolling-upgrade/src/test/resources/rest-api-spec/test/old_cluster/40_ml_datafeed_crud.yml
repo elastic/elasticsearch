@@ -192,8 +192,8 @@
 
 ---
 "Put job and datafeed with aggs in old cluster - deprecated interval with warning after 8.0.0":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason:  at version 8.0.0, deprecation warnings don't occur on get_stats
 
   - do:

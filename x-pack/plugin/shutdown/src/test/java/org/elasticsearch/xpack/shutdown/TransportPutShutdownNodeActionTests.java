@@ -16,8 +16,6 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor.TaskContext;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.core.TimeValue;
@@ -74,15 +72,13 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
         when(clusterService.createTaskQueue(any(), any(), Mockito.<ClusterStateTaskExecutor<PutShutdownNodeTask>>any())).thenReturn(
             taskQueue
         );
-        final var allocator = randomBoolean() ? mock(DesiredBalanceShardsAllocator.class) : mock(BalancedShardsAllocator.class);
         action = new TransportPutShutdownNodeAction(
             transportService,
             clusterService,
             allocationService,
             threadPool,
             actionFilters,
-            indexNameExpressionResolver,
-            allocator
+            indexNameExpressionResolver
         );
     }
 

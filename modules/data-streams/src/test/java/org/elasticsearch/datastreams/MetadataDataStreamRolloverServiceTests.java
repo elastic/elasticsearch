@@ -120,7 +120,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 randomBoolean(),
                 false,
                 indexStats,
-                null
+                null,
+                false
             );
             long after = testThreadPool.absoluteTimeInMillis();
 
@@ -220,7 +221,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 randomBoolean(),
                 false,
                 null,
-                null
+                null,
+                false
             );
 
             String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());
@@ -313,7 +315,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 randomBoolean(),
                 false,
                 null,
-                null
+                null,
+                false
             );
 
             String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());
@@ -379,7 +382,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 randomBoolean(),
                 false,
                 indexStats,
-                null
+                null,
+                false
             );
             long after = testThreadPool.absoluteTimeInMillis();
 
@@ -460,7 +464,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                     randomBoolean(),
                     false,
                     indexStats,
-                    null
+                    null,
+                    false
                 )
             );
             assertThat(e.getMessage(), containsString("is overlapping with backing index"));

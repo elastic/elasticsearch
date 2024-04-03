@@ -11,7 +11,6 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -64,16 +63,14 @@ public class StoredFieldsPhase implements FetchSubPhase {
         if (storedFieldsContext.fieldNames() != null) {
             SearchExecutionContext sec = fetchContext.getSearchExecutionContext();
             for (String field : storedFieldsContext.fieldNames()) {
-                if (SourceFieldMapper.NAME.equals(field) == false) {
-                    Collection<String> fieldNames = sec.getMatchingFieldNames(field);
-                    for (String fieldName : fieldNames) {
-                        MappedFieldType ft = sec.getFieldType(fieldName);
-                        if (ft.isStored() == false || sec.isMetadataField(fieldName)) {
-                            continue;
-                        }
-                        storedFields.add(new StoredField(fieldName, ft));
-                        fieldsToLoad.add(ft.name());
+                Collection<String> fieldNames = sec.getMatchingFieldNames(field);
+                for (String fieldName : fieldNames) {
+                    MappedFieldType ft = sec.getFieldType(fieldName);
+                    if (ft.isStored() == false || sec.isMetadataField(fieldName)) {
+                        continue;
                     }
+                    storedFields.add(new StoredField(fieldName, ft));
+                    fieldsToLoad.add(ft.name());
                 }
             }
         }

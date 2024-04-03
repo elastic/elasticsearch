@@ -195,7 +195,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 "[version] has invalid value ["
                     + invalidVersionString
                     + "], latest available version is ["
-                    + EsqlVersion.latestReleased()
+                    + EsqlVersion.latestReleased().versionStringWithoutEmoji()
                     + "]"
             )
         );
@@ -222,7 +222,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 "[version] with value ["
                     + esqlVersion
                     + "] only allowed in snapshot builds, latest available version is ["
-                    + EsqlVersion.latestReleased()
+                    + EsqlVersion.latestReleased().versionStringWithoutEmoji()
                     + "]"
             )
         );
@@ -242,7 +242,9 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertNotNull(request.validate());
         assertThat(
             request.validate().getMessage(),
-            containsString("[version] is required, latest available version is [" + EsqlVersion.latestReleased() + "]")
+            containsString(
+                "[version] is required, latest available version is [" + EsqlVersion.latestReleased().versionStringWithoutEmoji() + "]"
+            )
         );
     }
 

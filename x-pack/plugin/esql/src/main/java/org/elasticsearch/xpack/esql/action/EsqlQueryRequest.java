@@ -101,7 +101,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
             + "] "
             + reason
             + ", latest available version is ["
-            + EsqlVersion.latestReleased()
+            + EsqlVersion.latestReleased().versionStringWithoutEmoji()
             + "]";
     }
 

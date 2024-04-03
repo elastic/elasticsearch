@@ -198,7 +198,7 @@ public class SearchStats {
                 // fields are MV per default
                 var sv = new boolean[] { false };
                 for (SearchExecutionContext context : contexts) {
-                    MappedFieldType mappedType = context.isFieldMapped(field) ? null : context.getFieldType(field);
+                    MappedFieldType mappedType = context.isFieldMapped(field) ? context.getFieldType(field) : null;
                     if (mappedType != null) {
                         sv[0] = true;
                         doWithContexts(r -> {

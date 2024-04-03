@@ -23,7 +23,6 @@ import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -83,7 +82,7 @@ public class StoredFieldsPhase implements FetchSubPhase {
                         storedFields.add(new StoredField(fieldName, ft, sec.isMetadataField(ft.name())));
                         fieldsToLoad.add(ft.name());
                     }*/
-                    //TODO temporary removal of wildcard resolution: see what tests fail
+                    // TODO temporary removal of wildcard resolution: see what tests fail
                     MappedFieldType ft = sec.getFieldType(field);
                     if (ft.isStored() == false) {
                         continue;

@@ -96,9 +96,6 @@ public class Locate extends EsqlScalarFunction {
                 locateIndex = strIndex - substrCodePoints;
                 break;
             }
-            if (strIndex + substrCodePoints -1 > strCodePoints) {
-                break;
-            }
         }
         return locateIndex;
     }

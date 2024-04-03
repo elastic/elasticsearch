@@ -79,6 +79,16 @@ public class LocateTests extends AbstractFunctionTestCase {
         assertThat(process("a tiger", "ige"), equalTo(3));
     }
 
+    public void testOutOfRange() {
+        assertThat(process("a tiger", "tigers"), equalTo(-1));
+        assertThat(process("a tiger", "ipa"), equalTo(-1));
+    }
+
+    public void testExactString() {
+        assertThat(process("a tiger", "a tiger"), equalTo(0));
+        assertThat(process("tigers", "tigers"), equalTo(0));
+    }
+
     private Integer process(String str, String substr) {
         try (
             EvalOperator.ExpressionEvaluator eval = evaluator(

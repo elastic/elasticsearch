@@ -1782,8 +1782,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     /**
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
-        return indicesService.getRewriteContext(nowInMillis);
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, Supplier<Index[]> resolvedLocalIndicesSupplier) {
+        return indicesService.getRewriteContext(nowInMillis, resolvedLocalIndicesSupplier);
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {

@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class IndicesAliasesResponse extends AcknowledgedResponse {
@@ -39,7 +40,7 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
 
         if (in.getTransportVersion().onOrAfter(TransportVersions.ALIAS_ACTION_RESULTS)) {
             this.errors = in.readBoolean();
-            this.actionResults = in.readCollectionAsList(AliasActionResult::new);
+            this.actionResults = in.readCollectionAsImmutableList(AliasActionResult::new);
         } else {
             this.errors = false;
             this.actionResults = List.of();
@@ -50,6 +51,14 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
         super(acknowledged);
         this.errors = errors;
         this.actionResults = actionResults;
+    }
+
+    public List<AliasActionResult> getActionResults() {
+        return actionResults;
+    }
+
+    public boolean hasErrors() {
+        return errors;
     }
 
     public static IndicesAliasesResponse build(final List<AliasActionResult> actionResults) {
@@ -73,6 +82,22 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
         if (errors) {
             builder.field(ACTION_RESULTS_FIELD, actionResults);
         }
+    }
+
+    @Override
+    // Only used equals in tests
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (super.equals(o) == false) return false;
+        IndicesAliasesResponse response = (IndicesAliasesResponse) o;
+        return errors == response.errors && Objects.equals(actionResults, response.actionResults);
+    }
+
+    @Override
+    // Only used hashCode in tests
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), actionResults, errors);
     }
 
     public static class AliasActionResult implements Writeable, ToXContentObject {
@@ -147,6 +172,28 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
             }
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        // Only used equals in tests
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            AliasActionResult that = (AliasActionResult) o;
+            return Objects.equals(indices, that.indices) && Objects.equals(action, that.action)
+            // ElasticsearchException does not have equals() so assume errors are equal iff messages are equal
+                && Objects.equals(error == null ? null : error.getMessage(), that.error == null ? null : that.error.getMessage());
+        }
+
+        @Override
+        // Only used hashCode in tests
+        public int hashCode() {
+            return Objects.hash(
+                indices,
+                action,
+                // ElasticsearchException does not have hashCode() so assume errors are equal iff messages are equal
+                error == null ? null : error.getMessage()
+            );
         }
     }
 }

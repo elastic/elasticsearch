@@ -38,8 +38,14 @@ public class LocateTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        suppliers.add(supplier("keywords", DataTypes.KEYWORD, () -> randomAlphaOfLength(10), () -> randomAlphaOfLength(5)));
-        suppliers.add(supplier("texts", DataTypes.TEXT, () -> randomAlphaOfLength(10), () -> randomAlphaOfLength(5)));
+        suppliers.add(supplier("keywords", DataTypes.KEYWORD, DataTypes.KEYWORD, () -> randomAlphaOfLength(10),
+            () -> randomAlphaOfLength(5)));
+        suppliers.add(supplier("mixed keyword, text", DataTypes.KEYWORD, DataTypes.TEXT, () -> randomAlphaOfLength(10),
+            () -> randomAlphaOfLength(5)));
+        suppliers.add(supplier("texts", DataTypes.TEXT, DataTypes.TEXT, () -> randomAlphaOfLength(10),
+            () -> randomAlphaOfLength(5)));
+        suppliers.add(supplier("mixed keyword, text", DataTypes.TEXT, DataTypes.KEYWORD,
+            () -> randomAlphaOfLength(10), () -> randomAlphaOfLength(5)));
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, suppliers)));
     }
 
@@ -74,19 +80,20 @@ public class LocateTests extends AbstractFunctionTestCase {
 
     private static TestCaseSupplier supplier(
         String name,
-        DataType type,
+        DataType firstType,
+        DataType secondType,
         Supplier<String> strValueSupplier,
         Supplier<String> substrValueSupplier
     ) {
-        return new TestCaseSupplier(name, List.of(type, type), () -> {
+        return new TestCaseSupplier(name, List.of(firstType, secondType), () -> {
             List<TestCaseSupplier.TypedData> values = new ArrayList<>();
             String expectedToString = "LocateEvaluator[str=Attribute[channel=0], substr=Attribute[channel=1]]";
 
             String value = strValueSupplier.get();
-            values.add(new TestCaseSupplier.TypedData(new BytesRef(value), type, "0"));
+            values.add(new TestCaseSupplier.TypedData(new BytesRef(value), firstType, "0"));
 
             String substrValue = substrValueSupplier.get();
-            values.add(new TestCaseSupplier.TypedData(new BytesRef(substrValue), type, "1"));
+            values.add(new TestCaseSupplier.TypedData(new BytesRef(substrValue), secondType, "1"));
 
             int expectedValue = value.indexOf(substrValue);
             return new TestCaseSupplier.TestCase(values, expectedToString, DataTypes.INTEGER, equalTo(expectedValue));

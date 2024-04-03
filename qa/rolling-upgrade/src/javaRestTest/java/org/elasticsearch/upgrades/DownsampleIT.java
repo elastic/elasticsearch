@@ -209,8 +209,9 @@ public class DownsampleIT extends ParameterizedRollingUpgradeTestCase {
             var map = entityAsMap(client().performRequest(request));
             var hits = (List<?>) ((Map<?, ?>) map.get("hits")).get("hits");
             assertEquals(4, hits.size());
-            var hit = (Map<?, ?>) hits.get(0);
-            assertEquals(rollup, hit.get("_index"));
+            for (var hit : hits) {
+                assertEquals(rollup, ((Map<?,?>) hit).get("_index"));
+            }
         }, 30, TimeUnit.SECONDS);
     }
 

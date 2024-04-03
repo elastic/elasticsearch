@@ -39,6 +39,7 @@ dependencies {
   api(project(':x-pack:plugin:ql'))
   api(project(':x-pack:plugin:esql'))
   api(project(':x-pack:plugin:esql:compute'))
+  implementation project(path: ':libs:elasticsearch-vec')
   expression(project(path: ':modules:lang-expression', configuration: 'zip'))
   painless(project(path: ':modules:lang-painless', configuration: 'zip'))
   api "org.openjdk.jmh:jmh-core:$versions.jmh"
@@ -73,6 +74,7 @@ tasks.named("run").configure {
   executable = "${BuildParams.runtimeJavaHome}/bin/java"
   args << "-Dplugins.dir=${buildDir}/plugins" << "-Dtests.index=${buildDir}/index"
   dependsOn "copyExpression", "copyPainless"
+  systemProperty 'java.library.path', file("../libs/native/libraries/build/platform/darwin-aarch64") // TODO: fix path per os-arch
 }
 
 spotless {

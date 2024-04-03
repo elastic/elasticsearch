@@ -34,10 +34,10 @@ import static java.util.Collections.emptyMap;
  * Base {@link StoredFieldVisitor} that retrieves all non-redundant metadata.
  */
 public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
-    private static final Set<String> BASE_REQUIRED_FIELDS = Set.of(IdFieldMapper.NAME, RoutingFieldMapper.NAME);
+    static final Set<String> BASE_REQUIRED_FIELDS = Set.of(IdFieldMapper.NAME, RoutingFieldMapper.NAME);
 
     private final boolean loadSource;
-    private final String sourceFieldName;
+    final String sourceFieldName;
     private final Set<String> requiredFields;
     protected BytesReference source;
     protected String id;

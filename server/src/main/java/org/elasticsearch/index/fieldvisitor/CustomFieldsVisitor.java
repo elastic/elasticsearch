@@ -20,10 +20,12 @@ public class CustomFieldsVisitor extends FieldsVisitor {
 
     public CustomFieldsVisitor(Set<String> fields, boolean loadSource) {
         super(loadSource);
-        assert fields.contains("_id") == false;
-        assert fields.contains("_routing") == false;
-        assert fields.contains("_source") == false;
-        this.fields = fields;
+        this.fields = new HashSet<>(fields);
+        // metadata fields are already handled by FieldsVisitor, so removing
+        // them here means that if the only fields requested are metadata
+        // fields then we can shortcut loading
+        FieldsVisitor.BASE_REQUIRED_FIELDS.forEach(this.fields::remove);
+        this.fields.remove(this.sourceFieldName);
     }
 
     @Override

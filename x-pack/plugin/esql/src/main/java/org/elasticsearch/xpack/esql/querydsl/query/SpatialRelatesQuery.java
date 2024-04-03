@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
 
@@ -231,16 +230,15 @@ public class SpatialRelatesQuery extends Query {
             SearchExecutionContext context
         ) {
             final boolean hasDocValues = context.getFieldType(fieldName).hasDocValues();
-            // only the intersects relation is supported for indexed cartesian point types
-            if (relation != ShapeField.QueryRelation.INTERSECTS) {
-                throw new QueryShardException(context, relation + " query relation not supported for Field [" + fieldName + "].");
+            if (geometry == null || geometry.isEmpty()) {
+                // Should never be null, but can be an empty geometry
+                return new MatchNoDocsQuery();
             }
-            final Consumer<ShapeType> checker = t -> {
-                if (t == ShapeType.POINT || t == ShapeType.MULTIPOINT || t == ShapeType.LINESTRING || t == ShapeType.MULTILINESTRING) {
-                    throw new QueryShardException(context, "Field [" + fieldName + "] does not support " + t + " queries");
-                }
-            };
-            final XYGeometry[] luceneGeometries = LuceneGeometriesUtils.toXYGeometry(geometry, checker);
+            if (geometry.type() != ShapeType.POINT && relation == ShapeField.QueryRelation.CONTAINS) {
+                // A point field can never contain a non-point geometry
+                return new MatchNoDocsQuery();
+            }
+            final XYGeometry[] luceneGeometries = LuceneGeometriesUtils.toXYGeometry(geometry, t -> {});
             org.apache.lucene.search.Query query = XYPointField.newGeometryQuery(fieldName, luceneGeometries);
             if (hasDocValues) {
                 final org.apache.lucene.search.Query queryDocValues = XYDocValuesField.newSlowGeometryQuery(fieldName, luceneGeometries);
@@ -264,6 +262,7 @@ public class SpatialRelatesQuery extends Query {
                 throw new QueryShardException(context, relation + " query relation not supported for Field [" + fieldName + "].");
             }
             if (geometry == null || geometry.isEmpty()) {
+                // Should never be null, but can be an empty geometry
                 return new MatchNoDocsQuery();
             }
             final XYGeometry[] luceneGeometries;

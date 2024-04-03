@@ -79,12 +79,7 @@ public final class CsvAssert {
         var expectedTypes = expected.columnTypes();
 
         assertThat(
-            format(
-                null,
-                "Different number of columns returned; expected [{}] but actual was [{}]",
-                expectedNames.size(),
-                actualNames.size()
-            ),
+            format(null, "Different number of columns returned; expected {} but actual was {}", expectedNames, actualNames),
             actualNames,
             Matchers.hasSize(expectedNames.size())
         );

@@ -242,7 +242,7 @@ public class MaxMindSupportTests extends ESTestCase {
              * unknownUnsupportedFieldNames: Fields that we document as unsupported that MaxMind's Response object doesn't even contain
              * unknownSupportedFieldNames:   Fields that we document as supported that MaxMind's Response object doesn't even contain
              */
-            final SortedSet<String> fieldNamesFromMaxMind = getFieldNamesUsedFromClass(maxMindClass);
+            final SortedSet<String> fieldNamesFromMaxMind = getFieldNamesUsedFromClass("", maxMindClass);
             SortedSet<String> unusedFields = new TreeSet<>(fieldNamesFromMaxMind);
             unusedFields.removeAll(supportedFields);
             SortedSet<String> unknownUnsupportedFieldNames = new TreeSet<>(unsupportedFields);
@@ -378,20 +378,25 @@ public class MaxMindSupportTests extends ESTestCase {
     private static final Set<Method> IGNORED_METHODS = Arrays.stream(Object.class.getMethods()).collect(Collectors.toUnmodifiableSet());
 
     /*
-     * Returns the set of bean-property-like field names referenced from aClass, sorted alphabetically.
-     */
-    private static SortedSet<String> getFieldNamesUsedFromClass(Class<?> aClass) {
-        SortedSet<String> fieldNames = new TreeSet<>();
-        getFieldNamesUsedFromClass(fieldNames, "", aClass);
-        return fieldNames;
-    }
 
-    private static void getFieldNamesUsedFromClass(Set<String> fieldsSet, String context, Class<?> aClass) {
+     */
+
+    /**
+     * Returns the set of bean-property-like field names referenced from aClass, sorted alphabetically. This method calls itself
+     * recursively for all methods until it reaches one of the types in TERMINAL_TYPES. The name of the method returning one of those
+     * terminal types is converted to a bean-property-like name using the "beanify" method.
+     *
+     * @param context This is a String representing where in the list of methods we are
+     * @param aClass The class whose methods we want to traverse to generate field names
+     * @return A sorted set of bean-property-like field names that can recursively be found from aClass
+     */
+    private static SortedSet<String> getFieldNamesUsedFromClass(String context, Class<?> aClass) {
+        SortedSet<String> fieldNames = new TreeSet<>();
         Method[] methods = aClass.getMethods();
         if (TERMINAL_TYPES.contains(aClass)) {
-            // We got here becaus a collection type had a terminal type
-            fieldsSet.add(context);
-            return;
+            // We got here becaus a container type had a terminal type
+            fieldNames.add(context);
+            return fieldNames;
         }
         for (Method method : methods) {
             if (IGNORED_METHODS.contains(method)) {
@@ -403,23 +408,24 @@ public class MaxMindSupportTests extends ESTestCase {
             }
             String currentContext = context + (context.isEmpty() ? "" : ".") + beanify(method.getName());
             if (TERMINAL_TYPES.contains(method.getReturnType())) {
-                fieldsSet.add(currentContext);
+                fieldNames.add(currentContext);
             } else {
                 Class<?> returnType = method.getReturnType();
                 if (CONTAINER_TYPES.contains(returnType)) {
                     ParameterizedType genericReturnType = (ParameterizedType) method.getGenericReturnType();
                     for (Type actualType : genericReturnType.getActualTypeArguments()) {
                         if (actualType instanceof Class<?> actualTypeClass) {
-                            getFieldNamesUsedFromClass(fieldsSet, currentContext, actualTypeClass);
+                            fieldNames.addAll(getFieldNamesUsedFromClass(currentContext, actualTypeClass));
                         } else {
                             assert false : "This test needs to be updated to deal with this situation";
                         }
                     }
                 } else {
-                    getFieldNamesUsedFromClass(fieldsSet, currentContext, method.getReturnType());
+                    fieldNames.addAll(getFieldNamesUsedFromClass(currentContext, method.getReturnType()));
                 }
             }
         }
+        return fieldNames;
     }
 
     /*

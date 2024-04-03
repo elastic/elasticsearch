@@ -9,6 +9,10 @@ esplugin {
 }
 
 dependencies {
-  compileOnly project(':x-pack:plugin:core')
   clusterPlugins project(':qa:logging-spi')
+}
+
+tasks.named("javadoc").configure {
+  // There seems to be some problem generating javadoc on a QA project that has a module definition
+  enabled = false
 }

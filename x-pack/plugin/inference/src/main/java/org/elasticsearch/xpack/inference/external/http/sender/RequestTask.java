@@ -27,19 +27,29 @@ class RequestTask implements RejectableTask {
 
     private final AtomicBoolean finished = new AtomicBoolean();
     private final ExecutableRequestCreator requestCreator;
+    private final String query;
     private final List<String> input;
     private final ActionListener<InferenceServiceResults> listener;
 
     RequestTask(
         ExecutableRequestCreator requestCreator,
-        List<String> input,
+        InferenceInputs inferenceInputs,
         @Nullable TimeValue timeout,
         ThreadPool threadPool,
         ActionListener<InferenceServiceResults> listener
     ) {
         this.requestCreator = Objects.requireNonNull(requestCreator);
-        this.input = Objects.requireNonNull(input);
         this.listener = getListener(Objects.requireNonNull(listener), timeout, Objects.requireNonNull(threadPool));
+
+        if (inferenceInputs instanceof QueryAndDocsInputs) {
+            this.query = ((QueryAndDocsInputs) inferenceInputs).getQuery();
+            this.input = ((QueryAndDocsInputs) inferenceInputs).getChunks();
+        } else if (inferenceInputs instanceof DocumentsOnlyInput) {
+            this.query = null;
+            this.input = ((DocumentsOnlyInput) inferenceInputs).getInputs();
+        } else {
+            throw new IllegalArgumentException("Unsupported inference inputs type: " + inferenceInputs.getClass());
+        }
     }
 
     private ActionListener<InferenceServiceResults> getListener(
@@ -83,6 +93,11 @@ class RequestTask implements RejectableTask {
     @Override
     public List<String> getInput() {
         return input;
+    }
+
+    @Override
+    public String getQuery() {
+        return query;
     }
 
     @Override

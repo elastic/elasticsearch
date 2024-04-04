@@ -57,7 +57,7 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
     private boolean requestPreviouslyCalled = false;
 
     public BulkRequestBuilder(ElasticsearchClient client, @Nullable String globalIndex) {
-        super(client, BulkAction.INSTANCE);
+        super(client, TransportBulkAction.TYPE);
         this.globalIndex = globalIndex;
     }
 

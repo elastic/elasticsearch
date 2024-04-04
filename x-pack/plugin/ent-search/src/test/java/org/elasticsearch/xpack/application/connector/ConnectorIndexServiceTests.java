@@ -54,6 +54,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.getRandomCronExpression;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -318,6 +319,43 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
         Connector indexedConnector = awaitGetConnector(connectorId);
         assertThat(updatedScheduling, equalTo(indexedConnector.getScheduling()));
+    }
+
+    public void testUpdateConnectorScheduling_OnlyFullSchedule() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        // Update scheduling for full, incremental and access_control
+        ConnectorScheduling initialScheduling = ConnectorTestUtils.getRandomConnectorScheduling();
+        UpdateConnectorSchedulingAction.Request updateSchedulingRequest = new UpdateConnectorSchedulingAction.Request(
+            connectorId,
+            initialScheduling
+        );
+        DocWriteResponse updateResponse = awaitUpdateConnectorScheduling(updateSchedulingRequest);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        // Update full scheduling only
+        ConnectorScheduling.ScheduleConfig fullSyncSchedule = new ConnectorScheduling.ScheduleConfig.Builder().setEnabled(randomBoolean())
+            .setInterval(getRandomCronExpression())
+            .build();
+
+        UpdateConnectorSchedulingAction.Request updateSchedulingRequestWithFullSchedule = new UpdateConnectorSchedulingAction.Request(
+            connectorId,
+            new ConnectorScheduling.Builder().setFull(fullSyncSchedule).build()
+        );
+
+        updateResponse = awaitUpdateConnectorScheduling(updateSchedulingRequestWithFullSchedule);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+        // Assert that full schedule is updated
+        assertThat(fullSyncSchedule, equalTo(indexedConnector.getScheduling().getFull()));
+        // Assert that other schedules stay unchanged
+        assertThat(initialScheduling.getAccessControl(), equalTo(indexedConnector.getScheduling().getAccessControl()));
+        assertThat(initialScheduling.getIncremental(), equalTo(indexedConnector.getScheduling().getIncremental()));
     }
 
     public void testUpdateConnectorIndexName() throws Exception {

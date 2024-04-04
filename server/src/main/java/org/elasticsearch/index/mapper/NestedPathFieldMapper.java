@@ -70,6 +70,11 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public boolean isFetchedViaWildcardExpression() {
+            return false;
+        }
+
+        @Override
         public boolean mayExistInIndex(SearchExecutionContext context) {
             return false;
         }

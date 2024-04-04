@@ -77,10 +77,12 @@ public class StoredFieldsPhase implements FetchSubPhase {
                     Collection<String> fieldNames = sec.getMatchingFieldNames(field);
                     for (String fieldName : fieldNames) {
                         MappedFieldType ft = sec.getFieldType(fieldName);
+                        boolean isMetadataField = sec.isMetadataField(fieldName);
+                        assert isMetadataField == false || (ft.isStored() == ft.isFetchedViaWildcardExpression()) : fieldName;
                         if (ft.isStored() == false) {
                             continue;
                         }
-                        storedFields.add(new StoredField(fieldName, ft, sec.isMetadataField(ft.name())));
+                        storedFields.add(new StoredField(fieldName, ft, isMetadataField));
                         fieldsToLoad.add(ft.name());
                     }
                 }

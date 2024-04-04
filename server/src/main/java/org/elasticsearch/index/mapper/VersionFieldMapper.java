@@ -59,6 +59,11 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public boolean isFetchedViaWildcardExpression() {
+            return false;
+        }
+
+        @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             return new BlockDocValuesReader.LongsBlockLoader(name());
         }

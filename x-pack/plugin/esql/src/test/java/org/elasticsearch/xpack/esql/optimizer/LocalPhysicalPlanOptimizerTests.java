@@ -299,7 +299,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         }
 
         // Cases where we can push this down as a COUNT(*) since there are only SVs
-        List<List<String>> docsCasesWithPushdown = List.of(List.of(), List.of("{ \"salary\" : 1 }"));
+        List<List<String>> docsCasesWithPushdown = List.of(List.of(), List.of("{ \"salary\" : 1 }"), List.of("{ \"salary\": null }"));
         for (List<String> docs : docsCasesWithPushdown) {
             plan = planWithMappingAndDocs(query, mapping, docs);
 
@@ -317,18 +317,19 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                     "boost" : 1.0
                   }
                 }]]""";
+            assertNotNull(leaf.get());
             assertThat(leaf.get().stats().toString(), equalTo(expectedStats));
         }
     }
 
-    public PhysicalPlan planWithMappingAndDocs(String query, String mapping, List<String> docs) throws IOException {
+    private PhysicalPlan planWithMappingAndDocs(String query, String mapping, List<String> docs) throws IOException {
         MapperService mapperService = createMapperService(mapping);
         List<ParsedDocument> parsedDocs = docs.stream().map(d -> mapperService.documentMapper().parse(source(d))).toList();
 
         Holder<PhysicalPlan> plan = new Holder<>(null);
-        withLuceneIndex(mapperService, iw -> {
+        withLuceneIndex(mapperService, indexWriter -> {
             for (ParsedDocument parsedDoc : parsedDocs) {
-                iw.addDocument(parsedDoc.rootDoc());
+                indexWriter.addDocument(parsedDoc.rootDoc());
             }
         }, directoryReader -> {
             IndexSearcher searcher = newSearcher(directoryReader);

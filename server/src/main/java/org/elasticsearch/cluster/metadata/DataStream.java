@@ -669,7 +669,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
 
         // TODO: When failure stores are lazily created, this wont necessarily be required anymore. We can remove the failure store write
-        //  index as long as we mark the data stream to lazily rollover the failure store with no conditions on its next write
+        // index as long as we mark the data stream to lazily rollover the failure store with no conditions on its next write
         if (failureIndices.size() == (failureIndexPosition + 1)) {
             throw new IllegalArgumentException(
                 String.format(

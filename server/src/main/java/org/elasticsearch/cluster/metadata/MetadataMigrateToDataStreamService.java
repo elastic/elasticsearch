@@ -198,7 +198,6 @@ public class MetadataMigrateToDataStreamService {
         prepareBackingIndex(b, im, dataStreamName, mapperSupplier, removeAlias, false, Settings.EMPTY);
     }
 
-
     // hides the index, optionally removes the alias, and adds data stream timestamp field mapper
     static void prepareBackingIndex(
         Metadata.Builder b,

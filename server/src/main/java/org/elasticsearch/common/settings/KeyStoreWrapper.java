@@ -118,14 +118,15 @@ public class KeyStoreWrapper implements SecureSettings {
     public static final int V4_VERSION = 4;
     /** The version where lucene directory API changed from BE to LE. */
     public static final int LE_VERSION = 5;
-    public static final int HIGHER_KDFT_ITERATION_COUNT_VERSION = 6;
-    public static final int CURRENT_VERSION = HIGHER_KDFT_ITERATION_COUNT_VERSION;
+    public static final int HIGHER_KDF_ITERATION_COUNT_VERSION = 6;
+    public static final int CURRENT_VERSION = HIGHER_KDF_ITERATION_COUNT_VERSION;
 
     /** The algorithm used to derive the cipher key from a password. */
     private static final String KDF_ALGO = "PBKDF2WithHmacSHA512";
 
+    /** The number of iterations to derive the cipher key, for versions of the keystore preceding the iteration count increase. */
+    private static final int KDF_ITERS_BEFORE_HIGHER_KDF_ITERATION_COUNT_VERSION = 10000;
     /** The number of iterations to derive the cipher key. */
-    private static final int KDF_ITERS_BEFORE_HIGHER_KDFT_ITERATION_COUNT_VERSION = 10000;
     private static final int KDF_ITERS = 210000;
 
     /**
@@ -338,7 +339,7 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     private static int getKdfIterationCountForVersion(int formatVersion) {
-        return formatVersion < HIGHER_KDFT_ITERATION_COUNT_VERSION ? KDF_ITERS_BEFORE_HIGHER_KDFT_ITERATION_COUNT_VERSION : KDF_ITERS;
+        return formatVersion < HIGHER_KDF_ITERATION_COUNT_VERSION ? KDF_ITERS_BEFORE_HIGHER_KDF_ITERATION_COUNT_VERSION : KDF_ITERS;
     }
 
     /**

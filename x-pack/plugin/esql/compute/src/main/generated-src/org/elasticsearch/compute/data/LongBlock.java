@@ -39,6 +39,9 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
     LongBlock filter(int... positions);
 
     @Override
+    LongBlock expand();
+
+    @Override
     default String getWriteableName() {
         return "LongBlock";
     }
@@ -49,7 +52,7 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
         return readFrom((BlockStreamInput) in);
     }
 
-    private static LongBlock readFrom(BlockStreamInput in) throws IOException {
+    static LongBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
         return switch (serializationType) {
             case SERIALIZE_BLOCK_VALUES -> LongBlock.readValues(in);

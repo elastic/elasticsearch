@@ -12,10 +12,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.CohereEmbeddingsExecutableRequestCreator;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 
-import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
@@ -31,20 +31,20 @@ public class CohereEmbeddingsAction implements ExecutableAction {
         Objects.requireNonNull(model);
         this.sender = Objects.requireNonNull(sender);
         this.failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
-            model.getServiceSettings().getCommonSettings().getUri(),
+            model.getServiceSettings().getCommonSettings().uri(),
             "Cohere embeddings"
         );
         requestCreator = new CohereEmbeddingsExecutableRequestCreator(model);
     }
 
     @Override
-    public void execute(List<String> input, ActionListener<InferenceServiceResults> listener) {
+    public void execute(InferenceInputs inferenceInputs, ActionListener<InferenceServiceResults> listener) {
         try {
             ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(
                 failedToSendRequestErrorMessage,
                 listener
             );
-            sender.send(requestCreator, input, wrappedListener);
+            sender.send(requestCreator, inferenceInputs, wrappedListener);
         } catch (ElasticsearchException e) {
             listener.onFailure(e);
         } catch (Exception e) {

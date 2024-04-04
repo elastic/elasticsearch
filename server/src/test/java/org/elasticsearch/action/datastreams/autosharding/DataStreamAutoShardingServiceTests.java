@@ -51,9 +51,7 @@ import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType
 import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType.INCREASE_SHARDS;
 import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType.NO_CHANGE_REQUIRED;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 
 public class DataStreamAutoShardingServiceTests extends ESTestCase {
 
@@ -516,6 +514,12 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
     public void testComputeOptimalNumberOfShards() {
         int minWriteThreads = 2;
         int maxWriteThreads = 32;
+
+        {
+            // 0.0 indexing load recommends 1 shard
+            logger.info("-> indexingLoad {}", 0.0);
+            assertThat(DataStreamAutoShardingService.computeOptimalNumberOfShards(minWriteThreads, maxWriteThreads, 0.0), is(1L));
+        }
         {
             // the small values will be very common so let's randomise to make sure we never go below 1L
             double indexingLoad = randomDoubleBetween(0.0001, 1.0, true);
@@ -646,10 +650,10 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             () -> now
         );
         // to cover the entire cooldown period, the last index before the cooling period is taken into account
-        assertThat(maxIndexLoadWithinCoolingPeriod, is(lastIndexBeforeCoolingPeriodHasLowWriteLoad ? 5.0 : 999.0));
+        assertThat(maxIndexLoadWithinCoolingPeriod, is(lastIndexBeforeCoolingPeriodHasLowWriteLoad ? 15.0 : 999.0));
     }
 
-    public void testIndexLoadWithinCoolingPeriodIsShardLoadsAvg() {
+    public void testIndexLoadWithinCoolingPeriodIsSumOfShardsLoads() {
         final TimeValue coolingPeriod = TimeValue.timeValueDays(3);
 
         final Metadata.Builder metadataBuilder = Metadata.builder();
@@ -657,6 +661,8 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         final List<Index> backingIndices = new ArrayList<>();
         final String dataStreamName = "logs";
         long now = System.currentTimeMillis();
+
+        double expectedIsSumOfShardLoads = 0.5 + 3.0 + 0.3333;
 
         for (int i = 0; i < numberOfBackingIndicesWithinCoolingPeriod; i++) {
             final long createdAt = now - (coolingPeriod.getMillis() / 2);
@@ -705,8 +711,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             coolingPeriod,
             () -> now
         );
-        assertThat(maxIndexLoadWithinCoolingPeriod, is(greaterThan(0.499)));
-        assertThat(maxIndexLoadWithinCoolingPeriod, is(lessThan(0.5)));
+        assertThat(maxIndexLoadWithinCoolingPeriod, is(expectedIsSumOfShardLoads));
     }
 
     public void testAutoShardingResultValidation() {

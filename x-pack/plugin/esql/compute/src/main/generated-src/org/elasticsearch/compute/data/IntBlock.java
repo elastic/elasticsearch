@@ -39,6 +39,9 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
     IntBlock filter(int... positions);
 
     @Override
+    IntBlock expand();
+
+    @Override
     default String getWriteableName() {
         return "IntBlock";
     }
@@ -49,7 +52,7 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
         return readFrom((BlockStreamInput) in);
     }
 
-    private static IntBlock readFrom(BlockStreamInput in) throws IOException {
+    static IntBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
         return switch (serializationType) {
             case SERIALIZE_BLOCK_VALUES -> IntBlock.readValues(in);

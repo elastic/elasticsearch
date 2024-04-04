@@ -1,7 +1,7 @@
 ---
 setup:
   - skip:
-      cluster_features: ["gte_v9.0.0"]
+      cluster_features: [] # use 9.x feature to skip
       reason: "compatible from 8.x to 7.x"
   - requires:
       test_runner_features:

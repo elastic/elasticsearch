@@ -58,6 +58,7 @@ double pi()
 "keyword right(string:keyword|text, length:integer)"
 "double round(number:double, ?decimals:integer)"
 "keyword|text rtrim(string:keyword|text)"
+"double signum(number:double|integer|long|unsigned_long)"
 "double sin(angle:double|integer|long|unsigned_long)"
 "double sinh(angle:double|integer|long|unsigned_long)"
 "keyword split(string:keyword|text, delim:keyword|text)"
@@ -165,6 +166,7 @@ replace       |[string, regex, newString]          |["keyword|text", "keyword|te
 right         |[string, length]                    |["keyword|text", integer]                                                                                                         |[, ]
 round         |[number, decimals]                  |[double, integer]                                                                                                                 |[The numeric value to round, The number of decimal places to round to. Defaults to 0.]
 rtrim         |string                              |"keyword|text"                                                                                                                    |[""]
+signum        |number                              |"double|integer|long|unsigned_long"                                                                                               |"Numeric expression. If `null`, the function returns `null`."
 sin           |angle                               |"double|integer|long|unsigned_long"                                                                                               |An angle, in radians. If `null`, the function returns `null`.
 sinh          |angle                               |"double|integer|long|unsigned_long"                                                                                               |An angle, in radians. If `null`, the function returns `null`.
 split         |[string, delim]                     |["keyword|text", "keyword|text"]                                                                                                  |[, ]
@@ -273,6 +275,7 @@ replace       |The function substitutes in the string any match of the regular e
 right         |Return the substring that extracts length chars from the string starting from the right.
 round         |Rounds a number to the closest number with the specified number of digits.
 rtrim         |Removes trailing whitespaces from a string.
+signum        |Returns the sign of the given number. It returns `-1` for negative numbers, `0` for `0` and `1` for positive numbers.
 sin           |Returns ths {wikipedia}/Sine_and_cosine[Sine] trigonometric function of an angle.
 sinh          |Returns the {wikipedia}/Hyperbolic_functions[hyperbolic sine] of an angle.
 split         |Split a single valued string into multiple strings.
@@ -382,6 +385,7 @@ replace       |keyword                                                          
 right         |keyword                                                                                                                     |[false, false]              |false           |false
 round         |double                                                                                                                      |[false, true]               |false           |false
 rtrim         |"keyword|text"                                                                                                              |false                       |false           |false
+signum        |double                                                                                                                      |false                       |false           |false
 sin           |double                                                                                                                      |false                       |false           |false
 sinh          |double                                                                                                                      |false                       |false           |false
 split         |keyword                                                                                                                     |[false, false]              |false           |false
@@ -443,5 +447,5 @@ countFunctions#[skip:-8.13.99]
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-99     | 99     | 99
+100    | 100    | 100
 ;

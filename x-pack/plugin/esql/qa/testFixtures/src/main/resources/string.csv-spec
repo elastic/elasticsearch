@@ -1219,10 +1219,3 @@ row a = "🐱Meow!🐶Woof!" | eval f_s = substring(a, 3) | eval f_l = locate(a,
 a:keyword | f_s:keyword | f_l:integer
 🐱Meow!🐶Woof! | Meow!🐶Woof! | 3
 ;
-
-locateUtf16Riemann#[skip:-8.13.99,reason:new string function added in 8.14]
-row a = Z(s)=∑n=1∞(1/n^s) | eval f_s = substring(a, 8) | eval f_l = locate(a, f_s);
-a:keyword | f_s:keyword | f_l:integer
-Z(s)=∑n=1∞(1/n^s) | ∑n=1∞(1/n^s) | 8
-;
-

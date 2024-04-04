@@ -15,6 +15,7 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -37,6 +38,13 @@ public final class FetchFieldsPhase implements FetchSubPhase {
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) {
         final FetchFieldsContext fetchFieldsContext = fetchContext.fetchFieldsContext();
+        final StoredFieldsContext storedFieldsContext = fetchContext.storedFieldsContext();
+
+        // with _stored: _none_ we don't fetch metadata fields either (regardless of whether they are stored or not, for bwc reasons)
+        boolean fetchStoredFields = storedFieldsContext != null && storedFieldsContext.fetchFields();
+        if (fetchFieldsContext == null && fetchStoredFields == false) {
+            return null;
+        }
 
         final List<FieldAndFormat> fetchFields = fetchFieldsContext == null ? Collections.emptyList()
             : fetchFieldsContext.fields() == null ? Collections.emptyList()

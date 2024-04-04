@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceService;
@@ -44,17 +45,20 @@ public abstract class SenderService implements InferenceService {
     @Override
     public void infer(
         Model model,
+        @Nullable String query,
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
         ActionListener<InferenceServiceResults> listener
     ) {
         init();
-
-        doInfer(model, input, taskSettings, inputType, listener);
+        if (query != null) {
+            doInfer(model, query, input, taskSettings, inputType, listener);
+        } else {
+            doInfer(model, input, taskSettings, inputType, listener);
+        }
     }
 
-    @Override
     public void chunkedInfer(
         Model model,
         List<String> input,
@@ -64,7 +68,21 @@ public abstract class SenderService implements InferenceService {
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         init();
-        doChunkedInfer(model, input, taskSettings, inputType, chunkingOptions, listener);
+        chunkedInfer(model, null, input, taskSettings, inputType, chunkingOptions, listener);
+    }
+
+    @Override
+    public void chunkedInfer(
+        Model model,
+        @Nullable String query,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        ChunkingOptions chunkingOptions,
+        ActionListener<List<ChunkedInferenceServiceResults>> listener
+    ) {
+        init();
+        doChunkedInfer(model, null, input, taskSettings, inputType, chunkingOptions, listener);
     }
 
     protected abstract void doInfer(
@@ -75,8 +93,18 @@ public abstract class SenderService implements InferenceService {
         ActionListener<InferenceServiceResults> listener
     );
 
+    protected abstract void doInfer(
+        Model model,
+        String query,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        ActionListener<InferenceServiceResults> listener
+    );
+
     protected abstract void doChunkedInfer(
         Model model,
+        @Nullable String query,
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,

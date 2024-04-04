@@ -1,0 +1,6 @@
+pr: 107046
+summary: "[Security Solution] Add `read` permission for third party agent indices\
+  \ for `kibana_system`"
+area: Authorization
+type: enhancement
+issues: []

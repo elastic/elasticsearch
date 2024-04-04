@@ -64,12 +64,20 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         Setting.Property.NodeScope
     );
 
+    public static final Setting<TimeValue> CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING = Setting.positiveTimeSetting(
+        "cluster.service.slow_task_thread_dump_timeout",
+        TimeValue.timeValueSeconds(30),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     public static final String CLUSTER_UPDATE_THREAD_NAME = "clusterApplierService#updateTask";
 
     private final ClusterSettings clusterSettings;
     private final ThreadPool threadPool;
 
     private volatile TimeValue slowTaskLoggingThreshold;
+    private volatile TimeValue slowTaskThreadDumpTimeout;
 
     private volatile PrioritizedEsThreadPoolExecutor threadPoolExecutor;
 
@@ -98,15 +106,8 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         this.nodeName = nodeName;
         this.recordingService = new ClusterApplierRecordingService();
 
-        this.slowTaskLoggingThreshold = CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
-        this.clusterSettings.addSettingsUpdateConsumer(
-            CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
-            this::setSlowTaskLoggingThreshold
-        );
-    }
-
-    private void setSlowTaskLoggingThreshold(TimeValue slowTaskLoggingThreshold) {
-        this.slowTaskLoggingThreshold = slowTaskLoggingThreshold;
+        clusterSettings.initializeAndWatch(CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING, t -> slowTaskLoggingThreshold = t);
+        clusterSettings.initializeAndWatch(CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING, t -> slowTaskThreadDumpTimeout = t);
     }
 
     public synchronized void setNodeConnectionsService(NodeConnectionsService nodeConnectionsService) {
@@ -391,7 +392,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         final ClusterState previousClusterState = state.get();
 
         final long startTimeMillis = threadPool.relativeTimeInMillis();
-        final Recorder stopWatch = new Recorder(threadPool::rawRelativeTimeInMillis);
+        final Recorder stopWatch = new Recorder(threadPool, slowTaskThreadDumpTimeout);
         final ClusterState newClusterState;
         try {
             try (Releasable ignored = stopWatch.record("running task [" + source + ']')) {

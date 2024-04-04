@@ -18,6 +18,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 final class StackFrame implements ToXContentObject {
+    static final StackFrame EMPTY_STACKFRAME = new StackFrame("", "", 0, 0);
     List<String> fileName;
     List<String> functionName;
     List<Integer> functionOffset;

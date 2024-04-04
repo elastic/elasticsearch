@@ -28,8 +28,6 @@ import java.util.TreeMap;
 
 public class TransportGetFlamegraphAction extends TransportAction<GetStackTracesRequest, GetFlamegraphResponse> {
     private static final Logger log = LogManager.getLogger(TransportGetFlamegraphAction.class);
-    private static final StackFrame EMPTY_STACKFRAME = new StackFrame("", "", 0, 0);
-
     private final NodeClient nodeClient;
     private final TransportService transportService;
 
@@ -97,7 +95,7 @@ public class TransportGetFlamegraphAction extends TransportAction<GetStackTraces
                 String fileId = stackTrace.fileIds[i];
                 int frameType = stackTrace.typeIds[i];
                 int addressOrLine = stackTrace.addressOrLines[i];
-                StackFrame stackFrame = response.getStackFrames().getOrDefault(frameId, EMPTY_STACKFRAME);
+                StackFrame stackFrame = response.getStackFrames().getOrDefault(frameId, StackFrame.EMPTY_STACKFRAME);
                 String executable = response.getExecutables().getOrDefault(fileId, "");
                 final boolean isLeafFrame = i == frameCount - 1;
 

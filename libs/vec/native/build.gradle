@@ -10,10 +10,16 @@ apply plugin: 'c'
 var os = org.gradle.internal.os.OperatingSystem.current()
 
 // To update this library run publish_vec_binaries.sh
+// Or
+// For local development, build the docker image with:
+//   docker build --platform linux/arm64 --progress=plain .
+// Grab the image id from the console output, then, e.g.
+//   docker run 9c9f36564c148b275aeecc42749e7b4580ded79dcf51ff6ccc008c8861e7a979 > build/libs/vec/shared/libvec.so
 //
 // Look at the disassemble:
-//  objdump --disassemble-symbols=_dot8s libs/vec/native/build/libs/vec/shared/libvec.dylib
-
+//  objdump --disassemble-symbols=_dot8s build/libs/vec/shared/libvec.dylib
+// Note: symbol decoration may differ on Linux, i.e. the leading underscore is not present
+//
 // gcc -shared -fpic -o libvec.so -I src/vec/headers/ src/vec/c/vec.c -O3
 
 group = 'org.elasticsearch'
@@ -36,10 +42,7 @@ model {
     vec(NativeLibrarySpec) {
       targetPlatform "aarch64"
       binaries.withType(SharedLibraryBinarySpec) {
-        cCompiler.args "-O3", "-std=c99"
-        linker.args "-march=native"
-        linker.args "-mcpu=native"
-        linker.args "-mtune=native"
+        cCompiler.args "-O3", "-std=c99", "-march=armv8-a"
       }
     }
   }

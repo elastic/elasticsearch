@@ -37,6 +37,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.vec.VectorSimilarityType.DOT_PRODUCT;
+import static org.elasticsearch.vec.VectorSimilarityType.EUCLIDEAN;
 
 @Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
 @Warmup(iterations = 3, time = 3)
@@ -47,7 +48,7 @@ import static org.elasticsearch.vec.VectorSimilarityType.DOT_PRODUCT;
 /**
  * Benchmark that compares various scalar quantized vector similarity function
  * implementations;: scalar, lucene's panama-ized, and Elasticsearch's native.
- * Run with ./gradlew -p benchmarks run --args 'NativeScalarQuantizedBenchmark'
+ * Run with ./gradlew -p benchmarks run --args 'VectorScorerBenchmark'
  */
 public class VectorScorerBenchmark {
 
@@ -95,9 +96,19 @@ public class VectorScorerBenchmark {
         in = dir.openInput("vector.data", IOContext.DEFAULT);
 
         // sanity
-        var f1 = luceneDotProduct();
-        var f2 = nativeDotProduct();
-        var f3 = scalarDotProduct();
+        var f1 = dotProductLucene();
+        var f2 = dotProductNative();
+        var f3 = dotProductScalar();
+        if (f1 != f2) {
+            throw new AssertionError("lucene[" + f1 + "] != " + "native[" + f2 + "]");
+        }
+        if (f1 != f3) {
+            throw new AssertionError("lucene[" + f1 + "] != " + "scalar[" + f3 + "]");
+        }
+        // square distance
+        f1 = squareDistanceLucene();
+        f2 = squareDistanceNative();
+        f3 = squareDistanceScalar();
         if (f1 != f2) {
             throw new AssertionError("lucene[" + f1 + "] != " + "native[" + f2 + "]");
         }
@@ -112,24 +123,49 @@ public class VectorScorerBenchmark {
     }
 
     @Benchmark
-    public float luceneDotProduct() {
+    public float dotProductLucene() {
         var scorer = ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityFunction.DOT_PRODUCT, scoreCorrectionConstant);
         return scorer.score(vec1, vec1Offset, vec2, vec2Offset);
     }
 
     @Benchmark
-    public float nativeDotProduct() throws IOException {
+    public float dotProductNative() throws IOException {
         var scorer = factory.getScalarQuantizedVectorScorer(dims, size, scoreCorrectionConstant, DOT_PRODUCT, in).get();
         return scorer.score(0, 1);
     }
 
     @Benchmark
-    public float scalarDotProduct() {
+    public float dotProductScalar() {
         int dotProduct = 0;
         for (int i = 0; i < vec1.length; i++) {
             dotProduct += vec1[i] * vec2[i];
         }
         float adjustedDistance = dotProduct * scoreCorrectionConstant + vec1Offset + vec2Offset;
         return (1 + adjustedDistance) / 2;
+    }
+
+    // -- square distance
+
+    @Benchmark
+    public float squareDistanceLucene() {
+        var scorer = ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityFunction.EUCLIDEAN, scoreCorrectionConstant);
+        return scorer.score(vec1, vec1Offset, vec2, vec2Offset);
+    }
+
+    @Benchmark
+    public float squareDistanceNative() throws IOException {
+        var scorer = factory.getScalarQuantizedVectorScorer(dims, size, scoreCorrectionConstant, EUCLIDEAN, in).get();
+        return scorer.score(0, 1);
+    }
+
+    @Benchmark
+    public float squareDistanceScalar() {
+        int squareDistance = 0;
+        for (int i = 0; i < vec1.length; i++) {
+            int diff = vec1[i] - vec2[i];
+            squareDistance += diff * diff;
+        }
+        float adjustedDistance = squareDistance * scoreCorrectionConstant;
+        return 1 / (1f + adjustedDistance);
     }
 }

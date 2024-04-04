@@ -1,6 +1,7 @@
-FROM centos:7
+FROM debian:latest
 
-RUN yum install -y git gcc gcc-c++ make java-11-openjdk
+RUN apt update
+RUN apt install -y gcc g++ openjdk-17-jdk
 COPY . /workspace
 WORKDIR /workspace
 RUN ./gradlew --quiet --console=plain clean vecSharedLibrary

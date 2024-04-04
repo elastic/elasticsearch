@@ -8,10 +8,10 @@
 
 #define EXPORT __attribute__((externally_visible,visibility("default")))
 
-#ifndef STRIDE_BYTES_LEN
-#define STRIDE_BYTES_LEN 32
-#endif
+EXPORT int dot8s_stride();
 
-EXPORT int stride();
+EXPORT int sqr8s_stride();
 
-EXPORT int dot8s(const void* a, const void* b, int dims);
+EXPORT int32_t dot8s(int8_t* a, int8_t* b, size_t dims);
+
+EXPORT int32_t sqr8s(int8_t *a, int8_t *b, size_t length);

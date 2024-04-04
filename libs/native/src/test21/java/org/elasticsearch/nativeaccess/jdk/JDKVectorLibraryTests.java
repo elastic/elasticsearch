@@ -68,10 +68,10 @@ public class JDKVectorLibraryTests extends VectorSimilarityFunctionsTests {
             int implDot = dotProduct(segment.asSlice((long) first * dims, dims), segment.asSlice((long) second * dims, dims), dims);
             int otherDot = dotProductScalar(values[first], values[second]);
             assertEquals(otherDot, implDot);
-            // TODO: add squareDistance
-            // int squareDist = squareDistance(...); // TODO: replace with real impl
-            // int otherSq = squareDistanceScalar(values[first], values[second]);
-            // assertEquals(otherSq, squareDist);
+
+            int squareDist = squareDistance(segment.asSlice((long) first * dims, dims), segment.asSlice((long) second * dims, dims), dims);
+            int otherSq = squareDistanceScalar(values[first], values[second]);
+            assertEquals(otherSq, squareDist);
         }
     }
 

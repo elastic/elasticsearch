@@ -44,9 +44,6 @@ class VectorScorerFactoryImpl implements VectorScorerFactory {
         if (input == null) {
             return Optional.empty(); // the input type is not MemorySegment based
         }
-        if (similarityType == VectorSimilarityType.EUCLIDEAN) {
-            return Optional.empty(); // for now, no euclidean - sorry
-        }
         return Optional.of(switch (similarityType) {
             case COSINE, DOT_PRODUCT -> new DotProduct(dims, maxOrd, scoreCorrectionConstant, input);
             case EUCLIDEAN -> new Euclidean(dims, maxOrd, scoreCorrectionConstant, input);

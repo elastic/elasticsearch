@@ -18,7 +18,7 @@ import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 
 /**
  * {@code RankFeaturePhaseRankCoordinatorContext} is a base class that runs on the coordinating node and is responsible for retrieving
- * `window_size` total results from all shards, rank them, and then produce a final paginated response of [from, from+size] results.
+ * {@code window_size} total results from all shards, rank them, and then produce a final paginated response of [from, from+size] results.
  */
 public abstract class RankFeaturePhaseRankCoordinatorContext implements RankFeaturePhaseRankContext {
 

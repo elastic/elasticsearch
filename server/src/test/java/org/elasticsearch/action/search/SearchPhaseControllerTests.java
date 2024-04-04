@@ -358,7 +358,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
     public void testMergeWithRank() {
         final int nShards = randomIntBetween(1, 20);
         final int fsize = randomIntBetween(1, 10);
-        final int fWindowSize = randomIntBetween(11, 100);
+        final int windowSize = randomIntBetween(11, 100);
         final int queryResultSize = randomBoolean() ? 0 : randomIntBetween(1, nShards * 2);
         for (int trackTotalHits : new int[] { SearchContext.TRACK_TOTAL_HITS_DISABLED, SearchContext.TRACK_TOTAL_HITS_ACCURATE }) {
             AtomicArray<SearchPhaseResult> queryResults = generateQueryResults(nShards, List.of(), queryResultSize, false, false, true);
@@ -371,7 +371,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                     0,
                     true,
                     InternalAggregationTestCase.emptyReduceContextBuilder(),
-                    new QueryPhaseRankCoordinatorContext(fWindowSize) {
+                    new QueryPhaseRankCoordinatorContext(windowSize) {
                         @Override
                         public ScoreDoc[] rankQueryPhaseResults(List<QuerySearchResult> querySearchResults, TopDocsStats topDocStats) {
                             PriorityQueue<RankDoc> queue = new PriorityQueue<>(windowSize) {

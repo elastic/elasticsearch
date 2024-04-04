@@ -9,8 +9,6 @@
 package org.elasticsearch.search.rank.context;
 
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.action.search.SearchPhaseController;
-import org.elasticsearch.action.search.SearchPhaseController.SortedTopDocs;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.search.query.QuerySearchResult;
 
@@ -32,9 +30,9 @@ public abstract class QueryPhaseRankCoordinatorContext implements QueryPhaseRank
 
     /**
      * This is used to pull information passed back from the shards as part of {@link QuerySearchResult#getRankShardResult()}
-     * and return a {@link SortedTopDocs} of the `window_size` ranked results. Note that {@link TopDocsStats} is included so that
+     * and return a {@link ScoreDoc[]} of the `window_size` ranked results. Note that {@link TopDocsStats} is included so that
      * appropriate stats may be updated based on rank results.
-     * This is called when reducing query results through the {@code reducedQueryPhase} method of {@link SearchPhaseController}.
+     * This is called when reducing query results through {@code SearchPhaseController#reducedQueryPhase()}.
      */
     public abstract ScoreDoc[] rankQueryPhaseResults(List<QuerySearchResult> querySearchResults, TopDocsStats topDocStats);
 }

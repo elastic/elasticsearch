@@ -13,11 +13,14 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
+ *
+ * This file was contributed to by generative AI
  */
 
 package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
+import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
@@ -213,7 +216,8 @@ public class SearchEngine extends Engine {
      * Process a new commit notification from the primary, and complete the provided {@code listener} when this commit (or a later commit)
      * is visible to searches.
      */
-    public void onCommitNotification(StatelessCompoundCommit commit, ActionListener<Void> listener) {
+    public void onCommitNotification(NewCommitNotificationRequest request, ActionListener<Void> listener) {
+        StatelessCompoundCommit commit = request.getCompoundCommit();
         if (addOrExecuteSegmentGenerationListener(commit.primaryTermAndGeneration(), listener.map(g -> null))) {
             commitNotifications.add(commit);
             if (pendingCommitNotifications.incrementAndGet() == 1) {
@@ -870,16 +874,16 @@ public class SearchEngine extends Engine {
     }
 
     public void getVirtualBatchedCompoundCommitChunk(
-        final long virtualBatchedCompoundCommitId,
+        final PrimaryTermAndGeneration virtualBccPrimaryTermAndGen,
         final long offset,
         final int length,
         final ActionListener<ReleasableBytesReference> listener
     ) {
-        // TODO handle some errors such as IndexNotFoundException (primary shard relocated in the meantime) by retrying on the latest vBCC
+        // Notice that the action takes care to retry certain errors such as when the primary shard relocates
         GetVirtualBatchedCompoundCommitChunkRequest request = new GetVirtualBatchedCompoundCommitChunkRequest(
             shardId,
-            currentPrimaryTermGeneration.primaryTerm(),
-            virtualBatchedCompoundCommitId,
+            virtualBccPrimaryTermAndGen.primaryTerm(),
+            virtualBccPrimaryTermAndGen.generation(),
             offset,
             length
         );

@@ -659,7 +659,11 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             BlobContainer blobContainer,
             ActionListener<BatchedCompoundCommit> listener
         ) {
-            super(virtualBatchedCompoundCommit.getShardId(), virtualBatchedCompoundCommit.getGeneration(), timeInNanos);
+            super(
+                virtualBatchedCompoundCommit.getShardId(),
+                virtualBatchedCompoundCommit.getPrimaryTermAndGeneration().generation(),
+                timeInNanos
+            );
             this.virtualBatchedCompoundCommit = Objects.requireNonNull(virtualBatchedCompoundCommit);
             this.blobContainer = Objects.requireNonNull(blobContainer);
             this.listener = Objects.requireNonNull(listener);

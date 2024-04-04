@@ -126,7 +126,8 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
                         indexDirectory,
                         indexInput,
                         operationsCountDown,
-                        blobContainer
+                        blobContainer,
+                        i
                     );
                     byte[] output = randomReadAndSlice(input, bytes.length);
                     assertArrayEquals(bytes, output);
@@ -263,7 +264,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
             }
             indexDirectory.getSearchDirectory()
                 .getBlobContainer(primaryTerm)
-                .writeBlob(OperationPurpose.INDICES, "blob_" + fileName, BytesReference.fromByteBuffer(ByteBuffer.wrap(bytes)), true);
+                .writeBlob(OperationPurpose.INDICES, "stateless_commit_1", BytesReference.fromByteBuffer(ByteBuffer.wrap(bytes)), true);
 
             var input = indexDirectory.openInput(fileName, IOContext.DEFAULT);
             assertThat(input, instanceOf(IndexDirectory.ReopeningIndexInput.class));
@@ -290,7 +291,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
                     1L,
                     1L,
                     "_na_",
-                    Map.of(fileName, new BlobLocation(primaryTerm, "blob_" + fileName, bytes.length, 0L, bytes.length)),
+                    Map.of(fileName, new BlobLocation(primaryTerm, "stateless_commit_1", bytes.length, 0L, bytes.length)),
                     bytes.length
                 ),
                 Set.of(fileName)
@@ -359,6 +360,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
         private final IndexDirectory directory;
         private final CountDown operationsCountDown;
         private final BlobContainer blobContainer;
+        private final int generation;
 
         private boolean isClone;
 
@@ -368,7 +370,8 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
             IndexDirectory directory,
             IndexInput input,
             CountDown operationsCountDown,
-            BlobContainer blobContainer
+            BlobContainer blobContainer,
+            int generation
         ) {
             super("random", input);
             this.fileName = fileName;
@@ -376,6 +379,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
             this.directory = directory;
             this.operationsCountDown = operationsCountDown;
             this.blobContainer = blobContainer;
+            this.generation = generation;
         }
 
         private void maybeUpload() {
@@ -388,14 +392,14 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
             assertThat(operationsCountDown.isCountedDown(), equalTo(true));
             try (IndexInput input = directory.openInput(fileName, IOContext.READONCE)) {
                 final long length = input.length();
-                final String blobName = "_blob_" + fileName;
+                final String blobName = "stateless_commit_" + generation;
                 final InputStream inputStream = new InputStreamIndexInput(input, length);
                 blobContainer.writeBlob(randomFrom(OperationPurpose.values()), blobName, inputStream, length, randomBoolean());
 
                 directory.updateCommit(
                     new StatelessCompoundCommit(
                         directory.getSearchDirectory().getShardId(),
-                        2L,
+                        generation,
                         1L,
                         "_na_",
                         Map.of(fileName, new BlobLocation(1L, blobName, length, 0L, length)),
@@ -437,7 +441,15 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
         @Override
         public IndexInput clone() {
             maybeUpload();
-            var clone = new SimulateUploadIndexInput(fileName, fileLength, directory, in.clone(), operationsCountDown, blobContainer);
+            var clone = new SimulateUploadIndexInput(
+                fileName,
+                fileLength,
+                directory,
+                in.clone(),
+                operationsCountDown,
+                blobContainer,
+                generation
+            );
             clone.isClone = true;
             maybeUpload();
             return clone;
@@ -452,7 +464,8 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
                 directory,
                 in.slice(sliceDescription, offset, length),
                 operationsCountDown,
-                blobContainer
+                blobContainer,
+                generation
             );
             slice.isClone = true;
             maybeUpload();

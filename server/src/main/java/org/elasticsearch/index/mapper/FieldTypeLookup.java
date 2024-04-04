@@ -96,17 +96,17 @@ final class FieldTypeLookup {
         // PassThroughObjectMapper name. This is achieved by adding a second reference to their
         // MappedFieldType using the remaining suffix.
         Map<String, PassThroughObjectMapper> passThroughFieldAliases = new HashMap<>();
-        for (FieldMapper fieldMapper : fieldMappers) {
-            String fieldName = fieldMapper.name();
-            for (PassThroughObjectMapper mapper : passThroughMappers) {
-                if (fieldName.startsWith(mapper.name())) {
+        for (PassThroughObjectMapper passThroughMapper : passThroughMappers) {
+            for (Mapper subfield : passThroughMapper.mappers.values()) {
+                if (subfield instanceof FieldMapper fieldMapper) {
                     String name = fieldMapper.simpleName();
                     // Check for conflict between PassThroughObjectMapper subfields.
-                    PassThroughObjectMapper conflict = passThroughFieldAliases.put(name, mapper);
+                    PassThroughObjectMapper conflict = passThroughFieldAliases.put(name, passThroughMapper);
                     if (conflict != null) {
                         // Check if there's a "superseded_by" param covering this conflict, otherwise use lexicographical ordering.
-                        if (mapper.supersededBy().contains(conflict.name())
-                            || (conflict.supersededBy().contains(mapper.name()) == false && name.compareTo(conflict.name()) > 0)) {
+                        if (passThroughMapper.supersededBy().contains(conflict.name())
+                            || (conflict.supersededBy().contains(passThroughMapper.name()) == false
+                                && name.compareTo(conflict.name()) > 0)) {
                             passThroughFieldAliases.put(name, conflict);
                             continue;
                         }

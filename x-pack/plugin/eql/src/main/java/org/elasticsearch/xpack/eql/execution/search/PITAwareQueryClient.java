@@ -125,7 +125,7 @@ public class PITAwareQueryClient extends BasicQueryClient {
                 listener.onFailure(e);
                 if (pitId != null && cfg.isCancelled() == false) {
                     // ignore any success/failure to avoid obfuscating the response
-                    close(wrap(b -> {}, ex -> {}));
+                    close(ActionListener.noop());
                 }
             }
         );

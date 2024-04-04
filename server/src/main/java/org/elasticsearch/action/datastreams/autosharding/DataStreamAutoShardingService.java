@@ -338,8 +338,11 @@ public class DataStreamAutoShardingService {
     // Visible for testing
     static long computeOptimalNumberOfShards(int minNumberWriteThreads, int maxNumberWriteThreads, double indexingLoad) {
         return Math.max(
-            Math.min(roundUp(indexingLoad / (minNumberWriteThreads / 2.0)), 3),
-            roundUp(indexingLoad / (maxNumberWriteThreads / 2.0))
+            Math.max(
+                Math.min(roundUp(indexingLoad / (minNumberWriteThreads / 2.0)), 3),
+                roundUp(indexingLoad / (maxNumberWriteThreads / 2.0))
+            ),
+            1 // we don't want to go lower than 1 shard
         );
     }
 

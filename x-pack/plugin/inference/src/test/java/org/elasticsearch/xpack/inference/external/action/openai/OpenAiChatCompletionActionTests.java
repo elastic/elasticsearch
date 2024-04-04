@@ -25,6 +25,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
+import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -112,7 +113,7 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
             var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(List.of("abc"), listener);
+            action.execute(new DocumentsOnlyInput(List.of("abc")), listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -152,7 +153,7 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(List.of("abc"), listener);
+        action.execute(new DocumentsOnlyInput(List.of("abc")), listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -173,7 +174,7 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(List.of("abc"), listener);
+        action.execute(new DocumentsOnlyInput(List.of("abc")), listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -194,7 +195,7 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
         var action = createAction(null, "org", "secret", "model", "user", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(List.of("abc"), listener);
+        action.execute(new DocumentsOnlyInput(List.of("abc")), listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -208,7 +209,7 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(List.of("abc"), listener);
+        action.execute(new DocumentsOnlyInput(List.of("abc")), listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -222,7 +223,7 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
         var action = createAction(null, "org", "secret", "model", "user", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(List.of("abc"), listener);
+        action.execute(new DocumentsOnlyInput(List.of("abc")), listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -266,7 +267,7 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
             var action = createAction(getUrl(webServer), "org", "secret", "model", "user", sender);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(List.of("abc", "def"), listener);
+            action.execute(new DocumentsOnlyInput(List.of("abc", "def")), listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 

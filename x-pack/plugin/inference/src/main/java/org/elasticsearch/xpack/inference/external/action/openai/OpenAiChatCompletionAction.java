@@ -13,12 +13,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.OpenAiCompletionExecutableRequestCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
 
-import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
@@ -41,16 +42,21 @@ public class OpenAiChatCompletionAction implements ExecutableAction {
     }
 
     @Override
-    public void execute(List<String> input, ActionListener<InferenceServiceResults> listener) {
-        if (input.size() > 1) {
-            listener.onFailure(new ElasticsearchStatusException("OpenAI completions only accepts 1 input", RestStatus.BAD_REQUEST));
+    public void execute(InferenceInputs inferenceInputs, ActionListener<InferenceServiceResults> listener) {
+        if (inferenceInputs instanceof DocumentsOnlyInput docsOnlyInput) {
+            if (docsOnlyInput.getInputs().size() > 1) {
+                listener.onFailure(new ElasticsearchStatusException("OpenAI completions only accepts 1 input", RestStatus.BAD_REQUEST));
+                return;
+            }
+        } else {
+            listener.onFailure(new ElasticsearchStatusException("Invalid inference input type", RestStatus.INTERNAL_SERVER_ERROR));
             return;
         }
 
         try {
             ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(errorMessage, listener);
 
-            sender.send(requestCreator, input, wrappedListener);
+            sender.send(requestCreator, inferenceInputs, wrappedListener);
         } catch (ElasticsearchException e) {
             listener.onFailure(e);
         } catch (Exception e) {

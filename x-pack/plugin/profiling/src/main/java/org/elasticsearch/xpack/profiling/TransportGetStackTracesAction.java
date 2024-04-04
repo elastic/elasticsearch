@@ -45,7 +45,6 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectPath;
@@ -152,22 +151,6 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             searchGenericEvents(submitTask, client, request, submitListener, responseBuilder);
         } else {
             searchProfilingEvents(submitTask, client, request, submitListener, responseBuilder);
-        }
-    }
-
-    /**
-     * Checks whether a task has been cancelled and notifies the provided listener if required.
-     * @param task The task to check. May be a cancelable task.
-     * @param listener Listener to notify.
-     * @return <code>true</code> iff the task has been cancelled. Callers must terminate as early as possible.
-     */
-    private boolean mayNotifyOfCancellation(Task task, ActionListener<GetStackTracesResponse> listener) {
-        if (task instanceof CancellableTask && ((CancellableTask) task).isCancelled()) {
-            log.info("{} got cancelled.", task);
-            listener.onFailure(new TaskCancelledException("get stacktraces task cancelled"));
-            return true;
-        } else {
-            return false;
         }
     }
 
@@ -447,7 +430,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         GetStackTracesResponseBuilder responseBuilder,
         ActionListener<GetStackTracesResponse> submitListener
     ) {
-        if (mayNotifyOfCancellation(submitTask, submitListener)) {
+        if (submitTask instanceof CancellableTask c && c.notifyIfCancelled(submitListener)) {
             return;
         }
         List<String> eventIds = new ArrayList<>(responseBuilder.getStackTraceEvents().keySet());
@@ -670,7 +653,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         List<String> executableIds,
         ActionListener<GetStackTracesResponse> submitListener
     ) {
-        if (mayNotifyOfCancellation(submitTask, submitListener)) {
+        if (submitTask instanceof CancellableTask c && c.notifyIfCancelled(submitListener)) {
             return;
         }
         List<Index> stackFrameIndices = resolver.resolve(

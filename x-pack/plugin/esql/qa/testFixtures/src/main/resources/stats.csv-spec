@@ -1240,7 +1240,7 @@ e: i  | f:i   | g:l | a:i
 10007 | 10007 | 3   | 10007
 ;
 
-nestedAggsOverGroupingTwiceWithAlias#[skip:-8.12.99,reason:supported in 8.13]
+nestedAggsOverGroupingTwiceWithAlias#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
 | STATS vals = COUNT() BY x = emp_no, x = languages
 | SORT x

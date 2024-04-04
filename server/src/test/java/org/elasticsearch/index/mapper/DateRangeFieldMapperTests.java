@@ -15,7 +15,6 @@ import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -88,10 +87,9 @@ public class DateRangeFieldMapperTests extends RangeFieldMapperTests {
 
                 return expectedInMillis.entrySet()
                     .stream()
-                    .collect(Collectors.toMap(
-                    e -> e.getKey(),
-                    e -> expectedDateFormatter.format(Instant.ofEpochMilli((long) e.getValue()))
-                ));
+                    .collect(
+                        Collectors.toMap(e -> e.getKey(), e -> expectedDateFormatter.format(Instant.ofEpochMilli((long) e.getValue())))
+                    );
             }
         };
     }

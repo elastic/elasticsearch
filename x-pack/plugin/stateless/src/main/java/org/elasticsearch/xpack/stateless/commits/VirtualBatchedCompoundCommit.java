@@ -351,14 +351,6 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         return primaryTermAndGeneration;
     }
 
-    public long getPrimaryTerm() {
-        return primaryTermAndGeneration.primaryTerm();
-    }
-
-    public long getGeneration() {
-        return primaryTermAndGeneration.generation();
-    }
-
     public long getTotalSizeInBytes() {
         return pendingCompoundCommits.stream().mapToLong(PendingCompoundCommit::getSizeInBytes).sum();
     }

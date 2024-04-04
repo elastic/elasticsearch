@@ -509,7 +509,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         final List<NewCommitNotificationRequest> notifications = new ArrayList<>();
         final int count = ((CapturingIndexCommitListener) indexCommitListener).notifications.drainTo(notifications);
         Collections.shuffle(notifications, random());
-        notifications.forEach(notif -> searchEngine.onCommitNotification(notif.getCompoundCommit(), ActionListener.noop()));
+        notifications.forEach(notif -> searchEngine.onCommitNotification(notif, ActionListener.noop()));
         return count;
     }
 

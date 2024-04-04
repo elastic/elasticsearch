@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
@@ -35,8 +36,8 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -45,6 +46,7 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
 
@@ -70,10 +72,16 @@ import static org.hamcrest.Matchers.not;
 public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestCase {
 
     /**
-     * A plugin that produces file not found failures when the {@link co.elastic.elasticsearch.stateless.engine.IndexEngine} tries to read
-     * a virtual batched compound commit chunk with a specific offset (Long.MAX_VALUE).
+     * A plugin that gives the ability to override the
+     * {@link IndexEngine#readVirtualBatchedCompoundCommitChunk(GetVirtualBatchedCompoundCommitChunkRequest, StreamOutput)} function on an
+     * indexing node to either:
+     * - produce file not found failures when given offset is of a specific value (Long.MAX_VALUE)
+     * - otherwise, simulate the returned bytes with a certain pattern that can be validated with the
+     *   validateSimulatedVirtualBatchedCompoundCommitChunkResponse function
      */
     public static class TestStateless extends Stateless {
+        private volatile boolean simulateReadVirtualBatchedCompoundCommitChunk = false;
+
         public TestStateless(Settings settings) {
             super(settings);
         }
@@ -98,14 +106,27 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
                 @Override
                 public void readVirtualBatchedCompoundCommitChunk(
                     final GetVirtualBatchedCompoundCommitChunkRequest request,
-                    final BytesReference reference
+                    final StreamOutput output
                 ) throws IOException {
-                    if (request.getOffset() == Long.MAX_VALUE) {
-                        throw randomFrom(new FileNotFoundException("simulated"), new NoSuchFileException("simulated"));
+                    if (simulateReadVirtualBatchedCompoundCommitChunk) {
+                        if (request.getOffset() == Long.MAX_VALUE) {
+                            throw randomFrom(new FileNotFoundException("simulated"), new NoSuchFileException("simulated"));
+                        }
+                        // TODO: return the simulated data here instead of calling the indirection layer once it is implemented (ES-7769)
+                        super.readVirtualBatchedCompoundCommitChunk(request, output);
+                    } else {
+                        super.readVirtualBatchedCompoundCommitChunk(request, output);
                     }
-                    super.readVirtualBatchedCompoundCommitChunk(request, reference);
                 }
             };
+        }
+
+        public static TestStateless getPlugin(String node) {
+            return internalCluster().getInstance(PluginsService.class, node).filterPlugins(TestStateless.class).findFirst().get();
+        }
+
+        public static void enableSimulationOfReadVirtualBatchedCompoundCommitChunk(String node) {
+            getPlugin(node).simulateReadVirtualBatchedCompoundCommitChunk = true;
         }
     }
 
@@ -122,9 +143,10 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         return super.nodeSettings().put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1L));
     }
 
-    public void testSearchGetVirtualBatchedCompoundCommitChunk() throws Exception {
+    public void testSimulatedGetVirtualBatchedCompoundCommitChunk() throws Exception {
         startMasterOnlyNode();
-        startIndexNode();
+        final var indexNode = startIndexNode();
+        TestStateless.enableSimulationOfReadVirtualBatchedCompoundCommitChunk(indexNode);
         startSearchNode();
         final String indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
@@ -135,25 +157,27 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         final var searchEngine = getShardEngine(searchShard, SearchEngine.class);
         int length = randomIntBetween(5, 20);
         searchEngine.getVirtualBatchedCompoundCommitChunk(
-            randomNonNegativeLong(),
+            new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
             randomLongBetween(0, Long.MAX_VALUE - 1),
             length,
-            ActionListener.wrap(response -> validateVirtualBatchedCompoundCommitResponse(response, length), e -> {
+            ActionListener.wrap(response -> validateSimulatedVirtualBatchedCompoundCommitChunkResponse(response, length), e -> {
                 assert false : e;
             })
         );
     }
 
-    public void testSearchGetVirtualBatchedCompoundCommitChunkWaitsForPrimaryRelocation() throws Exception {
+    public void testSimulatedGetVirtualBatchedCompoundCommitChunkWaitsForPrimaryRelocation() throws Exception {
         startMasterOnlyNode();
         final var indexNodeA = startIndexNode();
+        TestStateless.enableSimulationOfReadVirtualBatchedCompoundCommitChunk(indexNodeA);
         startSearchNode();
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
         ensureGreen(indexName);
         indexDocsAndRefresh(indexName, randomIntBetween(1, 5));
 
-        startIndexNode();
+        final var indexNodeB = startIndexNode();
+        TestStateless.enableSimulationOfReadVirtualBatchedCompoundCommitChunk(indexNodeB);
         ensureStableCluster(4);
 
         final var transportService = MockTransportService.getInstance(indexNodeA);
@@ -175,11 +199,11 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         int length = randomIntBetween(5, 20);
         CountDownLatch validated = new CountDownLatch(1);
         searchEngine.getVirtualBatchedCompoundCommitChunk(
-            randomNonNegativeLong(),
+            new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
             randomLongBetween(0, Long.MAX_VALUE - 1),
             length,
             ActionListener.wrap(response -> {
-                validateVirtualBatchedCompoundCommitResponse(response, length);
+                validateSimulatedVirtualBatchedCompoundCommitChunkResponse(response, length);
                 validated.countDown();
             }, e -> { assert false : e; })
         );
@@ -189,16 +213,18 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         safeAwait(validated);
     }
 
-    public void testSearchGetVirtualBatchedCompoundCommitChunkRetriesIfPrimaryRelocates() throws Exception {
+    public void testSimulatedGetVirtualBatchedCompoundCommitChunkRetriesIfPrimaryRelocates() throws Exception {
         startMasterOnlyNode();
         final var indexNodeA = startIndexNode();
+        TestStateless.enableSimulationOfReadVirtualBatchedCompoundCommitChunk(indexNodeA);
         final var searchNode = startSearchNode();
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
         ensureGreen(indexName);
         indexDocsAndRefresh(indexName, randomIntBetween(1, 5));
 
-        startIndexNode();
+        final var indexNodeB = startIndexNode();
+        TestStateless.enableSimulationOfReadVirtualBatchedCompoundCommitChunk(indexNodeB);
         ensureStableCluster(4);
 
         CountDownLatch actionAppeared = new CountDownLatch(1);
@@ -220,11 +246,11 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         CountDownLatch validated = new CountDownLatch(1);
         new Thread(() -> {
             searchEngine.getVirtualBatchedCompoundCommitChunk(
-                randomNonNegativeLong(),
+                new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
                 randomLongBetween(0, Long.MAX_VALUE - 1),
                 length,
                 ActionListener.wrap(response -> {
-                    validateVirtualBatchedCompoundCommitResponse(response, length);
+                    validateSimulatedVirtualBatchedCompoundCommitChunkResponse(response, length);
                     validated.countDown();
                 }, e -> { assert false : e; })
             );
@@ -243,7 +269,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         INDEX_CLOSED
     }
 
-    private void testSearchGetVirtualBatchedCompoundCommitChunkFailureType(FailureType failureType) throws Exception {
+    private void testGetVirtualBatchedCompoundCommitChunkFailureType(FailureType failureType) throws Exception {
         startMasterOnlyNode();
         startIndexNode();
         final var searchNode = startSearchNode();
@@ -270,7 +296,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         CountDownLatch exceptionThrown = new CountDownLatch(1);
         new Thread(() -> {
             searchEngine.getVirtualBatchedCompoundCommitChunk(
-                randomNonNegativeLong(),
+                new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
                 randomLongBetween(0, Long.MAX_VALUE - 1),
                 length,
                 ActionListener.wrap(response -> {
@@ -302,15 +328,15 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         safeAwait(exceptionThrown);
     }
 
-    public void testSearchGetVirtualBatchedCompoundCommitChunkFailureWhenIndexIsDeleted() throws Exception {
-        testSearchGetVirtualBatchedCompoundCommitChunkFailureType(FailureType.INDEX_NOT_FOUND_WHEN_INDEX_DELETED);
+    public void testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexIsDeleted() throws Exception {
+        testGetVirtualBatchedCompoundCommitChunkFailureType(FailureType.INDEX_NOT_FOUND_WHEN_INDEX_DELETED);
     }
 
-    public void testSearchGetVirtualBatchedCompoundCommitChunkFailureWhenIndexCloses() throws Exception {
-        testSearchGetVirtualBatchedCompoundCommitChunkFailureType(FailureType.INDEX_CLOSED);
+    public void testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexCloses() throws Exception {
+        testGetVirtualBatchedCompoundCommitChunkFailureType(FailureType.INDEX_CLOSED);
     }
 
-    private void testSearchGetVirtualBatchedCompoundCommitChunkFailureDuringPrimaryRelocation(FailureType failureType) throws Exception {
+    private void testGetVirtualBatchedCompoundCommitChunkFailureDuringPrimaryRelocation(FailureType failureType) throws Exception {
         startMasterOnlyNode();
         final var indexNodeA = startIndexNode();
         final var searchNode = startSearchNode();
@@ -341,7 +367,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         int length = randomIntBetween(5, 20);
         CountDownLatch exceptionThrown = new CountDownLatch(1);
         searchEngine.getVirtualBatchedCompoundCommitChunk(
-            randomNonNegativeLong(),
+            new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
             randomLongBetween(0, Long.MAX_VALUE - 1),
             length,
             ActionListener.wrap(response -> {
@@ -372,17 +398,18 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         safeAwait(exceptionThrown); // does not depend on the `continueRelocation.countDown()` command necessarily
     }
 
-    public void testSearchGetVirtualBatchedCompoundCommitChunkFailureWhenIndexIsDeletedDuringPrimaryRelocation() throws Exception {
-        testSearchGetVirtualBatchedCompoundCommitChunkFailureDuringPrimaryRelocation(FailureType.INDEX_NOT_FOUND_WHEN_INDEX_DELETED);
+    public void testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexIsDeletedDuringPrimaryRelocation() throws Exception {
+        testGetVirtualBatchedCompoundCommitChunkFailureDuringPrimaryRelocation(FailureType.INDEX_NOT_FOUND_WHEN_INDEX_DELETED);
     }
 
-    public void testSearchGetVirtualBatchedCompoundCommitChunkFailureWhenIndexClosesDuringPrimaryRelocation() throws Exception {
-        testSearchGetVirtualBatchedCompoundCommitChunkFailureDuringPrimaryRelocation(FailureType.INDEX_CLOSED);
+    public void testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexClosesDuringPrimaryRelocation() throws Exception {
+        testGetVirtualBatchedCompoundCommitChunkFailureDuringPrimaryRelocation(FailureType.INDEX_CLOSED);
     }
 
-    public void testSearchGetVirtualBatchedCompoundCommitChunkRetryConnectivity() throws Exception {
+    public void testSimulatedGetVirtualBatchedCompoundCommitChunkRetryConnectivity() throws Exception {
         startMasterOnlyNode();
         final var indexNode = startIndexNode();
+        TestStateless.enableSimulationOfReadVirtualBatchedCompoundCommitChunk(indexNode);
         startSearchNode();
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
@@ -416,20 +443,21 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         int length = randomIntBetween(5, 20);
         CountDownLatch validated = new CountDownLatch(1);
         searchEngine.getVirtualBatchedCompoundCommitChunk(
-            randomNonNegativeLong(),
+            new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
             randomLongBetween(0, Long.MAX_VALUE - 1),
             length,
             ActionListener.wrap(response -> {
-                validateVirtualBatchedCompoundCommitResponse(response, length);
+                validateSimulatedVirtualBatchedCompoundCommitChunkResponse(response, length);
                 validated.countDown();
             }, e -> { assert false : e; })
         );
         safeAwait(validated);
     }
 
-    public void testSearchGetVirtualBatchedCompoundCommitChunkFileError() throws Exception {
+    public void testSimulatedGetVirtualBatchedCompoundCommitChunkFileError() throws Exception {
         startMasterOnlyNode();
-        final var indexNode = startIndexNode();
+        final var indexNodeA = startIndexNode();
+        TestStateless.enableSimulationOfReadVirtualBatchedCompoundCommitChunk(indexNodeA);
         startSearchNode();
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
@@ -442,12 +470,17 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         final var searchEngine = getShardEngine(searchShard, SearchEngine.class);
         int length = randomIntBetween(5, 20);
         CountDownLatch exceptionThrown = new CountDownLatch(1);
-        searchEngine.getVirtualBatchedCompoundCommitChunk(randomNonNegativeLong(), Long.MAX_VALUE, length, ActionListener.wrap(response -> {
-            assert false : "exception expected";
-        }, e -> {
-            assertThat(e.getCause(), either(instanceOf(FileNotFoundException.class)).or(instanceOf(NoSuchFileException.class)));
-            exceptionThrown.countDown();
-        }));
+        searchEngine.getVirtualBatchedCompoundCommitChunk(
+            new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
+            Long.MAX_VALUE,
+            length,
+            ActionListener.wrap(response -> {
+                assert false : "exception expected";
+            }, e -> {
+                assertThat(e.getCause(), either(instanceOf(FileNotFoundException.class)).or(instanceOf(NoSuchFileException.class)));
+                exceptionThrown.countDown();
+            })
+        );
         safeAwait(exceptionThrown);
         assertBusy(() -> {
             long primaryTermEnd = findIndexShard(index, 0).getOperationPrimaryTerm();
@@ -455,9 +488,10 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         });
     }
 
-    public void testSearchGetVirtualBatchedCompoundCommitChunkFailWithWrongPrimaryTerm() throws Exception {
+    public void testGetVirtualBatchedCompoundCommitChunkFailWithWrongPrimaryTerm() throws Exception {
         startMasterOnlyNode();
-        startIndexNode();
+        final var indexNodeA = startIndexNode();
+        TestStateless.enableSimulationOfReadVirtualBatchedCompoundCommitChunk(indexNodeA);
         final var searchNode = startSearchNode();
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
@@ -482,7 +516,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         CountDownLatch exceptionThrown = new CountDownLatch(1);
         new Thread(() -> {
             searchEngine.getVirtualBatchedCompoundCommitChunk(
-                randomNonNegativeLong(),
+                new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
                 randomLongBetween(0, Long.MAX_VALUE - 1),
                 length,
                 ActionListener.wrap(response -> {
@@ -504,8 +538,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         safeAwait(exceptionThrown);
     }
 
-    private void validateVirtualBatchedCompoundCommitResponse(ReleasableBytesReference response, int length) {
-        // TODO validate the real bytes from the indirection layer of the primary shard once we have the way to do that
+    private void validateSimulatedVirtualBatchedCompoundCommitChunkResponse(ReleasableBytesReference response, int length) {
         try (ReleasableBytesReference reference = response.retain()) {
             BytesRef referenceBytes = reference.toBytesRef();
             byte[] referenceArray = referenceBytes.bytes;

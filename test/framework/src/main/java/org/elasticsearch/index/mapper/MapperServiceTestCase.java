@@ -714,18 +714,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     private void roundTripSyntheticSource(DocumentMapper mapper, String syntheticSource, DirectoryReader reader) throws IOException {
         try (Directory roundTripDirectory = newDirectory()) {
             RandomIndexWriter roundTripIw = new RandomIndexWriter(random(), roundTripDirectory);
-            roundTripIw.addDocument(
-                mapper.parse(
-                    new SourceToParse(
-                        "1",
-                        new BytesArray(syntheticSource),
-                        XContentType.JSON,
-                        null,
-                        Map.of(),
-                        DocumentSizeObserver.EMPTY_INSTANCE
-                    )
-                ).rootDoc()
-            );
+            roundTripIw.addDocument(mapper.parse(new SourceToParse("1", new BytesArray(syntheticSource), XContentType.JSON)).rootDoc());
             roundTripIw.close();
             try (DirectoryReader roundTripReader = DirectoryReader.open(roundTripDirectory)) {
                 String roundTripSyntheticSource = syntheticSource(mapper, roundTripReader, 0);

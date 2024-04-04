@@ -17,7 +17,9 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -33,6 +35,7 @@ import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
+import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.ExpressionSet;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -45,7 +48,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
@@ -68,7 +70,6 @@ import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -82,8 +83,8 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
-import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
+import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.DOWN;
 
 public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LogicalOptimizerContext> {
 
@@ -108,6 +109,24 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return rules();
     }
 
+    protected static Batch<LogicalPlan> substitutions() {
+        return new Batch<>(
+            "Substitutions",
+            Limiter.ONCE,
+            // first extract nested aggs top-level - this simplifies the rest of the rules
+            new ReplaceStatsAggExpressionWithEval(),
+            // second extract nested aggs inside of them
+            new ReplaceStatsNestedExpressionWithEval(),
+            // lastly replace surrogate functions
+            new SubstituteSurrogates(),
+            new ReplaceRegexMatch(),
+            new ReplaceAliasingEvalWithProject(),
+            new SkipQueryOnEmptyMappings(),
+            new SubstituteSpatialSurrogates()
+            // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
+        );
+    }
+
     protected static Batch<LogicalPlan> operators() {
         return new Batch<>(
             "Operator Optimization",
@@ -120,14 +139,15 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new SplitInWithFoldableValue(),
             new PropagateEvalFoldables(),
             new ConstantFolding(),
+            new PartiallyFoldCase(),
             // boolean
             new BooleanSimplification(),
             new LiteralsOnTheRight(),
             // needs to occur before BinaryComparison combinations (see class)
-            new PropagateEquals(),
+            new org.elasticsearch.xpack.esql.optimizer.OptimizerRules.PropagateEquals(),
             new PropagateNullable(),
-            new BooleanFunctionEqualsElimination(),
-            new CombineDisjunctionsToIn(),
+            new org.elasticsearch.xpack.esql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination(),
+            new org.elasticsearch.xpack.esql.optimizer.OptimizerRules.CombineDisjunctionsToIn(),
             new SimplifyComparisonsArithmetics(EsqlDataTypes::areCompatible),
             // prune/elimination
             new PruneFilters(),
@@ -150,26 +170,11 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     }
 
     protected static List<Batch<LogicalPlan>> rules() {
-        var substitutions = new Batch<>(
-            "Substitutions",
-            Limiter.ONCE,
-            // first extract nested aggs top-level - this simplifies the rest of the rules
-            new ReplaceStatsAggExpressionWithEval(),
-            // second extract nested aggs inside of them
-            new ReplaceStatsNestedExpressionWithEval(),
-            // lastly replace surrogate functions
-            new SubstituteSurrogates(),
-            new ReplaceRegexMatch(),
-            new ReplaceAliasingEvalWithProject(),
-            new SkipQueryOnEmptyMappings()
-            // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
-        );
-
         var skip = new Batch<>("Skip Compute", new SkipQueryOnLimitZero());
         var defaultTopN = new Batch<>("Add default TopN", new AddDefaultTopN());
         var label = new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
 
-        return asList(substitutions, operators(), skip, cleanup(), defaultTopN, label);
+        return asList(substitutions(), operators(), skip, cleanup(), defaultTopN, label);
     }
 
     // TODO: currently this rule only works for aggregate functions (AVG)
@@ -191,8 +196,10 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
             // first pass to check existing aggregates (to avoid duplication and alias waste)
             for (NamedExpression agg : aggs) {
-                if (Alias.unwrap(agg) instanceof AggregateFunction af && af instanceof SurrogateExpression == false) {
-                    aggFuncToAttr.put(af, agg.toAttribute());
+                if (Alias.unwrap(agg) instanceof AggregateFunction af) {
+                    if ((af instanceof SurrogateExpression se && se.surrogate() != null) == false) {
+                        aggFuncToAttr.put(af, agg.toAttribute());
+                    }
                 }
             }
 
@@ -200,7 +207,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // 0. check list of surrogate expressions
             for (NamedExpression agg : aggs) {
                 Expression e = Alias.unwrap(agg);
-                if (e instanceof SurrogateExpression sf) {
+                if (e instanceof SurrogateExpression sf && sf.surrogate() != null) {
                     changed = true;
                     Expression s = sf.surrogate();
 
@@ -240,9 +247,22 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             LogicalPlan plan = aggregate;
             if (changed) {
                 var source = aggregate.source();
-                plan = new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), newAggs);
+                if (newAggs.isEmpty() == false) {
+                    plan = new Aggregate(source, aggregate.child(), aggregate.groupings(), newAggs);
+                } else {
+                    // All aggs actually have been surrogates for (foldable) expressions, e.g.
+                    // \_Aggregate[[],[AVG([1, 2][INTEGER]) AS s]]
+                    // Replace by a local relation with one row, followed by an eval, e.g.
+                    // \_Eval[[MVAVG([1, 2][INTEGER]) AS s]]
+                    // \_LocalRelation[[{e}#21],[ConstantNullBlock[positions=1]]]
+                    plan = new LocalRelation(
+                        source,
+                        List.of(new EmptyAttribute(source)),
+                        LocalSupplier.of(new Block[] { BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1) })
+                    );
+                }
                 // 5. force the initial projection in place
-                if (transientEval.size() > 0) {
+                if (transientEval.isEmpty() == false) {
                     plan = new Eval(source, plan, transientEval);
                     // project away transient fields and re-enforce the original order using references (not copies) to the original aggs
                     // this works since the replaced aliases have their nameId copied to avoid having to update all references (which has
@@ -276,6 +296,25 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
         static String limitToString(String string) {
             return string.length() > 16 ? string.substring(0, TO_STRING_LIMIT - 1) + ">" : string;
+        }
+    }
+
+    /**
+     * Currently this works similarly to SurrogateExpression, leaving the logic inside the expressions,
+     * so each can decide for itself whether or not to change to a surrogate expression.
+     * But what is actually being done is similar to LiteralsOnTheRight. We can consider in the future moving
+     * this in either direction, reducing the number of rules, but for now,
+     * it's a separate rule to reduce the risk of unintended interactions with other rules.
+     */
+    static class SubstituteSpatialSurrogates extends OptimizerRules.OptimizerExpressionRule<SpatialRelatesFunction> {
+
+        SubstituteSpatialSurrogates() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected SpatialRelatesFunction rule(SpatialRelatesFunction function) {
+            return function.surrogate();
         }
     }
 
@@ -500,6 +539,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
             plan = plan.transformUp(p -> {
                 // Apply the replacement inside Filter and Eval (which shouldn't make a difference)
+                // TODO: also allow aggregates once aggs on constants are supported.
+                // C.f. https://github.com/elastic/elasticsearch/issues/100634
                 if (p instanceof Filter || p instanceof Eval) {
                     p = p.transformExpressionsOnly(ReferenceAttribute.class, replaceReference);
                 }
@@ -1115,28 +1156,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
-    /**
-     * Combine disjunctions on the same field into an In expression.
-     * This rule looks for both simple equalities:
-     * 1. a == 1 OR a == 2 becomes a IN (1, 2)
-     * and combinations of In
-     * 2. a == 1 OR a IN (2) becomes a IN (1, 2)
-     * 3. a IN (1) OR a IN (2) becomes a IN (1, 2)
-     *
-     * This rule does NOT check for type compatibility as that phase has been
-     * already be verified in the analyzer.
-     */
-    public static class CombineDisjunctionsToIn extends OptimizerRules.CombineDisjunctionsToIn {
-
-        protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
-            return new In(key.source(), key, values);
-        }
-
-        protected Equals createEquals(Expression k, Set<Expression> v, ZoneId finalZoneId) {
-            return new Equals(k.source(), k, v.iterator().next(), finalZoneId);
-        }
-    }
-
     static class ReplaceLimitAndSortAsTopN extends OptimizerRules.OptimizerRule<Limit> {
 
         @Override
@@ -1586,7 +1605,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     }
 
     public static class FoldNull extends OptimizerRules.FoldNull {
-
         @Override
         protected Expression tryReplaceIsNullIsNotNull(Expression e) {
             return e;
@@ -1594,7 +1612,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     }
 
     public static class PropagateNullable extends OptimizerRules.PropagateNullable {
-
         protected Expression nullify(Expression exp, Expression nullExp) {
             if (exp instanceof Coalesce) {
                 List<Expression> newChildren = new ArrayList<>(exp.children());
@@ -1604,6 +1621,27 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 }
             }
             return Literal.of(exp, null);
+        }
+    }
+
+    /**
+     * Fold the arms of {@code CASE} statements.
+     * <pre>{@code
+     * EVAL c=CASE(true, foo, bar)
+     * }</pre>
+     * becomes
+     * <pre>{@code
+     * EVAL c=foo
+     * }</pre>
+     */
+    static class PartiallyFoldCase extends OptimizerRules.OptimizerExpressionRule<Case> {
+        PartiallyFoldCase() {
+            super(DOWN);
+        }
+
+        @Override
+        protected Expression rule(Case c) {
+            return c.partiallyFold();
         }
     }
 }

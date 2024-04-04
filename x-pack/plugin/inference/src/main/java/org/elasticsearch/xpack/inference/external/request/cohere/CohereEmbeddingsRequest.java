@@ -46,7 +46,7 @@ public class CohereEmbeddingsRequest implements Request {
         this.input = Objects.requireNonNull(input);
         uri = buildUri(this.account.url(), "Cohere", CohereEmbeddingsRequest::buildDefaultUri);
         taskSettings = embeddingsModel.getTaskSettings();
-        model = embeddingsModel.getServiceSettings().getCommonSettings().getModelId();
+        model = embeddingsModel.getServiceSettings().getCommonSettings().modelId();
         embeddingType = embeddingsModel.getServiceSettings().getEmbeddingType();
         inferenceEntityId = embeddingsModel.getInferenceEntityId();
     }

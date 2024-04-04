@@ -163,17 +163,21 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params, null);
+        return toXContent(builder, params, null, null);
     }
 
     /**
      * Converts the component template to XContent and passes the RolloverConditions, when provided, to the template.
      */
-    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
-        throws IOException {
+    public XContentBuilder toXContent(
+        XContentBuilder builder,
+        Params params,
+        @Nullable RolloverConfiguration rolloverConfiguration,
+        @Nullable DataStreamGlobalRetention globalRetention
+    ) throws IOException {
         builder.startObject();
         builder.field(TEMPLATE.getPreferredName());
-        this.template.toXContent(builder, params, rolloverConfiguration);
+        this.template.toXContent(builder, params, rolloverConfiguration, globalRetention);
         if (this.version != null) {
             builder.field(VERSION.getPreferredName(), this.version);
         }

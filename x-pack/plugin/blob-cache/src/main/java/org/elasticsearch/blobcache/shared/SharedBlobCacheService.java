@@ -62,6 +62,9 @@ import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+/**
+ * A caching layer on a local node to minimize network roundtrips to the remote blob store.
+ */
 public class SharedBlobCacheService<KeyType> implements Releasable {
 
     private static final String SHARED_CACHE_SETTINGS_PREFIX = "xpack.searchable.snapshot.shared_cache.";
@@ -558,12 +561,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             listener.onResponse(false);
             return;
         }
-        long regionLength = regionSize;
         try {
-            if (region == getEndingRegion(blobLength)) {
-                regionLength = blobLength - getRegionStart(region);
-            }
-            ByteRange regionRange = ByteRange.of(0, regionLength);
+            ByteRange regionRange = ByteRange.of(0, computeCacheFileRegionSize(blobLength, region));
             if (regionRange.isEmpty()) {
                 listener.onResponse(false);
                 return;
@@ -1003,7 +1002,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final RangeAvailableHandler reader,
             final RangeMissingHandler writer
         ) throws Exception {
-            assert assertOffsetsWithinFileLength(rangeToWrite.start(), rangeToWrite.length(), length);
+            // some cache files can grow after being created, so rangeToWrite can be larger than the initial {@code length}
+            assert rangeToWrite.start() >= 0 : rangeToWrite;
             assert assertOffsetsWithinFileLength(rangeToRead.start(), rangeToRead.length(), length);
             // We are interested in the total time that the system spends when fetching a result (including time spent queuing), so we start
             // our measurement here.

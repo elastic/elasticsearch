@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling.Round;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -462,19 +463,25 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * @param writeIndex    new write index
      * @param generation    new generation
      * @param timeSeries    whether the template that created this data stream is in time series mode
+     * @param autoShardingEvent the auto sharding event this rollover operation is applying
      *
      * @return new {@code DataStream} instance with the rollover operation applied
      */
-    public DataStream rollover(Index writeIndex, long generation, boolean timeSeries) {
+    public DataStream rollover(
+        Index writeIndex,
+        long generation,
+        boolean timeSeries,
+        @Nullable DataStreamAutoShardingEvent autoShardingEvent
+    ) {
         ensureNotReplicated();
 
-        return unsafeRollover(writeIndex, generation, timeSeries);
+        return unsafeRollover(writeIndex, generation, timeSeries, autoShardingEvent);
     }
 
     /**
-     * Like {@link #rollover(Index, long, boolean)}, but does no validation, use with care only.
+     * Like {@link #rollover(Index, long, boolean, DataStreamAutoShardingEvent)}, but does no validation, use with care only.
      */
-    public DataStream unsafeRollover(Index writeIndex, long generation, boolean timeSeries) {
+    public DataStream unsafeRollover(Index writeIndex, long generation, boolean timeSeries, DataStreamAutoShardingEvent autoShardingEvent) {
         IndexMode indexMode = this.indexMode;
         if ((indexMode == null || indexMode == IndexMode.STANDARD) && timeSeries) {
             // This allows for migrating a data stream to be a tsdb data stream:
@@ -505,12 +512,47 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Performs a dummy rollover on a {@code DataStream} instance and returns the tuple of the next write index name and next generation
-     * that this {@code DataStream} should roll over to using {@link #rollover(Index, long, boolean)}.
+     * Performs a rollover on the failure store of a {@code DataStream} instance and returns a new instance containing
+     * the updated list of failure store indices and incremented generation.
+     *
+     * @param writeIndex new failure store write index
+     * @param generation new generation
+     * @return new {@code DataStream} instance with the rollover operation applied
+     */
+    public DataStream rolloverFailureStore(Index writeIndex, long generation) {
+        ensureNotReplicated();
+
+        return unsafeRolloverFailureStore(writeIndex, generation);
+    }
+
+    /**
+     * Like {@link #rolloverFailureStore(Index, long)}, but does no validation, use with care only.
+     */
+    public DataStream unsafeRolloverFailureStore(Index writeIndex, long generation) {
+        List<Index> failureIndices = new ArrayList<>(this.failureIndices);
+        failureIndices.add(writeIndex);
+        return new DataStream(
+            name,
+            indices,
+            generation,
+            metadata,
+            hidden,
+            false,
+            system,
+            allowCustomRouting,
+            indexMode,
+            lifecycle,
+            failureStore,
+            failureIndices,
+            autoShardingEvent
+        );
+    }
+
+    /**
+     * Generates the next write index name and <code>generation</code> to be used for rolling over this data stream.
      *
      * @param clusterMetadata Cluster metadata
-     *
-     * @return new {@code DataStream} instance with the dummy rollover operation applied
+     * @return tuple of the next write index name and next generation.
      */
     public Tuple<String, Long> nextWriteIndexAndGeneration(Metadata clusterMetadata) {
         ensureNotReplicated();
@@ -521,11 +563,36 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * Like {@link #nextWriteIndexAndGeneration(Metadata)}, but does no validation, use with care only.
      */
     public Tuple<String, Long> unsafeNextWriteIndexAndGeneration(Metadata clusterMetadata) {
+        return generateNextWriteIndexAndGeneration(clusterMetadata, DataStream::getDefaultBackingIndexName);
+    }
+
+    /**
+     * Generates the next write index name and <code>generation</code> to be used for rolling over the failure store of this data stream.
+     *
+     * @param clusterMetadata Cluster metadata
+     * @return tuple of the next failure store write index name and next generation.
+     */
+    public Tuple<String, Long> nextFailureStoreWriteIndexAndGeneration(Metadata clusterMetadata) {
+        ensureNotReplicated();
+        return unsafeNextFailureStoreWriteIndexAndGeneration(clusterMetadata);
+    }
+
+    /**
+     * Like {@link #nextFailureStoreWriteIndexAndGeneration(Metadata)}, but does no validation, use with care only.
+     */
+    public Tuple<String, Long> unsafeNextFailureStoreWriteIndexAndGeneration(Metadata clusterMetadata) {
+        return generateNextWriteIndexAndGeneration(clusterMetadata, DataStream::getDefaultFailureStoreName);
+    }
+
+    private Tuple<String, Long> generateNextWriteIndexAndGeneration(
+        Metadata clusterMetadata,
+        TriFunction<String, Long, Long, String> nameGenerator
+    ) {
         String newWriteIndexName;
         long generation = this.generation;
         long currentTimeMillis = timeProvider.getAsLong();
         do {
-            newWriteIndexName = DataStream.getDefaultBackingIndexName(getName(), ++generation, currentTimeMillis);
+            newWriteIndexName = nameGenerator.apply(getName(), ++generation, currentTimeMillis);
         } while (clusterMetadata.hasIndexAbstraction(newWriteIndexName));
         return Tuple.tuple(newWriteIndexName, generation);
     }
@@ -753,13 +820,17 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * NOTE that this specifically does not return the write index of the data stream as usually retention
      * is treated differently for the write index (i.e. they first need to be rolled over)
      */
-    public List<Index> getIndicesPastRetention(Function<String, IndexMetadata> indexMetadataSupplier, LongSupplier nowSupplier) {
-        if (lifecycle == null || lifecycle.isEnabled() == false || lifecycle.getEffectiveDataRetention() == null) {
+    public List<Index> getIndicesPastRetention(
+        Function<String, IndexMetadata> indexMetadataSupplier,
+        LongSupplier nowSupplier,
+        DataStreamGlobalRetention globalRetention
+    ) {
+        if (lifecycle == null || lifecycle.isEnabled() == false || lifecycle.getEffectiveDataRetention(globalRetention) == null) {
             return List.of();
         }
 
         List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
-            lifecycle.getEffectiveDataRetention(),
+            lifecycle.getEffectiveDataRetention(globalRetention),
             indexMetadataSupplier,
             this::isIndexManagedByDataStreamLifecycle,
             nowSupplier
@@ -812,30 +883,37 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * the backing indices that are managed by the data stream lifecycle".
      */
     public List<Index> getNonWriteIndicesOlderThan(
-        TimeValue age,
+        TimeValue retentionPeriod,
         Function<String, IndexMetadata> indexMetadataSupplier,
         @Nullable Predicate<IndexMetadata> indicesPredicate,
         LongSupplier nowSupplier
     ) {
         List<Index> olderIndices = new ArrayList<>();
         for (Index index : indices) {
-            IndexMetadata indexMetadata = indexMetadataSupplier.apply(index.getName());
-            if (indexMetadata == null) {
-                // we would normally throw exception in a situation like this however, this is meant to be a helper method
-                // so let's ignore deleted indices
-                continue;
-            }
-            TimeValue indexLifecycleDate = getGenerationLifecycleDate(indexMetadata);
-            if (indexLifecycleDate != null) {
-                long nowMillis = nowSupplier.getAsLong();
-                if (nowMillis >= indexLifecycleDate.getMillis() + age.getMillis()) {
-                    if (indicesPredicate == null || indicesPredicate.test(indexMetadata)) {
-                        olderIndices.add(index);
-                    }
-                }
+            if (isIndexOderThan(index, retentionPeriod.getMillis(), nowSupplier.getAsLong(), indicesPredicate, indexMetadataSupplier)) {
+                olderIndices.add(index);
             }
         }
         return olderIndices;
+    }
+
+    private boolean isIndexOderThan(
+        Index index,
+        long retentionPeriod,
+        long now,
+        Predicate<IndexMetadata> indicesPredicate,
+        Function<String, IndexMetadata> indexMetadataSupplier
+    ) {
+        IndexMetadata indexMetadata = indexMetadataSupplier.apply(index.getName());
+        if (indexMetadata == null) {
+            // we would normally throw exception in a situation like this however, this is meant to be a helper method
+            // so let's ignore deleted indices
+            return false;
+        }
+        TimeValue indexLifecycleDate = getGenerationLifecycleDate(indexMetadata);
+        return indexLifecycleDate != null
+            && now >= indexLifecycleDate.getMillis() + retentionPeriod
+            && (indicesPredicate == null || indicesPredicate.test(indexMetadata));
     }
 
     /**
@@ -1092,14 +1170,18 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params, null);
+        return toXContent(builder, params, null, null);
     }
 
     /**
      * Converts the data stream to XContent and passes the RolloverConditions, when provided, to the lifecycle.
      */
-    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
-        throws IOException {
+    public XContentBuilder toXContent(
+        XContentBuilder builder,
+        Params params,
+        @Nullable RolloverConfiguration rolloverConfiguration,
+        @Nullable DataStreamGlobalRetention globalRetention
+    ) throws IOException {
         builder.startObject();
         builder.field(NAME_FIELD.getPreferredName(), name);
         builder.field(TIMESTAMP_FIELD_FIELD.getPreferredName())
@@ -1126,7 +1208,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
         if (lifecycle != null) {
             builder.field(LIFECYCLE.getPreferredName());
-            lifecycle.toXContent(builder, params, rolloverConfiguration);
+            lifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention);
         }
         builder.field(ROLLOVER_ON_WRITE_FIELD.getPreferredName(), rolloverOnWrite);
         if (autoShardingEvent != null) {

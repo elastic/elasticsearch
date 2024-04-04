@@ -27,7 +27,7 @@ public class MedianAbsoluteDeviation extends NumericAggregate {
         description = "The median absolute deviation, a measure of variability.",
         isAggregation = true
     )
-    public MedianAbsoluteDeviation(Source source, @Param(name = "field", type = { "double", "integer", "long" }) Expression field) {
+    public MedianAbsoluteDeviation(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
         super(source, field);
     }
 

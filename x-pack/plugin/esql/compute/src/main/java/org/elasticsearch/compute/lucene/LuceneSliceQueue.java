@@ -46,6 +46,10 @@ public final class LuceneSliceQueue {
         return totalSlices;
     }
 
+    public Iterable<LuceneSlice> getSlices() {
+        return slices;
+    }
+
     public static LuceneSliceQueue create(
         List<? extends ShardContext> contexts,
         Function<ShardContext, Weight> weightFunction,
@@ -71,7 +75,9 @@ public final class LuceneSliceQueue {
                 weight.get(); // eagerly build Weight once
             }
             for (List<PartialLeafReaderContext> group : groups) {
-                slices.add(new LuceneSlice(ctx, group, weight));
+                if (group.isEmpty() == false) {
+                    slices.add(new LuceneSlice(ctx, group, weight));
+                }
             }
         }
         return new LuceneSliceQueue(slices);

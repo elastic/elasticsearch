@@ -212,28 +212,19 @@ final class BooleanBlockBuilder extends AbstractBlockBuilder implements BooleanB
             BooleanBlock theBlock;
             if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
                 theBlock = blockFactory.newConstantBooleanBlockWith(values[0], 1, estimatedBytes);
+            } else if (estimatedBytes > blockFactory.maxPrimitiveArrayBytes()) {
+                theBlock = buildBigArraysBlock();
+            } else if (isDense() && singleValued()) {
+                theBlock = blockFactory.newBooleanArrayVector(values, positionCount, estimatedBytes).asBlock();
             } else {
-                if (estimatedBytes > blockFactory.maxPrimitiveArrayBytes()) {
-                    theBlock = buildBigArraysBlock();
-                } else {
-                    if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-                        adjustBreaker(valueCount * elementSize());
-                        values = Arrays.copyOf(values, valueCount);
-                        adjustBreaker(-values.length * elementSize());
-                    }
-                    if (isDense() && singleValued()) {
-                        theBlock = blockFactory.newBooleanArrayVector(values, positionCount, estimatedBytes).asBlock();
-                    } else {
-                        theBlock = blockFactory.newBooleanArrayBlock(
-                            values,
-                            positionCount,
-                            firstValueIndexes,
-                            nullsMask,
-                            mvOrdering,
-                            estimatedBytes
-                        );
-                    }
-                }
+                theBlock = blockFactory.newBooleanArrayBlock(
+                    values, // stylecheck
+                    positionCount,
+                    firstValueIndexes,
+                    nullsMask,
+                    mvOrdering,
+                    estimatedBytes
+                );
             }
             built();
             return theBlock;

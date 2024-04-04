@@ -3006,7 +3006,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var plan = plan("""
             from test
             | eval bucket_start = 1, bucket_end = 100000
-            | eval auto_bucket(salary, 10, bucket_start, bucket_end)
+            | eval bucket(salary, 10, bucket_start, bucket_end)
             """);
         var ab = as(plan, Eval.class);
         assertTrue(ab.optimized());
@@ -3016,12 +3016,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         VerificationException e = expectThrows(VerificationException.class, () -> plan("""
             from test
             | eval bucket_end = 100000
-            | eval auto_bucket(salary, 10, emp_no, bucket_end)
+            | eval bucket(salary, 10, emp_no, bucket_end)
             """));
         assertTrue(e.getMessage().startsWith("Found "));
         final String header = "Found 1 problem\nline ";
         assertEquals(
-            "3:32: third argument of [auto_bucket(salary, 10, emp_no, bucket_end)] must be a constant, received [emp_no]",
+            "3:27: third argument of [bucket(salary, 10, emp_no, bucket_end)] must be a constant, received [emp_no]",
             e.getMessage().substring(header.length())
         );
     }

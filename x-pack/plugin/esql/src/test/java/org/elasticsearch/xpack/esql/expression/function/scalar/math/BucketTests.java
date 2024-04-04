@@ -27,8 +27,8 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AutoBucketTests extends AbstractScalarFunctionTestCase {
-    public AutoBucketTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+public class BucketTests extends AbstractScalarFunctionTestCase {
+    public BucketTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -90,7 +90,7 @@ public class AutoBucketTests extends AbstractScalarFunctionTestCase {
             from = new Literal(Source.EMPTY, 0, DataTypes.DOUBLE);
             to = new Literal(Source.EMPTY, 1000, DataTypes.DOUBLE);
         }
-        return new AutoBucket(source, arg, new Literal(Source.EMPTY, 50, DataTypes.INTEGER), from, to);
+        return new Bucket(source, arg, new Literal(Source.EMPTY, 50, DataTypes.INTEGER), from, to);
     }
 
     private Literal stringOrDateTime(String date) {

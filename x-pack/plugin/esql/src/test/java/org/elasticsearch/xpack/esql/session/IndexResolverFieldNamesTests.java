@@ -216,7 +216,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         assertFieldNames("""
             from employees
             | where hire_date >= "1985-01-01T00:00:00Z" and hire_date < "1986-01-01T00:00:00Z"
-            | eval hd = auto_bucket(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+            | eval hd = bucket(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             | sort hire_date
             | keep hire_date, hd""", Set.of("hire_date", "hire_date.*"));
     }
@@ -232,7 +232,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         assertFieldNames("""
             FROM employees
             | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-            | EVAL bucket = AUTO_BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+            | EVAL bucket = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
             | STATS AVG(salary) BY bucket
             | SORT bucket""", Set.of("salary", "salary.*", "hire_date", "hire_date.*"));
     }
@@ -558,7 +558,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         assertFieldNames("""
             FROM employees
             | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-            | EVAL bh = auto_bucket(height, 20, 1.41, 2.10)
+            | EVAL bh = bucket(height, 20, 1.41, 2.10)
             | SORT hire_date
             | KEEP hire_date, height, bh""", Set.of("hire_date", "hire_date.*", "height", "height.*"));
     }

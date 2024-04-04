@@ -2,7 +2,7 @@
 
 setup:
 - requires:
-      cluster_features: ["gte_v7.2.0"]
+    cluster_features: ["gte_v7.2.0"]
     reason: "random score function of script score was added in 7.2"
 
 ---

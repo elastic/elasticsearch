@@ -539,7 +539,7 @@ setup:
 "Delete data stream with failure stores":
   - requires:
       cluster_features: ["gte_v8.12.0"]
-       reason: "data stream failure stores only supported in 8.12+"
+      reason: "data stream failure stores only supported in 8.12+"
 
   - do:
       allowed_warnings:

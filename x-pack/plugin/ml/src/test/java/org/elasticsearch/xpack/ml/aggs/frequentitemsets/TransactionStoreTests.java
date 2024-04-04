@@ -50,6 +50,13 @@ public class TransactionStoreTests extends ESTestCase {
             }
 
             @Override
+            public void checkRealMemoryUsage(String label) throws CircuitBreakingException {
+                if (random().nextInt(20) == 0) {
+                    throw new CircuitBreakingException("cbe", Durability.PERMANENT);
+                }
+            }
+
+            @Override
             public void addWithoutBreaking(long bytes) {}
 
             @Override

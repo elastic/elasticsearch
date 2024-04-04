@@ -35,6 +35,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import static org.apache.lucene.document.ShapeField.QueryRelation.CONTAINS;
 import static org.apache.lucene.document.ShapeField.QueryRelation.DISJOINT;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
@@ -203,7 +204,14 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
     /**
      * Produce a map of rules defining combinations of incoming types to the evaluator factory that should be used.
      */
-    protected abstract Map<SpatialEvaluatorFactory.SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorRules();
+    abstract Map<SpatialEvaluatorFactory.SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorRules();
+
+    /**
+     * Some spatial functions can replace themselves with alternatives that are more efficient for certain cases.
+     */
+    public SpatialRelatesFunction surrogate() {
+        return this;
+    }
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
@@ -262,7 +270,7 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
             return geometryRelatesGeometry(left, rightComponent2D);
         }
 
-        private Geometry fromBytesRef(BytesRef bytesRef) {
+        protected Geometry fromBytesRef(BytesRef bytesRef) {
             return SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(bytesRef);
         }
 
@@ -286,12 +294,16 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
         protected boolean pointRelatesGeometry(long encoded, Component2D component2D) {
             // This code path exists for doc-values points, and we could consider re-using the point class to reduce garbage creation
             Point point = spatialCoordinateType.longAsPoint(encoded);
-            return geometryRelatesPoint(component2D, point);
+            return pointRelatesGeometry(point, component2D);
         }
 
-        private boolean geometryRelatesPoint(Component2D component2D, Point point) {
-            boolean contains = component2D.contains(point.getX(), point.getY());
-            return queryRelation == DISJOINT ? contains == false : contains;
+        protected boolean pointRelatesGeometry(Point point, Component2D component2D) {
+            if (queryRelation == CONTAINS) {
+                return component2D.withinPoint(point.getX(), point.getY()) == Component2D.WithinRelation.CANDIDATE;
+            } else {
+                boolean contains = component2D.contains(point.getX(), point.getY());
+                return queryRelation == DISJOINT ? contains == false : contains;
+            }
         }
     }
 }

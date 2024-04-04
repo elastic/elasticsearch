@@ -8,8 +8,10 @@
 
 package org.elasticsearch.gradle.internal;
 
+import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask;
 import org.elasticsearch.gradle.util.GradleUtils;
+import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.FileCollection;
@@ -151,8 +153,18 @@ public class MrjarPlugin implements Plugin<Project> {
             testTask.setClasspath(testRuntime.plus(project.files(jarTask)));
             testTask.setTestClassesDirs(sourceSet.getOutput().getClassesDirs());
 
-            testTask.getJavaLauncher()
-                .set(javaToolchains.launcherFor(spec -> spec.getLanguageVersion().set(JavaLanguageVersion.of(javaVersion))));
+            // only set the jdk if runtime java isn't set because setting the toolchain is incompatible with
+            // runtime java setting the executable directly
+            if (BuildParams.getIsRuntimeJavaHomeSet()) {
+                testTask.onlyIf("runtime java must support java " + javaVersion, t -> {
+                    JavaVersion runtimeJavaVersion = BuildParams.getRuntimeJavaVersion();
+                    return runtimeJavaVersion.isCompatibleWith(JavaVersion.toVersion(javaVersion));
+                });
+            } else {
+                testTask.getJavaLauncher()
+                    .set(javaToolchains.launcherFor(spec -> spec.getLanguageVersion().set(JavaLanguageVersion.of(javaVersion))));
+            }
+
         });
 
         project.getTasks().named("check").configure(checkTask -> checkTask.dependsOn(testTaskProvider));

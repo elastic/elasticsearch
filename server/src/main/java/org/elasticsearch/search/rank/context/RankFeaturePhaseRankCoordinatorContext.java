@@ -33,11 +33,12 @@ public abstract class RankFeaturePhaseRankCoordinatorContext implements RankFeat
     }
 
     /**
-     * This is used to re-rank the results once we have retrieved all {@code RankFeatureResult} responses
+     * This is used to re-rank the results once we have retrieved all {@code RankFeatureResult} shard responses
      * during the {@code RankFeaturePhase} phase. This method computes a reranked list of global top-K results,
      * based on the feature data extracted by each of the shards.
      * To support non-blocking async operations, once we generate a final array of {@link ScoreDoc} results, we pass them
      * to the {@param onFinish} consumer to proceed with the next steps, as defined by the caller.
+     *
      * @param rankSearchResults a list of rank feature results from each shard
      * @param onFinish a consumer to be called once the global ranking is complete
      */

@@ -541,7 +541,7 @@ public final class SearchPhaseController {
         int numReducePhases,
         boolean isScrollRequest,
         AggregationReduceContext.Builder aggReduceContextBuilder,
-        QueryPhaseRankCoordinatorContext rankCoordinatorContext,
+        QueryPhaseRankCoordinatorContext queryPhaseRankCoordinatorContext,
         boolean performFinalReduce
     ) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
@@ -634,10 +634,10 @@ public final class SearchPhaseController {
             ? null
             : new SearchProfileResultsBuilder(profileShardResults);
         final SortedTopDocs sortedTopDocs;
-        if (rankCoordinatorContext == null) {
+        if (queryPhaseRankCoordinatorContext == null) {
             sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
         } else {
-            ScoreDoc[] rankedDocs = rankCoordinatorContext.rankQueryPhaseResults(
+            ScoreDoc[] rankedDocs = queryPhaseRankCoordinatorContext.rankQueryPhaseResults(
                 queryResults.stream().map(SearchPhaseResult::queryResult).toList(),
                 topDocsStats
             );
@@ -656,7 +656,7 @@ public final class SearchPhaseController {
             profileBuilder,
             sortedTopDocs,
             sortValueFormats,
-            rankCoordinatorContext,
+            queryPhaseRankCoordinatorContext,
             numReducePhases,
             size,
             from,

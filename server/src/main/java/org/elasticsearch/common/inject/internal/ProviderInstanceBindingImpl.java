@@ -72,8 +72,8 @@ public final class ProviderInstanceBindingImpl<T> extends BindingImpl<T> impleme
     }
 
     @Override
-    public BindingImpl<T> withScoping(Scoping scoping) {
-        return new ProviderInstanceBindingImpl<>(getSource(), getKey(), scoping, injectionPoints, providerInstance);
+    public BindingImpl<T> withEagerSingletonScoping() {
+        return new ProviderInstanceBindingImpl<>(getSource(), getKey(), Scoping.EAGER_SINGLETON, injectionPoints, providerInstance);
     }
 
     @Override

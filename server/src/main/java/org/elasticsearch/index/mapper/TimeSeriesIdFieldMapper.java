@@ -413,6 +413,8 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                         Object ul = DocValueFormat.UNSIGNED_LONG_SHIFTED.format(in.readLong());
                         result.put(name, ul);
                     }
+                    case (byte) 'd' -> // parse a double
+                        result.put(name, in.readDouble());
                     default -> throw new IllegalArgumentException("Cannot parse [" + name + "]: Unknown type [" + type + "]");
                 }
             }

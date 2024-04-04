@@ -241,8 +241,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                     throw new AssertionError(e);
                 }
             }), latch::countDown),
-            threadPool,
-            Names.WRITE
+            threadPool.executor(Names.WRITE)
         );
 
         latch.await();
@@ -936,8 +935,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 assertThat(response.status(), equalTo(RestStatus.CREATED));
                 assertThat(response.getSeqNo(), equalTo(13L));
             }), latch),
-            threadPool,
-            Names.WRITE
+            threadPool.executor(Names.WRITE)
         );
         latch.await();
     }
@@ -1026,8 +1024,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result ->
                 // Assert that we still need to fsync the location that was successfully written
                 assertThat(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, equalTo(resultLocation1))), latch),
-                rejectingThreadPool,
-                Names.WRITE
+                rejectingThreadPool.executor(Names.WRITE)
             );
             latch.await();
 
@@ -1098,8 +1095,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                     closeShards(shard);
                 }
             }), latch),
-            threadPool,
-            Names.WRITE
+            threadPool.executor(Names.WRITE)
         );
 
         latch.await();
@@ -1148,8 +1144,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 (update, shardId, listener) -> fail("the master should not be contacted as the operation yielded a noop mapping update"),
                 listener -> listener.onResponse(null),
                 ActionTestUtils.assertNoFailureListener(result -> {}),
-                threadPool,
-                Names.WRITE
+                threadPool.executor(Names.WRITE)
             )
         );
         assertThat(
@@ -1219,8 +1214,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 BulkItemResponse primaryResponse = result.replicaRequest().items()[0].getPrimaryResponse();
                 assertFalse(primaryResponse.isFailed());
             }), latch),
-            threadPool,
-            Names.WRITE
+            threadPool.executor(Names.WRITE)
         );
 
         latch.await();

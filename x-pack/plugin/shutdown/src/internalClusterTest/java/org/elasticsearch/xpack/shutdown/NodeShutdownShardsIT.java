@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -51,7 +50,6 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
      * reverting to `NOT_STARTED` (this was a bug in the initial implementation).
      */
     public void testShardStatusStaysCompleteAfterNodeLeaves() throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.current().isSnapshot());
         final String nodeToRestartName = internalCluster().startNode();
         final String nodeToRestartId = getNodeId(nodeToRestartName);
         internalCluster().startNode();
@@ -70,9 +68,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
      * Similar to the previous test, but ensures that the status stays at `COMPLETE` when the node is offline when the shutdown is
      * registered. This may happen if {@link NodeSeenService} isn't working as expected.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76689")
     public void testShardStatusStaysCompleteAfterNodeLeavesIfRegisteredWhileNodeOffline() throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.current().isSnapshot());
         final String nodeToRestartName = internalCluster().startNode();
         final String nodeToRestartId = getNodeId(nodeToRestartName);
         internalCluster().startNode();
@@ -92,7 +88,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         NodesInfoResponse nodes = clusterAdmin().prepareNodesInfo().clear().get();
         assertThat(nodes.getNodes().size(), equalTo(1));
 
-        assertNodeShutdownStatus(nodeToRestartId, COMPLETE);
+        assertBusy(() -> { assertNodeShutdownStatus(nodeToRestartId, COMPLETE); });
     }
 
     /**
@@ -100,7 +96,6 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
      * (this was a bug in the initial implementation).
      */
     public void testShardStatusIsCompleteOnNonDataNodes() throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.current().isSnapshot());
         final String nodeToShutDownName = internalCluster().startMasterOnlyNode();
         internalCluster().startMasterOnlyNode(); // Just to have at least one other node
         final String nodeToRestartId = getNodeId(nodeToShutDownName);

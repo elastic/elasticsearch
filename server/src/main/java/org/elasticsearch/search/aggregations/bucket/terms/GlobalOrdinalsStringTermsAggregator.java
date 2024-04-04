@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -710,30 +711,31 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 } else {
                     size = (int) Math.min(maxBucketOrd(), bucketCountThresholds.getShardSize());
                 }
-                PriorityQueue<TB> ordered = buildPriorityQueue(size);
-                final int finalOrdIdx = ordIdx;
-                BucketUpdater<TB> updater = bucketUpdater(owningBucketOrds[ordIdx], lookupGlobalOrd);
-                collectionStrategy.forEach(owningBucketOrds[ordIdx], new BucketInfoConsumer() {
-                    TB spare = null;
+                try (ObjectArrayPriorityQueue<TB> ordered = buildPriorityQueue(size)) {
+                    final int finalOrdIdx = ordIdx;
+                    BucketUpdater<TB> updater = bucketUpdater(owningBucketOrds[ordIdx], lookupGlobalOrd);
+                    collectionStrategy.forEach(owningBucketOrds[ordIdx], new BucketInfoConsumer() {
+                        TB spare = null;
 
-                    @Override
-                    public void accept(long globalOrd, long bucketOrd, long docCount) throws IOException {
-                        otherDocCount[finalOrdIdx] += docCount;
-                        if (docCount >= bucketCountThresholds.getShardMinDocCount()) {
-                            if (spare == null) {
-                                spare = buildEmptyTemporaryBucket();
+                        @Override
+                        public void accept(long globalOrd, long bucketOrd, long docCount) throws IOException {
+                            otherDocCount[finalOrdIdx] += docCount;
+                            if (docCount >= bucketCountThresholds.getShardMinDocCount()) {
+                                if (spare == null) {
+                                    spare = buildEmptyTemporaryBucket();
+                                }
+                                updater.updateBucket(spare, globalOrd, bucketOrd, docCount);
+                                spare = ordered.insertWithOverflow(spare);
                             }
-                            updater.updateBucket(spare, globalOrd, bucketOrd, docCount);
-                            spare = ordered.insertWithOverflow(spare);
                         }
-                    }
-                });
+                    });
 
-                // Get the top buckets
-                topBucketsPreOrd[ordIdx] = buildBuckets(ordered.size());
-                for (int i = ordered.size() - 1; i >= 0; --i) {
-                    topBucketsPreOrd[ordIdx][i] = convertTempBucketToRealBucket(ordered.pop(), lookupGlobalOrd);
-                    otherDocCount[ordIdx] -= topBucketsPreOrd[ordIdx][i].getDocCount();
+                    // Get the top buckets
+                    topBucketsPreOrd[ordIdx] = buildBuckets((int) ordered.size());
+                    for (int i = (int) ordered.size() - 1; i >= 0; --i) {
+                        topBucketsPreOrd[ordIdx][i] = convertTempBucketToRealBucket(ordered.pop(), lookupGlobalOrd);
+                        otherDocCount[ordIdx] -= topBucketsPreOrd[ordIdx][i].getDocCount();
+                    }
                 }
             }
 
@@ -773,7 +775,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          * Build a {@link PriorityQueue} to sort the buckets. After we've
          * collected all of the buckets we'll collect all entries in the queue.
          */
-        abstract PriorityQueue<TB> buildPriorityQueue(int size);
+        abstract ObjectArrayPriorityQueue<TB> buildPriorityQueue(int size);
 
         /**
          * Build an array to hold the "top" buckets for each ordinal.
@@ -858,8 +860,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        PriorityQueue<OrdBucket> buildPriorityQueue(int size) {
-            return new BucketPriorityQueue<>(size, partiallyBuiltBucketComparator);
+        ObjectArrayPriorityQueue<OrdBucket> buildPriorityQueue(int size) {
+            return new BucketPriorityQueue<>(size, bigArrays(), partiallyBuiltBucketComparator);
         }
 
         @Override
@@ -1006,8 +1008,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        PriorityQueue<SignificantStringTerms.Bucket> buildPriorityQueue(int size) {
-            return new BucketSignificancePriorityQueue<>(size);
+        ObjectArrayPriorityQueue<SignificantStringTerms.Bucket> buildPriorityQueue(int size) {
+            return new BucketSignificancePriorityQueue<>(size, bigArrays());
         }
 
         @Override

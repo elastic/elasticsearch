@@ -159,6 +159,18 @@ public class TransportVersionTests extends ESTestCase {
         }
     }
 
+    public void testIsPatchFrom() {
+        TransportVersion patchVersion = TransportVersion.fromId(8_800_00_4);
+        assertThat(TransportVersion.fromId(8_799_00_0).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_799_00_9).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_800_00_0).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_800_00_3).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_800_00_4).isPatchFrom(patchVersion), is(true));
+        assertThat(TransportVersion.fromId(8_800_00_9).isPatchFrom(patchVersion), is(true));
+        assertThat(TransportVersion.fromId(8_800_01_0).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_801_00_0).isPatchFrom(patchVersion), is(false));
+    }
+
     public void testVersionConstantPresent() {
         Set<TransportVersion> ignore = Set.of(TransportVersions.ZERO, TransportVersion.current(), TransportVersions.MINIMUM_COMPATIBLE);
         assertThat(TransportVersion.current(), sameInstance(TransportVersion.fromId(TransportVersion.current().id())));

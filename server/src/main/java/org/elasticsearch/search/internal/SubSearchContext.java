@@ -29,7 +29,7 @@ import java.util.List;
 public class SubSearchContext extends FilteredSearchContext {
 
     // By default return 3 hits per bucket. A higher default would make the response really large by default, since
-    // the to hits are returned per bucket.
+    // the top hits are returned per bucket.
     private static final int DEFAULT_SIZE = 3;
 
     private int from;
@@ -60,6 +60,25 @@ public class SubSearchContext extends FilteredSearchContext {
         this.fetchSearchResult = new FetchSearchResult();
         addReleasable(fetchSearchResult::decRef);
         this.querySearchResult = new QuerySearchResult();
+    }
+
+    public SubSearchContext(SubSearchContext subSearchContext) {
+        this((SearchContext) subSearchContext);
+        this.from = subSearchContext.from;
+        this.size = subSearchContext.size;
+        this.sort = subSearchContext.sort;
+        this.parsedQuery = subSearchContext.parsedQuery;
+        this.query = subSearchContext.query;
+        this.storedFields = subSearchContext.storedFields;
+        this.scriptFields = subSearchContext.scriptFields;
+        this.fetchSourceContext = subSearchContext.fetchSourceContext;
+        this.docValuesContext = subSearchContext.docValuesContext;
+        this.fetchFieldsContext = subSearchContext.fetchFieldsContext;
+        this.highlight = subSearchContext.highlight;
+        this.explain = subSearchContext.explain;
+        this.trackScores = subSearchContext.trackScores;
+        this.version = subSearchContext.version;
+        this.seqNoAndPrimaryTerm = subSearchContext.seqNoAndPrimaryTerm;
     }
 
     @Override

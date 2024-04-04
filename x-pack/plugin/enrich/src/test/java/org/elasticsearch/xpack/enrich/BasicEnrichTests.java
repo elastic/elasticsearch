@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -301,7 +301,7 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
         assertThat(executeResponse.getTaskId(), is(not(nullValue())));
         GetTaskRequest getPolicyTaskRequest = new GetTaskRequest().setTaskId(executeResponse.getTaskId()).setWaitForCompletion(true);
         assertBusy(() -> {
-            GetTaskResponse taskResponse = client().execute(GetTaskAction.INSTANCE, getPolicyTaskRequest).actionGet();
+            GetTaskResponse taskResponse = client().execute(TransportGetTaskAction.TYPE, getPolicyTaskRequest).actionGet();
             assertThat(
                 ((ExecuteEnrichPolicyStatus) taskResponse.getTask().getTask().status()).getPhase(),
                 is(ExecuteEnrichPolicyStatus.PolicyPhases.COMPLETE)

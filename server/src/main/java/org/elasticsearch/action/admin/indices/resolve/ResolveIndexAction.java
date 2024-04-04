@@ -496,7 +496,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     OriginalIndices originalIndices = remoteIndices.getValue();
                     var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                         clusterAlias,
-                        EsExecutors.DIRECT_EXECUTOR_SERVICE
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                        RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
                     );
                     Request remoteRequest = new Request(originalIndices.indices(), originalIndices.indicesOptions());
                     remoteClusterClient.execute(ResolveIndexAction.REMOTE_TYPE, remoteRequest, ActionListener.wrap(response -> {

@@ -14,8 +14,11 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.LegacyTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
@@ -30,6 +33,8 @@ import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserSecretSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
@@ -60,8 +65,18 @@ public class InferenceNamedWriteablesProvider {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceServiceResults.class, TextEmbeddingByteResults.NAME, TextEmbeddingByteResults::new)
         );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(InferenceServiceResults.class, ChatCompletionResults.NAME, ChatCompletionResults::new)
+        );
 
         // Chunked inference results
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                InferenceServiceResults.class,
+                ErrorChunkedInferenceResults.NAME,
+                ErrorChunkedInferenceResults::new
+            )
+        );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 InferenceServiceResults.class,
@@ -76,7 +91,13 @@ public class InferenceNamedWriteablesProvider {
                 ChunkedTextEmbeddingResults::new
             )
         );
-        // TODO add text embedding byte result
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                InferenceServiceResults.class,
+                ChunkedTextEmbeddingByteResults.NAME,
+                ChunkedTextEmbeddingByteResults::new
+            )
+        );
 
         // Empty default task settings
         namedWriteables.add(new NamedWriteableRegistry.Entry(TaskSettings.class, EmptyTaskSettings.NAME, EmptyTaskSettings::new));
@@ -133,6 +154,20 @@ public class InferenceNamedWriteablesProvider {
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(TaskSettings.class, OpenAiEmbeddingsTaskSettings.NAME, OpenAiEmbeddingsTaskSettings::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                OpenAiChatCompletionServiceSettings.NAME,
+                OpenAiChatCompletionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                OpenAiChatCompletionTaskSettings.NAME,
+                OpenAiChatCompletionTaskSettings::new
+            )
         );
 
         // Cohere

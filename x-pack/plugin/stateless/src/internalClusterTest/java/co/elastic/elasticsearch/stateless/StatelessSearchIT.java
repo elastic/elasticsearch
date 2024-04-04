@@ -583,7 +583,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
                 } else {
                     statelessCommitService.ensureMaxGenerationToUploadForFlush(
                         shardId,
-                        randomLongBetween(virtualBcc.getGeneration(), virtualBcc.getMaxGeneration())
+                        randomLongBetween(virtualBcc.getPrimaryTermAndGeneration().generation(), virtualBcc.getMaxGeneration())
                     );
                 }
             }

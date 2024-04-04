@@ -316,7 +316,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 "%s uploading batch compound commit [%s][%s]",
                 virtualBcc.getShardId(),
                 virtualBcc.getPendingCompoundCommits().stream().map(pc -> pc.getCommitReference().getSegmentsFileName()).toList(),
-                virtualBcc.getGeneration()
+                virtualBcc.getPrimaryTermAndGeneration().generation()
             )
         );
         // The CommitUpload listener is called after releasing the reference to the Lucene commit,
@@ -337,7 +337,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                                 () -> format(
                                     "%s failed to upload commit [%s] to object store because shard has invalid state %s",
                                     virtualBcc.getShardId(),
-                                    virtualBcc.getGeneration(),
+                                    virtualBcc.getPrimaryTermAndGeneration().generation(),
                                     state
                                 ),
                                 e
@@ -347,7 +347,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                                 () -> format(
                                     "%s failed to upload commit [%s] to object store for unexpected reason",
                                     virtualBcc.getShardId(),
-                                    virtualBcc.getGeneration()
+                                    virtualBcc.getPrimaryTermAndGeneration().generation()
                                 ),
                                 e
                             );
@@ -412,7 +412,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             this.shardCommitState = shardCommitState;
             this.virtualBcc = virtualBcc;
             this.shardId = virtualBcc.getShardId();
-            this.generation = virtualBcc.getGeneration();
+            this.generation = virtualBcc.getPrimaryTermAndGeneration().generation();
             this.startNanos = threadPool.relativeTimeInNanos();
             assert virtualBcc.isFrozen();
             assert virtualBcc.getPendingCompoundCommits().size() == 1 : "must contain a single CC till BCC is in full motion";
@@ -486,7 +486,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         private void uploadStatelessCommitFile(ActionListener<BatchedCompoundCommit> listener) {
             objectStoreService.uploadBatchedCompoundCommitFile(
-                virtualBcc.getPrimaryTerm(),
+                virtualBcc.getPrimaryTermAndGeneration().primaryTerm(),
                 // TODO: The Directory is used to get the blobContainer which can be obtained by using
                 // objectStoreService, shardId and primary term. So there is no need to depend on StatelessCommitRef which gets
                 // awkward when there are multiple of them.
@@ -780,7 +780,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 return;
             }
 
-            if (generation < virtualBcc.getGeneration()) {
+            if (generation < virtualBcc.getPrimaryTermAndGeneration().generation()) {
                 return;
             }
 
@@ -824,7 +824,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     );
                     final boolean appended = newVirtualBcc.appendCommit(reference);
                     assert appended : "append must be successful since the VBCC is new and empty";
-                    logger.trace(() -> Strings.format("%s created new VBCC generation [%s]", shardId, newVirtualBcc.getGeneration()));
+                    logger.trace(
+                        () -> Strings.format(
+                            "%s created new VBCC generation [%s]",
+                            shardId,
+                            newVirtualBcc.getPrimaryTermAndGeneration().generation()
+                        )
+                    );
                     currentVirtualBcc = newVirtualBcc;
                 } else {
                     final boolean appended = currentVirtualBcc.appendCommit(reference);
@@ -834,7 +840,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                             "%s appended CC generation [%s] to VBCC generation [%s]",
                             shardId,
                             reference.getGeneration(),
-                            currentVirtualBcc.getGeneration()
+                            currentVirtualBcc.getPrimaryTermAndGeneration().generation()
                         )
                     );
                 }
@@ -854,9 +860,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             synchronized (this) {
                 if (currentVirtualBcc != expectedVirtualBcc) {
                     assert expectedVirtualBcc.isFrozen();
-                    assert assertGenerationIsUploadedOrPending(expectedVirtualBcc.getGeneration());
+                    assert assertGenerationIsUploadedOrPending(expectedVirtualBcc.getPrimaryTermAndGeneration().generation());
                     logger.trace(
-                        () -> Strings.format("%s VBCC generation [%s] is concurrently frozen", shardId, expectedVirtualBcc.getGeneration())
+                        () -> Strings.format(
+                            "%s VBCC generation [%s] is concurrently frozen",
+                            shardId,
+                            expectedVirtualBcc.getPrimaryTermAndGeneration().generation()
+                        )
                     );
                     return;
                 }
@@ -865,7 +875,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         () -> Strings.format(
                             "%s aborting freeze for VBCC generation [%s] [state=%s]",
                             shardId,
-                            expectedVirtualBcc.getGeneration(),
+                            expectedVirtualBcc.getPrimaryTermAndGeneration().generation(),
                             state
                         )
                     );
@@ -873,12 +883,19 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 }
                 currentVirtualBcc = null;
                 logger.trace(
-                    () -> Strings.format("%s reset current VBCC generation [%s] for freeze", shardId, expectedVirtualBcc.getGeneration())
+                    () -> Strings.format(
+                        "%s reset current VBCC generation [%s] for freeze",
+                        shardId,
+                        expectedVirtualBcc.getPrimaryTermAndGeneration().generation()
+                    )
                 );
 
                 final boolean frozen = expectedVirtualBcc.freeze();
                 assert frozen : "freeze must be successful since it is invoked exclusively";
-                final var previous = pendingUploadGenerations.put(expectedVirtualBcc.getGeneration(), expectedVirtualBcc);
+                final var previous = pendingUploadGenerations.put(
+                    expectedVirtualBcc.getPrimaryTermAndGeneration().generation(),
+                    expectedVirtualBcc
+                );
                 assert previous == null : "expected null, but got " + previous;
                 // Create the blobReference which updates blobLocations, init search nodes commit usage tracking
                 blobReference = createBlobReference(expectedVirtualBcc);
@@ -894,8 +911,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         private BlobReference createBlobReference(VirtualBatchedCompoundCommit virtualBcc) {
             assert isDeleted == false : "shard " + shardId + " is deleted when trying to add commit data";
-            final long primaryTerm = virtualBcc.getPrimaryTerm();
-            final long generation = virtualBcc.getGeneration();
+            final long primaryTerm = virtualBcc.getPrimaryTermAndGeneration().primaryTerm();
+            final long generation = virtualBcc.getPrimaryTermAndGeneration().generation();
             assert virtualBcc.getPendingCompoundCommits().size() == 1 : "must contain a single CC till BCC is in full motion";
             final var commitFiles = virtualBcc.getPendingCompoundCommits()
                 .stream()

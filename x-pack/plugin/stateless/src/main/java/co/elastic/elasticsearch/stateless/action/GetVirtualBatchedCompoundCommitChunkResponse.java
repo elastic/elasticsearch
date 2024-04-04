@@ -29,7 +29,8 @@ public class GetVirtualBatchedCompoundCommitChunkResponse extends ActionResponse
     private final ReleasableBytesReference data;
 
     public GetVirtualBatchedCompoundCommitChunkResponse(ReleasableBytesReference data) {
-        this.data = data.retain();
+        assert data.hasReferences();
+        this.data = data; // takes ownership of the original ref, no need to .retain()
     }
 
     public GetVirtualBatchedCompoundCommitChunkResponse(StreamInput in) throws IOException {

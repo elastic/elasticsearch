@@ -13,6 +13,8 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
+ *
+ * This file was contributed to by generative AI
  */
 
 package co.elastic.elasticsearch.stateless.engine;
@@ -25,12 +27,11 @@ import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.engine.ElasticsearchReaderManager;
@@ -366,19 +367,12 @@ public class IndexEngine extends InternalEngine {
         close();
     }
 
-    public void readVirtualBatchedCompoundCommitChunk(
-        final GetVirtualBatchedCompoundCommitChunkRequest request,
-        final BytesReference reference
-    ) throws IOException {
-        // TODO: return real data from the indirection layer. If the BCC has been uploaded in the meantime, consider how to handle it,
-        // e.g., we could return a specific error/exception and the search node will handle that to retry from the object store.
-        // Consider also what to do if the request's primary term is not the current primary term.
-        BytesRef referenceBytes = reference.toBytesRef();
-        byte[] referenceArray = referenceBytes.bytes;
-        int referenceOffset = referenceBytes.offset;
+    public void readVirtualBatchedCompoundCommitChunk(final GetVirtualBatchedCompoundCommitChunkRequest request, final StreamOutput output)
+        throws IOException {
+        // TODO: return real data from the indirection layer (ES-7769)
         byte b = 1;
         for (int i = 0; i < request.getLength(); i++) {
-            referenceArray[i + referenceOffset] = b++;
+            output.write(b++);
         }
     }
 

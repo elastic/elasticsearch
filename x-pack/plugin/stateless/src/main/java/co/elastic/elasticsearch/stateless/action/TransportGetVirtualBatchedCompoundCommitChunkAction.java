@@ -13,6 +13,8 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
+ *
+ * This file was contributed to by generative AI
  */
 
 package co.elastic.elasticsearch.stateless.action;
@@ -41,12 +43,12 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -287,16 +289,19 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         IndexEngine indexEngine = (IndexEngine) engine;
 
         try {
-            // TODO: could the request length be much bigger than the actual length? If yes, we could allocate a smaller amount here.
             // TODO: should we limit the amount we have outstanding to some number, like 5% of heap or so? By outstanding we mean the amount
             // of bytes we have allocated but not released yet. Since the release happens async after sending over the wire, we could
-            // exhaust
-            // the heap here and limiting that would be good. It could be blocking, though an async mechanism could be preferable.
-            ByteArray array = bigArrays.newByteArray(request.getLength(), false);
-            BytesReference bytesReference = BytesReference.fromByteArray(array, request.getLength());
-            try (ReleasableBytesReference reference = new ReleasableBytesReference(bytesReference, array)) {
-                indexEngine.readVirtualBatchedCompoundCommitChunk(request, reference);
-                ActionListener.respondAndRelease(listener, new GetVirtualBatchedCompoundCommitChunkResponse(reference));
+            // exhaust the heap here and limiting that would be good. It could be blocking, though an async mechanism could be preferable.
+
+            ReleasableBytesStreamOutput output = new ReleasableBytesStreamOutput(request.getLength(), bigArrays);
+            try {
+                indexEngine.readVirtualBatchedCompoundCommitChunk(request, output);
+                // Transfer responsibility of releasing the output bytes to a ReleasableBytesReference for the response.
+                var transfer = new ReleasableBytesReference(output.bytes(), output);
+                output = null;
+                ActionListener.respondAndRelease(listener, new GetVirtualBatchedCompoundCommitChunkResponse(transfer));
+            } finally {
+                Releasables.close(output);
             }
         } catch (Exception e) {
             if (ExceptionsHelper.unwrap(e, FileNotFoundException.class, NoSuchFileException.class) != null) {

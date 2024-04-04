@@ -76,7 +76,7 @@ public class TrainedModelCacheMetadataService {
 
         protected TrainedModelCacheMetadata execute(TrainedModelCacheMetadata currentCacheMetadata, TaskContext<ModelCacheMetadataManagementTask> taskContext) {
             var entries = new HashMap<>(currentCacheMetadata.entries());
-            entries.put(modelId, new TrainedModelCacheMetadata.TrainedModelCustomMetadataEntry(modelId));
+            entries.put(modelId, new TrainedModelCacheMetadata.TrainedModelCacheMetadataEntry(modelId));
             taskContext.success(() -> listener.onResponse(AcknowledgedResponse.TRUE));
             return new TrainedModelCacheMetadata(entries);
         }

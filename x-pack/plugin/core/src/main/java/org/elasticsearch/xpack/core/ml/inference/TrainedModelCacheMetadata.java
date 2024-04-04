@@ -48,15 +48,15 @@ public class TrainedModelCacheMetadata implements Metadata.Custom {
     private static final ConstructingObjectParser<TrainedModelCacheMetadata, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        args -> new TrainedModelCacheMetadata((Map<String, TrainedModelCustomMetadataEntry>) args[0])
+        args -> new TrainedModelCacheMetadata((Map<String, TrainedModelCacheMetadataEntry>) args[0])
     );
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
-            Map<String, TrainedModelCustomMetadataEntry> entries = new HashMap<>();
+            Map<String, TrainedModelCacheMetadataEntry> entries = new HashMap<>();
             while (p.nextToken() != XContentParser.Token.END_OBJECT) {
                 String modelId = p.currentName();
-                entries.put(modelId, TrainedModelCustomMetadataEntry.fromXContent(p));
+                entries.put(modelId, TrainedModelCacheMetadataEntry.fromXContent(p));
             }
             return entries;
         }, ENTRIES);
@@ -80,8 +80,8 @@ public class TrainedModelCacheMetadata implements Metadata.Custom {
             return Collections.emptySet();
         }
 
-        Map<String, TrainedModelCustomMetadataEntry> oldCacheMetadataEntries = TrainedModelCacheMetadata.fromState(event.previousState()).entries();
-        Map<String, TrainedModelCustomMetadataEntry> newCacheMetadataEntries = TrainedModelCacheMetadata.fromState(event.state()).entries();
+        Map<String, TrainedModelCacheMetadataEntry> oldCacheMetadataEntries = TrainedModelCacheMetadata.fromState(event.previousState()).entries();
+        Map<String, TrainedModelCacheMetadataEntry> newCacheMetadataEntries = TrainedModelCacheMetadata.fromState(event.state()).entries();
 
         return Sets.union(oldCacheMetadataEntries.keySet(), newCacheMetadataEntries.keySet()).stream()
             .filter(modelId -> {
@@ -94,17 +94,17 @@ public class TrainedModelCacheMetadata implements Metadata.Custom {
             .collect(Collectors.toSet());
     }
 
-    private final Map<String, TrainedModelCustomMetadataEntry> entries;
+    private final Map<String, TrainedModelCacheMetadataEntry> entries;
 
-    public TrainedModelCacheMetadata(Map<String, TrainedModelCustomMetadataEntry> entries) {
+    public TrainedModelCacheMetadata(Map<String, TrainedModelCacheMetadataEntry> entries) {
         this.entries = entries;
     }
 
     public TrainedModelCacheMetadata(StreamInput in) throws IOException {
-        this.entries = in.readImmutableMap(TrainedModelCustomMetadataEntry::new);
+        this.entries = in.readImmutableMap(TrainedModelCacheMetadataEntry::new);
     }
 
-    public Map<String, TrainedModelCustomMetadataEntry> entries() {
+    public Map<String, TrainedModelCacheMetadataEntry> entries() {
         return entries;
     }
 
@@ -153,7 +153,7 @@ public class TrainedModelCacheMetadata implements Metadata.Custom {
     }
 
     public static class TrainedModelCacheMetadataDiff implements NamedDiff<Metadata.Custom> {
-        final Diff<Map<String, TrainedModelCustomMetadataEntry>> entriesDiff;
+        final Diff<Map<String, TrainedModelCacheMetadataEntry>> entriesDiff;
 
         TrainedModelCacheMetadataDiff(TrainedModelCacheMetadata before, TrainedModelCacheMetadata after) {
             this.entriesDiff = DiffableUtils.diff(before.entries, after.entries, DiffableUtils.getStringKeySerializer());
@@ -163,8 +163,8 @@ public class TrainedModelCacheMetadata implements Metadata.Custom {
             this.entriesDiff = DiffableUtils.readJdkMapDiff(
                 in,
                 DiffableUtils.getStringKeySerializer(),
-                TrainedModelCustomMetadataEntry::new,
-                TrainedModelCustomMetadataEntry::readDiffFrom
+                TrainedModelCacheMetadataEntry::new,
+                TrainedModelCacheMetadataEntry::readDiffFrom
             );
         }
 
@@ -189,31 +189,31 @@ public class TrainedModelCacheMetadata implements Metadata.Custom {
             return TransportVersion.current();
         }
     }
-    public static class TrainedModelCustomMetadataEntry implements SimpleDiffable<TrainedModelCustomMetadataEntry>, ToXContentObject {
-        private static final ConstructingObjectParser<TrainedModelCustomMetadataEntry, Void> PARSER = new ConstructingObjectParser<>(
+    public static class TrainedModelCacheMetadataEntry implements SimpleDiffable<TrainedModelCacheMetadataEntry>, ToXContentObject {
+        private static final ConstructingObjectParser<TrainedModelCacheMetadataEntry, Void> PARSER = new ConstructingObjectParser<>(
             "trained_model_cache_metadata_entry",
             true,
-            args -> new TrainedModelCustomMetadataEntry((String) args[0])
+            args -> new TrainedModelCacheMetadataEntry((String) args[0])
         );
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), MODEL_ID);
         }
 
-        private static Diff<TrainedModelCustomMetadataEntry> readDiffFrom(StreamInput in) throws IOException {
-            return SimpleDiffable.readDiffFrom(TrainedModelCustomMetadataEntry::new, in);
+        private static Diff<TrainedModelCacheMetadataEntry> readDiffFrom(StreamInput in) throws IOException {
+            return SimpleDiffable.readDiffFrom(TrainedModelCacheMetadataEntry::new, in);
         }
 
-        private static TrainedModelCustomMetadataEntry fromXContent(XContentParser parser) {
+        private static TrainedModelCacheMetadataEntry fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
 
         private final String modelId;
 
-        public TrainedModelCustomMetadataEntry(String modelId) {
+        public TrainedModelCacheMetadataEntry(String modelId) {
             this.modelId = modelId;
         }
 
-        TrainedModelCustomMetadataEntry(StreamInput in) throws IOException {
+        TrainedModelCacheMetadataEntry(StreamInput in) throws IOException {
             this.modelId = in.readString();
         }
 
@@ -238,7 +238,7 @@ public class TrainedModelCacheMetadata implements Metadata.Custom {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            TrainedModelCustomMetadataEntry that = (TrainedModelCustomMetadataEntry) o;
+            TrainedModelCacheMetadataEntry that = (TrainedModelCacheMetadataEntry) o;
             return Objects.equals(modelId, that.modelId);
         }
 

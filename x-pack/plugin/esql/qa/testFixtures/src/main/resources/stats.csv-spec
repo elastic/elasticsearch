@@ -1203,15 +1203,15 @@ e:i   | languages + emp_no:i
 
 nestedAggsOverGroupingExpressionMultiGroupWithoutAlias#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
-| STATS e = max(languages + emp_no + 10) + 1 by languages + emp_no, emp_no % 3
-| SORT e
+| STATS e = max(languages + emp_no + 10) + 1 by languages + emp_no, f = emp_no % 3
+| SORT e, f
 | LIMIT 3
 ;
 
-e:i   | languages + emp_no:i | emp_no % 3:i
+e:i   | languages + emp_no:i | f:i
 10014 | 10003                | 2
 10017 | 10006                | 0
-10018 | 10007                | 1
+10018 | 10007                | 0
 ;
 
 nestedAggsOverGroupingExpressionWithAlias#[skip:-8.13.99,reason:supported in 8.14]

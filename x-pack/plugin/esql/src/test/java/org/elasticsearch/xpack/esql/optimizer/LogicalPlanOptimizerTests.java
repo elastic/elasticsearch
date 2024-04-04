@@ -3074,7 +3074,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         // languages + emp_no % 2
         var add = as(Alias.unwrap(fields.get(1).canonical()), Add.class);
         assertThat(Expressions.name(add.left()), is("languages"));
-        var mod = as(add.right(), Mod.class);
+        var mod = as(add.right().canonical(), Mod.class);
         assertThat(Expressions.name(mod.left()), is("emp_no"));
         assertThat(mod.right().fold(), is(2));
     }
@@ -3101,16 +3101,16 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var eval = as(aggregate.child(), Eval.class);
         var fields = eval.fields();
         // emp_no % 2
-        var value = Alias.unwrap(fields.get(0));
+        var value = Alias.unwrap(fields.get(0).canonical());
         var math = as(value, Mod.class);
         assertThat(Expressions.name(math.left()), is("emp_no"));
         assertThat(math.right().fold(), is(2));
         // languages + salary
-        var add = as(Alias.unwrap(fields.get(1)), Add.class);
+        var add = as(Alias.unwrap(fields.get(1).canonical()), Add.class);
         assertThat(Expressions.name(add.left()), is("languages"));
         assertThat(Expressions.name(add.right()), is("salary"));
         // languages + salary + emp_no % 2
-        var add2 = as(Alias.unwrap(fields.get(2)), Add.class);
+        var add2 = as(Alias.unwrap(fields.get(2).canonical()), Add.class);
         var add3 = as(add2.left().canonical(), Add.class);
         var mod = as(add2.right().canonical(), Mod.class);
         // languages + salary

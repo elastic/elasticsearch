@@ -1,0 +1,5 @@
+pr: 106327
+summary: Serialize big array vectors
+area: ES|QL
+type: enhancement
+issues: []

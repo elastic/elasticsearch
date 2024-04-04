@@ -15,11 +15,11 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.versionfield.Version;
 
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToVersion;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
@@ -33,7 +33,7 @@ public class ToVersion extends AbstractConvertFunction {
     );
 
     @FunctionInfo(returnType = "version", description = "Converts an input string to a version value.")
-    public ToVersion(Source source, @Param(name = "v", type = { "keyword", "text", "version" }) Expression v) {
+    public ToVersion(Source source, @Param(name = "field", type = { "keyword", "text", "version" }) Expression v) {
         super(source, v);
     }
 
@@ -59,6 +59,6 @@ public class ToVersion extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString")
     static BytesRef fromKeyword(BytesRef asString) {
-        return new Version(asString.utf8ToString()).toBytesRef();
+        return stringToVersion(asString);
     }
 }

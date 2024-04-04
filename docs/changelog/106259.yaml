@@ -1,0 +1,5 @@
+pr: 106259
+summary: Add data stream lifecycle to kibana reporting template
+area: Data streams
+type: enhancement
+issues: []

@@ -88,9 +88,6 @@ public abstract class LuceneOperator extends SourceOperator {
                     doneCollecting = true;
                     return null;
                 }
-                if (currentSlice.numLeaves() == 0) {
-                    continue;
-                }
                 processedSlices++;
                 processedShards.add(currentSlice.shardContext().shardIdentifier());
             }

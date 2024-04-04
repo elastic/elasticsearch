@@ -71,8 +71,7 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
 
     public static class Builder extends BasePrimaryAllocationCommand.Builder<AllocateStalePrimaryAllocationCommand> {
 
-        @Override
-        public Builder parse(XContentParser parser) throws IOException {
+        private Builder parse(XContentParser parser) throws IOException {
             return STALE_PRIMARY_PARSER.parse(parser, this, null);
         }
 

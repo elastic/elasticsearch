@@ -16,23 +16,25 @@ own model, use the <<ml-df-trained-models-apis>>.
 [[delete-inference-api-request]]
 ==== {api-request-title}
 
-`DELETE /_inference/<model_id>`
-`DELETE /_inference/<task_type>/<model_id>`
+`DELETE /_inference/<inference_id>`
+
+`DELETE /_inference/<task_type>/<inference_id>`
 
 [discrete]
 [[delete-inference-api-prereqs]]
 ==== {api-prereq-title}
 
-* Requires the `manage` <<privileges-list-cluster,cluster privilege>>.
+* Requires the `manage_inference` <<privileges-list-cluster,cluster privilege>>
+(the built-in `inference_admin` role grants this privilege)
 
 
 [discrete]
 [[delete-inference-api-path-params]]
 ==== {api-path-parms-title}
 
-<model_id>::
+<inference_id>::
 (Required, string)
-The unique identifier of the {infer} model to delete.
+The unique identifier of the {infer} endpoint to delete.
 
 <task_type>::
 (Optional, string)

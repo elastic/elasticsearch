@@ -13,11 +13,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.script.ScriptContextInfo;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -31,27 +29,8 @@ import java.util.stream.Collectors;
 
 public class GetScriptContextResponse extends ActionResponse implements ToXContentObject {
 
-    private static final ParseField CONTEXTS = new ParseField("contexts");
+    static final ParseField CONTEXTS = new ParseField("contexts");
     final Map<String, ScriptContextInfo> contexts;
-
-    @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<GetScriptContextResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "get_script_context",
-        true,
-        (a) -> {
-            Map<String, ScriptContextInfo> contexts = ((List<ScriptContextInfo>) a[0]).stream()
-                .collect(Collectors.toMap(ScriptContextInfo::getName, c -> c));
-            return new GetScriptContextResponse(contexts);
-        }
-    );
-
-    static {
-        PARSER.declareObjectArray(
-            ConstructingObjectParser.constructorArg(),
-            (parser, ctx) -> ScriptContextInfo.PARSER.apply(parser, ctx),
-            CONTEXTS
-        );
-    }
 
     GetScriptContextResponse(StreamInput in) throws IOException {
         super(in);
@@ -70,7 +49,7 @@ public class GetScriptContextResponse extends ActionResponse implements ToXConte
     }
 
     // Parser constructor
-    private GetScriptContextResponse(Map<String, ScriptContextInfo> contexts) {
+    GetScriptContextResponse(Map<String, ScriptContextInfo> contexts) {
         this.contexts = Map.copyOf(contexts);
     }
 
@@ -94,10 +73,6 @@ public class GetScriptContextResponse extends ActionResponse implements ToXConte
         }
         builder.endArray().endObject(); // CONTEXTS
         return builder;
-    }
-
-    public static GetScriptContextResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.apply(parser, null);
     }
 
     @Override

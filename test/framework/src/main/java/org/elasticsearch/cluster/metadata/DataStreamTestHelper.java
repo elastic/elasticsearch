@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
@@ -118,6 +119,32 @@ public final class DataStreamTestHelper {
         @Nullable DataStreamLifecycle lifecycle
     ) {
         return newInstance(name, indices, generation, metadata, replicated, lifecycle, List.of());
+    }
+
+    public static DataStream newInstance(
+        String name,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata,
+        boolean replicated,
+        @Nullable DataStreamLifecycle lifecycle,
+        @Nullable DataStreamAutoShardingEvent autoShardingEvent
+    ) {
+        return new DataStream(
+            name,
+            indices,
+            generation,
+            metadata,
+            false,
+            replicated,
+            false,
+            false,
+            null,
+            lifecycle,
+            false,
+            List.of(),
+            autoShardingEvent
+        );
     }
 
     public static DataStream newInstance(
@@ -288,16 +315,24 @@ public final class DataStreamTestHelper {
         return randomInstance(System::currentTimeMillis);
     }
 
+    public static DataStream randomInstance(boolean failureStore) {
+        return randomInstance(System::currentTimeMillis, failureStore);
+    }
+
     public static DataStream randomInstance(String name) {
-        return randomInstance(name, System::currentTimeMillis);
+        return randomInstance(name, System::currentTimeMillis, randomBoolean());
     }
 
     public static DataStream randomInstance(LongSupplier timeProvider) {
-        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        return randomInstance(dataStreamName, timeProvider);
+        return randomInstance(timeProvider, randomBoolean());
     }
 
-    public static DataStream randomInstance(String dataStreamName, LongSupplier timeProvider) {
+    public static DataStream randomInstance(LongSupplier timeProvider, boolean failureStore) {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        return randomInstance(dataStreamName, timeProvider, failureStore);
+    }
+
+    public static DataStream randomInstance(String dataStreamName, LongSupplier timeProvider, boolean failureStore) {
         List<Index> indices = randomIndexInstances();
         long generation = indices.size() + ESTestCase.randomLongBetween(1, 128);
         indices.add(new Index(getDefaultBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(LuceneTestCase.random())));
@@ -306,9 +341,15 @@ public final class DataStreamTestHelper {
             metadata = Map.of("key", "value");
         }
         List<Index> failureIndices = List.of();
-        boolean failureStore = randomBoolean();
+        generation = generation + ESTestCase.randomLongBetween(1, 128);
         if (failureStore) {
             failureIndices = randomNonEmptyIndexInstances();
+            failureIndices.add(
+                new Index(
+                    getDefaultFailureStoreName(dataStreamName, generation, System.currentTimeMillis()),
+                    UUIDs.randomBase64UUID(LuceneTestCase.random())
+                )
+            );
         }
 
         return new DataStream(
@@ -343,6 +384,18 @@ public final class DataStreamTestHelper {
             dataStreams,
             randomBoolean() ? randomFrom(dataStreams) : null,
             randomBoolean() ? randomMap(1, 4, () -> new Tuple<>("term", Map.of("year", "2022"))) : null
+        );
+    }
+
+    @Nullable
+    public static DataStreamGlobalRetention randomGlobalRetention() {
+        if (randomBoolean()) {
+            return null;
+        }
+        boolean withDefault = randomBoolean();
+        return new DataStreamGlobalRetention(
+            withDefault ? TimeValue.timeValueDays(randomIntBetween(1, 30)) : null,
+            withDefault == false || randomBoolean() ? TimeValue.timeValueDays(randomIntBetween(31, 100)) : null
         );
     }
 
@@ -640,7 +693,8 @@ public final class DataStreamTestHelper {
             createIndexService,
             indexAliasesService,
             EmptySystemIndices.INSTANCE,
-            WriteLoadForecaster.DEFAULT
+            WriteLoadForecaster.DEFAULT,
+            clusterService
         );
     }
 

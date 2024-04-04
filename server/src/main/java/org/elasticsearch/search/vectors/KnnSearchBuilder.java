@@ -27,7 +27,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -59,18 +58,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<KnnSearchBuilder.Builder, Void> PARSER = new ConstructingObjectParser<>("knn", args -> {
         // TODO optimize parsing for when BYTE values are provided
-        List<Float> vector = (List<Float>) args[1];
-        final float[] vectorArray;
-        if (vector != null) {
-            vectorArray = new float[vector.size()];
-            for (int i = 0; i < vector.size(); i++) {
-                vectorArray[i] = vector.get(i);
-            }
-        } else {
-            vectorArray = null;
-        }
         return new Builder().field((String) args[0])
-            .queryVector(vectorArray)
+            .queryVector((VectorData) args[1])
             .queryVectorBuilder((QueryVectorBuilder) args[4])
             .k((Integer) args[2])
             .numCandidates((Integer) args[3])
@@ -79,9 +68,15 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
 
     static {
         PARSER.declareString(constructorArg(), FIELD_FIELD);
-        PARSER.declareFloatArray(optionalConstructorArg(), QUERY_VECTOR_FIELD);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> VectorData.parseXContent(p),
+            QUERY_VECTOR_FIELD,
+            ObjectParser.ValueType.OBJECT_ARRAY_STRING_OR_NUMBER
+        );
         PARSER.declareInt(optionalConstructorArg(), K_FIELD);
         PARSER.declareInt(optionalConstructorArg(), NUM_CANDS_FIELD);
+
         PARSER.declareNamedObject(
             optionalConstructorArg(),
             (p, c, n) -> p.namedObject(QueryVectorBuilder.class, n, c),
@@ -108,7 +103,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     }
 
     final String field;
-    final float[] queryVector;
+    final VectorData queryVector;
     final QueryVectorBuilder queryVectorBuilder;
     private final Supplier<float[]> querySupplier;
     final int k;
@@ -127,7 +122,26 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
      * @param numCands    the number of nearest neighbor candidates to consider per shard
      */
     public KnnSearchBuilder(String field, float[] queryVector, int k, int numCands, Float similarity) {
-        this(field, Objects.requireNonNull(queryVector, format("[%s] cannot be null", QUERY_VECTOR_FIELD)), null, k, numCands, similarity);
+        this(
+            field,
+            Objects.requireNonNull(VectorData.fromFloats(queryVector), format("[%s] cannot be null", QUERY_VECTOR_FIELD)),
+            null,
+            k,
+            numCands,
+            similarity
+        );
+    }
+
+    /**
+     * Defines a kNN search.
+     *
+     * @param field       the name of the vector field to search against
+     * @param queryVector the query vector
+     * @param k           the final number of nearest neighbors to return as top hits
+     * @param numCands    the number of nearest neighbor candidates to consider per shard
+     */
+    public KnnSearchBuilder(String field, VectorData queryVector, int k, int numCands, Float similarity) {
+        this(field, queryVector, null, k, numCands, similarity);
     }
 
     /**
@@ -151,7 +165,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
 
     public KnnSearchBuilder(
         String field,
-        float[] queryVector,
+        VectorData queryVector,
         QueryVectorBuilder queryVectorBuilder,
         int k,
         int numCands,
@@ -169,7 +183,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         Float similarity
     ) {
         this.field = field;
-        this.queryVector = new float[0];
+        this.queryVector = VectorData.fromFloats(new float[0]);
         this.queryVectorBuilder = null;
         this.k = k;
         this.numCands = numCands;
@@ -181,7 +195,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     private KnnSearchBuilder(
         String field,
         QueryVectorBuilder queryVectorBuilder,
-        float[] queryVector,
+        VectorData queryVector,
         List<QueryBuilder> filterQueries,
         int k,
         int numCandidates,
@@ -219,7 +233,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             );
         }
         this.field = field;
-        this.queryVector = queryVector == null ? new float[0] : queryVector;
+        this.queryVector = queryVector == null ? VectorData.fromFloats(new float[0]) : queryVector;
         this.queryVectorBuilder = queryVectorBuilder;
         this.k = k;
         this.numCands = numCandidates;
@@ -234,7 +248,11 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         this.field = in.readString();
         this.k = in.readVInt();
         this.numCands = in.readVInt();
-        this.queryVector = in.readFloatArray();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.KNN_EXPLICIT_BYTE_QUERY_VECTOR_PARSING)) {
+            this.queryVector = in.readOptionalWriteable(VectorData::new);
+        } else {
+            this.queryVector = VectorData.fromFloats(in.readFloatArray());
+        }
         this.filterQueries = in.readNamedWriteableCollectionAsList(QueryBuilder.class);
         this.boost = in.readFloat();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
@@ -262,7 +280,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     }
 
     // for testing only
-    public float[] getQueryVector() {
+    public VectorData getQueryVector() {
         return queryVector;
     }
 
@@ -365,7 +383,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         return k == that.k
             && numCands == that.numCands
             && Objects.equals(field, that.field)
-            && Arrays.equals(queryVector, that.queryVector)
+            && Objects.equals(queryVector, that.queryVector)
             && Objects.equals(queryVectorBuilder, that.queryVectorBuilder)
             && Objects.equals(querySupplier, that.querySupplier)
             && Objects.equals(filterQueries, that.filterQueries)
@@ -383,7 +401,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             querySupplier,
             queryVectorBuilder,
             similarity,
-            Arrays.hashCode(queryVector),
+            Objects.hashCode(queryVector),
             Objects.hashCode(filterQueries),
             innerHitBuilder,
             boost
@@ -401,7 +419,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             builder.field(queryVectorBuilder.getWriteableName(), queryVectorBuilder);
             builder.endObject();
         } else {
-            builder.array(QUERY_VECTOR_FIELD.getPreferredName(), queryVector);
+            builder.field(QUERY_VECTOR_FIELD.getPreferredName(), queryVector);
         }
         if (similarity != null) {
             builder.field(VECTOR_SIMILARITY.getPreferredName(), similarity);
@@ -434,7 +452,11 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         out.writeString(field);
         out.writeVInt(k);
         out.writeVInt(numCands);
-        out.writeFloatArray(queryVector);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.KNN_EXPLICIT_BYTE_QUERY_VECTOR_PARSING)) {
+            out.writeOptionalWriteable(queryVector);
+        } else {
+            out.writeFloatArray(queryVector.asFloatVector());
+        }
         out.writeNamedWriteableCollection(filterQueries);
         out.writeFloat(boost);
         if (out.getTransportVersion().before(TransportVersions.V_8_7_0) && queryVectorBuilder != null) {
@@ -460,7 +482,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     public static class Builder {
 
         private String field;
-        private float[] queryVector;
+        private VectorData queryVector;
         private QueryVectorBuilder queryVectorBuilder;
         private Integer k;
         private Integer numCandidates;
@@ -490,7 +512,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             return this;
         }
 
-        public Builder queryVector(float[] queryVector) {
+        public Builder queryVector(VectorData queryVector) {
             this.queryVector = queryVector;
             return this;
         }

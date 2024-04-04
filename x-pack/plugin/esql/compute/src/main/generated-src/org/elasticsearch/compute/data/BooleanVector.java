@@ -80,6 +80,7 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
             case SERIALIZE_VECTOR_VALUES -> readValues(positions, in, blockFactory);
             case SERIALIZE_VECTOR_CONSTANT -> blockFactory.newConstantBooleanVector(in.readBoolean(), positions);
             case SERIALIZE_VECTOR_ARRAY -> BooleanArrayVector.readArrayVector(positions, in, blockFactory);
+            case SERIALIZE_VECTOR_BIG_ARRAY -> BooleanBigArrayVector.readArrayVector(positions, in, blockFactory);
             default -> {
                 assert false : "invalid vector serialization type [" + serializationType + "]";
                 throw new IllegalStateException("invalid vector serialization type [" + serializationType + "]");
@@ -97,6 +98,9 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
             out.writeBoolean(getBoolean(0));
         } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_VECTOR) && this instanceof BooleanArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_ARRAY);
+            v.writeArrayVector(positions, out);
+        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_VECTOR) && this instanceof BooleanBigArrayVector v) {
+            out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
             v.writeArrayVector(positions, out);
         } else {
             out.writeByte(SERIALIZE_VECTOR_VALUES);

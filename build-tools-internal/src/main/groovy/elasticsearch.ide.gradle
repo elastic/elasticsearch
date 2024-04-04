@@ -9,6 +9,7 @@
 import org.elasticsearch.gradle.util.Pair
 import org.elasticsearch.gradle.util.GradleUtils
 import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.TestUtil
 import org.jetbrains.gradle.ext.JUnit
 
 import java.nio.file.Files
@@ -128,8 +129,12 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
       ':x-pack:plugin:esql:compute:gen:jar',
       ':server:generateModulesList',
       ':server:generatePluginsList',
-      ':generateProviderImpls'].collect { elasticsearchProject.right()?.task(it) ?: it })
+      ':generateProviderImpls',
+      ':libs:elasticsearch-native:elasticsearch-native-libraries:extractLibs'].collect { elasticsearchProject.right()?.task(it) ?: it })
   }
+
+  // this path is produced by the extractLibs task above
+  String testLibraryPath = TestUtil.getTestLibraryPath("${elasticsearchProject.left()}/libs/native/libraries/build/platform")
 
   idea {
     project {
@@ -162,6 +167,8 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
               '-ea',
               '-Djava.security.manager=allow',
               '-Djava.locale.providers=SPI,COMPAT',
+              '-Djava.library.path=' + testLibraryPath,
+              '-Djna.library.path=' + testLibraryPath,
               // TODO: only open these for mockito when it is modularized
               '--add-opens=java.base/java.security.cert=ALL-UNNAMED',
               '--add-opens=java.base/java.nio.channels=ALL-UNNAMED',

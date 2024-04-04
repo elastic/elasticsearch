@@ -643,6 +643,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
                 if (hb.preTags() != null && hb.postTags() == null) {
                     throw new ParsingException(p.getTokenLocation(), "pre_tags are set but post_tags are not set");
                 }
+                if (hb.preTags() != null && hb.postTags() != null && (hb.preTags().length == 0 || hb.postTags().length == 0)) {
+                    throw new ParsingException(p.getTokenLocation(), "pre_tags or post_tags must not be empty");
+                }
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

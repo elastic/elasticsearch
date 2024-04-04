@@ -39,6 +39,9 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
     BooleanBlock filter(int... positions);
 
     @Override
+    BooleanBlock expand();
+
+    @Override
     default String getWriteableName() {
         return "BooleanBlock";
     }
@@ -49,12 +52,13 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
         return readFrom((BlockStreamInput) in);
     }
 
-    private static BooleanBlock readFrom(BlockStreamInput in) throws IOException {
+    static BooleanBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
         return switch (serializationType) {
             case SERIALIZE_BLOCK_VALUES -> BooleanBlock.readValues(in);
             case SERIALIZE_BLOCK_VECTOR -> BooleanVector.readFrom(in.blockFactory(), in).asBlock();
             case SERIALIZE_BLOCK_ARRAY -> BooleanArrayBlock.readArrayBlock(in.blockFactory(), in);
+            case SERIALIZE_BLOCK_BIG_ARRAY -> BooleanBigArrayBlock.readArrayBlock(in.blockFactory(), in);
             default -> {
                 assert false : "invalid block serialization type " + serializationType;
                 throw new IllegalStateException("invalid serialization type " + serializationType);
@@ -90,6 +94,9 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
             vector.writeTo(out);
         } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_BLOCK) && this instanceof BooleanArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_ARRAY);
+            b.writeArrayBlock(out);
+        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_ARRAY) && this instanceof BooleanBigArrayBlock b) {
+            out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
             b.writeArrayBlock(out);
         } else {
             out.writeByte(SERIALIZE_BLOCK_VALUES);

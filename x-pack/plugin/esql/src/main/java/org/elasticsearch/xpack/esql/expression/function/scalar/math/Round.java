@@ -29,12 +29,12 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asUnsignedLong;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public class Round extends EsqlScalarFunction implements OptionalArgument {
@@ -47,7 +47,7 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
     @FunctionInfo(returnType = "double", description = "Rounds a number to the closest number with the specified number of digits.")
     public Round(
         Source source,
-        @Param(name = "value", type = "double", description = "The numeric value to round") Expression field,
+        @Param(name = "number", type = "double", description = "The numeric value to round") Expression field,
         @Param(
             optional = true,
             name = "decimals",
@@ -99,10 +99,9 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
         Number ul = unsignedLongAsNumber(val);
         if (ul instanceof BigInteger bi) {
             BigInteger rounded = Maths.round(bi, decimals);
-            BigInteger unsignedLong = asUnsignedLong(rounded);
-            return asLongUnsigned(unsignedLong);
+            return bigIntegerToUnsignedLong(rounded);
         } else {
-            return asLongUnsigned(Maths.round(ul.longValue(), decimals));
+            return longToUnsignedLong(Maths.round(ul.longValue(), decimals), false);
         }
     }
 

@@ -48,8 +48,7 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
             return new TestQueryBuilder();
         }
 
-        TestQueryBuilder() {
-        }
+        TestQueryBuilder() {}
 
         TestQueryBuilder(StreamInput in) throws IOException {
             super(in);
@@ -93,8 +92,7 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
     }
 
     public static class TestPlugin extends Plugin implements SearchPlugin {
-        public TestPlugin() {
-        }
+        public TestPlugin() {}
 
         @Override
         public List<QuerySpec<?>> getQueries() {

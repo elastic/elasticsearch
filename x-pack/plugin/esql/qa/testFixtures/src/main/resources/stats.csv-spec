@@ -1294,6 +1294,28 @@ x:d
 3.14
 ;
 
+emptyProjectInStatDueToAnotherStat#[skip:-8.13.99,reason:fixed in 8.14]
+FROM employees
+| STATS s = SUM(salary), m = MIN(salary)
+| EVAL x = 3.14
+| STATS rows = COUNT(*)
+;
+
+rows:l
+1
+;
+
+emptyProjectInStatDueToAnotherStatWithGroups#[skip:-8.13.99,reason:fixed in 8.14]
+FROM employees
+| STATS m = MEDIAN(salary) BY gender, still_hired
+| EVAL x = 3.14
+| STATS rows = COUNT(*)
+;
+
+rows:l
+6
+;
+
 sumOfConst#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
 | STATS s1 = sum(1), s2point1 = sum(2.1), s_mv = sum([-1, 0, 3]) * 3, s_null = sum(null), rows = count(*)

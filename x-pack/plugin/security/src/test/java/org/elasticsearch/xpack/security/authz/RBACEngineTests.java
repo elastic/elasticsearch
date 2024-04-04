@@ -73,7 +73,7 @@ import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.permission.ApplicationPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
@@ -196,7 +196,12 @@ public class RBACEngineTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             final var listener = (ActionListener<Tuple<Role, Role>>) invocation.getArgument(1);
             final Supplier<Role> randomRoleSupplier = () -> Role.buildFromRoleDescriptor(
-                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), false, randomBoolean()),
+                RoleDescriptorTestHelper.builder()
+                    .allowReservedMetadata(randomBoolean())
+                    .allowRemoteIndices(false)
+                    .allowRestriction(randomBoolean())
+                    .allowDescription(randomBoolean())
+                    .build(),
                 new FieldPermissionsCache(Settings.EMPTY),
                 RESTRICTED_INDICES,
                 List.of()

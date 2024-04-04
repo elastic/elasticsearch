@@ -48,7 +48,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.RoleRestrictionTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
@@ -70,6 +69,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomApplicationPrivileges;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomClusterPrivileges;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRemoteIndicesPrivileges;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRoleDescriptorMetadata;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -124,13 +127,14 @@ public class NativeRolesStoreTests extends ESTestCase {
             randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
             new IndicesPrivileges[] {
                 IndicesPrivileges.builder().privileges("READ").indices("*").grantedFields("*").deniedFields("foo").build() },
-            RoleDescriptorTests.randomApplicationPrivileges(),
-            RoleDescriptorTests.randomClusterPrivileges(),
+            randomApplicationPrivileges(),
+            randomClusterPrivileges(),
             generateRandomStringArray(5, randomIntBetween(2, 8), true, true),
-            RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
+            randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
-            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
-            null
+            randomRemoteIndicesPrivileges(1, 2),
+            null,
+            randomAlphaOfLengthBetween(0, 20)
         );
         assertFalse(flsRole.getTransientMetadata().containsKey("unlicensed_features"));
 
@@ -140,13 +144,14 @@ public class NativeRolesStoreTests extends ESTestCase {
             "dls",
             randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("*").privileges("READ").query(matchAllBytes).build() },
-            RoleDescriptorTests.randomApplicationPrivileges(),
-            RoleDescriptorTests.randomClusterPrivileges(),
+            randomApplicationPrivileges(),
+            randomClusterPrivileges(),
             generateRandomStringArray(5, randomIntBetween(2, 8), true, true),
-            RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
+            randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
-            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
-            null
+            randomRemoteIndicesPrivileges(1, 2),
+            null,
+            randomAlphaOfLengthBetween(0, 20)
         );
         assertFalse(dlsRole.getTransientMetadata().containsKey("unlicensed_features"));
 
@@ -161,13 +166,14 @@ public class NativeRolesStoreTests extends ESTestCase {
                     .deniedFields("foo")
                     .query(matchAllBytes)
                     .build() },
-            RoleDescriptorTests.randomApplicationPrivileges(),
-            RoleDescriptorTests.randomClusterPrivileges(),
+            randomApplicationPrivileges(),
+            randomClusterPrivileges(),
             generateRandomStringArray(5, randomIntBetween(2, 8), true, true),
-            RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
+            randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
-            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
-            null
+            randomRemoteIndicesPrivileges(1, 2),
+            null,
+            randomAlphaOfLengthBetween(0, 20)
         );
         assertFalse(flsDlsRole.getTransientMetadata().containsKey("unlicensed_features"));
 
@@ -175,13 +181,14 @@ public class NativeRolesStoreTests extends ESTestCase {
             "no_fls_dls",
             randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("*").privileges("READ").build() },
-            RoleDescriptorTests.randomApplicationPrivileges(),
-            RoleDescriptorTests.randomClusterPrivileges(),
+            randomApplicationPrivileges(),
+            randomClusterPrivileges(),
             generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
-            RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
+            randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
-            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
-            null
+            randomRemoteIndicesPrivileges(1, 2),
+            null,
+            randomAlphaOfLengthBetween(0, 20)
         );
         assertFalse(noFlsDlsRole.getTransientMetadata().containsKey("unlicensed_features"));
 
@@ -271,13 +278,14 @@ public class NativeRolesStoreTests extends ESTestCase {
                             : "{ \"match_all\": {} }"
                     )
                     .build() },
-            RoleDescriptorTests.randomApplicationPrivileges(),
-            RoleDescriptorTests.randomClusterPrivileges(),
+            randomApplicationPrivileges(),
+            randomClusterPrivileges(),
             generateRandomStringArray(5, randomIntBetween(2, 8), true, true),
-            RoleDescriptorTests.randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
+            randomRoleDescriptorMetadata(ESTestCase.randomBoolean()),
             null,
-            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 2),
-            RoleRestrictionTests.randomWorkflowsRestriction(1, 2)
+            randomRemoteIndicesPrivileges(1, 2),
+            RoleRestrictionTests.randomWorkflowsRestriction(1, 2),
+            randomAlphaOfLengthBetween(0, 20)
         );
 
         XContentBuilder builder = roleWithRestriction.toXContent(
@@ -427,6 +435,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             null,
             new RoleDescriptor.RemoteIndicesPrivileges[] {
                 RoleDescriptor.RemoteIndicesPrivileges.builder("remote").privileges("read").indices("index").build() },
+            null,
             null
         );
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();

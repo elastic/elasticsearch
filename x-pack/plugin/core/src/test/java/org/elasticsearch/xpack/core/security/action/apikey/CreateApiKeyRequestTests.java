@@ -112,7 +112,8 @@ public class CreateApiKeyRequestTests extends ESTestCase {
                     Map.of("_key", "value"),
                     null,
                     null,
-                    new RoleDescriptor.Restriction(unknownWorkflows)
+                    new RoleDescriptor.Restriction(unknownWorkflows),
+                    randomBoolean() ? null : randomAlphaOfLengthBetween(0, 20)
                 )
             ),
             null

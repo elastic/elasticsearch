@@ -44,6 +44,7 @@ public class PutRoleRequest extends ActionRequest {
     private Map<String, Object> metadata;
     private List<RoleDescriptor.RemoteIndicesPrivileges> remoteIndicesPrivileges = new ArrayList<>();
     private boolean restrictRequest = false;
+    private String description;
 
     public PutRoleRequest() {}
 
@@ -59,6 +60,10 @@ public class PutRoleRequest extends ActionRequest {
 
     public void name(String name) {
         this.name = name;
+    }
+
+    public void description(String description) {
+        this.description = description;
     }
 
     public void cluster(String... clusterPrivilegesArray) {
@@ -158,6 +163,10 @@ public class PutRoleRequest extends ActionRequest {
         return name;
     }
 
+    public String description() {
+        return description;
+    }
+
     public String[] cluster() {
         return clusterPrivileges;
     }
@@ -206,7 +215,8 @@ public class PutRoleRequest extends ActionRequest {
             metadata,
             Collections.emptyMap(),
             remoteIndicesPrivileges.toArray(new RoleDescriptor.RemoteIndicesPrivileges[0]),
-            null
+            null,
+            description
         );
     }
 }

@@ -1853,6 +1853,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             null,
             new RoleDescriptor.RemoteIndicesPrivileges[] {
                 RoleDescriptor.RemoteIndicesPrivileges.builder(remoteIndicesClusterAliases).indices("*").privileges("read").build() },
+            null,
             null
         );
         getSecurityClient().putRole(role);

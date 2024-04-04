@@ -41,11 +41,17 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
         request.addApplicationPrivileges(descriptor.getApplicationPrivileges());
         request.runAs(descriptor.getRunAs());
         request.metadata(descriptor.getMetadata());
+        request.description(descriptor.getDescription());
         return this;
     }
 
     public PutRoleRequestBuilder name(String name) {
         request.name(name);
+        return this;
+    }
+
+    public PutRoleRequestBuilder description(String description) {
+        request.description(description);
         return this;
     }
 

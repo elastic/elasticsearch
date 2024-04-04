@@ -637,7 +637,8 @@ public class ApiKeyService {
                         roleDescriptor.getMetadata(),
                         roleDescriptor.getTransientMetadata(),
                         null,
-                        roleDescriptor.getRestriction()
+                        roleDescriptor.getRestriction(),
+                        roleDescriptor.getDescription()
                     );
                 }
                 return roleDescriptor;

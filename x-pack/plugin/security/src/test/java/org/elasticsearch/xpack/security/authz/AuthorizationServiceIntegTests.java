@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
@@ -73,6 +73,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                             .build(),
                         randomNonEmptySubsetOf(List.of(concreteClusterAlias, "*")).toArray(new String[0])
                     ) },
+                null,
                 null
             )
         );
@@ -129,7 +130,10 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
         final AuthorizationService authzService = internalCluster().getInstance(AuthorizationService.class, nodeName);
         final CrossClusterAccessSubjectInfo crossClusterAccessSubjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(
             new RoleDescriptorsIntersection(
-                randomValueOtherThanMany(rd -> false == rd.hasPrivilegesOtherThanIndex(), () -> RoleDescriptorTests.randomRoleDescriptor())
+                randomValueOtherThanMany(
+                    rd -> false == rd.hasPrivilegesOtherThanIndex(),
+                    () -> RoleDescriptorTestHelper.randomRoleDescriptor()
+                )
             )
         );
         final Authentication authentication = AuthenticationTestHelper.builder()

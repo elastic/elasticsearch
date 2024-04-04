@@ -1218,7 +1218,7 @@ c:l
 891
 ;
 
-countMV#[skip:-8.13.0,reason:supported in 8.13.1]
+countMV#[skip:-8.13.0,reason:fixed in 8.13.1]
 FROM employees
 | STATS vals = COUNT(salary_change.int)
 ;

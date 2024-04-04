@@ -51,7 +51,6 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
             null,
             null,
             null,
-            null,
             null
         );
         this.indexLongFieldRange = indexLongFieldRange;

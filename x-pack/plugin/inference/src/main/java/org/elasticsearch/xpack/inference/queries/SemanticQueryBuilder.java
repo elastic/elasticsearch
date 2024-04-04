@@ -173,6 +173,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             InferenceAction.Request inferenceRequest = new InferenceAction.Request(
                 TaskType.ANY,
                 inferenceId,
+                null,
                 List.of(query),
                 Map.of(),
                 InputType.SEARCH

@@ -514,6 +514,12 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
     public void testComputeOptimalNumberOfShards() {
         int minWriteThreads = 2;
         int maxWriteThreads = 32;
+
+        {
+            // 0.0 indexing load recommends 1 shard
+            logger.info("-> indexingLoad {}", 0.0);
+            assertThat(DataStreamAutoShardingService.computeOptimalNumberOfShards(minWriteThreads, maxWriteThreads, 0.0), is(1L));
+        }
         {
             // the small values will be very common so let's randomise to make sure we never go below 1L
             double indexingLoad = randomDoubleBetween(0.0001, 1.0, true);

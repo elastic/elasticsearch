@@ -14,8 +14,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -191,7 +191,7 @@ public final class TransformIndex {
             config.getHeaders(),
             TRANSFORM_ORIGIN,
             client,
-            CreateIndexAction.INSTANCE,
+            TransportCreateIndexAction.TYPE,
             request,
             ActionListener.wrap(createIndexResponse -> {
                 listener.onResponse(true);

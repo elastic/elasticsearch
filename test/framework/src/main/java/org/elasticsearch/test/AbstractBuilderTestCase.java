@@ -604,7 +604,6 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 mapperService,
                 mapperService.mappingLookup(),
                 emptyMap(),
-                null,
                 idxSettings,
                 new Index(
                     RemoteClusterAware.buildRemoteIndexName(null, idxSettings.getIndex().getName()),

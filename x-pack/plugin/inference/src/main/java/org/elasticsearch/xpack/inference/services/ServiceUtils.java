@@ -186,6 +186,21 @@ public class ServiceUtils {
         return new SecureString(Objects.requireNonNull(requiredField).toCharArray());
     }
 
+    public static SecureString extractOptionalSecureString(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        String optionalField = extractOptionalString(map, settingName, scope, validationException);
+
+        if (validationException.validationErrors().isEmpty() == false || optionalField == null) {
+            return null;
+        }
+
+        return new SecureString(optionalField.toCharArray());
+    }
+
     public static SimilarityMeasure extractSimilarity(Map<String, Object> map, String scope, ValidationException validationException) {
         return extractOptionalEnum(
             map,

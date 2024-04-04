@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.inference.services.elser.ElserInternalService;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -176,6 +177,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get()),
             context -> new OpenAiService(httpFactory.get(), serviceComponents.get()),
             context -> new CohereService(httpFactory.get(), serviceComponents.get()),
+            context -> new AzureOpenAiService(httpFactory.get(), serviceComponents.get()),
             ElasticsearchInternalService::new
         );
     }

@@ -1314,22 +1314,25 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         private LongSupplier timeProvider;
         private String name;
         private List<Index> indices;
-        private long generation;
-        private Map<String, Object> metadata;
-        private boolean hidden;
-        private boolean replicated;
-        private boolean system;
-        private boolean allowCustomRouting;
-        private IndexMode indexMode;
+        private long generation = 1;
+        private Map<String, Object> metadata = null;
+        private boolean hidden = false;
+        private boolean replicated = false;
+        private boolean system = false;
+        private boolean allowCustomRouting = false;
+        private IndexMode indexMode = null;
         @Nullable
-        private DataStreamLifecycle lifecycle;
-        private boolean rolloverOnWrite;
-        private boolean failureStore;
-        private List<Index> failureIndices;
+        private DataStreamLifecycle lifecycle = null;
+        private boolean rolloverOnWrite = false;
+        private boolean failureStore = false;
+        private List<Index> failureIndices = List.of();
         @Nullable
-        private DataStreamAutoShardingEvent autoShardingEvent;
+        private DataStreamAutoShardingEvent autoShardingEvent = null;
 
-        public Builder() {}
+        public Builder(String name, List<Index> indices) {
+            this.name = name;
+            this.indices = indices;
+        }
 
         public Builder(DataStream dataStream) {
             timeProvider = dataStream.timeProvider;

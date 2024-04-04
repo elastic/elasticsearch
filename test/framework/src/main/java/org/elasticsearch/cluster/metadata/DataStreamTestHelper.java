@@ -130,21 +130,12 @@ public final class DataStreamTestHelper {
         @Nullable DataStreamLifecycle lifecycle,
         @Nullable DataStreamAutoShardingEvent autoShardingEvent
     ) {
-        return new DataStream(
-            name,
-            indices,
-            generation,
-            metadata,
-            false,
-            replicated,
-            false,
-            false,
-            null,
-            lifecycle,
-            false,
-            List.of(),
-            autoShardingEvent
-        );
+        return new DataStream.Builder(name, indices).setGeneration(generation)
+            .setMetadata(metadata)
+            .setReplicated(replicated)
+            .setLifecycle(lifecycle)
+            .setAutoShardingEvent(autoShardingEvent)
+            .build();
     }
 
     public static DataStream newInstance(
@@ -156,21 +147,13 @@ public final class DataStreamTestHelper {
         @Nullable DataStreamLifecycle lifecycle,
         List<Index> failureStores
     ) {
-        return new DataStream(
-            name,
-            indices,
-            generation,
-            metadata,
-            false,
-            replicated,
-            false,
-            false,
-            null,
-            lifecycle,
-            failureStores.size() > 0,
-            failureStores,
-            null
-        );
+        return new DataStream.Builder(name, indices).setGeneration(generation)
+            .setMetadata(metadata)
+            .setReplicated(replicated)
+            .setLifecycle(lifecycle)
+            .setFailureStore(failureStores.isEmpty() == false)
+            .setFailureIndices(failureStores)
+            .build();
     }
 
     public static String getLegacyDefaultBackingIndexName(

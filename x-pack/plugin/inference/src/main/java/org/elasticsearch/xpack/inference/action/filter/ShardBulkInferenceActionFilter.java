@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -133,16 +134,16 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
      * @param field The target field.
      * @param input The input to run inference on.
      * @param inputOrder The original order of the input.
-     * @param isRawInput Whether the input is part of the raw values of the original field.
+     * @param isOriginalFieldInput Whether the input is part of the original values of the field.
      */
-    private record FieldInferenceRequest(int id, String field, String input, int inputOrder, boolean isRawInput) {}
+    private record FieldInferenceRequest(int id, String field, String input, int inputOrder, boolean isOriginalFieldInput) {}
 
     /**
      * The field inference response.
      * @param field The target field.
      * @param input The input that was used to run inference.
      * @param inputOrder The original order of the input.
-     * @param isRawInput Whether the input is part of the raw values of the original field.
+     * @param isOriginalFieldInput Whether the input is part of the original values of the field.
      * @param model The model used to run inference.
      * @param chunkedResults The actual results.
      */
@@ -150,7 +151,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         String field,
         String input,
         int inputOrder,
-        boolean isRawInput,
+        boolean isOriginalFieldInput,
         Model model,
         ChunkedInferenceServiceResults chunkedResults
     ) {}
@@ -286,7 +287,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                     request.field(),
                                     request.input(),
                                     request.inputOrder(),
-                                    request.isRawInput(),
+                                    request.isOriginalFieldInput(),
                                     inferenceProvider.model,
                                     result
                                 )
@@ -370,13 +371,10 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 var fieldName = entry.getKey();
                 var responses = entry.getValue();
                 var model = responses.get(0).model();
-                // ensure that the order in the raw field is consistent in case of multiple inputs
+                // ensure that the order in the original field is consistent in case of multiple inputs
                 Collections.sort(responses, Comparator.comparingInt(FieldInferenceResponse::inputOrder));
-                List<String> inputs = responses.stream().filter(r -> r.isRawInput).map(r -> r.input).collect(Collectors.toList());
-                List<ChunkedInferenceServiceResults> results = entry.getValue()
-                    .stream()
-                    .map(r -> r.chunkedResults)
-                    .collect(Collectors.toList());
+                List<String> inputs = responses.stream().filter(r -> r.isOriginalFieldInput).map(r -> r.input).collect(Collectors.toList());
+                List<ChunkedInferenceServiceResults> results = responses.stream().map(r -> r.chunkedResults).collect(Collectors.toList());
                 var result = new SemanticTextField(
                     fieldName,
                     inputs,
@@ -398,7 +396,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
          * field is skipped, and the existing results remain unchanged.
          * Validation of inference ID and model settings occurs in the {@link SemanticTextFieldMapper} during field indexing,
          * where an error will be thrown if they mismatch or if the content is malformed.
-         *
+         * <p>
          * TODO: We should validate the settings for pre-existing results here and apply the inference only if they differ?
          */
         private Map<String, List<FieldInferenceRequest>> createFieldInferenceRequests(BulkShardRequest bulkShardRequest) {
@@ -434,13 +432,13 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 for (var entry : fieldInferenceMap.values()) {
                     String field = entry.getName();
                     String inferenceId = entry.getInferenceId();
-                    var rawValue = XContentMapValues.extractValue(field, docMap);
-                    if (rawValue instanceof Map) {
+                    var originalFieldValue = XContentMapValues.extractValue(field, docMap);
+                    if (originalFieldValue instanceof Map) {
                         continue;
                     }
                     int order = 0;
                     for (var sourceField : entry.getSourceFields()) {
-                        boolean isRawField = sourceField.equals(field);
+                        boolean isOriginalFieldInput = sourceField.equals(field);
                         var valueObj = XContentMapValues.extractValue(sourceField, docMap);
                         if (valueObj == null) {
                             if (isUpdateRequest) {
@@ -458,37 +456,53 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             continue;
                         }
                         ensureResponseAccumulatorSlot(item.id());
-                        if (valueObj instanceof String valueStr) {
-                            List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(
-                                inferenceId,
-                                k -> new ArrayList<>()
-                            );
-                            fieldRequests.add(new FieldInferenceRequest(item.id(), field, valueStr, order++, isRawField));
-                        } else if (valueObj instanceof List<?> valueList) {
-                            List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(
-                                inferenceId,
-                                k -> new ArrayList<>()
-                            );
-                            for (var value : valueList) {
-                                fieldRequests.add(new FieldInferenceRequest(item.id(), field, value.toString(), order++, isRawField));
-                            }
-                        } else {
-                            addInferenceResponseFailure(
-                                item.id(),
-                                new ElasticsearchStatusException(
-                                    "Invalid format for field [{}], expected [String] got [{}]",
-                                    RestStatus.BAD_REQUEST,
-                                    field,
-                                    valueObj.getClass().getSimpleName()
-                                )
-                            );
+                        final List<String> values;
+                        try {
+                            values = nodeStringValues(field, valueObj);
+                        } catch (Exception exc) {
+                            addInferenceResponseFailure(item.id(), exc);
                             break;
+                        }
+                        List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
+                        for (var v : values) {
+                            fieldRequests.add(new FieldInferenceRequest(item.id(), field, v, order++, isOriginalFieldInput));
                         }
                     }
                 }
             }
             return fieldRequestsMap;
         }
+    }
+
+    /**
+     * This method converts the given {@code valueObj} into a list of strings.
+     * If {@code valueObj} is not a string or a collection of strings, it throws an ElasticsearchStatusException.
+     */
+    private static List<String> nodeStringValues(String field, Object valueObj) {
+        if (valueObj instanceof String value) {
+            return List.of(value);
+        } else if (valueObj instanceof Collection<?> values) {
+            List<String> valuesString = new ArrayList<>();
+            for (var v : values) {
+                if (v instanceof String value) {
+                    valuesString.add(value);
+                } else {
+                    throw new ElasticsearchStatusException(
+                        "Invalid format for field [{}], expected [String] got [{}]",
+                        RestStatus.BAD_REQUEST,
+                        field,
+                        valueObj.getClass().getSimpleName()
+                    );
+                }
+            }
+            return valuesString;
+        }
+        throw new ElasticsearchStatusException(
+            "Invalid format for field [{}], expected [String] got [{}]",
+            RestStatus.BAD_REQUEST,
+            field,
+            valueObj.getClass().getSimpleName()
+        );
     }
 
     static IndexRequest getIndexRequestOrNull(DocWriteRequest<?> docWriteRequest) {

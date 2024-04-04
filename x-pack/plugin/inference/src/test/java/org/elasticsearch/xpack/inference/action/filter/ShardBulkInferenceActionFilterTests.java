@@ -52,6 +52,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.DEFAULT_BATCH_SIZE;
+import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.getIndexRequestOrNull;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.toChunkedResult;
 import static org.hamcrest.Matchers.equalTo;
@@ -179,8 +180,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 BulkItemRequest[] items = bulkShardRequest.items();
                 assertThat(items.length, equalTo(originalRequests.length));
                 for (int id = 0; id < items.length; id++) {
-                    IndexRequest actualRequest = ShardBulkInferenceActionFilter.getIndexRequestOrNull(items[id].request());
-                    IndexRequest expectedRequest = ShardBulkInferenceActionFilter.getIndexRequestOrNull(modifiedRequests[id].request());
+                    IndexRequest actualRequest = getIndexRequestOrNull(items[id].request());
+                    IndexRequest expectedRequest = getIndexRequestOrNull(modifiedRequests[id].request());
                     try {
                         assertToXContentEquivalent(expectedRequest.source(), actualRequest.source(), actualRequest.getContentType());
                     } catch (Exception exc) {

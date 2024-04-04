@@ -44,7 +44,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     @Override
     protected void assertEqualInstances(SemanticTextField expectedInstance, SemanticTextField newInstance) {
         assertThat(newInstance.fieldName(), equalTo(expectedInstance.fieldName()));
-        assertThat(newInstance.raw(), equalTo(expectedInstance.raw()));
+        assertThat(newInstance.originalValues(), equalTo(expectedInstance.originalValues()));
         assertThat(newInstance.inference().modelSettings(), equalTo(expectedInstance.inference().modelSettings()));
         assertThat(newInstance.inference().chunks().size(), equalTo(expectedInstance.inference().chunks().size()));
         SemanticTextField.ModelSettings modelSettings = newInstance.inference().modelSettings();

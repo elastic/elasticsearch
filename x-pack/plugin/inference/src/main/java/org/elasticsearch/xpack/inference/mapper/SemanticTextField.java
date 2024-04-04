@@ -48,19 +48,19 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 /**
  * A {@link ToXContentObject} that is used to represent the transformation of the semantic text field's inputs.
- * The resulting object preserves the original input under the {@link SemanticTextField#RAW_FIELD} and exposes
+ * The resulting object preserves the original input under the {@link SemanticTextField#TEXT_FIELD} and exposes
  * the inference results under the {@link SemanticTextField#INFERENCE_FIELD}.
  *
  * @param fieldName The original field name.
- * @param raw The raw values associated with the field name.
+ * @param originalValues The original values associated with the field name.
  * @param inference The inference result.
  * @param contentType The {@link XContentType} used to store the embeddings chunks.
  */
-public record SemanticTextField(String fieldName, List<String> raw, InferenceResult inference, XContentType contentType)
+public record SemanticTextField(String fieldName, List<String> originalValues, InferenceResult inference, XContentType contentType)
     implements
         ToXContentObject {
 
-    static final ParseField RAW_FIELD = new ParseField("raw");
+    static final ParseField TEXT_FIELD = new ParseField("text");
     static final ParseField INFERENCE_FIELD = new ParseField("inference");
     static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
     static final ParseField CHUNKS_FIELD = new ParseField("chunks");
@@ -132,8 +132,8 @@ public record SemanticTextField(String fieldName, List<String> raw, InferenceRes
         }
     }
 
-    public static String getRawFieldName(String fieldName) {
-        return fieldName + "." + RAW_FIELD.getPreferredName();
+    public static String getOriginalTextFieldName(String fieldName) {
+        return fieldName + "." + TEXT_FIELD.getPreferredName();
     }
 
     public static String getInferenceFieldName(String fieldName) {
@@ -177,8 +177,8 @@ public record SemanticTextField(String fieldName, List<String> raw, InferenceRes
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (raw.isEmpty() == false) {
-            builder.field(RAW_FIELD.getPreferredName(), raw.size() == 1 ? raw.get(0) : raw);
+        if (originalValues.isEmpty() == false) {
+            builder.field(TEXT_FIELD.getPreferredName(), originalValues.size() == 1 ? originalValues.get(0) : originalValues);
         }
         builder.startObject(INFERENCE_FIELD.getPreferredName());
         builder.field(INFERENCE_ID_FIELD.getPreferredName(), inference.inferenceId);
@@ -204,7 +204,7 @@ public record SemanticTextField(String fieldName, List<String> raw, InferenceRes
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<SemanticTextField, Tuple<String, XContentType>> SEMANTIC_TEXT_FIELD_PARSER =
         new ConstructingObjectParser<>(
-            "semantic",
+            SemanticTextFieldMapper.CONTENT_TYPE,
             true,
             (args, context) -> new SemanticTextField(
                 context.v1(),
@@ -216,20 +216,20 @@ public record SemanticTextField(String fieldName, List<String> raw, InferenceRes
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<InferenceResult, Void> INFERENCE_RESULT_PARSER = new ConstructingObjectParser<>(
-        "inference",
+        INFERENCE_FIELD.getPreferredName(),
         true,
         args -> new InferenceResult((String) args[0], (ModelSettings) args[1], (List<Chunk>) args[2])
     );
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Chunk, Void> CHUNKS_PARSER = new ConstructingObjectParser<>(
-        "chunks",
+        CHUNKS_FIELD.getPreferredName(),
         true,
         args -> new Chunk((String) args[0], (BytesReference) args[1])
     );
 
     private static final ConstructingObjectParser<ModelSettings, Void> MODEL_SETTINGS_PARSER = new ConstructingObjectParser<>(
-        "model_settings",
+        MODEL_SETTINGS_FIELD.getPreferredName(),
         true,
         args -> {
             TaskType taskType = TaskType.fromString((String) args[0]);
@@ -240,7 +240,7 @@ public record SemanticTextField(String fieldName, List<String> raw, InferenceRes
     );
 
     static {
-        SEMANTIC_TEXT_FIELD_PARSER.declareStringArray(optionalConstructorArg(), RAW_FIELD);
+        SEMANTIC_TEXT_FIELD_PARSER.declareStringArray(optionalConstructorArg(), TEXT_FIELD);
         SEMANTIC_TEXT_FIELD_PARSER.declareObject(constructorArg(), (p, c) -> INFERENCE_RESULT_PARSER.parse(p, null), INFERENCE_FIELD);
 
         INFERENCE_RESULT_PARSER.declareString(constructorArg(), INFERENCE_ID_FIELD);

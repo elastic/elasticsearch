@@ -26,7 +26,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMergeContext;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
@@ -59,7 +58,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_ID_FIELD;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getRawFieldName;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOriginalTextFieldName;
 
 /**
  * A {@link FieldMapper} for semantic text fields.
@@ -131,11 +130,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             var context = mapperMergeContext.createChildContext(mergeWith.simpleName(), ObjectMapper.Dynamic.FALSE);
             var inferenceField = inferenceFieldBuilder.apply(context.getMapperBuilderContext());
             var childContext = context.createChildContext(inferenceField.simpleName(), ObjectMapper.Dynamic.FALSE);
-            var mergedInferenceField = inferenceField.merge(
-                semanticMergeWith.fieldType().getInferenceField(),
-                MapperService.MergeReason.MAPPING_UPDATE,
-                childContext
-            );
+            var mergedInferenceField = inferenceField.merge(semanticMergeWith.fieldType().getInferenceField(), childContext);
             inferenceFieldBuilder = c -> mergedInferenceField;
         }
 
@@ -217,7 +212,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 context.path().add(simpleName());
             }
         } else {
-            SemanticTextFieldMapper.Conflicts conflicts = new Conflicts(fullFieldName);
+            Conflicts conflicts = new Conflicts(fullFieldName);
             canMergeModelSettings(field.inference().modelSettings(), fieldType().getModelSettings(), conflicts);
             try {
                 conflicts.check();
@@ -311,8 +306,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            // Redirect the fetcher to load the value from the raw field
-            return SourceValueFetcher.toString(getRawFieldName(name()), context, format);
+            // Redirect the fetcher to load the original values of the field
+            return SourceValueFetcher.toString(getOriginalTextFieldName(name()), context, format);
         }
 
         @Override
@@ -376,7 +371,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     private static boolean canMergeModelSettings(
         SemanticTextField.ModelSettings previous,
         SemanticTextField.ModelSettings current,
-        FieldMapper.Conflicts conflicts
+        Conflicts conflicts
     ) {
         if (Objects.equals(previous, current)) {
             return true;

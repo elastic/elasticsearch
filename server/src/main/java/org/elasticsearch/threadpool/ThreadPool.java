@@ -222,7 +222,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16, TaskTrackingConfig.DO_NOT_TRACK));
         builders.put(
             Names.SEARCH,
-            new FixedExecutorBuilder(settings, Names.SEARCH, searchOrGetThreadPoolSize, 1000, TaskTrackingConfig.DEFAULT)
+            new FixedExecutorBuilder(settings, Names.SEARCH, searchOrGetThreadPoolSize, 1000, new TaskTrackingConfig(true, 0.1))
         );
         builders.put(
             Names.SEARCH_WORKER,
@@ -230,7 +230,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         );
         builders.put(
             Names.SEARCH_COORDINATION,
-            new FixedExecutorBuilder(settings, Names.SEARCH_COORDINATION, halfProc, 1000, TaskTrackingConfig.DEFAULT)
+            new FixedExecutorBuilder(settings, Names.SEARCH_COORDINATION, halfProc, 1000, new TaskTrackingConfig(true, 0.1))
         );
         builders.put(
             Names.AUTO_COMPLETE,

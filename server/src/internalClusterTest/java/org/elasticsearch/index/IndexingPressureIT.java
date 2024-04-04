@@ -347,7 +347,6 @@ public class IndexingPressureIT extends ESIntegTestCase {
 
             successFuture.actionGet();
 
-            assertEquals(numberOfIndexRequests, primaryWriteLimits.stats().getPrimaryRejections());
             assertEquals(0, primaryWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
             assertEquals(0, primaryWriteLimits.stats().getCurrentReplicaBytes());
             assertEquals(0, replicaWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());

@@ -8,8 +8,8 @@
 
 package org.elasticsearch.monitor.metrics;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -34,7 +34,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class NodeIndexingMetricsIT extends ESIntegTestCase {
@@ -189,24 +188,14 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
 
         assertAcked(prepareCreate("test").get());
 
-        final BulkRequest bulkRequest = new BulkRequest();
+        final BulkRequestBuilder bulkRequestBuilder = new BulkRequestBuilder(client(dataNode));
         final int batchCount = randomIntBetween(100, 1000);
         for (int i = 0; i < batchCount; i++) {
-            bulkRequest.add(new IndexRequest("test").source("field", randomAlphaOfLength(100)));
+            bulkRequestBuilder.add(new IndexRequest("test").source("field", randomAlphaOfLength(100)));
         }
 
         // big batch should not pass thru coordinating limit check
-        client(dataNode).bulk(bulkRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(BulkResponse bulkItemResponses) {
-                fail("This call is expected to fail");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assertThat(e, instanceOf(EsRejectedExecutionException.class));
-            }
-        });
+        expectThrows(EsRejectedExecutionException.class, bulkRequestBuilder);
 
         // simulate async apm `polling` call for metrics
         plugin.collect();

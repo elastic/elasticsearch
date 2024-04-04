@@ -301,7 +301,8 @@ public class IndexingPressureIT extends ESIntegTestCase {
     public void testWriteCanBeRejectedAtPrimaryLevel() throws Exception {
         final BulkRequest bulkRequest = new BulkRequest();
         long totalRequestSize = 0;
-        for (int i = 0; i < 80; ++i) {
+        int numberOfIndexRequests = randomIntBetween(50, 100);
+        for (int i = 0; i < numberOfIndexRequests; ++i) {
             IndexRequest request = new IndexRequest(INDEX_NAME).id(UUIDs.base64UUID())
                 .source(Collections.singletonMap("key", randomAlphaOfLength(50)));
             totalRequestSize += request.ramBytesUsed();
@@ -346,6 +347,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
 
             successFuture.actionGet();
 
+            assertEquals(numberOfIndexRequests, primaryWriteLimits.stats().getPrimaryRejections());
             assertEquals(0, primaryWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
             assertEquals(0, primaryWriteLimits.stats().getCurrentReplicaBytes());
             assertEquals(0, replicaWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());

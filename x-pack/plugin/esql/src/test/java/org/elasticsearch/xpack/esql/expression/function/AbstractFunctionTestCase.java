@@ -1110,7 +1110,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             boolean hasExamples = renderExamples(info);
             renderFullLayout(name, hasExamples);
             renderKibanaInlineDocs(name, info);
-            renderKibanaFunctionDefinition(name, info, description);
+            List<EsqlFunctionRegistry.ArgSignature> args = description.args();
+            if (name.equals("case")) {
+                EsqlFunctionRegistry.ArgSignature falseValue = args.get(1);
+                args = List.of(
+                    args.get(0),
+                    falseValue,
+                    new EsqlFunctionRegistry.ArgSignature("falseValue", falseValue.type(), falseValue.description(), true)
+                );
+            }
+            renderKibanaFunctionDefinition(name, info, args, description.variadic());
             return;
         }
         LogManager.getLogger(getTestClass()).info("Skipping rendering types because the function '" + name + "' isn't registered");
@@ -1251,8 +1260,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         writeToTempDir("kibana/docs", rendered, "md");
     }
 
-    private static void renderKibanaFunctionDefinition(String name, FunctionInfo info, EsqlFunctionRegistry.FunctionDescription description)
-        throws IOException {
+    private static void renderKibanaFunctionDefinition(
+        String name,
+        FunctionInfo info,
+        List<EsqlFunctionRegistry.ArgSignature> args,
+        boolean variadic
+    ) throws IOException {
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint().lfAtEnd().startObject();
         builder.field(
@@ -1268,7 +1281,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         // TODO aliases
 
         builder.startArray("signatures");
-        if (description.args().isEmpty()) {
+        if (args.isEmpty()) {
             builder.startObject();
             builder.startArray("params");
             builder.endArray();
@@ -1277,14 +1290,18 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             builder.endObject();
         } else {
             for (Map.Entry<List<DataType>, DataType> sig : sortedSignatures()) {
-                if (sig.getKey().size() > description.args().size()) {
-                    // This is likely CASE or something funny that allows duplicates in a funny way
+                System.err.println("ADF " + sig.getKey() + "   " + args);
+                if (variadic && sig.getKey().size() > args.size()) {
+                    // For variadic functions we test much longer signatures, let's just stop at the last one
                     continue;
+                }
+                if (sig.getKey().size() < args.size()) {
+                    new IllegalArgumentException("expected " + args.size() + " args but got " + sig.getKey());
                 }
                 builder.startObject();
                 builder.startArray("params");
                 for (int i = 0; i < sig.getKey().size(); i++) {
-                    EsqlFunctionRegistry.ArgSignature arg = description.args().get(i);
+                    EsqlFunctionRegistry.ArgSignature arg = args.get(i);
                     builder.startObject();
                     builder.field("name", arg.name());
                     builder.field("type", sig.getKey().get(i).typeName());
@@ -1293,7 +1310,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     builder.endObject();
                 }
                 builder.endArray();
-                builder.field("variadic", description.variadic());
+                builder.field("variadic", variadic);
                 builder.field("returnType", sig.getValue().typeName());
                 builder.endObject();
             }

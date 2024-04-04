@@ -89,6 +89,54 @@ public class ConnectorConfigurationTests extends ESTestCase {
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
     }
 
+    public void testToXContent_WithNumericSelectOptions() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+               "default_value": null,
+               "depends_on": [
+                 {
+                   "field": "some_field",
+                   "value": true
+                 }
+               ],
+               "display": "textbox",
+               "label": "Very important field",
+               "options": [
+                 {
+                   "label": "five",
+                   "value": 5
+                 },
+                 {
+                   "label": "ten",
+                   "value": 10
+                 }
+               ],
+               "order": 4,
+               "required": true,
+               "sensitive": false,
+               "tooltip": "Wow, this tooltip is useful.",
+               "type": "str",
+               "ui_restrictions": [],
+               "validations": [
+                  {
+                     "constraint": 0,
+                     "type": "greater_than"
+                  }
+               ],
+               "value": ""
+            }
+            """);
+
+        ConnectorConfiguration configuration = ConnectorConfiguration.fromXContentBytes(new BytesArray(content), XContentType.JSON);
+        boolean humanReadable = true;
+        BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+        ConnectorConfiguration parsed;
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
+            parsed = ConnectorConfiguration.fromXContent(parser);
+        }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
+    }
+
     public void testToXContentCrawlerConfig_WithNullValue() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {

@@ -210,23 +210,28 @@ public class TrainedModelProvider {
             ML_ORIGIN,
             TransportIndexAction.TYPE,
             request,
-            ActionListener.wrap(indexResponse -> listener.onResponse(true), e -> {
-                if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                    listener.onFailure(
-                        new ResourceAlreadyExistsException(
-                            Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelConfig.getModelId())
-                        )
-                    );
-                } else {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL, trainedModelConfig.getModelId()),
-                            RestStatus.INTERNAL_SERVER_ERROR,
-                            e
-                        )
-                    );
-                }
-            })
+            ActionListener.wrap(
+                indexResponse -> modelCacheMetadataService.saveCacheMetadataEntry(
+                    trainedModelConfig,
+                    ActionListener.wrap(resp -> listener.onResponse(true), listener::onFailure)
+                ),
+                e -> {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                        listener.onFailure(
+                            new ResourceAlreadyExistsException(
+                                Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelConfig.getModelId())
+                            )
+                        );
+                    } else {
+                        listener.onFailure(
+                            new ElasticsearchStatusException(
+                                Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL, trainedModelConfig.getModelId()),
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                e
+                            )
+                        );
+                    }
+                })
         );
     }
 
@@ -523,7 +528,11 @@ public class TrainedModelProvider {
                 wrappedListener.onFailure(firstFailure);
                 return;
             }
-            wrappedListener.onResponse(true);
+
+            modelCacheMetadataService.saveCacheMetadataEntry(
+                trainedModelConfig,
+                ActionListener.wrap(resp -> wrappedListener.onResponse(true), wrappedListener::onFailure)
+            );
         }, wrappedListener::onFailure);
 
         executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequest.request(), bulkResponseActionListener);

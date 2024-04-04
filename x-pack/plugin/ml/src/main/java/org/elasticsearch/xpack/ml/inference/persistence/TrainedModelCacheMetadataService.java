@@ -22,6 +22,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelCacheMetadata;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 
 import java.util.HashMap;
 
@@ -42,6 +43,11 @@ public class TrainedModelCacheMetadataService {
         this.modelCacheMetadataManagementTaskQueue.submitTask(deleteModelCacheMetadataTask.getDescription(), deleteModelCacheMetadataTask, null);
     }
 
+    public void saveCacheMetadataEntry(TrainedModelConfig modelConfig, ActionListener<AcknowledgedResponse> listener) {
+        ModelCacheMetadataManagementTask putModelCacheMetadataTask = new PutModelCacheMetadataTask(modelConfig.getModelId(), listener);
+        this.modelCacheMetadataManagementTaskQueue.submitTask(putModelCacheMetadataTask.getDescription(), putModelCacheMetadataTask, null);
+    }
+
     private abstract static class ModelCacheMetadataManagementTask implements ClusterStateTaskListener {
         protected final ActionListener<AcknowledgedResponse> listener;
 
@@ -57,6 +63,27 @@ public class TrainedModelCacheMetadataService {
         public void onFailure(@Nullable Exception e) {
             LOGGER.error(() -> "unexpected failure during [" + getDescription() + "]", e);
             listener.onFailure(e);
+        }
+    }
+
+    private static class PutModelCacheMetadataTask extends ModelCacheMetadataManagementTask {
+        private final String modelId;
+
+        PutModelCacheMetadataTask(String modelId, ActionListener<AcknowledgedResponse> listener) {
+            super(listener);
+            this.modelId = modelId;
+        }
+
+        protected TrainedModelCacheMetadata execute(TrainedModelCacheMetadata currentCacheMetadata, TaskContext<ModelCacheMetadataManagementTask> taskContext) {
+            var entries = new HashMap<>(currentCacheMetadata.entries());
+            entries.put(modelId, new TrainedModelCacheMetadata.TrainedModelCustomMetadataEntry(modelId));
+            taskContext.success(() -> listener.onResponse(AcknowledgedResponse.TRUE));
+            return new TrainedModelCacheMetadata(entries);
+        }
+
+        @Override
+        protected String getDescription() {
+            return "saving cache metadata for model [" + modelId + "]";
         }
     }
 
@@ -80,7 +107,7 @@ public class TrainedModelCacheMetadataService {
                 updatedCacheMetadata = currentCacheMetadata;
             }
 
-            listener.onResponse(AcknowledgedResponse.TRUE);
+            taskContext.success(() -> listener.onResponse(AcknowledgedResponse.TRUE));
             return updatedCacheMetadata;
         }
 

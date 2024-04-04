@@ -118,14 +118,14 @@ public class KeyStoreWrapper implements SecureSettings {
     public static final int V4_VERSION = 4;
     /** The version where lucene directory API changed from BE to LE. */
     public static final int LE_VERSION = 5;
-    public static final int HIGHER_KEY_ITER_VERSION = 6;
-    public static final int CURRENT_VERSION = HIGHER_KEY_ITER_VERSION;
+    public static final int HIGHER_KDFT_ITERATION_COUNT_VERSION = 6;
+    public static final int CURRENT_VERSION = HIGHER_KDFT_ITERATION_COUNT_VERSION;
 
     /** The algorithm used to derive the cipher key from a password. */
     private static final String KDF_ALGO = "PBKDF2WithHmacSHA512";
 
     /** The number of iterations to derive the cipher key. */
-    private static final int KDF_ITERS_BEFORE_KEY_ITER_VERSION = 10000;
+    private static final int KDF_ITERS_BEFORE_HIGHER_KDFT_ITERATION_COUNT_VERSION = 10000;
     private static final int KDF_ITERS = 210000;
 
     /**
@@ -337,8 +337,8 @@ public class KeyStoreWrapper implements SecureSettings {
         return cipher;
     }
 
-    private static int getKdfItersForVersion(int formatVersion) {
-        return formatVersion < HIGHER_KEY_ITER_VERSION ? KDF_ITERS_BEFORE_KEY_ITER_VERSION : KDF_ITERS;
+    private static int getKdfIterationCountForVersion(int formatVersion) {
+        return formatVersion < HIGHER_KDFT_ITERATION_COUNT_VERSION ? KDF_ITERS_BEFORE_HIGHER_KDFT_ITERATION_COUNT_VERSION : KDF_ITERS;
     }
 
     /**
@@ -369,7 +369,7 @@ public class KeyStoreWrapper implements SecureSettings {
             throw new SecurityException("Keystore has been corrupted or tampered with", e);
         }
 
-        Cipher cipher = createCipher(Cipher.DECRYPT_MODE, password, salt, iv, getKdfItersForVersion(formatVersion));
+        Cipher cipher = createCipher(Cipher.DECRYPT_MODE, password, salt, iv, getKdfIterationCountForVersion(formatVersion));
         try (
             ByteArrayInputStream bytesStream = new ByteArrayInputStream(encryptedBytes);
             CipherInputStream cipherStream = new CipherInputStream(bytesStream, cipher);
@@ -407,11 +407,11 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     /** Encrypt the keystore entries and return the encrypted data. */
-    private byte[] encrypt(char[] password, byte[] salt, byte[] iv, int kdfItersForVersion) throws GeneralSecurityException, IOException {
+    private byte[] encrypt(char[] password, byte[] salt, byte[] iv, int kdfIterationCount) throws GeneralSecurityException, IOException {
         assert isLoaded();
 
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        Cipher cipher = createCipher(Cipher.ENCRYPT_MODE, password, salt, iv, kdfItersForVersion);
+        Cipher cipher = createCipher(Cipher.ENCRYPT_MODE, password, salt, iv, kdfIterationCount);
         try (
             CipherOutputStream cipherStream = new CipherOutputStream(bytes, cipher);
             DataOutputStream output = new DataOutputStream(cipherStream)
@@ -454,7 +454,7 @@ public class KeyStoreWrapper implements SecureSettings {
             byte[] iv = new byte[12];
             random.nextBytes(iv);
             // encrypted data
-            byte[] encryptedBytes = encrypt(password, salt, iv, getKdfItersForVersion(CURRENT_VERSION));
+            byte[] encryptedBytes = encrypt(password, salt, iv, getKdfIterationCountForVersion(CURRENT_VERSION));
 
             // size of data block
             output.writeInt(4 + salt.length + 4 + iv.length + 4 + encryptedBytes.length);

@@ -357,8 +357,8 @@ For example, if the interval is a calendar day and the time zone is
 
 When a `key_as_string` is generated for the bucket, the key value is stored in `America/New_York` time, so it'll display as `"2020-01-02T00:00:00"`.
 
-You can specify time zones as an ISO 8601 UTC offset (e.g. `+01:00` or
-`-08:00`) or as an IANA time zone ID,
+You can specify time zones as an ISO 8601 UTC offset, such as `+01:00` or
+`-08:00`, or as an IANA time zone ID,
 such as `America/Los_Angeles`.
 
 Consider the following example:

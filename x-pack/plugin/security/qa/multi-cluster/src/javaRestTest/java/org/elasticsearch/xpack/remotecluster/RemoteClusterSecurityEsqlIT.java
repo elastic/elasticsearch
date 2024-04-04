@@ -262,7 +262,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
               "remote_indices": [
                 {
                   "names": ["employees"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read"],
                   "clusters": ["my_remote_cluster"]
                 }
               ]
@@ -410,7 +410,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
               "remote_indices": [
                 {
                   "names": ["employees"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read"],
                   "clusters": ["my_remote_cluster"]
                 }
               ]
@@ -465,7 +465,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                   "remote_indices": [
                     {
                       "names": ["employees"],
-                      "privileges": ["read", "read_cross_cluster"],
+                      "privileges": ["read"],
                       "clusters": ["my_remote_cluster"]
                     }
                   ]

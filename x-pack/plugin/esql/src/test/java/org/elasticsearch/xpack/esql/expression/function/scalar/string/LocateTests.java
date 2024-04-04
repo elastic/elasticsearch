@@ -41,46 +41,10 @@ public class LocateTests extends AbstractFunctionTestCase {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         String str = randomRealisticUnicodeOfCodepointLength(10);
         String substr = str.substring(5);
-        suppliers.add(
-            supplier(
-                "keywords",
-                DataTypes.KEYWORD,
-                DataTypes.KEYWORD,
-                () -> str,
-                () -> substr,
-                () -> 0
-            )
-        );
-        suppliers.add(
-            supplier(
-                "mixed keyword, text",
-                DataTypes.KEYWORD,
-                DataTypes.TEXT,
-                () -> str,
-                () -> substr,
-                () -> 0
-            )
-        );
-        suppliers.add(
-            supplier(
-                "texts",
-                DataTypes.TEXT,
-                DataTypes.TEXT,
-                () -> str,
-                () -> substr,
-                () -> 0
-            )
-        );
-        suppliers.add(
-            supplier(
-                "mixed text, keyword",
-                DataTypes.TEXT,
-                DataTypes.KEYWORD,
-                () -> str,
-                () -> substr,
-                () -> 0
-            )
-        );
+        suppliers.add(supplier("keywords", DataTypes.KEYWORD, DataTypes.KEYWORD, () -> str, () -> substr, () -> 0));
+        suppliers.add(supplier("mixed keyword, text", DataTypes.KEYWORD, DataTypes.TEXT, () -> str, () -> substr, () -> 0));
+        suppliers.add(supplier("texts", DataTypes.TEXT, DataTypes.TEXT, () -> str, () -> substr, () -> 0));
+        suppliers.add(supplier("mixed text, keyword", DataTypes.TEXT, DataTypes.KEYWORD, () -> str, () -> substr, () -> 0));
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 

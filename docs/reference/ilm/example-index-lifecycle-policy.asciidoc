@@ -142,7 +142,7 @@ A `*@custom` component template allows you to customize the mappings and setting
 . Under **Logistics**, name the component template `logs@custom`.
 . Under **Index settings**, set the {ilm-init} policy name created in the previous step:
 +
-[source,console-result]
+[source,json]
 --------------------------------------------------
 {
     "index": {

@@ -1261,22 +1261,21 @@ public class IndexNameExpressionResolver {
                 .getIndicesLookup()
                 .values()
                 .stream()
-                .filter(ia -> ia.getType() == Type.DATA_STREAM || ia.getType() == Type.ALIAS)
+                .filter(ia -> context.getOptions().expandWildcardsHidden() || ia.isHidden() == false)
+                .filter(ia -> shouldIncludeIfDataStream(ia, context) || shouldIncludeIfAlias(ia, context))
                 .filter(ia -> ia.isSystem() == false || context.systemIndexAccessPredicate.test(ia.getName()));
-
-            if (context.getOptions().expandWildcardsHidden() == false) {
-                ias = ias.filter(ia -> ia.isHidden() == false);
-            }
-            if (context.includeDataStreams() == false) {
-                ias = ias.filter(ia -> ia.getType() != Type.DATA_STREAM);
-            }
-            if (context.getOptions().ignoreAliases()) {
-                ias = ias.filter(ia -> ia.getType() != Type.ALIAS);
-            }
 
             Set<String> resolved = expandToOpenClosed(context, ias).collect(Collectors.toSet());
             resolved.addAll(concreteIndices);
             return resolved;
+        }
+
+        private static boolean shouldIncludeIfDataStream(IndexAbstraction ia, IndexNameExpressionResolver.Context context) {
+            return context.includeDataStreams() && ia.getType() == Type.DATA_STREAM;
+        }
+
+        private static boolean shouldIncludeIfAlias(IndexAbstraction ia, IndexNameExpressionResolver.Context context) {
+            return context.getOptions().ignoreAliases() == false && ia.getType() == Type.ALIAS;
         }
 
         /**

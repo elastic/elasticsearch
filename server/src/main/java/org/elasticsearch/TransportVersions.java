@@ -164,6 +164,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_ORDINAL_BLOCK = def(8_623_00_0);
     public static final TransportVersion ML_INFERENCE_COHERE_RERANK = def(8_624_00_0);
     public static final TransportVersion INDEXING_PRESSURE_DOCUMENT_REJECTIONS_COUNT = def(8_625_00_0);
+    public static final TransportVersion NODE_STATS_INGEST_BYTES = def(8_626_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

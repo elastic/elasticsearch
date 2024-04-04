@@ -145,9 +145,9 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             buildNodeStats(
                 new IngestStats.Stats(2, 2, 3, 4),
                 Arrays.asList(
-                    new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(0, 0, 3, 1)),
-                    new IngestStats.PipelineStat("pipeline2", new IngestStats.Stats(1, 1, 0, 1)),
-                    new IngestStats.PipelineStat("pipeline3", new IngestStats.Stats(2, 1, 1, 1))
+                    new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(0, 0, 3, 1), new IngestStats.ByteStats(789, 0)),
+                    new IngestStats.PipelineStat("pipeline2", new IngestStats.Stats(1, 1, 0, 1), new IngestStats.ByteStats(123, 123)),
+                    new IngestStats.PipelineStat("pipeline3", new IngestStats.Stats(2, 1, 1, 1), new IngestStats.ByteStats(1234, 5678))
                 ),
                 Arrays.asList(
                     Arrays.asList(
@@ -169,9 +169,9 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             buildNodeStats(
                 new IngestStats.Stats(15, 5, 3, 4),
                 Arrays.asList(
-                    new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(10, 1, 3, 1)),
-                    new IngestStats.PipelineStat("pipeline2", new IngestStats.Stats(1, 1, 0, 1)),
-                    new IngestStats.PipelineStat("pipeline3", new IngestStats.Stats(2, 1, 1, 1))
+                    new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(10, 1, 3, 1), new IngestStats.ByteStats(5678, 123456)),
+                    new IngestStats.PipelineStat("pipeline2", new IngestStats.Stats(1, 1, 0, 1), new IngestStats.ByteStats(111, 222)),
+                    new IngestStats.PipelineStat("pipeline3", new IngestStats.Stats(2, 1, 1, 1), new IngestStats.ByteStats(555, 777))
                 ),
                 Arrays.asList(
                     Arrays.asList(
@@ -206,7 +206,9 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
 
         IngestStats expectedStatsModel1 = new IngestStats(
             new IngestStats.Stats(10, 1, 6, 2),
-            Collections.singletonList(new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(10, 1, 6, 2))),
+            Collections.singletonList(
+                new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(10, 1, 6, 2), new IngestStats.ByteStats(6467, 123456))
+            ),
             Collections.singletonMap(
                 "pipeline1",
                 Arrays.asList(
@@ -219,8 +221,8 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
         IngestStats expectedStatsModel2 = new IngestStats(
             new IngestStats.Stats(12, 3, 6, 4),
             Arrays.asList(
-                new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(10, 1, 6, 2)),
-                new IngestStats.PipelineStat("pipeline2", new IngestStats.Stats(2, 2, 0, 2))
+                new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(10, 1, 6, 2), new IngestStats.ByteStats(6467, 123456)),
+                new IngestStats.PipelineStat("pipeline2", new IngestStats.Stats(2, 2, 0, 2), new IngestStats.ByteStats(234, 345))
             ),
             new HashMap<>() {
                 {

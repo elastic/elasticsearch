@@ -1982,9 +1982,9 @@ public class IngestServiceTests extends ESTestCase {
             // total
             assertStats(ingestStats.totalStats(), 0, 0, 0);
             // pipeline
-            assertPipelineStats(ingestStats.pipelineStats(), "_id1", 0, 0, 0);
-            assertPipelineStats(ingestStats.pipelineStats(), "_id2", 0, 0, 0);
-            assertPipelineStats(ingestStats.pipelineStats(), "_id3", 0, 0, 0);
+            assertPipelineStats(ingestStats.pipelineStats(), "_id1", 0, 0, 0, 0, 0);
+            assertPipelineStats(ingestStats.pipelineStats(), "_id2", 0, 0, 0, 0, 0);
+            assertPipelineStats(ingestStats.pipelineStats(), "_id3", 0, 0, 0, 0, 0);
             // processor
             assertProcessorStats(0, ingestStats, "_id1", 0, 0, 0);
             assertProcessorStats(0, ingestStats, "_id2", 0, 0, 0);
@@ -1995,6 +1995,7 @@ public class IngestServiceTests extends ESTestCase {
         final IndexRequest indexRequest = new IndexRequest("_index");
         indexRequest.setPipeline("_id1").setFinalPipeline("_id2");
         indexRequest.source(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        var startSize = indexRequest.ramBytesUsed();
         ingestService.executeBulkRequest(
             1,
             List.of(indexRequest),
@@ -2013,9 +2014,9 @@ public class IngestServiceTests extends ESTestCase {
             // total
             assertStats(ingestStats.totalStats(), 1, 0, 0);
             // pipeline
-            assertPipelineStats(ingestStats.pipelineStats(), "_id1", 1, 0, 0);
-            assertPipelineStats(ingestStats.pipelineStats(), "_id2", 1, 0, 0);
-            assertPipelineStats(ingestStats.pipelineStats(), "_id3", 1, 0, 0);
+            assertPipelineStats(ingestStats.pipelineStats(), "_id1", 1, 0, 0, startSize, indexRequest.ramBytesUsed());
+            assertPipelineStats(ingestStats.pipelineStats(), "_id2", 1, 0, 0, 0, 0);
+            assertPipelineStats(ingestStats.pipelineStats(), "_id3", 1, 0, 0, 0, 0);
             // processor
             assertProcessorStats(0, ingestStats, "_id1", 1, 0, 0);
             assertProcessorStats(0, ingestStats, "_id2", 1, 0, 0);
@@ -2075,6 +2076,7 @@ public class IngestServiceTests extends ESTestCase {
         final IndexRequest indexRequest = new IndexRequest("_index");
         indexRequest.setPipeline("_id1").setFinalPipeline("_none");
         indexRequest.source(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        var startSize1 = indexRequest.ramBytesUsed();
         ingestService.executeBulkRequest(
             1,
             List.of(indexRequest),
@@ -2086,6 +2088,7 @@ public class IngestServiceTests extends ESTestCase {
             Names.WRITE
         );
         final IngestStats afterFirstRequestStats = ingestService.stats();
+        var endSize1 = indexRequest.ramBytesUsed();
         assertThat(afterFirstRequestStats.pipelineStats().size(), equalTo(2));
 
         afterFirstRequestStats.processorStats().get("_id1").forEach(p -> assertEquals(p.name(), "mock:mockTag"));
@@ -2094,13 +2097,14 @@ public class IngestServiceTests extends ESTestCase {
         // total
         assertStats(afterFirstRequestStats.totalStats(), 1, 0, 0);
         // pipeline
-        assertPipelineStats(afterFirstRequestStats.pipelineStats(), "_id1", 1, 0, 0);
-        assertPipelineStats(afterFirstRequestStats.pipelineStats(), "_id2", 0, 0, 0);
+        assertPipelineStats(afterFirstRequestStats.pipelineStats(), "_id1", 1, 0, 0, startSize1, endSize1);
+        assertPipelineStats(afterFirstRequestStats.pipelineStats(), "_id2", 0, 0, 0, 0, 0);
         // processor
         assertProcessorStats(0, afterFirstRequestStats, "_id1", 1, 0, 0);
         assertProcessorStats(0, afterFirstRequestStats, "_id2", 0, 0, 0);
 
         indexRequest.setPipeline("_id2");
+        var startSize2 = indexRequest.ramBytesUsed();
         ingestService.executeBulkRequest(
             1,
             List.of(indexRequest),
@@ -2112,12 +2116,13 @@ public class IngestServiceTests extends ESTestCase {
             Names.WRITE
         );
         final IngestStats afterSecondRequestStats = ingestService.stats();
+        var endSize2 = indexRequest.ramBytesUsed();
         assertThat(afterSecondRequestStats.pipelineStats().size(), equalTo(2));
         // total
         assertStats(afterSecondRequestStats.totalStats(), 2, 0, 0);
         // pipeline
-        assertPipelineStats(afterSecondRequestStats.pipelineStats(), "_id1", 1, 0, 0);
-        assertPipelineStats(afterSecondRequestStats.pipelineStats(), "_id2", 1, 0, 0);
+        assertPipelineStats(afterSecondRequestStats.pipelineStats(), "_id1", 1, 0, 0, startSize1, endSize1);
+        assertPipelineStats(afterSecondRequestStats.pipelineStats(), "_id2", 1, 0, 0, startSize2, endSize2);
         // processor
         assertProcessorStats(0, afterSecondRequestStats, "_id1", 1, 0, 0);
         assertProcessorStats(0, afterSecondRequestStats, "_id2", 1, 0, 0);
@@ -2132,6 +2137,7 @@ public class IngestServiceTests extends ESTestCase {
         clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         indexRequest.setPipeline("_id1");
+        startSize1 = indexRequest.ramBytesUsed();
         ingestService.executeBulkRequest(
             1,
             List.of(indexRequest),
@@ -2143,12 +2149,13 @@ public class IngestServiceTests extends ESTestCase {
             Names.WRITE
         );
         final IngestStats afterThirdRequestStats = ingestService.stats();
+        endSize1 = indexRequest.ramBytesUsed();
         assertThat(afterThirdRequestStats.pipelineStats().size(), equalTo(2));
         // total
         assertStats(afterThirdRequestStats.totalStats(), 3, 0, 0);
         // pipeline
-        assertPipelineStats(afterThirdRequestStats.pipelineStats(), "_id1", 2, 0, 0);
-        assertPipelineStats(afterThirdRequestStats.pipelineStats(), "_id2", 1, 0, 0);
+        assertPipelineStats(afterThirdRequestStats.pipelineStats(), "_id1", 2, 0, 0, startSize1, endSize1);
+        assertPipelineStats(afterThirdRequestStats.pipelineStats(), "_id2", 1, 0, 0, startSize2, endSize2);
         // The number of processors for the "id1" pipeline changed, so the per-processor metrics are not carried forward. This is
         // due to the parallel array's used to identify which metrics to carry forward. Without unique ids or semantic equals for each
         // processor, parallel arrays are the best option for of carrying forward metrics between pipeline changes. However, in some cases,
@@ -2164,6 +2171,7 @@ public class IngestServiceTests extends ESTestCase {
         clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         indexRequest.setPipeline("_id1");
+        startSize1 = indexRequest.ramBytesUsed();
         ingestService.executeBulkRequest(
             1,
             List.of(indexRequest),
@@ -2179,8 +2187,8 @@ public class IngestServiceTests extends ESTestCase {
         // total
         assertStats(afterForthRequestStats.totalStats(), 4, 0, 0);
         // pipeline
-        assertPipelineStats(afterForthRequestStats.pipelineStats(), "_id1", 3, 0, 0);
-        assertPipelineStats(afterForthRequestStats.pipelineStats(), "_id2", 1, 0, 0);
+        assertPipelineStats(afterForthRequestStats.pipelineStats(), "_id1", 3, 0, 0, startSize1, endSize1);
+        assertPipelineStats(afterForthRequestStats.pipelineStats(), "_id2", 1, 0, 0, startSize2, endSize2);
         // processor
         assertProcessorStats(0, afterForthRequestStats, "_id1", 1, 1, 0); // not carried forward since type changed
         assertProcessorStats(1, afterForthRequestStats, "_id1", 2, 0, 0); // carried forward and added from old stats
@@ -3004,8 +3012,18 @@ public class IngestServiceTests extends ESTestCase {
         assertStats(stats.processorStats().get(pipelineId).get(processor).stats(), count, failed, time);
     }
 
-    private void assertPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String pipelineId, long count, long failed, long time) {
-        assertStats(getPipelineStats(pipelineStats, pipelineId), count, failed, time);
+    private void assertPipelineStats(
+        List<IngestStats.PipelineStat> pipelineStats,
+        String pipelineId,
+        long count,
+        long failed,
+        long time,
+        long ingested,
+        long produced
+    ) {
+        var pipeline = getPipeline(pipelineStats, pipelineId);
+        assertStats(pipeline.stats(), count, failed, time);
+        assertByteStats(pipeline.byteStats(), ingested, produced);
     }
 
     private void assertStats(IngestStats.Stats stats, long count, long failed, long time) {
@@ -3015,8 +3033,13 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(stats.ingestTimeInMillis(), greaterThanOrEqualTo(time));
     }
 
-    private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
-        return pipelineStats.stream().filter(p1 -> p1.pipelineId().equals(id)).findFirst().map(p2 -> p2.stats()).orElse(null);
+    private void assertByteStats(IngestStats.ByteStats byteStats, long ingested, long produced) {
+        assertThat(byteStats.bytesIngested(), equalTo(ingested));
+        assertThat(byteStats.bytesProduced(), equalTo(produced));
+    }
+
+    private IngestStats.PipelineStat getPipeline(List<IngestStats.PipelineStat> pipelineStats, String id) {
+        return pipelineStats.stream().filter(p1 -> p1.pipelineId().equals(id)).findFirst().orElse(null);
     }
 
     private static List<IngestService.PipelineClusterStateUpdateTask> oneTask(DeletePipelineRequest request) {

@@ -1218,13 +1218,102 @@ c:l
 891
 ;
 
-countMV#[skip:-8.13.99,reason:supported in 8.14]
+countMV#[skip:-8.13.99,reason:fixed in 8.14]
 FROM employees
 | STATS vals = COUNT(salary_change.int)
 ;
 
 vals:l
 183
+;
+
+emptyProjectInStatWithEval#[skip:-8.13.99,reason:fixed in 8.14]
+FROM employees
+| STATS c = COUNT(salary)
+| EVAL x = 3.14
+| DROP c
+;
+
+x:d
+3.14
+;
+
+emptyProjectInStatWithCountGroupAndEval#[skip:-8.13.99,reason:fixed in 8.14]
+FROM employees
+| STATS c = COUNT(salary) BY gender
+| EVAL x = 3.14
+| DROP c, gender
+;
+
+x:d
+3.14
+3.14
+3.14
+;
+
+
+emptyProjectInStatWithMinGroupAndEval#[skip:-8.13.99,reason:fixed in 8.14]
+FROM employees
+| STATS m = MIN(salary) BY gender
+| EVAL x = 3.14
+| DROP m, gender
+;
+
+x:d
+3.14
+3.14
+3.14
+;
+
+emptyProjectInStatOnlyGroupAndEval#[skip:-8.13.99,reason:fixed in 8.14]
+FROM employees
+| STATS BY gender
+| EVAL x = 3.14
+| DROP gender
+;
+
+x:d
+3.14
+3.14
+3.14
+;
+
+emptyProjectInStatWithTwoGroupsAndEval#[skip:-8.13.99,reason:fixed in 8.14]
+FROM employees
+| STATS c = COUNT(salary) BY gender, still_hired
+| EVAL x = 3.14
+| DROP c, gender, still_hired
+;
+
+x:d
+3.14
+3.14
+3.14
+3.14
+3.14
+3.14
+;
+
+emptyProjectInStatDueToAnotherStat#[skip:-8.13.99,reason:fixed in 8.14]
+FROM employees
+| STATS s = SUM(salary), m = MIN(salary)
+| EVAL x = 3.14
+| STATS rows = COUNT(*)
+;
+
+rows:l
+1
+;
+
+emptyProjectInStatDueToAnotherStatWithGroups#[skip:-8.13.99,reason:fixed in 8.14]
+FROM employees
+| STATS m = MEDIAN(salary) BY gender, still_hired
+| EVAL x = 3.14
+| STATS rows = COUNT(*)
+;
+
+rows:l
+6
 ;
 
 sumOfConst#[skip:-8.13.99,reason:supported in 8.14]

@@ -156,6 +156,7 @@ public class KeyStoreWrapper implements SecureSettings {
     // 3: FIPS compliant algos, ES 6.3
     // 4: remove distinction between string/files, ES 6.8/7.1
     // 5: Lucene directory API changed to LE, ES 8.0
+    // 6: increase KDF iteration count, ES 8.14
 
     /** The metadata format version used to read the current keystore wrapper. */
     private final int formatVersion;

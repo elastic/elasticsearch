@@ -36,8 +36,18 @@ public class LongRangeFieldMapperTests extends RangeFieldMapperTests {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        throw new AssumptionViolatedException("not supported");
+    protected TestRange<Long> randomRangeForSyntheticSourceTest() {
+        var includeFrom = randomBoolean();
+        var from = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE - 1);
+        var includeTo = randomBoolean();
+        var to = randomLongBetween(from + 1, Long.MAX_VALUE);
+
+        return new TestRange<>(rangeType(), from, to, includeFrom, includeTo);
+    }
+
+    @Override
+    protected RangeType rangeType() {
+        return RangeType.LONG;
     }
 
     @Override

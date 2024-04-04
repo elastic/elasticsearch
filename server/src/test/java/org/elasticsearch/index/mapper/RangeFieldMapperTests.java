@@ -12,10 +12,15 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.index.query.RangeQueryBuilder.GTE_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.GT_FIELD;
@@ -23,9 +28,12 @@ import static org.elasticsearch.index.query.RangeQueryBuilder.LTE_FIELD;
 import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 public abstract class RangeFieldMapperTests extends MapperTestCase {
+
+    protected static final String DATE_FORMAT = "yyyy-MM-dd HH:mm:ss.SSS||yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis";
 
     @Override
     protected boolean supportsSearchLookup() {
@@ -241,6 +249,122 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         // val, null -> val, max
         assertNullBounds(b -> b.startObject("field").field("gte", val).nullField("lte").endObject(), false, true);
     }
+
+    // TODO this is not really true
+    // you can specify it in mapping but then it will fail during ingestion
+    protected boolean supportsCopyTo() {
+        return false;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        assumeTrue("test setup only supports numeric ranges", rangeType().isNumeric());
+
+        return new SyntheticSourceSupport() {
+            @Override
+            public SyntheticSourceExample example(int maxValues) throws IOException {
+                if (randomBoolean()) {
+                    var range = randomRangeForSyntheticSourceTest();
+                    return new SyntheticSourceExample(range.toInput(), range.toExpectedSyntheticSource(), this::mapping);
+                }
+
+                var values = randomList(1, maxValues, () -> randomRangeForSyntheticSourceTest());
+                List<Object> in = values.stream().map(TestRange::toInput).toList();
+                List<Object> outList = values.stream()
+                    .sorted(Comparator.naturalOrder())
+                    .map(r -> r.toExpectedSyntheticSource())
+                    .toList();
+                Object out = outList.size() == 1 ? outList.get(0) : outList;
+
+                return new SyntheticSourceExample(in, out, this::mapping);
+            }
+
+            private void mapping(XContentBuilder b) throws IOException {
+                b.field("type", rangeType().name);
+                if (rarely()) {
+                    b.field("index", false);
+                }
+                if (rarely()) {
+                    b.field("store", false);
+                }
+                if (rangeType() == RangeType.DATE) {
+                    b.field("format", DATE_FORMAT);
+                }
+            }
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                return List.of(
+                    new SyntheticSourceInvalidExample(
+                        equalTo(
+                            String.format(
+                                Locale.ROOT,
+                                "field [field] of type [%s] doesn't support synthetic source because it doesn't have doc values",
+                                rangeType().name
+                            )
+                        ),
+                        b -> b.field("type", rangeType().name).field("doc_values", false)
+                    )
+                );
+            }
+        };
+    }
+
+    // Stores range information as if it was provided by user
+    // with no modifications.
+    protected class TestRange<T extends Comparable<T>> implements Comparable<TestRange<T>> {
+        private final RangeType type;
+        private final T from;
+        private final T to;
+        private final boolean includeFrom;
+        private final boolean includeTo;
+
+        public TestRange(RangeType type, T from, T to, boolean includeFrom, boolean includeTo) {
+            this.type = type;
+            this.from = from;
+            this.to = to;
+            this.includeFrom = includeFrom;
+            this.includeTo = includeTo;
+        }
+
+        Object toInput() {
+            var fromKey = includeFrom ? "gte" : "gt";
+            var toKey = includeTo ? "lte" : "lt";
+
+            return Map.of(fromKey, from, toKey, to);
+        }
+
+        Object toExpectedSyntheticSource() {
+            // When ranges are stored, they are always normalized to include both ends.
+            // Also, "to" field always comes first.
+            Map<String, Object> output = new LinkedHashMap<>();
+
+            if (includeFrom) {
+                output.put("gte", from);
+            } else {
+                output.put("gte", type.nextUp(from));
+            }
+
+            if (includeTo) {
+                output.put("lte", to);
+            } else {
+                output.put("lte", type.nextDown(to));
+            }
+
+            return output;
+        }
+
+        @Override
+        public int compareTo(TestRange<T> o) {
+            return Comparator.comparing((TestRange<T> r) -> r.from).thenComparing(r -> r.to).compare(this, o);
+        }
+    }
+
+    protected TestRange<?> randomRangeForSyntheticSourceTest() {
+        throw new AssumptionViolatedException("Should only be called for specific range types");
+    }
+
+    protected abstract RangeType rangeType();
 
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {

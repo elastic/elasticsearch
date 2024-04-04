@@ -41,8 +41,18 @@ public class DoubleRangeFieldMapperTests extends RangeFieldMapperTests {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        throw new AssumptionViolatedException("not supported");
+    protected TestRange<Double> randomRangeForSyntheticSourceTest() {
+        var includeFrom = randomBoolean();
+        var from = randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE - 1, true);
+        var includeTo = randomBoolean();
+        var to = randomDoubleBetween(from, Double.MAX_VALUE, false);
+
+        return new TestRange<>(rangeType(), from, to, includeFrom, includeTo);
+    }
+
+    @Override
+    protected RangeType rangeType() {
+        return RangeType.DOUBLE;
     }
 
     @Override

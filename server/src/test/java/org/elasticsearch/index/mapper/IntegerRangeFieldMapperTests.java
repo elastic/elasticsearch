@@ -35,8 +35,18 @@ public class IntegerRangeFieldMapperTests extends RangeFieldMapperTests {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        throw new AssumptionViolatedException("not supported");
+    protected TestRange<Integer> randomRangeForSyntheticSourceTest() {
+        var includeFrom = randomBoolean();
+        var from = randomIntBetween(Integer.MIN_VALUE, Integer.MAX_VALUE - 1);
+        var includeTo = randomBoolean();
+        var to = randomIntBetween(from + 1, Integer.MAX_VALUE);
+
+        return new TestRange<>(rangeType(), from, to, includeFrom, includeTo);
+    }
+
+    @Override
+    protected RangeType rangeType() {
+        return RangeType.INTEGER;
     }
 
     @Override

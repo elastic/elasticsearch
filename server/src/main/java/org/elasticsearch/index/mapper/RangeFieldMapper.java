@@ -26,6 +26,8 @@ import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -36,6 +38,7 @@ import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -459,11 +462,43 @@ public class RangeFieldMapper extends FieldMapper {
         }
     }
 
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (hasDocValues == false) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+            );
+        }
+
+        return new BinaryDocValuesSyntheticFieldLoader(name()) {
+            @Override
+            protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
+                List<Range> ranges = type.decodeRanges(value);
+
+                switch (ranges.size()) {
+                    case 0:
+                        return;
+                    case 1:
+                        b.field(simpleName());
+                        ranges.get(0).toXContent(b, EMPTY_PARAMS);
+                        break;
+                    default:
+                        b.startArray(simpleName());
+                        for (var range : ranges) {
+                            range.toXContent(b, EMPTY_PARAMS);
+                        }
+                        b.endArray();
+                }
+            }
+        };
+    }
+
     /** Class defining a range */
-    public static class Range {
+    public static class Range implements ToXContentFragment {
         RangeType type;
         Object from;
         Object to;
+
         private final boolean includeFrom;
         private final boolean includeTo;
 
@@ -473,6 +508,14 @@ public class RangeFieldMapper extends FieldMapper {
             this.to = to;
             this.includeFrom = includeFrom;
             this.includeTo = includeTo;
+        }
+
+        public Object getFrom() {
+            return from;
+        }
+
+        public Object getTo() {
+            return to;
         }
 
         @Override
@@ -509,12 +552,29 @@ public class RangeFieldMapper extends FieldMapper {
             return sb.toString();
         }
 
-        public Object getFrom() {
-            return from;
-        }
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
 
-        public Object getTo() {
-            return to;
+            if (includeFrom) {
+                builder.field("gte");
+            } else {
+                builder.field("gt");
+            }
+            Object f = includeFrom || from.equals(type.minValue()) ? from : type.nextDown(from);
+            builder.value(type == RangeType.IP ? InetAddresses.toAddrString((InetAddress) f) : f);
+
+            if (includeTo) {
+                builder.field("lte");
+            } else {
+                builder.field("lt");
+            }
+            Object t = includeTo || to.equals(type.maxValue()) ? to : type.nextUp(to);
+            builder.value(type == RangeType.IP ? InetAddresses.toAddrString((InetAddress) t) : t);
+
+            builder.endObject();
+
+            return builder;
         }
     }
 

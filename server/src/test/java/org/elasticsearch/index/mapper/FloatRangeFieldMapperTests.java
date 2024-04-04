@@ -46,6 +46,21 @@ public class FloatRangeFieldMapperTests extends RangeFieldMapperTests {
     }
 
     @Override
+    protected TestRange<Long> randomRangeForSyntheticSourceTest() {
+        var includeFrom = randomBoolean();
+        var from = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE - 1);
+        var includeTo = randomBoolean();
+        var to = randomLongBetween(from, Long.MAX_VALUE);
+
+        return new TestRange<>(RangeType.LONG, from, to, includeFrom, includeTo);
+    }
+
+    @Override
+    protected RangeType rangeType() {
+        return RangeType.FLOAT;
+    }
+
+    @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
     }

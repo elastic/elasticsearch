@@ -254,22 +254,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         Setting.Property.NodeScope
     );
 
-    // used in tests
-    void computeDecay() {
-        // TODO: remove this
-    }
-
-    // used in tests
-    void maybeScheduleDecayAndNewEpoch() {
-        // TODO: remove this
-    }
-
-    // used in tests
-    long epoch() {
-        // TODO: remove this
-        return -1L;
-    }
-
     private interface Cache<K, T> extends Releasable {
         CacheEntry<T> get(K cacheKey, long fileLength, int region);
 
@@ -612,12 +596,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     public int forceEvict(Predicate<KeyType> cacheKeyPredicate) {
         return cache.forceEvict(cacheKeyPredicate);
 
-    }
-
-    // used by tests
-    int getFreq(CacheFileRegion cacheFileRegion) {
-        // TODO: remove this
-        return -1;
     }
 
     @Override
@@ -1337,7 +1315,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 front.head = entry;
                 front.tail = entry;
             } else {
-                entry.next = front.head.next;
+                entry.next = front.head;
                 front.head.prev = entry;
                 front.head = entry;
             }
@@ -1376,8 +1354,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         private boolean assertChunkActiveOrEvicted(LRUCacheEntry entry) {
             synchronized (SharedBlobCacheService.this) {
                 // assert linked (or evicted)
-                assert entry.prev != null || entry.chunk.isEvicted();
-
+                assert entry.list != null || entry.chunk.isEvicted();
             }
             SharedBytes.IO io = entry.chunk.io;
             assert io != null || entry.chunk.isEvicted();

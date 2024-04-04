@@ -1319,7 +1319,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 middle.head = entry;
                 middle.tail = entry;
             } else {
-                entry.next = middle.head.next;
+                entry.next = middle.head;
                 middle.head.prev = entry;
                 middle.head = entry;
             }

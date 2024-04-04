@@ -430,7 +430,7 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             Map.of(),
             includeRemoteIndices ? randomRemoteIndicesPrivileges(1, 3, excludedPrivileges) : null,
             null,
-            randomBoolean() ? null : randomAlphaOfLengthBetween(0, 20)
+            null
         );
     }
 

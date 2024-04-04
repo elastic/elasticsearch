@@ -140,10 +140,11 @@ public class ClusterApplierRecordingServiceTests extends ESTestCase {
         final var debugLoggingTimeout = TimeValue.timeValueMillis(between(1, 100000));
         var recorder = new Recorder(threadPool, debugLoggingTimeout);
 
-        var action1 = recorder.record("action1");
+        // ensure hot threads is logged if the action is too slow
+        var slowAction = recorder.record("slow_action");
         deterministicTaskQueue.scheduleAt(
             deterministicTaskQueue.getCurrentTimeMillis() + debugLoggingTimeout.millis() + between(1, 1000),
-            action1::close
+            slowAction::close
         );
         MockLogAppender.assertThatLogger(
             deterministicTaskQueue::runAllTasksInTimeOrder,
@@ -152,14 +153,15 @@ public class ClusterApplierRecordingServiceTests extends ESTestCase {
                 "hot threads",
                 ClusterApplierRecordingService.class.getCanonicalName(),
                 Level.DEBUG,
-                "hot threads while applying cluster state [action1]"
+                "hot threads while applying cluster state [slow_action]"
             )
         );
 
-        var action2 = recorder.record("action2");
+        // ensure hot threads is _NOT_ logged if the action completes quickly enough
+        var fastAction = recorder.record("fast_action");
         deterministicTaskQueue.scheduleAt(
             randomLongBetween(0, deterministicTaskQueue.getCurrentTimeMillis() + debugLoggingTimeout.millis() - 1),
-            action2::close
+            fastAction::close
         );
         MockLogAppender.assertThatLogger(
             deterministicTaskQueue::runAllTasksInTimeOrder,

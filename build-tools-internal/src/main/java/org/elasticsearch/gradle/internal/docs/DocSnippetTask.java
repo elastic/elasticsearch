@@ -8,10 +8,6 @@
 
 package org.elasticsearch.gradle.internal.docs;
 
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.JsonParser;
-
 import org.apache.commons.collections.map.HashedMap;
 import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
@@ -46,8 +42,19 @@ public class DocSnippetTask extends DefaultTask {
     private static final String TEARDOWN = "teardown:([^ \\]]+)";
     private static final String WARNING = "warning:(.+)";
     private static final String NON_JSON = "(non_json)";
-    private static final String TEST_SYNTAX =
-        "(?:" + CATCH + "|" + SUBSTITUTION + "|" + SKIP_REGEX + "|(continued)|" + SETUP + "|" + TEARDOWN + "|" + WARNING + "|(skip_shard_failures)) ?";
+    private static final String TEST_SYNTAX = "(?:"
+        + CATCH
+        + "|"
+        + SUBSTITUTION
+        + "|"
+        + SKIP_REGEX
+        + "|(continued)|"
+        + SETUP
+        + "|"
+        + TEARDOWN
+        + "|"
+        + WARNING
+        + "|(skip_shard_failures)) ?";
 
     public static final Pattern SNIPPET_PATTERN = Pattern.compile("-{4,}\\s*");
     /**
@@ -78,18 +85,7 @@ public class DocSnippetTask extends DefaultTask {
         Collection<Map.Entry<String, String>> substitutions
     ) {
         snippet.contents = contents.toString();
-        if (snippet.language == null) {
-            throw new InvalidUserDataException(
-                snippet.name
-                    + ": "
-                    + "Snippet missing a language. This is required by "
-                    + "Elasticsearch's doc testing infrastructure so we "
-                    + "be sure we don't accidentally forget to test a "
-                    + "snippet."
-            );
-        }
-        assertValidCurlInput(snippet);
-        assertValidJsonInput(snippet);
+        snippet.validate();
         escapeSubstitutions(snippet, defaultSubstitutions, substitutions);
 
         if (perSnippet != null) {
@@ -98,7 +94,11 @@ public class DocSnippetTask extends DefaultTask {
         return snippet;
     }
 
-    private static void escapeSubstitutions(Snippet snippet, Map<String, String> defaultSubstitutions, Collection<Map.Entry<String, String>> substitutions) {
+    private static void escapeSubstitutions(
+        Snippet snippet,
+        Map<String, String> defaultSubstitutions,
+        Collection<Map.Entry<String, String>> substitutions
+    ) {
         BiConsumer<String, String> doSubstitution = (pattern, subst) -> {
             /*
              * $body is really common but it looks like a
@@ -114,52 +114,6 @@ public class DocSnippetTask extends DefaultTask {
 
         if (substitutions != null) {
             substitutions.forEach(e -> doSubstitution.accept(e.getKey(), e.getValue()));
-        }
-    }
-
-    private static void assertValidCurlInput(Snippet snippet) {
-        // Try to detect snippets that contain `curl`
-        if (snippet.language == "sh" || snippet.language == "shell") {
-            snippet.curl = snippet.contents.contains("curl");
-            if (snippet.console == Boolean.FALSE && snippet.curl == false) {
-                throw new InvalidUserDataException(
-                    snippet.name + ": " + "No need for NOTCONSOLE if snippet doesn't " + "contain `curl`."
-                );
-            }
-        }
-    }
-
-    private static void assertValidJsonInput(Snippet snippet) {
-        if (snippet.testResponse && ("js" == snippet.language || "console-result" == snippet.language) && null == snippet.skip) {
-            String quoted = snippet.contents
-                // quote values starting with $
-                .replaceAll("([:,])\\s*(\\$[^ ,\\n}]+)", "$1 \"$2\"")
-                // quote fields starting with $
-                .replaceAll("(\\$[^ ,\\n}]+)\\s*:", "\"$1\":");
-
-            JsonFactory jf = new JsonFactory();
-            jf.configure(JsonParser.Feature.ALLOW_BACKSLASH_ESCAPING_ANY_CHARACTER, true);
-            JsonParser jsonParser;
-
-            try {
-                jsonParser = jf.createParser(quoted);
-                while (jsonParser.isClosed() == false) {
-                    jsonParser.nextToken();
-                }
-            } catch (JsonParseException e) {
-                throw new InvalidUserDataException(
-                    "Invalid json in "
-                        + snippet.toString()
-                        + ". The error is:\n"
-                        + e.getMessage()
-                        + ".\n"
-                        + "After substitutions and munging, the json looks like:\n"
-                        + quoted,
-                    e
-                );
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
         }
     }
 
@@ -185,12 +139,13 @@ public class DocSnippetTask extends DefaultTask {
         String name = null;
         int lastLanguageLine = 0;
         List<Snippet> snippets = new ArrayList<>();
+        StringBuilder contents = null;
 
         try (Stream<String> lines = java.nio.file.Files.lines(docFile.toPath(), StandardCharsets.UTF_8)) {
             List<String> linesList = lines.collect(Collectors.toList());
-            for(int lineNumber=0; lineNumber<linesList.size(); lineNumber++){
+            for (int lineNumber = 0; lineNumber < linesList.size(); lineNumber++) {
                 String line = linesList.get(lineNumber);
-                if(SNIPPET_PATTERN.matcher(line).matches()) { //.matches() in Java works like ==~ in Groovy
+                if (SNIPPET_PATTERN.matcher(line).matches()) { // .matches() in Java works like ==~ in Groovy
                     if (snippet == null) {
                         Path path = rootDir.toPath().relativize(docFile.toPath());
                         snippet = new Snippet(path, lineNumber, name);
@@ -212,14 +167,47 @@ public class DocSnippetTask extends DefaultTask {
                     name = source.name;
                     continue;
                 }
-                if(consoleHandled(docFile.getName(), lineNumber, line, snippet)) {
+                if (consoleHandled(docFile.getName(), lineNumber, line, snippet)) {
                     continue;
                 }
-                if(testHandled(docFile.getName(), lineNumber, line, snippet, substitutions)) {
+                if (testHandled(docFile.getName(), lineNumber, line, snippet, substitutions)) {
                     continue;
                 }
-
-
+                if (testResponseHandled(docFile.getName(), lineNumber, line, snippet, substitutions)) {
+                    continue;
+                }
+                if (line.matches("\\/\\/\s*TESTSETUP\s*")) {
+                    snippet.testSetup = true;
+                    continue;
+                }
+                if (line.matches("\\/\\/\s*TEARDOWN\s*")) {
+                    snippet.testTearDown = true;
+                    continue;
+                }
+                if (snippet == null) {
+                    // Outside
+                    continue;
+                }
+                if (snippet.end == Snippet.NOT_FINISHED) {
+                    // Inside
+                    if (contents == null) {
+                        contents = new StringBuilder();
+                    }
+                    // We don't need the annotations
+                    line = line.replaceAll("<\\d+>", "");
+                    // Nor any trailing spaces
+                    line = line.replaceAll("\s+$", "");
+                    contents.append(line).append("\n");
+                    continue;
+                }
+                // Allow line continuations for console snippets within lists
+                if (snippet != null && line.trim().equals("+")) {
+                    continue;
+                }
+                emit(snippet, contents.toString(), defaultSubstitutions, substitutions);
+            }
+            if (snippet != null) {
+                emit(snippet, contents.toString(), defaultSubstitutions, substitutions);
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -227,16 +215,63 @@ public class DocSnippetTask extends DefaultTask {
         return snippets;
     }
 
-    private boolean testHandled(String name, int lineNumber, String line, Snippet snippet, final List<Map.Entry<String, String>> substitutions) {
+    private boolean testResponseHandled(
+        String name,
+        int lineNumber,
+        String line,
+        Snippet snippet,
+        final List<Map.Entry<String, String>> substitutions
+    ) {
+        Matcher matcher = Pattern.compile("\\/\\/\s*TESTRESPONSE(\\[(.+)\\])?\s*").matcher(line);
+        if (matcher.matches()) {
+            if (snippet == null) {
+                throw new InvalidUserDataException(name + ":" + lineNumber + ": TESTRESPONSE not paired with a snippet at ");
+            }
+            snippet.testResponse = true;
+            if (matcher.group(2) != null) {
+
+                String loc = name + ":" + lineNumber;
+                parse(
+                    loc,
+                    matcher.group(2),
+                    "(?:" + SUBSTITUTION + "|" + NON_JSON + "|" + SKIP_REGEX + ") ?",
+                    (Matcher m, Boolean last) -> {
+                        if (m.group(1) != null) {
+                            // TESTRESPONSE[s/adsf/jkl/]
+                            substitutions.add(Map.entry(m.group(1), m.group(2)));
+                        } else if (m.group(3) != null) {
+                            // TESTRESPONSE[non_json]
+                            substitutions.add(Map.entry("^", "/"));
+                            substitutions.add(Map.entry("\n$", "\\\\s*/"));
+                            substitutions.add(Map.entry("( +)", "$1\\\\s+"));
+                            substitutions.add(Map.entry("\n", "\\\\s*\n "));
+                        } else if (m.group(4) != null) {
+                            // TESTRESPONSE[skip:reason]
+                            snippet.skip = m.group(4);
+                        }
+                    }
+                );
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private boolean testHandled(
+        String name,
+        int lineNumber,
+        String line,
+        Snippet snippet,
+        final List<Map.Entry<String, String>> substitutions
+    ) {
         Matcher matcher = Pattern.compile("\\/\\/\s*TEST(\\[(.+)\\])?\s*").matcher(line);
         if (matcher.matches()) {
             if (snippet == null) {
-                throw new InvalidUserDataException(name + ":" + lineNumber
-                    + ": TEST not paired with a snippet at ");
+                throw new InvalidUserDataException(name + ":" + lineNumber + ": TEST not paired with a snippet at ");
             }
             snippet.test = true;
             if (matcher.group(2) != null) {
-                String loc = name+":" + lineNumber;
+                String loc = name + ":" + lineNumber;
                 parse(loc, matcher.group(2), TEST_SYNTAX, (Matcher m, Boolean last) -> {
                     if (m.group(1) != null) {
                         snippet.catchPart = m.group(1);
@@ -270,8 +305,7 @@ public class DocSnippetTask extends DefaultTask {
                         snippet.skipShardsFailures = true;
                         return;
                     }
-                    throw new InvalidUserDataException(
-                        "Invalid test marker: " + line);
+                    throw new InvalidUserDataException("Invalid test marker: " + line);
                 });
             }
             return true;
@@ -287,8 +321,9 @@ public class DocSnippetTask extends DefaultTask {
 
         String cutOutNoNl = cutOut.toString().replace("\n", "\\n");
 
-        throw new InvalidUserDataException(location + ": Extra content "
-            + message + " ('" + cutOutNoNl + "') matching [" + pattern + "]: " + s);
+        throw new InvalidUserDataException(
+            location + ": Extra content " + message + " ('" + cutOutNoNl + "') matching [" + pattern + "]: " + s
+        );
     }
 
     /**
@@ -297,7 +332,7 @@ public class DocSnippetTask extends DefaultTask {
      * match then blow up. If the closure takes two parameters then the second
      * one is "is this the last match?".
      */
-    protected void parse(String location, String s, String pattern, BiConsumer<Matcher,Boolean> testHandler) {
+    protected void parse(String location, String s, String pattern, BiConsumer<Matcher, Boolean> testHandler) {
         if (s == null) {
             return; // Silly null, only real stuff gets to match!
         }
@@ -311,11 +346,10 @@ public class DocSnippetTask extends DefaultTask {
             testHandler.accept(m, offset == s.length());
         }
         if (offset == 0) {
-            throw new InvalidUserDataException(location + ": Didn't match "
-                +  pattern +": " + s);
+            throw new InvalidUserDataException(location + ": Didn't match " + pattern + ": " + s);
         }
         if (offset != s.length()) {
-            extraContent("after [" + offset+ "]", s, offset, location, pattern);
+            extraContent("after [" + offset + "]", s, offset, location, pattern);
         }
     }
 
@@ -363,39 +397,4 @@ public class DocSnippetTask extends DefaultTask {
         }
     }
 
-    public static class Snippet {
-        static final int NOT_FINISHED = -1;
-
-        /**
-         * Path to the file containing this snippet. Relative to docs.dir of the
-         * SnippetsTask that created it.
-         */
-        Path path;
-        int start;
-        int end = NOT_FINISHED;
-        public String contents;
-
-        Boolean console = null;
-        boolean test = false;
-        boolean testResponse = false;
-        boolean testSetup = false;
-        boolean testTearDown = false;
-        String skip = null;
-        boolean continued = false;
-        String language = null;
-        String catchPart = null;
-        String setup = null;
-        String teardown = null;
-        boolean curl;
-        List<String> warnings = new ArrayList();
-        boolean skipShardsFailures = false;
-        String name;
-
-        public Snippet(Path path, int start, String name) {
-            this.path = path;
-            this.start = start;
-            this.name = name;
-        }
-
-    }
 }

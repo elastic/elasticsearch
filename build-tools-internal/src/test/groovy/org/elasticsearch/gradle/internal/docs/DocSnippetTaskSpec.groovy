@@ -232,7 +232,63 @@ PUT _snapshot/my_hdfs_repository
         then:
         snippets*.test == [true]
         snippets*.skip == ["we don't have hdfs set up while testing this"]
+    }
 
+    def "handling testresponse parsing"() {
+        given:
+        def project = ProjectBuilder.builder().build()
+        def task = project.tasks.create("docSnippetTask", DocSnippetTask)
+        when:
+        def substitutions = []
+        def snippets = task.parseDocFile(
+            tempDir, docFile(
+            """
+[source,console]
+----
+POST logs-my_app-default/_rollover/
+----
+// TESTRESPONSE[s/"root_cause": \\.\\.\\./"root_cause": \$body.error.root_cause/]
+"""
+        ), substitutions)
+        then:
+        snippets*.test == [false]
+        snippets*.testResponse == [true]
+        substitutions.size() == 1
+        substitutions[0].key == "\"root_cause\": \\.\\.\\."
+        substitutions[0].value == "\"root_cause\": \$body.error.root_cause"
+
+        when:
+        snippets = task.parseDocFile(
+            tempDir, docFile(
+            """
+[source,console]
+----
+POST logs-my_app-default/_rollover/
+----
+// TESTRESPONSE[skip:no setup made for this example yet]
+"""
+        ), [])
+        then:
+        snippets*.test == [false]
+        snippets*.testResponse == [true]
+        snippets*.skip == ["no setup made for this example yet"]
+
+        when:
+        substitutions = []
+        snippets = task.parseDocFile(
+            tempDir, docFile(
+            """
+[source,txt]
+---------------------------------------------------------------------------
+my-index-000001 0 p RELOCATING 3014 31.1mb 192.168.56.10 H5dfFeA -> -> 192.168.56.30 bGG90GE
+---------------------------------------------------------------------------
+// TESTRESPONSE[non_json]
+"""
+        ), substitutions)
+        then:
+        snippets*.test == [false]
+        snippets*.testResponse == [true]
+        substitutions.size() == 4
     }
 
 
@@ -246,6 +302,7 @@ PUT _snapshot/my_hdfs_repository
             """
 [source,console]
 ----
+
 // $firstToken
 ----
 """
@@ -304,14 +361,7 @@ GET /_analyze
       "mappings": [
         "٠ => 0",
         "١ => 1",
-        "٢ => 2",
-        "٣ => 3",
-        "٤ => 4",
-        "٥ => 5",
-        "٦ => 6",
-        "٧ => 7",
-        "٨ => 8",
-        "٩ => 9"
+        "٢ => 2"
       ]
     }
   ],
@@ -320,10 +370,26 @@ GET /_analyze
 ----
 """
         )
-        def snippet = task.parseDocFile(tempDir, doc, [])
+        def snippets = task.parseDocFile(tempDir, doc, [])
         expect:
-        snippet*.start == [2]
-        snippet*.language == ["console"]
+        snippets*.start == [2]
+        snippets*.language == ["console"]
+        snippets*.contents == ["""GET /_analyze
+{
+  "tokenizer": "keyword",
+  "char_filter": [
+    {
+      "type": "mapping",
+      "mappings": [
+        "٠ => 0",
+        "١ => 1",
+        "٢ => 2"
+      ]
+    }
+  ],
+  "text": "My license plate is ٢٥٠١٥"
+}
+"""]
     }
 
 
@@ -333,8 +399,8 @@ GET /_analyze
         return file
     }
 
-    DocSnippetTask.Snippet snippet(Closure<DocSnippetTask> configClosure = {}) {
-        def snippet = new DocSnippetTask.Snippet(new File("SomePath").toPath(), 0, "snippet-name-1")
+    Snippet snippet(Closure<DocSnippetTask> configClosure = {}) {
+        def snippet = new Snippet(new File("SomePath").toPath(), 0, "snippet-name-1")
         configClosure.delegate = snippet
         configClosure()
         return snippet

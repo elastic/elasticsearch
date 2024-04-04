@@ -209,7 +209,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             this.restriction = Restriction.NONE;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.SECURITY_ROLE_DESCRIPTION)) {
-            this.description = in.readString();
+            this.description = in.readOptionalString();
         } else {
             this.description = null;
         }
@@ -439,7 +439,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             restriction.writeTo(out);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.SECURITY_ROLE_DESCRIPTION)) {
-            out.writeString(description);
+            out.writeOptionalString(description);
         }
     }
 

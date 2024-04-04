@@ -8,6 +8,10 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
+
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -21,6 +25,7 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 public final class GsubProcessor extends AbstractStringProcessor<String> {
 
     public static final String TYPE = "gsub";
+    private static final Logger logger = LogManager.getLogger(GsubProcessor.class);
 
     private final Pattern pattern;
     private final String replacement;
@@ -58,7 +63,9 @@ public final class GsubProcessor extends AbstractStringProcessor<String> {
              * can carry on. The value would be useful to log here, but we do not do so for because we do not want to write potentially
              * sensitive data to the logs.
              */
-            throw logAndBuildException("Caught a StackOverflowError while processing gsub pattern: [" + pattern + "]", e);
+            String message = "Caught a StackOverflowError while processing gsub pattern: [" + pattern + "]";
+            logger.trace(message, e);
+            throw new ElasticsearchException(message);
         }
     }
 

@@ -254,7 +254,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         Setting.Property.NodeScope
     );
 
-    private interface Cache<K, T> extends Releasable {
+    private interface Cache<K, T> {
         CacheEntry<T> get(K cacheKey, long fileLength, int region);
 
         int forceEvict(Predicate<K> cacheKeyPredicate);
@@ -342,7 +342,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
         this.regionSize = regionSize;
         assert regionSize > 0L;
-        this.cache = new LRUCache(settings);
+        this.cache = new LRUCache();
         try {
             sharedBytes = new SharedBytes(
                 numRegions,
@@ -1174,17 +1174,14 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         }
 
         private final ConcurrentHashMap<RegionKey<KeyType>, LRUCacheEntry> keyMapping = new ConcurrentHashMap<>();
-        private final int maxSize = 10; // TODO: make a setting or even split?
+        private final int maxSize;
         private final LRUCacheList front = new LRUCacheList();
         private final LRUCacheList middle = new LRUCacheList();
 
-        LRUCache(Settings settings) {
-
-        }
-
-        @Override
-        public void close() {
-
+        LRUCache() {
+            // we split the front and middle lists in half, but require a minimum of 2
+            // for front to avoid strange head/tail semantics
+            maxSize = Math.min(2, numRegions / 2);
         }
 
         @Override

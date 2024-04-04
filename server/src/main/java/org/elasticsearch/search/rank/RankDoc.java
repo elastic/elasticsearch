@@ -31,6 +31,8 @@ public abstract class RankDoc extends ScoreDoc implements Writeable {
      */
     public int rank = NO_RANK;
 
+    public record RankKey(int doc, int shardIndex) {}
+
     public RankDoc(int doc, float score, int shardIndex) {
         super(doc, score, shardIndex);
     }

@@ -13,6 +13,10 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
+import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
+import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -73,12 +77,22 @@ public class TestRankBuilder extends RankBuilder {
     }
 
     @Override
-    public RankShardContext buildRankShardContext(List<Query> queries, int from) {
+    public QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public RankCoordinatorContext buildRankCoordinatorContext(int size, int from) {
+    public QueryPhaseRankCoordinatorContext buildQueryPhaseCoordinatorContext(int size, int from) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
         throw new UnsupportedOperationException();
     }
 

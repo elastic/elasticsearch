@@ -63,7 +63,7 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         // Always load _ignored to be explicit about ignored fields
         // This works because _ignored is added as the first metadata mapper,
         // so its stored fields always appear first in the list.
-        // TODO can we remove this?
+        // Note that _ignored is also multi-valued, which is why it can't be removed from the set like other fields
         if (IgnoredFieldMapper.NAME.equals(fieldInfo.name)) {
             return Status.YES;
         }
@@ -73,8 +73,7 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
                 return Status.YES;
             }
         }
-        // All these fields are single-valued so we can stop when the set is
-        // empty
+        // All these fields are single-valued so we can stop when the set is empty
         return requiredFields.isEmpty() ? Status.STOP : Status.NO;
     }
 

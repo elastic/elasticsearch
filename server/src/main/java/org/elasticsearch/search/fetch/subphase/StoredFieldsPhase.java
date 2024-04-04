@@ -54,6 +54,8 @@ public class StoredFieldsPhase implements FetchSubPhase {
 
     }
 
+    // TODO what happens if we remove _routing or _ignored from this list?
+    // Need to make sure some test fails or add test coverage otherwise
     private static final List<StoredField> METADATA_FIELDS = List.of(
         new StoredField("_routing", RoutingFieldMapper.FIELD_TYPE, true),
         new StoredField("_ignored", IgnoredFieldMapper.FIELD_TYPE, true),
@@ -76,8 +78,9 @@ public class StoredFieldsPhase implements FetchSubPhase {
             for (String field : storedFieldsContext.fieldNames()) {
                 Collection<String> fieldNames = sec.getMatchingFieldNames(field);
                 for (String fieldName : fieldNames) {
-                    // _id and _source always retrieved anyway, no need to do it explicitly. See FieldsVisitor
-                    if (IdFieldMapper.NAME.equals(field) || SourceFieldMapper.NAME.equals(field) || RoutingFieldMapper.NAME.equals(field)) {
+                    // _id and _source always retrieved anyway, no need to do it explicitly. See FieldsVisitor.
+                    // They are not returned as part of HitContext#loadedFields hence they are not added to documents by this sub-phase
+                    if (IdFieldMapper.NAME.equals(field) || SourceFieldMapper.NAME.equals(field)) {
                         continue;
                     }
                     MappedFieldType ft = sec.getFieldType(fieldName);

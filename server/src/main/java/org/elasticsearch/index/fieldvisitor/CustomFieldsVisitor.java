@@ -8,6 +8,7 @@
 package org.elasticsearch.index.fieldvisitor;
 
 import org.apache.lucene.index.FieldInfo;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -21,11 +22,11 @@ public class CustomFieldsVisitor extends FieldsVisitor {
     public CustomFieldsVisitor(Set<String> fields, boolean loadSource) {
         super(loadSource);
         this.fields = new HashSet<>(fields);
-        // metadata fields are already handled by FieldsVisitor, so removing
-        // them here means that if the only fields requested are metadata
-        // fields then we can shortcut loading
+        // metadata fields that are always retrieved are already handled by FieldsVisitor, so removing
+        // them here means that if the only fields requested are those metadata fields then we can shortcut loading
         FieldsVisitor.BASE_REQUIRED_FIELDS.forEach(this.fields::remove);
         this.fields.remove(this.sourceFieldName);
+        this.fields.remove(IgnoredFieldMapper.NAME);
     }
 
     @Override

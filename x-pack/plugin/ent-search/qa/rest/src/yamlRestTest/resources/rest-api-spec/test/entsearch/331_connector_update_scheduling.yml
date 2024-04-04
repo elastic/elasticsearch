@@ -91,6 +91,15 @@ setup:
               interval: 3 0 0 * * ?
 
 ---
+"Update Connector Scheduling - Schedules are missing":
+  - do:
+      catch: "bad_request"
+      connector.update_scheduling:
+        connector_id: test-connector
+        body:
+          scheduling: {}
+
+---
 "Update Connector Scheduling - Wrong CRON expression":
   - do:
       catch: "bad_request"

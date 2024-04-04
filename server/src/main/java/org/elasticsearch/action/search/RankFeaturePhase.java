@@ -56,9 +56,7 @@ public final class RankFeaturePhase extends SearchPhase {
                 // we need to reduce the results at this point instead of fetch phase, so we fork this process similarly to how
                 // was set up at FetchSearchPhase.
 
-                // we do the heavy lifting in this inner run method where we reduce aggs etc. that's why we fork this phase
-                // off immediately instead of forking when we send back the response to the user since there we only need
-                // to merge together the fetched results which is a linear operation.
+                // we do the heavy lifting in this inner run method where we reduce aggs etc
                 innerRun();
             }
 

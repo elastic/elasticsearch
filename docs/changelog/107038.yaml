@@ -1,0 +1,5 @@
+pr: 107038
+summary: Replace `UnsupportedOperationException` with `IllegalArgumentException` for non-existing columns
+area: Search
+type: bug
+issues: []

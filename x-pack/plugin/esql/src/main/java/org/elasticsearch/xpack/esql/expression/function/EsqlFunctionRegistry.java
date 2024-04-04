@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log10;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pi;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Signum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sinh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Sqrt;
@@ -79,7 +80,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSort
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWithin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StY;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
@@ -150,6 +153,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Pi.class, Pi::new, "pi"),
                 def(Pow.class, Pow::new, "pow"),
                 def(Round.class, Round::new, "round"),
+                def(Signum.class, Signum::new, "signum"),
                 def(Sin.class, Sin::new, "sin"),
                 def(Sinh.class, Sinh::new, "sinh"),
                 def(Sqrt.class, Sqrt::new, "sqrt"),
@@ -182,7 +186,9 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
             // spatial
             new FunctionDefinition[] {
                 def(SpatialCentroid.class, SpatialCentroid::new, "st_centroid"),
+                def(SpatialContains.class, SpatialContains::new, "st_contains"),
                 def(SpatialIntersects.class, SpatialIntersects::new, "st_intersects"),
+                def(SpatialWithin.class, SpatialWithin::new, "st_within"),
                 def(StX.class, StX::new, "st_x"),
                 def(StY.class, StY::new, "st_y") },
             // conditional

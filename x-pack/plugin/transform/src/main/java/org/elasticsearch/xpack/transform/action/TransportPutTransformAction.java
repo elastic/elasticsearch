@@ -170,14 +170,13 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     }
 
     private void putTransform(Request request, ActionListener<AcknowledgedResponse> listener) {
-
         final TransformConfig config = request.getConfig();
         // create the function for validation
         final Function function = FunctionFactory.create(config);
 
         // <2> Return to the listener
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(putTransformConfigurationResult -> {
-            logger.debug("[{}] created transform", config.getId());
+            logger.info("[{}] created transform", config.getId());
             auditor.info(config.getId(), "Created transform.");
             List<String> warnings = TransformConfigLinter.getWarnings(function, config.getSource(), config.getSyncConfig());
             for (String warning : warnings) {

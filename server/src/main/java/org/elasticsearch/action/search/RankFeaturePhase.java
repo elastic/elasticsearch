@@ -14,13 +14,11 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 
 /**
- * This class is responsible for executing the rank phase of the search, iff that is applicable.
- * It starts by retrieving num_shards * window_size results from the query phase and
- * reducing them to a global list of ranked `window_size` results.
- *
- * It then passes this result set to the rank coordinator which is responsible for reranking the results.
- *
- * If no rank query is specified, it proceeds directly to the next phase (FetchSearchPhase) by first reducing the results.
+ * This search phase is responsible for executing any re-ranking needed for the given search request, iff that is applicable.
+ * It starts by retrieving {code num_shards * window_size} results from the query phase and reduces them to a global list of
+ * the top {@code `window_size` results. It then reaches out to the shards to extract the needed feature data,
+ * and finally passes all this information to the appropriate {@code RankFeatureRankCoordinatorContext} which is responsible for reranking
+ * the results. If no rank query is specified, it proceeds directly to the next phase (FetchSearchPhase) by first reducing the results.
  */
 public final class RankFeaturePhase extends SearchPhase {
 

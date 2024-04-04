@@ -83,6 +83,7 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
                 argument.onResponse(null);
                 return null;
             }).when(commitService).addListenerForUploadedGeneration(any(ShardId.class), anyLong(), any());
+            doAnswer(invocation -> null).when(commitService).ensureMaxGenerationToUploadForFlush(any(ShardId.class), anyLong());
             return commitService;
         }
 

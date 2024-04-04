@@ -212,7 +212,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | limit 4""", Set.of("hire_date", "hire_date.*", "birth_date", "birth_date.*"));
     }
 
-    public void testAutoBucketMonth() {
+    public void testBucketMonth() {
         assertFieldNames("""
             from employees
             | where hire_date >= "1985-01-01T00:00:00Z" and hire_date < "1986-01-01T00:00:00Z"
@@ -228,7 +228,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         );
     }
 
-    public void testAutoBucketMonthInAgg() {
+    public void testBucketMonthInAgg() {
         assertFieldNames("""
             FROM employees
             | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
@@ -554,7 +554,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         );
     }
 
-    public void testAutoBucket() {
+    public void testBucket() {
         assertFieldNames("""
             FROM employees
             | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"

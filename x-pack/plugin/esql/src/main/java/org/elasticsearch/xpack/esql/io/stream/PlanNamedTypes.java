@@ -374,7 +374,7 @@ public final class PlanNamedTypes {
             of(ESQL_UNARY_SCLR_CLS, Trim.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             // ScalarFunction
             of(ScalarFunction.class, Atan2.class, PlanNamedTypes::writeAtan2, PlanNamedTypes::readAtan2),
-            of(ScalarFunction.class, Bucket.class, PlanNamedTypes::writeAutoBucket, PlanNamedTypes::readAutoBucket),
+            of(ScalarFunction.class, Bucket.class, PlanNamedTypes::writeBucket, PlanNamedTypes::readBucket),
             of(ScalarFunction.class, Case.class, PlanNamedTypes::writeVararg, PlanNamedTypes::readVarag),
             of(ScalarFunction.class, CIDRMatch.class, PlanNamedTypes::writeCIDRMatch, PlanNamedTypes::readCIDRMatch),
             of(ScalarFunction.class, Coalesce.class, PlanNamedTypes::writeVararg, PlanNamedTypes::readVarag),
@@ -1388,11 +1388,11 @@ public final class PlanNamedTypes {
         out.writeExpression(atan2.x());
     }
 
-    static Bucket readAutoBucket(PlanStreamInput in) throws IOException {
+    static Bucket readBucket(PlanStreamInput in) throws IOException {
         return new Bucket(in.readSource(), in.readExpression(), in.readExpression(), in.readExpression(), in.readExpression());
     }
 
-    static void writeAutoBucket(PlanStreamOutput out, Bucket bucket) throws IOException {
+    static void writeBucket(PlanStreamOutput out, Bucket bucket) throws IOException {
         out.writeSource(bucket.source());
         out.writeExpression(bucket.field());
         out.writeExpression(bucket.buckets());

@@ -17,7 +17,6 @@ import org.elasticsearch.search.lookup.Source;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Sub phase within the fetch phase used to fetch things *about* the documents like highlighting or matched queries.
@@ -36,7 +35,7 @@ public interface FetchSubPhase {
             this.readerContext = context;
             this.docId = docId;
             this.source = source;
-            this.loadedFields = Objects.requireNonNull(loadedFields);
+            this.loadedFields = loadedFields;
         }
 
         public SearchHit hit() {

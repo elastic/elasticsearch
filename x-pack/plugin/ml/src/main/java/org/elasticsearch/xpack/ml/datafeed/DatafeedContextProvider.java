@@ -32,18 +32,12 @@ public class DatafeedContextProvider {
     }
 
     public void buildDatafeedContext(String datafeedId, ActionListener<DatafeedContext> listener) {
-        DatafeedContext.Builder context = DatafeedContext.builder();
-
         datafeedConfigProvider.getDatafeedConfig(datafeedId, null, listener.delegateFailureAndWrap((delegate1, datafeedConfigBuilder) -> {
             DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
-            context.setDatafeedConfig(datafeedConfig);
             jobConfigProvider.getJob(datafeedConfig.getJobId(), null, delegate1.delegateFailureAndWrap((delegate2, jobBuilder) -> {
-                context.setJob(jobBuilder.build());
                 resultsProvider.getRestartTimeInfo(jobBuilder.getId(), delegate2.delegateFailureAndWrap((delegate3, restartTimeInfo) -> {
-                    context.setRestartTimeInfo(restartTimeInfo);
-                    resultsProvider.datafeedTimingStats(context.getJob().getId(), timingStats -> {
-                        context.setTimingStats(timingStats);
-                        delegate3.onResponse(context.build());
+                    resultsProvider.datafeedTimingStats(jobBuilder.getId(), timingStats -> {
+                        delegate3.onResponse(new DatafeedContext(datafeedConfig, jobBuilder.build(), restartTimeInfo, timingStats));
                     }, delegate3::onFailure);
                 }));
             }));

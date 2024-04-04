@@ -68,7 +68,6 @@ public class QueryRewriteContext {
         final MapperService mapperService,
         final MappingLookup mappingLookup,
         final Map<String, MappedFieldType> runtimeMappings,
-        final Predicate<String> allowedFields,
         final IndexSettings indexSettings,
         final Index fullyQualifiedIndex,
         final Predicate<String> indexNameMatcher,
@@ -85,7 +84,6 @@ public class QueryRewriteContext {
         this.mappingLookup = Objects.requireNonNull(mappingLookup);
         this.allowUnmappedFields = indexSettings == null || indexSettings.isDefaultAllowUnmappedFields();
         this.runtimeMappings = runtimeMappings;
-        this.allowedFields = allowedFields;
         this.indexSettings = indexSettings;
         this.fullyQualifiedIndex = fullyQualifiedIndex;
         this.indexNameMatcher = indexNameMatcher;
@@ -103,7 +101,6 @@ public class QueryRewriteContext {
             null,
             MappingLookup.EMPTY,
             Collections.emptyMap(),
-            null,
             null,
             null,
             null,

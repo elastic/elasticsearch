@@ -1,0 +1,5 @@
+pr: 107093
+summary: Adding new `RankContext` classes per different search phase/node type
+area: Ranking
+type: feature
+issues: []

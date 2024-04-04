@@ -48,7 +48,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.ToLongFunction;
 
 public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHitsAggregationBuilder> {
     public static final String NAME = "top_hits";
@@ -821,10 +820,5 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.ZERO;
-    }
-
-    @Override
-    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
-        return false;
     }
 }

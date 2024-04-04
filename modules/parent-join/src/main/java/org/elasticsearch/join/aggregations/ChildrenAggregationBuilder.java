@@ -31,7 +31,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.ToLongFunction;
 
 public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<ChildrenAggregationBuilder> {
 
@@ -122,11 +121,6 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<C
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(ParentToChildrenAggregator.TYPE_FIELD.getPreferredName(), childType);
         return builder;
-    }
-
-    @Override
-    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
-        return false;
     }
 
     public static ChildrenAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {

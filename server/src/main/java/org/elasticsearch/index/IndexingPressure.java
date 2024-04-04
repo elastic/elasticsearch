@@ -135,7 +135,7 @@ public class IndexingPressure {
             long bytesWithoutOperation = combinedBytes - bytes;
             long totalBytesWithoutOperation = totalBytes - bytes;
             this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
-            this.primaryRejections.getAndIncrement();
+            this.primaryRejections.getAndAdd(operations);
             throw new EsRejectedExecutionException(
                 "rejected execution of primary operation ["
                     + "coordinating_and_primary_bytes="

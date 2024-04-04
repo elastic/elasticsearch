@@ -216,7 +216,7 @@ public class IndexEngine extends InternalEngine {
         assert isFlushLockIsHeldByCurrentThread() == false;
         if (ongoingFlushMustUpload.compareAndSet(true, false) || IS_FLUSH_BY_REFRESH.get() == false) {
             logger.trace("flush sets max generation of {} to generation [{}]", shardId, generation);
-            statelessCommitService.setMaxGenerationToUploadDueToFlush(shardId, generation);
+            statelessCommitService.ensureMaxGenerationToUploadForFlush(shardId, generation);
         }
     }
 

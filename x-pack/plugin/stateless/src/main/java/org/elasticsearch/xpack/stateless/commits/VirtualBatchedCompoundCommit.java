@@ -130,6 +130,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         if (isFrozen()) {
             return false;
         }
+        // TODO: we can drop this synchronization since usages of append and freeze are synchronized by ShardCommitState
         synchronized (this) {
             if (isFrozen()) {
                 return false;
@@ -175,6 +176,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         var header = materializeCompoundCommitHeader(reference, internalFiles);
         long compoundCommitSize = header.length + compoundCommitFilesSize;
 
+        // TODO: we can drop this synchronization since usages of append and freeze are synchronized by ShardCommitState
         // Blocking when adding the new CC and updating relevant fields so that they offer consistent view to other (freezing) threads
         synchronized (this) {
             if (isFrozen()) {
@@ -345,6 +347,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         return shardId;
     }
 
+    public PrimaryTermAndGeneration getPrimaryTermAndGeneration() {
+        return primaryTermAndGeneration;
+    }
+
     public long getPrimaryTerm() {
         return primaryTermAndGeneration.primaryTerm();
     }
@@ -361,6 +367,11 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         return internalLocations;
     }
 
+    public long getMaxGeneration() {
+        assert pendingCompoundCommits.isEmpty() == false;
+        return pendingCompoundCommits.last().getGeneration();
+    }
+
     @Override
     public void close() {
         decRef();
@@ -371,7 +382,6 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         IOUtils.closeWhileHandlingException(pendingCompoundCommits);
     }
 
-    // package private for testing
     List<PendingCompoundCommit> getPendingCompoundCommits() {
         return List.copyOf(pendingCompoundCommits);
     }

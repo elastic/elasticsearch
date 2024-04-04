@@ -208,12 +208,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitConfigOption(EsqlBaseParser.ConfigOptionContext ctx);
   /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#metadata}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitMetadata(EsqlBaseParser.MetadataContext ctx);
-  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#metadataOption}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -225,6 +219,54 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitDeprecated_metadata(EsqlBaseParser.Deprecated_metadataContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#metadata}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMetadata(EsqlBaseParser.MetadataContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#retrieveCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRetrieveCommand(EsqlBaseParser.RetrieveCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#retrieveIdentifier}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRetrieveIdentifier(EsqlBaseParser.RetrieveIdentifierContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#retrieveWhere}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRetrieveWhere(EsqlBaseParser.RetrieveWhereContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#retrieveOptions}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRetrieveOptions(EsqlBaseParser.RetrieveOptionsContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#retrieveConfigOption}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRetrieveConfigOption(EsqlBaseParser.RetrieveConfigOptionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#retrieveMetadata}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRetrieveMetadata(EsqlBaseParser.RetrieveMetadataContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#retrieveMetadataOption}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRetrieveMetadataOption(EsqlBaseParser.RetrieveMetadataOptionContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#evalCommand}.
    * @param ctx the parse tree

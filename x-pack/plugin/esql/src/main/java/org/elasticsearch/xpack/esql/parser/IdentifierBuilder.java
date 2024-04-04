@@ -45,4 +45,13 @@ abstract class IdentifierBuilder extends AbstractBuilder {
     public String visitFromIdentifiers(List<FromIdentifierContext> ctx) {
         return Strings.collectionToDelimitedString(visitList(this, ctx, String.class), ",");
     }
+
+    @Override
+    public String visitRetrieveIdentifier(EsqlBaseParser.RetrieveIdentifierContext ctx) {
+        return ctx == null ? null : unquoteIdentifier(ctx.QUOTED_IDENTIFIER(), ctx.RETRIEVE_UNQUOTED_IDENTIFIER());
+    }
+
+    public String visitRetrieveIdentifiers(List<EsqlBaseParser.RetrieveIdentifierContext> ctx) {
+        return Strings.collectionToDelimitedString(visitList(this, ctx, String.class), ",");
+    }
 }

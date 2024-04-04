@@ -18,10 +18,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelationWithFilter;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.Retrieve;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -110,7 +112,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
     static {
-        var resolution = new Batch<>("Resolution", new ResolveTable(), new ResolveEnrich(), new ResolveFunctions(), new ResolveRefs());
+        var resolution = new Batch<>(
+            "Resolution",
+            new ResolveTable(),
+            new ResolveEnrich(),
+            new ResolveFunctions(),
+            new ResolveRefs(),
+            new ResolveRetrieve()
+        );
+
         var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new PromoteStringsInDateComparisons());
         rules = List.of(resolution, finish);
     }
@@ -164,6 +174,42 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             attributes.addAll(plan.metadataFields());
             return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes, plan.esSourceOptions());
+        }
+
+    }
+
+    private static class ResolveRetrieve extends ParameterizedAnalyzerRule<Retrieve, AnalyzerContext> {
+
+        @Override
+        protected LogicalPlan rule(Retrieve plan, AnalyzerContext context) {
+            if (context.indexResolution().isValid() == false) {
+                return plan.unresolvedMessage().equals(context.indexResolution().toString())
+                    ? plan
+                    : new Retrieve(plan.source(), plan.table(), plan.metadataFields(), context.indexResolution().toString());
+            }
+            TableIdentifier table = plan.table();
+            if (context.indexResolution().matches(table.index()) == false) {
+                // TODO: fix this (and tests), or drop check (seems SQL-inherited, where's also defective)
+                new Retrieve(
+                    plan.source(),
+                    plan.table(),
+                    plan.metadataFields(),
+                    "invalid [" + table + "] resolution to [" + context.indexResolution() + "]"
+                );
+            }
+
+            EsIndex esIndex = context.indexResolution().get();
+            var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
+            attributes.addAll(plan.metadataFields());
+            return new EsRelationWithFilter(
+                plan.source(),
+                esIndex,
+                attributes.isEmpty() ? NO_FIELDS : attributes,
+                plan.esSourceOptions(),
+                false,
+                plan.getFieldName(),
+                plan.getQueryString()
+            );
         }
 
     }

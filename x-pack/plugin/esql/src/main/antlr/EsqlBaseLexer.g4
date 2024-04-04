@@ -13,6 +13,7 @@ LIMIT : 'limit'               -> pushMode(EXPRESSION_MODE);
 META : 'meta'                 -> pushMode(META_MODE);
 MV_EXPAND : 'mv_expand'       -> pushMode(MVEXPAND_MODE);
 RENAME : 'rename'             -> pushMode(RENAME_MODE);
+RETRIEVE: 'retrieve'          -> pushMode(RETRIEVE_MODE);
 ROW : 'row'                   -> pushMode(EXPRESSION_MODE);
 SHOW : 'show'                 -> pushMode(SHOW_MODE);
 SORT : 'sort'                 -> pushMode(EXPRESSION_MODE);
@@ -215,6 +216,51 @@ FROM_MULTILINE_COMMENT
 FROM_WS
     : WS -> channel(HIDDEN)
     ;
+
+//
+// RETRIEVE command
+//
+mode RETRIEVE_MODE;
+RETRIEVE_PIPE : PIPE -> type(PIPE), popMode;
+RETRIEVE_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET);
+RETRIEVE_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET);
+RETRIEVE_COMMA : COMMA -> type(COMMA);
+RETRIEVE_ASSIGN : ASSIGN -> type(ASSIGN);
+RETRIEVE_QUOTED_STRING : QUOTED_STRING -> type(QUOTED_STRING);
+RETRIEVE_LP: LP -> type(LP);
+RETRIEVE_RP: RP -> type(RP);
+
+RETRIEVE_OPTIONS : 'options';
+RETRIEVE_METADATA : 'metadata';
+RETRIEVE_WHERE: 'where';
+MATCH: 'match';
+
+fragment RETRIEVE_UNQUOTED_IDENTIFIER_PART
+    : ~[=`|,[\]/ \t\r\n]
+    | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment
+    ;
+
+RETRIEVE_UNQUOTED_IDENTIFIER
+    : RETRIEVE_UNQUOTED_IDENTIFIER_PART+
+    ;
+
+RETRIEVE_QUOTED_IDENTIFIER
+    : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
+    ;
+
+RETRIEVE_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+RETRIEVE_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+RETRIEVE_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+
 //
 // DROP, KEEP
 //

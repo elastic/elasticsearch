@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Retrieve;
 import org.elasticsearch.xpack.ql.analyzer.TableInfo;
 import org.elasticsearch.xpack.ql.options.EsSourceOptions;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -51,6 +52,12 @@ public class PreAnalyzer {
             indices.add(new TableInfo(p.table(), p.frozen()));
             esSourceOptions.add(p.esSourceOptions());
         });
+
+        plan.forEachUp(Retrieve.class, p -> {
+            indices.add(new TableInfo(p.table(), p.frozen()));
+            esSourceOptions.add(p.esSourceOptions());
+        });
+
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
 
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelationWithFilter;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.ql.options.EsSourceOptions;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
@@ -51,6 +53,7 @@ import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.Queries;
 
@@ -61,9 +64,13 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
 import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.PushFiltersToSource.canPushToSource;
 import static org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer.TRANSLATOR_HANDLER;
+import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.util.Queries.Clause.FILTER;
 
 public class PlannerUtils {
@@ -212,6 +219,18 @@ public class PlannerUtils {
                         }
                     }
                 }
+
+                if (f.child() instanceof EsRelationWithFilter) {
+                    String matchFieldName = ((EsRelationWithFilter) f.child()).getFieldName();
+                    String queryString = ((EsRelationWithFilter) f.child()).getQueryString();
+
+                    if (fieldName != null && queryString != null) {
+                        FieldAttribute fa = new FieldAttribute(EMPTY, matchFieldName, new EsField(matchFieldName, TEXT, emptyMap(), true));
+                        MatchQueryPredicate mmqp = new MatchQueryPredicate(f.child().source(), fa, queryString, "");
+                        matches.add(mmqp);
+                    }
+                }
+
                 if (matches.size() > 0) {
                     requestFilter[1] = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(matches)).asBuilder();
                 }
@@ -262,7 +281,7 @@ public class PlannerUtils {
         }
         // unsupported fields are passed through as a BytesRef
         if (dataType == DataTypes.KEYWORD
-            || dataType == DataTypes.TEXT
+            || dataType == TEXT
             || dataType == DataTypes.IP
             || dataType == DataTypes.SOURCE
             || dataType == DataTypes.VERSION

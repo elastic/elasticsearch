@@ -342,16 +342,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitConfigOption(EsqlBaseParser.ConfigOptionContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#metadata}.
-   * @param ctx the parse tree
-   */
-  void enterMetadata(EsqlBaseParser.MetadataContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#metadata}.
-   * @param ctx the parse tree
-   */
-  void exitMetadata(EsqlBaseParser.MetadataContext ctx);
-  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#metadataOption}.
    * @param ctx the parse tree
    */
@@ -371,6 +361,86 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitDeprecated_metadata(EsqlBaseParser.Deprecated_metadataContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#metadata}.
+   * @param ctx the parse tree
+   */
+  void enterMetadata(EsqlBaseParser.MetadataContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#metadata}.
+   * @param ctx the parse tree
+   */
+  void exitMetadata(EsqlBaseParser.MetadataContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#retrieveCommand}.
+   * @param ctx the parse tree
+   */
+  void enterRetrieveCommand(EsqlBaseParser.RetrieveCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#retrieveCommand}.
+   * @param ctx the parse tree
+   */
+  void exitRetrieveCommand(EsqlBaseParser.RetrieveCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#retrieveIdentifier}.
+   * @param ctx the parse tree
+   */
+  void enterRetrieveIdentifier(EsqlBaseParser.RetrieveIdentifierContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#retrieveIdentifier}.
+   * @param ctx the parse tree
+   */
+  void exitRetrieveIdentifier(EsqlBaseParser.RetrieveIdentifierContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#retrieveWhere}.
+   * @param ctx the parse tree
+   */
+  void enterRetrieveWhere(EsqlBaseParser.RetrieveWhereContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#retrieveWhere}.
+   * @param ctx the parse tree
+   */
+  void exitRetrieveWhere(EsqlBaseParser.RetrieveWhereContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#retrieveOptions}.
+   * @param ctx the parse tree
+   */
+  void enterRetrieveOptions(EsqlBaseParser.RetrieveOptionsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#retrieveOptions}.
+   * @param ctx the parse tree
+   */
+  void exitRetrieveOptions(EsqlBaseParser.RetrieveOptionsContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#retrieveConfigOption}.
+   * @param ctx the parse tree
+   */
+  void enterRetrieveConfigOption(EsqlBaseParser.RetrieveConfigOptionContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#retrieveConfigOption}.
+   * @param ctx the parse tree
+   */
+  void exitRetrieveConfigOption(EsqlBaseParser.RetrieveConfigOptionContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#retrieveMetadata}.
+   * @param ctx the parse tree
+   */
+  void enterRetrieveMetadata(EsqlBaseParser.RetrieveMetadataContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#retrieveMetadata}.
+   * @param ctx the parse tree
+   */
+  void exitRetrieveMetadata(EsqlBaseParser.RetrieveMetadataContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#retrieveMetadataOption}.
+   * @param ctx the parse tree
+   */
+  void enterRetrieveMetadataOption(EsqlBaseParser.RetrieveMetadataOptionContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#retrieveMetadataOption}.
+   * @param ctx the parse tree
+   */
+  void exitRetrieveMetadataOption(EsqlBaseParser.RetrieveMetadataOptionContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#evalCommand}.
    * @param ctx the parse tree

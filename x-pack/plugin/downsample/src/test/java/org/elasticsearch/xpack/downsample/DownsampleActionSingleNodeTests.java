@@ -247,7 +247,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertAcked(indicesAdmin().prepareCreate(sourceIndex).setSettings(settings.build()).setMapping(mapping).get());
     }
 
-    public void testDownsampleIndex() throws IOException {
+    public void testDownsampleIndex() throws Exception {
         DownsampleConfig config = new DownsampleConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
@@ -306,7 +306,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertDownsampleIndex(sourceIndex, downsampleIndex, config);
     }
 
-    public void testDownsampleOfDownsample() throws IOException {
+    public void testDownsampleOfDownsample() throws Exception {
         int intervalMinutes = randomIntBetween(10, 120);
         DownsampleConfig config = new DownsampleConfig(DateHistogramInterval.minutes(intervalMinutes));
         SourceSupplier sourceSupplier = () -> {
@@ -429,7 +429,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(exception.getMessage(), containsString("downsample configuration is missing"));
     }
 
-    public void testDownsampleSparseMetrics() throws IOException {
+    public void testDownsampleSparseMetrics() throws Exception {
         DownsampleConfig config = new DownsampleConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> {
             XContentBuilder builder = XContentFactory.jsonBuilder()
@@ -463,7 +463,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(exception.getMessage(), containsString(downsampleIndex));
     }
 
-    public void testDownsampleEmptyIndex() throws IOException {
+    public void testDownsampleEmptyIndex() throws Exception {
         DownsampleConfig config = new DownsampleConfig(randomInterval());
         // Source index has been created in the setup() method
         prepareSourceIndex(sourceIndex, true);
@@ -471,7 +471,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertDownsampleIndex(sourceIndex, downsampleIndex, config);
     }
 
-    public void testDownsampleIndexWithNoMetrics() throws IOException {
+    public void testDownsampleIndexWithNoMetrics() throws Exception {
         // Create a source index that contains no metric fields in its mapping
         String sourceIndex = "no-metrics-idx-" + randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         indicesAdmin().prepareCreate(sourceIndex)
@@ -764,7 +764,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         indexer.execute();
     }
 
-    public void testDownsampleStats() throws IOException {
+    public void testDownsampleStats() throws Exception {
         final PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
         final DownsampleConfig config = new DownsampleConfig(randomInterval());
         final SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
@@ -818,19 +818,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             final DownsampleIndexerAction.ShardDownsampleResponse executeResponse = indexer.execute();
 
             assertDownsampleIndexer(indexService, shardNum, task, executeResponse, task.getTotalShardDocCount());
-        }
-
-        // Check that metrics get collected as expected.
-        final TestTelemetryPlugin plugin = getInstanceFromNode(PluginsService.class).filterPlugins(TestTelemetryPlugin.class)
-            .findFirst()
-            .orElseThrow();
-
-        List<Measurement> measurements = plugin.getLongHistogramMeasurement(DownsampleMetrics.LATENCY_SHARD);
-        assertFalse(measurements.isEmpty());
-        for (Measurement measurement : measurements) {
-            assertTrue(measurement.value().toString(), measurement.value().longValue() >= 0 && measurement.value().longValue() < 1000_000);
-            assertEquals(1, measurement.attributes().size());
-            assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "failed", "missing_docs")));
         }
     }
 
@@ -1116,7 +1103,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void assertDownsampleIndex(String sourceIndex, String downsampleIndex, DownsampleConfig config) throws IOException {
+    private void assertDownsampleIndex(String sourceIndex, String downsampleIndex, DownsampleConfig config) throws Exception {
         // Retrieve field information for the metric fields
         final GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(sourceIndex).get();
         final Map<String, Object> sourceIndexMappings = getMappingsResponse.mappings()
@@ -1175,6 +1162,33 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .filter(entry -> labelFields.containsKey(entry.getKey()))
             .toList());
         assertEquals(labelFieldDownsampleIndexCloneProperties, labelFieldSourceIndexProperties);
+
+        // Check that metrics get collected as expected.
+        final TestTelemetryPlugin plugin = getInstanceFromNode(PluginsService.class).filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+
+        final List<Measurement> latencyShardMetrics = plugin.getLongHistogramMeasurement(DownsampleMetrics.LATENCY_SHARD);
+        assertFalse(latencyShardMetrics.isEmpty());
+        for (Measurement measurement : latencyShardMetrics) {
+            assertTrue(measurement.value().toString(), measurement.value().longValue() >= 0 && measurement.value().longValue() < 1000_000);
+            assertEquals(1, measurement.attributes().size());
+            assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "failed", "missing_docs")));
+        }
+
+        // Total latency gets recorded after reindex and force-merge complete.
+        assertBusy(() -> {
+            final List<Measurement> latencyTotalMetrics = plugin.getLongHistogramMeasurement(DownsampleMetrics.LATENCY_TOTAL);
+            assertFalse(latencyTotalMetrics.isEmpty());
+            for (Measurement measurement : latencyTotalMetrics) {
+                assertTrue(
+                    measurement.value().toString(),
+                    measurement.value().longValue() >= 0 && measurement.value().longValue() < 1000_000
+                );
+                assertEquals(1, measurement.attributes().size());
+                assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "invalid_configuration")));
+            }
+        }, 10, TimeUnit.SECONDS);
     }
 
     private void assertDownsampleIndexAggregations(
@@ -1497,7 +1511,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         return dataStreamName;
     }
 
-    public void testConcurrentDownsample() throws IOException, InterruptedException {
+    public void testConcurrentDownsample() throws Exception {
         final DownsampleConfig config = new DownsampleConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());
@@ -1576,7 +1590,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testDuplicateDownsampleRequest() throws IOException, InterruptedException {
+    public void testDuplicateDownsampleRequest() throws Exception {
         final DownsampleConfig config = new DownsampleConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> {
             String ts = randomDateForInterval(config.getInterval());

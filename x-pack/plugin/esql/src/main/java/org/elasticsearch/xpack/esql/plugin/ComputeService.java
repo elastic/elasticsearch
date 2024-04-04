@@ -40,6 +40,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -433,7 +434,7 @@ public class ComputeService {
             );
 
             LOGGER.debug("Received physical plan:\n{}", plan);
-            plan = PlannerUtils.localPlan(context.searchContexts, context.configuration, plan);
+            plan = PlannerUtils.localPlan(context.searchExecutionContexts(), context.configuration, plan);
             // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
             // it's doing this in the planning of EsQueryExec (the source of the data)
             // see also EsPhysicalOperationProviders.sourcePhysicalOperation
@@ -899,5 +900,9 @@ public class ComputeService {
         EsqlConfiguration configuration,
         ExchangeSourceHandler exchangeSource,
         ExchangeSinkHandler exchangeSink
-    ) {}
+    ) {
+        public List<SearchExecutionContext> searchExecutionContexts() {
+            return searchContexts.stream().map(ctx -> ctx.getSearchExecutionContext()).toList();
+        }
+    }
 }

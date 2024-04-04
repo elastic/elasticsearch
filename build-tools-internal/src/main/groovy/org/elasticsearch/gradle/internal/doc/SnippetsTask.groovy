@@ -13,7 +13,6 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonToken
 
-import org.apache.commons.codec.language.bm.Rule
 import org.gradle.api.Action;
 import org.gradle.api.DefaultTask
 import org.gradle.api.InvalidUserDataException
@@ -206,12 +205,6 @@ class SnippetsTask extends DefaultTask {
                             if (it.group(2) != null) {
                                 if (substitutions == null) {
                                     substitutions = []
-                                }
-                                if(file.name == "painless-debugging.asciidoc") {
-                                    println "line = $line";
-                                    println "matcher.group(2) = ${it.group(2)}"
-                                    println "matcher.group(3) = ${it.group(3)}"
-                                    return
                                 }
                                 substitutions.add([it.group(2), it.group(3)])
                                 return
@@ -413,11 +406,6 @@ class SnippetsTask extends DefaultTask {
             return // Silly null, only real stuff gets to match!
         }
         Matcher m = s =~ pattern
-        if(location.contains("repository-hdfs.asciidoc")) {
-            println "location = $location"
-            println "line = $s"
-            System.out.println("m.groupCount() = " + m.groupCount());
-        }
         int offset = 0
         Closure extraContent = { message ->
             StringBuilder cutOut = new StringBuilder()
@@ -436,9 +424,6 @@ class SnippetsTask extends DefaultTask {
             if (c.maximumNumberOfParameters == 1) {
                 c(m)
             } else {
-                if(location == "painless-debugging.asciidoc"){
-                    println "c(m, offset = \$c(m, offset)"
-                }
                 c(m, offset == s.length())
             }
         }

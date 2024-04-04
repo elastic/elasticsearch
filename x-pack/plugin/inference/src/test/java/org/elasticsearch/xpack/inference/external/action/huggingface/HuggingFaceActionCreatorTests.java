@@ -20,6 +20,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
+import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
@@ -90,7 +91,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(List.of("abc"), listener);
+            action.execute(new DocumentsOnlyInput(List.of("abc")), listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -157,7 +158,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(List.of("abc"), listener);
+            action.execute(new DocumentsOnlyInput(List.of("abc")), listener);
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -205,7 +206,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(List.of("abc"), listener);
+            action.execute(new DocumentsOnlyInput(List.of("abc")), listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -263,7 +264,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(List.of("abc"), listener);
+            action.execute(new DocumentsOnlyInput(List.of("abc")), listener);
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -318,7 +319,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(List.of("abcd"), listener);
+            action.execute(new DocumentsOnlyInput(List.of("abcd")), listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -376,7 +377,7 @@ public class HuggingFaceActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(List.of("123456"), listener);
+            action.execute(new DocumentsOnlyInput(List.of("123456")), listener);
 
             var result = listener.actionGet(TIMEOUT);
 

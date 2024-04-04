@@ -405,6 +405,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
         service.chunkedInfer(
             model,
+            null,
             List.of("foo", "bar"),
             Map.of(),
             InputType.SEARCH,

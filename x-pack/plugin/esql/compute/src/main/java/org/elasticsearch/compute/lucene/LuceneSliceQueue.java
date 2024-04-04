@@ -46,6 +46,10 @@ public final class LuceneSliceQueue {
         return totalSlices;
     }
 
+    public Iterable<LuceneSlice> getSlices() {
+        return slices;
+    }
+
     public static LuceneSliceQueue create(
         List<? extends ShardContext> contexts,
         Function<ShardContext, Weight> weightFunction,

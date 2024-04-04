@@ -8,6 +8,7 @@
 package org.elasticsearch.search.source;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
@@ -81,6 +82,12 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         prepareIndex("test").setId("1").setSource("field", "value").setRouting("toto").get();
         refresh();
 
+        assertResponse(prepareSearch("test"), response -> {
+            System.out.println(Strings.toString(response.getHits().getAt(0)));
+            assertThat(response.getHits().getAt(0).getId(), notNullValue());
+            assertThat(response.getHits().getAt(0).field("_routing"), notNullValue());
+            assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
+        });
         assertResponse(prepareSearch("test").storedFields("_none_").setFetchSource(false), response -> {
             assertThat(response.getHits().getAt(0).getId(), nullValue());
             assertThat(response.getHits().getAt(0).field("_routing"), nullValue());

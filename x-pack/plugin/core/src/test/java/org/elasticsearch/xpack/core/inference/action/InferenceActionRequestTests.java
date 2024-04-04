@@ -38,6 +38,8 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         return new InferenceAction.Request(
             randomFrom(TaskType.values()),
             randomAlphaOfLength(6),
+            // null,
+            randomNullOrAlphaOfLength(10),
             randomList(1, 5, () -> randomAlphaOfLength(8)),
             randomMap(0, 3, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4))),
             randomFrom(InputType.values())
@@ -80,13 +82,14 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
 
     @Override
     protected InferenceAction.Request mutateInstance(InferenceAction.Request instance) throws IOException {
-        int select = randomIntBetween(0, 4);
+        int select = randomIntBetween(0, 5);
         return switch (select) {
             case 0 -> {
                 var nextTask = TaskType.values()[(instance.getTaskType().ordinal() + 1) % TaskType.values().length];
                 yield new InferenceAction.Request(
                     nextTask,
                     instance.getInferenceEntityId(),
+                    instance.getQuery(),
                     instance.getInput(),
                     instance.getTaskSettings(),
                     instance.getInputType()
@@ -95,6 +98,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             case 1 -> new InferenceAction.Request(
                 instance.getTaskType(),
                 instance.getInferenceEntityId() + "foo",
+                instance.getQuery(),
                 instance.getInput(),
                 instance.getTaskSettings(),
                 instance.getInputType()
@@ -105,6 +109,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 yield new InferenceAction.Request(
                     instance.getTaskType(),
                     instance.getInferenceEntityId(),
+                    instance.getQuery(),
                     changedInputs,
                     instance.getTaskSettings(),
                     instance.getInputType()
@@ -121,6 +126,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 yield new InferenceAction.Request(
                     instance.getTaskType(),
                     instance.getInferenceEntityId(),
+                    instance.getQuery(),
                     instance.getInput(),
                     taskSettings,
                     instance.getInputType()
@@ -131,9 +137,20 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 yield new InferenceAction.Request(
                     instance.getTaskType(),
                     instance.getInferenceEntityId(),
+                    instance.getQuery(),
                     instance.getInput(),
                     instance.getTaskSettings(),
                     nextInputType
+                );
+            }
+            case 5 -> {
+                yield new InferenceAction.Request(
+                    instance.getTaskType(),
+                    instance.getInferenceEntityId(),
+                    instance.getQuery() == null ? randomAlphaOfLength(10) : instance.getQuery() + randomAlphaOfLength(1),
+                    instance.getInput(),
+                    instance.getTaskSettings(),
+                    instance.getInputType()
                 );
             }
             default -> throw new UnsupportedOperationException();
@@ -146,6 +163,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             return new InferenceAction.Request(
                 instance.getTaskType(),
                 instance.getInferenceEntityId(),
+                null,
                 instance.getInput().subList(0, 1),
                 instance.getTaskSettings(),
                 InputType.UNSPECIFIED
@@ -154,6 +172,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             return new InferenceAction.Request(
                 instance.getTaskType(),
                 instance.getInferenceEntityId(),
+                null,
                 instance.getInput(),
                 instance.getTaskSettings(),
                 InputType.UNSPECIFIED
@@ -165,6 +184,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     return new InferenceAction.Request(
                         instance.getTaskType(),
                         instance.getInferenceEntityId(),
+                        null,
                         instance.getInput(),
                         instance.getTaskSettings(),
                         InputType.INGEST
@@ -174,9 +194,19 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                         return new InferenceAction.Request(
                             instance.getTaskType(),
                             instance.getInferenceEntityId(),
+                            null,
                             instance.getInput(),
                             instance.getTaskSettings(),
                             InputType.UNSPECIFIED
+                        );
+                    } else if (version.before(TransportVersions.ML_INFERENCE_COHERE_RERANK)) {
+                        return new InferenceAction.Request(
+                            instance.getTaskType(),
+                            instance.getInferenceEntityId(),
+                            null,
+                            instance.getInput(),
+                            instance.getTaskSettings(),
+                            instance.getInputType()
                         );
                     }
 
@@ -185,20 +215,20 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
 
     public void testWriteTo_WhenVersionIsOnAfterUnspecifiedAdded() throws IOException {
         assertBwcSerialization(
-            new InferenceAction.Request(TaskType.TEXT_EMBEDDING, "model", List.of(), Map.of(), InputType.UNSPECIFIED),
+            new InferenceAction.Request(TaskType.TEXT_EMBEDDING, "model", null, List.of(), Map.of(), InputType.UNSPECIFIED),
             TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED
         );
     }
 
     public void testWriteTo_WhenVersionIsBeforeUnspecifiedAdded_ButAfterInputTypeAdded_ShouldSetToIngest() throws IOException {
         assertBwcSerialization(
-            new InferenceAction.Request(TaskType.TEXT_EMBEDDING, "model", List.of(), Map.of(), InputType.UNSPECIFIED),
+            new InferenceAction.Request(TaskType.TEXT_EMBEDDING, "model", null, List.of(), Map.of(), InputType.UNSPECIFIED),
             TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED
         );
     }
 
     public void testWriteTo_WhenVersionIsBeforeUnspecifiedAdded_ButAfterInputTypeAdded_ShouldSetToIngest_ManualCheck() throws IOException {
-        var instance = new InferenceAction.Request(TaskType.TEXT_EMBEDDING, "model", List.of(), Map.of(), InputType.UNSPECIFIED);
+        var instance = new InferenceAction.Request(TaskType.TEXT_EMBEDDING, "model", null, List.of(), Map.of(), InputType.UNSPECIFIED);
 
         InferenceAction.Request deserializedInstance = copyWriteable(
             instance,
@@ -212,7 +242,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
 
     public void testWriteTo_WhenVersionIsBeforeUnspecifiedAdded_ButAfterInputTypeAdded_ShouldSetToIngest_WhenClustering_ManualCheck()
         throws IOException {
-        var instance = new InferenceAction.Request(TaskType.TEXT_EMBEDDING, "model", List.of(), Map.of(), InputType.CLUSTERING);
+        var instance = new InferenceAction.Request(TaskType.TEXT_EMBEDDING, "model", null, List.of(), Map.of(), InputType.CLUSTERING);
 
         InferenceAction.Request deserializedInstance = copyWriteable(
             instance,
@@ -226,7 +256,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
 
     public void testWriteTo_WhenVersionIsBeforeUnspecifiedAdded_ButAfterInputTypeAdded_ShouldSetToIngest_WhenClassification_ManualCheck()
         throws IOException {
-        var instance = new InferenceAction.Request(TaskType.TEXT_EMBEDDING, "model", List.of(), Map.of(), InputType.CLASSIFICATION);
+        var instance = new InferenceAction.Request(TaskType.TEXT_EMBEDDING, "model", null, List.of(), Map.of(), InputType.CLASSIFICATION);
 
         InferenceAction.Request deserializedInstance = copyWriteable(
             instance,
@@ -242,7 +272,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         void
         testWriteTo_WhenVersionIsBeforeClusterClassAdded_ButAfterUnspecifiedAdded_ShouldSetToUnspecified_WhenClassification_ManualCheck()
             throws IOException {
-        var instance = new InferenceAction.Request(TaskType.TEXT_EMBEDDING, "model", List.of(), Map.of(), InputType.CLASSIFICATION);
+        var instance = new InferenceAction.Request(TaskType.TEXT_EMBEDDING, "model", null, List.of(), Map.of(), InputType.CLASSIFICATION);
 
         InferenceAction.Request deserializedInstance = copyWriteable(
             instance,
@@ -258,7 +288,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         void
         testWriteTo_WhenVersionIsBeforeClusterClassAdded_ButAfterUnspecifiedAdded_ShouldSetToUnspecified_WhenClustering_ManualCheck()
             throws IOException {
-        var instance = new InferenceAction.Request(TaskType.TEXT_EMBEDDING, "model", List.of(), Map.of(), InputType.CLUSTERING);
+        var instance = new InferenceAction.Request(TaskType.TEXT_EMBEDDING, "model", null, List.of(), Map.of(), InputType.CLUSTERING);
 
         InferenceAction.Request deserializedInstance = copyWriteable(
             instance,
@@ -271,7 +301,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
     }
 
     public void testWriteTo_WhenVersionIsBeforeInputTypeAdded_ShouldSetInputTypeToUnspecified() throws IOException {
-        var instance = new InferenceAction.Request(TaskType.TEXT_EMBEDDING, "model", List.of(), Map.of(), InputType.INGEST);
+        var instance = new InferenceAction.Request(TaskType.TEXT_EMBEDDING, "model", null, List.of(), Map.of(), InputType.INGEST);
 
         InferenceAction.Request deserializedInstance = copyWriteable(
             instance,

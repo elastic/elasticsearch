@@ -43,7 +43,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         switch (between(0, 2)) {
             case 0 -> numberOfShards = randomIntBetween(1, 20);
             case 1 -> maxPrimaryShardSize = ByteSizeValue.ofBytes(between(1, 100));
-            case 2 ->  allowWritesOnTarget = randomBoolean();
+            case 2 -> allowWritesOnTarget = randomBoolean();
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new ShrinkStep(stepKey, nextStepKey, client, numberOfShards, maxPrimaryShardSize, allowWritesOnTarget);

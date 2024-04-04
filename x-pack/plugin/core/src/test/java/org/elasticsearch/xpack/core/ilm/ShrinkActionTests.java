@@ -103,7 +103,10 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
 
     public void testMaxPrimaryShardSize() {
         ByteSizeValue maxPrimaryShardSize1 = ByteSizeValue.ofBytes(10);
-        Exception e1 = expectThrows(Exception.class, () -> new ShrinkAction(randomIntBetween(1, 100), maxPrimaryShardSize1, randomNullableBoolean()));
+        Exception e1 = expectThrows(
+            Exception.class,
+            () -> new ShrinkAction(randomIntBetween(1, 100), maxPrimaryShardSize1, randomNullableBoolean())
+        );
         assertThat(e1.getMessage(), equalTo("Cannot set both [number_of_shards] and [max_primary_shard_size]"));
 
         ByteSizeValue maxPrimaryShardSize2 = ByteSizeValue.ZERO;

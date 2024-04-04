@@ -143,6 +143,7 @@ public final class DataStreamTestHelper {
             lifecycle,
             false,
             List.of(),
+            false,
             autoShardingEvent
         );
     }
@@ -169,6 +170,7 @@ public final class DataStreamTestHelper {
             lifecycle,
             failureStores.size() > 0,
             failureStores,
+            false,
             null
         );
     }

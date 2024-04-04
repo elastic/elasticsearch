@@ -11,9 +11,13 @@ package org.elasticsearch.search.basic;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
+import org.elasticsearch.action.explain.ExplainRequestBuilder;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,8 +38,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -106,56 +111,40 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
     }
 
     public void testIndexMetadataMap_TransportSearchAction() {
-        // TODO: Test wildcard resolution & aliases
+        // TODO: Test aliases
         createIndex("test1", "test2");
-
-        AtomicBoolean gotQueryRewriteContext = new AtomicBoolean(false);
-        assertNoFailures(prepareSearch("test1", "test2").setQuery(new TestQueryBuilder() {
-            @Override
-            protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-                // Check that the first QueryRewriteContext received has a non-empty index metadata map.
-                // Later QueryRewriteContext instances received, such as the one generated in the can-match phase, will have an empty index
-                // metadata map.
-                if (queryRewriteContext.getClass() == QueryRewriteContext.class && gotQueryRewriteContext.getAndSet(true) == false) {
-                    Map<String, IndexMetadata> indexMetadataMap = queryRewriteContext.getIndexMetadataMap();
-                    assertThat(indexMetadataMap, notNullValue());
-                    assertThat(indexMetadataMap.keySet(), equalTo(Set.of("test1", "test2")));
-                }
-
-                return super.doRewrite(queryRewriteContext);
-            }
-        }));
-        assertThat(gotQueryRewriteContext.get(), is(true));
+        assertIndexMetadataMapSet(prepareSearch("test1", "test2"), Set.of("test1", "test2"), r -> {});
+        assertIndexMetadataMapSet(prepareSearch("test*"), Set.of("test1", "test2"), r -> {});
     }
 
     public void testIndexMetadataMap_TransportExplainAction() {
         createIndex("test");
-
-        AtomicBoolean gotQueryRewriteContext = new AtomicBoolean(false);
-        client().prepareExplain("test", "1").setQuery(new TestQueryBuilder() {
-            @Override
-            protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-                // Check that the first QueryRewriteContext received has a non-empty index metadata map.
-                // Later QueryRewriteContext instances received, such as the one generated in the can-match phase, will have an empty index
-                // metadata map.
-                if (queryRewriteContext.getClass() == QueryRewriteContext.class && gotQueryRewriteContext.getAndSet(true) == false) {
-                    Map<String, IndexMetadata> indexMetadataMap = queryRewriteContext.getIndexMetadataMap();
-                    assertThat(indexMetadataMap, notNullValue());
-                    assertThat(indexMetadataMap.keySet(), equalTo(Set.of("test")));
-                }
-
-                return super.doRewrite(queryRewriteContext);
-            }
-        }).get();
-        assertThat(gotQueryRewriteContext.get(), is(true));
+        assertIndexMetadataMapSet(client().prepareExplain("test", "1"), Set.of("test"), r -> {});
     }
 
     public void testIndexMetadataMap_TransportValidateQueryAction() {
-        // TODO: Test wildcard resolution & aliases
+        // TODO: Test aliases
         createIndex("test1", "test2");
+        Consumer<ValidateQueryResponse> responseAssertions = r -> {
+            assertThat(r.getStatus(), equalTo(RestStatus.OK));
+            assertThat(r.isValid(), is(true));
+        };
 
+        assertIndexMetadataMapSet(
+            client().admin().indices().prepareValidateQuery("test1", "test2"),
+            Set.of("test1", "test2"),
+            responseAssertions
+        );
+        assertIndexMetadataMapSet(client().admin().indices().prepareValidateQuery("test*"), Set.of("test1", "test2"), responseAssertions);
+    }
+
+    private static <Request extends ActionRequest, Response extends ActionResponse> void assertIndexMetadataMapSet(
+        ActionRequestBuilder<Request, Response> requestBuilder,
+        Set<String> expectedIndices,
+        Consumer<Response> responseAssertions
+    ) {
         AtomicBoolean gotQueryRewriteContext = new AtomicBoolean(false);
-        ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest("test1", "test2").query(new TestQueryBuilder() {
+        TestQueryBuilder testQueryBuilder = new TestQueryBuilder() {
             @Override
             protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
                 // Check that the first QueryRewriteContext received has a non-empty index metadata map.
@@ -164,25 +153,24 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
                 if (queryRewriteContext.getClass() == QueryRewriteContext.class && gotQueryRewriteContext.getAndSet(true) == false) {
                     Map<String, IndexMetadata> indexMetadataMap = queryRewriteContext.getIndexMetadataMap();
                     assertThat(indexMetadataMap, notNullValue());
-                    assertThat(indexMetadataMap.keySet(), equalTo(Set.of("test1", "test2")));
+                    assertThat(indexMetadataMap.keySet(), equalTo(expectedIndices));
                 }
 
                 return super.doRewrite(queryRewriteContext);
             }
-        });
+        };
 
-        client().admin().indices().validateQuery(validateQueryRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(ValidateQueryResponse validateQueryResponse) {
-                assertThat(validateQueryResponse.getStatus(), equalTo(RestStatus.OK));
-                assertThat(validateQueryResponse.isValid(), is(true));
-            }
+        if (requestBuilder instanceof SearchRequestBuilder searchRequestBuilder) {
+            searchRequestBuilder.setQuery(testQueryBuilder);
+        } else if (requestBuilder instanceof ExplainRequestBuilder explainRequestBuilder) {
+            explainRequestBuilder.setQuery(testQueryBuilder);
+        } else if (requestBuilder instanceof ValidateQueryRequestBuilder validateQueryRequestBuilder) {
+            validateQueryRequestBuilder.setQuery(testQueryBuilder);
+        } else {
+            throw new AssertionError("Unexpected request builder type [" + requestBuilder.getClass() + "]");
+        }
 
-            @Override
-            public void onFailure(Exception e) {
-                fail(e);
-            }
-        });
+        assertResponse(requestBuilder, responseAssertions);
         assertThat(gotQueryRewriteContext.get(), is(true));
     }
 }

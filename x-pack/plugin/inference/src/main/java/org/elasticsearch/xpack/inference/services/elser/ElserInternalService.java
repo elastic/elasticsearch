@@ -256,6 +256,7 @@ public class ElserInternalService implements InferenceService {
     @Override
     public void infer(
         Model model,
+        @Nullable String query,
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
@@ -283,9 +284,21 @@ public class ElserInternalService implements InferenceService {
         );
     }
 
+    public void chunkedInfer(
+        Model model,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        @Nullable ChunkingOptions chunkingOptions,
+        ActionListener<List<ChunkedInferenceServiceResults>> listener
+    ) {
+        chunkedInfer(model, null, input, taskSettings, inputType, chunkingOptions, listener);
+    }
+
     @Override
     public void chunkedInfer(
         Model model,
+        @Nullable String query,
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,

@@ -133,6 +133,7 @@ public class TransportVersions {
     public static final TransportVersion INDEX_REQUEST_NORMALIZED_BYTES_PARSED = def(8_593_00_0);
     public static final TransportVersion INGEST_GRAPH_STRUCTURE_EXCEPTION = def(8_594_00_0);
     public static final TransportVersion ML_MODEL_IN_SERVICE_SETTINGS = def(8_595_00_0);
+    // 8.14.0+
     public static final TransportVersion RANDOM_AGG_SHARD_SEED = def(8_596_00_0);
     public static final TransportVersion ESQL_TIMINGS = def(8_597_00_0);
     public static final TransportVersion DATA_STREAM_AUTO_SHARDING_EVENT = def(8_598_00_0);
@@ -155,6 +156,13 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_EMBEDDING_BYTE_ADDED = def(8_615_00_0);
     public static final TransportVersion ML_INFERENCE_L2_NORM_SIMILARITY_ADDED = def(8_616_00_0);
     public static final TransportVersion SEARCH_NODE_LOAD_AUTOSCALING = def(8_617_00_0);
+    public static final TransportVersion ESQL_ES_SOURCE_OPTIONS = def(8_618_00_0);
+    public static final TransportVersion ADD_PERSISTENT_TASK_EXCEPTIONS = def(8_619_00_0);
+    public static final TransportVersion ESQL_REDUCER_NODE_FRAGMENT = def(8_620_00_0);
+    public static final TransportVersion FAILURE_STORE_ROLLOVER = def(8_621_00_0);
+    public static final TransportVersion CCR_STATS_API_TIMEOUT_PARAM = def(8_622_00_0);
+    public static final TransportVersion ESQL_ORDINAL_BLOCK = def(8_623_00_0);
+    public static final TransportVersion ML_INFERENCE_COHERE_RERANK = def(8_624_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

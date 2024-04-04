@@ -90,6 +90,7 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
     ) {
         service.infer(
             model,
+            request.getQuery(),
             request.getInput(),
             request.getTaskSettings(),
             request.getInputType(),

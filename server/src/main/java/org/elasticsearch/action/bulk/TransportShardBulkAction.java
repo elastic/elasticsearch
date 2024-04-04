@@ -78,7 +78,7 @@ import static org.elasticsearch.core.Strings.format;
 /** Performs shard-level bulk (index, delete or update) operations */
 public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
 
-    public static final String ACTION_NAME = BulkAction.NAME + "[s]";
+    public static final String ACTION_NAME = TransportBulkAction.NAME + "[s]";
     public static final ActionType<BulkShardResponse> TYPE = new ActionType<>(ACTION_NAME);
 
     private static final Logger logger = LogManager.getLogger(TransportShardBulkAction.class);
@@ -115,7 +115,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             actionFilters,
             BulkShardRequest::new,
             BulkShardRequest::new,
-            ExecutorSelector::getWriteExecutorForShard,
+            ExecutorSelector.getWriteExecutorForShard(threadPool),
             false,
             indexingPressure,
             systemIndices
@@ -167,7 +167,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             public void onTimeout(TimeValue timeout) {
                 mappingUpdateListener.onFailure(new MapperException("timed out while waiting for a dynamic mapping update"));
             }
-        }), listener, threadPool, executor(primary), postWriteRefresh, postWriteAction, documentParsingProvider);
+        }), listener, executor(primary), postWriteRefresh, postWriteAction, documentParsingProvider);
     }
 
     @Override
@@ -188,8 +188,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         MappingUpdatePerformer mappingUpdater,
         Consumer<ActionListener<Void>> waitForMappingUpdate,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
-        ThreadPool threadPool,
-        String executorName
+        Executor executor
     ) {
         performOnPrimary(
             request,
@@ -199,8 +198,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             mappingUpdater,
             waitForMappingUpdate,
             listener,
-            threadPool,
-            executorName,
+            executor,
             null,
             null,
             DocumentParsingProvider.EMPTY_INSTANCE
@@ -215,15 +213,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         MappingUpdatePerformer mappingUpdater,
         Consumer<ActionListener<Void>> waitForMappingUpdate,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
-        ThreadPool threadPool,
-        String executorName,
+        Executor executor,
         @Nullable PostWriteRefresh postWriteRefresh,
         @Nullable Consumer<Runnable> postWriteAction,
         DocumentParsingProvider documentParsingProvider
     ) {
         new ActionRunnable<>(listener) {
-
-            private final Executor executor = threadPool.executor(executorName);
 
             private final BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary);
 

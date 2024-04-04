@@ -26,7 +26,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
 
@@ -41,7 +41,7 @@ import static org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType
 
 public class SearchStats {
 
-    private final List<SearchContext> contexts;
+    private final List<SearchExecutionContext> contexts;
 
     private static class FieldStat {
         private Long count;
@@ -64,7 +64,7 @@ public class SearchStats {
         }
     };
 
-    public SearchStats(List<SearchContext> contexts) {
+    public SearchStats(List<SearchExecutionContext> contexts) {
         this.contexts = contexts;
     }
 
@@ -106,8 +106,8 @@ public class SearchStats {
             stat.exists = false;
             // even if there are deleted documents, check the existence of a field
             // since if it's missing, deleted documents won't change that
-            for (SearchContext context : contexts) {
-                if (context.getSearchExecutionContext().isFieldMapped(field)) {
+            for (SearchExecutionContext context : contexts) {
+                if (context.isFieldMapped(field)) {
                     stat.exists = true;
                     break;
                 }
@@ -126,9 +126,9 @@ public class SearchStats {
         var stat = cache.computeIfAbsent(field, s -> new FieldStat());
         if (stat.hasIdenticalDelegate == null) {
             stat.hasIdenticalDelegate = true;
-            for (SearchContext context : contexts) {
-                if (context.getSearchExecutionContext().isFieldMapped(field)) {
-                    MappedFieldType type = context.getSearchExecutionContext().getFieldType(field);
+            for (SearchExecutionContext context : contexts) {
+                if (context.isFieldMapped(field)) {
+                    MappedFieldType type = context.getFieldType(field);
                     if (type instanceof TextFieldMapper.TextFieldType t) {
                         if (t.canUseSyntheticSourceDelegateForQuerying() == false) {
                             stat.hasIdenticalDelegate = false;
@@ -197,9 +197,8 @@ public class SearchStats {
             } else {
                 // fields are MV per default
                 var sv = new boolean[] { false };
-                for (SearchContext context : contexts) {
-                    var sec = context.getSearchExecutionContext();
-                    MappedFieldType mappedType = sec.isFieldMapped(field) ? null : sec.getFieldType(field);
+                for (SearchExecutionContext context : contexts) {
+                    MappedFieldType mappedType = context.isFieldMapped(field) ? null : context.getFieldType(field);
                     if (mappedType != null) {
                         doWithContexts(r -> {
                             sv[0] &= detectSingleValue(r, mappedType, field);
@@ -219,10 +218,9 @@ public class SearchStats {
         if (stat.runtime == null) {
             stat.runtime = false;
             if (exists(field)) {
-                for (SearchContext context : contexts) {
-                    var sec = context.getSearchExecutionContext();
-                    if (sec.isFieldMapped(field)) {
-                        if (sec.getFieldType(field) instanceof AbstractScriptFieldType<?>) {
+                for (SearchExecutionContext context : contexts) {
+                    if (context.isFieldMapped(field)) {
+                        if (context.getFieldType(field) instanceof AbstractScriptFieldType<?>) {
                             stat.runtime = true;
                             break;
                         }
@@ -239,10 +237,9 @@ public class SearchStats {
             stat.indexed = false;
             if (exists(field)) {
                 boolean indexed = true;
-                for (SearchContext context : contexts) {
-                    var sec = context.getSearchExecutionContext();
-                    if (sec.isFieldMapped(field)) {
-                        if (sec.getFieldType(field).isIndexed() == false) {
+                for (SearchExecutionContext context : contexts) {
+                    if (context.isFieldMapped(field)) {
+                        if (context.getFieldType(field).isIndexed() == false) {
                             indexed = false;
                             break;
                         }
@@ -351,7 +348,7 @@ public class SearchStats {
 
     private boolean doWithContexts(IndexReaderConsumer consumer, boolean acceptsDeletions) {
         try {
-            for (SearchContext context : contexts) {
+            for (SearchExecutionContext context : contexts) {
                 for (LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
                     var reader = leafContext.reader();
                     if (acceptsDeletions == false && reader.hasDeletions()) {

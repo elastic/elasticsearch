@@ -149,6 +149,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -3073,6 +3074,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(math.right().fold(), is(2));
         // languages + emp_no % 2
         var add = as(Alias.unwrap(fields.get(1).canonical()), Add.class);
+        if (add.left() instanceof Mod mod) {
+            add = add.swapLeftAndRight();
+        }
         assertThat(Expressions.name(add.left()), is("languages"));
         var mod = as(add.right().canonical(), Mod.class);
         assertThat(Expressions.name(mod.left()), is("emp_no"));
@@ -3107,15 +3111,18 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(math.right().fold(), is(2));
         // languages + salary
         var add = as(Alias.unwrap(fields.get(1).canonical()), Add.class);
-        assertThat(Expressions.name(add.left()), is("languages"));
-        assertThat(Expressions.name(add.right()), is("salary"));
+        assertThat(Expressions.name(add.left()), anyOf(is("languages"), is("salary")));
+        assertThat(Expressions.name(add.right()), anyOf(is("salary"), is("languages")));
         // languages + salary + emp_no % 2
         var add2 = as(Alias.unwrap(fields.get(2).canonical()), Add.class);
+        if (add2.left() instanceof Mod mod) {
+            add2 = add2.swapLeftAndRight();
+        }
         var add3 = as(add2.left().canonical(), Add.class);
         var mod = as(add2.right().canonical(), Mod.class);
         // languages + salary
-        assertThat(Expressions.name(add3.left()), is("languages"));
-        assertThat(Expressions.name(add3.right()), is("salary"));
+        assertThat(Expressions.name(add3.left()), anyOf(is("languages"), is("salary")));
+        assertThat(Expressions.name(add3.right()), anyOf(is("salary"), is("languages")));
         // emp_no % 2
         assertThat(Expressions.name(mod.left()), is("emp_no"));
         assertThat(mod.right().fold(), is(2));

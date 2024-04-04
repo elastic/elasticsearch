@@ -1,5 +1,5 @@
 ---
-ip:
+"_ignored field through get api using stored_fields":
   - skip:
       version: " - 8.4.99"
       reason: ip introduced in 8.5.0

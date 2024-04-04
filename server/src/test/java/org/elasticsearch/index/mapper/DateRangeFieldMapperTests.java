@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -59,6 +60,7 @@ public class DateRangeFieldMapperTests extends RangeFieldMapperTests {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected TestRange<Long> randomRangeForSyntheticSourceTest() {
         var includeFrom = randomBoolean();
         var from = randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999 - 1);
@@ -66,17 +68,30 @@ public class DateRangeFieldMapperTests extends RangeFieldMapperTests {
         var to = randomLongBetween(from + 1, DateUtils.MAX_MILLIS_BEFORE_9999);
 
         return new TestRange<>(rangeType(), from, to, includeFrom, includeTo) {
-            private final DateFormatter dateFormatter = DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss.SSS");
+            private final DateFormatter inputDateFormatter = DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss.SSS");
+            private final DateFormatter expectedDateFormatter = DateFormatter.forPattern(DATE_FORMAT);
 
             @Override
             Object toInput() {
                 var fromKey = includeFrom ? "gte" : "gt";
                 var toKey = includeTo ? "lte" : "lt";
 
-                var fromFormatted = randomBoolean() ? dateFormatter.format(Instant.ofEpochMilli(from).atZone(ZoneOffset.UTC)) : from;
-                var toFormatted = randomBoolean() ? dateFormatter.format(Instant.ofEpochMilli(to).atZone(ZoneOffset.UTC)) : to;
+                var fromFormatted = randomBoolean() ? inputDateFormatter.format(Instant.ofEpochMilli(from)) : from;
+                var toFormatted = randomBoolean() ? inputDateFormatter.format(Instant.ofEpochMilli(to)) : to;
 
                 return Map.of(fromKey, fromFormatted, toKey, toFormatted);
+            }
+
+            @Override
+            Object toExpectedSyntheticSource() {
+                Map<String, Object> expectedInMillis = (Map<String, Object>) super.toExpectedSyntheticSource();
+
+                return expectedInMillis.entrySet()
+                    .stream()
+                    .collect(Collectors.toMap(
+                    e -> e.getKey(),
+                    e -> expectedDateFormatter.format(Instant.ofEpochMilli((long) e.getValue()))
+                ));
             }
         };
     }

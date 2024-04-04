@@ -98,6 +98,10 @@ enum BinaryRangeUtil {
         return decodeRanges(encodedRanges, RangeType.FLOAT, BinaryRangeUtil::decodeFloat);
     }
 
+    static List<RangeFieldMapper.Range> decodeDateRanges(BytesRef encodedRanges) throws IOException {
+        return decodeRanges(encodedRanges, RangeType.DATE, BinaryRangeUtil::decodeLong);
+    }
+
     static List<RangeFieldMapper.Range> decodeRanges(
         BytesRef encodedRanges,
         RangeType rangeType,

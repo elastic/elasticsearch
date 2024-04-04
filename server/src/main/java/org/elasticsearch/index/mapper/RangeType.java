@@ -249,7 +249,7 @@ public enum RangeType {
 
         @Override
         public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) throws IOException {
-            return LONG.decodeRanges(bytes);
+            return BinaryRangeUtil.decodeDateRanges(bytes);
         }
 
         @Override

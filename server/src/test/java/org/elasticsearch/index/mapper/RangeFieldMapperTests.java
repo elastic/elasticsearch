@@ -270,10 +270,7 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
 
                 var values = randomList(1, maxValues, () -> randomRangeForSyntheticSourceTest());
                 List<Object> in = values.stream().map(TestRange::toInput).toList();
-                List<Object> outList = values.stream()
-                    .sorted(Comparator.naturalOrder())
-                    .map(r -> r.toExpectedSyntheticSource())
-                    .toList();
+                List<Object> outList = values.stream().sorted(Comparator.naturalOrder()).map(r -> r.toExpectedSyntheticSource()).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
 
                 return new SyntheticSourceExample(in, out, this::mapping);

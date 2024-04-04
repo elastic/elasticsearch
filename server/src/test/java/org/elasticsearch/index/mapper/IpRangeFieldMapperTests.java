@@ -153,19 +153,31 @@ public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
         String cidr = randomCidrBlock();
         Tuple<InetAddress, InetAddress> range = InetAddresses.parseIpRangeFromCidr(cidr);
 
-        Object input;
-        if (randomBoolean()) {
-            input = cidr;
-        } else {
-            // TODO support gt and lt
-            input = Map.of("gte", InetAddresses.toAddrString(range.v1()), "lte", InetAddresses.toAddrString(range.v2()));
-        }
+        var includeFrom = randomBoolean();
+        var includeTo = randomBoolean();
 
-        // When ranges are stored, they are always normalized to include both ends.
-        // Also, "to" field always comes first.
+        Object input;
+        // "to" field always comes first.
         Map<String, Object> output = new LinkedHashMap<>();
-        output.put("gte", InetAddresses.toAddrString(range.v1()));
-        output.put("lte", InetAddresses.toAddrString(range.v2()));
+        if (randomBoolean()) {
+            // CIDRs are always inclusive ranges.
+            input = cidr;
+            output.put("gte", InetAddresses.toAddrString(range.v1()));
+            output.put("lte", InetAddresses.toAddrString(range.v2()));
+        } else {
+            var fromKey = includeFrom ? "gte" : "gt";
+            var toKey = includeTo ? "lte" : "lt";
+            input = Map.of(fromKey, InetAddresses.toAddrString(range.v1()), toKey, InetAddresses.toAddrString(range.v2()));
+
+            // When ranges are stored, they are always normalized to include both ends.
+            // `includeFrom` and `includeTo` here refers to user input.
+            var rawFrom = range.v1();
+            var adjustedFrom = includeFrom ? rawFrom : (InetAddress) RangeType.IP.nextUp(rawFrom);
+            output.put("gte", InetAddresses.toAddrString(adjustedFrom));
+            var rawTo = range.v2();
+            var adjustedTo = includeTo ? rawTo : (InetAddress) RangeType.IP.nextDown(rawTo);
+            output.put("lte", InetAddresses.toAddrString(adjustedTo));
+        }
 
         return Tuple.tuple(input, output);
     }
@@ -192,7 +204,8 @@ public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
         boolean ipv4 = randomBoolean();
 
         InetAddress address = randomIp(ipv4);
-        int prefixLength = ipv4 ? randomIntBetween(0, 32) : randomIntBetween(0, 128);
+        // exclude smallest prefix lengths to avoid empty ranges
+        int prefixLength = ipv4 ? randomIntBetween(0, 30) : randomIntBetween(0, 126);
 
         return InetAddresses.toCidrString(address, prefixLength);
     }

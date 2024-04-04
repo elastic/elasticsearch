@@ -32,7 +32,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Collections;
@@ -60,6 +60,8 @@ public class RangeFieldMapper extends FieldMapper {
 
     // this is private since it has a different default
     static final Setting<Boolean> COERCE_SETTING = Setting.boolSetting("index.mapping.coerce", true, Setting.Property.IndexScope);
+
+    private static final String DATE_FORMATTER_PARAM_FOR_RANGE_SERIALIZATION = "date_formatter";
 
     private static RangeFieldMapper toType(FieldMapper in) {
         return (RangeFieldMapper) in;
@@ -446,20 +448,8 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     private static Range parseIpRangeFromCidr(final XContentParser parser) throws IOException {
-        final Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(parser.text());
-        // create the lower value by zeroing out the host portion, upper value by filling it with all ones.
-        byte[] lower = cidr.v1().getAddress();
-        byte[] upper = lower.clone();
-        for (int i = cidr.v2(); i < 8 * lower.length; i++) {
-            int m = 1 << 7 - (i & 7);
-            lower[i >> 3] &= (byte) ~m;
-            upper[i >> 3] |= (byte) m;
-        }
-        try {
-            return new Range(RangeType.IP, InetAddress.getByAddress(lower), InetAddress.getByAddress(upper), true, true);
-        } catch (UnknownHostException bogus) {
-            throw new AssertionError(bogus);
-        }
+        final Tuple<InetAddress, InetAddress> range = InetAddresses.parseIpRangeFromCidr(parser.text());
+        return new Range(RangeType.IP, range.v1(), range.v2(), true, true);
     }
 
     @Override
@@ -480,12 +470,12 @@ public class RangeFieldMapper extends FieldMapper {
                         return;
                     case 1:
                         b.field(simpleName());
-                        ranges.get(0).toXContent(b, EMPTY_PARAMS);
+                        ranges.get(0).toXContent(b, fieldType().dateTimeFormatter);
                         break;
                     default:
                         b.startArray(simpleName());
                         for (var range : ranges) {
-                            range.toXContent(b, EMPTY_PARAMS);
+                            range.toXContent(b, fieldType().dateTimeFormatter);
                         }
                         b.endArray();
                 }
@@ -494,7 +484,7 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     /** Class defining a range */
-    public static class Range implements ToXContentFragment {
+    public static class Range {
         RangeType type;
         Object from;
         Object to;
@@ -552,8 +542,7 @@ public class RangeFieldMapper extends FieldMapper {
             return sb.toString();
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, DateFormatter dateFormatter) throws IOException {
             builder.startObject();
 
             if (includeFrom) {
@@ -562,7 +551,7 @@ public class RangeFieldMapper extends FieldMapper {
                 builder.field("gt");
             }
             Object f = includeFrom || from.equals(type.minValue()) ? from : type.nextDown(from);
-            builder.value(type == RangeType.IP ? InetAddresses.toAddrString((InetAddress) f) : f);
+            builder.value(type.formatValue(f, dateFormatter));
 
             if (includeTo) {
                 builder.field("lte");
@@ -570,7 +559,7 @@ public class RangeFieldMapper extends FieldMapper {
                 builder.field("lt");
             }
             Object t = includeTo || to.equals(type.maxValue()) ? to : type.nextUp(to);
-            builder.value(type == RangeType.IP ? InetAddresses.toAddrString((InetAddress) t) : t);
+            builder.value(type.formatValue(t, dateFormatter));
 
             builder.endObject();
 

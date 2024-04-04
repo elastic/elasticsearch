@@ -9,6 +9,7 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -21,6 +22,7 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A fetch sub-phase for high-level field retrieval. Given a list of fields, it
@@ -29,7 +31,7 @@ import java.util.List;
  */
 public final class FetchFieldsPhase implements FetchSubPhase {
 
-    private static final List<FieldAndFormat> METADATA_FIELDS = List.of(
+    private static final List<FieldAndFormat> DEFAULT_METADATA_FIELDS = List.of(
         new FieldAndFormat(IgnoredFieldMapper.NAME, null),
         new FieldAndFormat(RoutingFieldMapper.NAME, null),
         new FieldAndFormat(LegacyTypeFieldMapper.NAME, null)
@@ -50,28 +52,35 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             : fetchFieldsContext.fields() == null ? Collections.emptyList()
             : fetchFieldsContext.fields();
 
-        final FieldFetcher fieldFetcher = FieldFetcher.create(fetchContext.getSearchExecutionContext(), fetchFields);
-        final FieldFetcher metadataFieldFetcher = FieldFetcher.create(fetchContext.getSearchExecutionContext(), METADATA_FIELDS);
+        final FieldFetcher fieldFetcher = fetchFields.isEmpty()
+            ? FieldFetcher.create(fetchContext.getSearchExecutionContext(), fetchFields)
+            : null;
+        final FieldFetcher metadataFieldFetcher = FieldFetcher.create(fetchContext.getSearchExecutionContext(), DEFAULT_METADATA_FIELDS);
 
         return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
-                fieldFetcher.setNextReader(readerContext);
+                if (fieldFetcher != null) {
+                    fieldFetcher.setNextReader(readerContext);
+                }
                 metadataFieldFetcher.setNextReader(readerContext);
             }
 
             @Override
             public StoredFieldsSpec storedFieldsSpec() {
-                return fieldFetcher.storedFieldsSpec();
+                if (fieldFetcher != null) {
+                    return fieldFetcher.storedFieldsSpec();
+                }
+                return StoredFieldsSpec.NO_REQUIREMENTS;
             }
 
             @Override
             public void process(HitContext hitContext) throws IOException {
-                hitContext.hit()
-                    .addDocumentFields(
-                        fieldFetcher.fetch(hitContext.source(), hitContext.docId()),
-                        metadataFieldFetcher.fetch(hitContext.source(), hitContext.docId())
-                    );
+                Map<String, DocumentField> docFields = fieldFetcher == null
+                    ? Collections.emptyMap()
+                    : fieldFetcher.fetch(hitContext.source(), hitContext.docId());
+                Map<String, DocumentField> metaFields = metadataFieldFetcher.fetch(hitContext.source(), hitContext.docId());
+                hitContext.hit().addDocumentFields(docFields, metaFields);
             }
         };
     }

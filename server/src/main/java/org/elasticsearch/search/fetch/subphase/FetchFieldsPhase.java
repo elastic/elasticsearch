@@ -62,7 +62,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
 
             @Override
             public StoredFieldsSpec storedFieldsSpec() {
-                return metadataFieldFetcher.storedFieldsSpec().merge(fieldFetcher.storedFieldsSpec());
+                return fieldFetcher.storedFieldsSpec();
             }
 
             @Override

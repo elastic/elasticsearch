@@ -30,7 +30,6 @@ import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.util.LongObjectPagedHashMap.Cursor;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -219,14 +218,7 @@ class TopHitsAggregator extends MetricsAggregator {
 
     private static FetchSearchResult runFetchPhase(SubSearchContext subSearchContext, int[] docIdsToLoad) {
         // Fork the search execution context for each slice, because the fetch phase does not support concurrent execution yet.
-        SearchExecutionContext searchExecutionContext = new SearchExecutionContext(subSearchContext.getSearchExecutionContext()) {
-            @Override
-            public NestedDocuments getNestedDocuments() {
-                // this is a horrible hack: AggregationTestCase mocks SearchExecutionContext to override the resolution of nested documents.
-                // That gets lost as we fork the search execution context: overriding this method preserves that.
-                return subSearchContext.getSearchExecutionContext().getNestedDocuments();
-            }
-        };
+        SearchExecutionContext searchExecutionContext = new SearchExecutionContext(subSearchContext.getSearchExecutionContext());
         SubSearchContext fetchSubSearchContext = new SubSearchContext(subSearchContext) {
             @Override
             public SearchExecutionContext getSearchExecutionContext() {

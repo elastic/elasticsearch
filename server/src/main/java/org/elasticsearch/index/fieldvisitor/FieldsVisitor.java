@@ -63,9 +63,9 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         // Always load _ignored to be explicit about ignored fields
         // This works because _ignored is added as the first metadata mapper,
         // so its stored fields always appear first in the list.
-        //TODO this should still be needed for the get API, but no longer for the search api as _ignored is now retrieved
+        // TODO this should still be needed for the get API, but no longer for the search api as _ignored is now retrieved
         // via value fetcher, hence a different visitor. It's FetchFieldsPhase that requests it explicitly every time.
-        //we may need to add test coverage for the GET API codepath, that seems missing
+        // we may need to add test coverage for the GET API codepath, that seems missing
         if (IgnoredFieldMapper.NAME.equals(fieldInfo.name)) {
             return Status.YES;
         }

@@ -1037,11 +1037,23 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                     recheck = false;
                     if (p instanceof Aggregate aggregate) {
                         var remaining = seenProjection.get() ? removeUnused(aggregate.aggregates(), used) : null;
-                        // no aggregates, no need
+
                         if (remaining != null) {
                             if (remaining.isEmpty()) {
-                                recheck = true;
-                                p = aggregate.child();
+                                // We still need to have a plan that produces 1 row per group.
+                                if (aggregate.groupings().isEmpty()) {
+                                    p = new LocalRelation(
+                                        aggregate.source(),
+                                        List.of(new EmptyAttribute(aggregate.source())),
+                                        LocalSupplier.of(
+                                            new Block[] { BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1) }
+                                        )
+                                    );
+                                } else {
+                                    // Aggs cannot produce pages with 0 columns, so retain one grouping.
+                                    remaining = List.of(Expressions.attribute(aggregate.groupings().get(0)));
+                                    p = new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), remaining);
+                                }
                             } else {
                                 p = new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), remaining);
                             }

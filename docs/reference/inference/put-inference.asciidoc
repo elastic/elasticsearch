@@ -4,7 +4,7 @@
 
 experimental[]
 
-Creates a model to perform an {infer} task.
+Creates an {infer} endpoint to perform an {infer} task.
 
 IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in
 {ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, or
@@ -33,8 +33,8 @@ or if you want to use non-NLP models, use the <<ml-df-trained-models-apis>>.
 [[put-inference-api-desc]]
 ==== {api-description-title}
 
-The create {infer} API enables you to create and configure a {ml} model to
-perform a specific {infer} task.
+The create {infer} API enables you to create an {infer} endpoint and configure a
+{ml} model to perform a specific {infer} task.
 
 The following services are available through the {infer} API:
 

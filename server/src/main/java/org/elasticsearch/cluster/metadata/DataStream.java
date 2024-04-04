@@ -1311,7 +1311,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     public static class Builder {
-        private LongSupplier timeProvider;
+        private LongSupplier timeProvider = System::currentTimeMillis;
         private String name;
         private List<Index> indices;
         private long generation = 1;

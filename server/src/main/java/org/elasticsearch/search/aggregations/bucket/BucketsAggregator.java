@@ -84,7 +84,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
             // memory in the parent breaker and break the execution if we are running out. To achieve that we
             // are passing 0 as the estimated bytes every 1024 calls
             if ((++callCount & 0x3FF) == 0) {
-                breaker.addEstimateBytesAndMaybeBreak(0, "allocated_buckets");
+                breaker.checkRealMemoryUsage("allocated_buckets");
             }
         }
         subCollector.collect(doc, bucketOrd);

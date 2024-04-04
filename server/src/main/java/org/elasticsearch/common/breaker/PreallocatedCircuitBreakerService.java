@@ -126,6 +126,11 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
         }
 
         @Override
+        public void checkRealMemoryUsage(String label) throws CircuitBreakingException {
+            next.checkRealMemoryUsage(label);
+        }
+
+        @Override
         public void addWithoutBreaking(long bytes) {
             if (closed) {
                 throw new IllegalStateException("already closed");

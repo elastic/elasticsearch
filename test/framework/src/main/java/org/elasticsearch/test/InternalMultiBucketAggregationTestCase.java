@@ -175,7 +175,7 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
             null,
             () -> false,
             mock(AggregationBuilder.class),
-            v -> breaker.getBreaker("request").addEstimateBytesAndMaybeBreak(0, "test"),
+            v -> breaker.getBreaker("request").checkRealMemoryUsage("test"),
             PipelineTree.EMPTY
         );
         Exception e = expectThrows(CircuitBreakingException.class, () -> InternalAggregationTestCase.reduce(List.of(agg), reduceContext));

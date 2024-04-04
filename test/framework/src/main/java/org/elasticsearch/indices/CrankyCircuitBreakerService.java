@@ -43,6 +43,11 @@ public class CrankyCircuitBreakerService extends CircuitBreakerService {
         }
 
         @Override
+        public void checkRealMemoryUsage(String label) throws CircuitBreakingException {
+            addEstimateBytesAndMaybeBreak(0L, label);
+        }
+
+        @Override
         public void addWithoutBreaking(long bytes) {
             used.addAndGet(bytes);
         }

@@ -131,6 +131,13 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         assert newUsed >= 0 : "Used bytes: [" + newUsed + "] must be >= 0";
     }
 
+    @Override
+    public void checkRealMemoryUsage(String label) throws CircuitBreakingException {
+        if (parent.isTrackRealMemoryUsage()) {
+            parent.checkParentLimit(0L, label);
+        }
+    }
+
     private long noLimit(long bytes, String label) {
         long newUsed;
         newUsed = this.used.addAndGet(bytes);

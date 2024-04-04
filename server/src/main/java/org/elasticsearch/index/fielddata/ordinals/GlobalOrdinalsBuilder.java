@@ -62,7 +62,7 @@ public enum GlobalOrdinalsBuilder {
                 public BytesRef next() throws IOException {
                     // check parent circuit breaker every 65536 calls
                     if ((counter[0]++ & 0xFFFF) == 0) {
-                        breaker.addEstimateBytesAndMaybeBreak(0L, "Global Ordinals");
+                        breaker.checkRealMemoryUsage("Global Ordinals");
                     }
                     return in.next();
                 }

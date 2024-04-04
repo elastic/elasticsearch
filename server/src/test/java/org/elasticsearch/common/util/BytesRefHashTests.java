@@ -55,6 +55,11 @@ public class BytesRefHashTests extends ESTestCase {
             }
 
             @Override
+            public void checkRealMemoryUsage(String label) throws CircuitBreakingException {
+                addEstimateBytesAndMaybeBreak(0L, label);
+            }
+
+            @Override
             public void addWithoutBreaking(long bytes) {}
 
             @Override

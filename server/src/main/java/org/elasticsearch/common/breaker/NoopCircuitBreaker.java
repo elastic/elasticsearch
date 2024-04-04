@@ -30,6 +30,9 @@ public class NoopCircuitBreaker implements CircuitBreaker {
     public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {}
 
     @Override
+    public void checkRealMemoryUsage(String label) throws CircuitBreakingException {}
+
+    @Override
     public void addWithoutBreaking(long bytes) {}
 
     @Override

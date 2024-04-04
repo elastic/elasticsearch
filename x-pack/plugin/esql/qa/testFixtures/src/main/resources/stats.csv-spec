@@ -1188,6 +1188,58 @@ e:i | l:i
 4   | 3
 ;
 
+nestedAggsOverGroupingExpressionWithoutAlias#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS e = max(languages + emp_no) + 1 by languages + emp_no
+| SORT e
+| LIMIT 3
+;
+
+e:i   | languages + emp_no:i
+10004 | 10003
+10007 | 10006
+10008 | 10007
+;
+
+nestedAggsOverGroupingExpressionMultiGroupWithoutAlias#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS e = max(languages + emp_no + 10) + 1 by languages + emp_no, emp_no % 3
+| SORT e
+| LIMIT 3
+;
+
+e:i   | languages + emp_no:i | emp_no % 3:i
+10014 | 10003                | 2
+10017 | 10006                | 0
+10018 | 10007                | 1
+;
+
+nestedAggsOverGroupingExpressionWithAlias#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS e = max(languages + emp_no + 10) + 1 by languages + emp_no
+| SORT e
+| LIMIT 3
+;
+
+e:i   | languages + emp_no:i
+10014 | 10003
+10017 | 10006
+10018 | 10007
+;
+
+nestedAggsOverGroupingExpressionWithAlias#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS e = max(a), f = min(a), g = count(a) + 1 by a = languages + emp_no
+| SORT a
+| LIMIT 3
+;
+
+e: i  | f:i   | g:l | a:i
+10003 | 10003 | 2   | 10003
+10006 | 10006 | 2   | 10006
+10007 | 10007 | 3   | 10007
+;
+
 nestedAggsOverGroupingTwiceWithAlias#[skip:-8.12.99,reason:supported in 8.13]
 FROM employees
 | STATS vals = COUNT() BY x = emp_no, x = languages

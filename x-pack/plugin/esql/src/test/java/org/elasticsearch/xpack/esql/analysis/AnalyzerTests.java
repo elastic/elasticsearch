@@ -1759,7 +1759,7 @@ public class AnalyzerTests extends ESTestCase {
             |stats x by 1
             """));
 
-        assertThat(e.getMessage(), containsString("[x] is not an aggregate function"));
+        assertThat(e.getMessage(), containsString("Unknown column [x]"));
     }
 
     public void testScalarFunctionsInStats() {

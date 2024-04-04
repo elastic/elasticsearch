@@ -114,11 +114,11 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return new Batch<>(
             "Substitutions",
             Limiter.ONCE,
-            new RemoveAggregateOverrides(),
-            // first extract nested aggs top-level - this simplifies the rest of the rules
-            new ReplaceStatsAggExpressionWithEval(),
-            // second extract nested aggs inside of them
+            new RemoveStatsOverride(),
+            // first extract nested expressions inside aggs
             new ReplaceStatsNestedExpressionWithEval(),
+            // then extract nested aggs top-level
+            new ReplaceStatsAggExpressionWithEval(),
             // lastly replace surrogate functions
             new SubstituteSurrogates(),
             new ReplaceRegexMatch(),
@@ -1259,9 +1259,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                             Attribute attr = expToAttribute.computeIfAbsent(field.canonical(), k -> {
                                 Alias newAlias = new Alias(k.source(), syntheticName(k, af, counter[0]++), null, k, null, true);
                                 evals.add(newAlias);
-                                aggsChanged.set(true);
                                 return newAlias.toAttribute();
                             });
+                            aggsChanged.set(true);
                             // replace field with attribute
                             List<Expression> newChildren = new ArrayList<>(af.children());
                             newChildren.set(0, attr);
@@ -1506,8 +1506,12 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
      * STATS BY x = c + 10
      * That is the last declaration for a given alias, overrides all the other declarations, with
      * groups having priority vs aggregates.
+     * Separately, it replaces expressions used as group keys inside the aggregates with references:
+     * STATS max(a + b + 1) BY a + b
+     * becomes
+     * STATS max($x + 1) BY $x = a + b
      */
-    private static class RemoveAggregateOverrides extends AnalyzerRules.AnalyzerRule<Aggregate> {
+    private static class RemoveStatsOverride extends AnalyzerRules.AnalyzerRule<Aggregate> {
 
         @Override
         protected boolean skipResolved() {

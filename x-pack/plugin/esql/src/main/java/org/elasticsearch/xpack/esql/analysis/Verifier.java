@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
@@ -47,6 +46,7 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.ql.analyzer.VerifierChecks.checkFilterConditionType;
@@ -89,16 +89,8 @@ public class Verifier {
                 p.forEachExpressionUp(Alias.class, a -> aliases.put(a.toAttribute(), a.child()));
                 return;
             }
-            // handle aggregate first to disambiguate between missing fields or incorrect function declaration
-            if (p instanceof Aggregate aggregate) {
-                for (NamedExpression agg : aggregate.aggregates()) {
-                    var child = Alias.unwrap(agg);
-                    if (child instanceof UnresolvedAttribute) {
-                        failures.add(fail(child, "invalid stats declaration; [{}] is not an aggregate function", child.sourceText()));
-                    }
-                }
-            }
-            p.forEachExpression(e -> {
+
+            Consumer<Expression> unresolvedExpressions = e -> {
                 // everything is fine, skip expression
                 if (e.resolved()) {
                     return;
@@ -120,7 +112,20 @@ public class Verifier {
                         failures.add(fail(ae, ae.typeResolved().message()));
                     }
                 });
-            });
+            };
+
+            // aggregates duplicate grouping inside aggs - to avoid potentially confusing messages, we only check the aggregates
+            if (p instanceof Aggregate agg) {
+                // do groupings first
+                var groupings = agg.groupings();
+                groupings.forEach(unresolvedExpressions);
+                // followed by just the aggregates (to avoid going through the groups again)
+                var aggs = agg.aggregates();
+                int size = aggs.size() - groupings.size();
+                aggs.subList(0, size).forEach(unresolvedExpressions);
+            } else {
+                p.forEachExpression(unresolvedExpressions);
+            }
         });
 
         // in case of failures bail-out as all other checks will be redundant

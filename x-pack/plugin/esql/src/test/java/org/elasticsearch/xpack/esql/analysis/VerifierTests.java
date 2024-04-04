@@ -379,8 +379,11 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:27: Unknown column [avg]", error("from test | stats c = avg(avg)"));
     }
 
-    public void testUnfinishedAggFunction() {
-        assertEquals("1:23: invalid stats declaration; [avg] is not an aggregate function", error("from test | stats c = avg"));
+    public void testNotFoundFieldInNestedFunction() {
+        assertEquals("""
+            1:30: Unknown column [missing]
+            line 1:43: Unknown column [not_found]
+            line 1:23: Unknown column [avg]""", error("from test | stats c = avg by missing + 1, not_found"));
     }
 
     public void testSpatialSort() {

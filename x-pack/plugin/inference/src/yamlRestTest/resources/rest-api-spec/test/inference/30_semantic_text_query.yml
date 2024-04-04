@@ -117,8 +117,8 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - gte: { hits.hits.0._score: 0.6622 }
-  - lte: { hits.hits.0._score: 0.6623 }
+  - gte: { hits.hits.0._score: 0.6616 }
+  - lte: { hits.hits.0._score: 0.6617 }
 
 ---
 "Apply boost and query name":

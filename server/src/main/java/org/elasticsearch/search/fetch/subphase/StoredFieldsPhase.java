@@ -11,8 +11,10 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.FetchContext;
@@ -53,8 +55,8 @@ public class StoredFieldsPhase implements FetchSubPhase {
     }
 
     private static final List<StoredField> METADATA_FIELDS = List.of(
-        /*        new StoredField("_routing", RoutingFieldMapper.FIELD_TYPE, true),
-            new StoredField("_ignored", IgnoredFieldMapper.FIELD_TYPE, true),*/
+        new StoredField("_routing", RoutingFieldMapper.FIELD_TYPE, true),
+        new StoredField("_ignored", IgnoredFieldMapper.FIELD_TYPE, true),
         // pre-6.0 indexes can return a _type field, this will be valueless in modern indexes and ignored
         new StoredField("_type", LegacyTypeFieldMapper.FIELD_TYPE, true)
     );
@@ -74,7 +76,7 @@ public class StoredFieldsPhase implements FetchSubPhase {
             for (String field : storedFieldsContext.fieldNames()) {
                 Collection<String> fieldNames = sec.getMatchingFieldNames(field);
                 for (String fieldName : fieldNames) {
-                    // _id and _source always retrieved anyway, no need to do it explicitly. See FieldsVisitor.
+                    // _id and _source are always retrieved anyway, no need to do it explicitly. See FieldsVisitor.
                     // They are not returned as part of HitContext#loadedFields hence they are not added to documents by this sub-phase
                     if (IdFieldMapper.NAME.equals(field) || SourceFieldMapper.NAME.equals(field)) {
                         continue;

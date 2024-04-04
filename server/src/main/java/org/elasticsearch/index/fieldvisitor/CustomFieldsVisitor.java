@@ -14,7 +14,9 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * A field visitor that allows to load a selection of the stored fields by exact name
+ * A field visitor that allows to load a selection of the stored fields by exact name.
+ * {@code _id}, {@code _routing}, and {@code _ignored} fields are always loaded.
+ * {@code _source} is always loaded unless disabled explicitly.
  */
 public class CustomFieldsVisitor extends FieldsVisitor {
     private final Set<String> fields;

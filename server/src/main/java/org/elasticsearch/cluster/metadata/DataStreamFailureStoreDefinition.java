@@ -23,6 +23,7 @@ import java.io.IOException;
  */
 public class DataStreamFailureStoreDefinition {
 
+    public static final String FAILURE_STORE_REFRESH_INTERVAL_SETTING_NAME = "data_streams.failure_store.refresh_interval";
     public static final CompressedXContent DATA_STREAM_FAILURE_STORE_MAPPING;
 
     static {
@@ -134,8 +135,6 @@ public class DataStreamFailureStoreDefinition {
             throw new AssertionError(e);
         }
     }
-
-    public static final String FAILURE_STORE_REFRESH_INTERVAL_SETTING_NAME = "data_streams.failure_store.refresh_interval";
 
     public static TimeValue getFailureStoreRefreshInterval(Settings settings) {
         return settings.getAsTime(FAILURE_STORE_REFRESH_INTERVAL_SETTING_NAME, null);

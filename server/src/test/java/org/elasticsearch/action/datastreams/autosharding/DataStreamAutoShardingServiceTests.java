@@ -77,10 +77,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         clusterService = createClusterService(threadPool, clusterSettings);
         now = System.currentTimeMillis();
         service = new DataStreamAutoShardingService(
-            Settings.builder()
-                .put(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_ENABLED, true)
-                .putList(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING.getKey(), List.of())
-                .build(),
+            Settings.builder().put(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_ENABLED, true).build(),
             clusterService,
             new FeatureService(List.of(new FeatureSpecification() {
                 @Override
@@ -147,10 +144,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             ClusterState stateNoFeature = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()).build();
 
             DataStreamAutoShardingService noFeatureService = new DataStreamAutoShardingService(
-                Settings.builder()
-                    .put(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_ENABLED, true)
-                    .putList(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING.getKey(), List.of())
-                    .build(),
+                Settings.builder().put(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_ENABLED, true).build(),
                 clusterService,
                 new FeatureService(List.of()),
                 () -> now

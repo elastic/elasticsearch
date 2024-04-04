@@ -183,7 +183,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                     IndexRequest actualRequest = getIndexRequestOrNull(items[id].request());
                     IndexRequest expectedRequest = getIndexRequestOrNull(modifiedRequests[id].request());
                     try {
-                        assertToXContentEquivalent(expectedRequest.source(), actualRequest.source(), actualRequest.getContentType());
+                        assertToXContentEquivalent(expectedRequest.source(), actualRequest.source(), expectedRequest.getContentType());
                     } catch (Exception exc) {
                         throw new IllegalStateException(exc);
                     }
@@ -228,9 +228,9 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         InferenceService inferenceService = mock(InferenceService.class);
         Answer<?> chunkedInferAnswer = invocationOnMock -> {
             StaticModel model = (StaticModel) invocationOnMock.getArguments()[0];
-            List<String> inputs = (List<String>) invocationOnMock.getArguments()[1];
+            List<String> inputs = (List<String>) invocationOnMock.getArguments()[2];
             ActionListener<List<ChunkedInferenceServiceResults>> listener = (ActionListener<
-                List<ChunkedInferenceServiceResults>>) invocationOnMock.getArguments()[5];
+                List<ChunkedInferenceServiceResults>>) invocationOnMock.getArguments()[6];
             Runnable runnable = () -> {
                 List<ChunkedInferenceServiceResults> results = new ArrayList<>();
                 for (String input : inputs) {
@@ -249,7 +249,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             }
             return null;
         };
-        doAnswer(chunkedInferAnswer).when(inferenceService).chunkedInfer(any(), any(), any(), any(), any(), any());
+        doAnswer(chunkedInferAnswer).when(inferenceService).chunkedInfer(any(), any(), any(), any(), any(), any(), any());
 
         Answer<Model> modelAnswer = invocationOnMock -> {
             String inferenceId = (String) invocationOnMock.getArguments()[0];
@@ -270,6 +270,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     ) {
         Map<String, Object> docMap = new LinkedHashMap<>();
         Map<String, Object> expectedDocMap = new LinkedHashMap<>();
+        XContentType requestContentType = randomFrom(XContentType.values());
         for (var entry : fieldInferenceMap.values()) {
             String field = entry.getName();
             var model = modelMap.get(entry.getInferenceId());
@@ -280,11 +281,10 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 // ignore results, the doc should fail with a resource not found exception
                 continue;
             }
-            var result = randomSemanticText(field, model, List.of(text), randomFrom(XContentType.values()));
+            var result = randomSemanticText(field, model, List.of(text), requestContentType);
             model.putResult(text, result);
             expectedDocMap.put(field, result);
         }
-        XContentType requestContentType = randomFrom(XContentType.values());
         return new BulkItemRequest[] {
             new BulkItemRequest(id, new IndexRequest("index").source(docMap, requestContentType)),
             new BulkItemRequest(id, new IndexRequest("index").source(expectedDocMap, requestContentType)) };

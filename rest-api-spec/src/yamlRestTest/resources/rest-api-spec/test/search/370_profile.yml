@@ -157,8 +157,8 @@ fetch nested source:
 ---
 disabling stored fields removes fetch sub phases:
   - skip:
-      version: ' - 8.13.99'
-      reason:  fetch fields and stored_fields using ValueFetcher
+      version: ' - 7.15.99'
+      reason: fetch profiling implemented in 7.16.0
 
   - do:
       search:

@@ -1,5 +1,0 @@
-pr: 107080
-summary: Fix number of rejected primary operations
-area: CRUD
-type: bug
-issues: []

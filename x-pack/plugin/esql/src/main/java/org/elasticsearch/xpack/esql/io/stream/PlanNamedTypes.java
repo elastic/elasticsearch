@@ -1592,15 +1592,16 @@ public final class PlanNamedTypes {
     }
 
     static Locate readLocate(PlanStreamInput in) throws IOException {
-        return new Locate(in.readSource(), in.readExpression(), in.readExpression());
+        return new Locate(in.readSource(), in.readExpression(), in.readExpression(), in.readOptionalNamed(Expression.class));
     }
 
     static void writeLocate(PlanStreamOutput out, Locate locate) throws IOException {
         out.writeSource(locate.source());
         List<Expression> fields = locate.children();
-        assert fields.size() == 2;
+        assert fields.size() == 2 || fields.size() == 3;
         out.writeExpression(fields.get(0));
         out.writeExpression(fields.get(1));
+        out.writeOptionalWriteable(fields.size() == 3 ? o -> out.writeExpression(fields.get(2)) : null);
     }
 
     static Replace readReplace(PlanStreamInput in) throws IOException {

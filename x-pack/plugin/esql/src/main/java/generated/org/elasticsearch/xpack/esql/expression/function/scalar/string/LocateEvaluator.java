@@ -31,13 +31,17 @@ public final class LocateEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private final EvalOperator.ExpressionEvaluator substr;
 
+  private final EvalOperator.ExpressionEvaluator start;
+
   private final DriverContext driverContext;
 
   public LocateEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
-      EvalOperator.ExpressionEvaluator substr, DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator substr, EvalOperator.ExpressionEvaluator start,
+      DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.str = str;
     this.substr = substr;
+    this.start = start;
     this.driverContext = driverContext;
   }
 
@@ -45,20 +49,27 @@ public final class LocateEvaluator implements EvalOperator.ExpressionEvaluator {
   public Block eval(Page page) {
     try (BytesRefBlock strBlock = (BytesRefBlock) str.eval(page)) {
       try (BytesRefBlock substrBlock = (BytesRefBlock) substr.eval(page)) {
-        BytesRefVector strVector = strBlock.asVector();
-        if (strVector == null) {
-          return eval(page.getPositionCount(), strBlock, substrBlock);
+        try (IntBlock startBlock = (IntBlock) start.eval(page)) {
+          BytesRefVector strVector = strBlock.asVector();
+          if (strVector == null) {
+            return eval(page.getPositionCount(), strBlock, substrBlock, startBlock);
+          }
+          BytesRefVector substrVector = substrBlock.asVector();
+          if (substrVector == null) {
+            return eval(page.getPositionCount(), strBlock, substrBlock, startBlock);
+          }
+          IntVector startVector = startBlock.asVector();
+          if (startVector == null) {
+            return eval(page.getPositionCount(), strBlock, substrBlock, startBlock);
+          }
+          return eval(page.getPositionCount(), strVector, substrVector, startVector).asBlock();
         }
-        BytesRefVector substrVector = substrBlock.asVector();
-        if (substrVector == null) {
-          return eval(page.getPositionCount(), strBlock, substrBlock);
-        }
-        return eval(page.getPositionCount(), strVector, substrVector).asBlock();
       }
     }
   }
 
-  public IntBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock substrBlock) {
+  public IntBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock substrBlock,
+      IntBlock startBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef substrScratch = new BytesRef();
@@ -85,18 +96,30 @@ public final class LocateEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
-        result.appendInt(Locate.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), substrBlock.getBytesRef(substrBlock.getFirstValueIndex(p), substrScratch)));
+        if (startBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (startBlock.getValueCount(p) != 1) {
+          if (startBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+          }
+          result.appendNull();
+          continue position;
+        }
+        result.appendInt(Locate.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), substrBlock.getBytesRef(substrBlock.getFirstValueIndex(p), substrScratch), startBlock.getInt(startBlock.getFirstValueIndex(p))));
       }
       return result.build();
     }
   }
 
-  public IntVector eval(int positionCount, BytesRefVector strVector, BytesRefVector substrVector) {
+  public IntVector eval(int positionCount, BytesRefVector strVector, BytesRefVector substrVector,
+      IntVector startVector) {
     try(IntVector.Builder result = driverContext.blockFactory().newIntVectorBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef substrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(Locate.process(strVector.getBytesRef(p, strScratch), substrVector.getBytesRef(p, substrScratch)));
+        result.appendInt(Locate.process(strVector.getBytesRef(p, strScratch), substrVector.getBytesRef(p, substrScratch), startVector.getInt(p)));
       }
       return result.build();
     }
@@ -104,12 +127,12 @@ public final class LocateEvaluator implements EvalOperator.ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "LocateEvaluator[" + "str=" + str + ", substr=" + substr + "]";
+    return "LocateEvaluator[" + "str=" + str + ", substr=" + substr + ", start=" + start + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(str, substr);
+    Releasables.closeExpectNoException(str, substr, start);
   }
 
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
@@ -119,21 +142,25 @@ public final class LocateEvaluator implements EvalOperator.ExpressionEvaluator {
 
     private final EvalOperator.ExpressionEvaluator.Factory substr;
 
+    private final EvalOperator.ExpressionEvaluator.Factory start;
+
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str,
-        EvalOperator.ExpressionEvaluator.Factory substr) {
+        EvalOperator.ExpressionEvaluator.Factory substr,
+        EvalOperator.ExpressionEvaluator.Factory start) {
       this.source = source;
       this.str = str;
       this.substr = substr;
+      this.start = start;
     }
 
     @Override
     public LocateEvaluator get(DriverContext context) {
-      return new LocateEvaluator(source, str.get(context), substr.get(context), context);
+      return new LocateEvaluator(source, str.get(context), substr.get(context), start.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "LocateEvaluator[" + "str=" + str + ", substr=" + substr + "]";
+      return "LocateEvaluator[" + "str=" + str + ", substr=" + substr + ", start=" + start + "]";
     }
   }
 }

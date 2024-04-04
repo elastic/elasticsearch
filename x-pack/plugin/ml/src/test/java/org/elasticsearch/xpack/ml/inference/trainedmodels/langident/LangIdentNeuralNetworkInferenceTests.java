@@ -177,7 +177,11 @@ public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
     }
 
     InferenceDefinition grabModel() throws IOException {
-        TrainedModelProvider trainedModelProvider = new TrainedModelProvider(mock(Client.class), mock(TrainedModelCacheMetadataService.class), xContentRegistry());
+        TrainedModelProvider trainedModelProvider = new TrainedModelProvider(
+            mock(Client.class),
+            mock(TrainedModelCacheMetadataService.class),
+            xContentRegistry()
+        );
         PlainActionFuture<TrainedModelConfig> future = new PlainActionFuture<>();
         // Should be OK as we don't make any client calls
         trainedModelProvider.getTrainedModel("lang_ident_model_1", GetTrainedModelsAction.Includes.forModelDefinition(), null, future);

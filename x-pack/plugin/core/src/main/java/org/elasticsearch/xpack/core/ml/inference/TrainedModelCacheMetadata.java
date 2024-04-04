@@ -80,18 +80,17 @@ public class TrainedModelCacheMetadata implements Metadata.Custom {
             return Collections.emptySet();
         }
 
-        Map<String, TrainedModelCacheMetadataEntry> oldCacheMetadataEntries = TrainedModelCacheMetadata.fromState(event.previousState()).entries();
+        Map<String, TrainedModelCacheMetadataEntry> oldCacheMetadataEntries = TrainedModelCacheMetadata.fromState(event.previousState())
+            .entries();
         Map<String, TrainedModelCacheMetadataEntry> newCacheMetadataEntries = TrainedModelCacheMetadata.fromState(event.state()).entries();
 
-        return Sets.union(oldCacheMetadataEntries.keySet(), newCacheMetadataEntries.keySet()).stream()
-            .filter(modelId -> {
-                if ((oldCacheMetadataEntries.containsKey(modelId) && newCacheMetadataEntries.containsKey(modelId)) == false) {
-                    return true;
-                }
+        return Sets.union(oldCacheMetadataEntries.keySet(), newCacheMetadataEntries.keySet()).stream().filter(modelId -> {
+            if ((oldCacheMetadataEntries.containsKey(modelId) && newCacheMetadataEntries.containsKey(modelId)) == false) {
+                return true;
+            }
 
-                return Objects.equals(oldCacheMetadataEntries.get(modelId), newCacheMetadataEntries.get(modelId)) == false;
-            })
-            .collect(Collectors.toSet());
+            return Objects.equals(oldCacheMetadataEntries.get(modelId), newCacheMetadataEntries.get(modelId)) == false;
+        }).collect(Collectors.toSet());
     }
 
     private final Map<String, TrainedModelCacheMetadataEntry> entries;
@@ -189,6 +188,7 @@ public class TrainedModelCacheMetadata implements Metadata.Custom {
             return TransportVersion.current();
         }
     }
+
     public static class TrainedModelCacheMetadataEntry implements SimpleDiffable<TrainedModelCacheMetadataEntry>, ToXContentObject {
         private static final ConstructingObjectParser<TrainedModelCacheMetadataEntry, Void> PARSER = new ConstructingObjectParser<>(
             "trained_model_cache_metadata_entry",

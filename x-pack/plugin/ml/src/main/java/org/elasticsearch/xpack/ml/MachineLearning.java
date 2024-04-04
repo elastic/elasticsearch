@@ -1135,7 +1135,11 @@ public class MachineLearning extends Plugin
             threadPool
         );
         final TrainedModelCacheMetadataService trainedModelCacheMetadataService = new TrainedModelCacheMetadataService(clusterService);
-        final TrainedModelProvider trainedModelProvider = new TrainedModelProvider(client, trainedModelCacheMetadataService, xContentRegistry);
+        final TrainedModelProvider trainedModelProvider = new TrainedModelProvider(
+            client,
+            trainedModelCacheMetadataService,
+            xContentRegistry
+        );
         final ModelLoadingService modelLoadingService = new ModelLoadingService(
             trainedModelProvider,
             inferenceAuditor,
@@ -1869,8 +1873,12 @@ public class MachineLearning extends Plugin
         // Custom metadata
         namedWriteables.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, "ml", MlMetadata::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, "ml", MlMetadata.MlMetadataDiff::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, TrainedModelCacheMetadata.NAME, TrainedModelCacheMetadata::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, TrainedModelCacheMetadata.NAME, TrainedModelCacheMetadata::readDiffFrom));
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(Metadata.Custom.class, TrainedModelCacheMetadata.NAME, TrainedModelCacheMetadata::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(NamedDiff.class, TrainedModelCacheMetadata.NAME, TrainedModelCacheMetadata::readDiffFrom)
+        );
         namedWriteables.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, ModelAliasMetadata.NAME, ModelAliasMetadata::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelAliasMetadata.NAME, ModelAliasMetadata::readDiffFrom));
         namedWriteables.add(

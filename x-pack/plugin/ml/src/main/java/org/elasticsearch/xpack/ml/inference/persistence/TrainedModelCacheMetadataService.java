@@ -40,7 +40,11 @@ public class TrainedModelCacheMetadataService {
 
     public void deleteCacheMetadataEntry(String modelId, ActionListener<AcknowledgedResponse> listener) {
         ModelCacheMetadataManagementTask deleteModelCacheMetadataTask = new DeleteModelCacheMetadataTask(modelId, listener);
-        this.modelCacheMetadataManagementTaskQueue.submitTask(deleteModelCacheMetadataTask.getDescription(), deleteModelCacheMetadataTask, null);
+        this.modelCacheMetadataManagementTaskQueue.submitTask(
+            deleteModelCacheMetadataTask.getDescription(),
+            deleteModelCacheMetadataTask,
+            null
+        );
     }
 
     public void saveCacheMetadataEntry(TrainedModelConfig modelConfig, ActionListener<AcknowledgedResponse> listener) {
@@ -55,7 +59,10 @@ public class TrainedModelCacheMetadataService {
             this.listener = listener;
         }
 
-        protected abstract TrainedModelCacheMetadata execute(TrainedModelCacheMetadata currentCacheMetadata, TaskContext<ModelCacheMetadataManagementTask> taskContext);
+        protected abstract TrainedModelCacheMetadata execute(
+            TrainedModelCacheMetadata currentCacheMetadata,
+            TaskContext<ModelCacheMetadataManagementTask> taskContext
+        );
 
         protected abstract String getDescription();
 
@@ -74,7 +81,10 @@ public class TrainedModelCacheMetadataService {
             this.modelId = modelId;
         }
 
-        protected TrainedModelCacheMetadata execute(TrainedModelCacheMetadata currentCacheMetadata, TaskContext<ModelCacheMetadataManagementTask> taskContext) {
+        protected TrainedModelCacheMetadata execute(
+            TrainedModelCacheMetadata currentCacheMetadata,
+            TaskContext<ModelCacheMetadataManagementTask> taskContext
+        ) {
             var entries = new HashMap<>(currentCacheMetadata.entries());
             entries.put(modelId, new TrainedModelCacheMetadata.TrainedModelCacheMetadataEntry(modelId));
             taskContext.success(() -> listener.onResponse(AcknowledgedResponse.TRUE));
@@ -96,7 +106,10 @@ public class TrainedModelCacheMetadataService {
         }
 
         @Override
-        protected TrainedModelCacheMetadata execute(TrainedModelCacheMetadata currentCacheMetadata, TaskContext<ModelCacheMetadataManagementTask> taskContext) {
+        protected TrainedModelCacheMetadata execute(
+            TrainedModelCacheMetadata currentCacheMetadata,
+            TaskContext<ModelCacheMetadataManagementTask> taskContext
+        ) {
             final TrainedModelCacheMetadata updatedCacheMetadata;
             if (currentCacheMetadata.entries().containsKey(modelId)) {
                 var entries = new HashMap<>(currentCacheMetadata.entries());

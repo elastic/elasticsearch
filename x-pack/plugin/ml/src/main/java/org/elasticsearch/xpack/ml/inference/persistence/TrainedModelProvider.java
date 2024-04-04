@@ -129,7 +129,11 @@ public class TrainedModelProvider {
     private final NamedXContentRegistry xContentRegistry;
     private final TrainedModelCacheMetadataService modelCacheMetadataService;
 
-    public TrainedModelProvider(Client client, TrainedModelCacheMetadataService modelCacheMetadataService, NamedXContentRegistry xContentRegistry) {
+    public TrainedModelProvider(
+        Client client,
+        TrainedModelCacheMetadataService modelCacheMetadataService,
+        NamedXContentRegistry xContentRegistry
+    ) {
         this.client = client;
         this.modelCacheMetadataService = modelCacheMetadataService;
         this.xContentRegistry = xContentRegistry;
@@ -231,7 +235,8 @@ public class TrainedModelProvider {
                             )
                         );
                     }
-                })
+                }
+            )
         );
     }
 
@@ -906,10 +911,10 @@ public class TrainedModelProvider {
                 return;
             }
 
-            modelCacheMetadataService.deleteCacheMetadataEntry(modelId, ActionListener.wrap(
-                acknowledgedResponse -> listener.onResponse(true),
-                listener::onFailure
-            ));
+            modelCacheMetadataService.deleteCacheMetadataEntry(
+                modelId,
+                ActionListener.wrap(acknowledgedResponse -> listener.onResponse(true), listener::onFailure)
+            );
         }, e -> {
             if (e.getClass() == IndexNotFoundException.class) {
                 listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));

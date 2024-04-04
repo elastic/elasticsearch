@@ -149,6 +149,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -363,6 +364,51 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var agg = as(limit.child(), Aggregate.class);
         assertThat(Expressions.names(agg.aggregates()), contains("s", "last_name", "first_name"));
         assertThat(Expressions.names(agg.groupings()), contains("last_name", "first_name"));
+    }
+
+    /**
+     * Expects
+     * TopN[[Order[x{r}#10,ASC,LAST]],1000[INTEGER]]
+     * \_Aggregate[[languages{f}#16],[MAX(emp_no{f}#13) AS x, languages{f}#16]]
+     *   \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     */
+    public void testRemoveOverridesInAggregate() throws Exception {
+        var plan = plan("""
+            from test
+            | stats x = count(emp_no), x = min(emp_no), x = max(emp_no) by languages
+            | sort x
+            """);
+
+        var topN = as(plan, TopN.class);
+        var agg = as(topN.child(), Aggregate.class);
+        var aggregates = agg.aggregates();
+        assertThat(aggregates, hasSize(2));
+        assertThat(Expressions.names(aggregates), contains("x", "languages"));
+        var alias = as(aggregates.get(0), Alias.class);
+        var max = as(alias.child(), Max.class);
+        assertThat(Expressions.name(max.arguments().get(0)), equalTo("emp_no"));
+    }
+
+    // expected stats b by b (grouping overrides the rest of the aggs)
+
+    /**
+     * Expects
+     * TopN[[Order[b{r}#10,ASC,LAST]],1000[INTEGER]]
+     * \_Aggregate[[b{r}#10],[languages{f}#16 AS b]]
+     *   \_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     */
+    public void testAggsWithOverridingInputAndGrouping() throws Exception {
+        var plan = plan("""
+            from test
+            | stats b = count(emp_no), b = max(emp_no) by b = languages
+            | sort b
+            """);
+
+        var topN = as(plan, TopN.class);
+        var agg = as(topN.child(), Aggregate.class);
+        var aggregates = agg.aggregates();
+        assertThat(aggregates, hasSize(1));
+        assertThat(Expressions.names(aggregates), contains("b"));
     }
 
     /**
@@ -3072,6 +3118,115 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
         assertThat(Expressions.names(agg.output()), contains("count(salary + 1)", "max(salary   +  23)", "languages   + 1", "emp_no %  3"));
+    }
+
+    /**
+     * Expects
+     * Limit[1000[INTEGER]]
+     * \_Aggregate[[g{r}#8],[COUNT($$emp_no_%_2_+_la>$COUNT$0{r}#20) AS c, g{r}#8]]
+     *   \_Eval[[emp_no{f}#10 % 2[INTEGER] AS g, languages{f}#13 + emp_no{f}#10 % 2[INTEGER] AS $$emp_no_%_2_+_la>$COUNT$0]]
+     *     \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     */
+    public void testNestedExpressionsWithGroupingKeyInAggs() {
+        var plan = optimizedPlan("""
+            from test
+            | stats c = count(languages + emp_no % 2) by g = emp_no % 2
+            """);
+
+        var limit = as(plan, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.aggregates()), contains("c", "g"));
+        assertThat(Expressions.names(aggregate.groupings()), contains("g"));
+        var eval = as(aggregate.child(), Eval.class);
+        var fields = eval.fields();
+        // emp_no % 2
+        var value = Alias.unwrap(fields.get(0));
+        var math = as(value, Mod.class);
+        assertThat(Expressions.name(math.left()), is("emp_no"));
+        assertThat(math.right().fold(), is(2));
+        // languages + emp_no % 2
+        var add = as(Alias.unwrap(fields.get(1).canonical()), Add.class);
+        if (add.left() instanceof Mod mod) {
+            add = add.swapLeftAndRight();
+        }
+        assertThat(Expressions.name(add.left()), is("languages"));
+        var mod = as(add.right().canonical(), Mod.class);
+        assertThat(Expressions.name(mod.left()), is("emp_no"));
+        assertThat(mod.right().fold(), is(2));
+    }
+
+    /**
+     * Expects
+     * Limit[1000[INTEGER]]
+     * \_Aggregate[[emp_no % 2{r}#12, languages + salary{r}#15],[MAX(languages + salary{r}#15) AS m, COUNT($$languages_+_sal>$COUN
+     * T$0{r}#28) AS c, emp_no % 2{r}#12, languages + salary{r}#15]]
+     *   \_Eval[[emp_no{f}#18 % 2[INTEGER] AS emp_no % 2, languages{f}#21 + salary{f}#23 AS languages + salary, languages{f}#2
+     * 1 + salary{f}#23 + emp_no{f}#18 % 2[INTEGER] AS $$languages_+_sal>$COUNT$0]]
+     *     \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
+     */
+    public void testNestedExpressionsWithMultiGrouping() {
+        var plan = optimizedPlan("""
+            from test
+            | stats m = max(languages + salary), c = count(languages + salary + emp_no % 2) by emp_no % 2, languages + salary
+            """);
+
+        var limit = as(plan, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.aggregates()), contains("m", "c", "emp_no % 2", "languages + salary"));
+        assertThat(Expressions.names(aggregate.groupings()), contains("emp_no % 2", "languages + salary"));
+        var eval = as(aggregate.child(), Eval.class);
+        var fields = eval.fields();
+        // emp_no % 2
+        var value = Alias.unwrap(fields.get(0).canonical());
+        var math = as(value, Mod.class);
+        assertThat(Expressions.name(math.left()), is("emp_no"));
+        assertThat(math.right().fold(), is(2));
+        // languages + salary
+        var add = as(Alias.unwrap(fields.get(1).canonical()), Add.class);
+        assertThat(Expressions.name(add.left()), anyOf(is("languages"), is("salary")));
+        assertThat(Expressions.name(add.right()), anyOf(is("salary"), is("languages")));
+        // languages + salary + emp_no % 2
+        var add2 = as(Alias.unwrap(fields.get(2).canonical()), Add.class);
+        if (add2.left() instanceof Mod mod) {
+            add2 = add2.swapLeftAndRight();
+        }
+        var add3 = as(add2.left().canonical(), Add.class);
+        var mod = as(add2.right().canonical(), Mod.class);
+        // languages + salary
+        assertThat(Expressions.name(add3.left()), anyOf(is("languages"), is("salary")));
+        assertThat(Expressions.name(add3.right()), anyOf(is("salary"), is("languages")));
+        // emp_no % 2
+        assertThat(Expressions.name(mod.left()), is("emp_no"));
+        assertThat(mod.right().fold(), is(2));
+    }
+
+    /**
+     * Expects
+     * Project[[e{r}#5, languages + emp_no{r}#8]]
+     * \_Eval[[$$MAX$max(languages_+>$0{r}#20 + 1[INTEGER] AS e]]
+     *   \_Limit[1000[INTEGER]]
+     *     \_Aggregate[[languages + emp_no{r}#8],[MAX(emp_no{f}#10 + languages{f}#13) AS $$MAX$max(languages_+>$0, languages + emp_no{
+     * r}#8]]
+     *       \_Eval[[languages{f}#13 + emp_no{f}#10 AS languages + emp_no]]
+     *         \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     */
+    public void testNestedExpressionsInStatsWithExpression() {
+        var plan = optimizedPlan("""
+            from test
+            | stats e = max(languages + emp_no) + 1 by languages + emp_no
+            """);
+
+        var project = as(plan, Project.class);
+        var eval = as(project.child(), Eval.class);
+        var fields = eval.fields();
+        assertThat(Expressions.names(fields), contains("e"));
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var groupings = agg.groupings();
+        assertThat(Expressions.names(groupings), contains("languages + emp_no"));
+        eval = as(agg.child(), Eval.class);
+        fields = eval.fields();
+        assertThat(Expressions.names(fields), contains("languages + emp_no"));
     }
 
     public void testLogicalPlanOptimizerVerifier() {

@@ -70,8 +70,11 @@ public class ShrinkAction implements LifecycleAction {
         return PARSER.parse(parser, null);
     }
 
-    public ShrinkAction(@Nullable Integer numberOfShards, @Nullable ByteSizeValue maxPrimaryShardSize,
-                        @Nullable Boolean allowWritesOnTarget) {
+    public ShrinkAction(
+        @Nullable Integer numberOfShards,
+        @Nullable ByteSizeValue maxPrimaryShardSize,
+        @Nullable Boolean allowWritesOnTarget
+    ) {
         if (numberOfShards != null && maxPrimaryShardSize != null) {
             throw new IllegalArgumentException("Cannot set both [number_of_shards] and [max_primary_shard_size]");
         }
@@ -113,6 +116,10 @@ public class ShrinkAction implements LifecycleAction {
 
     public ByteSizeValue getMaxPrimaryShardSize() {
         return maxPrimaryShardSize;
+    }
+
+    public Boolean getAllowWritesOnTarget() {
+        return allowWritesOnTarget;
     }
 
     @Override

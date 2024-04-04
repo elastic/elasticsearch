@@ -34,8 +34,14 @@ public class ShrinkStep extends AsyncActionStep {
     private ByteSizeValue maxPrimaryShardSize;
     private Boolean allowWritesOnTarget;
 
-    public ShrinkStep(StepKey key, StepKey nextStepKey, Client client, Integer numberOfShards,
-                      ByteSizeValue maxPrimaryShardSize, Boolean allowWritesOnTarget) {
+    public ShrinkStep(
+        StepKey key,
+        StepKey nextStepKey,
+        Client client,
+        Integer numberOfShards,
+        ByteSizeValue maxPrimaryShardSize,
+        Boolean allowWritesOnTarget
+    ) {
         super(key, nextStepKey, client);
         this.numberOfShards = numberOfShards;
         this.maxPrimaryShardSize = maxPrimaryShardSize;
@@ -53,6 +59,10 @@ public class ShrinkStep extends AsyncActionStep {
 
     public ByteSizeValue getMaxPrimaryShardSize() {
         return maxPrimaryShardSize;
+    }
+
+    public Boolean getAllowWritesOnTarget() {
+        return allowWritesOnTarget;
     }
 
     @Override

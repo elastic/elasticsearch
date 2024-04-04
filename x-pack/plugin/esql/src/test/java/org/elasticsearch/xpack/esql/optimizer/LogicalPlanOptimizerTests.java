@@ -3190,8 +3190,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         if (add2.left() instanceof Mod mod) {
             add2 = add2.swapLeftAndRight();
         }
-        var add3 = as(add2.left().canonical(), Add.class);
-        var mod = as(add2.right().canonical(), Mod.class);
+        var add3 = as(add2.left(), Add.class);
+        var mod = as(add2.right(), Mod.class);
         // languages + salary
         assertThat(Expressions.name(add3.left()), anyOf(is("languages"), is("salary")));
         assertThat(Expressions.name(add3.right()), anyOf(is("salary"), is("languages")));

@@ -1322,3 +1322,27 @@ s2point1:d | s_mv:i | languages:i
 2.1        | 3      | 5
 2.1        | 3      | null
 ;
+
+minWithSortExpression1
+FROM employees | STATS min = min(salary) by languages | SORT min + languages;
+
+     min:i     |   languages:i   
+25324          |5              
+25976          |1              
+26436          |3              
+27215          |4              
+29175          |2              
+28336          |null           
+;
+
+minWithSortExpression2
+FROM employees | STATS min = min(salary) by languages | SORT min + CASE(languages == 5, 655, languages);
+
+     min:i     |   languages:i   
+25976          |1              
+25324          |5              
+26436          |3              
+27215          |4              
+29175          |2              
+28336          |null           
+;

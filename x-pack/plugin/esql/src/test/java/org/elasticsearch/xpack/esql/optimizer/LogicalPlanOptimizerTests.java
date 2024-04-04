@@ -64,7 +64,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -3537,15 +3536,149 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      *
      * For DISSECT expects the following; the others are similar.
      *
-     * EsqlProject[[first_name{f}#37, emp_no{r}#33, salary{r}#34]]
-     * \_TopN[[Order[$$emp_no$temp_name$36{r}#46 + $$salary$temp_name$41{r}#47 * 13[INTEGER],ASC,LAST], Order[NEG($$salary$t
-     * emp_name$41{r}#47),DESC,FIRST]],3[INTEGER]]
-     *   \_Dissect[first_name{f}#37,Parser[pattern=%{emp_no} %{salary}, appendSeparator=, parser=org.elasticsearch.dissect.Dissect
-     * Parser@b6858b],[emp_no{r}#33, salary{r}#34]]
-     *     \_Eval[[emp_no{f}#36 AS $$emp_no$temp_name$36, salary{f}#41 AS $$salary$temp_name$41]]
+     * Project[[first_name{f}#37, emp_no{r}#30, salary{r}#31]]
+     * \_TopN[[Order[$$order_by$temp_name$0{r}#46,ASC,LAST], Order[$$order_by$temp_name$1{r}#47,DESC,FIRST]],3[INTEGER]]
+     *   \_Dissect[first_name{f}#37,Parser[pattern=%{emp_no} %{salary}, appendSeparator=,
+     *   parser=org.elasticsearch.dissect.DissectParser@87f460f],[emp_no{r}#30, salary{r}#31]]
+     *     \_Eval[[emp_no{f}#36 + salary{f}#41 * 13[INTEGER] AS $$order_by$temp_name$0, NEG(salary{f}#41) AS $$order_by$temp_name$1]]
      *       \_EsRelation[test][_meta_field{f}#42, emp_no{f}#36, first_name{f}#37, ..]
      */
     public void testPushdownWithOverwrittenName() {
+        List<String> overwritingCommands = List.of(
+            "EVAL emp_no = 3*emp_no, salary = -2*emp_no-salary",
+            "DISSECT first_name \"%{emp_no} %{salary}\"",
+            "GROK first_name \"%{WORD:emp_no} %{WORD:salary}\"",
+            "ENRICH languages_idx ON first_name WITH emp_no = language_code, salary = language_code"
+        );
+
+        String queryTemplateKeepAfter = """
+            FROM test
+            | SORT emp_no ASC nulls first, salary DESC nulls last, emp_no
+            | {}
+            | KEEP first_name, emp_no, salary
+            | LIMIT 3
+            """;
+        // Equivalent but with KEEP first - ensures that attributes in the final projection are correct after pushdown rules were applied.
+        String queryTemplateKeepFirst = """
+            FROM test
+            | KEEP emp_no, salary, first_name
+            | SORT emp_no ASC nulls first, salary DESC nulls last, emp_no
+            | {}
+            | LIMIT 3
+            """;
+
+        for (String overwritingCommand : overwritingCommands) {
+            String queryTemplate = randomBoolean() ? queryTemplateKeepFirst : queryTemplateKeepAfter;
+            var plan = optimizedPlan(LoggerMessageFormat.format(null, queryTemplate, overwritingCommand));
+
+            var project = as(plan, Project.class);
+            var projections = project.projections();
+            assertThat(projections.size(), equalTo(3));
+            assertThat(projections.get(0).name(), equalTo("first_name"));
+            assertThat(projections.get(1).name(), equalTo("emp_no"));
+            assertThat(projections.get(2).name(), equalTo("salary"));
+
+            var topN = as(project.child(), TopN.class);
+            assertThat(topN.order().size(), is(3));
+
+            var firstOrder = as(topN.order().get(0), Order.class);
+            assertThat(firstOrder.direction(), equalTo(org.elasticsearch.xpack.ql.expression.Order.OrderDirection.ASC));
+            assertThat(firstOrder.nullsPosition(), equalTo(org.elasticsearch.xpack.ql.expression.Order.NullsPosition.FIRST));
+            var renamed_emp_no = as(firstOrder.child(), ReferenceAttribute.class);
+            assertThat(renamed_emp_no.toString(), startsWith("$$emp_no$temp_name"));
+
+            var secondOrder = as(topN.order().get(1), Order.class);
+            assertThat(secondOrder.direction(), equalTo(org.elasticsearch.xpack.ql.expression.Order.OrderDirection.DESC));
+            assertThat(secondOrder.nullsPosition(), equalTo(org.elasticsearch.xpack.ql.expression.Order.NullsPosition.LAST));
+            var renamed_salary = as(secondOrder.child(), ReferenceAttribute.class);
+            assertThat(renamed_salary.toString(), startsWith("$$salary$temp_name"));
+
+            var thirdOrder = as(topN.order().get(2), Order.class);
+            assertThat(thirdOrder.direction(), equalTo(org.elasticsearch.xpack.ql.expression.Order.OrderDirection.ASC));
+            assertThat(thirdOrder.nullsPosition(), equalTo(org.elasticsearch.xpack.ql.expression.Order.NullsPosition.LAST));
+            var renamed_emp_no2 = as(thirdOrder.child(), ReferenceAttribute.class);
+            assertThat(renamed_emp_no2.toString(), startsWith("$$emp_no$temp_name"));
+
+            assert (renamed_emp_no2.semanticEquals(renamed_emp_no) && renamed_emp_no2.equals(renamed_emp_no));
+
+            Eval renamingEval = null;
+            if (overwritingCommand.startsWith("EVAL")) {
+                // Multiple EVALs should be merged, so there's only one.
+                renamingEval = as(topN.child(), Eval.class);
+            }
+            if (overwritingCommand.startsWith("DISSECT")) {
+                var dissect = as(topN.child(), Dissect.class);
+                renamingEval = as(dissect.child(), Eval.class);
+            }
+            if (overwritingCommand.startsWith("GROK")) {
+                var grok = as(topN.child(), Grok.class);
+                renamingEval = as(grok.child(), Eval.class);
+            }
+            if (overwritingCommand.startsWith("ENRICH")) {
+                var enrich = as(topN.child(), Enrich.class);
+                renamingEval = as(enrich.child(), Eval.class);
+            }
+
+            AttributeSet attributesCreatedInEval = new AttributeSet();
+            for (Alias field : renamingEval.fields()) {
+                attributesCreatedInEval.add(field.toAttribute());
+            }
+            assert (attributesCreatedInEval.contains(renamed_emp_no));
+            assert (attributesCreatedInEval.contains(renamed_salary));
+            assert (attributesCreatedInEval.contains(renamed_emp_no2));
+
+            assertThat(renamingEval.child(), instanceOf(EsRelation.class));
+        }
+    }
+
+    /**
+     * Expects
+     * Project[[min{r}#4, languages{f}#11]]
+     * \_TopN[[Order[$$order_by$temp_name$0{r}#18,ASC,LAST]],1000[INTEGER]]
+     *   \_Eval[[min{r}#4 + languages{f}#11 AS $$order_by$temp_name$0]]
+     *     \_Aggregate[[languages{f}#11],[MIN(salary{f}#13) AS min, languages{f}#11]]
+     *       \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     */
+    public void testReplaceSortByExpressionsWithStats() {
+        var plan = optimizedPlan("""
+            from test
+            | stats min = min(salary) by languages
+            | sort min + languages
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("min", "languages"));
+        var topN = as(project.child(), TopN.class);
+        assertThat(topN.order().size(), is(1));
+
+        var order = as(topN.order().get(0), Order.class);
+        assertThat(order.direction(), equalTo(org.elasticsearch.xpack.ql.expression.Order.OrderDirection.ASC));
+        assertThat(order.nullsPosition(), equalTo(org.elasticsearch.xpack.ql.expression.Order.NullsPosition.LAST));
+        var expression = as(order.child(), ReferenceAttribute.class);
+        assertThat(expression.toString(), startsWith("$$order_by$temp_name$0"));
+
+        var eval = as(topN.child(), Eval.class);
+        var fields = eval.fields();
+        assertThat(Expressions.attribute(fields.get(0)), is(Expressions.attribute(expression)));
+        var aggregate = as(eval.child(), Aggregate.class);
+        var aggregates = aggregate.aggregates();
+        assertThat(Expressions.names(aggregates), contains("min", "languages"));
+        var unwrapped = Alias.unwrap(aggregates.get(0));
+        var min = as(unwrapped, Min.class);
+        as(aggregate.child(), EsRelation.class);
+    }
+
+    /**
+     * For DISSECT expects the following; the others are similar.
+     *
+     * Project[[first_name{f}#37, emp_no{r}#30, salary{r}#31]]
+     * \_TopN[[Order[$$order_by$temp_name$0{r}#46,ASC,LAST], Order[$$order_by$temp_name$1{r}#47,DESC,FIRST]],3[INTEGER]]
+     *   \_Dissect[first_name{f}#37,Parser[pattern=%{emp_no} %{salary}, appendSeparator=,
+     *   parser=org.elasticsearch.dissect.DissectParser@87f460f],[emp_no{r}#30, salary{r}#31]]
+     *     \_Eval[[emp_no{f}#36 + salary{f}#41 * 13[INTEGER] AS $$order_by$temp_name$0, NEG(salary{f}#41) AS $$order_by$temp_name$1]]
+     *       \_EsRelation[test][_meta_field{f}#42, emp_no{f}#36, first_name{f}#37, ..]
+     */
+    public void testReplaceSortByExpressions() {
         List<String> overwritingCommands = List.of(
             "EVAL emp_no = 3*emp_no, salary = -2*emp_no-salary",
             "DISSECT first_name \"%{emp_no} %{salary}\"",
@@ -3584,17 +3717,16 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             assertThat(topN.order().size(), is(2));
 
             var firstOrderExpr = as(topN.order().get(0), Order.class);
-            var mul = as(firstOrderExpr.child(), Mul.class);
-            var add = as(mul.left(), Add.class);
-            var renamed_emp_no = as(add.left(), ReferenceAttribute.class);
-            var renamed_salary = as(add.right(), ReferenceAttribute.class);
-            assertThat(renamed_emp_no.toString(), startsWith("$$emp_no$temp_name"));
-            assertThat(renamed_salary.toString(), startsWith("$$salary$temp_name"));
+            assertThat(firstOrderExpr.direction(), equalTo(org.elasticsearch.xpack.ql.expression.Order.OrderDirection.ASC));
+            assertThat(firstOrderExpr.nullsPosition(), equalTo(org.elasticsearch.xpack.ql.expression.Order.NullsPosition.LAST));
+            var renamedEmpNoSalaryExpression = as(firstOrderExpr.child(), ReferenceAttribute.class);
+            assertThat(renamedEmpNoSalaryExpression.toString(), startsWith("$$order_by$temp_name$0"));
 
             var secondOrderExpr = as(topN.order().get(1), Order.class);
-            var neg = as(secondOrderExpr.child(), Neg.class);
-            var renamed_salary2 = as(neg.field(), ReferenceAttribute.class);
-            assert (renamed_salary2.semanticEquals(renamed_salary) && renamed_salary2.equals(renamed_salary));
+            assertThat(secondOrderExpr.direction(), equalTo(org.elasticsearch.xpack.ql.expression.Order.OrderDirection.DESC));
+            assertThat(secondOrderExpr.nullsPosition(), equalTo(org.elasticsearch.xpack.ql.expression.Order.NullsPosition.FIRST));
+            var renamedNegatedSalaryExpression = as(secondOrderExpr.child(), ReferenceAttribute.class);
+            assertThat(renamedNegatedSalaryExpression.toString(), startsWith("$$order_by$temp_name$1"));
 
             Eval renamingEval = null;
             if (overwritingCommand.startsWith("EVAL")) {
@@ -3618,8 +3750,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             for (Alias field : renamingEval.fields()) {
                 attributesCreatedInEval.add(field.toAttribute());
             }
-            assert (attributesCreatedInEval.contains(renamed_emp_no));
-            assert (attributesCreatedInEval.contains(renamed_salary));
+            assert (attributesCreatedInEval.contains(renamedEmpNoSalaryExpression));
+            assert (attributesCreatedInEval.contains(renamedNegatedSalaryExpression));
 
             assertThat(renamingEval.child(), instanceOf(EsRelation.class));
         }

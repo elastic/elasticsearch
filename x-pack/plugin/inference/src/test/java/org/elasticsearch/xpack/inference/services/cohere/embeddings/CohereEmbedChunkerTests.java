@@ -5,15 +5,10 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.cohere;
+package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
-import java.util.List;
+import org.elasticsearch.test.ESTestCase;
 
-public class CohereEmbedChunker {
+public class CohereEmbedChunkerTests extends ESTestCase {
 
-    public static final int MAX_NUM_INPUTS_PER_CALL = 96;
-
-    public void batch(List<String> inputs) {
-        
-    }
 }

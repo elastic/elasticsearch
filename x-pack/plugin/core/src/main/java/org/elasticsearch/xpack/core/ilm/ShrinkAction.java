@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.shrink.ResizeNumberOfShardsCalculator;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.client.internal.Client;
@@ -41,12 +42,13 @@ public class ShrinkAction implements LifecycleAction {
     public static final String NAME = "shrink";
     public static final ParseField NUMBER_OF_SHARDS_FIELD = new ParseField("number_of_shards");
     public static final ParseField MAX_PRIMARY_SHARD_SIZE = new ParseField("max_primary_shard_size");
+    public static final ParseField ALLOW_WRITES_ON_TARGET = new ParseField("allow_writes_on_target");
     public static final String CONDITIONAL_SKIP_SHRINK_STEP = BranchingStep.NAME + "-check-prerequisites";
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
 
     private static final ConstructingObjectParser<ShrinkAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
-        a -> new ShrinkAction((Integer) a[0], (ByteSizeValue) a[1])
+        a -> new ShrinkAction((Integer) a[0], (ByteSizeValue) a[1], (Boolean) a[2])
     );
 
     static {
@@ -57,16 +59,19 @@ public class ShrinkAction implements LifecycleAction {
             MAX_PRIMARY_SHARD_SIZE,
             ObjectParser.ValueType.STRING
         );
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_WRITES_ON_TARGET);
     }
 
     private Integer numberOfShards;
     private ByteSizeValue maxPrimaryShardSize;
+    private Boolean allowWritesOnTarget;
 
     public static ShrinkAction parse(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
-    public ShrinkAction(@Nullable Integer numberOfShards, @Nullable ByteSizeValue maxPrimaryShardSize) {
+    public ShrinkAction(@Nullable Integer numberOfShards, @Nullable ByteSizeValue maxPrimaryShardSize,
+                        @Nullable Boolean allowWritesOnTarget) {
         if (numberOfShards != null && maxPrimaryShardSize != null) {
             throw new IllegalArgumentException("Cannot set both [number_of_shards] and [max_primary_shard_size]");
         }
@@ -84,6 +89,7 @@ public class ShrinkAction implements LifecycleAction {
             }
             this.numberOfShards = numberOfShards;
         }
+        this.allowWritesOnTarget = allowWritesOnTarget;
     }
 
     public ShrinkAction(StreamInput in) throws IOException {
@@ -93,6 +99,11 @@ public class ShrinkAction implements LifecycleAction {
         } else {
             this.numberOfShards = null;
             this.maxPrimaryShardSize = ByteSizeValue.readFrom(in);
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ILM_SHRINK_WRITE)) {
+            this.allowWritesOnTarget = in.readOptionalBoolean();
+        } else {
+            this.allowWritesOnTarget = null;
         }
     }
 
@@ -113,6 +124,9 @@ public class ShrinkAction implements LifecycleAction {
         } else {
             maxPrimaryShardSize.writeTo(out);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ILM_SHRINK_WRITE)) {
+            out.writeOptionalBoolean(this.allowWritesOnTarget);
+        }
     }
 
     @Override
@@ -128,6 +142,9 @@ public class ShrinkAction implements LifecycleAction {
         }
         if (maxPrimaryShardSize != null) {
             builder.field(MAX_PRIMARY_SHARD_SIZE.getPreferredName(), maxPrimaryShardSize);
+        }
+        if (allowWritesOnTarget != null) {
+            builder.field(ALLOW_WRITES_ON_TARGET.getPreferredName(), allowWritesOnTarget);
         }
         builder.endObject();
         return builder;
@@ -241,7 +258,7 @@ public class ShrinkAction implements LifecycleAction {
             new CheckShrinkReadyStep(allocationRoutedKey, shrinkKey),
             setSingleNodeKey
         );
-        ShrinkStep shrink = new ShrinkStep(shrinkKey, enoughShardsKey, client, numberOfShards, maxPrimaryShardSize);
+        ShrinkStep shrink = new ShrinkStep(shrinkKey, enoughShardsKey, client, numberOfShards, maxPrimaryShardSize, allowWritesOnTarget);
 
         // wait until the shrunk index is recovered. we again wait until the configured threshold is breached and if the shrunk index has
         // not successfully recovered until then, we rewind to the "cleanup-shrink-index" step to delete this unsuccessful shrunk index

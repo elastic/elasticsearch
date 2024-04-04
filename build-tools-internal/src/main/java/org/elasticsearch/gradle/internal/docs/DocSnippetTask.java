@@ -145,7 +145,7 @@ public class DocSnippetTask extends DefaultTask {
             List<String> linesList = lines.collect(Collectors.toList());
             for (int lineNumber = 0; lineNumber < linesList.size(); lineNumber++) {
                 String line = linesList.get(lineNumber);
-                if (SNIPPET_PATTERN.matcher(line).matches()) { // .matches() in Java works like ==~ in Groovy
+                if (SNIPPET_PATTERN.matcher(line).matches()) {
                     if (snippet == null) {
                         Path path = rootDir.toPath().relativize(docFile.toPath());
                         snippet = new Snippet(path, lineNumber, name);
@@ -229,7 +229,6 @@ public class DocSnippetTask extends DefaultTask {
             }
             snippet.testResponse = true;
             if (matcher.group(2) != null) {
-
                 String loc = name + ":" + lineNumber;
                 parse(
                     loc,
@@ -318,9 +317,7 @@ public class DocSnippetTask extends DefaultTask {
         cutOut.append(s.substring(offset - 6, offset));
         cutOut.append('*');
         cutOut.append(s.substring(offset, Math.min(offset + 5, s.length())));
-
         String cutOutNoNl = cutOut.toString().replace("\n", "\\n");
-
         throw new InvalidUserDataException(
             location + ": Extra content " + message + " ('" + cutOutNoNl + "') matching [" + pattern + "]: " + s
         );

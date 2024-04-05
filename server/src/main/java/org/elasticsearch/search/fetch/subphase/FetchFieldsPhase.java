@@ -88,9 +88,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                 if (fieldFetcher != null) {
                     fieldFetcher.setNextReader(readerContext);
                 }
-                if (metadataFieldFetcher != null) {
-                    metadataFieldFetcher.setNextReader(readerContext);
-                }
+                metadataFieldFetcher.setNextReader(readerContext);
             }
 
             @Override
@@ -106,9 +104,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                 final Map<String, DocumentField> fields = fieldFetcher != null
                     ? fieldFetcher.fetch(hitContext.source(), hitContext.docId())
                     : Collections.emptyMap();
-                final Map<String, DocumentField> metadataFields = metadataFieldFetcher != null
-                    ? metadataFieldFetcher.fetch(hitContext.source(), hitContext.docId())
-                    : Collections.emptyMap();
+                final Map<String, DocumentField> metadataFields = metadataFieldFetcher.fetch(hitContext.source(), hitContext.docId());
                 hitContext.hit().addDocumentFields(fields, metadataFields);
             }
         };

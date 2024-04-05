@@ -1211,10 +1211,6 @@ public abstract class FieldMapper extends Mapper {
             conflicts.add("Cannot update parameter [" + parameter + "] from [" + existing + "] to [" + toMerge + "]");
         }
 
-        public boolean hasConflicts() {
-            return conflicts.isEmpty() == false;
-        }
-
         public void check() {
             if (conflicts.isEmpty()) {
                 return;

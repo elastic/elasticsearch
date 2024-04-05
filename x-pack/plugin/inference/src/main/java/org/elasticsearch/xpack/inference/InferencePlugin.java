@@ -23,7 +23,6 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -55,7 +54,6 @@ import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceSettings;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
@@ -278,14 +276,6 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     public Map<String, Mapper.TypeParser> getMappers() {
         if (SemanticTextFeature.isEnabled()) {
             return Map.of(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.PARSER);
-        }
-        return Map.of();
-    }
-
-    @Override
-    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-        if (SemanticTextFeature.isEnabled()) {
-            return Map.of(InferenceMetadataFieldMapper.NAME, InferenceMetadataFieldMapper.PARSER);
         }
         return Map.of();
     }

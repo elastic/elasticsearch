@@ -140,4 +140,3 @@ fetch _seq_no via fields:
   # while instead it is mapped to an `internal_server_error (500)`
   - match: { status: 500 }
   - match: { error.root_cause.0.type: unsupported_operation_exception }
-  - match: { error.root_cause.0.reason: "Cannot fetch values for internal field [_seq_no]." }

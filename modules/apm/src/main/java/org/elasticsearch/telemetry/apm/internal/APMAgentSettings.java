@@ -259,8 +259,8 @@ public class APMAgentSettings {
     @Deprecated
     public static final Setting<List<String>> TRACING_APM_NAMES_INCLUDE_SETTING = Setting.stringListSetting(
         LEGACY_TRACING_APM_SETTING_PREFIX + "names.include",
-        NodeScope,
         OperatorDynamic,
+        NodeScope,
         DeprecatedWarning
     );
 
@@ -268,8 +268,8 @@ public class APMAgentSettings {
         TELEMETRY_SETTING_PREFIX + "tracing.names.include",
         TRACING_APM_NAMES_INCLUDE_SETTING,
         Function.identity(),
-        NodeScope,
-        OperatorDynamic
+        OperatorDynamic,
+        NodeScope
     );
 
     /**
@@ -278,8 +278,8 @@ public class APMAgentSettings {
     @Deprecated
     public static final Setting<List<String>> TRACING_APM_NAMES_EXCLUDE_SETTING = Setting.stringListSetting(
         LEGACY_TRACING_APM_SETTING_PREFIX + "names.exclude",
-        NodeScope,
         OperatorDynamic,
+        NodeScope,
         DeprecatedWarning
     );
 
@@ -287,8 +287,8 @@ public class APMAgentSettings {
         TELEMETRY_SETTING_PREFIX + "tracing.names.exclude",
         TRACING_APM_NAMES_EXCLUDE_SETTING,
         Function.identity(),
-        NodeScope,
-        OperatorDynamic
+        OperatorDynamic,
+        NodeScope
     );
 
     /**
@@ -311,8 +311,8 @@ public class APMAgentSettings {
             "*principal*",
             "set-cookie"
         ),
-        NodeScope,
         OperatorDynamic,
+        NodeScope,
         DeprecatedWarning
     );
 
@@ -320,8 +320,8 @@ public class APMAgentSettings {
         TELEMETRY_SETTING_PREFIX + "tracing.sanitize_field_names",
         TRACING_APM_SANITIZE_FIELD_NAMES,
         Function.identity(),
-        NodeScope,
-        OperatorDynamic
+        OperatorDynamic,
+        NodeScope
     );
 
     /**
@@ -331,23 +331,23 @@ public class APMAgentSettings {
     public static final Setting<Boolean> TRACING_APM_ENABLED_SETTING = Setting.boolSetting(
         LEGACY_TRACING_APM_SETTING_PREFIX + "enabled",
         false,
-        NodeScope,
         OperatorDynamic,
+        NodeScope,
         DeprecatedWarning
     );
 
     public static final Setting<Boolean> TELEMETRY_TRACING_ENABLED_SETTING = Setting.boolSetting(
         TELEMETRY_SETTING_PREFIX + "tracing.enabled",
         TRACING_APM_ENABLED_SETTING,
-        NodeScope,
-        OperatorDynamic
+        OperatorDynamic,
+        NodeScope
     );
 
     public static final Setting<Boolean> TELEMETRY_METRICS_ENABLED_SETTING = Setting.boolSetting(
         TELEMETRY_SETTING_PREFIX + "metrics.enabled",
         false,
-        NodeScope,
-        OperatorDynamic
+        OperatorDynamic,
+        NodeScope
     );
 
     /**

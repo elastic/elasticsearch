@@ -60,7 +60,7 @@ public class RequestTaskTests extends ESTestCase {
 
         var requestTask = new RequestTask(
             OpenAiEmbeddingsExecutableRequestCreatorTests.makeCreator("url", null, "key", "model", null, "id"),
-            List.of("abc"),
+            new DocumentsOnlyInput(List.of("abc")),
             TimeValue.timeValueMillis(1),
             mockThreadPool,
             listener
@@ -80,7 +80,7 @@ public class RequestTaskTests extends ESTestCase {
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         var requestTask = new RequestTask(
             OpenAiEmbeddingsExecutableRequestCreatorTests.makeCreator("url", null, "key", "model", null, "id"),
-            List.of("abc"),
+            new DocumentsOnlyInput(List.of("abc")),
             TimeValue.timeValueMillis(1),
             threadPool,
             listener
@@ -106,7 +106,7 @@ public class RequestTaskTests extends ESTestCase {
 
         var requestTask = new RequestTask(
             OpenAiEmbeddingsExecutableRequestCreatorTests.makeCreator("url", null, "key", "model", null, "id"),
-            List.of("abc"),
+            new DocumentsOnlyInput(List.of("abc")),
             TimeValue.timeValueMillis(1),
             threadPool,
             listener
@@ -138,7 +138,7 @@ public class RequestTaskTests extends ESTestCase {
 
         var requestTask = new RequestTask(
             OpenAiEmbeddingsExecutableRequestCreatorTests.makeCreator("url", null, "key", "model", null, "id"),
-            List.of("abc"),
+            new DocumentsOnlyInput(List.of("abc")),
             TimeValue.timeValueMillis(1),
             threadPool,
             listener
@@ -168,7 +168,7 @@ public class RequestTaskTests extends ESTestCase {
 
         var requestTask = new RequestTask(
             OpenAiEmbeddingsExecutableRequestCreatorTests.makeCreator("url", null, "key", "model", null, "id"),
-            List.of("abc"),
+            new DocumentsOnlyInput(List.of("abc")),
             TimeValue.timeValueMillis(1),
             mockThreadPool,
             listener

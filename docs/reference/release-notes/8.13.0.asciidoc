@@ -8,7 +8,7 @@ Also see <<breaking-changes-8.13,Breaking changes in 8.13>>.
 === Known issues
 
 * Due to a bug in the bundled JDK 22 nodes might crash abruptly under high memory pressure.
-  We recommend https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elasticsearch.html#jvm-version[downgrading to JDK 21.0.2] asap to mitigate the issue.
+  We recommend <<jvm-version,downgrading to JDK 21.0.2>> asap to mitigate the issue.
 
 * Nodes upgraded to 8.13.0 fail to load downsampling persistent tasks. This prevents them from joining the cluster, blocking its upgrade (issue: {es-issue}106880[#106880])
 +

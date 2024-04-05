@@ -1044,7 +1044,7 @@ FROM employees
 ;
 
 // tag::docsStatsByExpression-result[]
-my_count:long    |LEFT(last_name, 1):keyword
+my_count:long  |LEFT(last_name, 1):keyword
 2              |A                 
 11             |B                 
 5              |C                 
@@ -1186,6 +1186,145 @@ e:i | l:i
 2   | 1
 3   | 2
 4   | 3
+;
+
+nestedAggsOverGroupingExpressionWithoutAlias#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS e = max(languages + emp_no) + 1 by languages + emp_no
+| SORT e
+| LIMIT 3
+;
+
+e:i   | languages + emp_no:i
+10004 | 10003
+10007 | 10006
+10008 | 10007
+;
+
+nestedAggsOverGroupingExpressionMultiGroupWithoutAlias#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS e = max(languages + emp_no + 10) + 1 by languages + emp_no, f = emp_no % 3
+| SORT e, f
+| LIMIT 3
+;
+
+e:i   | languages + emp_no:i | f:i
+10014 | 10003                | 2
+10017 | 10006                | 0
+10018 | 10007                | 0
+;
+
+nestedAggsOverGroupingExpressionWithAlias#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS e = max(languages + emp_no + 10) + 1 by languages + emp_no
+| SORT e
+| LIMIT 3
+;
+
+e:i   | languages + emp_no:i
+10014 | 10003
+10017 | 10006
+10018 | 10007
+;
+
+nestedAggsOverGroupingExpressionWithAlias#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS e = max(a), f = min(a), g = count(a) + 1 by a = languages + emp_no
+| SORT a
+| LIMIT 3
+;
+
+e: i  | f:i   | g:l | a:i
+10003 | 10003 | 2   | 10003
+10006 | 10006 | 2   | 10006
+10007 | 10007 | 3   | 10007
+;
+
+nestedAggsOverGroupingTwiceWithAlias#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS vals = COUNT() BY x = emp_no, x = languages
+| SORT x
+| LIMIT 3
+;
+
+vals: l| x:i
+15     | 1
+19     | 2
+17     | 3
+;
+
+nestedAggsOverGroupingWithAlias#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS e = length(f) + 1, count(*) by f = first_name
+| SORT f
+| LIMIT 3
+;
+
+e:i | count(*):l | f:s
+10  | 1          | Alejandro
+8   | 1          | Amabile
+7   | 1          | Anneke
+;
+
+nestedAggsOverGroupingWithAliasInsideExpression#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS m = max(l), o = min(s) by l = languages, s = salary + 1
+| SORT l, s
+| LIMIT 5
+;
+
+m:i | o:i   | l:i | s:i
+1   | 25977 | 1   | 25977
+1   | 28036 | 1   | 28036
+1   | 34342 | 1   | 34342
+1   | 39111 | 1   | 39111
+1   | 39729 | 1   | 39729
+;
+
+nestedAggsOverGroupingWithAliasAndProjection#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS e = length(f) + 1, c = count(*) by f = first_name
+| KEEP e
+| SORT e
+| LIMIT 5
+;
+
+e:i
+4
+4
+4
+4
+5
+;
+
+nestedAggsOverGroupingAndAggWithAliasAndProjection#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS e = length(f) + count(*), m = max(emp_no) by f = first_name
+| KEEP e
+| SORT e
+| LIMIT 5
+;
+
+e:l
+4
+4
+4
+4
+5  
+;
+
+nestedAggsOverGroupingExpAndAggWithAliasAndProjection#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| STATS e = f + count(*), m = max(emp_no) by f = length(first_name) % 2
+| KEEP e
+| SORT e
+| LIMIT 3
+;
+
+e:l
+44
+47
+null
 ;
 
 defaultNameWithSpace

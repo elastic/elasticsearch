@@ -15,7 +15,6 @@ import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.file.ConfigurableFileTree;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
-import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
@@ -62,7 +61,7 @@ public class DocSnippetTask extends DefaultTask {
      * Action to take on each snippet. Called with a single parameter, an
      * instance of Snippet.
      */
-//    @Internal
+    // @Internal
     Action<Snippet> perSnippet;
 
     /**
@@ -70,10 +69,16 @@ public class DocSnippetTask extends DefaultTask {
      * build.gradle file because that is appropriate for Elasticsearch's docs
      * directory.
      */
-//    @InputFiles
-    ConfigurableFileTree docs;
+    private ConfigurableFileTree docs;
 
+    @InputFiles
+    public ConfigurableFileTree getDocs() {
+        return docs;
+    }
 
+    public void setDocs(ConfigurableFileTree docs) {
+        this.docs = docs;
+    }
 
     /**
      * Substitutions done on every snippet's contents.

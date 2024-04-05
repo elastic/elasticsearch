@@ -16,10 +16,10 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.watcher.WatcherRestTestCase.deleteAllWatcherData;
 import static org.hamcrest.Matchers.is;
 
@@ -39,16 +39,16 @@ public abstract class WatcherYamlSuiteTestCase extends ESClientYamlSuiteTestCase
     @Before
     public final void startWatcher() throws Exception {
         ESTestCase.assertBusy(() -> {
-            ClientYamlTestResponse response = getAdminExecutionContext().callApi("watcher.stats", emptyMap(), emptyList(), emptyMap());
+            ClientYamlTestResponse response = getAdminExecutionContext().callApi("watcher.stats", Map.of(), List.of(), Map.of());
             String state = (String) response.evaluate("stats.0.watcher_state");
 
             switch (state) {
                 case "stopped" -> {
                     ClientYamlTestResponse startResponse = getAdminExecutionContext().callApi(
                         "watcher.start",
-                        emptyMap(),
-                        emptyList(),
-                        emptyMap()
+                        Map.of(),
+                        List.of(),
+                        Map.of()
                     );
                     boolean isAcknowledged = (boolean) startResponse.evaluate("acknowledged");
                     assertThat(isAcknowledged, is(true));
@@ -72,7 +72,7 @@ public abstract class WatcherYamlSuiteTestCase extends ESClientYamlSuiteTestCase
     @After
     public final void stopWatcher() throws Exception {
         ESTestCase.assertBusy(() -> {
-            ClientYamlTestResponse response = getAdminExecutionContext().callApi("watcher.stats", emptyMap(), emptyList(), emptyMap());
+            ClientYamlTestResponse response = getAdminExecutionContext().callApi("watcher.stats", Map.of(), List.of(), Map.of());
             String state = (String) response.evaluate("stats.0.watcher_state");
             switch (state) {
                 case "stopped":
@@ -83,12 +83,7 @@ public abstract class WatcherYamlSuiteTestCase extends ESClientYamlSuiteTestCase
                 case "starting":
                     throw new AssertionError("waiting until starting state reached started state to stop");
                 case "started":
-                    ClientYamlTestResponse stopResponse = getAdminExecutionContext().callApi(
-                        "watcher.stop",
-                        emptyMap(),
-                        emptyList(),
-                        emptyMap()
-                    );
+                    ClientYamlTestResponse stopResponse = getAdminExecutionContext().callApi("watcher.stop", Map.of(), List.of(), Map.of());
                     boolean isAcknowledged = (boolean) stopResponse.evaluate("acknowledged");
                     assertThat(isAcknowledged, is(true));
                     throw new AssertionError("waiting until started state reached stopped state");

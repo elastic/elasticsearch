@@ -262,7 +262,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
               "remote_indices": [
                 {
                   "names": ["employees"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read"],
                   "clusters": ["my_remote_cluster"]
                 }
               ],
@@ -400,9 +400,6 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "cross-clusters search should not require local index permissions")
-    // will work if you add change "indices": [] to : "indices": [ { "names": [""], "privileges": ["indices:data/read/esql"] } ]
-    // however that should not be required to executed search across clusters
     public void testCrossClusterQueryWithOnlyRemotePrivs() throws Exception {
         configureRemoteCluster();
         populateData();
@@ -412,11 +409,11 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
 
         putRoleRequest.setJsonEntity("""
             {
-              "indices": [],
+              "indices": [{"names": [""], "privileges": ["read_cross_cluster"]}],
               "remote_indices": [
                 {
                   "names": ["employees"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read"],
                   "clusters": ["my_remote_cluster"]
                 }
               ]
@@ -480,7 +477,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
 //                  "remote_indices": [
 //                    {
 //                      "names": ["employees"],
-//                      "privileges": ["read", "read_cross_cluster"],
+//                      "privileges": ["read"],
 //                      "clusters": ["my_remote_cluster"]
 //                    }
 //                  ]
@@ -529,7 +526,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
               "remote_indices": [
                 {
                   "names": ["employees"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read"],
                   "clusters": ["my_remote_cluster"]
                 }
               ],

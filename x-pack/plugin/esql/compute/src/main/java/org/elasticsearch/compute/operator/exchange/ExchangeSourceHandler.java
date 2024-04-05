@@ -203,6 +203,7 @@ public final class ExchangeSourceHandler {
                 }
                 return first;
             });
+            buffer.waitForReading().onResponse(null); // resume the Driver if it is being blocked on reading
             onSinkComplete();
         }
 

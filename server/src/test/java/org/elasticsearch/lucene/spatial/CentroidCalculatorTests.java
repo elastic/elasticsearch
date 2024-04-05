@@ -427,6 +427,7 @@ public abstract class CentroidCalculatorTests extends ESTestCase {
             // Most data (notably geo data) has values within bounds, and an absolute delta makes more sense.
             double delta = (value > 1e28 || value < -1e28) ? Math.abs(value / 1e6)
                 : (value > 1e20 || value < -1e20) ? Math.abs(value / 1e10)
+                : (value > 1e10 || value < -1e10) ? Math.abs(value / 1e15)
                 : DELTA;
             return closeTo(value, delta);
         }

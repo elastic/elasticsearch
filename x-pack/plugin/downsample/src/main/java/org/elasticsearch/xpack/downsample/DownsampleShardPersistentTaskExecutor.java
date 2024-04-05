@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
@@ -260,7 +261,7 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
             super(NAME);
         }
 
-        public static class Request extends ActionRequest implements IndicesRequest {
+        public static class Request extends ActionRequest implements IndicesRequest.RemoteClusterShardRequest {
 
             private final DownsampleShardTask task;
             private final BytesRef lastDownsampleTsid;
@@ -290,6 +291,11 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
             @Override
             public void writeTo(StreamOutput out) {
                 throw new IllegalStateException("request should stay local");
+            }
+
+            @Override
+            public Collection<ShardId> shards() {
+                return Collections.singletonList(task.shardId());
             }
         }
 

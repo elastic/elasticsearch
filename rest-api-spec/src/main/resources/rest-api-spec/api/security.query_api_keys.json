@@ -26,6 +26,11 @@
         "type":"boolean",
         "default":false,
         "description": "flag to show the limited-by role descriptors of API Keys"
+      },
+      "typed_keys":{
+        "type":"boolean",
+        "default":false,
+        "description": "flag to prefix aggregation names by their respective types in the response"
       }
     },
     "body":{

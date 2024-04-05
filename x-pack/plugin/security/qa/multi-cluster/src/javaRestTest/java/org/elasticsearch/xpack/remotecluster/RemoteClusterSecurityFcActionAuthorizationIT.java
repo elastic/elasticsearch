@@ -11,24 +11,36 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -52,6 +64,8 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders;
 import org.junit.ClassRule;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -454,6 +468,78 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         }
     }
 
+    public void testMalformedShardLevelActionIsRejected() throws Exception {
+        final Map<String, Object> crossClusterApiKeyMap = createCrossClusterAccessApiKey(adminClient(), """
+            {
+              "search": [
+                {
+                   "names": ["idx-a", "idx-b"]
+                }
+              ]
+            }""");
+
+        final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
+        bulkRequest.setJsonEntity(Strings.format("""
+            { "index": { "_index": "idx-a", "_id": "1" } }
+            { "name": "doc-1" }
+            { "index": { "_index": "idx-b", "_id": "1" } }
+            { "name": "doc-1" }
+            """));
+        assertOK(adminClient().performRequest(bulkRequest));
+
+        final Request getIndexSettingsRequest = new Request("GET", "/idx-b/_settings");
+        getIndexSettingsRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        final ObjectPath indexSettings = assertOKAndCreateObjectPath(adminClient().performRequest(getIndexSettingsRequest));
+        String otherIndexId = indexSettings.evaluate(".idx-b.settings.index.uuid");
+
+        // Create the malformed request with a mismatch between with the request index and shard ID
+        String indexA = "idx-a";
+
+        try (
+            MockTransportService service = startTransport(
+                "node",
+                threadPool,
+                (String) crossClusterApiKeyMap.get("encoded"),
+                Map.of(TransportGetAction.TYPE.name() + "[s]", buildCrossClusterAccessSubjectInfo(indexA))
+            )
+        ) {
+            final RemoteClusterService remoteClusterService = service.getRemoteClusterService();
+            final List<RemoteConnectionInfo> remoteConnectionInfos = remoteClusterService.getRemoteConnectionInfos().toList();
+            assertThat(remoteConnectionInfos, hasSize(1));
+            assertThat(remoteConnectionInfos.get(0).isConnected(), is(true));
+
+            MalformedGetRequest malformedGetRequest = new MalformedGetRequest(otherIndexId);
+            malformedGetRequest.assertParsesAsGetRequest();
+            final ElasticsearchSecurityException e = expectThrows(
+                ElasticsearchSecurityException.class,
+                () -> executeRemote(
+                    remoteClusterService.getRemoteClusterClient("my_remote_cluster", threadPool.generic()),
+                    new RemoteClusterActionType<GetResponse>(TransportGetAction.TYPE.name() + "[s]", GetResponse::new),
+                    malformedGetRequest
+                )
+            );
+            assertThat(e.getMessage(), containsString("is unauthorized"));
+        }
+
+        ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+        OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
+    }
+
+    private static CrossClusterAccessSubjectInfo buildCrossClusterAccessSubjectInfo(String... indices) throws IOException {
+        return new CrossClusterAccessSubjectInfo(
+            Authentication.newRealmAuthentication(new User("query-user", "role"), new Authentication.RealmRef("file", "file", "node")),
+            new RoleDescriptorsIntersection(
+                new RoleDescriptor(
+                    "cross_cluster",
+                    null,
+                    new RoleDescriptor.IndicesPrivileges[] {
+                        RoleDescriptor.IndicesPrivileges.builder().indices(indices).privileges("read", "read_cross_cluster").build() },
+                    null
+                )
+            )
+        );
+    }
+
     private static MockTransportService startTransport(final String nodeName, final ThreadPool threadPool, String encodedApiKey) {
         return startTransport(nodeName, threadPool, encodedApiKey, Map.of());
     }
@@ -511,5 +597,53 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             }
         }
         return service;
+    }
+
+    private static class MalformedGetRequest extends ActionRequest {
+        private final String otherIndexId;
+
+        MalformedGetRequest(String otherIndexId) {
+            this.otherIndexId = otherIndexId;
+        }
+
+        @Override
+        public ActionRequestValidationException validate() {
+            return null; // this space intentionally left blank
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            // This is a manually-written malformed get request, since it's intentionally difficult to form this kind of
+            // request with production code.
+            TaskId.EMPTY_TASK_ID.writeTo(out);
+            out.writeOptionalWriteable(new ShardId("idx-b", otherIndexId, 0)); // InternalShardId
+            out.writeOptionalString("idx-a"); // index name
+            out.writeString("1"); // doc id
+            out.writeOptionalString(null); // routing
+            out.writeOptionalString(null); // preference
+
+            out.writeBoolean(true); // refresh
+            out.writeOptionalStringArray(null); // stored fields
+            out.writeBoolean(true); // realtime
+            out.writeByte(VersionType.INTERNAL.getValue()); // version type
+            out.writeLong(Versions.MATCH_ANY); // version
+            out.writeOptionalWriteable(null); // fetch source context
+            out.writeBoolean(false); // force synthetic source
+        }
+
+        /**
+         * Checks that this fake request can actually be parsed as a get request. If this assertion fails,
+         * check that the above writeTo method matches GetRequest's streaming methods.
+         */
+        public void assertParsesAsGetRequest() throws Exception {
+            ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+            OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
+            this.writeTo(out);
+            InputStreamStreamInput inputStreamStreamInput = new InputStreamStreamInput(new ByteArrayInputStream(outBuffer.toByteArray()));
+            GetRequest parsedRequest = new GetRequest(inputStreamStreamInput);
+            assertEquals("idx-a", parsedRequest.index());
+            assertEquals("1", parsedRequest.id());
+            assertEquals("idx-b", parsedRequest.shards().get(0).getIndexName());
+        }
     }
 }

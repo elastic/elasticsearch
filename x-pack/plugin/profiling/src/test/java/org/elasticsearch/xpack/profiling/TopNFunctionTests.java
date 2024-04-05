@@ -21,6 +21,8 @@ import java.util.Map;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class TopNFunctionTests extends ESTestCase {
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107117")
     public void testToXContent() throws IOException {
         String fileID = "6tVKI4mSYDEJ-ABAIpYXcg";
         int frameType = 1;

@@ -2,6 +2,8 @@
 
 *Example*
 
+
+
 [source.merge.styled,esql]
 ----
 include::{esql-specs}/floats.csv-spec[tag=asin]

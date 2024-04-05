@@ -898,6 +898,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             ),
             "numeric, date_period or time_duration"
         ),
+        Map.entry(Set.of(DataTypes.DATETIME, DataTypes.NULL), "datetime"),
         Map.entry(Set.of(DataTypes.DOUBLE, DataTypes.NULL), "double"),
         Map.entry(Set.of(DataTypes.INTEGER, DataTypes.NULL), "integer"),
         Map.entry(Set.of(DataTypes.IP, DataTypes.NULL), "ip"),
@@ -987,7 +988,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             Set.of(EsqlDataTypes.CARTESIAN_POINT, EsqlDataTypes.CARTESIAN_SHAPE, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL),
             "cartesian_point or cartesian_shape or string"
         ),
-        Map.entry(Set.of(EsqlDataTypes.GEO_POINT, EsqlDataTypes.CARTESIAN_POINT, DataTypes.NULL), "geo_point or cartesian_point")
+        Map.entry(Set.of(EsqlDataTypes.GEO_POINT, EsqlDataTypes.CARTESIAN_POINT, DataTypes.NULL), "geo_point or cartesian_point"),
+        Map.entry(Set.of(EsqlDataTypes.DATE_PERIOD, EsqlDataTypes.TIME_DURATION, DataTypes.NULL), "dateperiod or timeduration")
     );
 
     // TODO: generate this message dynamically, a la AbstractConvertFunction#supportedTypesNames()?
@@ -1188,6 +1190,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
         for (Example example : info.examples()) {
             builder.append("""
+                $DESCRIPTION$
+
                 [source.merge.styled,esql]
                 ----
                 include::{esql-specs}/$FILE$.csv-spec[tag=$TAG$]
@@ -1196,7 +1200,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 |===
                 include::{esql-specs}/$FILE$.csv-spec[tag=$TAG$-result]
                 |===
-                """.replace("$FILE$", example.file()).replace("$TAG$", example.tag()));
+                """.replace("$FILE$", example.file()).replace("$TAG$", example.tag()).replace("$DESCRIPTION$", example.description()));
         }
         builder.append('\n');
         String rendered = builder.toString();

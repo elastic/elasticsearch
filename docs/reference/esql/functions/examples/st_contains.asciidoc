@@ -2,6 +2,8 @@
 
 *Example*
 
+
+
 [source.merge.styled,esql]
 ----
 include::{esql-specs}/spatial_shapes.csv-spec[tag=st_contains-airport_city_boundaries]

@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -29,7 +28,7 @@ public class VectorSearchIT extends ParameterizedRollingUpgradeTestCase {
     }
 
     private static final String FLOAT_INDEX_NAME = "float_vector_index";
-    private static final String SCRIPT_VECTOR_INDEX_NAME = "float_vector_index";
+    private static final String SCRIPT_VECTOR_INDEX_NAME = "script_vector_index";
     private static final String BYTE_INDEX_NAME = "byte_vector_index";
     private static final String QUANTIZED_INDEX_NAME = "quantized_vector_index";
     private static final String FLOAT_VECTOR_SEARCH_VERSION = "8.4.0";
@@ -55,7 +54,7 @@ public class VectorSearchIT extends ParameterizedRollingUpgradeTestCase {
                 }
                 """;
             createIndex(SCRIPT_VECTOR_INDEX_NAME, Settings.EMPTY, mapping);
-            indexVectors(SCRIPT_VECTOR_INDEX_NAME, 10, "float");
+            indexVectors(SCRIPT_VECTOR_INDEX_NAME);
             // refresh the index
             client().performRequest(new Request("POST", "/" + SCRIPT_VECTOR_INDEX_NAME + "/_refresh"));
         }
@@ -81,10 +80,10 @@ public class VectorSearchIT extends ParameterizedRollingUpgradeTestCase {
             }
             """);
         Map<String, Object> response = search(searchRequest);
-        assertThat(extractValue(response, "hits.total.value"), equalTo(10));
+        assertThat(extractValue(response, "hits.total.value"), equalTo(7));
         List<Map<String, Object>> hits = extractValue(response, "hits.hits");
-        assertThat(hits.get(0).get("_id"), equalTo("3"));
-        assertThat((double) hits.get(0).get("_score"), closeTo(2.0f, 0.0001));
+        assertThat(hits.get(0).get("_id"), equalTo("0"));
+        assertThat((double) hits.get(0).get("_score"), closeTo(1.9869276, 0.0001));
     }
 
     public void testFloatVectorSearch() throws Exception {
@@ -112,7 +111,7 @@ public class VectorSearchIT extends ParameterizedRollingUpgradeTestCase {
                 """;
             // create index and index 10 random floating point vectors
             createIndex(FLOAT_INDEX_NAME, Settings.EMPTY, mapping);
-            indexVectors(FLOAT_INDEX_NAME, 10, "float");
+            indexVectors(FLOAT_INDEX_NAME);
             // refresh the index
             client().performRequest(new Request("POST", "/" + FLOAT_INDEX_NAME + "/_refresh"));
         }
@@ -138,10 +137,10 @@ public class VectorSearchIT extends ParameterizedRollingUpgradeTestCase {
             }
             """);
         Map<String, Object> response = search(searchRequest);
-        assertThat(extractValue(response, "hits.total.value"), equalTo(10));
+        assertThat(extractValue(response, "hits.total.value"), equalTo(7));
         List<Map<String, Object>> hits = extractValue(response, "hits.hits");
-        assertThat(hits.get(0).get("_id"), equalTo("9"));
-        assertThat((double) hits.get(0).get("_score"), closeTo(2.0f, 0.0001));
+        assertThat(hits.get(0).get("_id"), equalTo("0"));
+        assertThat((double) hits.get(0).get("_score"), closeTo(1.9869276, 0.0001));
 
         // search with knn
         searchRequest = new Request("POST", "/" + FLOAT_INDEX_NAME + "/_search");
@@ -158,8 +157,8 @@ public class VectorSearchIT extends ParameterizedRollingUpgradeTestCase {
         response = search(searchRequest);
         assertThat(extractValue(response, "hits.total.value"), equalTo(2));
         hits = extractValue(response, "hits.hits");
-        assertThat(hits.get(0).get("_id"), equalTo("9"));
-        assertThat((double) hits.get(0).get("_score"), closeTo(1.0f, 0.0001));
+        assertThat(hits.get(0).get("_id"), equalTo("2"));
+        assertThat((double) hits.get(0).get("_score"), closeTo(0.028571429, 0.0001));
     }
 
     public void testByteVectorSearch() throws Exception {
@@ -185,7 +184,7 @@ public class VectorSearchIT extends ParameterizedRollingUpgradeTestCase {
                 """;
             // create index and index 10 random floating point vectors
             createIndex(BYTE_INDEX_NAME, Settings.EMPTY, mapping);
-            indexVectors(BYTE_INDEX_NAME, 10, "byte");
+            indexVectors(BYTE_INDEX_NAME);
             // refresh the index
             client().performRequest(new Request("POST", "/" + BYTE_INDEX_NAME + "/_refresh"));
         }
@@ -211,10 +210,10 @@ public class VectorSearchIT extends ParameterizedRollingUpgradeTestCase {
             }
             """);
         Map<String, Object> response = search(searchRequest);
-        assertThat(extractValue(response, "hits.total.value"), equalTo(10));
+        assertThat(extractValue(response, "hits.total.value"), equalTo(7));
         List<Map<String, Object>> hits = extractValue(response, "hits.hits");
-        assertThat(hits.get(0).get("_id"), equalTo("3"));
-        assertThat((double) hits.get(0).get("_score"), closeTo(2.0f, 0.0001));
+        assertThat(hits.get(0).get("_id"), equalTo("0"));
+        assertThat((double) hits.get(0).get("_score"), closeTo(1.9869276, 0.0001));
 
         // search with knn
         searchRequest = new Request("POST", "/" + BYTE_INDEX_NAME + "/_search");
@@ -231,8 +230,8 @@ public class VectorSearchIT extends ParameterizedRollingUpgradeTestCase {
         response = search(searchRequest);
         assertThat(extractValue(response, "hits.total.value"), equalTo(2));
         hits = extractValue(response, "hits.hits");
-        assertThat(hits.get(0).get("_id"), equalTo("3"));
-        assertThat((double) hits.get(0).get("_score"), closeTo(1.0f, 0.0001));
+        assertThat(hits.get(0).get("_id"), equalTo("2"));
+        assertThat((double) hits.get(0).get("_score"), closeTo(0.028571429, 0.0001));
     }
 
     public void testQuantizedVectorSearch() throws Exception {
@@ -260,11 +259,11 @@ public class VectorSearchIT extends ParameterizedRollingUpgradeTestCase {
                 """;
             // create index and index 10 random floating point vectors
             createIndex(QUANTIZED_INDEX_NAME, Settings.EMPTY, mapping);
-            indexVectors(QUANTIZED_INDEX_NAME, 10, "float");
+            indexVectors(QUANTIZED_INDEX_NAME);
             // refresh the index
             client().performRequest(new Request("POST", "/" + QUANTIZED_INDEX_NAME + "/_refresh"));
         }
-        Request searchRequest = new Request("POST", "/" + BYTE_INDEX_NAME + "/_search");
+        Request searchRequest = new Request("POST", "/" + QUANTIZED_INDEX_NAME + "/_search");
         searchRequest.setJsonEntity("""
             {
               "query": {
@@ -285,13 +284,13 @@ public class VectorSearchIT extends ParameterizedRollingUpgradeTestCase {
             }
             """);
         Map<String, Object> response = search(searchRequest);
-        assertThat(extractValue(response, "hits.total.value"), equalTo(10));
+        assertThat(extractValue(response, "hits.total.value"), equalTo(7));
         List<Map<String, Object>> hits = extractValue(response, "hits.hits");
-        assertThat(hits.get(0).get("_id"), equalTo("3"));
-        assertThat((double) hits.get(0).get("_score"), closeTo(2.0f, 0.0001));
+        assertThat(hits.get(0).get("_id"), equalTo("0"));
+        assertThat((double) hits.get(0).get("_score"), closeTo(1.9869276, 0.0001));
 
         // search with knn
-        searchRequest = new Request("POST", "/" + BYTE_INDEX_NAME + "/_search");
+        searchRequest = new Request("POST", "/" + QUANTIZED_INDEX_NAME + "/_search");
         searchRequest.setJsonEntity("""
             {
                 "knn": {
@@ -305,33 +304,24 @@ public class VectorSearchIT extends ParameterizedRollingUpgradeTestCase {
         response = search(searchRequest);
         assertThat(extractValue(response, "hits.total.value"), equalTo(2));
         hits = extractValue(response, "hits.hits");
-        assertThat(hits.get(0).get("_id"), equalTo("3"));
-        assertThat((double) hits.get(0).get("_score"), closeTo(1.0f, 0.0001));
+        assertThat(hits.get(0).get("_id"), equalTo("2"));
+        assertThat((double) hits.get(0).get("_score"), closeTo(0.11111111, 0.0001));
     }
 
-    private void indexVectors(String indexName, int numDocs, String vectorType) throws Exception {
-        for (int i = 0; i < numDocs; i++) {
+    private void indexVectors(String indexName) throws Exception {
+        String[] vectors = new String[] {
+            "{\"vector\":[1, 1, 1]}",
+            "{\"vector\":[1, 1, 2]}",
+            "{\"vector\":[1, 1, 3]}",
+            "{\"vector\":[1, 2, 1]}",
+            "{\"vector\":[1, 3, 1]}",
+            "{\"vector\":[2, 1, 1]}",
+            "{\"vector\":[3, 1, 1]}",
+            "{}" };
+        for (int i = 0; i < vectors.length; i++) {
             Request indexRequest = new Request("PUT", "/" + indexName + "/_doc/" + i);
-            indexRequest.setJsonEntity("{\"vector\": " + randomVector(vectorType, i + 1) + "}");
+            indexRequest.setJsonEntity(vectors[i]);
             assertOK(client().performRequest(indexRequest));
-        }
-    }
-
-    private String randomVector(String vectorType, int value) {
-        if (vectorType.equals("float")) {
-            float[] vector = new float[3];
-            for (int i = 0; i < 3; i++) {
-                vector[i] = i + value;
-            }
-            return Arrays.toString(vector);
-        } else if (vectorType.equals("byte")) {
-            byte[] vector = new byte[3];
-            for (int i = 0; i < 3; i++) {
-                vector[i] = (byte) (i + value);
-            }
-            return Arrays.toString(vector);
-        } else {
-            throw new IllegalArgumentException("Unsupported vector type: " + vectorType);
         }
     }
 

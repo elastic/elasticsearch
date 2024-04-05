@@ -59,8 +59,6 @@ public class RangeFieldMapper extends FieldMapper {
     // this is private since it has a different default
     static final Setting<Boolean> COERCE_SETTING = Setting.boolSetting("index.mapping.coerce", true, Setting.Property.IndexScope);
 
-    private static final String DATE_FORMATTER_PARAM_FOR_RANGE_SERIALIZATION = "date_formatter";
-
     private static RangeFieldMapper toType(FieldMapper in) {
         return (RangeFieldMapper) in;
     }
@@ -490,7 +488,6 @@ public class RangeFieldMapper extends FieldMapper {
         RangeType type;
         Object from;
         Object to;
-
         private final boolean includeFrom;
         private final boolean includeTo;
 
@@ -500,14 +497,6 @@ public class RangeFieldMapper extends FieldMapper {
             this.to = to;
             this.includeFrom = includeFrom;
             this.includeTo = includeTo;
-        }
-
-        public Object getFrom() {
-            return from;
-        }
-
-        public Object getTo() {
-            return to;
         }
 
         @Override
@@ -542,6 +531,14 @@ public class RangeFieldMapper extends FieldMapper {
             sb.append(type == RangeType.IP ? InetAddresses.toAddrString((InetAddress) t) : t.toString());
             sb.append(includeTo ? ']' : ')');
             return sb.toString();
+        }
+
+        public Object getFrom() {
+            return from;
+        }
+
+        public Object getTo() {
+            return to;
         }
 
         public XContentBuilder toXContent(XContentBuilder builder, DateFormatter dateFormatter) throws IOException {

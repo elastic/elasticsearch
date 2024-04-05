@@ -301,8 +301,11 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         };
     }
 
-    // Stores range information as if it was provided by user
-    // with no modifications.
+    /**
+     * Stores range information as if it was provided by user.
+     * Provides an expected value of provided range in synthetic source.
+     * @param <T>
+     */
     protected class TestRange<T extends Comparable<T>> implements Comparable<TestRange<T>> {
         private final RangeType type;
         private final T from;

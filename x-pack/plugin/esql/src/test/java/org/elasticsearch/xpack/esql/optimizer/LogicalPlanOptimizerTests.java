@@ -3002,7 +3002,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(agg.output()), contains("count(salary + 1)", "max(salary   +  23)", "languages   + 1", "emp_no %  3"));
     }
 
-    public void testLogicalPlanOptimizerVerifier() {
+    public void testBucketAcceptsEvalLiteralReferences() {
         var plan = plan("""
             from test
             | eval bucket_start = 1, bucket_end = 100000
@@ -3012,7 +3012,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertTrue(ab.optimized());
     }
 
-    public void testLogicalPlanOptimizerVerificationException() {
+    public void testBucketFailsOnFieldArgument() {
         VerificationException e = expectThrows(VerificationException.class, () -> plan("""
             from test
             | eval bucket_end = 100000

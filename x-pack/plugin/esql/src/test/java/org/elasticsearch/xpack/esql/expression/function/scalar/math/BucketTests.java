@@ -34,7 +34,7 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Autobucket Single date", () -> {
+        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Bucket Single date", () -> {
             List<TestCaseSupplier.TypedData> args = List.of(
                 new TestCaseSupplier.TypedData(
                     DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-02-17T09:00:00.00Z"),
@@ -48,7 +48,7 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
                 DataTypes.DATETIME,
                 dateResultsMatcher(args)
             );
-        }), new TestCaseSupplier("Autobucket Single long", () -> {
+        }), new TestCaseSupplier("Bucket Single long", () -> {
             List<TestCaseSupplier.TypedData> args = List.of(new TestCaseSupplier.TypedData(100L, DataTypes.LONG, "arg"));
             return new TestCaseSupplier.TestCase(
                 args,
@@ -58,7 +58,7 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
                 DataTypes.DOUBLE,
                 numericResultsMatcher(args, 100.0)
             );
-        }), new TestCaseSupplier("Autobucket Single int", () -> {
+        }), new TestCaseSupplier("Bucket Single int", () -> {
             List<TestCaseSupplier.TypedData> args = List.of(new TestCaseSupplier.TypedData(100, DataTypes.INTEGER, "arg"));
             return new TestCaseSupplier.TestCase(
                 args,
@@ -68,7 +68,7 @@ public class BucketTests extends AbstractScalarFunctionTestCase {
                 DataTypes.DOUBLE,
                 numericResultsMatcher(args, 100.0)
             );
-        }), new TestCaseSupplier("Autobucket Single double", () -> {
+        }), new TestCaseSupplier("Bucket Single double", () -> {
             List<TestCaseSupplier.TypedData> args = List.of(new TestCaseSupplier.TypedData(100.0, DataTypes.DOUBLE, "arg"));
             return new TestCaseSupplier.TestCase(
                 args,

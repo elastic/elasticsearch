@@ -118,7 +118,7 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
 
         long periods = period.getUnits().stream().filter(unit -> period.get(unit) != 0).count();
         if (periods != 1) {
-            throw new IllegalArgumentException("Time interval is not supported");
+            throw new IllegalArgumentException("Time interval with multiple periods is not supported");
         }
 
         final Rounding.Builder rounding;

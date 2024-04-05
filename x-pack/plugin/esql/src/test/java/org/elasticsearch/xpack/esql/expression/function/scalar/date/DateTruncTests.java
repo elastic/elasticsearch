@@ -81,7 +81,7 @@ public class DateTruncTests extends AbstractFunctionTestCase {
         assertThat(e.getMessage(), containsString("Zero or negative time interval is not supported"));
 
         e = expectThrows(IllegalArgumentException.class, () -> createRounding(Period.of(0, 1, 1)));
-        assertThat(e.getMessage(), containsString("Time interval is not supported"));
+        assertThat(e.getMessage(), containsString("Time interval with multiple periods is not supported"));
 
         rounding = createRounding(Period.ofDays(1));
         assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.DAY_OF_MONTH), 0d);

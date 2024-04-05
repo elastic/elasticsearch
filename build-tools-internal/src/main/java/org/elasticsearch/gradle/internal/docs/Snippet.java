@@ -111,4 +111,52 @@ public class Snippet {
             }
         }
     }
+
+    @Override
+    public String toString() {
+        String result = path + "["+start +":" + end +"]";
+        if (language != null) {
+            result += "(" + language + ")";
+        }
+        if (console != null) {
+            result += console ? "// CONSOLE" : "// NOTCONSOLE";
+        }
+        if (test) {
+            result += "// TEST";
+            if (catchPart != null) {
+                result += "[catch: " + catchPart +"]";
+            }
+            if (skip != null) {
+                result += "[skip=" + skip +"]";
+            }
+            if (continued) {
+                result += "[continued]";
+            }
+            if (setup != null) {
+                result += "[setup:" + setup + "]";
+            }
+            if (teardown != null) {
+                result += "[teardown:" + teardown+ "]";
+            }
+            for (String warning : warnings) {
+                result += "[warning:" + warning +"]";
+            }
+            if (skipShardsFailures) {
+                result += "[skip_shard_failures]";
+            }
+        }
+        if (testResponse) {
+            result += "// TESTRESPONSE";
+            if (skip != null) {
+                result += "[skip=" + skip + "]";
+            }
+        }
+        if (testSetup) {
+            result += "// TESTSETUP";
+        }
+        if (curl) {
+            result += "(curl)";
+        }
+        return result;
+    }
 }

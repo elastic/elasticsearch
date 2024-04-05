@@ -21,6 +21,7 @@ import org.gradle.api.tasks.TaskAction;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -61,7 +62,7 @@ public class DocSnippetTask extends DefaultTask {
      * Action to take on each snippet. Called with a single parameter, an
      * instance of Snippet.
      */
-    @Internal
+//    @Internal
     Action<Snippet> perSnippet;
 
     /**
@@ -69,8 +70,10 @@ public class DocSnippetTask extends DefaultTask {
      * build.gradle file because that is appropriate for Elasticsearch's docs
      * directory.
      */
-    @InputFiles
+//    @InputFiles
     ConfigurableFileTree docs;
+
+
 
     /**
      * Substitutions done on every snippet's contents.
@@ -141,21 +144,21 @@ public class DocSnippetTask extends DefaultTask {
         List<Snippet> snippets = new ArrayList<>();
         StringBuilder contents = null;
 
-        try (Stream<String> lines = java.nio.file.Files.lines(docFile.toPath(), StandardCharsets.UTF_8)) {
+        try (Stream<String> lines = Files.lines(docFile.toPath(), StandardCharsets.UTF_8)) {
             List<String> linesList = lines.collect(Collectors.toList());
             for (int lineNumber = 0; lineNumber < linesList.size(); lineNumber++) {
                 String line = linesList.get(lineNumber);
                 if (SNIPPET_PATTERN.matcher(line).matches()) {
                     if (snippet == null) {
                         Path path = rootDir.toPath().relativize(docFile.toPath());
-                        snippet = new Snippet(path, lineNumber, name);
+                        snippet = new Snippet(path, lineNumber + 1, name);
                         snippets.add(snippet);
                         if (lastLanguageLine == lineNumber - 1) {
                             snippet.language = lastLanguage;
                         }
                         name = null;
                     } else {
-                        snippet.end = lineNumber;
+                        snippet.end = lineNumber + 1;
                     }
                     continue;
                 }
@@ -205,6 +208,7 @@ public class DocSnippetTask extends DefaultTask {
                     continue;
                 }
                 emit(snippet, contents.toString(), defaultSubstitutions, substitutions);
+                snippet = null;
             }
             if (snippet != null) {
                 emit(snippet, contents.toString(), defaultSubstitutions, substitutions);
@@ -380,6 +384,18 @@ public class DocSnippetTask extends DefaultTask {
             return new Source(true, matcher.group(1), matcher.group(5));
         }
         return new Source(false, null, null);
+    }
+
+    public void setDefaultSubstitutions(Map<String, String> defaultSubstitutions) {
+        this.defaultSubstitutions = defaultSubstitutions;
+    }
+
+    public Map<String, String> getDefaultSubstitutions() {
+        return defaultSubstitutions;
+    }
+
+    public void setPerSnippet(Action<Snippet> perSnippet) {
+        this.perSnippet = perSnippet;
     }
 
     public static final class Source {

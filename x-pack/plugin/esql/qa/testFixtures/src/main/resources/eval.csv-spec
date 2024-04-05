@@ -425,7 +425,7 @@ emp_no:i
 -10003
 ;
 
-sortExpression1
+sortExpression1#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
 | SORT emp_no + salary ASC
 | EVAL emp_no = -emp_no
@@ -468,7 +468,7 @@ Parto               |Bamford            |61805          |BP
 Premal              |Baek               |52833          |BP
 ;
 
-sortConcat2
+sortConcat2#[skip:-8.13.99,reason:supported in 8.14]
 from employees
 | eval ln = last_name, fn = first_name, concat = concat(left(last_name, 1), left(first_name, 1))
 | sort concat(left(ln, 1), left(fn, 1)), salary desc

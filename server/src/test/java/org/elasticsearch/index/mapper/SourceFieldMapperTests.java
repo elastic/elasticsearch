@@ -279,15 +279,10 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             () -> createMapperService(
                 settings,
                 topMapping(
-                    b -> b.startObject("_source")
-                        .field("enabled", false)
-                        .field("mode", "disabled")
-                        .array("includes", "foo")
-                        .array("excludes", "foo")
-                        .endObject()
+                    b -> b.startObject("_source").field("enabled", false).array("includes", "foo").array("excludes", "foo").endObject()
                 )
             ).documentMapper().sourceMapper()
         );
-        assertThat(e.getMessage(), containsString("Parameters [enabled,mode=disabled,includes,excludes] are not allowed in source"));
+        assertThat(e.getMessage(), containsString("Parameters [enabled,includes,excludes] are not allowed in source"));
     }
 }

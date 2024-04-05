@@ -759,31 +759,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         // validate that index is not part of another data stream
         final var parentDataStream = clusterMetadata.getIndicesLookup().get(index.getName()).getParentDataStream();
         if (parentDataStream != null) {
-            if (parentDataStream.isFailureStoreIndex(index.getName())) {
-                throw new IllegalArgumentException(
-                    String.format(
-                        Locale.ROOT,
-                        "cannot add index [%s] to data stream [%s] because it is already a failure store index on data stream [%s]",
-                        index.getName(),
-                        getName(),
-                        parentDataStream.getName()
-                    )
-                );
-            } else {
-                if (parentDataStream.equals(this)) {
-                    return this;
-                } else {
-                    throw new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "cannot add index [%s] to data stream [%s] because it is already a backing index on data stream [%s]",
-                            index.getName(),
-                            getName(),
-                            parentDataStream.getName()
-                        )
-                    );
-                }
-            }
+            validateDataStreamAlreadyContainsIndex(index, parentDataStream, false);
+            return this;
         }
 
         // ensure that no aliases reference index
@@ -821,31 +798,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         // validate that index is not part of another data stream
         final var parentDataStream = clusterMetadata.getIndicesLookup().get(index.getName()).getParentDataStream();
         if (parentDataStream != null) {
-            if (parentDataStream.isFailureStoreIndex(index.getName())) {
-                if (parentDataStream.equals(this)) {
-                    return this;
-                } else {
-                    throw new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "cannot add index [%s] to data stream [%s] because it is already a failure store index on data stream [%s]",
-                            index.getName(),
-                            getName(),
-                            parentDataStream.getName()
-                        )
-                    );
-                }
-            } else {
-                throw new IllegalArgumentException(
-                    String.format(
-                        Locale.ROOT,
-                        "cannot add index [%s] to data stream [%s] because it is already a backing index on data stream [%s]",
-                        index.getName(),
-                        getName(),
-                        parentDataStream.getName()
-                    )
-                );
-            }
+            validateDataStreamAlreadyContainsIndex(index, parentDataStream, true);
+            return this;
         }
 
         ensureNoAliasesOnIndex(clusterMetadata, index);
@@ -868,6 +822,30 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             updatedFailureIndices,
             autoShardingEvent
         );
+    }
+
+    /**
+     * Given an index and its parent data stream, determine if the parent data stream is the same as this one, and if it is, check if the
+     * index is already in the correct index set.
+     *
+     * @param index The index to check for
+     * @param parentDataStream The data stream the index belongs to
+     * @param targetFailureStore true if the index should be added to the failure store, false if it should be added to the backing indices
+     * @throws IllegalArgumentException if the index belongs to a different data stream, or if it is in the wrong index set
+     */
+    private void validateDataStreamAlreadyContainsIndex(Index index, DataStream parentDataStream, boolean targetFailureStore) {
+        if (!parentDataStream.equals(this) || (parentDataStream.isFailureStoreIndex(index.getName()) != targetFailureStore)) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "cannot add index [%s] to data stream [%s] because it is already a %s index on data stream [%s]",
+                    index.getName(),
+                    getName(),
+                    parentDataStream.isFailureStoreIndex(index.getName()) ? "failure store" : "backing",
+                    parentDataStream.getName()
+                )
+            );
+        }
     }
 
     private void ensureNoAliasesOnIndex(Metadata clusterMetadata, Index index) {

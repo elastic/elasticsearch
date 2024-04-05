@@ -223,7 +223,7 @@ public class MetadataMigrateToDataStreamService {
             imb.removeAlias(dataStreamName);
         }
 
-        Settings.Builder settingsUpdate = Settings.builder().put(im.getSettings()).put("index.hidden", "true");
+        Settings.Builder settingsUpdate = Settings.builder().put(im.getSettings()).put(IndexMetadata.SETTING_INDEX_HIDDEN, true);
 
         if (failureStore) {
             DataStreamFailureStoreDefinition.applyFailureStoreSettings(nodeSettings, settingsUpdate);

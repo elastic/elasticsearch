@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function;
 
 import com.carrotsearch.randomizedtesting.ClassModel;
-
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.document.InetAddressPoint;
@@ -67,11 +66,6 @@ import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.ClassRule;
-import org.junit.rules.TestRule;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -1048,13 +1042,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * Unique signatures in this test's parameters.
      */
     private static Map<List<DataType>, DataType> signatures;
+
     private static Map<List<DataType>, DataType> signatures() {
         Class<?> testClass = getTestClass();
         if (signatures != null && classGeneratingSignatures == testClass) {
             return signatures;
         }
         signatures = new HashMap<>();
-        System.err.println("getting signatures from " + testClass);
         Set<Method> paramsFactories = new ClassModel(testClass).getAnnotatedLeafMethods(ParametersFactory.class).keySet();
         assertThat(paramsFactories, hasSize(1));
         Method paramsFactory = paramsFactories.iterator().next();

@@ -259,11 +259,6 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
-    public void addSearchExt(SearchExtBuilder searchExtBuilder) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public SearchExtBuilder getSearchExt(String name) {
         throw new UnsupportedOperationException();
     }
@@ -288,7 +283,6 @@ public class RankSearchContext extends SearchContext {
         throw new UnsupportedOperationException();
     }
 
-    @Override
     public void suggest(SuggestionSearchContext suggest) {
         throw new UnsupportedOperationException();
     }
@@ -359,11 +353,6 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
-    public void timeout(TimeValue timeout) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public void terminateAfter(int terminateAfter) {
         throw new UnsupportedOperationException();
     }
@@ -395,11 +384,6 @@ public class RankSearchContext extends SearchContext {
 
     @Override
     public SearchContext searchAfter(FieldDoc searchAfter) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public SearchContext collapse(CollapseContext collapse) {
         throw new UnsupportedOperationException();
     }
 
@@ -455,11 +439,6 @@ public class RankSearchContext extends SearchContext {
 
     @Override
     public List<String> groupStats() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void groupStats(List<String> groupStats) {
         throw new UnsupportedOperationException();
     }
 

@@ -140,14 +140,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public void suggest(SuggestionSearchContext suggest) {
-        in.suggest(suggest);
-    }
-
-    @Override
     public QueryPhaseRankShardContext queryPhaseRankShardContext() {
         return in.queryPhaseRankShardContext();
-    }
 
     @Override
     public void queryPhaseRankShardContext(QueryPhaseRankShardContext queryPhaseRankShardContext) {
@@ -202,11 +196,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public TimeValue timeout() {
         return in.timeout();
-    }
-
-    @Override
-    public void timeout(TimeValue timeout) {
-        in.timeout(timeout);
     }
 
     @Override
@@ -335,11 +324,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public void groupStats(List<String> groupStats) {
-        in.groupStats(groupStats);
-    }
-
-    @Override
     public boolean version() {
         return in.version();
     }
@@ -410,11 +394,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public void addSearchExt(SearchExtBuilder searchExtBuilder) {
-        in.addSearchExt(searchExtBuilder);
-    }
-
-    @Override
     public SearchExtBuilder getSearchExt(String name) {
         return in.getSearchExt(name);
     }
@@ -442,11 +421,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public boolean isCancelled() {
         return in.isCancelled();
-    }
-
-    @Override
-    public SearchContext collapse(CollapseContext collapse) {
-        return in.collapse(collapse);
     }
 
     @Override

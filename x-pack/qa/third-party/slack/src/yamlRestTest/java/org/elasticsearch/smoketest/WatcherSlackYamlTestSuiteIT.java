@@ -53,7 +53,7 @@ public class WatcherSlackYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 }
 
                 ClientYamlTestResponse response = getAdminExecutionContext().callApi("watcher.stats", Map.of(), List.of(), Map.of());
-                String state = (String) response.evaluate("stats.0.watcher_state");
+                String state = response.evaluate("stats.0.watcher_state");
                 assertThat(state, is("started"));
             } catch (IOException e) {
                 throw new AssertionError(e);
@@ -67,7 +67,7 @@ public class WatcherSlackYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             try {
                 getAdminExecutionContext().callApi("watcher.stop", Map.of(), List.of(), Map.of());
                 ClientYamlTestResponse response = getAdminExecutionContext().callApi("watcher.stats", Map.of(), List.of(), Map.of());
-                String state = (String) response.evaluate("stats.0.watcher_state");
+                String state = response.evaluate("stats.0.watcher_state");
                 assertThat(state, is("stopped"));
             } catch (IOException e) {
                 throw new AssertionError(e);

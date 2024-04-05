@@ -642,7 +642,7 @@ emp_no:integer | salary_change.long:long | a1:long
 10005          | [-2, 13]                | [-2, 13]
 ;
 
-bucket
+bucket#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 // tag::bucket[]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
@@ -668,7 +668,7 @@ hire_date:date           | salary:integer | bs:double
 // end::bucket-result[]
 ;
 
-docsBucketNumeric
+docsBucketNumeric#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 //tag::docsBucketNumeric[]
 FROM employees
 | EVAL bs = BUCKET(salary, 20, 25324, 74999)

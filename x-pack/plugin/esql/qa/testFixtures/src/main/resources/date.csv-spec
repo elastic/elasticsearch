@@ -261,7 +261,7 @@ int:integer |dt:date
 // end::to_datetime-int-result[]
 ;
 
-bucketSimpleMonth
+bucketSimpleMonth#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 // tag::bucket_month[]
 ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
 | EVAL bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
@@ -274,7 +274,7 @@ ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
 // end::bucket_month-result[]
 ;
 
-bucketSimpleWeek
+bucketSimpleWeek#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 // tag::bucket_week[]
 ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
 | EVAL bucket=BUCKET(date, 100, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
@@ -287,7 +287,7 @@ ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
 // end::bucket_week-result[]
 ;
 
-bucketMonth
+bucketMonth#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 from employees
 | where hire_date >= "1985-01-01T00:00:00Z" and hire_date < "1986-01-01T00:00:00Z"
 | eval hd = bucket(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
@@ -308,7 +308,7 @@ hire_date:date           | hd:date
 1985-11-21T00:00:00.000Z | 1985-11-01T00:00:00.000Z
 ;
 
-bucketWeek
+bucketWeek#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 from employees
 | where hire_date >= "1985-01-01T00:00:00Z" and hire_date < "1986-01-01T00:00:00Z"
 | eval hd = bucket(hire_date, 55, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
@@ -350,7 +350,7 @@ from employees | where birth_date > now() | sort emp_no asc | keep emp_no, birth
 emp_no:integer  | birth_date:date
 ;
 
-bucketYearInAgg#[skip:-8.12.99, reason:date type is supported in 8.13]
+bucketYearInAgg#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
 | WHERE hire_date >= "1999-01-01T00:00:00Z"
 | EVAL bucket = BUCKET(hire_date, 5, "1999-01-01T00:00:00Z", NOW())
@@ -361,7 +361,7 @@ COUNT(*):long            | bucket:date
 1                        | 1999-01-01T00:00:00.000Z
 ;
 
-bucketYearInAggConstRefsString#[skip:-8.12.99, reason:date type is supported in 8.13]
+bucketYearInAggConstRefsString#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
 | WHERE hire_date >= "1999-01-01T00:00:00Z"
 | EVAL bucket_start = "1999-01-01T00:00:00Z"
@@ -374,7 +374,7 @@ COUNT(*):long            | bucket:date
 1                        | 1999-01-01T00:00:00.000Z
 ;
 
-bucketYearInAggConstRefsConcat#[skip:-8.12.99, reason:date type is supported in 8.13]
+bucketYearInAggConstRefsConcat#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
 | WHERE hire_date >= "1999-01-01T00:00:00Z"
 | EVAL bucket_start = CONCAT("1999-01-01", "T", "00:00:00Z")
@@ -387,7 +387,7 @@ COUNT(*):long            | bucket:date
 1                        | 1999-01-01T00:00:00.000Z
 ;
 
-bucketYearInAggConstRefsDate#[skip:-8.12.99, reason:date type is supported in 8.13]
+bucketYearInAggConstRefsDate#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
 | WHERE hire_date >= "1999-01-01T00:00:00Z"
 | EVAL bucket_start = TO_DATETIME("1999-01-01T00:00:00.000Z")
@@ -401,7 +401,7 @@ COUNT(*):long            | bucket:date
 1                        | 1999-01-01T00:00:00.000Z
 ;
 
-bucketYearInAggConstRefsRename#[skip:-8.12.99, reason:date type is supported in 8.13]
+bucketYearInAggConstRefsRename#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
 | WHERE hire_date >= "1999-01-01T00:00:00Z"
 | EVAL bucket_start = "1999-01-01T00:00:00Z"
@@ -415,7 +415,7 @@ c:long            | BUCKET(hire_date, 5, bs, be):date
 1                 | 1999-01-01T00:00:00.000Z
 ;
 
-bucketMonthInAgg
+bucketMonthInAgg#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 // tag::bucket_in_agg[]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
@@ -950,7 +950,7 @@ birth_date:datetime
 1953-04-21T00:00:00.000Z
 ;
 
-docsBucketMonth
+docsBucketMonth#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 //tag::docsBucketMonth[]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
@@ -976,7 +976,7 @@ FROM employees
 //end::docsBucketMonth-result[]
 ;
 
-docsBucketMonthlyHistogram
+docsBucketMonthlyHistogram#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 //tag::docsBucketMonthlyHistogram[]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
@@ -997,7 +997,7 @@ FROM employees
 //end::docsBucketMonthlyHistogram-result[]
 ;
 
-docsBucketWeeklyHistogram
+docsBucketWeeklyHistogram#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 //tag::docsBucketWeeklyHistogram[]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
@@ -1018,7 +1018,7 @@ FROM employees
 //end::docsBucketWeeklyHistogram-result[]
 ;
 
-docsBucketLast24hr#[skip:-8.12.99, reason:date type is supported in 8.13]
+docsBucketLast24hr#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 //tag::docsBucketLast24hr[]
 FROM sample_data 
 | WHERE @timestamp >= NOW() - 1 day and @timestamp < NOW()
@@ -1030,7 +1030,7 @@ FROM sample_data
    COUNT(*):long    |    bucket:date
 ;
 
-docsGettingStartedBucket#[skip:-8.12.99, reason:date type is supported in 8.13]
+docsGettingStartedBucket#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 // tag::gs-bucket[]
 FROM sample_data
 | KEEP @timestamp
@@ -1042,7 +1042,7 @@ FROM sample_data
 @timestamp:date | bucket:date
 ;
 
-docsGettingStartedBucketStatsBy
+docsGettingStartedBucketStatsBy#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 // tag::gs-bucket-stats-by[]
 FROM sample_data
 | KEEP @timestamp, event_duration
@@ -1057,7 +1057,7 @@ COUNT(*):long | bucket:date
 5              |2023-10-23T13:00:00.000Z
 ;
 
-docsGettingStartedBucketStatsByMedian
+docsGettingStartedBucketStatsByMedian#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 // tag::gs-bucket-stats-by-median[]
 FROM sample_data
 | KEEP @timestamp, event_duration

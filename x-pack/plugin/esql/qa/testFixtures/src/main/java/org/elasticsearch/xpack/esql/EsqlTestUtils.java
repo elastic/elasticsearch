@@ -34,6 +34,9 @@ import org.elasticsearch.xpack.ql.type.TypesTests;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.junit.Assert;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -144,6 +147,14 @@ public final class EsqlTestUtils {
 
     public static Map<String, EsField> loadMapping(String name) {
         return TypesTests.loadMapping(EsqlDataTypeRegistry.INSTANCE, name, true);
+    }
+
+    public static String loadUtf8TextFile(String name) {
+        try (InputStream textStream = EsqlTestUtils.class.getResourceAsStream(name)) {
+            return new String(textStream.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     public static EnrichResolution emptyPolicyResolution() {

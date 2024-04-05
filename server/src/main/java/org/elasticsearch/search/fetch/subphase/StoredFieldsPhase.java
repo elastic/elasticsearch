@@ -10,7 +10,9 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -63,8 +65,13 @@ public class StoredFieldsPhase implements FetchSubPhase {
             for (String field : storedFieldsContext.fieldNames()) {
                 Collection<String> fieldNames = sec.getMatchingFieldNames(field);
                 for (String fieldName : fieldNames) {
+                    // _id and _source are always retrieved anyway, no need to do it explicitly. See FieldsVisitor.
+                    // They are not returned as part of HitContext#loadedFields hence they are not added to documents by this sub-phase
+                    if (IdFieldMapper.NAME.equals(field) || SourceFieldMapper.NAME.equals(field)) {
+                        continue;
+                    }
                     MappedFieldType ft = sec.getFieldType(fieldName);
-                    if (ft.isStored() == false || sec.isMetadataField(fieldName)) {
+                    if (ft.isStored() == false) {
                         continue;
                     }
                     storedFields.add(new StoredField(fieldName, ft));

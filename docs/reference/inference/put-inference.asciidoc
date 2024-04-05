@@ -18,7 +18,7 @@ or if you want to use non-NLP models, use the <<ml-df-trained-models-apis>>.
 [[put-inference-api-request]]
 ==== {api-request-title}
 
-`PUT /_inference/<task_type>/<model_id>`
+`PUT /_inference/<task_type>/<inference_id>`
 
 
 [discrete]

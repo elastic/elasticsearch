@@ -54,6 +54,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.waitAndGetShrinkIndexName;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.waitAndGetShrinkIndexNameWithExtraClusterStateChange;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -398,5 +399,74 @@ public class ShrinkActionIT extends ESRestTestCase {
             assertNull(settings.get(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()));
         });
         expectThrows(ResponseException.class, () -> indexDocument(client(), index));
+    }
+
+    public void testAllowWritesActualShrink() throws Exception {
+        int numShards = 4;
+        int divisor = randomFrom(2, 4);
+        int expectedFinalShards = numShards / divisor;
+        boolean initialIndexIsReadOnly = randomBoolean();
+        createIndexWithSettings(
+            client(),
+            index,
+            alias,
+            Settings.builder()
+                .put(SETTING_NUMBER_OF_SHARDS, numShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), initialIndexIsReadOnly ? "true" : null)
+        );
+        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(expectedFinalShards, null, true));
+        updatePolicy(client(), index, policy);
+
+        String shrunkenIndexName = waitAndGetShrinkIndexName(client(), index);
+        assertBusy(() -> assertTrue(indexExists(shrunkenIndexName)), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertTrue(aliasExists(shrunkenIndexName, index)));
+        assertBusy(
+            () -> assertThat(getStepKeyForIndex(client(), shrunkenIndexName), equalTo(PhaseCompleteStep.finalStep("warm").getKey()))
+        );
+        assertBusy(() -> {
+            Map<String, Object> settings = getOnlyIndexSettings(client(), shrunkenIndexName);
+            assertThat(settings.get(SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(expectedFinalShards)));
+            assertThat(settings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());
+
+            // check that write block removed
+            assertNull(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()));
+        });
+
+        indexDocument(client(), index);
+        // check that actually wrote to index
+        assertBusy(() -> assertDocCount(client(), index, 1));
+    }
+
+    public void testAllowWritesShardsWithNumberOfShards() throws Exception {
+        int numberOfShards = randomFrom(1, 2);
+        boolean initialIndexIsReadOnly = randomBoolean();
+        createIndexWithSettings(
+            client(),
+            index,
+            alias,
+            Settings.builder()
+                .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), initialIndexIsReadOnly ? "true" : null)
+        );
+        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(numberOfShards, null, true));
+        updatePolicy(client(), index, policy);
+        assertBusy(() -> {
+            assertTrue(indexExists(index));
+            Map<String, Object> settings = getOnlyIndexSettings(client(), index);
+            assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
+            assertThat(settings.get(SETTING_NUMBER_OF_SHARDS), equalTo(String.valueOf(numberOfShards)));
+            assertThat(settings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());
+            // the shrink action was effectively skipped so there must not be any `shrink_index_name` in the ILM state
+            assertThat(explainIndex(client(), index).get(SHRINK_INDEX_NAME), nullValue());
+
+            // check that write block removed
+            assertNull(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()));
+        });
+
+        indexDocument(client(), index);
+        // check that actually wrote to index
+        assertBusy(() -> assertDocCount(client(), index, 1));
     }
 }

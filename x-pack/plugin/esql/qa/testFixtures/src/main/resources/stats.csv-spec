@@ -1315,3 +1315,37 @@ FROM employees
 rows:l
 6
 ;
+
+evalOverridingKey#[skip:-8.13.1,reason:supported in 8.13.2]
+FROM employees
+| EVAL k = languages
+| STATS c = COUNT() BY languages, k
+| DROP k
+| SORT languages
+;
+
+c:l| languages:i
+15 | 1
+19 | 2
+17 | 3
+18 | 4
+21 | 5
+10 | null
+;
+
+evalMultipleOverridingKeys#[skip:-8.13.1,reason:supported in 8.13.2]
+FROM employees
+| EVAL k = languages, k1 = k
+| STATS c = COUNT() BY languages, k, k1, languages
+| DROP k
+| SORT languages
+;
+
+c:l | k1:i | languages:i
+15  | 1    | 1
+19  | 2    | 2
+17  | 3    | 3
+18  | 4    | 4
+21  | 5    | 5
+10  | null | null
+;

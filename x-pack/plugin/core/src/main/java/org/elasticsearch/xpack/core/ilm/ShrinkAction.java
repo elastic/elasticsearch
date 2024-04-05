@@ -182,11 +182,12 @@ public class ShrinkAction implements LifecycleAction {
         StepKey isShrunkIndexKey = new StepKey(phase, NAME, ShrunkenIndexCheckStep.NAME);
         StepKey replaceDataStreamIndexKey = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
         StepKey deleteIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
+        StepKey allowWritesKey = new StepKey(phase, NAME, AllowWritesStep.NAME);
 
         AsyncBranchingStep conditionalSkipShrinkStep = new AsyncBranchingStep(
             preShrinkBranchingKey,
             checkNotWriteIndex,
-            nextStepKey,
+            allowWritesKey,
             (indexMetadata, clusterState, listener) -> {
                 if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
                     logger.warn(
@@ -265,8 +266,7 @@ public class ShrinkAction implements LifecycleAction {
             new CheckShrinkReadyStep(allocationRoutedKey, shrinkKey),
             setSingleNodeKey
         );
-        ShrinkStep shrink = new ShrinkStep(shrinkKey, enoughShardsKey, client, numberOfShards, maxPrimaryShardSize, allowWritesOnTarget);
-
+        ShrinkStep shrink = new ShrinkStep(shrinkKey, enoughShardsKey, client, numberOfShards, maxPrimaryShardSize);
         // wait until the shrunk index is recovered. we again wait until the configured threshold is breached and if the shrunk index has
         // not successfully recovered until then, we rewind to the "cleanup-shrink-index" step to delete this unsuccessful shrunk index
         // and retry the operation by generating a new shrink index name and attempting to shrink again
@@ -302,7 +302,9 @@ public class ShrinkAction implements LifecycleAction {
             ShrinkIndexNameSupplier::getShrinkIndexName
         );
         DeleteStep deleteSourceIndexStep = new DeleteStep(deleteIndexKey, isShrunkIndexKey, client);
-        ShrunkenIndexCheckStep waitOnShrinkTakeover = new ShrunkenIndexCheckStep(isShrunkIndexKey, nextStepKey);
+        ShrunkenIndexCheckStep waitOnShrinkTakeover = new ShrunkenIndexCheckStep(isShrunkIndexKey, allowWritesKey);
+        AllowWritesStep allowWritesStep = new AllowWritesStep(allowWritesKey, nextStepKey, client, allowWritesOnTarget != null && allowWritesOnTarget);
+
         return Arrays.asList(
             conditionalSkipShrinkStep,
             checkNotWriteIndexStep,
@@ -321,7 +323,8 @@ public class ShrinkAction implements LifecycleAction {
             aliasSwapAndDelete,
             waitOnShrinkTakeover,
             replaceDataStreamBackingIndex,
-            deleteSourceIndexStep
+            deleteSourceIndexStep,
+            allowWritesStep
         );
     }
 

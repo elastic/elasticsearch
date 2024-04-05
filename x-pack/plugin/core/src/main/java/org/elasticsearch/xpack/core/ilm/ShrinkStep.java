@@ -32,20 +32,11 @@ public class ShrinkStep extends AsyncActionStep {
 
     private Integer numberOfShards;
     private ByteSizeValue maxPrimaryShardSize;
-    private Boolean allowWritesOnTarget;
 
-    public ShrinkStep(
-        StepKey key,
-        StepKey nextStepKey,
-        Client client,
-        Integer numberOfShards,
-        ByteSizeValue maxPrimaryShardSize,
-        Boolean allowWritesOnTarget
-    ) {
+    public ShrinkStep(StepKey key, StepKey nextStepKey, Client client, Integer numberOfShards, ByteSizeValue maxPrimaryShardSize) {
         super(key, nextStepKey, client);
         this.numberOfShards = numberOfShards;
         this.maxPrimaryShardSize = maxPrimaryShardSize;
-        this.allowWritesOnTarget = allowWritesOnTarget;
     }
 
     @Override
@@ -59,10 +50,6 @@ public class ShrinkStep extends AsyncActionStep {
 
     public ByteSizeValue getMaxPrimaryShardSize() {
         return maxPrimaryShardSize;
-    }
-
-    public Boolean getAllowWritesOnTarget() {
-        return allowWritesOnTarget;
     }
 
     @Override
@@ -99,9 +86,6 @@ public class ShrinkStep extends AsyncActionStep {
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", (String) null);
         if (numberOfShards != null) {
             builder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards);
-        }
-        if (allowWritesOnTarget != null && allowWritesOnTarget) {
-            builder.put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), (String) null);
         }
         Settings relevantTargetSettings = builder.build();
 

@@ -38,15 +38,12 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         StepKey nextStepKey = randomStepKey();
         Integer numberOfShards = null;
         ByteSizeValue maxPrimaryShardSize = null;
-        Boolean allowWritesOnTarget = null;
-
-        switch (between(0, 2)) {
-            case 0 -> numberOfShards = randomIntBetween(1, 20);
-            case 1 -> maxPrimaryShardSize = ByteSizeValue.ofBytes(between(1, 100));
-            case 2 -> allowWritesOnTarget = randomBoolean();
-            default -> throw new AssertionError("Illegal randomisation branch");
+        if (randomBoolean()) {
+            numberOfShards = randomIntBetween(1, 20);
+        } else {
+            maxPrimaryShardSize = ByteSizeValue.ofBytes(between(1, 100));
         }
-        return new ShrinkStep(stepKey, nextStepKey, client, numberOfShards, maxPrimaryShardSize, allowWritesOnTarget);
+        return new ShrinkStep(stepKey, nextStepKey, client, numberOfShards, maxPrimaryShardSize);
     }
 
     @Override
@@ -55,7 +52,6 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         StepKey nextKey = instance.getNextStepKey();
         Integer numberOfShards = instance.getNumberOfShards();
         ByteSizeValue maxPrimaryShardSize = instance.getMaxPrimaryShardSize();
-        Boolean allowWritesOnTarget = instance.getAllowWritesOnTarget();
 
         switch (between(0, 2)) {
             case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
@@ -67,13 +63,11 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
                 if (maxPrimaryShardSize != null) {
                     maxPrimaryShardSize = ByteSizeValue.ofBytes(maxPrimaryShardSize.getBytes() + 1);
                 }
-                // cycle null -> true -> false
-                allowWritesOnTarget = allowWritesOnTarget == null ? Boolean.TRUE : (allowWritesOnTarget ? Boolean.FALSE : null);
             }
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new ShrinkStep(key, nextKey, instance.getClient(), numberOfShards, maxPrimaryShardSize, allowWritesOnTarget);
+        return new ShrinkStep(key, nextKey, instance.getClient(), numberOfShards, maxPrimaryShardSize);
     }
 
     @Override
@@ -83,8 +77,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             instance.getNextStepKey(),
             instance.getClient(),
             instance.getNumberOfShards(),
-            instance.getMaxPrimaryShardSize(),
-            instance.getAllowWritesOnTarget()
+            instance.getMaxPrimaryShardSize()
         );
     }
 

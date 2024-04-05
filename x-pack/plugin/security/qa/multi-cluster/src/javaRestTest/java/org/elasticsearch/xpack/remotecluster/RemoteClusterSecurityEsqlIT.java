@@ -370,9 +370,9 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             randomBoolean()
                 ? Settings.builder().put("cluster.remote.invalid_remote.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0)).build()
                 : Settings.builder()
-                .put("cluster.remote.invalid_remote.mode", "proxy")
-                .put("cluster.remote.invalid_remote.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
-                .build()
+                    .put("cluster.remote.invalid_remote.mode", "proxy")
+                    .put("cluster.remote.invalid_remote.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                    .build()
         );
 
         // invalid remote with local index should return local results
@@ -436,6 +436,36 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             .flatMap(innerList -> innerList instanceof List ? ((List<String>) innerList).stream() : Stream.empty())
             .collect(Collectors.toList());
         assertThat(flatList, containsInAnyOrder("1", "3", "engineering", "sales"));
+
+        // no local privs at all will fail
+        final var putRoleNoLocalPrivs = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
+        putRoleNoLocalPrivs.setJsonEntity("""
+            {
+              "indices": [],
+              "remote_indices": [
+                {
+                  "names": ["employees"],
+                  "privileges": ["read"],
+                  "clusters": ["my_remote_cluster"]
+                }
+              ]
+            }""");
+        assertOK(adminClient().performRequest(putRoleNoLocalPrivs));
+
+        ResponseException error = expectThrows(ResponseException.class, () -> { performRequestWithRemoteSearchUser(esqlRequest("""
+            FROM my_remote_cluster:employees
+            | SORT emp_id ASC
+            | LIMIT 2
+            | KEEP emp_id, department""")); });
+
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "action [indices:data/read/esql] is unauthorized for user [remote_search_user] with effective roles [remote_search], "
+                    + "this action is granted by the index privileges [read,read_cross_cluster,all]"
+            )
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -462,48 +492,51 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                 .collect(Collectors.toList());
             assertThat(flatList, containsInAnyOrder(2, 3, "usa", "canada"));
 
+            // Query cluster
+            final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
 
-//            // ESQL with enrich is denied when user has no access to enrich policies
-//            final var putLocalSearchRoleRequest = new Request("PUT", "/_security/role/local_search");
-//            putLocalSearchRoleRequest.setJsonEntity("""
-//                {
-//                  "indices": [
-//                    {
-//                      "names": ["employees"],
-//                      "privileges": ["read"]
-//                    }
-//                  ],
-//                  "cluster": [ ],
-//                  "remote_indices": [
-//                    {
-//                      "names": ["employees"],
-//                      "privileges": ["read"],
-//                      "clusters": ["my_remote_cluster"]
-//                    }
-//                  ]
-//                }""");
-//            assertOK(adminClient().performRequest(putLocalSearchRoleRequest));
-//            final var putlocalSearchUserRequest = new Request("PUT", "/_security/user/local_search_user");
-//            putlocalSearchUserRequest.setJsonEntity("""
-//                {
-//                  "password": "x-pack-test-password",
-//                  "roles" : ["local_search"]
-//                }""");
-//            assertOK(adminClient().performRequest(putlocalSearchUserRequest));
-//            for (String indices : List.of("my_remote_cluster:employees,employees", "my_remote_cluster:employees")) {
-//                ResponseException error = expectThrows(ResponseException.class, () -> {
-//                    var q = "FROM " + indices + "| ENRICH countries | STATS size=count(*) by country | SORT size | LIMIT 2";
-//                    performRequestWithLocalSearchUser(esqlRequest(q));
-//                });
-//                assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-//                assertThat(
-//                    error.getMessage(),
-//                    containsString(
-//                        "action [cluster:monitor/xpack/enrich/esql/resolve_policy] towards remote cluster [my_remote_cluster]"
-//                            + " is unauthorized for user [local_search_user] with effective roles [local_search]"
-//                    )
-//                );
-//            }
+            // no remote_cluster privs should fail the request
+            putRoleRequest.setJsonEntity("""
+                {
+                  "indices": [
+                    {
+                      "names": ["employees"],
+                      "privileges": ["read"]
+                    }
+                  ],
+                  "cluster": [ "monitor_enrich" ],
+                  "remote_indices": [
+                    {
+                      "names": ["employees"],
+                      "privileges": ["read"],
+                      "clusters": ["my_remote_cluster"]
+                    }
+                  ]
+                }""");
+            assertOK(adminClient().performRequest(putRoleRequest));
+
+            ResponseException error = expectThrows(ResponseException.class, () -> { performRequestWithRemoteSearchUser(esqlRequest("""
+                FROM my_remote_cluster:employees,employees
+                | ENRICH countries
+                | STATS size=count(*) by country
+                | SORT size DESC
+                | LIMIT 2""")); });
+
+            assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                error.getMessage(),
+                containsString(
+                    "action [cluster:monitor/xpack/enrich/esql/resolve_policy] towards remote cluster is unauthorized for user "
+                        + "[remote_search_user] with assigned roles [remote_search] authenticated by API key id ["
+                )
+            );
+            assertThat(
+                error.getMessage(),
+                containsString(
+                    "this action is granted by the cluster privileges "
+                        + "[cross_cluster_search,monitor_enrich,manage_enrich,monitor,manage,all]"
+                )
+            );
         }
     }
 
@@ -515,8 +548,8 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         // Query cluster
         final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
 
-        //local cross_cluster_search cluster priv is required for enrich
-        //ideally, remote only enrichment wouldn't need this local privilege, however remote only enrichment is not currently supported
+        // local cross_cluster_search cluster priv is required for enrich
+        // ideally, remote only enrichment wouldn't need this local privilege, however remote only enrichment is not currently supported
         putRoleRequest.setJsonEntity("""
             {
               "indices": [{"names": [""], "privileges": ["read_cross_cluster"]}],
@@ -540,11 +573,11 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         // Query cluster
         // ESQL with enrich is okay when user has access to enrich polices
         Response response = performRequestWithRemoteSearchUser(esqlRequest("""
-                FROM my_remote_cluster:employees
-                | ENRICH countries
-                | STATS size=count(*) by country
-                | SORT size DESC
-                | LIMIT 2"""));
+            FROM my_remote_cluster:employees
+            | ENRICH countries
+            | STATS size=count(*) by country
+            | SORT size DESC
+            | LIMIT 2"""));
         assertOK(response);
 
         Map<String, Object> responseAsMap = entityAsMap(response);
@@ -592,13 +625,6 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
     private Response performRequestWithRemoteSearchUser(final Request request) throws IOException {
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod(REMOTE_SEARCH_USER, PASS))
-        );
-        return client().performRequest(request);
-    }
-
-    private Response performRequestWithLocalSearchUser(final Request request) throws IOException {
-        request.setOptions(
-            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod("local_search_user", PASS))
         );
         return client().performRequest(request);
     }

@@ -515,7 +515,7 @@ public class CompositeRolesStore {
             );
         });
 
-        if(remoteClusterPermissions.hasPrivileges()) {
+        if (remoteClusterPermissions.hasPrivileges()) {
             builder.addRemoteClusterPermissions(remoteClusterPermissions);
         } else {
             builder.addRemoteClusterPermissions(RemoteClusterPermissions.NONE);

@@ -275,24 +275,23 @@ public interface Role {
             return this;
         }
 
-        public Builder addRemoteClusterPermissions(RemoteClusterPermissions remoteClusterPermissions ){
+        public Builder addRemoteClusterPermissions(RemoteClusterPermissions remoteClusterPermissions) {
             Objects.requireNonNull(remoteClusterPermissions, "remoteClusterPermissions must not be null");
-            assert this.remoteClusterPermissions == null
-                : "addRemoteClusterPermissions should only be called once";
+            assert this.remoteClusterPermissions == null : "addRemoteClusterPermissions should only be called once";
             if (remoteClusterPermissions.hasPrivileges()) {
                 Set<String> namedClusterPrivileges = ClusterPrivilegeResolver.names();
                 for (RemoteClusterPermissionGroup group : remoteClusterPermissions.groups()) {
                     for (String namedPrivilege : group.clusterPrivileges()) {
-                        //TODO: re-enable this validation (and test)
-//                        if ("monitor_enrich".equals(namedPrivilege) == false) {
-//                            //this should be enforced upstream while defining the role, so the check here too is just in case...
-//                            throw new IllegalArgumentException("Only [monitor_enrich] is supported as a remote cluster privilege");
-//                        }
-//                        // this can never happen, but if we ever expand the list of remote cluster privileges then we want to ensure that
-//                        // only named cluster privileges are supported
-//                        if (namedClusterPrivileges.contains(namedPrivilege) == false) {
-//                            throw new IllegalArgumentException("Unknown cluster privilege [" + namedPrivilege + "]");
-//                        }
+                        // TODO: re-enable this validation (and test)
+                        // if ("monitor_enrich".equals(namedPrivilege) == false) {
+                        // //this should be enforced upstream while defining the role, so the check here too is just in case...
+                        // throw new IllegalArgumentException("Only [monitor_enrich] is supported as a remote cluster privilege");
+                        // }
+                        // // this can never happen, but if we ever expand the list of remote cluster privileges then we want to ensure that
+                        // // only named cluster privileges are supported
+                        // if (namedClusterPrivileges.contains(namedPrivilege) == false) {
+                        // throw new IllegalArgumentException("Unknown cluster privilege [" + namedPrivilege + "]");
+                        // }
                     }
                 }
             }
@@ -445,9 +444,9 @@ public interface Role {
         }
 
         RemoteClusterPermissions remoteClusterPermissions = roleDescriptor.getRemoteClusterPermissions();
-        for(RemoteClusterPermissionGroup group : remoteClusterPermissions.groups()){
+        for (RemoteClusterPermissionGroup group : remoteClusterPermissions.groups()) {
             final String[] clusterAliases = group.remoteClusterAliases();
-            //note: this validation only occurs from reserved roles, see the builder for additional general validation
+            // note: this validation only occurs from reserved roles, see the builder for additional general validation
             assert Arrays.equals(new String[] { "*" }, clusterAliases)
                 : "reserved role should not define remote cluster privileges for specific clusters";
         }

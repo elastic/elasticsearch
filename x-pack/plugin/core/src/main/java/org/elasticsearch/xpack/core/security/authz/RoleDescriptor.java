@@ -259,7 +259,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return clusterPrivileges.length != 0;
     }
 
-
     public boolean hasApplicationPrivileges() {
         return applicationPrivileges.length != 0;
     }
@@ -273,10 +272,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     }
 
     public boolean hasUnsupportedPrivileges() {
-//        //this is enforced elsewhere
-//        assert Arrays.stream(this.getRemoteClusterPermissions().privilegeNames("*"))
-//            .anyMatch(s -> s.equalsIgnoreCase("monitor_enrich") == false) : "monitor_enrich is the only value allowed";
-        //TODO: make this validation configurable
+        // //this is enforced elsewhere
+        // assert Arrays.stream(this.getRemoteClusterPermissions().privilegeNames("*"))
+        // .anyMatch(s -> s.equalsIgnoreCase("monitor_enrich") == false) : "monitor_enrich is the only value allowed";
+        // TODO: make this validation configurable
 
         return hasConfigurableClusterPrivileges()
             || hasApplicationPrivileges()
@@ -714,8 +713,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return new RemoteIndicesPrivileges(parsed.indicesPrivileges(), parsed.remoteClusters());
     }
 
-    private static RemoteClusterPermissions parseRemoteCluster(final String roleName, final XContentParser parser)
-        throws IOException {
+    private static RemoteClusterPermissions parseRemoteCluster(final String roleName, final XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
             throw new ElasticsearchParseException(
                 "failed to parse remote_cluster for role [{}]. expected field [{}] value " + "to be an array, but found [{}] instead",
@@ -724,7 +722,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 parser.currentToken()
             );
         }
-        RemoteClusterPermissions remoteClusterPermissions =  new RemoteClusterPermissions();
+        RemoteClusterPermissions remoteClusterPermissions = new RemoteClusterPermissions();
         String[] privileges = null;
         String[] clusters = null;
         while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
@@ -735,14 +733,14 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     currentFieldName = parser.currentName();
                 } else if (Fields.PRIVILEGES.match(currentFieldName, parser.getDeprecationHandler())) {
                     privileges = readStringArray(roleName, parser, false);
-                    //TODO: re-enable this validation
-//                    if (privileges.length != 1 || "monitor_enrich".equals(privileges[0].trim()) == false) {
-//                        throw new ElasticsearchParseException(
-//                            "failed to parse remote_cluster for role [{}]. " + "[monitor_enrich] is the only value allowed for [{}]",
-//                            roleName,
-//                            currentFieldName
-//                        );
-//                    }
+                    // TODO: re-enable this validation
+                    // if (privileges.length != 1 || "monitor_enrich".equals(privileges[0].trim()) == false) {
+                    // throw new ElasticsearchParseException(
+                    // "failed to parse remote_cluster for role [{}]. " + "[monitor_enrich] is the only value allowed for [{}]",
+                    // roleName,
+                    // currentFieldName
+                    // );
+                    // }
                 } else if (Fields.CLUSTERS.match(currentFieldName, parser.getDeprecationHandler())) {
                     clusters = readStringArray(roleName, parser, false);
                 } else {
@@ -753,12 +751,12 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     );
                 }
             }
-            if(privileges != null && clusters == null) {
+            if (privileges != null && clusters == null) {
                 throw new ElasticsearchParseException(
                     "failed to parse remote_cluster for role [{}]. [clusters] must be defined when [privileges] are defined ",
                     roleName
                 );
-            } else if( privileges == null && clusters != null) {
+            } else if (privileges == null && clusters != null) {
                 throw new ElasticsearchParseException(
                     "failed to parse remote_cluster for role [{}]. [privileges] must be defined when [clusters] are defined ",
                     roleName

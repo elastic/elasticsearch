@@ -24,8 +24,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class CrossClusterApiKeyRoleDescriptorBuilder {
 
-    public static final String[] CCS_CLUSTER_PRIVILEGE_NAMES = { "cross_cluster_search", "monitor_enrich",
-        "cluster:data/read/esql/open_exchange", "cluster:data/read/esql/exchange", "cluster:admin/xpack/security/user/has_privileges" }; //TODO: don't add this here ... just a hack for now
+    public static final String[] CCS_CLUSTER_PRIVILEGE_NAMES = {
+        "cross_cluster_search",
+        "monitor_enrich",
+        "cluster:data/read/esql/open_exchange",
+        "cluster:data/read/esql/exchange",
+        "cluster:admin/xpack/security/user/has_privileges" }; // TODO: don't add this here ... just a hack for now
     public static final String[] CCR_CLUSTER_PRIVILEGE_NAMES = { "cross_cluster_replication" };
     public static final String[] CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES = Stream.concat(
         Arrays.stream(CCS_CLUSTER_PRIVILEGE_NAMES),

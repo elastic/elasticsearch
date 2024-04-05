@@ -82,7 +82,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         "cluster:internal:data/read/esql/open_exchange",
         "internal:data/read/esql/exchange",
         "cluster:internal:data/read/esql/exchange"
-        );
+    );
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;

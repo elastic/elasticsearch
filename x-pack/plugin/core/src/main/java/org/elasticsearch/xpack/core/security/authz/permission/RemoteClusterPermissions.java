@@ -50,20 +50,21 @@ import java.util.Objects;
  */
 public class RemoteClusterPermissions implements Writeable, ToXContentObject {
 
-    private final List<RemoteClusterPermissionGroup> remoteClusterPermissionGroups ;
+    private final List<RemoteClusterPermissionGroup> remoteClusterPermissionGroups;
 
     public static final RemoteClusterPermissions NONE = new RemoteClusterPermissions();
 
     public RemoteClusterPermissions(StreamInput in) throws IOException {
         remoteClusterPermissionGroups = in.readCollectionAsList(RemoteClusterPermissionGroup::new);
     }
-    public RemoteClusterPermissions(){
+
+    public RemoteClusterPermissions() {
         remoteClusterPermissionGroups = new ArrayList<>();
     }
 
     public RemoteClusterPermissions addGroup(RemoteClusterPermissionGroup remoteClusterPermissionGroup) {
         Objects.requireNonNull(remoteClusterPermissionGroup, "remoteClusterPermissionGroup must not be null");
-        if(this == NONE) {
+        if (this == NONE) {
             throw new IllegalArgumentException("Cannot add a group to the `NONE` instance");
         }
         remoteClusterPermissionGroups.add(remoteClusterPermissionGroup);
@@ -71,18 +72,19 @@ public class RemoteClusterPermissions implements Writeable, ToXContentObject {
     }
 
     public String[] privilegeNames(final String remoteClusterAlias) {
-        return
-            remoteClusterPermissionGroups.stream()
-                .filter(group -> group.hasPrivileges(remoteClusterAlias))
-                .flatMap(groups -> Arrays.stream(groups.clusterPrivileges())).distinct().sorted().toArray(String[]::new);
+        return remoteClusterPermissionGroups.stream()
+            .filter(group -> group.hasPrivileges(remoteClusterAlias))
+            .flatMap(groups -> Arrays.stream(groups.clusterPrivileges()))
+            .distinct()
+            .sorted()
+            .toArray(String[]::new);
     }
 
     public boolean hasPrivileges(final String remoteClusterAlias) {
-        return remoteClusterPermissionGroups.stream()
-            .anyMatch(remoteIndicesGroup -> remoteIndicesGroup.hasPrivileges(remoteClusterAlias));
+        return remoteClusterPermissionGroups.stream().anyMatch(remoteIndicesGroup -> remoteIndicesGroup.hasPrivileges(remoteClusterAlias));
     }
 
-    public boolean hasPrivileges(){
+    public boolean hasPrivileges() {
         return remoteClusterPermissionGroups.isEmpty() == false;
     }
 

@@ -126,10 +126,10 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         );
     }
 
-    //TODO: who calls this ?
-//    public void addRemoteCluster(final String[] privileges, final String[] remoteClusters) {
-//        remoteClusterPrivileges.add(new RoleDescriptor.RemoteClusterPrivileges(remoteClusters, privileges));
-//    }
+    // TODO: who calls this ?
+    // public void addRemoteCluster(final String[] privileges, final String[] remoteClusters) {
+    // remoteClusterPrivileges.add(new RoleDescriptor.RemoteClusterPrivileges(remoteClusters, privileges));
+    // }
 
     public void addIndex(
         String[] indices,
@@ -198,10 +198,10 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         return false == remoteIndicesPrivileges.isEmpty();
     }
 
-    //TODO: who calls this ?
-    //public boolean hasRemoteClusterPrivileges() {
-     //   return false == remoteClusterPrivileges.isEmpty();
-   // }
+    // TODO: who calls this ?
+    // public boolean hasRemoteClusterPrivileges() {
+    // return false == remoteClusterPrivileges.isEmpty();
+    // }
 
     public List<RoleDescriptor.ApplicationResourcePrivileges> applicationPrivileges() {
         return Collections.unmodifiableList(applicationPrivileges);

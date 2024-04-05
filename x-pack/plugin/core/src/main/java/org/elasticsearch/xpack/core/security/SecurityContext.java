@@ -72,9 +72,9 @@ public class SecurityContext {
     @Nullable
     public User getUser() {
         Authentication authentication = getAuthentication();
-        if(authentication != null ) {
+        if (authentication != null) {
             if (authentication.isCrossClusterAccess()) {
-               authentication = getAuthenticationFromCrossClusterAccessMetadata(authentication);
+                authentication = getAuthenticationFromCrossClusterAccessMetadata(authentication);
             }
         }
         return authentication == null ? null : authentication.getEffectiveSubject().getUser();

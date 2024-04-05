@@ -26,7 +26,7 @@ import java.io.IOException;
  }
  * </code>
  */
-public class RemoteClusterPermissionGroup implements Writeable,ToXContentObject {
+public class RemoteClusterPermissionGroup implements Writeable, ToXContentObject {
 
     private final String[] clusterPrivileges;
     private final String[] remoteClusterAliases;
@@ -37,8 +37,9 @@ public class RemoteClusterPermissionGroup implements Writeable,ToXContentObject 
         remoteClusterAliases = in.readStringArray();
         remoteClusterAliasMatcher = StringMatcher.of(remoteClusterAliases);
     }
+
     public RemoteClusterPermissionGroup(String[] clusterPrivileges, String[] remoteClusterAliases) {
-        //TODO: throw an exception if using unsupported cluster privilges
+        // TODO: throw an exception if using unsupported cluster privilges
         this(clusterPrivileges, remoteClusterAliases, StringMatcher.of(remoteClusterAliases));
     }
 

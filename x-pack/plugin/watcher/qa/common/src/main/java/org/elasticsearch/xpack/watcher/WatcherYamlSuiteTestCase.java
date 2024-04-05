@@ -14,7 +14,6 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 
 import java.util.concurrent.TimeUnit;
@@ -52,7 +51,7 @@ public abstract class WatcherYamlSuiteTestCase extends ESClientYamlSuiteTestCase
                         emptyMap()
                     );
                     boolean isAcknowledged = (boolean) startResponse.evaluate("acknowledged");
-                    Assert.assertThat(isAcknowledged, is(true));
+                    assertThat(isAcknowledged, is(true));
                     throw new AssertionError("waiting until stopped state reached started state");
                 }
                 case "stopping" -> throw new AssertionError("waiting until stopping state reached stopped state to start again");
@@ -91,7 +90,7 @@ public abstract class WatcherYamlSuiteTestCase extends ESClientYamlSuiteTestCase
                         emptyMap()
                     );
                     boolean isAcknowledged = (boolean) stopResponse.evaluate("acknowledged");
-                    Assert.assertThat(isAcknowledged, is(true));
+                    assertThat(isAcknowledged, is(true));
                     throw new AssertionError("waiting until started state reached stopped state");
                 default:
                     throw new AssertionError("unknown state[" + state + "]");

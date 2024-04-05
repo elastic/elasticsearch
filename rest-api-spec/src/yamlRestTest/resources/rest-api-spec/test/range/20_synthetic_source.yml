@@ -1,4 +1,8 @@
 setup:
+  - skip:
+      version: " - 8.13.99"
+      reason: synthetic source support added in 8.14
+
   - do:
       indices.create:
         index: synthetic_source_test
@@ -143,24 +147,18 @@ setup:
       index:
         index: synthetic_source_test
         id: "2"
-        body: { "float_range" : { "gt": 1, "lte": 3 } }
+        body: { "float_range" : [ { "gte": 4.0, "lte": 5.0 } ] }
 
   - do:
       index:
         index: synthetic_source_test
         id: "3"
-        body: { "float_range" : [ { "gte": 4, "lt": 5 } ] }
+        body: { "float_range" : [ { "gte": 4, "lte": 8 }, { "gte": 4, "lte": 7 } ] }
 
   - do:
       index:
         index: synthetic_source_test
         id: "4"
-        body: { "float_range" : [ { "gt": 4, "lt": 8 }, { "gt": 4, "lt": 7 } ] }
-
-  - do:
-      index:
-        index: synthetic_source_test
-        id: "5"
         body: { "float_range" : null }
 
   - do:
@@ -169,21 +167,18 @@ setup:
   - do:
       search:
         index: synthetic_source_test
-  - match: { hits.total.value: 5 }
+  - match: { hits.total.value: 4 }
   - match:
       hits.hits.0._source:
-        float_range:  { "gte": 1, "lte": 5 }
+        float_range:  { "gte": 1.0, "lte": 5.0 }
   - match:
       hits.hits.1._source:
-        float_range: { "gte": 2, "lte": 3 }
+        float_range: { "gte": 4.0, "lte": 5.0 }
   - match:
       hits.hits.2._source:
-        float_range: { "gte": 4, "lte": 4 }
+        float_range: [ { "gte": 4.0, "lte": 7.0 }, { "gte": 4.0, "lte": 8.0 } ]
   - match:
-      hits.hits.3._source:
-        float_range: [ { "gte": 5, "lte": 6 }, { "gte": 5, "lte": 7 } ]
-  - match:
-      hits.hits.4._source: {}
+      hits.hits.3._source: {}
 
 ---
 "Double range":
@@ -198,24 +193,18 @@ setup:
       index:
         index: synthetic_source_test
         id: "2"
-        body: { "double_range" : { "gt": 1, "lte": 3 } }
+        body: { "double_range" : [ { "gte": 4.0, "lte": 5.0 } ] }
 
   - do:
       index:
         index: synthetic_source_test
         id: "3"
-        body: { "double_range" : [ { "gte": 4, "lt": 5 } ] }
+        body: { "double_range" : [ { "gte": 4, "lte": 8 }, { "gte": 4, "lte": 7 } ] }
 
   - do:
       index:
         index: synthetic_source_test
         id: "4"
-        body: { "double_range" : [ { "gt": 4, "lt": 8 }, { "gt": 4, "lt": 7 } ] }
-
-  - do:
-      index:
-        index: synthetic_source_test
-        id: "5"
         body: { "double_range" : null }
 
   - do:
@@ -224,21 +213,18 @@ setup:
   - do:
       search:
         index: synthetic_source_test
-  - match: { hits.total.value: 5 }
+  - match: { hits.total.value: 4 }
   - match:
       hits.hits.0._source:
-        double_range:  { "gte": 1, "lte": 5 }
+        double_range:  { "gte": 1.0, "lte": 5.0 }
   - match:
       hits.hits.1._source:
-        double_range: { "gte": 2, "lte": 3 }
+        double_range: { "gte": 4.0, "lte": 5.0 }
   - match:
       hits.hits.2._source:
-        double_range: { "gte": 4, "lte": 4 }
+        double_range: [ { "gte": 4.0, "lte": 7.0 }, { "gte": 4.0, "lte": 8.0 } ]
   - match:
-      hits.hits.3._source:
-        double_range: [ { "gte": 5, "lte": 6 }, { "gte": 5, "lte": 7 } ]
-  - match:
-      hits.hits.4._source: {}
+      hits.hits.3._source: {}
 
 ---
 "IP range":

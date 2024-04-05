@@ -55,8 +55,8 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
             return new TypeResolution("Unresolved children");
         }
 
-        return isDate(timestampField(), sourceText(), FIRST).and(
-            isType(interval(), EsqlDataTypes::isTemporalAmount, sourceText(), SECOND, "dateperiod", "timeduration")
+        return isDate(timestampField(), sourceText(), SECOND).and(
+            isType(interval(), EsqlDataTypes::isTemporalAmount, sourceText(), FIRST, "dateperiod", "timeduration")
         );
     }
 

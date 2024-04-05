@@ -108,6 +108,12 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
      */
     private static final int MAX_TRACE_EVENTS_RESULT_SIZE = 150_000;
 
+    /**
+     * Users may provide a custom field via the API that is used to sub-divide profiling events. This is useful in the context of TopN
+     * where we want to provide additional breakdown of where a certain function has been called (e.g. a certain service or transaction).
+     */
+    private static final String CUSTOM_EVENT_SUB_AGGREGATION_NAME = "custom_event_group";
+
     private final NodeClient nodeClient;
     private final ProfilingLicenseChecker licenseChecker;
     private final ClusterService clusterService;
@@ -241,11 +247,25 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         GetStackTracesResponseBuilder responseBuilder
     ) {
 
+        CountedTermsAggregationBuilder groupByStackTraceId = new CountedTermsAggregationBuilder("group_by").size(
+            MAX_TRACE_EVENTS_RESULT_SIZE
+        ).field(request.getStackTraceIdsField());
+        if (request.getAggregationField() != null) {
+            String aggregationField = request.getAggregationField();
+            log.trace("Grouping stacktrace events by [{}].", aggregationField);
+            // be strict about the accepted field names to avoid downstream errors or leaking unintended information
+            if (aggregationField.equals("transaction.name") == false) {
+                throw new IllegalArgumentException(
+                    "Requested custom event aggregation field [" + aggregationField + "] but only [transaction.name] is supported."
+                );
+            }
+            groupByStackTraceId.subAggregation(
+                new TermsAggregationBuilder(CUSTOM_EVENT_SUB_AGGREGATION_NAME).field(request.getAggregationField())
+            );
+        }
         RandomSamplerAggregationBuilder randomSampler = new RandomSamplerAggregationBuilder("sample").setSeed(request.hashCode())
             .setProbability(responseBuilder.getSamplingRate())
-            .subAggregation(
-                new CountedTermsAggregationBuilder("group_by").size(MAX_TRACE_EVENTS_RESULT_SIZE).field(request.getStackTraceIdsField())
-            );
+            .subAggregation(groupByStackTraceId);
         // shard seed is only set in tests and ensures consistent results
         if (request.getShardSeed() != null) {
             randomSampler.setShardSeed(request.getShardSeed());
@@ -283,6 +303,14 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                         stackTraceEvents.put(stackTraceID, event);
                     }
                     event.count += count;
+                    if (request.getAggregationField() != null) {
+                        Terms eventSubGroup = stacktraceBucket.getAggregations().get(CUSTOM_EVENT_SUB_AGGREGATION_NAME);
+                        for (Terms.Bucket b : eventSubGroup.getBuckets()) {
+                            String subGroupName = b.getKeyAsString();
+                            long subGroupCount = event.subGroups.getOrDefault(subGroupName, 0L);
+                            event.subGroups.put(subGroupName, subGroupCount + b.getDocCount());
+                        }
+                    }
                 }
                 responseBuilder.setTotalSamples(totalSamples);
                 responseBuilder.setHostEventCounts(hostEventCounts);
@@ -300,6 +328,25 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         EventsIndex eventsIndex
     ) {
         responseBuilder.setSamplingRate(eventsIndex.getSampleRate());
+        TermsAggregationBuilder groupByStackTraceId = new TermsAggregationBuilder("group_by")
+            // 'size' should be max 100k, but might be slightly more. Better be on the safe side.
+            .size(MAX_TRACE_EVENTS_RESULT_SIZE)
+            .field("Stacktrace.id")
+            // 'execution_hint: map' skips the slow building of ordinals that we don't need.
+            // Especially with high cardinality fields, this makes aggregations really slow.
+            .executionHint("map")
+            .subAggregation(new SumAggregationBuilder("count").field("Stacktrace.count"));
+        if (request.getAggregationField() != null) {
+            String aggregationField = request.getAggregationField();
+            log.trace("Grouping stacktrace events by [{}].", aggregationField);
+            // be strict about the accepted field names to avoid downstream errors or leaking unintended information
+            if (aggregationField.equals("service.name") == false) {
+                throw new IllegalArgumentException(
+                    "Requested custom event aggregation field [" + aggregationField + "] but only [service.name] is supported."
+                );
+            }
+            groupByStackTraceId.subAggregation(new TermsAggregationBuilder(CUSTOM_EVENT_SUB_AGGREGATION_NAME).field(aggregationField));
+        }
         client.prepareSearch(eventsIndex.getName())
             .setTrackTotalHits(false)
             .setSize(0)
@@ -320,16 +367,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                     // 'execution_hint: map' skips the slow building of ordinals that we don't need.
                     // Especially with high cardinality fields, this makes aggregations really slow.
                     .executionHint("map")
-                    .subAggregation(
-                        new TermsAggregationBuilder("group_by")
-                            // 'size' should be max 100k, but might be slightly more. Better be on the safe side.
-                            .size(MAX_TRACE_EVENTS_RESULT_SIZE)
-                            .field("Stacktrace.id")
-                            // 'execution_hint: map' skips the slow building of ordinals that we don't need.
-                            // Especially with high cardinality fields, this makes aggregations really slow.
-                            .executionHint("map")
-                            .subAggregation(new SumAggregationBuilder("count").field("Stacktrace.count"))
-                    )
+                    .subAggregation(groupByStackTraceId)
             )
             .addAggregation(new SumAggregationBuilder("total_count").field("Stacktrace.count"))
             .execute(handleEventsGroupedByStackTrace(submitTask, client, responseBuilder, submitListener, searchResponse -> {
@@ -370,6 +408,14 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                             stackTraceEvents.put(stackTraceID, event);
                         }
                         event.count += finalCount;
+                        if (request.getAggregationField() != null) {
+                            Terms subGroup = stacktraceBucket.getAggregations().get(CUSTOM_EVENT_SUB_AGGREGATION_NAME);
+                            for (Terms.Bucket b : subGroup.getBuckets()) {
+                                String subGroupName = b.getKeyAsString();
+                                long subGroupCount = event.subGroups.getOrDefault(subGroupName, 0L);
+                                event.subGroups.put(subGroupName, subGroupCount + b.getDocCount());
+                            }
+                        }
                     }
                 }
                 responseBuilder.setTotalSamples(totalFinalCount);

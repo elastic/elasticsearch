@@ -188,6 +188,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.failureStore = failureStore;
         this.failureIndices = failureIndices;
         assert assertConsistent(this.indices);
+        assert replicated == false || rolloverOnWrite == false : "replicated data streams cannot be marked for lazy rollover";
         this.rolloverOnWrite = rolloverOnWrite;
         this.autoShardingEvent = autoShardingEvent;
     }

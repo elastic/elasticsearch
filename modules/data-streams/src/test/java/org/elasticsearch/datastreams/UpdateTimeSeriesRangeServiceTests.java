@@ -154,7 +154,7 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
                     d.getLifecycle(),
                     d.isFailureStore(),
                     d.getFailureIndices(),
-                    d.rolloverOnWrite(),
+                    false,
                     d.getAutoShardingEvent()
                 )
             )

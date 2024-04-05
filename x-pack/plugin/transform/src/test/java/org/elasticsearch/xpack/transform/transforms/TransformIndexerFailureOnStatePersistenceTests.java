@@ -11,6 +11,8 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -32,6 +34,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
+import org.elasticsearch.xpack.transform.TransformExtension;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
@@ -61,6 +64,9 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
 
         MockClientTransformIndexer(
             ThreadPool threadPool,
+            ClusterService clusterService,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            TransformExtension transformExtension,
             TransformServices transformServices,
             CheckpointProvider checkpointProvider,
             AtomicReference<IndexerState> initialState,
@@ -77,6 +83,9 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
         ) {
             super(
                 threadPool,
+                clusterService,
+                indexNameExpressionResolver,
+                transformExtension,
                 transformServices,
                 checkpointProvider,
                 initialState,
@@ -214,6 +223,9 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
 
                 MockClientTransformIndexer indexer = new MockClientTransformIndexer(
                     mock(ThreadPool.class),
+                    mock(ClusterService.class),
+                    mock(IndexNameExpressionResolver.class),
+                    mock(TransformExtension.class),
                     new TransformServices(
                         configManager,
                         mock(TransformCheckpointService.class),
@@ -296,6 +308,9 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                 final var client = new NoOpClient(threadPool);
                 MockClientTransformIndexer indexer = new MockClientTransformIndexer(
                     mock(ThreadPool.class),
+                    mock(ClusterService.class),
+                    mock(IndexNameExpressionResolver.class),
+                    mock(TransformExtension.class),
                     new TransformServices(
                         configManager,
                         mock(TransformCheckpointService.class),
@@ -427,6 +442,9 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
             final var client = new NoOpClient(threadPool);
             MockClientTransformIndexer indexer = new MockClientTransformIndexer(
                 mock(ThreadPool.class),
+                mock(ClusterService.class),
+                mock(IndexNameExpressionResolver.class),
+                mock(TransformExtension.class),
                 new TransformServices(
                     configManager,
                     mock(TransformCheckpointService.class),

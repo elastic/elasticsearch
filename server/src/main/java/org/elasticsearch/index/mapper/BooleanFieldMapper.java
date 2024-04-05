@@ -48,6 +48,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -115,7 +116,7 @@ public class BooleanFieldMapper extends FieldMapper {
         @Override
         public BooleanFieldMapper build(MapperBuilderContext context) {
             MappedFieldType ft = new BooleanFieldType(
-                context.buildFullName(name),
+                context.buildFullName(name()),
                 indexed.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false,
                 stored.getValue(),
                 docValues.getValue(),
@@ -123,7 +124,7 @@ public class BooleanFieldMapper extends FieldMapper {
                 scriptValues(),
                 meta.getValue()
             );
-            return new BooleanFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, context.isSourceSynthetic(), this);
+            return new BooleanFieldMapper(name(), ft, multiFieldsBuilder.build(this, context), copyTo, context.isSourceSynthetic(), this);
         }
 
         private FieldValues<Boolean> scriptValues() {
@@ -133,7 +134,7 @@ public class BooleanFieldMapper extends FieldMapper {
             BooleanFieldScript.Factory scriptFactory = scriptCompiler.compile(script.get(), BooleanFieldScript.CONTEXT);
             return scriptFactory == null
                 ? null
-                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(name, script.get().getParams(), lookup, OnScriptError.FAIL)
+                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(name(), script.get().getParams(), lookup, OnScriptError.FAIL)
                     .newInstance(ctx)
                     .runForDoc(doc, consumer);
         }
@@ -317,8 +318,9 @@ public class BooleanFieldMapper extends FieldMapper {
             if (isIndexed()) {
                 return super.termsQuery(values, context);
             } else {
+                Set<?> dedupe = new HashSet<>(values);
                 BooleanQuery.Builder builder = new BooleanQuery.Builder();
-                for (Object value : values) {
+                for (Object value : dedupe) {
                     builder.add(termQuery(value, context), BooleanClause.Occur.SHOULD);
                 }
                 return new ConstantScoreQuery(builder.build());

@@ -12,17 +12,18 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.FixedMultiBucketAggregatorsReducer;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -243,40 +244,38 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        reduceContext.consumeBucketsAndMaybeBreak(buckets.size());
-        long[] docCounts = new long[buckets.size()];
-        InternalAggregations[][] aggs = new InternalAggregations[buckets.size()][];
-        for (int i = 0; i < aggs.length; ++i) {
-            aggs[i] = new InternalAggregations[aggregations.size()];
-        }
-        for (int i = 0; i < aggregations.size(); ++i) {
-            InternalBinaryRange range = (InternalBinaryRange) aggregations.get(i);
-            if (range.buckets.size() != buckets.size()) {
-                throw new IllegalStateException("Expected [" + buckets.size() + "] buckets, but got [" + range.buckets.size() + "]");
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+
+        return new AggregatorReducer() {
+
+            final FixedMultiBucketAggregatorsReducer<Bucket> reducer = new FixedMultiBucketAggregatorsReducer<>(
+                reduceContext,
+                size,
+                getBuckets()
+            ) {
+
+                @Override
+                protected Bucket createBucket(Bucket proto, long docCount, InternalAggregations aggregations) {
+                    return new Bucket(proto.format, proto.keyed, proto.key, proto.from, proto.to, docCount, aggregations);
+                }
+            };
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                InternalBinaryRange binaryRange = (InternalBinaryRange) aggregation;
+                reducer.accept(binaryRange.getBuckets());
             }
-            for (int j = 0; j < buckets.size(); ++j) {
-                Bucket bucket = range.buckets.get(j);
-                docCounts[j] += bucket.docCount;
-                aggs[j][i] = bucket.aggregations;
+
+            @Override
+            public InternalAggregation get() {
+                return new InternalBinaryRange(name, format, keyed, reducer.get(), metadata);
             }
-        }
-        List<Bucket> buckets = new ArrayList<>(this.buckets.size());
-        for (int i = 0; i < this.buckets.size(); ++i) {
-            Bucket b = this.buckets.get(i);
-            buckets.add(
-                new Bucket(
-                    format,
-                    keyed,
-                    b.key,
-                    b.from,
-                    b.to,
-                    docCounts[i],
-                    InternalAggregations.reduce(Arrays.asList(aggs[i]), reduceContext)
-                )
-            );
-        }
-        return new InternalBinaryRange(name, format, keyed, buckets, metadata);
+
+            @Override
+            public void close() {
+                Releasables.close(reducer);
+            }
+        };
     }
 
     @Override
@@ -290,11 +289,10 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         );
     }
 
-    @Override
-    protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
-        assert buckets.size() > 0;
-        List<InternalAggregations> aggregationsList = buckets.stream().map(bucket -> bucket.aggregations).toList();
-        final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
+    private Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
+        assert buckets.isEmpty() == false;
+        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
+        final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
         return createBucket(aggs, buckets.get(0));
     }
 

@@ -30,6 +30,7 @@ dependencies {
   clusterModules project(xpackModule('ilm'))
   clusterModules project(xpackModule('mapper-aggregate-metric'))
   clusterModules project(xpackModule('mapper-constant-keyword'))
+  clusterModules project(xpackModule('mapper-counted-keyword'))
   clusterModules project(xpackModule('stack'))
   clusterModules project(xpackModule('wildcard'))
 }

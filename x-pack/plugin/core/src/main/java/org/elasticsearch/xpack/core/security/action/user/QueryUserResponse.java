@@ -68,7 +68,7 @@ public final class QueryUserResponse extends ActionResponse implements ToXConten
         TransportAction.localOnly();
     }
 
-    public record Item(User user, @Nullable Object[] sortValues) implements ToXContentObject {
+    public record Item(User user, @Nullable Object[] sortValues, @Nullable String profileUid) implements ToXContentObject {
 
         @Override
         public Object[] sortValues() {
@@ -81,6 +81,9 @@ public final class QueryUserResponse extends ActionResponse implements ToXConten
             user.innerToXContent(builder);
             if (sortValues != null && sortValues.length > 0) {
                 builder.array("_sort", sortValues);
+            }
+            if (profileUid != null) {
+                builder.field("profile_uid", profileUid);
             }
             builder.endObject();
             return builder;

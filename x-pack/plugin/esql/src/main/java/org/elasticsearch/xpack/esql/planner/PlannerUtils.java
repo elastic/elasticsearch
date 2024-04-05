@@ -15,14 +15,13 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
+import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -30,7 +29,10 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
+import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -38,8 +40,14 @@ import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.ql.options.EsSourceOptions;
+import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.Limit;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -74,17 +82,33 @@ public class PlannerUtils {
         return new Tuple<>(coordinatorPlan, dataNodePlan.get());
     }
 
-    public static boolean hasUnsupportedEnrich(PhysicalPlan plan) {
-        boolean[] found = { false };
-        plan.forEachDown(p -> {
-            if (p instanceof EnrichExec enrich && enrich.mode() != Enrich.Mode.ANY) {
-                found[0] = true;
+    public static PhysicalPlan dataNodeReductionPlan(LogicalPlan plan, PhysicalPlan unused) {
+        var pipelineBreakers = plan.collectFirstChildren(Mapper::isPipelineBreaker);
+
+        if (pipelineBreakers.isEmpty() == false) {
+            UnaryPlan pipelineBreaker = (UnaryPlan) pipelineBreakers.get(0);
+            if (pipelineBreaker instanceof TopN topN) {
+                return new TopNExec(topN.source(), unused, topN.order(), topN.limit(), 2000);
+            } else if (pipelineBreaker instanceof Limit limit) {
+                return new LimitExec(limit.source(), unused, limit.limit());
+            } else if (pipelineBreaker instanceof OrderBy order) {
+                return new OrderExec(order.source(), unused, order.order());
+            } else if (pipelineBreaker instanceof Aggregate aggregate) {
+                // TODO handle this as a special PARTIAL step (intermediate)
+                /*return new AggregateExec(
+                    aggregate.source(),
+                    unused,
+                    aggregate.groupings(),
+                    aggregate.aggregates(),
+                    AggregateExec.Mode.PARTIAL,
+                    0
+                );*/
+                return null;
+            } else {
+                throw new EsqlIllegalArgumentException("unsupported unary physical plan node [" + pipelineBreaker.nodeName() + "]");
             }
-            if (p instanceof FragmentExec f) {
-                f.fragment().forEachDown(Enrich.class, e -> found[0] |= e.mode() != Enrich.Mode.ANY);
-            }
-        });
-        return found[0];
+        }
+        return null;
     }
 
     /**
@@ -115,7 +139,7 @@ public class PlannerUtils {
         return indices.toArray(String[]::new);
     }
 
-    public static PhysicalPlan localPlan(List<SearchContext> searchContexts, EsqlConfiguration configuration, PhysicalPlan plan) {
+    public static PhysicalPlan localPlan(List<SearchExecutionContext> searchContexts, EsqlConfiguration configuration, PhysicalPlan plan) {
         return localPlan(configuration, plan, new SearchStats(searchContexts));
     }
 
@@ -197,6 +221,12 @@ public class PlannerUtils {
         return Queries.combine(FILTER, asList(requestFilter));
     }
 
+    public static EsSourceOptions esSourceOptions(PhysicalPlan plan) {
+        Holder<EsSourceOptions> holder = new Holder<>();
+        plan.forEachUp(FragmentExec.class, f -> f.fragment().forEachUp(EsRelation.class, r -> holder.set(r.esSourceOptions())));
+        return holder.get();
+    }
+
     /**
      * Map QL's {@link DataType} to the compute engine's {@link ElementType}, for sortable types only.
      * This specifically excludes spatial data types, which are not themselves sortable.
@@ -267,4 +297,11 @@ public class PlannerUtils {
         new NoopCircuitBreaker("noop-esql-breaker"),
         BigArrays.NON_RECYCLING_INSTANCE
     );
+
+    /**
+     * Returns DOC_VALUES if the given boolean is set.
+     */
+    public static MappedFieldType.FieldExtractPreference extractPreference(boolean hasPreference) {
+        return hasPreference ? MappedFieldType.FieldExtractPreference.DOC_VALUES : MappedFieldType.FieldExtractPreference.NONE;
+    }
 }

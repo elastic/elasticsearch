@@ -92,7 +92,7 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
         } else {
             this.metadata = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.DEPRECATED_COMPONENT_TEMPLATES_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.deprecated = in.readOptionalBoolean();
         } else {
             deprecated = null;
@@ -131,7 +131,7 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
             out.writeBoolean(true);
             out.writeGenericMap(this.metadata);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.DEPRECATED_COMPONENT_TEMPLATES_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalBoolean(this.deprecated);
         }
     }
@@ -163,17 +163,21 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params, null);
+        return toXContent(builder, params, null, null);
     }
 
     /**
      * Converts the component template to XContent and passes the RolloverConditions, when provided, to the template.
      */
-    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
-        throws IOException {
+    public XContentBuilder toXContent(
+        XContentBuilder builder,
+        Params params,
+        @Nullable RolloverConfiguration rolloverConfiguration,
+        @Nullable DataStreamGlobalRetention globalRetention
+    ) throws IOException {
         builder.startObject();
         builder.field(TEMPLATE.getPreferredName());
-        this.template.toXContent(builder, params, rolloverConfiguration);
+        this.template.toXContent(builder, params, rolloverConfiguration, globalRetention);
         if (this.version != null) {
             builder.field(VERSION.getPreferredName(), this.version);
         }

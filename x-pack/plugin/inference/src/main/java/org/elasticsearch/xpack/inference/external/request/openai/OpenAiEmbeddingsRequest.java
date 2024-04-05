@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.bu
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.createOrgHeader;
 
-public class OpenAiEmbeddingsRequest implements Request {
+public class OpenAiEmbeddingsRequest implements OpenAiRequest {
 
     private final Truncator truncator;
     private final OpenAiAccount account;
@@ -54,7 +54,13 @@ public class OpenAiEmbeddingsRequest implements Request {
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
             Strings.toString(
-                new OpenAiEmbeddingsRequestEntity(truncationResult.input(), model.getTaskSettings().model(), model.getTaskSettings().user())
+                new OpenAiEmbeddingsRequestEntity(
+                    truncationResult.input(),
+                    model.getServiceSettings().modelId(),
+                    model.getTaskSettings().user(),
+                    model.getServiceSettings().dimensions(),
+                    model.getServiceSettings().dimensionsSetByUser()
+                )
             ).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);

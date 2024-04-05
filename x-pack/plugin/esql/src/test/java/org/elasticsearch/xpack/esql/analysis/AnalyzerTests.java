@@ -7,18 +7,23 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
@@ -26,7 +31,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.esql.session.EsqlSession;
+import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -38,7 +43,6 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
@@ -246,6 +250,35 @@ public class AnalyzerTests extends ESTestCase {
             """, "_meta_field", "emp_no", "first_name", "gender", "job", "job.raw", "languages", "last_name", "long_noidx", "salary");
     }
 
+    public void testEscapedStar() {
+        assertProjection("""
+            from test
+            | eval a = 1, `a*` = 2
+            | keep `a*`
+            """, "a*");
+    }
+
+    public void testEscapeStarPlusPattern() {
+        assertProjection("""
+            row a = 0, `a*` = 1, `ab*` = 2, `ab*cd` = 3, `abc*de` = 4
+            | keep `a*`*, abc*
+            """, "a*", "abc*de");
+    }
+
+    public void testBacktickPlusPattern() {
+        assertProjection("""
+            row a = 0, `a``` = 1, `a``b*` = 2, `ab*cd` = 3, `abc*de` = 4
+            | keep a*, a````b`*`
+            """, "a", "a`", "ab*cd", "abc*de", "a`b*");
+    }
+
+    public void testRenameBacktickPlusPattern() {
+        assertProjection("""
+            row a = 0, `a*` = 1, `ab*` = 2, `ab*cd` = 3, `abc*de` = 4
+            | rename `ab*` as `xx*`
+            """, "a", "a*", "xx*", "ab*cd", "abc*de");
+    }
+
     public void testNoProjection() {
         assertProjection("""
             from test
@@ -390,7 +423,7 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | keep *nonExisting
             """));
-        assertThat(e.getMessage(), containsString("No match found for [*nonExisting]"));
+        assertThat(e.getMessage(), containsString("No matches found for pattern [*nonExisting]"));
     }
 
     public void testErrorOnNoMatchingPatternExclusion() {
@@ -398,7 +431,7 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | drop *nonExisting
             """));
-        assertThat(e.getMessage(), containsString("No match found for [*nonExisting]"));
+        assertThat(e.getMessage(), containsString("No matches found for pattern [*nonExisting]"));
     }
 
     //
@@ -467,7 +500,7 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | keep un*
             """));
-        assertThat(e.getMessage(), containsString("No match found for [un*]"));
+        assertThat(e.getMessage(), containsString("No matches found for pattern [un*]"));
     }
 
     public void testDropUnsupportedFieldExplicit() {
@@ -717,7 +750,7 @@ public class AnalyzerTests extends ESTestCase {
         verifyUnsupported("""
             from test
             | drop dep.*
-            """, "Found 1 problem\n" + "line 2:8: No match found for [dep.*]", "mapping-multi-field-with-nested.json");
+            """, "Found 1 problem\n" + "line 2:8: No matches found for pattern [dep.*]", "mapping-multi-field-with-nested.json");
     }
 
     public void testSupportedDeepHierarchy() {
@@ -1146,9 +1179,14 @@ public class AnalyzerTests extends ESTestCase {
         var order = as(limit.child(), OrderBy.class);
         var agg = as(order.child(), Aggregate.class);
         var aggregates = agg.aggregates();
-        assertThat(aggregates, hasSize(2));
-        assertThat(Expressions.names(aggregates), contains("x", "b"));
+        var output = agg.output();
+        assertThat(output, hasSize(2));
+        assertThat(Expressions.names(output), contains("x", "b"));
         var alias = as(aggregates.get(0), Alias.class);
+        var count = as(alias.child(), Count.class);
+        alias = as(aggregates.get(1), Alias.class);
+        var min = as(alias.child(), Min.class);
+        alias = as(aggregates.get(2), Alias.class);
         var max = as(alias.child(), Max.class);
     }
 
@@ -1162,9 +1200,53 @@ public class AnalyzerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var order = as(limit.child(), OrderBy.class);
         var agg = as(order.child(), Aggregate.class);
-        var aggregates = agg.aggregates();
-        assertThat(aggregates, hasSize(1));
-        assertThat(Expressions.names(aggregates), contains("b"));
+        var output = agg.output();
+        assertThat(output, hasSize(1));
+        assertThat(Expressions.names(output), contains("b"));
+    }
+
+    /**
+     * Expects
+     * Limit[1000[INTEGER]]
+     * \_EsqlAggregate[[emp_no{f}#9 + languages{f}#12 AS emp_no + languages],[MIN(emp_no{f}#9 + languages{f}#12) AS min(emp_no + langu
+     * ages), emp_no + languages{r}#7]]
+     *   \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     */
+    public void testAggsOverGroupingKey() throws Exception {
+        var plan = analyze("""
+            from test
+            | stats min(emp_no + languages) by emp_no + languages
+            """);
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var output = agg.output();
+        assertThat(output, hasSize(2));
+        var aggs = agg.aggregates();
+        var min = as(Alias.unwrap(aggs.get(0)), Min.class);
+        assertThat(min.arguments(), hasSize(1));
+        var group = Alias.unwrap(agg.groupings().get(0));
+        assertEquals(min.arguments().get(0), group);
+    }
+
+    /**
+     * Expects
+     * Limit[1000[INTEGER]]
+     * \_EsqlAggregate[[emp_no{f}#9 + languages{f}#12 AS a],[MIN(a{r}#7) AS min(a), a{r}#7]]
+     *   \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     */
+    public void testAggsOverGroupingKeyWithAlias() throws Exception {
+        var plan = analyze("""
+            from test
+            | stats min(a) by a = emp_no + languages
+            """);
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var output = agg.output();
+        assertThat(output, hasSize(2));
+        var aggs = agg.aggregates();
+        var min = as(Alias.unwrap(aggs.get(0)), Min.class);
+        assertThat(min.arguments(), hasSize(1));
+        assertEquals(Expressions.attribute(min.arguments().get(0)), Expressions.attribute(agg.groupings().get(0)));
     }
 
     public void testAggsWithoutAgg() throws Exception {
@@ -1389,14 +1471,14 @@ public class AnalyzerTests extends ESTestCase {
         AnalyzerContext context = new AnalyzerContext(configuration("from test"), new EsqlFunctionRegistry(), testIndex, enrichResolution);
         Analyzer analyzer = new Analyzer(context, TEST_VERIFIER);
         {
-            LogicalPlan plan = analyze("from test | EVAL x = to_string(languages) | ENRICH[ccq.mode:coordinator] languages ON x", analyzer);
+            LogicalPlan plan = analyze("from test | EVAL x = to_string(languages) | ENRICH _coordinator:languages ON x", analyzer);
             List<Enrich> resolved = new ArrayList<>();
             plan.forEachDown(Enrich.class, resolved::add);
             assertThat(resolved, hasSize(1));
         }
         var e = expectThrows(
             VerificationException.class,
-            () -> analyze("from test | EVAL x = to_string(languages) | ENRICH[ccq.mode:any] languages ON x", analyzer)
+            () -> analyze("from test | EVAL x = to_string(languages) | ENRICH _any:languages ON x", analyzer)
         );
         assertThat(e.getMessage(), containsString("error-2"));
         e = expectThrows(
@@ -1406,7 +1488,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("error-2"));
         e = expectThrows(
             VerificationException.class,
-            () -> analyze("from test | EVAL x = to_string(languages) | ENRICH[ccq.mode:remote] languages ON x", analyzer)
+            () -> analyze("from test | EVAL x = to_string(languages) | ENRICH _remote:languages ON x", analyzer)
         );
         assertThat(e.getMessage(), containsString("error-1"));
 
@@ -1431,13 +1513,19 @@ public class AnalyzerTests extends ESTestCase {
     public void testEnrichWrongMatchFieldType() {
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
-            | enrich languages on languages
+            | eval x = to_boolean(languages)
+            | enrich languages on x
             | keep first_name, language_name, id
             """));
-        assertThat(
-            e.getMessage(),
-            containsString("Unsupported type [INTEGER] for enrich matching field [languages]; only KEYWORD allowed")
-        );
+        assertThat(e.getMessage(), containsString("Unsupported type [BOOLEAN] for enrich matching field [x]; only [KEYWORD,"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            FROM airports
+            | EVAL x = to_string(city_location)
+            | ENRICH city_boundaries ON x
+            | KEEP abbrev, airport, region
+            """, "airports", "mapping-airports.json"));
+        assertThat(e.getMessage(), containsString("Unsupported type [KEYWORD] for enrich matching field [x]; only [GEO_POINT,"));
     }
 
     public void testValidEnrich() {
@@ -1461,6 +1549,41 @@ public class AnalyzerTests extends ESTestCase {
             | enrich languages on x with y = language_name
             | keep first_name, y
             """, "first_name", "y");
+
+        assertProjection(analyze("""
+            FROM sample_data
+            | ENRICH client_cidr ON client_ip WITH env
+            | KEEP client_ip, env
+            """, "sample_data", "mapping-sample_data.json"), "client_ip", "env");
+
+        assertProjection(analyze("""
+            FROM employees
+            | WHERE birth_date > "1960-01-01"
+            | EVAL birth_year = DATE_EXTRACT("year", birth_date)
+            | EVAL age = 2022 - birth_year
+            | ENRICH ages_policy ON age WITH age_group = description
+            | KEEP first_name, last_name, age, age_group
+            """, "employees", "mapping-default.json"), "first_name", "last_name", "age", "age_group");
+
+        assertProjection(analyze("""
+            FROM employees
+            | ENRICH heights_policy ON height WITH height_group = description
+            | KEEP first_name, last_name, height, height_group
+            """, "employees", "mapping-default.json"), "first_name", "last_name", "height", "height_group");
+
+        assertProjection(analyze("""
+            FROM employees
+            | ENRICH decades_policy ON birth_date WITH birth_decade = decade, birth_description = description
+            | ENRICH decades_policy ON hire_date WITH hire_decade = decade
+            | KEEP first_name, last_name, birth_decade, hire_decade, birth_description
+            """, "employees", "mapping-default.json"), "first_name", "last_name", "birth_decade", "hire_decade", "birth_description");
+
+        assertProjection(analyze("""
+            FROM airports
+            | WHERE abbrev == "CPH"
+            | ENRICH city_boundaries ON city_location WITH airport, region
+            | KEEP abbrev, airport, region
+            """, "airports", "mapping-airports.json"), "abbrev", "airport", "region");
     }
 
     public void testEnrichExcludesPolicyKey() {
@@ -1520,6 +1643,7 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unknown column [x5], did you mean any of [x1, x2, x3]?"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103599")
     public void testInsensitiveEqualsWrongType() {
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
@@ -1554,6 +1678,180 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Unknown column [bar]"));
     }
 
+    public void testRegularStats() {
+        var plan = analyze("""
+            from tests
+            | stats by salary
+            """);
+
+        var limit = as(plan, Limit.class);
+    }
+
+    public void testLiteralInAggregateNoGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |stats 1
+            """));
+
+        assertThat(e.getMessage(), containsString("expected an aggregate function but found [1]"));
+    }
+
+    public void testLiteralBehindEvalInAggregateNoGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |eval x = 1
+            |stats x
+            """));
+
+        assertThat(e.getMessage(), containsString("column [x] must appear in the STATS BY clause or be used in an aggregate function"));
+    }
+
+    public void testLiteralsInAggregateNoGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |stats 1 + 2
+            """));
+
+        assertThat(e.getMessage(), containsString("expected an aggregate function but found [1 + 2]"));
+    }
+
+    public void testLiteralsBehindEvalInAggregateNoGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |eval x = 1 + 2
+            |stats x
+            """));
+
+        assertThat(e.getMessage(), containsString("column [x] must appear in the STATS BY clause or be used in an aggregate function"));
+    }
+
+    public void testFoldableInAggregateWithGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |stats 1 + 2 by languages
+            """));
+
+        assertThat(e.getMessage(), containsString("expected an aggregate function but found [1 + 2]"));
+    }
+
+    public void testLiteralsInAggregateWithGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |stats "a" by languages
+            """));
+
+        assertThat(e.getMessage(), containsString("expected an aggregate function but found [\"a\"]"));
+    }
+
+    public void testFoldableBehindEvalInAggregateWithGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |eval x = 1 + 2
+            |stats x by languages
+            """));
+
+        assertThat(e.getMessage(), containsString("column [x] must appear in the STATS BY clause or be used in an aggregate function"));
+    }
+
+    public void testFoldableInGrouping() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |stats x by 1
+            """));
+
+        assertThat(e.getMessage(), containsString("Unknown column [x]"));
+    }
+
+    public void testScalarFunctionsInStats() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+            |stats salary % 3 by languages
+            """));
+
+        assertThat(
+            e.getMessage(),
+            containsString("column [salary] must appear in the STATS BY clause or be used in an aggregate function")
+        );
+    }
+
+    public void testDeferredGroupingInStats() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+             from test
+             |eval x = first_name
+             |stats x by first_name
+            """));
+
+        assertThat(e.getMessage(), containsString("column [x] must appear in the STATS BY clause or be used in an aggregate function"));
+    }
+
+    public void testUnsupportedTypesInStats() {
+        verifyUnsupported(
+            """
+                  row x = to_unsigned_long(\"10\")
+                  | stats  avg(x), count_distinct(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
+                """,
+            "Found 8 problems\n"
+                + "line 2:12: argument of [avg(x)] must be [numeric except unsigned_long], found value [x] type [unsigned_long]\n"
+                + "line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long], "
+                + "found value [x] type [unsigned_long]\n"
+                + "line 2:39: argument of [max(x)] must be [datetime or numeric except unsigned_long], "
+                + "found value [max(x)] type [unsigned_long]\n"
+                + "line 2:47: argument of [median(x)] must be [numeric except unsigned_long], found value [x] type [unsigned_long]\n"
+                + "line 2:58: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long], "
+                + "found value [x] type [unsigned_long]\n"
+                + "line 2:88: argument of [min(x)] must be [datetime or numeric except unsigned_long], "
+                + "found value [min(x)] type [unsigned_long]\n"
+                + "line 2:96: first argument of [percentile(x, 10)] must be [numeric except unsigned_long], "
+                + "found value [x] type [unsigned_long]\n"
+                + "line 2:115: argument of [sum(x)] must be [numeric except unsigned_long], found value [x] type [unsigned_long]"
+        );
+
+        verifyUnsupported(
+            """
+                row x = to_version("1.2")
+                | stats  avg(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
+                """,
+            "Found 7 problems\n"
+                + "line 2:10: argument of [avg(x)] must be [numeric except unsigned_long], found value [x] type [version]\n"
+                + "line 2:18: argument of [max(x)] must be [datetime or numeric except unsigned_long], "
+                + "found value [max(x)] type [version]\n"
+                + "line 2:26: argument of [median(x)] must be [numeric except unsigned_long], found value [x] type [version]\n"
+                + "line 2:37: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long], "
+                + "found value [x] type [version]\n"
+                + "line 2:67: argument of [min(x)] must be [datetime or numeric except unsigned_long], "
+                + "found value [min(x)] type [version]\n"
+                + "line 2:75: first argument of [percentile(x, 10)] must be [numeric except unsigned_long], "
+                + "found value [x] type [version]\n"
+                + "line 2:94: argument of [sum(x)] must be [numeric except unsigned_long], found value [x] type [version]"
+        );
+    }
+
+    public void testInOnText() {
+        assertProjectionWithMapping("""
+            from a_index
+            | eval text in (\"a\", \"b\", \"c\")
+            | keep text
+            """, "mapping-multi-field-variation.json", "text");
+
+        assertProjectionWithMapping("""
+            from a_index
+            | eval text in (\"a\", \"b\", \"c\", text)
+            | keep text
+            """, "mapping-multi-field-variation.json", "text");
+
+        assertProjectionWithMapping("""
+            from a_index
+            | eval text not in (\"a\", \"b\", \"c\")
+            | keep text
+            """, "mapping-multi-field-variation.json", "text");
+
+        assertProjectionWithMapping("""
+            from a_index
+            | eval text not in (\"a\", \"b\", \"c\", text)
+            | keep text
+            """, "mapping-multi-field-variation.json", "text");
+    }
+
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }
@@ -1564,7 +1862,10 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private void assertProjection(String query, String... names) {
-        var plan = analyze(query);
+        assertProjection(analyze(query), names);
+    }
+
+    private void assertProjection(LogicalPlan plan, String... names) {
         var limit = as(plan, Limit.class);
         assertThat(Expressions.names(limit.output()), contains(names));
     }
@@ -1587,14 +1888,9 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private static LogicalPlan analyzeWithEmptyFieldCapsResponse(String query) throws IOException {
-        IndexResolution resolution = IndexResolver.mergedMappings(
-            EsqlDataTypeRegistry.INSTANCE,
-            "test*",
-            readFieldCapsResponse("empty_field_caps_response.json"),
-            EsqlSession::specificValidity,
-            IndexResolver.PRESERVE_PROPERTIES,
-            IndexResolver.INDEX_METADATA_FIELD
-        );
+        List<FieldCapabilitiesIndexResponse> idxResponses = List.of(new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true));
+        FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(idxResponses, List.of());
+        IndexResolution resolution = new EsqlIndexResolver(null, EsqlDataTypeRegistry.INSTANCE).mergedMappings("test*", caps);
         var analyzer = analyzer(resolution, TEST_VERIFIER, configuration(query));
         return analyze(query, analyzer);
     }
@@ -1611,5 +1907,10 @@ public class AnalyzerTests extends ESTestCase {
         EsRelation esRelation = (EsRelation) plan;
         assertThat(esRelation.output(), equalTo(NO_FIELDS));
         assertTrue(esRelation.index().mapping().isEmpty());
+    }
+
+    @Override
+    protected IndexAnalyzers createDefaultIndexAnalyzers() {
+        return super.createDefaultIndexAnalyzers();
     }
 }

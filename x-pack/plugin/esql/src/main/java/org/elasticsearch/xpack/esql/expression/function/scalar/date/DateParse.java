@@ -12,14 +12,13 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -30,22 +29,23 @@ import java.util.List;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.time.DateFormatter.forPattern;
+import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.util.DateUtils.UTC;
 
-public class DateParse extends ScalarFunction implements OptionalArgument, EvaluatorMapper {
+public class DateParse extends EsqlScalarFunction implements OptionalArgument {
 
-    public static final DateFormatter DEFAULT_FORMATTER = toFormatter(new BytesRef("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"), UTC);
     private final Expression field;
     private final Expression format;
 
     @FunctionInfo(returnType = "date", description = "Parses a string into a date value")
     public DateParse(
         Source source,
-        @Param(name = "datePattern", type = { "keyword" }, description = "A valid date pattern", optional = true) Expression first,
+        @Param(name = "datePattern", type = { "keyword", "text" }, description = "A valid date pattern", optional = true) Expression first,
         @Param(name = "dateString", type = { "keyword", "text" }, description = "A string representing a date") Expression second
     ) {
         super(source, second != null ? List.of(first, second) : List.of(first));
@@ -83,20 +83,14 @@ public class DateParse extends ScalarFunction implements OptionalArgument, Evalu
         return field.foldable() && (format == null || format.foldable());
     }
 
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
-    }
-
     @Evaluator(extraName = "Constant", warnExceptions = { IllegalArgumentException.class })
     public static long process(BytesRef val, @Fixed DateFormatter formatter) throws IllegalArgumentException {
-        String dateString = val.utf8ToString();
-        return formatter.parseMillis(dateString);
+        return dateTimeToLong(val.utf8ToString(), formatter);
     }
 
     @Evaluator(warnExceptions = { IllegalArgumentException.class })
     static long process(BytesRef val, BytesRef formatter, @Fixed ZoneId zoneId) throws IllegalArgumentException {
-        return process(val, toFormatter(formatter, zoneId));
+        return dateTimeToLong(val.utf8ToString(), toFormatter(formatter, zoneId));
     }
 
     @Override
@@ -104,9 +98,9 @@ public class DateParse extends ScalarFunction implements OptionalArgument, Evalu
         ZoneId zone = UTC; // TODO session timezone?
         ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.apply(field);
         if (format == null) {
-            return new DateParseConstantEvaluator.Factory(source(), fieldEvaluator, DEFAULT_FORMATTER);
+            return new DateParseConstantEvaluator.Factory(source(), fieldEvaluator, DEFAULT_DATE_TIME_FORMATTER);
         }
-        if (format.dataType() != DataTypes.KEYWORD) {
+        if (EsqlDataTypes.isString(format.dataType()) == false) {
             throw new IllegalArgumentException("unsupported data type for date_parse [" + format.dataType() + "]");
         }
         if (format.foldable()) {
@@ -135,10 +129,5 @@ public class DateParse extends ScalarFunction implements OptionalArgument, Evalu
         Expression first = format != null ? format : field;
         Expression second = format != null ? field : null;
         return NodeInfo.create(this, DateParse::new, first, second);
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
     }
 }

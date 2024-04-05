@@ -10,11 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ConfigurationFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -24,7 +22,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.List;
 import java.util.function.Function;
 
-public class Now extends ConfigurationFunction implements EvaluatorMapper {
+public class Now extends EsqlConfigurationFunction {
 
     private final long now;
 
@@ -76,10 +74,5 @@ public class Now extends ConfigurationFunction implements EvaluatorMapper {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         return dvrCtx -> new NowEvaluator(source(), now, dvrCtx);
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
     }
 }

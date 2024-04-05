@@ -51,11 +51,19 @@ public class ExceptionsHelper {
     }
 
     public static ResourceNotFoundException missingTrainedModel(String modelId) {
-        return new ResourceNotFoundException("No known trained model with model_id [{}], you may need to create it", modelId);
+        return new ResourceNotFoundException(
+            "No known trained model with model_id [{}], you may need to create it or load it into the cluster with eland",
+            modelId
+        );
     }
 
     public static ResourceNotFoundException missingTrainedModel(String modelId, Exception cause) {
-        return new ResourceNotFoundException("No known trained model with model_id [{}], you may need to create it", cause, modelId);
+        return new ResourceNotFoundException(
+            "Failure due to [{}]. No known trained model with model_id [{}], "
+                + "you may need to create it or load it into the cluster with eland",
+            cause,
+            modelId
+        );
     }
 
     public static ElasticsearchException serverError(String msg) {

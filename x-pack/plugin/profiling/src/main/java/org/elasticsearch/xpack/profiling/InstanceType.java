@@ -35,6 +35,45 @@ final class InstanceType implements ToXContentObject {
      * @return the {@link InstanceType}
      */
     public static InstanceType fromHostSource(Map<String, Object> source) {
+        String provider = (String) source.get("cloud.provider");
+        if (provider != null) {
+            String region = (String) source.get("cloud.region");
+            String instanceType = (String) source.get("host.type");
+            return new InstanceType(provider, region, instanceType);
+        }
+
+        // Check and handle pre-8.14.0 host sources for backwards-compatibility.
+        InstanceType instanceType = fromObsoleteHostSource(source);
+        if (instanceType != null) {
+            return instanceType;
+        }
+
+        // Support for configured tags (ECS).
+        // Example of tags:
+        // "profiling.host.tags": [
+        // "cloud_provider:aws",
+        // "cloud_environment:qa",
+        // "cloud_region:eu-west-1",
+        // ],
+        String region = null;
+        List<String> tags = listOf(source.get("profiling.host.tags"));
+        for (String tag : tags) {
+            String[] kv = tag.toLowerCase(Locale.ROOT).split(":", 2);
+            if (kv.length != 2) {
+                continue;
+            }
+            if ("cloud_provider".equals(kv[0])) {
+                provider = kv[1];
+            }
+            if ("cloud_region".equals(kv[0])) {
+                region = kv[1];
+            }
+        }
+
+        return new InstanceType(provider, region, null);
+    }
+
+    private static InstanceType fromObsoleteHostSource(Map<String, Object> source) {
         // Check and handle AWS.
         String region = (String) source.get("ec2.placement.region");
         if (region != null) {
@@ -53,42 +92,21 @@ final class InstanceType implements ToXContentObject {
                 region = tokens[0] + "-" + tokens[1];
             }
 
-            // Support for instance type is planned for 8.13.
+            // Support for the instanceType name requires GCP data containing it.
+            // These are not publically available, so we don't support it for now.
             return new InstanceType("gcp", region, null);
         }
 
         // Check and handle Azure.
+        // example: "azure.compute.location": "eastus2"
         region = (String) source.get("azure.compute.location");
         if (region != null) {
-            // example: "azure.compute.location": "eastus2"
-            // Support for instance type is planned for 8.13.
-            return new InstanceType("azure", region, null);
+            // example: "azure.compute.vmsize": "Standard_D2s_v3"
+            String instanceType = (String) source.get("azure.compute.vmsize");
+            return new InstanceType("azure", region, instanceType);
         }
 
-        // Support for configured tags (ECS).
-        // Example of tags:
-        // "profiling.host.tags": [
-        // "cloud_provider:aws",
-        // "cloud_environment:qa",
-        // "cloud_region:eu-west-1",
-        // ],
-        String provider = null;
-        region = null;
-        List<String> tags = listOf(source.get("profiling.host.tags"));
-        for (String tag : tags) {
-            String[] kv = tag.toLowerCase(Locale.ROOT).split(":", 2);
-            if (kv.length != 2) {
-                continue;
-            }
-            if ("cloud_provider".equals(kv[0])) {
-                provider = kv[1];
-            }
-            if ("cloud_region".equals(kv[0])) {
-                region = kv[1];
-            }
-        }
-
-        return new InstanceType(provider, region, null);
+        return null;
     }
 
     @SuppressWarnings("unchecked")

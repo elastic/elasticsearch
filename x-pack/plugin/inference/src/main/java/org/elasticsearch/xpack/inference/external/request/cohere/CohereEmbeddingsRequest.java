@@ -37,7 +37,7 @@ public class CohereEmbeddingsRequest implements Request {
     private final CohereEmbeddingsTaskSettings taskSettings;
     private final String model;
     private final CohereEmbeddingType embeddingType;
-    private final String modelId;
+    private final String inferenceEntityId;
 
     public CohereEmbeddingsRequest(CohereAccount account, List<String> input, CohereEmbeddingsModel embeddingsModel) {
         Objects.requireNonNull(embeddingsModel);
@@ -46,9 +46,9 @@ public class CohereEmbeddingsRequest implements Request {
         this.input = Objects.requireNonNull(input);
         uri = buildUri(this.account.url(), "Cohere", CohereEmbeddingsRequest::buildDefaultUri);
         taskSettings = embeddingsModel.getTaskSettings();
-        model = embeddingsModel.getServiceSettings().getCommonSettings().getModel();
+        model = embeddingsModel.getServiceSettings().getCommonSettings().modelId();
         embeddingType = embeddingsModel.getServiceSettings().getEmbeddingType();
-        modelId = embeddingsModel.getInferenceEntityId();
+        inferenceEntityId = embeddingsModel.getInferenceEntityId();
     }
 
     @Override
@@ -62,13 +62,14 @@ public class CohereEmbeddingsRequest implements Request {
 
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
         httpPost.setHeader(createAuthBearerHeader(account.apiKey()));
+        httpPost.setHeader(CohereUtils.createRequestSourceHeader());
 
         return new HttpRequest(httpPost, getInferenceEntityId());
     }
 
     @Override
     public String getInferenceEntityId() {
-        return modelId;
+        return inferenceEntityId;
     }
 
     @Override

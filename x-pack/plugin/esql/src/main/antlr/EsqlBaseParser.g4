@@ -24,6 +24,7 @@ sourceCommand
     | fromCommand
     | rowCommand
     | showCommand
+    | metaCommand
     ;
 
 processingCommand
@@ -98,13 +99,34 @@ field
     ;
 
 fromCommand
-    : FROM fromIdentifier (COMMA fromIdentifier)* metadata?
+    : FROM fromIdentifier (COMMA fromIdentifier)* metadata? fromOptions?
+    ;
+
+fromIdentifier
+    : FROM_UNQUOTED_IDENTIFIER
+    | QUOTED_IDENTIFIER
+    ;
+
+fromOptions
+    : OPTIONS configOption (COMMA configOption)*
+    ;
+
+configOption
+    : string ASSIGN string
     ;
 
 metadata
-    : OPENING_BRACKET METADATA fromIdentifier (COMMA fromIdentifier)* CLOSING_BRACKET
+    : metadataOption
+    | deprecated_metadata
     ;
 
+metadataOption
+    : METADATA fromIdentifier (COMMA fromIdentifier)*
+    ;
+
+deprecated_metadata
+    : OPENING_BRACKET metadataOption CLOSING_BRACKET
+    ;
 
 evalCommand
     : EVAL fields
@@ -118,10 +140,6 @@ inlinestatsCommand
     : INLINESTATS stats=fields (BY grouping=fields)?
     ;
 
-fromIdentifier
-    : FROM_UNQUOTED_IDENTIFIER
-    | QUOTED_IDENTIFIER
-    ;
 
 qualifiedName
     : identifier (DOT identifier)*
@@ -137,8 +155,7 @@ identifier
     ;
 
 identifierPattern
-    : UNQUOTED_ID_PATTERN
-    | QUOTED_IDENTIFIER
+    : ID_PATTERN
     ;
 
 constant
@@ -168,7 +185,6 @@ orderExpression
 
 keepCommand
     :  KEEP qualifiedNamePattern (COMMA qualifiedNamePattern)*
-    |  PROJECT qualifiedNamePattern (COMMA qualifiedNamePattern)*
     ;
 
 dropCommand
@@ -221,11 +237,11 @@ integerValue
     ;
 
 string
-    : STRING
+    : QUOTED_STRING
     ;
 
 comparisonOperator
-    : EQ | CIEQ | NEQ | LT | LTE | GT | GTE
+    : EQ | NEQ | LT | LTE | GT | GTE
     ;
 
 explainCommand
@@ -238,17 +254,16 @@ subqueryExpression
 
 showCommand
     : SHOW INFO                                                           #showInfo
-    | SHOW FUNCTIONS                                                      #showFunctions
+    ;
+
+metaCommand
+    : META FUNCTIONS                                                      #metaFunctions
     ;
 
 enrichCommand
-    : ENRICH setting* policyName=ENRICH_POLICY_NAME (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    : ENRICH policyName=ENRICH_POLICY_NAME (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
     ;
 
 enrichWithClause
     : (newName=qualifiedNamePattern ASSIGN)? enrichField=qualifiedNamePattern
-    ;
-
-setting
-    : OPENING_BRACKET name=SETTING COLON value=SETTING CLOSING_BRACKET
     ;

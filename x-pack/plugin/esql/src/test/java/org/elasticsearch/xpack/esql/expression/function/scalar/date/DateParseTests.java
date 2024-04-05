@@ -63,6 +63,18 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                     )
                 ),
                 new TestCaseSupplier(
+                    "With Both Text",
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataTypes.TEXT, "second"),
+                            new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataTypes.TEXT, "first")
+                        ),
+                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
+                        DataTypes.DATETIME,
+                        equalTo(1683244800000L)
+                    )
+                ),
+                new TestCaseSupplier(
                     List.of(DataTypes.KEYWORD, DataTypes.KEYWORD),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
@@ -103,9 +115,8 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104124")
     public void testInvalidPattern() {
-        String pattern = randomAlphaOfLength(10);
+        String pattern = "invalid";
         DriverContext driverContext = driverContext();
         InvalidArgumentException e = expectThrows(
             InvalidArgumentException.class,

@@ -9,15 +9,20 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
+import org.elasticsearch.common.util.ObjectObjectPagedHashMap;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
+import org.elasticsearch.search.aggregations.bucket.DelayedBucketReducer;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -197,72 +202,129 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        PriorityQueue<BucketIterator> pq = new PriorityQueue<>(aggregations.size()) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            final BucketsQueue queue = new BucketsQueue(reduceContext);
+            boolean earlyTerminated = false;
+
             @Override
-            protected boolean lessThan(BucketIterator a, BucketIterator b) {
-                return a.compareTo(b) < 0;
-            }
-        };
-        boolean earlyTerminated = false;
-        for (InternalAggregation agg : aggregations) {
-            InternalComposite sortedAgg = (InternalComposite) agg;
-            earlyTerminated |= sortedAgg.earlyTerminated;
-            BucketIterator it = new BucketIterator(sortedAgg.buckets);
-            if (it.next() != null) {
-                pq.add(it);
-            }
-        }
-        InternalBucket lastBucket = null;
-        List<InternalBucket> buckets = new ArrayList<>();
-        List<InternalBucket> result = new ArrayList<>();
-        while (pq.size() > 0) {
-            BucketIterator bucketIt = pq.top();
-            if (lastBucket != null && bucketIt.current.compareKey(lastBucket) != 0) {
-                InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);
-                buckets.clear();
-                result.add(reduceBucket);
-                if (result.size() >= size) {
-                    break;
+            public void accept(InternalAggregation aggregation) {
+                InternalComposite sortedAgg = (InternalComposite) aggregation;
+                earlyTerminated |= sortedAgg.earlyTerminated;
+                for (InternalBucket bucket : sortedAgg.getBuckets()) {
+                    if (queue.add(bucket) == false) {
+                        // if the bucket is not competitive, we can break
+                        // because incoming buckets are sorted
+                        break;
+                    }
                 }
             }
-            lastBucket = bucketIt.current;
-            buckets.add(bucketIt.current);
-            if (bucketIt.next() != null) {
-                pq.updateTop();
-            } else {
-                pq.pop();
+
+            @Override
+            public InternalAggregation get() {
+                final List<InternalBucket> result = queue.get();
+                List<DocValueFormat> reducedFormats = formats;
+                CompositeKey lastKey = null;
+                if (result.isEmpty() == false) {
+                    InternalBucket lastBucket = result.get(result.size() - 1);
+                    /* Attach the formats from the last bucket to the reduced composite
+                     * so that we can properly format the after key. */
+                    reducedFormats = lastBucket.formats;
+                    lastKey = lastBucket.getRawKey();
+                }
+                reduceContext.consumeBucketsAndMaybeBreak(result.size());
+                InternalComposite reduced = new InternalComposite(
+                    name,
+                    getSize(),
+                    sourceNames,
+                    reducedFormats,
+                    result,
+                    lastKey,
+                    reverseMuls,
+                    missingOrders,
+                    earlyTerminated,
+                    metadata
+                );
+                reduced.validateAfterKey();
+                return reduced;
             }
-        }
-        if (buckets.size() > 0) {
-            InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);
-            result.add(reduceBucket);
+
+            @Override
+            public void close() {
+                Releasables.close(queue);
+            }
+        };
+    }
+
+    private class BucketsQueue implements Releasable {
+        private final ObjectObjectPagedHashMap<Object, DelayedBucketReducer<InternalBucket>> bucketReducers;
+        private final ObjectArrayPriorityQueue<InternalBucket> queue;
+        private final AggregationReduceContext reduceContext;
+
+        private BucketsQueue(AggregationReduceContext reduceContext) {
+            this.reduceContext = reduceContext;
+            bucketReducers = new ObjectObjectPagedHashMap<>(getSize(), reduceContext.bigArrays());
+            queue = new ObjectArrayPriorityQueue<>(getSize(), reduceContext.bigArrays()) {
+                @Override
+                protected boolean lessThan(InternalBucket a, InternalBucket b) {
+                    return b.compareKey(a) < 0;
+                }
+            };
         }
 
-        List<DocValueFormat> reducedFormats = formats;
-        CompositeKey lastKey = null;
-        if (result.size() > 0) {
-            lastBucket = result.get(result.size() - 1);
-            /* Attach the formats from the last bucket to the reduced composite
-             * so that we can properly format the after key. */
-            reducedFormats = lastBucket.formats;
-            lastKey = lastBucket.getRawKey();
+        /** adds a bucket to the queue. Return false if the bucket is not competitive, otherwise true.*/
+        boolean add(InternalBucket bucket) {
+            DelayedBucketReducer<InternalBucket> delayed = bucketReducers.get(bucket.key);
+            if (delayed == null) {
+                final InternalBucket out = queue.insertWithOverflow(bucket);
+                if (out == null) {
+                    // bucket is added
+                    delayed = new DelayedBucketReducer<>(bucket, reduceContext);
+                } else if (out == bucket) {
+                    // bucket is not competitive
+                    return false;
+                } else {
+                    // bucket replaces existing bucket
+                    delayed = bucketReducers.remove(out.key);
+                    assert delayed != null;
+                    delayed.reset(bucket);
+                }
+                bucketReducers.put(bucket.key, delayed);
+            }
+            delayed.accept(bucket);
+            return true;
         }
-        reduceContext.consumeBucketsAndMaybeBreak(result.size());
-        InternalComposite reduced = new InternalComposite(
-            name,
-            size,
-            sourceNames,
-            reducedFormats,
-            result,
-            lastKey,
-            reverseMuls,
-            missingOrders,
-            earlyTerminated,
-            metadata
-        );
-        reduced.validateAfterKey();
-        return reduced;
+
+        /** Return the list of reduced buckets */
+        List<InternalBucket> get() {
+            final int bucketsSize = (int) bucketReducers.size();
+            final InternalBucket[] result = new InternalBucket[bucketsSize];
+            for (int i = bucketsSize - 1; i >= 0; i--) {
+                final InternalBucket bucket = queue.pop();
+                assert bucket != null;
+                /* Use the formats from the bucket because they'll be right to format
+                 * the key. The formats on the InternalComposite doing the reducing are
+                 * just whatever formats make sense for *its* index. This can be real
+                 * trouble when the index doing the reducing is unmapped. */
+                final var reducedFormats = bucket.formats;
+                final DelayedBucketReducer<InternalBucket> reducer = Objects.requireNonNull(bucketReducers.get(bucket.key));
+                result[i] = new InternalBucket(
+                    sourceNames,
+                    reducedFormats,
+                    bucket.key,
+                    reverseMuls,
+                    missingOrders,
+                    reducer.getDocCount(),
+                    reducer.getAggregations()
+                );
+            }
+            return List.of(result);
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(bucketReducers, queue);
+        }
     }
 
     @Override
@@ -282,24 +344,6 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
     }
 
     @Override
-    protected InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
-        assert buckets.size() > 0;
-        List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
-        long docCount = 0;
-        for (InternalBucket bucket : buckets) {
-            docCount += bucket.docCount;
-            aggregations.add(bucket.aggregations);
-        }
-        InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
-        /* Use the formats from the bucket because they'll be right to format
-         * the key. The formats on the InternalComposite doing the reducing are
-         * just whatever formats make sense for *its* index. This can be real
-         * trouble when the index doing the reducing is unmapped. */
-        var reducedFormats = buckets.get(0).formats;
-        return new InternalBucket(sourceNames, reducedFormats, buckets.get(0).key, reverseMuls, missingOrders, docCount, aggs);
-    }
-
-    @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
@@ -316,24 +360,6 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), size, buckets, afterKey, Arrays.hashCode(reverseMuls), Arrays.hashCode(missingOrders));
-    }
-
-    private static class BucketIterator implements Comparable<BucketIterator> {
-        final Iterator<InternalBucket> it;
-        InternalBucket current;
-
-        private BucketIterator(List<InternalBucket> buckets) {
-            this.it = buckets.iterator();
-        }
-
-        @Override
-        public int compareTo(BucketIterator other) {
-            return current.compareKey(other.current);
-        }
-
-        InternalBucket next() {
-            return current = it.hasNext() ? it.next() : null;
-        }
     }
 
     public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket
@@ -508,14 +534,37 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
         }
         Object formatted = obj;
         Object parsed;
-        if (obj.getClass() == BytesRef.class) {
+        if (obj.getClass() == BytesRef.class && format == DocValueFormat.TIME_SERIES_ID) {
+            BytesRef value = (BytesRef) obj;
+            // NOTE: formatting a tsid returns a Base64 encoding of the tsid BytesRef which we cannot use to get back the original tsid
+            formatted = format.format(value);
+            parsed = format.parseBytesRef(value);
+            // NOTE: we cannot parse the Base64 encoding representation of the tsid and get back the original BytesRef
+            if (parsed.equals(obj) == false) {
+                throw new IllegalArgumentException(
+                    "Format ["
+                        + format
+                        + "] created output it couldn't parse for value ["
+                        + obj
+                        + "] "
+                        + "of type ["
+                        + obj.getClass()
+                        + "]. formatted value: ["
+                        + formatted
+                        + "("
+                        + parsed.getClass()
+                        + ")]"
+                );
+            }
+        }
+        if (obj.getClass() == BytesRef.class && format != DocValueFormat.TIME_SERIES_ID) {
             BytesRef value = (BytesRef) obj;
             if (format == DocValueFormat.RAW) {
                 formatted = value.utf8ToString();
             } else {
                 formatted = format.format(value);
             }
-            parsed = format.parseBytesRef(formatted);
+            parsed = format.parseBytesRef(formatted.toString());
             if (parsed.equals(obj) == false) {
                 throw new IllegalArgumentException(
                     "Format ["

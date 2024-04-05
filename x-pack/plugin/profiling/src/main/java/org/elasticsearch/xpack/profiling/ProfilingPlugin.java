@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -39,6 +40,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class ProfilingPlugin extends Plugin implements ActionPlugin {
@@ -124,13 +126,15 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         final IndexScopedSettings indexScopedSettings,
         final SettingsFilter settingsFilter,
         final IndexNameExpressionResolver indexNameExpressionResolver,
-        final Supplier<DiscoveryNodes> nodesInCluster
+        final Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new RestGetStatusAction());
         if (enabled) {
             handlers.add(new RestGetStackTracesAction());
             handlers.add(new RestGetFlamegraphAction());
+            handlers.add(new RestGetTopNFunctionsAction());
         }
         return Collections.unmodifiableList(handlers);
     }
@@ -165,6 +169,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         return List.of(
             new ActionHandler<>(GetStackTracesAction.INSTANCE, TransportGetStackTracesAction.class),
             new ActionHandler<>(GetFlamegraphAction.INSTANCE, TransportGetFlamegraphAction.class),
+            new ActionHandler<>(GetTopNFunctionsAction.INSTANCE, TransportGetTopNFunctionsAction.class),
             new ActionHandler<>(GetStatusAction.INSTANCE, TransportGetStatusAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.UNIVERSAL_PROFILING, ProfilingUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.UNIVERSAL_PROFILING, ProfilingInfoTransportAction.class)

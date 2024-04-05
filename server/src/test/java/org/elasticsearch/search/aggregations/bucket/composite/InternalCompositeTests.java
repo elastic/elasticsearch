@@ -15,6 +15,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 import org.junit.After;
 
@@ -248,7 +249,10 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         for (int i = 0; i < numSame; i++) {
             toReduce.add(result);
         }
-        InternalComposite finalReduce = (InternalComposite) result.reduce(toReduce, emptyReduceContextBuilder().forFinalReduction());
+        InternalComposite finalReduce = (InternalComposite) InternalAggregationTestCase.reduce(
+            toReduce,
+            emptyReduceContextBuilder().forFinalReduction()
+        );
         assertThat(finalReduce.getBuckets().size(), equalTo(result.getBuckets().size()));
         Iterator<InternalComposite.InternalBucket> expectedIt = result.getBuckets().iterator();
         for (InternalComposite.InternalBucket bucket : finalReduce.getBuckets()) {
@@ -278,7 +282,10 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         );
         List<InternalAggregation> toReduce = Arrays.asList(unmapped, mapped);
         Collections.shuffle(toReduce, random());
-        InternalComposite finalReduce = (InternalComposite) unmapped.reduce(toReduce, emptyReduceContextBuilder().forFinalReduction());
+        InternalComposite finalReduce = (InternalComposite) InternalAggregationTestCase.reduce(
+            toReduce,
+            emptyReduceContextBuilder().forFinalReduction()
+        );
         assertThat(finalReduce.getBuckets().size(), equalTo(mapped.getBuckets().size()));
         if (false == mapped.getBuckets().isEmpty()) {
             assertThat(finalReduce.getFormats(), equalTo(mapped.getFormats()));

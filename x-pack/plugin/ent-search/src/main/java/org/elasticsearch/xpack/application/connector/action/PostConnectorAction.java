@@ -8,18 +8,14 @@
 package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -32,21 +28,20 @@ import org.elasticsearch.xpack.application.connector.Connector;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class PostConnectorAction {
 
-    public static final String NAME = "cluster:admin/xpack/connector/post";
+    public static final String NAME = "indices:data/write/xpack/connector/post";
     public static final ActionType<PostConnectorAction.Response> INSTANCE = new ActionType<>(NAME);
 
     private PostConnectorAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends ConnectorActionRequest implements ToXContentObject {
 
         @Nullable
         private final String description;
+        @Nullable
         private final String indexName;
         @Nullable
         private final Boolean isNative;
@@ -69,7 +64,7 @@ public class PostConnectorAction {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.description = in.readOptionalString();
-            this.indexName = in.readString();
+            this.indexName = in.readOptionalString();
             this.isNative = in.readOptionalBoolean();
             this.language = in.readOptionalString();
             this.name = in.readOptionalString();
@@ -91,7 +86,7 @@ public class PostConnectorAction {
 
         static {
             PARSER.declareString(optionalConstructorArg(), new ParseField("description"));
-            PARSER.declareString(constructorArg(), new ParseField("index_name"));
+            PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("index_name"));
             PARSER.declareBoolean(optionalConstructorArg(), new ParseField("is_native"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("language"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("name"));
@@ -117,7 +112,9 @@ public class PostConnectorAction {
                 if (description != null) {
                     builder.field("description", description);
                 }
-                builder.field("index_name", indexName);
+                if (indexName != null) {
+                    builder.field("index_name", indexName);
+                }
                 if (isNative != null) {
                     builder.field("is_native", isNative);
                 }
@@ -139,14 +136,7 @@ public class PostConnectorAction {
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
 
-            if (Strings.isNullOrEmpty(getIndexName())) {
-                validationException = addValidationError("[index_name] cannot be [null] or [\"\"]", validationException);
-            }
-            try {
-                MetadataCreateIndexService.validateIndexOrAliasName(getIndexName(), InvalidIndexNameException::new);
-            } catch (InvalidIndexNameException e) {
-                validationException = addValidationError(e.toString(), validationException);
-            }
+            validationException = validateIndexName(indexName, validationException);
 
             return validationException;
         }
@@ -155,7 +145,7 @@ public class PostConnectorAction {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalString(description);
-            out.writeString(indexName);
+            out.writeOptionalString(indexName);
             out.writeOptionalBoolean(isNative);
             out.writeOptionalString(language);
             out.writeOptionalString(name);

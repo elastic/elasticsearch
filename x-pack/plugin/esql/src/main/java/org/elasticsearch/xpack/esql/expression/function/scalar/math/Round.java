@@ -11,13 +11,11 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.math.Maths;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -31,15 +29,15 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asUnsignedLong;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
-public class Round extends ScalarFunction implements OptionalArgument, EvaluatorMapper {
+public class Round extends EsqlScalarFunction implements OptionalArgument {
 
     private static final BiFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> EVALUATOR_IDENTITY = (s, e) -> e;
 
@@ -49,7 +47,7 @@ public class Round extends ScalarFunction implements OptionalArgument, Evaluator
     @FunctionInfo(returnType = "double", description = "Rounds a number to the closest number with the specified number of digits.")
     public Round(
         Source source,
-        @Param(name = "value", type = "double", description = "The numeric value to round") Expression field,
+        @Param(name = "number", type = "double", description = "The numeric value to round") Expression field,
         @Param(
             optional = true,
             name = "decimals",
@@ -81,11 +79,6 @@ public class Round extends ScalarFunction implements OptionalArgument, Evaluator
         return field.foldable() && (decimals == null || decimals.foldable());
     }
 
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
-    }
-
     @Evaluator(extraName = "DoubleNoDecimals")
     static double process(double val) {
         return Maths.round(val, 0).doubleValue();
@@ -106,10 +99,9 @@ public class Round extends ScalarFunction implements OptionalArgument, Evaluator
         Number ul = unsignedLongAsNumber(val);
         if (ul instanceof BigInteger bi) {
             BigInteger rounded = Maths.round(bi, decimals);
-            BigInteger unsignedLong = asUnsignedLong(rounded);
-            return asLongUnsigned(unsignedLong);
+            return bigIntegerToUnsignedLong(rounded);
         } else {
-            return asLongUnsigned(Maths.round(ul.longValue(), decimals));
+            return longToUnsignedLong(Maths.round(ul.longValue(), decimals), false);
         }
     }
 
@@ -139,11 +131,6 @@ public class Round extends ScalarFunction implements OptionalArgument, Evaluator
     @Override
     public DataType dataType() {
         return field.dataType();
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
     }
 
     @Override

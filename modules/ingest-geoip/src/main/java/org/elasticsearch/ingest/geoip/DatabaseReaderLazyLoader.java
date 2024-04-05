@@ -45,7 +45,7 @@ class DatabaseReaderLazyLoader implements GeoIpDatabase, Closeable {
 
     private static final boolean LOAD_DATABASE_ON_HEAP = Booleans.parseBoolean(System.getProperty("es.geoip.load_db_on_heap", "false"));
 
-    private static final Logger LOGGER = LogManager.getLogger(DatabaseReaderLazyLoader.class);
+    private static final Logger logger = LogManager.getLogger(DatabaseReaderLazyLoader.class);
 
     private final String md5;
     private final GeoIpCache cache;
@@ -203,7 +203,7 @@ class DatabaseReaderLazyLoader implements GeoIpDatabase, Closeable {
             synchronized (databaseReader) {
                 if (databaseReader.get() == null) {
                     databaseReader.set(loader.get());
-                    LOGGER.debug("loaded [{}] geo-IP database", databasePath);
+                    logger.debug("loaded [{}] geo-IP database", databasePath);
                 }
             }
         }
@@ -230,9 +230,9 @@ class DatabaseReaderLazyLoader implements GeoIpDatabase, Closeable {
     protected void doClose() throws IOException {
         IOUtils.close(databaseReader.get());
         int numEntriesEvicted = cache.purgeCacheEntriesForDatabase(databasePath);
-        LOGGER.info("evicted [{}] entries from cache after reloading database [{}]", numEntriesEvicted, databasePath);
+        logger.info("evicted [{}] entries from cache after reloading database [{}]", numEntriesEvicted, databasePath);
         if (deleteDatabaseFileOnClose) {
-            LOGGER.info("deleting [{}]", databasePath);
+            logger.info("deleting [{}]", databasePath);
             Files.delete(databasePath);
         }
     }

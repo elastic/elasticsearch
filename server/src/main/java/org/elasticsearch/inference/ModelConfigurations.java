@@ -13,13 +13,12 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class ModelConfigurations implements ToXContentObject, VersionedNamedWriteable {
+public class ModelConfigurations implements ToFilteredXContentObject, VersionedNamedWriteable {
 
     public static final String MODEL_ID = "model_id";
     public static final String SERVICE = "service";
@@ -124,6 +123,18 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
         builder.field(TaskType.NAME, taskType.toString());
         builder.field(SERVICE, service);
         builder.field(SERVICE_SETTINGS, serviceSettings);
+        builder.field(TASK_SETTINGS, taskSettings);
+        builder.endObject();
+        return builder;
+    }
+
+    @Override
+    public XContentBuilder toFilteredXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(MODEL_ID, inferenceEntityId);
+        builder.field(TaskType.NAME, taskType.toString());
+        builder.field(SERVICE, service);
+        builder.field(SERVICE_SETTINGS, serviceSettings.getFilteredXContentObject());
         builder.field(TASK_SETTINGS, taskSettings);
         builder.endObject();
         return builder;

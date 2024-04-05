@@ -345,8 +345,8 @@ class MutableSearchResponse implements Releasable {
         if (finalResponse != null) {
             return new AsyncStatusResponse(
                 asyncExecutionId,
-                false,
-                false,
+                frozen == false,
+                isPartial,
                 startTime,
                 expirationTime,
                 startTime + finalResponse.getTook().millis(),
@@ -361,7 +361,7 @@ class MutableSearchResponse implements Releasable {
         if (failure != null) {
             return new AsyncStatusResponse(
                 asyncExecutionId,
-                false,
+                frozen == false,
                 true,
                 startTime,
                 expirationTime,

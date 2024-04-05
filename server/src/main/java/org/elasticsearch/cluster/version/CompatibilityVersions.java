@@ -69,10 +69,10 @@ public record CompatibilityVersions(
 
         if (candidate.transportVersion().before(minimumClusterVersions.transportVersion())) {
             throw new IllegalStateException(
-                "node with transport version ["
-                    + candidate.transportVersion()
-                    + "] may not join a cluster with minimum transport version ["
-                    + minimumClusterVersions.transportVersion()
+                "node with version ["
+                    + candidate.transportVersion().toReleaseVersion()
+                    + "] may not join a cluster with minimum version ["
+                    + minimumClusterVersions.transportVersion().toReleaseVersion()
                     + "]"
             );
         }

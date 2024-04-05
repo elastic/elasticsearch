@@ -151,7 +151,8 @@ public class MetadataMappingService {
                 MapperService.mergeMappings(
                     mapperService.documentMapper(),
                     mapping,
-                    request.autoUpdate() ? MergeReason.MAPPING_AUTO_UPDATE : MergeReason.MAPPING_UPDATE
+                    request.autoUpdate() ? MergeReason.MAPPING_AUTO_UPDATE : MergeReason.MAPPING_UPDATE,
+                    mapperService.getIndexSettings()
                 );
             }
             Metadata.Builder builder = Metadata.builder(metadata);

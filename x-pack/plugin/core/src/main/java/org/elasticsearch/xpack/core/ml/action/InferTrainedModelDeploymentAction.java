@@ -21,11 +21,9 @@ import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
@@ -70,29 +68,8 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
         public static final ParseField DOCS = new ParseField("docs");
         public static final ParseField TIMEOUT = new ParseField("timeout");
-        public static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
 
         public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
-
-        static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME, Request.Builder::new);
-        static {
-            PARSER.declareString(Request.Builder::setId, InferModelAction.Request.DEPLOYMENT_ID);
-            PARSER.declareObjectArray(Request.Builder::setDocs, (p, c) -> p.mapOrdered(), DOCS);
-            PARSER.declareString(Request.Builder::setInferenceTimeout, TIMEOUT);
-            PARSER.declareNamedObject(
-                Request.Builder::setUpdate,
-                ((p, c, name) -> p.namedObject(InferenceConfigUpdate.class, name, c)),
-                INFERENCE_CONFIG
-            );
-        }
-
-        public static Request.Builder parseRequest(String id, XContentParser parser) {
-            Request.Builder builder = PARSER.apply(parser, null);
-            if (id != null) {
-                builder.setId(id);
-            }
-            return builder;
-        }
 
         private String id;
         private final List<Map<String, Object>> docs;
@@ -104,6 +81,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         // input and so cannot construct a document.
         private final List<String> textInput;
         private TrainedModelPrefixStrings.PrefixType prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
+        private boolean chunkResults = false;
 
         public static Request forDocs(String id, InferenceConfigUpdate update, List<Map<String, Object>> docs, TimeValue inferenceTimeout) {
             return new Request(
@@ -158,10 +136,15 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             } else {
                 textInput = null;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 prefixType = in.readEnum(TrainedModelPrefixStrings.PrefixType.class);
             } else {
                 prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.NLP_DOCUMENT_CHUNKING_ADDED)) {
+                chunkResults = in.readBoolean();
+            } else {
+                chunkResults = false;
             }
         }
 
@@ -215,6 +198,14 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             return prefixType;
         }
 
+        public boolean isChunkResults() {
+            return chunkResults;
+        }
+
+        public void setChunkResults(boolean chunkResults) {
+            this.chunkResults = chunkResults;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = super.validate();
@@ -241,8 +232,11 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
                 out.writeOptionalStringCollection(textInput);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 out.writeEnum(prefixType);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.NLP_DOCUMENT_CHUNKING_ADDED)) {
+                out.writeBoolean(chunkResults);
             }
         }
 
@@ -262,12 +256,13 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 && Objects.equals(inferenceTimeout, that.inferenceTimeout)
                 && Objects.equals(highPriority, that.highPriority)
                 && Objects.equals(textInput, that.textInput)
-                && (prefixType == that.prefixType);
+                && (prefixType == that.prefixType)
+                && (chunkResults == that.chunkResults);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, update, docs, inferenceTimeout, highPriority, textInput, prefixType);
+            return Objects.hash(id, update, docs, inferenceTimeout, highPriority, textInput, prefixType, chunkResults);
         }
 
         @Override

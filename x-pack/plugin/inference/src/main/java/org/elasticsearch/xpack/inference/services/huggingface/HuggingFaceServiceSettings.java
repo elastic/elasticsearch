@@ -13,10 +13,12 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 
 import java.io.IOException;
 import java.net.URI;
@@ -86,7 +88,7 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
 
     public HuggingFaceServiceSettings(StreamInput in) throws IOException {
         this.uri = createUri(in.readString());
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICE_EMBEDDING_SIZE_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             similarity = in.readOptionalEnum(SimilarityMeasure.class);
             dimensions = in.readOptionalVInt();
             maxInputTokens = in.readOptionalVInt();
@@ -115,20 +117,25 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
     }
 
     @Override
+    public ToXContentObject getFilteredXContentObject() {
+        return this;
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_HF_SERVICE_ADDED;
+        return TransportVersions.V_8_12_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(uri.toString());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICE_EMBEDDING_SIZE_ADDED)) {
-            out.writeOptionalEnum(similarity);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
             out.writeOptionalVInt(dimensions);
             out.writeOptionalVInt(maxInputTokens);
         }
@@ -138,16 +145,23 @@ public class HuggingFaceServiceSettings implements ServiceSettings {
         return uri;
     }
 
+    @Override
     public SimilarityMeasure similarity() {
         return similarity;
     }
 
+    @Override
     public Integer dimensions() {
         return dimensions;
     }
 
     public Integer maxInputTokens() {
         return maxInputTokens;
+    }
+
+    @Override
+    public DenseVectorFieldMapper.ElementType elementType() {
+        return DenseVectorFieldMapper.ElementType.FLOAT;
     }
 
     @Override

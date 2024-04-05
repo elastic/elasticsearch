@@ -56,6 +56,22 @@ public class CohereEmbeddingsRequestEntityTests extends ESTestCase {
             {"texts":["abc"],"model":"model","input_type":"search_query","embedding_types":["int8"],"truncate":"none"}"""));
     }
 
+    public void testXContent_InputTypeSearch_EmbeddingTypesByte_TruncateNone() throws IOException {
+        var entity = new CohereEmbeddingsRequestEntity(
+            List.of("abc"),
+            new CohereEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.NONE),
+            "model",
+            CohereEmbeddingType.BYTE
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"texts":["abc"],"model":"model","input_type":"search_query","embedding_types":["int8"],"truncate":"none"}"""));
+    }
+
     public void testXContent_WritesNoOptionalFields_WhenTheyAreNotDefined() throws IOException {
         var entity = new CohereEmbeddingsRequestEntity(List.of("abc"), CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null);
 
@@ -65,5 +81,10 @@ public class CohereEmbeddingsRequestEntityTests extends ESTestCase {
 
         MatcherAssert.assertThat(xContentResult, is("""
             {"texts":["abc"]}"""));
+    }
+
+    public void testConvertToString_ThrowsAssertionFailure_WhenInputTypeIsUnspecified() {
+        var thrownException = expectThrows(AssertionError.class, () -> CohereEmbeddingsRequestEntity.covertToString(InputType.UNSPECIFIED));
+        MatcherAssert.assertThat(thrownException.getMessage(), is("received invalid input type value [unspecified]"));
     }
 }

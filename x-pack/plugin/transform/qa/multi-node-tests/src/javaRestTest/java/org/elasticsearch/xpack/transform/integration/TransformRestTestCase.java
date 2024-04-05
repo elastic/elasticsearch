@@ -62,6 +62,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.transform.TransformField.BASIC_STATS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.Is.is;
@@ -152,17 +153,25 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void stopTransform(String id) throws IOException {
-        stopTransform(id, true, null, false);
+        stopTransform(id, true, null, false, false);
     }
 
-    protected void stopTransform(String id, boolean waitForCompletion, @Nullable TimeValue timeout, boolean waitForCheckpoint)
-        throws IOException {
+    protected void stopTransform(
+        String id,
+        boolean waitForCompletion,
+        @Nullable TimeValue timeout,
+        boolean waitForCheckpoint,
+        boolean force
+    ) throws IOException {
 
         final Request stopTransformRequest = new Request("POST", TRANSFORM_ENDPOINT + id + "/_stop");
         stopTransformRequest.addParameter(TransformField.WAIT_FOR_COMPLETION.getPreferredName(), Boolean.toString(waitForCompletion));
         stopTransformRequest.addParameter(TransformField.WAIT_FOR_CHECKPOINT.getPreferredName(), Boolean.toString(waitForCheckpoint));
         if (timeout != null) {
             stopTransformRequest.addParameter(TransformField.TIMEOUT.getPreferredName(), timeout.getStringRep());
+        }
+        if (force) {
+            stopTransformRequest.addParameter(TransformField.FORCE.getPreferredName(), "true");
         }
         assertAcknowledged(client().performRequest(stopTransformRequest));
     }
@@ -214,9 +223,10 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     protected void deleteTransform(String id, boolean force) throws IOException {
         Request request = new Request("DELETE", TRANSFORM_ENDPOINT + id);
         if (force) {
-            request.addParameter("force", "true");
+            request.addParameter(TransformField.FORCE.getPreferredName(), "true");
         }
         assertOK(adminClient().performRequest(request));
+        createdTransformIds.remove(id);
     }
 
     protected Response putTransform(String id, String config, RequestOptions options) throws IOException {
@@ -256,8 +266,19 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         return stats.get(0);
     }
 
+    @SuppressWarnings("unchecked")
+    protected Map<String, Object> getBasicTransformStats(String id) throws IOException {
+        var request = new Request("GET", TRANSFORM_ENDPOINT + id + "/_stats");
+        request.addParameter(BASIC_STATS.getPreferredName(), "true");
+        request.setOptions(RequestOptions.DEFAULT);
+        Response response = client().performRequest(request);
+        List<Map<String, Object>> stats = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", entityAsMap(response));
+        assertThat(stats, hasSize(1));
+        return stats.get(0);
+    }
+
     protected String getTransformState(String id) throws IOException {
-        return (String) getTransformStats(id).get("state");
+        return (String) getBasicTransformStats(id).get("state");
     }
 
     @SuppressWarnings("unchecked")
@@ -282,14 +303,15 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected void waitUntilCheckpoint(String id, long checkpoint, TimeValue waitTime) throws Exception {
-        assertBusy(
-            () -> assertEquals(
-                checkpoint,
-                ((Integer) XContentMapValues.extractValue("checkpointing.last.checkpoint", getTransformStats(id))).longValue()
-            ),
-            waitTime.getMillis(),
-            TimeUnit.MILLISECONDS
-        );
+        assertBusy(() -> assertEquals(checkpoint, getCheckpoint(id)), waitTime.getMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    protected long getCheckpoint(String id) throws IOException {
+        return getCheckpoint(getBasicTransformStats(id));
+    }
+
+    protected long getCheckpoint(Map<String, Object> stats) {
+        return ((Integer) XContentMapValues.extractValue("checkpointing.last.checkpoint", stats)).longValue();
     }
 
     protected DateHistogramGroupSource createDateHistogramGroupSourceWithFixedInterval(

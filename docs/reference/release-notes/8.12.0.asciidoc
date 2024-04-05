@@ -12,6 +12,8 @@ Also see <<breaking-changes-8.12,Breaking changes in 8.12>>.
 When using `int8_hnsw` and the default `confidence_interval` (or any `confidence_interval` less than `1.0`) and when
 there are deleted documents in the segments, quantiles may fail to build and prevent merging.
 
+This issue is fixed in 8.12.1.
+
 [[breaking-8.12.0]]
 [float]
 === Breaking changes

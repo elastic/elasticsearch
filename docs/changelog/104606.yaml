@@ -1,6 +1,0 @@
-pr: 104606
-summary: Fix bug when `latest` transform is used together with `from` parameter
-area: Transform
-type: bug
-issues:
- - 104543

@@ -42,6 +42,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * <ul>
  *     <li>A doc _id of the connector document.</li>
  *     <li>API key for authenticating with Elasticsearch, ensuring secure access.</li>
+ *     <li>Connector Secret ID for API key, allowing Connectors to access the API key.</li>
  *     <li>A configuration mapping which holds specific settings and parameters for the connector's operation.</li>
  *     <li>A {@link ConnectorCustomSchedule} object that defines custom scheduling.</li>
  *     <li>A description providing an overview or purpose of the connector.</li>
@@ -71,6 +72,8 @@ public class Connector implements NamedWriteable, ToXContentObject {
     private final String connectorId;
     @Nullable
     private final String apiKeyId;
+    @Nullable
+    private final String apiKeySecretId;
     private final Map<String, ConnectorConfiguration> configuration;
     private final Map<String, ConnectorCustomSchedule> customScheduling;
     @Nullable
@@ -108,6 +111,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
      *
      * @param connectorId        Unique identifier for the connector. Used when building get/list response. Equals to doc _id.
      * @param apiKeyId           API key ID used for authentication/authorization against ES.
+     * @param apiKeySecretId     Connector Secret document ID for API key.
      * @param configuration      Configuration settings for the connector.
      * @param customScheduling   Custom scheduling settings for the connector.
      * @param description        Description of the connector.
@@ -131,6 +135,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
     private Connector(
         String connectorId,
         String apiKeyId,
+        String apiKeySecretId,
         Map<String, ConnectorConfiguration> configuration,
         Map<String, ConnectorCustomSchedule> customScheduling,
         String description,
@@ -153,6 +158,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
     ) {
         this.connectorId = connectorId;
         this.apiKeyId = apiKeyId;
+        this.apiKeySecretId = apiKeySecretId;
         this.configuration = configuration;
         this.customScheduling = customScheduling;
         this.description = description;
@@ -177,6 +183,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
     public Connector(StreamInput in) throws IOException {
         this.connectorId = in.readOptionalString();
         this.apiKeyId = in.readOptionalString();
+        this.apiKeySecretId = in.readOptionalString();
         this.configuration = in.readMap(ConnectorConfiguration::new);
         this.customScheduling = in.readMap(ConnectorCustomSchedule::new);
         this.description = in.readOptionalString();
@@ -199,7 +206,8 @@ public class Connector implements NamedWriteable, ToXContentObject {
     }
 
     public static final ParseField ID_FIELD = new ParseField("id");
-    static final ParseField API_KEY_ID_FIELD = new ParseField("api_key_id");
+    public static final ParseField API_KEY_ID_FIELD = new ParseField("api_key_id");
+    public static final ParseField API_KEY_SECRET_ID_FIELD = new ParseField("api_key_secret_id");
     public static final ParseField CONFIGURATION_FIELD = new ParseField("configuration");
     static final ParseField CUSTOM_SCHEDULING_FIELD = new ParseField("custom_scheduling");
     public static final ParseField DESCRIPTION_FIELD = new ParseField("description");
@@ -214,7 +222,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
     public static final ParseField PIPELINE_FIELD = new ParseField("pipeline");
     public static final ParseField SCHEDULING_FIELD = new ParseField("scheduling");
     public static final ParseField SERVICE_TYPE_FIELD = new ParseField("service_type");
-    static final ParseField STATUS_FIELD = new ParseField("status");
+    public static final ParseField STATUS_FIELD = new ParseField("status");
     static final ParseField SYNC_CURSOR_FIELD = new ParseField("sync_cursor");
     static final ParseField SYNC_NOW_FIELD = new ParseField("sync_now");
 
@@ -226,6 +234,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
             int i = 0;
             return new Builder().setConnectorId(docId)
                 .setApiKeyId((String) args[i++])
+                .setApiKeySecretId((String) args[i++])
                 .setConfiguration((Map<String, ConnectorConfiguration>) args[i++])
                 .setCustomScheduling((Map<String, ConnectorCustomSchedule>) args[i++])
                 .setDescription((String) args[i++])
@@ -262,6 +271,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
 
     static {
         PARSER.declareStringOrNull(optionalConstructorArg(), API_KEY_ID_FIELD);
+        PARSER.declareStringOrNull(optionalConstructorArg(), API_KEY_SECRET_ID_FIELD);
         PARSER.declareObject(
             optionalConstructorArg(),
             (p, c) -> p.map(HashMap::new, ConnectorConfiguration::fromXContent),
@@ -356,34 +366,39 @@ public class Connector implements NamedWriteable, ToXContentObject {
         return PARSER.parse(parser, docId);
     }
 
+    public void toInnerXContent(XContentBuilder builder, Params params) throws IOException {
+        // The "id": connectorId is included in GET and LIST responses to provide the connector's docID.
+        // Note: This ID is not written to the Elasticsearch index; it's only for API response purposes.
+        if (connectorId != null) {
+            builder.field(ID_FIELD.getPreferredName(), connectorId);
+        }
+        builder.field(API_KEY_ID_FIELD.getPreferredName(), apiKeyId);
+        builder.field(API_KEY_SECRET_ID_FIELD.getPreferredName(), apiKeySecretId);
+        builder.xContentValuesMap(CONFIGURATION_FIELD.getPreferredName(), configuration);
+        builder.xContentValuesMap(CUSTOM_SCHEDULING_FIELD.getPreferredName(), customScheduling);
+        builder.field(DESCRIPTION_FIELD.getPreferredName(), description);
+        builder.field(ERROR_FIELD.getPreferredName(), error);
+        builder.field(FEATURES_FIELD.getPreferredName(), features);
+        builder.xContentList(FILTERING_FIELD.getPreferredName(), filtering);
+        builder.field(INDEX_NAME_FIELD.getPreferredName(), indexName);
+        builder.field(IS_NATIVE_FIELD.getPreferredName(), isNative);
+        builder.field(LANGUAGE_FIELD.getPreferredName(), language);
+        builder.field(LAST_SEEN_FIELD.getPreferredName(), lastSeen);
+        syncInfo.toXContent(builder, params);
+        builder.field(NAME_FIELD.getPreferredName(), name);
+        builder.field(PIPELINE_FIELD.getPreferredName(), pipeline);
+        builder.field(SCHEDULING_FIELD.getPreferredName(), scheduling);
+        builder.field(SERVICE_TYPE_FIELD.getPreferredName(), serviceType);
+        builder.field(SYNC_CURSOR_FIELD.getPreferredName(), syncCursor);
+        builder.field(STATUS_FIELD.getPreferredName(), status.toString());
+        builder.field(SYNC_NOW_FIELD.getPreferredName(), syncNow);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            // The "id": connectorId is included in GET and LIST responses to provide the connector's docID.
-            // Note: This ID is not written to the Elasticsearch index; it's only for API response purposes.
-            if (connectorId != null) {
-                builder.field(ID_FIELD.getPreferredName(), connectorId);
-            }
-            builder.field(API_KEY_ID_FIELD.getPreferredName(), apiKeyId);
-            builder.xContentValuesMap(CONFIGURATION_FIELD.getPreferredName(), configuration);
-            builder.xContentValuesMap(CUSTOM_SCHEDULING_FIELD.getPreferredName(), customScheduling);
-            builder.field(DESCRIPTION_FIELD.getPreferredName(), description);
-            builder.field(ERROR_FIELD.getPreferredName(), error);
-            builder.field(FEATURES_FIELD.getPreferredName(), features);
-            builder.xContentList(FILTERING_FIELD.getPreferredName(), filtering);
-            builder.field(INDEX_NAME_FIELD.getPreferredName(), indexName);
-            builder.field(IS_NATIVE_FIELD.getPreferredName(), isNative);
-            builder.field(LANGUAGE_FIELD.getPreferredName(), language);
-            builder.field(LAST_SEEN_FIELD.getPreferredName(), lastSeen);
-            syncInfo.toXContent(builder, params);
-            builder.field(NAME_FIELD.getPreferredName(), name);
-            builder.field(PIPELINE_FIELD.getPreferredName(), pipeline);
-            builder.field(SCHEDULING_FIELD.getPreferredName(), scheduling);
-            builder.field(SERVICE_TYPE_FIELD.getPreferredName(), serviceType);
-            builder.field(SYNC_CURSOR_FIELD.getPreferredName(), syncCursor);
-            builder.field(STATUS_FIELD.getPreferredName(), status.toString());
-            builder.field(SYNC_NOW_FIELD.getPreferredName(), syncNow);
+            toInnerXContent(builder, params);
         }
         builder.endObject();
         return builder;
@@ -393,6 +408,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(connectorId);
         out.writeOptionalString(apiKeyId);
+        out.writeOptionalString(apiKeySecretId);
         out.writeMap(configuration, StreamOutput::writeWriteable);
         out.writeMap(customScheduling, StreamOutput::writeWriteable);
         out.writeOptionalString(description);
@@ -420,6 +436,10 @@ public class Connector implements NamedWriteable, ToXContentObject {
 
     public String getApiKeyId() {
         return apiKeyId;
+    }
+
+    public String getApiKeySecretId() {
+        return apiKeySecretId;
     }
 
     public Map<String, ConnectorConfiguration> getConfiguration() {
@@ -507,6 +527,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
             && syncNow == connector.syncNow
             && Objects.equals(connectorId, connector.connectorId)
             && Objects.equals(apiKeyId, connector.apiKeyId)
+            && Objects.equals(apiKeySecretId, connector.apiKeySecretId)
             && Objects.equals(configuration, connector.configuration)
             && Objects.equals(customScheduling, connector.customScheduling)
             && Objects.equals(description, connector.description)
@@ -531,6 +552,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
         return Objects.hash(
             connectorId,
             apiKeyId,
+            apiKeySecretId,
             configuration,
             customScheduling,
             description,
@@ -562,6 +584,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
 
         private String connectorId;
         private String apiKeyId;
+        private String apiKeySecretId;
         private Map<String, ConnectorConfiguration> configuration = Collections.emptyMap();
         private Map<String, ConnectorCustomSchedule> customScheduling = Collections.emptyMap();
         private String description;
@@ -589,6 +612,11 @@ public class Connector implements NamedWriteable, ToXContentObject {
 
         public Builder setApiKeyId(String apiKeyId) {
             this.apiKeyId = apiKeyId;
+            return this;
+        }
+
+        public Builder setApiKeySecretId(String apiKeySecretId) {
+            this.apiKeySecretId = apiKeySecretId;
             return this;
         }
 
@@ -682,8 +710,8 @@ public class Connector implements NamedWriteable, ToXContentObject {
             return this;
         }
 
-        public Builder setSyncNow(boolean syncNow) {
-            this.syncNow = syncNow;
+        public Builder setSyncNow(Boolean syncNow) {
+            this.syncNow = Objects.requireNonNullElse(syncNow, false);
             return this;
         }
 
@@ -691,6 +719,7 @@ public class Connector implements NamedWriteable, ToXContentObject {
             return new Connector(
                 connectorId,
                 apiKeyId,
+                apiKeySecretId,
                 configuration,
                 customScheduling,
                 description,

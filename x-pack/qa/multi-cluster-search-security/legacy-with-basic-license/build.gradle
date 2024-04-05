@@ -8,7 +8,7 @@ apply plugin: 'elasticsearch.rest-resources'
 restResources {
   restApi {
     include '_common', 'bulk', 'field_caps', 'security', 'search', 'clear_scroll', 'scroll', 'async_search', 'cluster',
-      'indices', 'open_point_in_time', 'close_point_in_time', 'terms_enum', 'esql'
+      'indices', 'open_point_in_time', 'close_point_in_time', 'terms_enum', 'esql', 'enrich'
   }
 }
 
@@ -25,6 +25,8 @@ def fulfillingCluster = testClusters.register('fulfilling-cluster') {
   module ':x-pack:plugin:async-search'
   module ':x-pack:plugin:ql'
   module ':x-pack:plugin:esql'
+  module ':modules:ingest-common'
+  module ':x-pack:plugin:enrich'
   user username: "test_user", password: "x-pack-test-password"
 }
 
@@ -38,6 +40,8 @@ def queryingCluster = testClusters.register('querying-cluster') {
   module ':x-pack:plugin:async-search'
   module ':x-pack:plugin:ql'
   module ':x-pack:plugin:esql'
+  module ':modules:ingest-common'
+  module ':x-pack:plugin:enrich'
   setting 'cluster.remote.connections_per_cluster', "1"
   user username: "test_user", password: "x-pack-test-password"
 

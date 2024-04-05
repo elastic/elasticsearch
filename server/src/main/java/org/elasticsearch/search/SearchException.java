@@ -14,17 +14,23 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class SearchException extends ElasticsearchException implements ElasticsearchWrapperException {
 
     private final SearchShardTarget shardTarget;
 
-    public SearchException(SearchShardTarget shardTarget, String msg) {
-        this(shardTarget, msg, null);
+    /**
+     * Creates a new instance of {@link SearchException}. To be used for subclasses that don't make a root cause available.
+     * It is highly recommended to override {@link ElasticsearchException#status()} in such cases, otherwise the status code will be 500.
+     */
+    protected SearchException(SearchShardTarget shardTarget, String msg) {
+        super(msg);
+        this.shardTarget = shardTarget;
     }
 
     public SearchException(SearchShardTarget shardTarget, String msg, Throwable cause) {
-        super(msg, cause);
+        super(msg, Objects.requireNonNull(cause, "cause must not be null"));
         this.shardTarget = shardTarget;
     }
 

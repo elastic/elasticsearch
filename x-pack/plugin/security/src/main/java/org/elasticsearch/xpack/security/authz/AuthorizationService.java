@@ -139,6 +139,7 @@ public class AuthorizationService {
 
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
+    private final AuthorizationDenialMessages authorizationDenialMessages;
 
     public AuthorizationService(
         Settings settings,
@@ -154,7 +155,8 @@ public class AuthorizationService {
         XPackLicenseState licenseState,
         IndexNameExpressionResolver resolver,
         OperatorPrivilegesService operatorPrivilegesService,
-        RestrictedIndices restrictedIndices
+        RestrictedIndices restrictedIndices,
+        AuthorizationDenialMessages authorizationDenialMessages
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -178,6 +180,7 @@ public class AuthorizationService {
         this.licenseState = licenseState;
         this.operatorPrivilegesService = operatorPrivilegesService;
         this.indicesAccessControlWrapper = new DlsFlsFeatureTrackingIndicesAccessControlWrapper(settings, licenseState);
+        this.authorizationDenialMessages = authorizationDenialMessages;
     }
 
     public void checkPrivileges(
@@ -477,7 +480,7 @@ public class AuthorizationService {
                     resolvedIndicesListener.onResponse(resolvedIndices);
                     return;
                 }
-                final ResolvedIndices resolvedIndices = IndicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
+                final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
                 if (resolvedIndices != null) {
                     resolvedIndicesListener.onResponse(resolvedIndices);
                 } else {
@@ -870,8 +873,8 @@ public class AuthorizationService {
         }, listener::onFailure));
     }
 
-    private static String resolveIndexNameDateMath(BulkItemRequest bulkItemRequest) {
-        final ResolvedIndices resolvedIndices = IndicesAndAliasesResolver.resolveIndicesAndAliasesWithoutWildcards(
+    private String resolveIndexNameDateMath(BulkItemRequest bulkItemRequest) {
+        final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.resolveIndicesAndAliasesWithoutWildcards(
             getAction(bulkItemRequest),
             bulkItemRequest.request()
         );
@@ -922,7 +925,7 @@ public class AuthorizationService {
         return denialException(
             authentication,
             action,
-            () -> AuthorizationDenialMessages.runAsDenied(authentication, authorizationInfo, action),
+            () -> authorizationDenialMessages.runAsDenied(authentication, authorizationInfo, action),
             null
         );
     }
@@ -932,7 +935,7 @@ public class AuthorizationService {
         return denialException(
             authentication,
             action,
-            () -> AuthorizationDenialMessages.remoteActionDenied(authentication, authorizationInfo, action, clusterAlias),
+            () -> authorizationDenialMessages.remoteActionDenied(authentication, authorizationInfo, action, clusterAlias),
             null
         );
     }
@@ -967,7 +970,7 @@ public class AuthorizationService {
         return denialException(
             authentication,
             action,
-            () -> AuthorizationDenialMessages.actionDenied(authentication, authorizationInfo, action, request, context),
+            () -> authorizationDenialMessages.actionDenied(authentication, authorizationInfo, action, request, context),
             cause
         );
     }

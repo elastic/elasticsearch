@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -113,7 +114,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                     "["
                         + CategorizeTextAggregationBuilder.NAME
                         + "] aggregation cannot be used in a cluster where some nodes have version ["
-                        + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION
+                        + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
                         + "] or higher and others have a version before this",
                     RestStatus.BAD_REQUEST
                 );
@@ -132,7 +133,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                     "["
                         + CategorizeTextAggregationBuilder.NAME
                         + "] aggregation cannot be used in a cluster where some nodes have version ["
-                        + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION
+                        + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
                         + "] or higher and others have a version before this",
                     RestStatus.BAD_REQUEST
                 );
@@ -245,7 +246,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                 "["
                     + CategorizeTextAggregationBuilder.NAME
                     + "] aggregation cannot be used in a cluster where some nodes have version ["
-                    + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION
+                    + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
                     + "] or higher and others have a version before this",
                 RestStatus.BAD_REQUEST
             );
@@ -264,7 +265,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                 "["
                     + CategorizeTextAggregationBuilder.NAME
                     + "] aggregation cannot be used in a cluster where some nodes have version ["
-                    + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION
+                    + CategorizeTextAggregationBuilder.ALGORITHM_CHANGED_VERSION.toReleaseVersion()
                     + "] or higher and others have a version before this",
                 RestStatus.BAD_REQUEST
             );
@@ -296,11 +297,6 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     }
 
     @Override
-    protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
-        throw new UnsupportedOperationException("For optimization purposes, typical bucket path is not supported");
-    }
-
-    @Override
     public List<Bucket> getBuckets() {
         return buckets;
     }
@@ -311,42 +307,57 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        try (CategorizationBytesRefHash hash = new CategorizationBytesRefHash(new BytesRefHash(1L, reduceContext.bigArrays()))) {
-            TokenListCategorizer categorizer = new TokenListCategorizer(
-                hash,
-                null, // part-of-speech dictionary is not needed for the reduce phase as weights are already decided
-                (float) similarityThreshold / 100.0f
-            );
-            // Merge all the categories into the newly created empty categorizer to combine them
-            for (InternalAggregation aggregation : aggregations) {
-                InternalCategorizationAggregation categorizationAggregation = (InternalCategorizationAggregation) aggregation;
-                for (Bucket bucket : categorizationAggregation.buckets) {
-                    categorizer.mergeWireCategory(bucket.serializableCategory).addSubAggs(bucket.getAggregations());
-                    if (reduceContext.isCanceled().get()) {
-                        break;
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+
+            final List<Bucket> buckets = new ArrayList<>();
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                buckets.addAll(((InternalCategorizationAggregation) aggregation).buckets);
+            }
+
+            @Override
+            public InternalAggregation get() {
+                try (CategorizationBytesRefHash hash = new CategorizationBytesRefHash(new BytesRefHash(1L, reduceContext.bigArrays()))) {
+                    TokenListCategorizer categorizer = new TokenListCategorizer(
+                        hash,
+                        null, // part-of-speech dictionary is not needed for the reduce phase as weights are already decided
+                        (float) similarityThreshold / 100.0f
+                    );
+                    // Merge all the categories into the newly created empty categorizer to combine them
+                    for (Bucket bucket : buckets) {
+                        categorizer.mergeWireCategory(bucket.serializableCategory).addSubAggs(bucket.getAggregations());
+                        if (reduceContext.isCanceled().get()) {
+                            break;
+                        }
                     }
+                    final int size = reduceContext.isFinalReduce()
+                        ? Math.min(requiredSize, categorizer.getCategoryCount())
+                        : categorizer.getCategoryCount();
+                    Bucket[] mergedBuckets = categorizer.toOrderedBuckets(
+                        size,
+                        reduceContext.isFinalReduce() ? minDocCount : 0,
+                        reduceContext
+                    );
+                    // TODO: not sure if this next line is correct - if we discarded some categories due to size or minDocCount is this
+                    // handled?
+                    reduceContext.consumeBucketsAndMaybeBreak(mergedBuckets.length);
+                    // Keep the top categories top, but then sort by the key for those with duplicate counts
+                    if (reduceContext.isFinalReduce()) {
+                        Arrays.sort(mergedBuckets, Comparator.comparing(Bucket::getDocCount).reversed().thenComparing(Bucket::getRawKey));
+                    }
+                    return new InternalCategorizationAggregation(
+                        name,
+                        requiredSize,
+                        minDocCount,
+                        similarityThreshold,
+                        metadata,
+                        Arrays.asList(mergedBuckets)
+                    );
                 }
             }
-            final int size = reduceContext.isFinalReduce()
-                ? Math.min(requiredSize, categorizer.getCategoryCount())
-                : categorizer.getCategoryCount();
-            Bucket[] mergedBuckets = categorizer.toOrderedBuckets(size, reduceContext.isFinalReduce() ? minDocCount : 0, reduceContext);
-            // TODO: not sure if this next line is correct - if we discarded some categories due to size or minDocCount is this handled?
-            reduceContext.consumeBucketsAndMaybeBreak(mergedBuckets.length);
-            // Keep the top categories top, but then sort by the key for those with duplicate counts
-            if (reduceContext.isFinalReduce()) {
-                Arrays.sort(mergedBuckets, Comparator.comparing(Bucket::getDocCount).reversed().thenComparing(Bucket::getRawKey));
-            }
-            return new InternalCategorizationAggregation(
-                name,
-                requiredSize,
-                minDocCount,
-                similarityThreshold,
-                metadata,
-                Arrays.asList(mergedBuckets)
-            );
-        }
+        };
     }
 
     @Override

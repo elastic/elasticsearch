@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.downsample;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.downsample.DownsampleConfig;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -32,9 +33,11 @@ public record DownsampleShardTaskParams(
     long indexEndTimeMillis,
     ShardId shardId,
     String[] metrics,
-    String[] labels
+    String[] labels,
+    String[] dimensions
 ) implements PersistentTaskParams {
 
+    private static final TransportVersion V_8_13_0 = TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS;
     public static final String NAME = DownsampleShardTask.TASK_NAME;
     private static final ParseField DOWNSAMPLE_CONFIG = new ParseField("downsample_config");
     private static final ParseField DOWNSAMPLE_INDEX = new ParseField("rollup_index");
@@ -43,6 +46,7 @@ public record DownsampleShardTaskParams(
     private static final ParseField SHARD_ID = new ParseField("shard_id");
     private static final ParseField METRICS = new ParseField("metrics");
     private static final ParseField LABELS = new ParseField("labels");
+    private static final ParseField DIMENSIONS = new ParseField("dimensions");
     public static final ObjectParser<DownsampleShardTaskParams.Builder, Void> PARSER = new ObjectParser<>(NAME);
 
     static {
@@ -57,6 +61,7 @@ public record DownsampleShardTaskParams(
         PARSER.declareString(DownsampleShardTaskParams.Builder::shardId, SHARD_ID);
         PARSER.declareStringArray(DownsampleShardTaskParams.Builder::metrics, METRICS);
         PARSER.declareStringArray(DownsampleShardTaskParams.Builder::labels, LABELS);
+        PARSER.declareStringArray(DownsampleShardTaskParams.Builder::dimensions, DIMENSIONS);
     }
 
     DownsampleShardTaskParams(final StreamInput in) throws IOException {
@@ -67,7 +72,8 @@ public record DownsampleShardTaskParams(
             in.readVLong(),
             new ShardId(in),
             in.readStringArray(),
-            in.readStringArray()
+            in.readStringArray(),
+            in.getTransportVersion().onOrAfter(V_8_13_0) ? in.readOptionalStringArray() : new String[] {}
         );
     }
 
@@ -81,6 +87,9 @@ public record DownsampleShardTaskParams(
         builder.field(SHARD_ID.getPreferredName(), shardId);
         builder.array(METRICS.getPreferredName(), metrics);
         builder.array(LABELS.getPreferredName(), labels);
+        if (dimensions.length > 0) {
+            builder.array(DIMENSIONS.getPreferredName(), dimensions);
+        }
         return builder.endObject();
     }
 
@@ -103,6 +112,9 @@ public record DownsampleShardTaskParams(
         shardId.writeTo(out);
         out.writeStringArray(metrics);
         out.writeStringArray(labels);
+        if (out.getTransportVersion().onOrAfter(V_8_13_0)) {
+            out.writeOptionalStringArray(dimensions);
+        }
     }
 
     public static DownsampleShardTaskParams fromXContent(XContentParser parser) throws IOException {
@@ -123,7 +135,8 @@ public record DownsampleShardTaskParams(
             && Objects.equals(shardId.id(), that.shardId.id())
             && Objects.equals(shardId.getIndexName(), that.shardId.getIndexName())
             && Arrays.equals(metrics, that.metrics)
-            && Arrays.equals(labels, that.labels);
+            && Arrays.equals(labels, that.labels)
+            && Arrays.equals(dimensions, that.dimensions);
     }
 
     @Override
@@ -138,6 +151,7 @@ public record DownsampleShardTaskParams(
         );
         result = 31 * result + Arrays.hashCode(metrics);
         result = 31 * result + Arrays.hashCode(labels);
+        result = 31 * result + Arrays.hashCode(dimensions);
         return result;
     }
 
@@ -149,6 +163,7 @@ public record DownsampleShardTaskParams(
         ShardId shardId;
         String[] metrics;
         String[] labels;
+        String[] dimensions = Strings.EMPTY_ARRAY;
 
         public Builder downsampleConfig(final DownsampleConfig downsampleConfig) {
             this.downsampleConfig = downsampleConfig;
@@ -185,6 +200,11 @@ public record DownsampleShardTaskParams(
             return this;
         }
 
+        public Builder dimensions(final List<String> dimensions) {
+            this.dimensions = dimensions.toArray(String[]::new);
+            return this;
+        }
+
         public DownsampleShardTaskParams build() {
             return new DownsampleShardTaskParams(
                 downsampleConfig,
@@ -193,8 +213,14 @@ public record DownsampleShardTaskParams(
                 indexEndTimeMillis,
                 shardId,
                 metrics,
-                labels
+                labels,
+                dimensions
             );
         }
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

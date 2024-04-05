@@ -69,7 +69,7 @@ public class RankEvalResponseTests extends ESTestCase {
         PARSER.declareDouble(ConstructingObjectParser.constructorArg(), EvalQueryQuality.METRIC_SCORE_FIELD);
         PARSER.declareNamedObjects(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c, n) -> EvalQueryQuality.fromXContent(p, n),
+            (p, c, n) -> EvalQueryQualityTests.parseInstance(p, n),
             new ParseField("details")
         );
         PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> {
@@ -226,7 +226,7 @@ public class RankEvalResponseTests extends ESTestCase {
     }
 
     private static RatedSearchHit searchHit(String index, int docId, Integer rating) {
-        SearchHit hit = new SearchHit(docId, docId + "");
+        SearchHit hit = SearchHit.unpooled(docId, docId + "");
         hit.shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null));
         hit.score(1.0f);
         return new RatedSearchHit(hit, rating != null ? OptionalInt.of(rating) : OptionalInt.empty());

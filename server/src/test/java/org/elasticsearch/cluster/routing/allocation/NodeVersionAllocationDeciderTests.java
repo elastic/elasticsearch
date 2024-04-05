@@ -625,9 +625,9 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             decision.getExplanation(),
             is(
                 "max supported index version ["
-                    + oldNode.node().getMaxIndexVersion()
+                    + oldNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "] is older than the snapshot version ["
-                    + newNode.node().getMaxIndexVersion()
+                    + newNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "]"
             )
         );
@@ -642,9 +642,9 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             decision.getExplanation(),
             is(
                 "max supported index version ["
-                    + newNode.node().getMaxIndexVersion()
+                    + newNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "] is the same or newer than snapshot version ["
-                    + oldNode.node().getMaxIndexVersion()
+                    + oldNode.node().getMaxIndexVersion().toReleaseVersion()
                     + "]"
             )
         );

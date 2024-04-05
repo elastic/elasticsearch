@@ -44,18 +44,17 @@ public class AutomatonQueries {
 
     /** Build an automaton query accepting all terms with the specified prefix, ASCII case insensitive. */
     public static AutomatonQuery caseInsensitivePrefixQuery(Term prefix) {
-        return new AutomatonQuery(prefix, caseInsensitivePrefix(prefix.text()));
+        return new CaseInsensitivePrefixQuery(prefix);
     }
 
     /** Build an automaton accepting all terms ASCII case insensitive. */
     public static AutomatonQuery caseInsensitiveTermQuery(Term term) {
-        BytesRef prefix = term.bytes();
-        return new AutomatonQuery(term, toCaseInsensitiveString(prefix));
+        return new CaseInsensitiveTermQuery(term);
     }
 
     /** Build an automaton matching a wildcard pattern, ASCII case insensitive. */
     public static AutomatonQuery caseInsensitiveWildcardQuery(Term wildcardquery) {
-        return new AutomatonQuery(wildcardquery, toCaseInsensitiveWildcardAutomaton(wildcardquery));
+        return new CaseInsensitiveWildcardQuery(wildcardquery);
     }
 
     /** String equality with support for wildcards */

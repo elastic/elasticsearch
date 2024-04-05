@@ -7,13 +7,12 @@
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation;
 
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
+import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.InternalCardinality;
+import org.elasticsearch.search.aggregations.metrics.InternalExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 
 import java.util.Collections;
@@ -25,7 +24,7 @@ import static org.mockito.Mockito.when;
 
 public final class MockAggregations {
 
-    public static Terms mockTerms(String name) {
+    public static StringTerms mockTerms(String name) {
         return mockTerms(name, Collections.emptyList(), 0);
     }
 
@@ -44,7 +43,7 @@ public final class MockAggregations {
         return bucket;
     }
 
-    public static Filters mockFilters(String name) {
+    public static InternalFilters mockFilters(String name) {
         return mockFilters(name, Collections.emptyList());
     }
 
@@ -68,8 +67,8 @@ public final class MockAggregations {
         return bucket;
     }
 
-    public static Filter mockFilter(String name, long docCount) {
-        Filter agg = mock(Filter.class);
+    public static InternalFilter mockFilter(String name, long docCount) {
+        InternalFilter agg = mock(InternalFilter.class);
         when(agg.getName()).thenReturn(name);
         when(agg.getDocCount()).thenReturn(docCount);
         return agg;
@@ -89,8 +88,8 @@ public final class MockAggregations {
         return agg;
     }
 
-    public static ExtendedStats mockExtendedStats(String name, double variance, long count) {
-        ExtendedStats agg = mock(ExtendedStats.class);
+    public static InternalExtendedStats mockExtendedStats(String name, double variance, long count) {
+        InternalExtendedStats agg = mock(InternalExtendedStats.class);
         when(agg.getName()).thenReturn(name);
         when(agg.getVariance()).thenReturn(variance);
         when(agg.getCount()).thenReturn(count);

@@ -16,15 +16,14 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -44,7 +43,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider.registeredMetricName;
 
 /**
@@ -140,7 +138,7 @@ public class Precision implements EvaluationMetric {
     }
 
     @Override
-    public void process(Aggregations aggs) {
+    public void process(InternalAggregations aggs) {
         final Aggregation classNamesAgg = aggs.get(ACTUAL_CLASSES_NAMES_AGG_NAME);
         if (topActualClassNames.get() == null && classNamesAgg instanceof Terms topActualClassesAgg) {
             if (topActualClassesAgg.getSumOfOtherDocCounts() > 0) {
@@ -204,22 +202,6 @@ public class Precision implements EvaluationMetric {
 
         private static final ParseField CLASSES = new ParseField("classes");
         private static final ParseField AVG_PRECISION = new ParseField("avg_precision");
-
-        @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<Result, Void> PARSER = new ConstructingObjectParser<>(
-            "precision_result",
-            true,
-            a -> new Result((List<PerClassSingleValue>) a[0], (double) a[1])
-        );
-
-        static {
-            PARSER.declareObjectArray(constructorArg(), PerClassSingleValue.PARSER, CLASSES);
-            PARSER.declareDouble(constructorArg(), AVG_PRECISION);
-        }
-
-        public static Result fromXContent(XContentParser parser) {
-            return PARSER.apply(parser, null);
-        }
 
         /** List of per-class results. */
         private final List<PerClassSingleValue> classes;

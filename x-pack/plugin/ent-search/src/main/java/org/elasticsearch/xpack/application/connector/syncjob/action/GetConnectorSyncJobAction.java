@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.application.connector.syncjob.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -19,8 +18,8 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobConstants;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobSearchResult;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -30,12 +29,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public class GetConnectorSyncJobAction {
 
-    public static final String NAME = "cluster:admin/xpack/connector/sync_job/get";
+    public static final String NAME = "indices:data/read/xpack/connector/sync_job/get";
     public static final ActionType<GetConnectorSyncJobAction.Response> INSTANCE = new ActionType<>(NAME);
 
     private GetConnectorSyncJobAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends ConnectorSyncJobActionRequest implements ToXContentObject {
         private final String connectorSyncJobId;
 
         private static final ParseField CONNECTOR_ID_FIELD = new ParseField("connector_id");
@@ -110,15 +109,15 @@ public class GetConnectorSyncJobAction {
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
-        private final ConnectorSyncJob connectorSyncJob;
+        private final ConnectorSyncJobSearchResult connectorSyncJob;
 
-        public Response(ConnectorSyncJob connectorSyncJob) {
+        public Response(ConnectorSyncJobSearchResult connectorSyncJob) {
             this.connectorSyncJob = connectorSyncJob;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.connectorSyncJob = new ConnectorSyncJob(in);
+            this.connectorSyncJob = new ConnectorSyncJobSearchResult(in);
         }
 
         @Override

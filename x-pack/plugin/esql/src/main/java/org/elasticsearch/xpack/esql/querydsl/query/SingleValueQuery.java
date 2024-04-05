@@ -145,7 +145,7 @@ public class SingleValueQuery extends Query {
             this.next = in.readNamedWriteable(QueryBuilder.class);
             this.field = in.readString();
             this.stats = new Stats();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.SOURCE_IN_SINGLE_VALUE_QUERY_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 this.source = readSource(in);
             } else {
                 this.source = Source.EMPTY;
@@ -157,7 +157,7 @@ public class SingleValueQuery extends Query {
         protected void doWriteTo(StreamOutput out) throws IOException {
             out.writeNamedWriteable(next);
             out.writeString(field);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.SOURCE_IN_SINGLE_VALUE_QUERY_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 writeSource(out, source);
             }
         }

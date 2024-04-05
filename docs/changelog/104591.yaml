@@ -1,5 +1,0 @@
-pr: 104591
-summary: Avoid execute ESQL planning on refresh thread
-area: ES|QL
-type: bug
-issues: []

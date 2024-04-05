@@ -10,7 +10,6 @@ package org.elasticsearch.reindex;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -21,10 +20,8 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
 
 import static java.util.Collections.singletonMap;
-import static org.mockito.Mockito.mock;
 
 public class RestReindexActionTests extends RestActionTestCase {
 
@@ -32,7 +29,7 @@ public class RestReindexActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        action = new RestReindexAction(mock(NamedWriteableRegistry.class));
+        action = new RestReindexAction(nf -> false);
         controller().registerHandler(action);
     }
 
@@ -56,10 +53,7 @@ public class RestReindexActionTests extends RestActionTestCase {
             request.withContent(BytesReference.bytes(body), body.contentType());
         }
         request.withParams(singletonMap("pipeline", "doesn't matter"));
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> action.buildRequest(request.build(), new NamedWriteableRegistry(Collections.emptyList()))
-        );
+        Exception e = expectThrows(IllegalArgumentException.class, () -> action.buildRequest(request.build()));
 
         assertEquals("_reindex doesn't support [pipeline] as a query parameter. Specify it in the [dest] object instead.", e.getMessage());
     }
@@ -68,14 +62,14 @@ public class RestReindexActionTests extends RestActionTestCase {
         {
             FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry());
             requestBuilder.withContent(new BytesArray("{}"), XContentType.JSON);
-            ReindexRequest request = action.buildRequest(requestBuilder.build(), new NamedWriteableRegistry(Collections.emptyList()));
+            ReindexRequest request = action.buildRequest(requestBuilder.build());
             assertEquals(AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT, request.getScrollTime());
         }
         {
             FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry());
             requestBuilder.withParams(singletonMap("scroll", "10m"));
             requestBuilder.withContent(new BytesArray("{}"), XContentType.JSON);
-            ReindexRequest request = action.buildRequest(requestBuilder.build(), new NamedWriteableRegistry(Collections.emptyList()));
+            ReindexRequest request = action.buildRequest(requestBuilder.build());
             assertEquals("10m", request.getScrollTime().toString());
         }
     }

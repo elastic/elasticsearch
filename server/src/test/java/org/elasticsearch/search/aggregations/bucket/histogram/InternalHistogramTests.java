@@ -97,9 +97,8 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
         InternalHistogram.Bucket b = buckets.get(buckets.size() - 1);
         newBuckets.add(new InternalHistogram.Bucket(Double.NaN, b.docCount, keyed, b.format, b.aggregations));
 
-        InternalHistogram newHistogram = histogram.create(newBuckets);
         List<InternalAggregation> reduceMe = List.of(histogram, histogram2);
-        newHistogram.reduce(reduceMe, InternalAggregationTestCase.mockReduceContext(mockBuilder(reduceMe)).forPartialReduction());
+        InternalAggregationTestCase.reduce(reduceMe, mockReduceContext(mockBuilder(reduceMe)).forPartialReduction());
     }
 
     public void testLargeReduce() {

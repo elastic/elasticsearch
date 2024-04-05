@@ -143,9 +143,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
 
     @Override
     protected void assertReduced(InternalScriptedMetric reduced, List<InternalScriptedMetric> inputs) {
-        InternalScriptedMetric firstAgg = inputs.get(0);
-        assertEquals(firstAgg.getName(), reduced.getName());
-        assertEquals(firstAgg.getMetadata(), reduced.getMetadata());
+        // we cannot check the current attribute values as they depend on the first aggregator during the reduced phase
         int size = (int) inputs.stream().mapToLong(i -> i.aggregationsList().size()).sum();
         if (hasReduceScript) {
             assertEquals(size, reduced.aggregation());
@@ -167,7 +165,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
     @Override
     public InternalScriptedMetric createTestInstanceForXContent() {
         InternalScriptedMetric aggregation = createTestInstance();
-        return (InternalScriptedMetric) aggregation.reduce(
+        return (InternalScriptedMetric) InternalAggregationTestCase.reduce(
             singletonList(aggregation),
             new AggregationReduceContext.ForFinal(
                 null,

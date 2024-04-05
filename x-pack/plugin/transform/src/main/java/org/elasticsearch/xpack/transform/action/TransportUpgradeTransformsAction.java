@@ -46,7 +46,7 @@ import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Deque;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.Map;
 
 public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<Request, Response> {
@@ -199,7 +199,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         updateOneTransform(next, dryRun, timeout, ActionListener.wrap(updateResponse -> {
             if (UpdateResult.Status.DELETED.equals(updateResponse.getStatus()) == false) {
                 auditor.info(next, "Updated transform.");
-                logger.debug("[{}] Updated transform [{}]", next, updateResponse.getStatus());
+                logger.info("[{}] Updated transform [{}]", next, updateResponse.getStatus());
                 updatesByStatus.compute(updateResponse.getStatus(), (k, v) -> (v == null) ? 1 : v + 1L);
             }
             if (transformsToUpgrade.isEmpty() == false) {
@@ -223,7 +223,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
                 return;
             }
 
-            Map<UpdateResult.Status, Long> updatesByStatus = new HashMap<>();
+            Map<UpdateResult.Status, Long> updatesByStatus = new EnumMap<>(UpdateResult.Status.class);
             updatesByStatus.put(UpdateResult.Status.NONE, totalAndIds.v1() - totalAndIds.v2().size());
 
             Deque<String> ids = new ArrayDeque<>(totalAndIds.v2());

@@ -17,7 +17,9 @@ The default <<dense-vector-element-type,`element_type`>> is `float`. But this
 can be automatically quantized during index time through
 <<dense-vector-quantization,`quantization`>>. Quantization will reduce the
 required memory by 4x, but it will also reduce the precision of the vectors and
-increase disk usage for the field (by up to 25%).
+increase disk usage for the field (by up to 25%). Increased disk usage is a
+result of {es} storing both the quantized and the unquantized vectors.
+For example, when quantizing 40GB of floating point vectors an extra 10GB of data will be stored for the quantized vectors. The total disk usage amounts to 50GB, but the memory usage for fast search will be reduced to 10GB.
 
 For `float` vectors with `dim` greater than or equal to `384`, using a
 <<dense-vector-quantization,`quantized`>> index is highly recommended.

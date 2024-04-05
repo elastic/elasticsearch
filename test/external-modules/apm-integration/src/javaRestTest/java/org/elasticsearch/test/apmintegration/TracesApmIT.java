@@ -51,9 +51,9 @@ public class TracesApmIT extends ESRestTestCase {
         .module("test-apm-integration")
         .module("apm")
         .setting("telemetry.metrics.enabled", "false")
-        .setting("tracing.apm.enabled", "true")
-        .setting("tracing.apm.agent.metrics_interval", "1s")
-        .setting("tracing.apm.agent.server_url", "http://127.0.0.1:" + mockApmServer.getPort())
+        .setting("telemetry.tracing.enabled", "true")
+        .setting("telemetry.agent.metrics_interval", "1s")
+        .setting("telemetry.agent.server_url", "http://127.0.0.1:" + mockApmServer.getPort())
         .build();
 
     @Override

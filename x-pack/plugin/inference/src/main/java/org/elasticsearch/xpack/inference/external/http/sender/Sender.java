@@ -10,15 +10,19 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.HttpRequest;
+import org.elasticsearch.inference.InferenceServiceResults;
 
 import java.io.Closeable;
 
 public interface Sender extends Closeable {
     void start();
 
-    void send(HttpRequest request, ActionListener<HttpResult> listener);
+    void send(
+        ExecutableRequestCreator requestCreator,
+        InferenceInputs inferenceInputs,
+        @Nullable TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    );
 
-    void send(HttpRequest request, @Nullable TimeValue timeout, ActionListener<HttpResult> listener);
+    void send(ExecutableRequestCreator requestCreator, InferenceInputs inferenceInputs, ActionListener<InferenceServiceResults> listener);
 }

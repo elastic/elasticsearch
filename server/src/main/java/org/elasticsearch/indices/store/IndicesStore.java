@@ -337,7 +337,7 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
     private class ShardActiveRequestHandler implements TransportRequestHandler<ShardActiveRequest> {
 
         @Override
-        public void messageReceived(final ShardActiveRequest request, final TransportChannel channel, Task task) throws Exception {
+        public void messageReceived(final ShardActiveRequest request, final TransportChannel channel, Task task) {
             IndexShard indexShard = getShard(request);
 
             // make sure shard is really there before register cluster state observer
@@ -381,7 +381,7 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
                         public void sendResult(boolean shardActive) {
                             try {
                                 channel.sendResponse(new ShardActiveResponse(shardActive, clusterService.localNode()));
-                            } catch (IOException | EsRejectedExecutionException e) {
+                            } catch (EsRejectedExecutionException e) {
                                 logger.error(
                                     () -> format(
                                         "failed send response for shard active while trying to "

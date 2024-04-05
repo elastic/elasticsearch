@@ -23,12 +23,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceModelAction;
-import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 public class TransportDeleteInferenceModelAction extends AcknowledgedTransportMasterNodeAction<DeleteInferenceModelAction.Request> {
 
@@ -71,6 +71,19 @@ public class TransportDeleteInferenceModelAction extends AcknowledgedTransportMa
         SubscribableListener.<ModelRegistry.UnparsedModel>newForked(modelConfigListener -> {
             modelRegistry.getModel(request.getInferenceEntityId(), modelConfigListener);
         }).<Boolean>andThen((l1, unparsedModel) -> {
+
+            if (request.getTaskType().isAnyOrSame(unparsedModel.taskType()) == false) {
+                // specific task type in request does not match the models
+                l1.onFailure(
+                    new ElasticsearchStatusException(
+                        "Requested task type [{}] does not match the model's task type [{}]",
+                        RestStatus.BAD_REQUEST,
+                        request.getTaskType(),
+                        unparsedModel.taskType()
+                    )
+                );
+                return;
+            }
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isPresent()) {
                 service.get().stop(request.getInferenceEntityId(), l1);

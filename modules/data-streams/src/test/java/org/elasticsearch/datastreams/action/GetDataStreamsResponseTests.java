@@ -63,7 +63,6 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102813")
     public void testResponseIlmAndDataStreamLifecycleRepresentation() throws Exception {
         // we'll test a data stream with 3 backing indices and a failure store - two backing indices managed by ILM (having the ILM policy
         // configured for them) and the remainder without any ILM policy configured
@@ -89,7 +88,8 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 IndexMode.STANDARD,
                 new DataStreamLifecycle(),
                 true,
-                failureStores
+                failureStores,
+                null
             );
 
             String ilmPolicyName = "rollover-30days";
@@ -198,7 +198,8 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 IndexMode.STANDARD,
                 new DataStreamLifecycle(null, null, false),
                 true,
-                failureStores
+                failureStores,
+                null
             );
 
             String ilmPolicyName = "rollover-30days";

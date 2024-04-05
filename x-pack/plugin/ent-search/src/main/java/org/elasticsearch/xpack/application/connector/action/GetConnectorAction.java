@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.application.connector.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -19,7 +18,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.application.connector.Connector;
+import org.elasticsearch.xpack.application.connector.ConnectorSearchResult;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -29,12 +28,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public class GetConnectorAction {
 
-    public static final String NAME = "cluster:admin/xpack/connector/get";
+    public static final String NAME = "indices:data/read/xpack/connector/get";
     public static final ActionType<GetConnectorAction.Response> INSTANCE = new ActionType<>(NAME);
 
     private GetConnectorAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends ConnectorActionRequest implements ToXContentObject {
 
         private final String connectorId;
 
@@ -110,15 +109,15 @@ public class GetConnectorAction {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final Connector connector;
+        private final ConnectorSearchResult connector;
 
-        public Response(Connector connector) {
+        public Response(ConnectorSearchResult connector) {
             this.connector = connector;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.connector = new Connector(in);
+            this.connector = new ConnectorSearchResult(in);
         }
 
         @Override
@@ -129,10 +128,6 @@ public class GetConnectorAction {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return connector.toXContent(builder, params);
-        }
-
-        public static GetConnectorAction.Response fromXContent(XContentParser parser, String docId) throws IOException {
-            return new GetConnectorAction.Response(Connector.fromXContent(parser, docId));
         }
 
         @Override

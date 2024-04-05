@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbedd
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
 
@@ -30,7 +29,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class CohereEmbeddingsRequestTests extends ESTestCase {
-    public void testCreateRequest_UrlDefined() throws URISyntaxException, IOException {
+    public void testCreateRequest_UrlDefined() throws IOException {
         var request = createRequest(
             List.of("abc"),
             CohereEmbeddingsModelTests.createModel("url", "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null, null, null)
@@ -44,12 +43,16 @@ public class CohereEmbeddingsRequestTests extends ESTestCase {
         MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
+        MatcherAssert.assertThat(
+            httpPost.getLastHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(),
+            is(CohereUtils.ELASTIC_REQUEST_SOURCE)
+        );
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        MatcherAssert.assertThat(requestMap, is(Map.of("texts", List.of("abc"))));
+        MatcherAssert.assertThat(requestMap, is(Map.of("texts", List.of("abc"), "embedding_types", List.of("float"))));
     }
 
-    public void testCreateRequest_AllOptionsDefined() throws URISyntaxException, IOException {
+    public void testCreateRequest_AllOptionsDefined() throws IOException {
         var request = createRequest(
             List.of("abc"),
             CohereEmbeddingsModelTests.createModel(
@@ -71,6 +74,10 @@ public class CohereEmbeddingsRequestTests extends ESTestCase {
         MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
+        MatcherAssert.assertThat(
+            httpPost.getLastHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(),
+            is(CohereUtils.ELASTIC_REQUEST_SOURCE)
+        );
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         MatcherAssert.assertThat(
@@ -92,7 +99,7 @@ public class CohereEmbeddingsRequestTests extends ESTestCase {
         );
     }
 
-    public void testCreateRequest_InputTypeSearch_EmbeddingTypeInt8_TruncateEnd() throws URISyntaxException, IOException {
+    public void testCreateRequest_InputTypeSearch_EmbeddingTypeInt8_TruncateEnd() throws IOException {
         var request = createRequest(
             List.of("abc"),
             CohereEmbeddingsModelTests.createModel(
@@ -114,6 +121,10 @@ public class CohereEmbeddingsRequestTests extends ESTestCase {
         MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
+        MatcherAssert.assertThat(
+            httpPost.getLastHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(),
+            is(CohereUtils.ELASTIC_REQUEST_SOURCE)
+        );
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         MatcherAssert.assertThat(
@@ -135,7 +146,7 @@ public class CohereEmbeddingsRequestTests extends ESTestCase {
         );
     }
 
-    public void testCreateRequest_TruncateNone() throws URISyntaxException, IOException {
+    public void testCreateRequest_TruncateNone() throws IOException {
         var request = createRequest(
             List.of("abc"),
             CohereEmbeddingsModelTests.createModel(
@@ -157,13 +168,17 @@ public class CohereEmbeddingsRequestTests extends ESTestCase {
         MatcherAssert.assertThat(httpPost.getURI().toString(), is("url"));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         MatcherAssert.assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
+        MatcherAssert.assertThat(
+            httpPost.getLastHeader(CohereUtils.REQUEST_SOURCE_HEADER).getValue(),
+            is(CohereUtils.ELASTIC_REQUEST_SOURCE)
+        );
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        MatcherAssert.assertThat(requestMap, is(Map.of("texts", List.of("abc"), "truncate", "none")));
+        MatcherAssert.assertThat(requestMap, is(Map.of("texts", List.of("abc"), "truncate", "none", "embedding_types", List.of("float"))));
     }
 
-    public static CohereEmbeddingsRequest createRequest(List<String> input, CohereEmbeddingsModel model) throws URISyntaxException {
-        var account = new CohereAccount(model.getServiceSettings().getCommonSettings().getUri(), model.getSecretSettings().apiKey());
+    public static CohereEmbeddingsRequest createRequest(List<String> input, CohereEmbeddingsModel model) {
+        var account = new CohereAccount(model.getServiceSettings().getCommonSettings().uri(), model.getSecretSettings().apiKey());
         return new CohereEmbeddingsRequest(account, input, model);
     }
 }

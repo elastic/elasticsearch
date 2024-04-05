@@ -21,10 +21,10 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -68,9 +68,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
@@ -546,7 +546,7 @@ public class JobResultsProvider {
             request.setParentTask(parentTaskId);
         }
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request, ActionListener.<SearchResponse>wrap(response -> {
-            Aggregations aggs = response.getAggregations();
+            InternalAggregations aggs = response.getAggregations();
             if (aggs == null) {
                 handler.apply(new DataCounts(jobId), new ModelSizeStats.Builder(jobId).build(), new TimingStats(jobId));
                 return;
@@ -1602,7 +1602,7 @@ public class JobResultsProvider {
                     ML_ORIGIN,
                     search.request(),
                     ActionListener.<SearchResponse>wrap(response -> {
-                        List<Aggregation> aggregations = response.getAggregations().asList();
+                        List<InternalAggregation> aggregations = response.getAggregations().asList();
                         if (aggregations.size() == 1) {
                             ExtendedStats extendedStats = (ExtendedStats) aggregations.get(0);
                             long count = extendedStats.getCount();
@@ -1810,12 +1810,12 @@ public class JobResultsProvider {
             ML_ORIGIN,
             searchRequest,
             ActionListener.<SearchResponse>wrap(searchResponse -> {
-                Aggregations aggregations = searchResponse.getAggregations();
+                InternalAggregations aggregations = searchResponse.getAggregations();
                 if (aggregations == null) {
                     handler.accept(new ForecastStats());
                     return;
                 }
-                Map<String, Aggregation> aggregationsAsMap = aggregations.asMap();
+                Map<String, InternalAggregation> aggregationsAsMap = aggregations.asMap();
                 StatsAccumulator memoryStats = StatsAccumulator.fromStatsAggregation(
                     (Stats) aggregationsAsMap.get(ForecastStats.Fields.MEMORY)
                 );
@@ -1940,7 +1940,7 @@ public class JobResultsProvider {
                 bulkUpdate.add(updateRequest);
             }
             if (bulkUpdate.numberOfActions() > 0) {
-                executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkUpdate.request(), updateCalendarsListener);
+                executeAsyncWithOrigin(client, ML_ORIGIN, TransportBulkAction.TYPE, bulkUpdate.request(), updateCalendarsListener);
             } else {
                 listener.onResponse(true);
             }

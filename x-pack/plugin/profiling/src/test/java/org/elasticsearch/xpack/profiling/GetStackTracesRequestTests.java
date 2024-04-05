@@ -50,8 +50,9 @@ public class GetStackTracesRequestTests extends ESTestCase {
             assertEquals("@timestamp", ((RangeQueryBuilder) request.getQuery()).fieldName());
             // Expect the default values
             assertNull(request.getIndices());
-            assertNull(request.getStackTraceIds());
+            assertNull(request.getStackTraceIdsField());
             assertNull(request.getAwsCostFactor());
+            assertNull(request.getAzureCostFactor());
             assertNull(request.getCustomCO2PerKWH());
             assertNull(request.getCustomDatacenterPUE());
             assertNull(request.getCustomCostPerCoreHour());
@@ -65,8 +66,8 @@ public class GetStackTracesRequestTests extends ESTestCase {
         //tag::noformat
             .startObject()
                 .field("sample_size", 2000)
-                .field("indices", "my-traces")
-                .field("stacktrace_ids", "stacktraces")
+                .field("indices", new String[] {"my-traces"})
+                .field("stacktrace_ids_field", "stacktraces")
                 .startObject("query")
                     .startObject("range")
                         .startObject("@timestamp")
@@ -82,14 +83,15 @@ public class GetStackTracesRequestTests extends ESTestCase {
             request.parseXContent(content);
 
             assertEquals(2000, request.getSampleSize());
-            assertEquals("my-traces", request.getIndices());
-            assertEquals("stacktraces", request.getStackTraceIds());
+            assertArrayEquals(new String[] { "my-traces" }, request.getIndices());
+            assertEquals("stacktraces", request.getStackTraceIdsField());
             // a basic check suffices here
             assertEquals("@timestamp", ((RangeQueryBuilder) request.getQuery()).fieldName());
 
             // Expect the default values
             assertNull(request.getRequestedDuration());
             assertNull(request.getAwsCostFactor());
+            assertNull(request.getAzureCostFactor());
             assertNull(request.getCustomCO2PerKWH());
             assertNull(request.getCustomDatacenterPUE());
             assertNull(request.getCustomCostPerCoreHour());
@@ -105,6 +107,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
                 .field("sample_size", 2000)
                 .field("requested_duration", 100.54d)
                 .field("aws_cost_factor", 7.3d)
+                .field("azure_cost_factor", 6.4d)
                 .field("co2_per_kwh", 22.4d)
                 .field("datacenter_pue", 1.05d)
                 .field("cost_per_core_hour", 3.32d)
@@ -127,6 +130,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             assertEquals(2000, request.getSampleSize());
             assertEquals(Double.valueOf(100.54d), request.getRequestedDuration());
             assertEquals(Double.valueOf(7.3d), request.getAwsCostFactor());
+            assertEquals(Double.valueOf(6.4d), request.getAzureCostFactor());
             assertEquals(Double.valueOf(22.4d), request.getCustomCO2PerKWH());
             assertEquals(Double.valueOf(1.05d), request.getCustomDatacenterPUE());
             assertEquals(Double.valueOf(3.32d), request.getCustomCostPerCoreHour());
@@ -138,7 +142,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
 
             // Expect the default values
             assertNull(request.getIndices());
-            assertNull(request.getStackTraceIds());
+            assertNull(request.getStackTraceIdsField());
         }
     }
 
@@ -165,11 +169,85 @@ public class GetStackTracesRequestTests extends ESTestCase {
         }
     }
 
+    public void testParseXContentCustomIndexNoArray() throws IOException {
+        try (XContentParser content = createParser(XContentFactory.jsonBuilder()
+        //tag::noformat
+                .startObject()
+                    .field("sample_size", 2000)
+                    .field("indices", "my-traces")
+                    .field("stacktrace_ids_field", "stacktraces")
+                    .startObject("query")
+                        .startObject("range")
+                            .startObject("@timestamp")
+                                .field("gte", "2022-10-05")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            //end::noformat
+        )) {
+
+            GetStackTracesRequest request = new GetStackTracesRequest();
+            ParsingException ex = expectThrows(ParsingException.class, () -> request.parseXContent(content));
+            assertEquals("Unknown key for a VALUE_STRING in [indices].", ex.getMessage());
+        }
+    }
+
+    public void testParseXContentCustomIndexNullValues() throws IOException {
+        try (XContentParser content = createParser(XContentFactory.jsonBuilder()
+        //tag::noformat
+                .startObject()
+                    .field("sample_size", 2000)
+                    .field("indices", new String[] {"my-traces", null})
+                    .field("stacktrace_ids_field", "stacktraces")
+                    .startObject("query")
+                        .startObject("range")
+                            .startObject("@timestamp")
+                                .field("gte", "2022-10-05")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            //end::noformat
+        )) {
+
+            GetStackTracesRequest request = new GetStackTracesRequest();
+            ParsingException ex = expectThrows(ParsingException.class, () -> request.parseXContent(content));
+            assertEquals("Expected [VALUE_STRING] but found [VALUE_NULL] in [indices].", ex.getMessage());
+        }
+    }
+
+    public void testParseXContentCustomIndexInvalidTypes() throws IOException {
+        try (XContentParser content = createParser(XContentFactory.jsonBuilder()
+        //tag::noformat
+                .startObject()
+                    .field("sample_size", 2000)
+                    .field("indices", new int[] {1, 2, 3})
+                    .field("stacktrace_ids_field", "stacktraces")
+                    .startObject("query")
+                        .startObject("range")
+                            .startObject("@timestamp")
+                                .field("gte", "2022-10-05")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            //end::noformat
+        )) {
+
+            GetStackTracesRequest request = new GetStackTracesRequest();
+            ParsingException ex = expectThrows(ParsingException.class, () -> request.parseXContent(content));
+            assertEquals("Expected [VALUE_STRING] but found [VALUE_NUMBER] in [indices].", ex.getMessage());
+        }
+    }
+
     public void testValidateWrongSampleSize() {
         GetStackTracesRequest request = new GetStackTracesRequest(
             randomIntBetween(Integer.MIN_VALUE, 0),
             1.0d,
             1.0d,
+            1.0d,
+            null,
             null,
             null,
             null,
@@ -189,9 +267,11 @@ public class GetStackTracesRequestTests extends ESTestCase {
             10,
             1.0d,
             1.0d,
+            1.0d,
             null,
-            randomAlphaOfLength(7),
+            new String[] { randomAlphaOfLength(7) },
             randomAlphaOfLength(3),
+            null,
             null,
             null,
             null,
@@ -206,6 +286,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
             1,
             1.0d,
             1.0d,
+            1.0d,
             null,
             null,
             randomAlphaOfLength(3),
@@ -213,11 +294,12 @@ public class GetStackTracesRequestTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             null
         );
         List<String> validationErrors = request.validate().validationErrors();
         assertEquals(1, validationErrors.size());
-        assertEquals("[stacktrace_ids] must not be set", validationErrors.get(0));
+        assertEquals("[stacktrace_ids_field] must not be set", validationErrors.get(0));
     }
 
     public void testValidateIndicesWithoutStacktraces() {
@@ -225,9 +307,11 @@ public class GetStackTracesRequestTests extends ESTestCase {
             null,
             1.0d,
             1.0d,
+            1.0d,
             null,
-            randomAlphaOfLength(5),
+            new String[] { randomAlphaOfLength(5) },
             randomFrom("", null),
+            null,
             null,
             null,
             null,
@@ -236,7 +320,7 @@ public class GetStackTracesRequestTests extends ESTestCase {
         );
         List<String> validationErrors = request.validate().validationErrors();
         assertEquals(1, validationErrors.size());
-        assertEquals("[stacktrace_ids] is mandatory", validationErrors.get(0));
+        assertEquals("[stacktrace_ids_field] is mandatory", validationErrors.get(0));
     }
 
     public void testConsidersCustomIndicesInRelatedIndices() {
@@ -245,9 +329,11 @@ public class GetStackTracesRequestTests extends ESTestCase {
             1,
             1.0d,
             1.0d,
+            1.0d,
             null,
-            customIndex,
+            new String[] { customIndex },
             randomAlphaOfLength(3),
+            null,
             null,
             null,
             null,
@@ -260,7 +346,21 @@ public class GetStackTracesRequestTests extends ESTestCase {
     }
 
     public void testConsidersDefaultIndicesInRelatedIndices() {
-        GetStackTracesRequest request = new GetStackTracesRequest(1, 1.0d, 1.0d, null, null, null, null, null, null, null, null);
+        GetStackTracesRequest request = new GetStackTracesRequest(
+            1,
+            1.0d,
+            1.0d,
+            1.0d,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         String[] indices = request.indices();
         assertEquals(15, indices.length);
     }

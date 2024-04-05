@@ -10,8 +10,8 @@ GROK : 'grok'                 -> pushMode(EXPRESSION_MODE);
 INLINESTATS : 'inlinestats'   -> pushMode(EXPRESSION_MODE);
 KEEP : 'keep'                 -> pushMode(PROJECT_MODE);
 LIMIT : 'limit'               -> pushMode(EXPRESSION_MODE);
+META : 'meta'                 -> pushMode(META_MODE);
 MV_EXPAND : 'mv_expand'       -> pushMode(MVEXPAND_MODE);
-PROJECT : 'project'           -> pushMode(PROJECT_MODE);
 RENAME : 'rename'             -> pushMode(RENAME_MODE);
 ROW : 'row'                   -> pushMode(EXPRESSION_MODE);
 SHOW : 'show'                 -> pushMode(SHOW_MODE);
@@ -89,7 +89,7 @@ fragment UNQUOTED_ID_BODY
     : (LETTER | DIGIT | UNDERSCORE)
     ;
 
-STRING
+QUOTED_STRING
     : '"' (ESCAPE_SEQUENCE | UNESCAPED_CHARS)* '"'
     | '"""' (~[\r\n])*? '"""' '"'? '"'?
     ;
@@ -158,8 +158,12 @@ UNQUOTED_IDENTIFIER
     | (UNDERSCORE | ASPERAND) UNQUOTED_ID_BODY+
     ;
 
-QUOTED_IDENTIFIER
+fragment QUOTED_ID
     : BACKQUOTE BACKQUOTE_BLOCK+ BACKQUOTE
+    ;
+
+QUOTED_IDENTIFIER
+    : QUOTED_ID
     ;
 
 EXPR_LINE_COMMENT
@@ -182,8 +186,10 @@ FROM_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET);
 FROM_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET);
 FROM_COMMA : COMMA -> type(COMMA);
 FROM_ASSIGN : ASSIGN -> type(ASSIGN);
+FROM_QUOTED_STRING : QUOTED_STRING -> type(QUOTED_STRING);
 
-METADATA: 'metadata';
+OPTIONS : 'options';
+METADATA : 'metadata';
 
 fragment FROM_UNQUOTED_IDENTIFIER_PART
     : ~[=`|,[\]/ \t\r\n]
@@ -210,7 +216,7 @@ FROM_WS
     : WS -> channel(HIDDEN)
     ;
 //
-// DROP, KEEP, PROJECT
+// DROP, KEEP
 //
 mode PROJECT_MODE;
 PROJECT_PIPE : PIPE -> type(PIPE), popMode;
@@ -221,17 +227,13 @@ fragment UNQUOTED_ID_BODY_WITH_PATTERN
     : (LETTER | DIGIT | UNDERSCORE | ASTERISK)
     ;
 
-UNQUOTED_ID_PATTERN
+fragment UNQUOTED_ID_PATTERN
     : (LETTER | ASTERISK) UNQUOTED_ID_BODY_WITH_PATTERN*
     | (UNDERSCORE | ASPERAND) UNQUOTED_ID_BODY_WITH_PATTERN+
     ;
 
-PROJECT_UNQUOTED_IDENTIFIER
-    : UNQUOTED_ID_PATTERN -> type(UNQUOTED_ID_PATTERN)
-    ;
-
-PROJECT_QUOTED_IDENTIFIER
-    : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
+ID_PATTERN
+    : (UNQUOTED_ID_PATTERN | QUOTED_ID)+
     ;
 
 PROJECT_LINE_COMMENT
@@ -256,13 +258,8 @@ RENAME_DOT: DOT -> type(DOT);
 
 AS : 'as';
 
-RENAME_QUOTED_IDENTIFIER
-    : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
-    ;
-
-// use the unquoted pattern to let the parser invalidate fields with *
-RENAME_UNQUOTED_IDENTIFIER
-    : UNQUOTED_ID_PATTERN -> type(UNQUOTED_ID_PATTERN)
+RENAME_ID_PATTERN
+    : ID_PATTERN -> type(ID_PATTERN)
     ;
 
 RENAME_LINE_COMMENT
@@ -292,7 +289,8 @@ fragment ENRICH_POLICY_NAME_BODY
     ;
 
 ENRICH_POLICY_NAME
-    : (LETTER | DIGIT) ENRICH_POLICY_NAME_BODY*
+    // allow prefix for the policy to specify its resolution
+    : (ENRICH_POLICY_NAME_BODY+ COLON)? ENRICH_POLICY_NAME_BODY+
     ;
 
 ENRICH_QUOTED_IDENTIFIER
@@ -324,8 +322,8 @@ ENRICH_FIELD_DOT: DOT -> type(DOT);
 
 ENRICH_FIELD_WITH : WITH -> type(WITH) ;
 
-ENRICH_FIELD_UNQUOTED_IDENTIFIER
-    : UNQUOTED_ID_PATTERN -> type(UNQUOTED_ID_PATTERN)
+ENRICH_FIELD_ID_PATTERN
+    : ID_PATTERN -> type(ID_PATTERN)
     ;
 
 ENRICH_FIELD_QUOTED_IDENTIFIER
@@ -369,13 +367,12 @@ MVEXPAND_WS
     ;
 
 //
-// SHOW INFO
+// SHOW commands
 //
 mode SHOW_MODE;
 SHOW_PIPE : PIPE -> type(PIPE), popMode;
 
 INFO : 'info';
-FUNCTIONS : 'functions';
 
 SHOW_LINE_COMMENT
     : LINE_COMMENT -> channel(HIDDEN)
@@ -386,6 +383,26 @@ SHOW_MULTILINE_COMMENT
     ;
 
 SHOW_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+//
+// META commands
+//
+mode META_MODE;
+META_PIPE : PIPE -> type(PIPE), popMode;
+
+FUNCTIONS : 'functions';
+
+META_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+META_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+META_WS
     : WS -> channel(HIDDEN)
     ;
 

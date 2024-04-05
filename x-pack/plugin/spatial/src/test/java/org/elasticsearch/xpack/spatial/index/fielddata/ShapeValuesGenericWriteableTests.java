@@ -67,8 +67,7 @@ public abstract class ShapeValuesGenericWriteableTests<T extends ShapeValues.Sha
     protected abstract String shapeValueName();
 
     public void testSerializationFailsWithOlderVersion() {
-        TransportVersion older = TransportVersions.KNN_AS_QUERY_ADDED;
-        assert older.before(TransportVersions.SHAPE_VALUE_SERIALIZATION_ADDED);
+        TransportVersion older = TransportVersions.V_8_11_X;
         final var testInstance = createTestInstance().shapeValue();
         try (var output = new BytesStreamOutput()) {
             output.setTransportVersion(older);

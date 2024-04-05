@@ -18,11 +18,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -30,12 +30,14 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -54,6 +56,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -89,7 +92,6 @@ import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRespo
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
-import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -97,6 +99,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -151,6 +154,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
@@ -173,6 +177,7 @@ import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -256,7 +261,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertThat(indexRequest.opType(), is(DocWriteRequest.OpType.CREATE));
             bulkActionInvoked.set(true);
             return null;
-        }).when(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
+        }).when(client).execute(eq(TransportBulkAction.TYPE), any(BulkRequest.class), any());
         service.createApiKey(authentication, createApiKeyRequest, Set.of(), new PlainActionFuture<>());
         assertBusy(() -> assertTrue(bulkActionInvoked.get()));
     }
@@ -281,7 +286,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         String username = randomFrom(randomAlphaOfLengthBetween(3, 8), null);
         String apiKeyName = randomFrom(randomAlphaOfLengthBetween(3, 8), null);
         String[] apiKeyIds = generateRandomStringArray(4, 4, true, true);
-        PlainActionFuture<GetApiKeyResponse> getApiKeyResponsePlainActionFuture = new PlainActionFuture<>();
+        PlainActionFuture<Collection<ApiKey>> getApiKeyResponsePlainActionFuture = new PlainActionFuture<>();
         final boolean activeOnly = randomBoolean();
         service.getApiKeys(realmNames, username, apiKeyName, apiKeyIds, randomBoolean(), activeOnly, getApiKeyResponsePlainActionFuture);
         final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("doc_type", "api_key"));
@@ -320,8 +325,111 @@ public class ApiKeyServiceTests extends ESTestCase {
         verify(searchRequestBuilder).setQuery(eq(boolQuery));
         verify(searchRequestBuilder).setFetchSource(eq(true));
         assertThat(searchRequest.get().source().query(), is(boolQuery));
-        GetApiKeyResponse getApiKeyResponse = getApiKeyResponsePlainActionFuture.get();
-        assertThat(getApiKeyResponse.getApiKeyInfos(), emptyArray());
+        assertThat(getApiKeyResponsePlainActionFuture.get(), emptyIterable());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testApiKeysOwnerRealmIdentifier() throws Exception {
+        String realm1 = randomAlphaOfLength(4);
+        String realm1Type = randomAlphaOfLength(4);
+        String realm2 = randomAlphaOfLength(4);
+        when(clock.instant()).thenReturn(Instant.ofEpochMilli(randomMillisUpToYear9999()));
+        when(client.threadPool()).thenReturn(threadPool);
+        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(new SearchRequestBuilder(client));
+        ApiKeyService service = createApiKeyService(
+            Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build()
+        );
+        CheckedSupplier<SearchResponse, IOException> searchResponseSupplier = () -> {
+            // 2 API keys, one with a "null" (missing) realm type
+            SearchHit[] searchHits = new SearchHit[2];
+            searchHits[0] = SearchHit.unpooled(randomIntBetween(0, Integer.MAX_VALUE), "0");
+            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                Map<String, Object> apiKeySourceDoc = buildApiKeySourceDoc("some_hash".toCharArray());
+                ((Map<String, Object>) apiKeySourceDoc.get("creator")).put("realm", realm1);
+                ((Map<String, Object>) apiKeySourceDoc.get("creator")).put("realm_type", realm1Type);
+                builder.map(apiKeySourceDoc);
+                searchHits[0].sourceRef(BytesReference.bytes(builder));
+            }
+            searchHits[1] = SearchHit.unpooled(randomIntBetween(0, Integer.MAX_VALUE), "1");
+            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                Map<String, Object> apiKeySourceDoc = buildApiKeySourceDoc("some_hash".toCharArray());
+                ((Map<String, Object>) apiKeySourceDoc.get("creator")).put("realm", realm2);
+                if (randomBoolean()) {
+                    ((Map<String, Object>) apiKeySourceDoc.get("creator")).put("realm_type", null);
+                } else {
+                    ((Map<String, Object>) apiKeySourceDoc.get("creator")).remove("realm_type");
+                }
+                builder.map(apiKeySourceDoc);
+                searchHits[1].sourceRef(BytesReference.bytes(builder));
+            }
+            return new SearchResponse(
+                SearchHits.unpooled(
+                    searchHits,
+                    new TotalHits(searchHits.length, TotalHits.Relation.EQUAL_TO),
+                    randomFloat(),
+                    null,
+                    null,
+                    null
+                ),
+                null,
+                null,
+                false,
+                null,
+                null,
+                0,
+                randomAlphaOfLengthBetween(3, 8),
+                1,
+                1,
+                0,
+                10,
+                null,
+                null
+            );
+        };
+        doAnswer(invocation -> {
+            ActionListener.respondAndRelease((ActionListener<SearchResponse>) invocation.getArguments()[1], searchResponseSupplier.get());
+            return null;
+        }).when(client).search(any(SearchRequest.class), anyActionListener());
+        doAnswer(invocation -> {
+            ActionListener.respondAndRelease((ActionListener<SearchResponse>) invocation.getArguments()[2], searchResponseSupplier.get());
+            return null;
+        }).when(client).execute(eq(TransportSearchAction.TYPE), any(SearchRequest.class), anyActionListener());
+        {
+            PlainActionFuture<Collection<ApiKey>> getApiKeyResponsePlainActionFuture = new PlainActionFuture<>();
+            service.getApiKeys(
+                generateRandomStringArray(4, 4, true, true),
+                randomFrom(randomAlphaOfLengthBetween(3, 8), null),
+                randomFrom(randomAlphaOfLengthBetween(3, 8), null),
+                generateRandomStringArray(4, 4, true, true),
+                randomBoolean(),
+                randomBoolean(),
+                getApiKeyResponsePlainActionFuture
+            );
+            Collection<ApiKey> getApiKeyResponse = getApiKeyResponsePlainActionFuture.get();
+            assertThat(getApiKeyResponse.size(), is(2));
+            assertThat(getApiKeyResponse, hasItem(transformedMatch(ApiKey::getRealm, is(realm1))));
+            assertThat(getApiKeyResponse, hasItem(transformedMatch(ApiKey::getRealmType, is(realm1Type))));
+            assertThat(getApiKeyResponse, hasItem(transformedMatch(ApiKey::getRealmType, is(realm1Type))));
+            assertThat(getApiKeyResponse, hasItem(transformedMatch(ApiKey::getRealm, is(realm2))));
+            assertThat(getApiKeyResponse, hasItem(transformedMatch(ApiKey::getRealmType, nullValue())));
+            assertThat(getApiKeyResponse, hasItem(transformedMatch(ApiKey::getRealmType, nullValue())));
+        }
+        {
+            PlainActionFuture<ApiKeyService.QueryApiKeysResult> queryApiKeysResultPlainActionFuture = new PlainActionFuture<>();
+            service.queryApiKeys(new SearchRequest(".security"), false, queryApiKeysResultPlainActionFuture);
+            ApiKeyService.QueryApiKeysResult queryApiKeysResult = queryApiKeysResultPlainActionFuture.get();
+            assertThat(queryApiKeysResult.apiKeyInfos().size(), is(2));
+            assertThat(queryApiKeysResult.sortValues().size(), is(2));
+            assertThat(queryApiKeysResult.apiKeyInfos(), hasItem(transformedMatch(ApiKey::getRealm, is(realm1))));
+            assertThat(queryApiKeysResult.apiKeyInfos(), hasItem(transformedMatch(ApiKey::getRealmType, is(realm1Type))));
+            assertThat(
+                queryApiKeysResult.apiKeyInfos(),
+                hasItem(transformedMatch(ApiKey::getRealmIdentifier, is(new RealmConfig.RealmIdentifier(realm1Type, realm1))))
+            );
+            assertThat(queryApiKeysResult.apiKeyInfos(), hasItem(transformedMatch(ApiKey::getRealm, is(realm2))));
+            assertThat(queryApiKeysResult.apiKeyInfos(), hasItem(transformedMatch(ApiKey::getRealmType, nullValue())));
+            assertThat(queryApiKeysResult.apiKeyInfos(), hasItem(transformedMatch(ApiKey::getRealmIdentifier, nullValue())));
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -519,7 +627,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 )
             );
             return null;
-        }).when(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
+        }).when(client).execute(eq(TransportBulkAction.TYPE), any(BulkRequest.class), any());
 
         final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache = service.getApiKeyAuthCache();
         assertNull(apiKeyAuthCache.get(createApiKeyRequest.getId()));
@@ -891,6 +999,24 @@ public class ApiKeyServiceTests extends ESTestCase {
         @Nullable List<RoleDescriptor> keyRoles,
         ApiKey.Type type
     ) throws IOException {
+        var apiKeyDoc = newApiKeyDocument(key, user, authUser, invalidated, expiry, keyRoles, type);
+        SecurityMocks.mockGetRequest(
+            client,
+            id,
+            BytesReference.bytes(XContentBuilder.builder(XContentType.JSON.xContent()).map(apiKeyDoc.v1()))
+        );
+        return apiKeyDoc.v2();
+    }
+
+    private static Tuple<Map<String, Object>, Map<String, Object>> newApiKeyDocument(
+        String key,
+        User user,
+        @Nullable User authUser,
+        boolean invalidated,
+        Duration expiry,
+        @Nullable List<RoleDescriptor> keyRoles,
+        ApiKey.Type type
+    ) throws IOException {
         final Authentication authentication;
         if (authUser != null) {
             authentication = AuthenticationTestHelper.builder()
@@ -906,7 +1032,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 .realmRef(new RealmRef("realm1", "native", "node01"))
                 .build(false);
         }
-        final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
+        Map<String, Object> metadataMap = ApiKeyTests.randomMetadata();
         XContentBuilder docSource = ApiKeyService.newDocument(
             getFastStoredHashAlgoForTests().hash(new SecureString(key.toCharArray())),
             "test",
@@ -917,15 +1043,13 @@ public class ApiKeyServiceTests extends ESTestCase {
             keyRoles,
             type,
             Version.CURRENT,
-            metadata
+            metadataMap
         );
+        Map<String, Object> keyMap = XContentHelper.convertToMap(BytesReference.bytes(docSource), true, XContentType.JSON).v2();
         if (invalidated) {
-            Map<String, Object> map = XContentHelper.convertToMap(BytesReference.bytes(docSource), true, XContentType.JSON).v2();
-            map.put("api_key_invalidated", true);
-            docSource = XContentBuilder.builder(XContentType.JSON.xContent()).map(map);
+            keyMap.put("api_key_invalidated", true);
         }
-        SecurityMocks.mockGetRequest(client, id, BytesReference.bytes(docSource));
-        return metadata;
+        return new Tuple<>(keyMap, metadataMap);
     }
 
     private AuthenticationResult<User> tryAuthenticate(ApiKeyService service, String id, String key, ApiKey.Type type) throws Exception {
@@ -2860,6 +2984,10 @@ public class ApiKeyServiceTests extends ESTestCase {
         creatorMap.put("full_name", "test user");
         creatorMap.put("email", "test@user.com");
         creatorMap.put("metadata", Collections.emptyMap());
+        creatorMap.put("realm", randomAlphaOfLength(4));
+        if (randomBoolean()) {
+            creatorMap.put("realm_type", randomAlphaOfLength(4));
+        }
         sourceMap.put("creator", creatorMap);
         sourceMap.put("api_key_invalidated", false);
         // noinspection unchecked

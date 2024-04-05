@@ -1,5 +1,0 @@
-pr: 104802
-summary: "[Connectors API] Fix bug when triggering a sync job via API"
-area: Application
-type: bug
-issues: []

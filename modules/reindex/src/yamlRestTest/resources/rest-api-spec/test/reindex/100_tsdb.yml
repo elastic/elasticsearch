@@ -161,7 +161,7 @@ from tsdb to tsdb:
                   _key: asc
 
   - match: {hits.total.value: 4}
-  - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39, metricset: pod}}
+  - match: {aggregations.tsids.buckets.0.key: "KCjEJ9R_BgO8TRX2QOd6dpS-lKWy--qoyFLYl-AccAdq5LSYmdi4qYg"}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
   - match: {hits.hits.0._source.@timestamp: 2021-04-28T18:50:03.142Z}
   - match: {hits.hits.1._source.@timestamp: 2021-04-28T18:50:23.142Z}
@@ -228,7 +228,7 @@ from standard with tsdb id to tsdb:
                   _key: asc
 
   - match: {hits.total.value: 4}
-  - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39, metricset: pod}}
+  - match: {aggregations.tsids.buckets.0.key: "KCjEJ9R_BgO8TRX2QOd6dpS-lKWy--qoyFLYl-AccAdq5LSYmdi4qYg"}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
   - match: {hits.hits.0._source.@timestamp: 2021-04-28T18:50:03.142Z}
   - match: {hits.hits.1._source.@timestamp: 2021-04-28T18:50:23.142Z}
@@ -295,7 +295,7 @@ from standard with random _id to tsdb:
                   _key: asc
 
   - match: {hits.total.value: 4}
-  - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39, metricset: pod}}
+  - match: {aggregations.tsids.buckets.0.key: "KCjEJ9R_BgO8TRX2QOd6dpS-lKWy--qoyFLYl-AccAdq5LSYmdi4qYg"}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
   - match: {hits.hits.0._source.@timestamp: 2021-04-28T18:50:03.142Z}
   - match: {hits.hits.1._source.@timestamp: 2021-04-28T18:50:23.142Z}
@@ -344,7 +344,7 @@ from tsdb to tsdb modifying timestamp:
                   _key: asc
 
   - match: {hits.total.value: 4}
-  - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39, metricset: pod}}
+  - match: {aggregations.tsids.buckets.0.key: "KCjEJ9R_BgO8TRX2QOd6dpS-lKWy--qoyFLYl-AccAdq5LSYmdi4qYg"}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
   - match: {hits.hits.0._source.@timestamp: 2021-05-28T18:50:03.142Z}
   - match: {hits.hits.1._source.@timestamp: 2021-05-28T18:50:23.142Z}
@@ -393,7 +393,7 @@ from tsdb to tsdb modifying dimension:
                   _key: asc
 
   - match: {hits.total.value: 4}
-  - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39, metricset: bubbles}}
+  - match: {aggregations.tsids.buckets.0.key: "KCjEJ9R_BgO8TRX2QOd6dpS-lKWy5k1S1a8G1YLZL5ZxtVAwhiHw5Ds"}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
   - match: {hits.hits.0._source.@timestamp: 2021-04-28T18:50:03.142Z}
   - match: {hits.hits.1._source.@timestamp: 2021-04-28T18:50:23.142Z}
@@ -489,7 +489,7 @@ from tsdb to tsdb created by template while modifying dimension:
                   _key: asc
 
   - match: {hits.total.value: 4}
-  - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39, metricset: bubbles}}
+  - match: {aggregations.tsids.buckets.0.key: "KCjEJ9R_BgO8TRX2QOd6dpS-lKWy5k1S1a8G1YLZL5ZxtVAwhiHw5Ds"}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
   - match: {hits.hits.0._source.@timestamp: 2021-04-28T18:50:03.142Z}
   - match: {hits.hits.1._source.@timestamp: 2021-04-28T18:50:23.142Z}

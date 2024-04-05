@@ -29,6 +29,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -496,7 +497,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             request.setJsonEntity(builder.toString());
         }
         request.setOptions(options);
-        return SearchResponse.fromXContent(responseAsParser(client().performRequest(request)));
+        return SearchResponseUtils.parseSearchResponse(responseAsParser(client().performRequest(request)));
     }
 
     private int getIdAsNumeric(String id) {

@@ -129,7 +129,7 @@ public class PassThroughConfig implements NlpConfig {
                 update.getResultsField() == null ? resultsField : update.getResultsField()
             );
         } else if (update instanceof TokenizationConfigUpdate tokenizationUpdate) {
-            var updatedTokenization = getTokenization().updateSpanSettings(tokenizationUpdate.getSpanSettings());
+            var updatedTokenization = getTokenization().updateWindowSettings(tokenizationUpdate.getSpanSettings());
             return new PassThroughConfig(this.vocabularyConfig, updatedTokenization, this.resultsField);
         } else {
             throw incompatibleUpdateException(update.getName());

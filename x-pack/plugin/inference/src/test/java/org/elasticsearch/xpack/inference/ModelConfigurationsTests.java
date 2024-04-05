@@ -14,7 +14,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettings;
 
 public class ModelConfigurationsTests extends AbstractWireSerializingTestCase<ModelConfigurations> {
@@ -60,7 +60,7 @@ public class ModelConfigurationsTests extends AbstractWireSerializingTestCase<Mo
     }
 
     private static ServiceSettings randomServiceSettings() {
-        return ElserMlNodeServiceSettingsTests.createRandom();
+        return ElserInternalServiceSettingsTests.createRandom();
     }
 
     private static TaskSettings randomTaskSettings(TaskType taskType) {

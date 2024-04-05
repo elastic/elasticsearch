@@ -716,7 +716,8 @@ public final class RestoreService implements ClusterStateApplier {
             dataStream.getIndexMode(),
             dataStream.getLifecycle(),
             dataStream.isFailureStore(),
-            dataStream.getFailureIndices()
+            dataStream.getFailureIndices(),
+            dataStream.getAutoShardingEvent()
         );
     }
 
@@ -974,10 +975,10 @@ public final class RestoreService implements ClusterStateApplier {
         if (IndexVersion.current().before(snapshotInfo.version())) {
             throw new SnapshotRestoreException(
                 new Snapshot(repository.name(), snapshotInfo.snapshotId()),
-                "the snapshot was created with index version ["
-                    + snapshotInfo.version()
-                    + "] which is higher than the version used by this node ["
-                    + IndexVersion.current()
+                "the snapshot was created with version ["
+                    + snapshotInfo.version().toReleaseVersion()
+                    + "] which is higher than the version of this node ["
+                    + IndexVersion.current().toReleaseVersion()
                     + "]"
             );
         }

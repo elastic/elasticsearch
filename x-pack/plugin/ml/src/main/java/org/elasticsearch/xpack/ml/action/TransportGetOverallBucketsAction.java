@@ -19,7 +19,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.Max;
@@ -191,7 +191,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<
             ActionListener.<SearchResponse>wrap(searchResponse -> {
                 long totalHits = searchResponse.getHits().getTotalHits().value;
                 if (totalHits > 0) {
-                    Aggregations aggregations = searchResponse.getAggregations();
+                    InternalAggregations aggregations = searchResponse.getAggregations();
                     Min min = aggregations.get(EARLIEST_TIME);
                     long earliestTime = Intervals.alignToFloor((long) min.value(), maxBucketSpanMillis);
                     Max max = aggregations.get(LATEST_TIME);

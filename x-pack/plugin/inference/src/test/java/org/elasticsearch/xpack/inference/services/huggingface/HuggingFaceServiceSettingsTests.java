@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.inference.services.huggingface;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
@@ -117,7 +117,13 @@ public class HuggingFaceServiceSettingsTests extends AbstractWireSerializingTest
             () -> HuggingFaceServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, url, ServiceFields.SIMILARITY, similarity)))
         );
 
-        assertThat(thrownException.getMessage(), is("Validation Failed: 1: [service_settings] Unknown similarity measure [by_size];"));
+        assertThat(
+            thrownException.getMessage(),
+            is(
+                "Validation Failed: 1: [service_settings] Invalid value [by_size] received. [similarity] "
+                    + "must be one of [cosine, dot_product, l2_norm];"
+            )
+        );
     }
 
     @Override

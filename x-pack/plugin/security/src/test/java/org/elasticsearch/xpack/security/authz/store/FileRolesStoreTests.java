@@ -707,6 +707,39 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(usageStats.get("dls"), is(flsDlsEnabled));
     }
 
+    public void testExists() throws Exception {
+        Path path = getDataPath("roles.yml");
+        Path home = createTempDir();
+        Path tmp = home.resolve("config/roles.yml");
+        Files.createDirectories(tmp.getParent());
+        try (OutputStream stream = Files.newOutputStream(tmp)) {
+            Files.copy(path, stream);
+        }
+
+        Settings settings = Settings.builder().put("resource.reload.interval.high", "500ms").put("path.home", home).build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        FileRolesStore store = new FileRolesStore(
+            settings,
+            env,
+            mock(ResourceWatcherService.class),
+            TestUtils.newTestLicenseState(),
+            xContentRegistry()
+        );
+        Map<String, RoleDescriptor> roles = FileRolesStore.parseFile(
+            path,
+            logger,
+            Settings.builder().put(XPackSettings.DLS_FLS_ENABLED.getKey(), true).build(),
+            TestUtils.newTestLicenseState(),
+            xContentRegistry()
+        );
+        assertThat(roles, notNullValue());
+        assertThat(roles.size(), is(10));
+        for (var role : roles.keySet()) {
+            assertThat(store.exists(role), is(true));
+        }
+        assertThat(store.exists(randomValueOtherThanMany(roles::containsKey, () -> randomAlphaOfLength(20))), is(false));
+    }
+
     // test that we can read a role where field permissions are stored in 2.x format (fields:...)
     public void testBWCFieldPermissions() throws IOException {
         Path path = getDataPath("roles2xformat.yml");

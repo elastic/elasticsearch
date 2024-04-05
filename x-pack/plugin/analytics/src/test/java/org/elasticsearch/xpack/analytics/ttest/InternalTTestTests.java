@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
@@ -68,7 +69,9 @@ public class InternalTTestTests extends InternalAggregationTestCase<InternalTTes
 
     @Override
     protected void assertReduced(InternalTTest reduced, List<InternalTTest> inputs) {
-        TTestState expected = reduced.state.reduce(inputs.stream().map(a -> a.state));
+        AggregatorReducer reducer = reduced.state.getReducer(reduced.getName(), reduced.format(), reduced.getMetadata());
+        inputs.forEach(reducer::accept);
+        TTestState expected = ((InternalTTest) reducer.get()).state;
         assertNotNull(expected);
         assertEquals(expected.getValue(), reduced.getValue(), 0.00001);
     }

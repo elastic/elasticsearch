@@ -142,6 +142,7 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public QueryPhaseRankShardContext queryPhaseRankShardContext() {
         return in.queryPhaseRankShardContext();
+    }
 
     @Override
     public void queryPhaseRankShardContext(QueryPhaseRankShardContext queryPhaseRankShardContext) {

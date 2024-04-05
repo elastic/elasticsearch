@@ -250,12 +250,6 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         assertNullBounds(b -> b.startObject("field").field("gte", val).nullField("lte").endObject(), false, true);
     }
 
-    // TODO this is not really true
-    // you can specify it in mapping but then it will fail during ingestion
-    protected boolean supportsCopyTo() {
-        return false;
-    }
-
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         assumeTrue("test setup only supports numeric ranges", rangeType().isNumeric());

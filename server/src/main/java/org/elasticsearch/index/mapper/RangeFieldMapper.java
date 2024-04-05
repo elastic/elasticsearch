@@ -457,7 +457,11 @@ public class RangeFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
             );
         }
-
+        if (copyTo.copyToFields().isEmpty() != true) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+            );
+        }
         return new BinaryDocValuesSyntheticFieldLoader(name()) {
             @Override
             protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {

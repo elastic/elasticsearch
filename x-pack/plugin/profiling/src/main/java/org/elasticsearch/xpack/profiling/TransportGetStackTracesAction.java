@@ -45,7 +45,6 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectPath;
@@ -109,6 +108,12 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
      */
     private static final int MAX_TRACE_EVENTS_RESULT_SIZE = 150_000;
 
+    /**
+     * Users may provide a custom field via the API that is used to sub-divide profiling events. This is useful in the context of TopN
+     * where we want to provide additional breakdown of where a certain function has been called (e.g. a certain service or transaction).
+     */
+    private static final String CUSTOM_EVENT_SUB_AGGREGATION_NAME = "custom_event_group";
+
     private final NodeClient nodeClient;
     private final ProfilingLicenseChecker licenseChecker;
     private final ClusterService clusterService;
@@ -144,8 +149,10 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
     }
 
     @Override
-    protected void doExecute(Task submitTask, GetStackTracesRequest request, ActionListener<GetStackTracesResponse> submitListener) {
+    protected void doExecute(Task task, GetStackTracesRequest request, ActionListener<GetStackTracesResponse> submitListener) {
         licenseChecker.requireSupportedLicense();
+        assert task instanceof CancellableTask;
+        final CancellableTask submitTask = (CancellableTask) task;
         GetStackTracesResponseBuilder responseBuilder = new GetStackTracesResponseBuilder(request);
         Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), submitTask);
         if (request.isUserProvidedIndices()) {
@@ -155,24 +162,8 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         }
     }
 
-    /**
-     * Checks whether a task has been cancelled and notifies the provided listener if required.
-     * @param task The task to check. May be a cancelable task.
-     * @param listener Listener to notify.
-     * @return <code>true</code> iff the task has been cancelled. Callers must terminate as early as possible.
-     */
-    private boolean mayNotifyOfCancellation(Task task, ActionListener<GetStackTracesResponse> listener) {
-        if (task instanceof CancellableTask && ((CancellableTask) task).isCancelled()) {
-            log.info("{} got cancelled.", task);
-            listener.onFailure(new TaskCancelledException("get stacktraces task cancelled"));
-            return true;
-        } else {
-            return false;
-        }
-    }
-
     private void searchProfilingEvents(
-        Task submitTask,
+        CancellableTask submitTask,
         Client client,
         GetStackTracesRequest request,
         ActionListener<GetStackTracesResponse> submitListener,
@@ -212,7 +203,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
     }
 
     private void searchGenericEvents(
-        Task submitTask,
+        CancellableTask submitTask,
         Client client,
         GetStackTracesRequest request,
         ActionListener<GetStackTracesResponse> submitListener,
@@ -251,18 +242,32 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
     }
 
     private void searchGenericEventGroupedByStackTrace(
-        Task submitTask,
+        CancellableTask submitTask,
         Client client,
         GetStackTracesRequest request,
         ActionListener<GetStackTracesResponse> submitListener,
         GetStackTracesResponseBuilder responseBuilder
     ) {
 
+        CountedTermsAggregationBuilder groupByStackTraceId = new CountedTermsAggregationBuilder("group_by").size(
+            MAX_TRACE_EVENTS_RESULT_SIZE
+        ).field(request.getStackTraceIdsField());
+        if (request.getAggregationField() != null) {
+            String aggregationField = request.getAggregationField();
+            log.trace("Grouping stacktrace events by [{}].", aggregationField);
+            // be strict about the accepted field names to avoid downstream errors or leaking unintended information
+            if (aggregationField.equals("transaction.name") == false) {
+                throw new IllegalArgumentException(
+                    "Requested custom event aggregation field [" + aggregationField + "] but only [transaction.name] is supported."
+                );
+            }
+            groupByStackTraceId.subAggregation(
+                new TermsAggregationBuilder(CUSTOM_EVENT_SUB_AGGREGATION_NAME).field(request.getAggregationField())
+            );
+        }
         RandomSamplerAggregationBuilder randomSampler = new RandomSamplerAggregationBuilder("sample").setSeed(request.hashCode())
             .setProbability(responseBuilder.getSamplingRate())
-            .subAggregation(
-                new CountedTermsAggregationBuilder("group_by").size(MAX_TRACE_EVENTS_RESULT_SIZE).field(request.getStackTraceIdsField())
-            );
+            .subAggregation(groupByStackTraceId);
         // shard seed is only set in tests and ensures consistent results
         if (request.getShardSeed() != null) {
             randomSampler.setShardSeed(request.getShardSeed());
@@ -300,6 +305,14 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                         stackTraceEvents.put(stackTraceID, event);
                     }
                     event.count += count;
+                    if (request.getAggregationField() != null) {
+                        Terms eventSubGroup = stacktraceBucket.getAggregations().get(CUSTOM_EVENT_SUB_AGGREGATION_NAME);
+                        for (Terms.Bucket b : eventSubGroup.getBuckets()) {
+                            String subGroupName = b.getKeyAsString();
+                            long subGroupCount = event.subGroups.getOrDefault(subGroupName, 0L);
+                            event.subGroups.put(subGroupName, subGroupCount + b.getDocCount());
+                        }
+                    }
                 }
                 responseBuilder.setTotalSamples(totalSamples);
                 responseBuilder.setHostEventCounts(hostEventCounts);
@@ -309,7 +322,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
     }
 
     private void searchEventGroupedByStackTrace(
-        Task submitTask,
+        CancellableTask submitTask,
         Client client,
         GetStackTracesRequest request,
         ActionListener<GetStackTracesResponse> submitListener,
@@ -317,6 +330,25 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         EventsIndex eventsIndex
     ) {
         responseBuilder.setSamplingRate(eventsIndex.getSampleRate());
+        TermsAggregationBuilder groupByStackTraceId = new TermsAggregationBuilder("group_by")
+            // 'size' should be max 100k, but might be slightly more. Better be on the safe side.
+            .size(MAX_TRACE_EVENTS_RESULT_SIZE)
+            .field("Stacktrace.id")
+            // 'execution_hint: map' skips the slow building of ordinals that we don't need.
+            // Especially with high cardinality fields, this makes aggregations really slow.
+            .executionHint("map")
+            .subAggregation(new SumAggregationBuilder("count").field("Stacktrace.count"));
+        if (request.getAggregationField() != null) {
+            String aggregationField = request.getAggregationField();
+            log.trace("Grouping stacktrace events by [{}].", aggregationField);
+            // be strict about the accepted field names to avoid downstream errors or leaking unintended information
+            if (aggregationField.equals("service.name") == false) {
+                throw new IllegalArgumentException(
+                    "Requested custom event aggregation field [" + aggregationField + "] but only [service.name] is supported."
+                );
+            }
+            groupByStackTraceId.subAggregation(new TermsAggregationBuilder(CUSTOM_EVENT_SUB_AGGREGATION_NAME).field(aggregationField));
+        }
         client.prepareSearch(eventsIndex.getName())
             .setTrackTotalHits(false)
             .setSize(0)
@@ -337,16 +369,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                     // 'execution_hint: map' skips the slow building of ordinals that we don't need.
                     // Especially with high cardinality fields, this makes aggregations really slow.
                     .executionHint("map")
-                    .subAggregation(
-                        new TermsAggregationBuilder("group_by")
-                            // 'size' should be max 100k, but might be slightly more. Better be on the safe side.
-                            .size(MAX_TRACE_EVENTS_RESULT_SIZE)
-                            .field("Stacktrace.id")
-                            // 'execution_hint: map' skips the slow building of ordinals that we don't need.
-                            // Especially with high cardinality fields, this makes aggregations really slow.
-                            .executionHint("map")
-                            .subAggregation(new SumAggregationBuilder("count").field("Stacktrace.count"))
-                    )
+                    .subAggregation(groupByStackTraceId)
             )
             .addAggregation(new SumAggregationBuilder("total_count").field("Stacktrace.count"))
             .execute(handleEventsGroupedByStackTrace(submitTask, client, responseBuilder, submitListener, searchResponse -> {
@@ -387,6 +410,14 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                             stackTraceEvents.put(stackTraceID, event);
                         }
                         event.count += finalCount;
+                        if (request.getAggregationField() != null) {
+                            Terms subGroup = stacktraceBucket.getAggregations().get(CUSTOM_EVENT_SUB_AGGREGATION_NAME);
+                            for (Terms.Bucket b : subGroup.getBuckets()) {
+                                String subGroupName = b.getKeyAsString();
+                                long subGroupCount = event.subGroups.getOrDefault(subGroupName, 0L);
+                                event.subGroups.put(subGroupName, subGroupCount + b.getDocCount());
+                            }
+                        }
                     }
                 }
                 responseBuilder.setTotalSamples(totalFinalCount);
@@ -403,7 +434,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
     }
 
     private ActionListener<SearchResponse> handleEventsGroupedByStackTrace(
-        Task submitTask,
+        CancellableTask submitTask,
         Client client,
         GetStackTracesResponseBuilder responseBuilder,
         ActionListener<GetStackTracesResponse> submitListener,
@@ -442,12 +473,12 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
     }
 
     private void retrieveStackTraces(
-        Task submitTask,
+        CancellableTask submitTask,
         Client client,
         GetStackTracesResponseBuilder responseBuilder,
         ActionListener<GetStackTracesResponse> submitListener
     ) {
-        if (mayNotifyOfCancellation(submitTask, submitListener)) {
+        if (submitTask.notifyIfCancelled(submitListener)) {
             return;
         }
         List<String> eventIds = new ArrayList<>(responseBuilder.getStackTraceEvents().keySet());
@@ -525,7 +556,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
 
     private class StackTraceHandler {
         private final AtomicInteger expectedResponses;
-        private final Task submitTask;
+        private final CancellableTask submitTask;
         private final ClusterState clusterState;
         private final Client client;
         private final GetStackTracesResponseBuilder responseBuilder;
@@ -539,7 +570,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         private final Map<String, HostMetadata> hostMetadata;
 
         private StackTraceHandler(
-            Task submitTask,
+            CancellableTask submitTask,
             ClusterState clusterState,
             Client client,
             GetStackTracesResponseBuilder responseBuilder,
@@ -662,7 +693,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
     }
 
     private void retrieveStackTraceDetails(
-        Task submitTask,
+        CancellableTask submitTask,
         ClusterState clusterState,
         Client client,
         GetStackTracesResponseBuilder responseBuilder,
@@ -670,7 +701,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         List<String> executableIds,
         ActionListener<GetStackTracesResponse> submitListener
     ) {
-        if (mayNotifyOfCancellation(submitTask, submitListener)) {
+        if (submitTask.notifyIfCancelled(submitListener)) {
             return;
         }
         List<Index> stackFrameIndices = resolver.resolve(

@@ -55,10 +55,6 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
 
-        public static Request fromXContent(XContentParser parser) {
-            return parseRequest(null, parser);
-        }
-
         public static Request parseRequest(String datafeedId, XContentParser parser) {
             DatafeedParams params = DatafeedParams.PARSER.apply(parser, null);
             if (datafeedId != null) {

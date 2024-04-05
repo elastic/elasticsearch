@@ -71,6 +71,14 @@ the new patterns.
 `<auto_follow_pattern_name>`::
   (Required, string) The name of the collection of auto-follow patterns.
 
+[[ccr-put-auto-follow-pattern-query-params]]
+==== {api-query-parms-title}
+
+`master_timeout`::
+(Optional, <<time-units, time units>>) Specifies the period of time to wait for
+a connection to the master node. If no response is received before the timeout
+expires, the request fails and returns an error. Defaults to `30s`.
+
 [[ccr-put-auto-follow-pattern-request-body]]
 ==== {api-request-body-title}
 

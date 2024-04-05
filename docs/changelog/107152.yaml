@@ -1,0 +1,5 @@
+pr: 107152
+summary: "ESQL: Fix argument order in err message for `date_trunc`"
+area: ES|QL
+type: enhancement
+issues: []

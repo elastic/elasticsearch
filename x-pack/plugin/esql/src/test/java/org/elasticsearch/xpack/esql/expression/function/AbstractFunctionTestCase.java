@@ -594,6 +594,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             log.info("Skipping function info checks because the function isn't registered");
             return;
         }
+        // TODO fix case tests to include all supported types
         assumeFalse("CASE test incomplete", definition.name().equals("case"));
         log.info("Running function info checks");
         EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);
@@ -1286,7 +1287,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     // For variadic functions we test much longer signatures, let's just stop at the last one
                     continue;
                 }
-                // TODO fix auto_bucket
+                // TODO make constants for auto_bucket so the signatures get recognized
                 if (name.equals("auto_bucket") == false && sig.getKey().size() < minArgCount) {
                     throw new IllegalArgumentException("signature " + sig.getKey() + " is missing non-optional arg for " + args);
                 }

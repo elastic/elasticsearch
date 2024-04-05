@@ -618,7 +618,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         for (Map.Entry<List<DataType>, DataType> entry : signatures.entrySet()) {
             List<DataType> types = entry.getKey();
             for (int i = 0; i < args.size() && i < types.size(); i++) {
-                typesFromSignature.get(i).add(types.get(i).esType());
+                typesFromSignature.get(i).add(signatureType(types.get(i)));
             }
             returnFromSignature.add(entry.getValue().esType());
         }
@@ -635,6 +635,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Set<String> returnTypes = Arrays.stream(description.returnType()).collect(Collectors.toCollection(() -> new TreeSet<>()));
         assertEquals(returnFromSignature, returnTypes);
 
+    }
+
+    private static String signatureType(DataType type) {
+        return type.esType() != null ? type.esType() : type.typeName();
     }
 
     /**

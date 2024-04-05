@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.SerializationTestUtils;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -22,13 +26,52 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.Period;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc.createRounding;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc.process;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
-public class DateTruncTests extends ESTestCase {
+public class DateTruncTests extends AbstractFunctionTestCase {
+
+    public DateTruncTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+        this.testCase = testCaseSupplier.get();
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return parameterSuppliersFromTypedData(
+            List.of(
+                new TestCaseSupplier(
+                    List.of(EsqlDataTypes.DATE_PERIOD, DataTypes.DATETIME),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(Period.ofYears(1), EsqlDataTypes.DATE_PERIOD, "interval"),
+                            new TestCaseSupplier.TypedData(1687944333444L, DataTypes.DATETIME, "date")
+                        ),
+                        "DateTruncEvaluator[date=Attribute[channel=1], interval=Attribute[channel=0]]",
+                        DataTypes.DATETIME,
+                        equalTo(toMillis("2023-01-01T00:00:00.00Z"))
+                    )
+                ),
+                new TestCaseSupplier(
+                    List.of(EsqlDataTypes.TIME_DURATION, DataTypes.DATETIME),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(Duration.ofDays(1), EsqlDataTypes.TIME_DURATION, "interval"),
+                            new TestCaseSupplier.TypedData(1683198305432L, DataTypes.DATETIME, "date")
+                        ),
+                        "DateTruncEvaluator[date=Attribute[channel=1], interval=Attribute[channel=0]]",
+                        DataTypes.DATETIME,
+                        equalTo(toMillis("2023-05-04T00:00:00.00Z"))
+                    )
+                )
+            )
+        );
+    }
 
     public void testCreateRoundingDuration() {
         Rounding.Prepared rounding;
@@ -133,11 +176,6 @@ public class DateTruncTests extends ESTestCase {
         return Instant.parse(timestamp).toEpochMilli();
     }
 
-    public void testSerialization() {
-        var dateTrunc = new DateTrunc(Source.EMPTY, randomDateIntervalLiteral(), randomDateField());
-        SerializationTestUtils.assertSerialization(dateTrunc);
-    }
-
     private static FieldAttribute randomDateField() {
         String fieldName = randomAlphaOfLength(randomIntBetween(1, 25));
         String dateName = randomAlphaOfLength(randomIntBetween(1, 25));
@@ -160,5 +198,10 @@ public class DateTruncTests extends ESTestCase {
             default -> throw new AssertionError();
         };
         return new Literal(Source.EMPTY, duration, EsqlDataTypes.TIME_DURATION);
+    }
+
+    @Override
+    protected Expression build(Source source, List<Expression> args) {
+        return new DateTrunc(source, args.get(0), args.get(1));
     }
 }

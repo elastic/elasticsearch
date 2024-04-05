@@ -111,7 +111,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                     isHidden = true;
                 }
             }
-            case 5 -> isReplicated = isReplicated == false;
+            case 5 -> {
+                isReplicated = isReplicated == false;
+                // Replicated data streams cannot be marked for lazy rollover.
+                rolloverOnWrite = isReplicated == false && rolloverOnWrite;
+            }
             case 6 -> {
                 if (isSystem == false) {
                     isSystem = true;
@@ -131,7 +135,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 failureIndices = randomValueOtherThan(failureIndices, DataStreamTestHelper::randomIndexInstances);
                 failureStore = failureIndices.isEmpty() == false;
             }
-            case 11 -> rolloverOnWrite = rolloverOnWrite == false;
+            case 11 -> {
+                rolloverOnWrite = rolloverOnWrite == false;
+                isReplicated = rolloverOnWrite == false && isReplicated;
+            }
             case 12 -> {
                 autoShardingEvent = randomBoolean() && autoShardingEvent != null
                     ? null
@@ -142,9 +149,6 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                     );
             }
         }
-
-        // Replicated data streams cannot be marked for lazy rollover.
-        rolloverOnWrite = isReplicated == false && rolloverOnWrite;
 
         return new DataStream(
             name,

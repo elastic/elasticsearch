@@ -150,6 +150,12 @@ public class LocateTests extends AbstractFunctionTestCase {
         assertThat(process("𠜎a ti𠜎er", "er", 0), equalTo(7));
         assertThat(process("𠜎a ti𠜎er", "r", 0), equalTo(8));
 
+        // exact
+        assertThat(process("a ti𠜎er", "a ti𠜎er", 0), equalTo(1));
+        assertThat(process("𠜎𠜎𠜎abc", "𠜎𠜎𠜎abc", 0), equalTo(1));
+        assertThat(process(" 𠜎𠜎𠜎abc", " 𠜎𠜎𠜎abc", 0), equalTo(1));
+        assertThat(process("𠜎𠜎𠜎 abc ", "𠜎𠜎𠜎 abc ", 0), equalTo(1));
+
         // prefix
         assertThat(process("𠜎abc", "𠜎", 0), equalTo(1));
         assertThat(process("𠜎 abc", "𠜎 ", 0), equalTo(1));

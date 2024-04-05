@@ -184,7 +184,7 @@ public final class MappingLookup {
             }
         }
 
-        PassThroughObjectMapper.checkForInvalidPriorities(passThroughMappers);
+        PassThroughObjectMapper.checkForDuplicatePriorities(passThroughMappers);
         final Collection<RuntimeField> runtimeFields = mapping.getRoot().runtimeFields();
         this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughMappers, runtimeFields);
         if (runtimeFields.isEmpty()) {

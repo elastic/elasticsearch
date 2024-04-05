@@ -72,6 +72,7 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
               },
               "attributes": {
                 "type": "passthrough",
+                "priority": 0,
                 "dynamic": true,
                 "time_series_dimension": true
               },

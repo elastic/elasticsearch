@@ -43,7 +43,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
         protected Explicit<Boolean> timeSeriesDimensionSubFields = Explicit.IMPLICIT_FALSE;
 
         // Controls which pass-through fields take precedence in case of conflicting aliases.
-        protected int priority = 0;
+        protected int priority = -1;
 
         public Builder(String name) {
             // Subobjects are not currently supported.
@@ -61,6 +61,11 @@ public class PassThroughObjectMapper extends ObjectMapper {
 
         public PassThroughObjectMapper.Builder setContainsDimensions() {
             timeSeriesDimensionSubFields = Explicit.EXPLICIT_TRUE;
+            return this;
+        }
+
+        public PassThroughObjectMapper.Builder setPriority(int priority) {
+            this.priority = priority;
             return this;
         }
 
@@ -96,6 +101,9 @@ public class PassThroughObjectMapper extends ObjectMapper {
         super(name, fullPath, enabled, Explicit.IMPLICIT_FALSE, dynamic, mappers);
         this.timeSeriesDimensionSubFields = timeSeriesDimensionSubFields;
         this.priority = priority;
+        if (priority < 0) {
+            throw new MapperException("Pass-through object [" + fullPath + "] is missing a non-negative value for parameter [priority]");
+        }
     }
 
     @Override
@@ -195,14 +203,9 @@ public class PassThroughObjectMapper extends ObjectMapper {
      * Checks the passed objects for duplicate or negative priorities.
      * @param passThroughMappers objects to check
      */
-    public static void checkForInvalidPriorities(Collection<PassThroughObjectMapper> passThroughMappers) {
+    public static void checkForDuplicatePriorities(Collection<PassThroughObjectMapper> passThroughMappers) {
         Map<Integer, String> seen = new HashMap<>();
         for (PassThroughObjectMapper mapper : passThroughMappers) {
-            if (mapper.priority < 0) {
-                throw new MapperException(
-                    "Pass-through object [" + mapper.name() + "] has a negative value for parameter [priority=" + mapper.priority + "]"
-                );
-            }
             String conflict = seen.put(mapper.priority, mapper.name());
             if (conflict != null) {
                 throw new MapperException(

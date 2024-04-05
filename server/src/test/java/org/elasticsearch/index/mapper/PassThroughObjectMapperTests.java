@@ -21,7 +21,7 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
 
     public void testSimpleKeyword() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {
-            b.startObject("labels").field("type", "passthrough");
+            b.startObject("labels").field("type", "passthrough").field("priority", "0");
             {
                 b.startObject("properties");
                 b.startObject("dim").field("type", "keyword").endObject();
@@ -36,7 +36,7 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
 
     public void testKeywordDimension() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {
-            b.startObject("labels").field("type", "passthrough").field("time_series_dimension", "true");
+            b.startObject("labels").field("type", "passthrough").field("priority", "0").field("time_series_dimension", "true");
             {
                 b.startObject("properties");
                 b.startObject("dim").field("type", "keyword").endObject();
@@ -49,8 +49,8 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
         assertTrue(((KeywordFieldMapper) mapper).fieldType().isDimension());
     }
 
-    public void testDefaultPriority() throws IOException {
-        MapperService mapperService = createMapperService(mapping(b -> {
+    public void testMissingPriority() throws IOException {
+        MapperException e = expectThrows(MapperException.class, () -> createMapperService(mapping(b -> {
             b.startObject("labels").field("type", "passthrough");
             {
                 b.startObject("properties");
@@ -58,10 +58,21 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
                 b.endObject();
             }
             b.endObject();
-        }));
-        Mapper mapper = mapperService.mappingLookup().objectMappers().get("labels");
-        assertThat(mapper, instanceOf(PassThroughObjectMapper.class));
-        assertEquals(0, ((PassThroughObjectMapper) mapper).priority());
+        })));
+        assertThat(e.getMessage(), containsString("Pass-through object [labels] is missing a non-negative value for parameter [priority]"));
+    }
+
+    public void testNegativePriority() throws IOException {
+        MapperException e = expectThrows(MapperException.class, () -> createMapperService(mapping(b -> {
+            b.startObject("labels").field("type", "passthrough").field("priority", "-1");
+            {
+                b.startObject("properties");
+                b.startObject("dim").field("type", "keyword").endObject();
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("Pass-through object [labels] is missing a non-negative value for parameter [priority]"));
     }
 
     public void testPriorityParamSet() throws IOException {
@@ -81,7 +92,7 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
 
     public void testDynamic() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {
-            b.startObject("labels").field("type", "passthrough").field("dynamic", "true");
+            b.startObject("labels").field("type", "passthrough").field("priority", "0").field("dynamic", "true");
             {
                 b.startObject("properties");
                 b.startObject("dim").field("type", "keyword").endObject();
@@ -95,7 +106,7 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
 
     public void testEnabled() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {
-            b.startObject("labels").field("type", "passthrough").field("enabled", "false");
+            b.startObject("labels").field("type", "passthrough").field("priority", "0").field("enabled", "false");
             {
                 b.startObject("properties");
                 b.startObject("dim").field("type", "keyword").endObject();
@@ -126,7 +137,7 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
 
     public void testAddSubobjectAutoFlatten() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {
-            b.startObject("labels").field("type", "passthrough").field("time_series_dimension", "true");
+            b.startObject("labels").field("type", "passthrough").field("priority", "0").field("time_series_dimension", "true");
             {
                 b.startObject("properties");
                 {
@@ -165,8 +176,8 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
         assertEquals("passthrough", mapperService.mappingLookup().objectMappers().get("shallow").typeName());
     }
 
-    public void testCheckForInvalidPrioritiesEmpty() throws IOException {
-        PassThroughObjectMapper.checkForInvalidPriorities(List.of());
+    public void testCheckForDuplicatePrioritiesEmpty() throws IOException {
+        PassThroughObjectMapper.checkForDuplicatePriorities(List.of());
     }
 
     private PassThroughObjectMapper create(String name, int priority) {
@@ -181,37 +192,21 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
         );
     }
 
-    public void testCheckForInvalidPrioritiesOneElement() throws IOException {
-        PassThroughObjectMapper.checkForInvalidPriorities(List.of(create("foo", 0)));
-        PassThroughObjectMapper.checkForInvalidPriorities(List.of(create("foo", 10)));
+    public void testCheckForDuplicatePrioritiesOneElement() throws IOException {
+        PassThroughObjectMapper.checkForDuplicatePriorities(List.of(create("foo", 0)));
+        PassThroughObjectMapper.checkForDuplicatePriorities(List.of(create("foo", 10)));
     }
 
-    public void testCheckForInvalidPrioritiesNegativePriority() throws IOException {
-        MapperException e = expectThrows(
-            MapperException.class,
-            () -> PassThroughObjectMapper.checkForInvalidPriorities(List.of(create("foo", -1)))
+    public void testCheckForDuplicatePrioritiesManyValidElements() throws IOException {
+        PassThroughObjectMapper.checkForDuplicatePriorities(
+            List.of(create("foo", 1), create("bar", 2), create("baz", 3), create("bar", 4))
         );
-        assertThat(e.getMessage(), containsString("Pass-through object [foo] has a negative value for parameter [priority=-1]"));
     }
 
-    public void testCheckForInvalidPrioritiesManyValidElements() throws IOException {
-        PassThroughObjectMapper.checkForInvalidPriorities(List.of(create("foo", 1), create("bar", 2), create("baz", 3), create("bar", 4)));
-    }
-
-    public void testCheckForInvalidPrioritiesManyElementsInvalidPriority() throws IOException {
+    public void testCheckForDuplicatePrioritiesManyElementsDuplicatePriority() throws IOException {
         MapperException e = expectThrows(
             MapperException.class,
-            () -> PassThroughObjectMapper.checkForInvalidPriorities(
-                List.of(create("foo", 1), create("bar", 2), create("baz", 3), create("bar", -4))
-            )
-        );
-        assertThat(e.getMessage(), containsString("Pass-through object [bar] has a negative value for parameter [priority=-4]"));
-    }
-
-    public void testCheckForInvalidPrioritiesManyElementsDuplicatePriority() throws IOException {
-        MapperException e = expectThrows(
-            MapperException.class,
-            () -> PassThroughObjectMapper.checkForInvalidPriorities(
+            () -> PassThroughObjectMapper.checkForDuplicatePriorities(
                 List.of(create("foo", 1), create("bar", 1), create("baz", 3), create("bar", 4))
             )
         );

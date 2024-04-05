@@ -9,6 +9,9 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -20,6 +23,7 @@ import java.io.IOException;
  */
 public class DataStreamFailureStoreDefinition {
 
+    public static final String FAILURE_STORE_REFRESH_INTERVAL_SETTING_NAME = "data_streams.failure_store.refresh_interval";
     public static final CompressedXContent DATA_STREAM_FAILURE_STORE_MAPPING;
 
     static {
@@ -130,5 +134,43 @@ public class DataStreamFailureStoreDefinition {
         } catch (IOException e) {
             throw new AssertionError(e);
         }
+    }
+
+    public static TimeValue getFailureStoreRefreshInterval(Settings settings) {
+        return settings.getAsTime(FAILURE_STORE_REFRESH_INTERVAL_SETTING_NAME, null);
+    }
+
+    /**
+     * Like {@link DataStreamFailureStoreDefinition#applyFailureStoreSettings} but optionally applied on an existing {@link Settings}
+     * @param existingSettings initial settings to update
+     * @param nodeSettings settings from the cluster service which capture the node's current settings
+     * @return either the existing settings if no changes are needed, or a new settings instance which includes failure store specific
+     * settings
+     */
+    public static Settings buildFailureStoreIndexSettings(Settings existingSettings, Settings nodeSettings) {
+        // Optionally set a custom refresh interval for the failure store index.
+        TimeValue refreshInterval = getFailureStoreRefreshInterval(nodeSettings);
+        if (refreshInterval != null) {
+            return Settings.builder()
+                .put(existingSettings)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), refreshInterval)
+                .build();
+        }
+        return existingSettings;
+    }
+
+    /**
+     * Like {@link DataStreamFailureStoreDefinition#buildFailureStoreIndexSettings} but for usage with a {@link Settings.Builder}
+     * @param nodeSettings settings from the cluster service which capture the node's current settings
+     * @param builder to capture failure store specific index settings
+     * @return the original settings builder, with any failure store specific settings applied
+     */
+    public static Settings.Builder applyFailureStoreSettings(Settings nodeSettings, Settings.Builder builder) {
+        // Optionally set a custom refresh interval for the failure store index.
+        TimeValue refreshInterval = getFailureStoreRefreshInterval(nodeSettings);
+        if (refreshInterval != null) {
+            builder.put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), refreshInterval);
+        }
+        return builder;
     }
 }

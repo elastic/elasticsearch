@@ -544,3 +544,50 @@ required_feature: esql.agg_values
      [1.56, 1.78] | Tech Lead
 [1.7, 1.83, 2.05] | null
 ;
+
+signumOfPositiveDouble#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row d = to_double(100) | eval s = signum(d);
+
+d:double | s:double
+100      | 1.0
+;
+
+signumOfNegativeDouble#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row d = to_double(-100) | eval s = signum(d);
+
+d:double | s:double
+-100     | -1.0
+;
+
+signumOfZeroDouble#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row d = to_double(0) | eval s = signum(d);
+
+d:double | s:double
+0        | 0.0
+;
+
+signumWithEvalWhereAndStats#[skip:-8.13.99,reason:new scalar function added in 8.14]
+
+from employees
+| where emp_no <= 10009
+| eval s = signum(mv_min(salary_change))
+| where signum(mv_max(salary_change)) >= 0
+| STATS x = AVG(signum(60000 - salary));
+
+x:double
+0.14285714285714285
+;
+
+signumWithEvalAndSort#[skip:-8.13.99,reason:new scalar function added in 8.14]
+from employees
+| eval s = signum(mv_min(salary_change))
+| where signum(mv_max(salary_change)) >= 0
+| keep s, emp_no, salary, salary_change
+| sort s, emp_no
+| limit 3;
+
+s:double | emp_no:integer | salary:integer  | salary_change:double
+-1.0     | 10002          | 56371           | [-7.23, 11.17]
+-1.0     | 10004          | 36174           | [-0.35, 1.13, 3.65, 13.48]
+-1.0     | 10005          | 63528           | [-2.14, 13.07]
+;

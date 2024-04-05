@@ -988,3 +988,70 @@ required_feature: esql.agg_values
       [3, 5] | Tech Lead
       [1, 4] | null
 ;
+
+signumOfPositiveInteger#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row i = 100 | eval s = signum(i);
+
+i:integer | s:double
+100       | 1.0
+;
+
+signumOfNegativeInteger#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row i = -100 | eval s = signum(i);
+
+i:integer | s:double
+-100      | -1.0
+;
+
+signumOfZeroInteger#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row i = 0 | eval s = signum(i);
+
+i:integer | s:double
+0         | 0.0
+;
+
+signumOfPositiveLong#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row l = to_long(100) | eval s = signum(l);
+
+l:long | s:double
+100    | 1.0
+;
+
+signumOfNegativeLong#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row l = to_long(-100) | eval s = signum(l);
+
+l:long | s:double
+-100   | -1.0
+;
+
+signumOfZeroLong#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row l = to_long(0) | eval s = signum(l);
+
+l:long | s:double
+0      | 0.0
+;
+
+signumWithEvalWhereAndStats#[skip:-8.13.99,reason:new scalar function added in 8.14]
+
+from employees
+| eval s = signum(mv_min(salary_change.int))
+| where signum(mv_max(salary_change.int)) >= 0
+| STATS x=AVG(signum(60000 - salary));
+
+x:double
+0.5409836065573771
+;
+
+signumWithEvalAndSort#[skip:-8.13.99,reason:new scalar function added in 8.14]
+from employees
+| eval s = signum(60000 - salary)
+| where signum(salary - 55000) >= 0
+| keep s, emp_no, salary
+| sort s DESC, salary ASC
+| limit 3;
+
+s:double | emp_no:integer | salary:integer
+1.0     | 10052          | 55360
+1.0     | 10002          | 56371
+1.0     | 10041          | 56415
+;

@@ -46,7 +46,7 @@ public class DataStreamAutoShardingService {
 
     public static final Setting<List<String>> DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING = Setting.listSetting(
         "data_streams.auto_sharding.excludes",
-        List.of("*"),
+        List.of(),
         Function.identity(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope

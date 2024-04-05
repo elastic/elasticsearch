@@ -20,6 +20,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.ParseField;
@@ -187,6 +188,29 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
     public void testDeleteConnectorSyncJob_WithMissingSyncJobId_ExpectException() {
         expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnectorSyncJob(NON_EXISTING_SYNC_JOB_ID));
     }
+
+    // public void testDeleteAllSyncJobsByConnectorId() throws Exception {
+    //
+    // PostConnectorSyncJobAction.Request syncJobRequest = new PostConnectorSyncJobAction.Request(
+    // connectorOneId,
+    // ConnectorSyncJobType.FULL,
+    // ConnectorSyncJobTriggerMethod.ON_DEMAND
+    // );
+    //
+    // int numJobs = 5;
+    // // Create 5 jobs associated with connector
+    // for(int i = 0; i < numJobs; i++) {
+    // awaitPutConnectorSyncJob(syncJobRequest);
+    // }
+    //
+    // BulkByScrollResponse response = awaitDeleteAllSyncJobsByConnectorId(connectorOneId);
+    // // 5 jobs should be deleted
+    // assertEquals(numJobs, response.getDeleted());
+    //
+    // response = awaitDeleteAllSyncJobsByConnectorId(connectorOneId);
+    // // No jobs should be deleted
+    // assertEquals(0, response.getDeleted());
+    // }
 
     public void testGetConnectorSyncJob() throws Exception {
         PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
@@ -1111,6 +1135,31 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         connectorSyncJobIndexService.deleteConnectorSyncJob(connectorSyncJobId, new ActionListener<>() {
             @Override
             public void onResponse(DeleteResponse deleteResponse) {
+                resp.set(deleteResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+        assertTrue("Timeout waiting for delete request", latch.await(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from delete request", resp.get());
+        return resp.get();
+    }
+
+    private BulkByScrollResponse awaitDeleteAllSyncJobsByConnectorId(String connectorSyncJobId) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<BulkByScrollResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorSyncJobIndexService.deleteAllSyncJobsByConnectorId(connectorSyncJobId, new ActionListener<>() {
+            @Override
+            public void onResponse(BulkByScrollResponse deleteResponse) {
                 resp.set(deleteResponse);
                 latch.countDown();
             }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.connector;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -14,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -54,6 +56,7 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorPipel
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorServiceTypeAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorStatusAction;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobIndexService;
 
 import java.time.Instant;
 import java.util.Arrays;
@@ -258,7 +261,7 @@ public class ConnectorIndexService {
      * @param connectorId The id of the connector object.
      * @param listener    The action listener to invoke on response/failure.
      */
-    public void deleteConnector(String connectorId, ActionListener<DeleteResponse> listener) {
+    public void deleteConnector(String connectorId, boolean shouldDeleteSyncJobs, ActionListener<DeleteResponse> listener) {
 
         final DeleteRequest deleteRequest = new DeleteRequest(CONNECTOR_INDEX_NAME).id(connectorId)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -269,6 +272,31 @@ public class ConnectorIndexService {
                     l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                     return;
                 }
+
+                if (shouldDeleteSyncJobs) {
+                    ConnectorSyncJobIndexService syncJobIndexService = new ConnectorSyncJobIndexService(client);
+
+                    syncJobIndexService.deleteAllSyncJobsByConnectorId(
+                        connectorId,
+                        listener.delegateFailure((deleteByQueryResponseListener, bulkDeleteResponse) -> {
+                            final List<BulkItemResponse.Failure> bulkDeleteFailures = bulkDeleteResponse.getBulkFailures();
+                            if (bulkDeleteFailures.isEmpty() == false) {
+                                listener.onFailure(
+                                    new ElasticsearchException(
+                                        "Error deleting sync jobs associated with connector ["
+                                            + connectorId
+                                            + "] "
+                                            + bulkDeleteFailures.stream()
+                                                .map(BulkItemResponse.Failure::getMessage)
+                                                .collect(Collectors.joining("\n"))
+                                    )
+                                );
+                            }
+                        })
+                    );
+
+                }
+
                 l.onResponse(deleteResponse);
             }));
         } catch (Exception e) {

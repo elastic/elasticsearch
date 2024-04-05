@@ -33,6 +33,9 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.DeleteByQueryAction;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -584,6 +587,38 @@ public class ConnectorSyncJobIndexService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * Deletes all {@link ConnectorSyncJob} documents that match a specific connector id in the underlying index.
+     *
+     * @param connectorId The id of the connector to match in the sync job documents.
+     * @param listener    The action listener to invoke on response/failure.
+     */
+    public void deleteAllSyncJobsByConnectorId(String connectorId, ActionListener<BulkByScrollResponse> listener) {
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(CONNECTOR_SYNC_JOB_INDEX_NAME).setQuery(
+            new TermQueryBuilder(
+                ConnectorSyncJob.CONNECTOR_FIELD.getPreferredName() + "." + Connector.ID_FIELD.getPreferredName(),
+                connectorId
+            )
+        ).setRefresh(true);
+
+        client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, new ActionListener<>() {
+            @Override
+            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
+                listener.onResponse(bulkByScrollResponse);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                Throwable cause = ExceptionsHelper.unwrapCause(e);
+                // If sync job index doesn't exist don't fail
+                if (cause instanceof IndexNotFoundException) {
+                    return;
+                }
+                listener.onFailure(e);
+            }
+        });
     }
 
     /**

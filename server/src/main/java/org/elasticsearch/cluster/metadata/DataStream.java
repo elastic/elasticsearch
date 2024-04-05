@@ -826,15 +826,15 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     /**
      * Given an index and its parent data stream, determine if the parent data stream is the same as this one, and if it is, check if the
-     * index is already in the correct index set.
+     * index is already in the correct indices list.
      *
      * @param index The index to check for
-     * @param parentDataStream The data stream the index belongs to
+     * @param parentDataStream The data stream the index already belongs to
      * @param targetFailureStore true if the index should be added to the failure store, false if it should be added to the backing indices
      * @throws IllegalArgumentException if the index belongs to a different data stream, or if it is in the wrong index set
      */
     private void validateDataStreamAlreadyContainsIndex(Index index, DataStream parentDataStream, boolean targetFailureStore) {
-        if (!parentDataStream.equals(this) || (parentDataStream.isFailureStoreIndex(index.getName()) != targetFailureStore)) {
+        if (parentDataStream.equals(this) == false || (parentDataStream.isFailureStoreIndex(index.getName()) != targetFailureStore)) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,

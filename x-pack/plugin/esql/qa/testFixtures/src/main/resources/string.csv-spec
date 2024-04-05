@@ -1183,6 +1183,27 @@ a:keyword | a_ll:integer
 hello | 0
 ;
 
+locateZeroStart#[skip:-8.13.99,reason:new string function added in 8.14]
+row a = "hello" | eval a_ll = locate(a, "ll", 0);
+
+a:keyword | a_ll:integer
+hello | 3
+;
+
+locateExactStart#[skip:-8.13.99,reason:new string function added in 8.14]
+row a = "hello" | eval a_ll = locate(a, "ll", 3);
+
+a:keyword | a_ll:integer
+hello | 3
+;
+
+locateLongerStart#[skip:-8.13.99,reason:new string function added in 8.14]
+row a = "hello" | eval a_ll = locate(a, "ll", 10);
+
+a:keyword | a_ll:integer
+hello | 0
+;
+
 locateLongerSubstr#[skip:-8.13.99,reason:new string function added in 8.14]
 row a = "hello" | eval a_ll = locate(a, "farewell");
 
@@ -1254,8 +1275,8 @@ ignoreOrder:true
 warning:Line 1:80: evaluation of [locate(description, \"ate\")] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:80: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
-l1:integer         | l2:integer
-2               | null
-2               | null
-null               | 0
+l1:integer | l2:integer
+2          | null
+2          | null
+null       | 0
 ;

@@ -13,12 +13,8 @@ import org.elasticsearch.common.Explicit;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class PassThroughObjectMapperTests extends MapperServiceTestCase {
@@ -53,9 +49,9 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
         assertTrue(((KeywordFieldMapper) mapper).fieldType().isDimension());
     }
 
-    public void testSupersededByOne() throws IOException {
+    public void testDefaultPriority() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {
-            b.startObject("labels").field("type", "passthrough").field("superseded_by", "foo");
+            b.startObject("labels").field("type", "passthrough");
             {
                 b.startObject("properties");
                 b.startObject("dim").field("type", "keyword").endObject();
@@ -65,12 +61,12 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
         }));
         Mapper mapper = mapperService.mappingLookup().objectMappers().get("labels");
         assertThat(mapper, instanceOf(PassThroughObjectMapper.class));
-        assertThat(((PassThroughObjectMapper) mapper).supersededBy(), contains("foo"));
+        assertEquals(0, ((PassThroughObjectMapper) mapper).priority());
     }
 
-    public void testSupersededByMany() throws IOException {
+    public void testPriorityParamSet() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {
-            b.startObject("labels").field("type", "passthrough").field("superseded_by", "far,too,many,deps,so,many");
+            b.startObject("labels").field("type", "passthrough").field("priority", "10");
             {
                 b.startObject("properties");
                 b.startObject("dim").field("type", "keyword").endObject();
@@ -80,24 +76,7 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
         }));
         Mapper mapper = mapperService.mappingLookup().objectMappers().get("labels");
         assertThat(mapper, instanceOf(PassThroughObjectMapper.class));
-        assertThat(((PassThroughObjectMapper) mapper).supersededBy(), containsInAnyOrder("far", "too", "many", "deps", "so"));
-    }
-
-    public void testSupersededBySelfReference() throws IOException {
-        MapperException exception = expectThrows(MapperException.class, () -> createMapperService(mapping(b -> {
-            b.startObject("labels").field("type", "passthrough").field("superseded_by", "labels");
-            {
-                b.startObject("properties");
-                b.startObject("dim").field("type", "keyword").endObject();
-                b.endObject();
-            }
-            b.endObject();
-        })));
-
-        assertEquals(
-            "Failed to parse mapping: Mapping definition for [labels] contains a self-reference in param [superseded_by]",
-            exception.getMessage()
-        );
+        assertEquals(10, ((PassThroughObjectMapper) mapper).priority());
     }
 
     public void testDynamic() throws IOException {
@@ -171,27 +150,26 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
 
     public void testWithoutMappers() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {
-            b.startObject("labels").field("type", "passthrough");
+            b.startObject("labels").field("type", "passthrough").field("priority", "1");
             {
                 b.startObject("properties");
                 b.startObject("dim").field("type", "keyword").endObject();
                 b.endObject();
             }
             b.endObject();
-            b.startObject("shallow").field("type", "passthrough");
+            b.startObject("shallow").field("type", "passthrough").field("priority", "2");
             b.endObject();
         }));
 
-        var labels = mapperService.mappingLookup().objectMappers().get("labels");
-        var shallow = mapperService.mappingLookup().objectMappers().get("shallow");
-        assertThat(labels.withoutMappers().toString(), equalTo(shallow.toString().replace("shallow", "labels")));
+        assertEquals("passthrough", mapperService.mappingLookup().objectMappers().get("labels").typeName());
+        assertEquals("passthrough", mapperService.mappingLookup().objectMappers().get("shallow").typeName());
     }
 
-    public void testCheckSupersedesForCircularDepsEmpty() throws IOException {
-        assertTrue(PassThroughObjectMapper.checkSupersedesForCircularDeps(List.of()).isEmpty());
+    public void testCheckForInvalidPrioritiesEmpty() throws IOException {
+        PassThroughObjectMapper.checkForInvalidPriorities(List.of());
     }
 
-    private PassThroughObjectMapper create(String name, Set<String> supersededBy) {
+    private PassThroughObjectMapper create(String name, int priority) {
         return new PassThroughObjectMapper(
             name,
             name,
@@ -199,71 +177,44 @@ public class PassThroughObjectMapperTests extends MapperServiceTestCase {
             ObjectMapper.Dynamic.FALSE,
             Map.of(),
             Explicit.EXPLICIT_FALSE,
-            supersededBy
+            priority
         );
     }
 
-    public void testCheckSupersedesForCircularDepsOneElement() throws IOException {
-        assertTrue(PassThroughObjectMapper.checkSupersedesForCircularDeps(List.of(create("foo", Set.of("bar")))).isEmpty());
+    public void testCheckForInvalidPrioritiesOneElement() throws IOException {
+        PassThroughObjectMapper.checkForInvalidPriorities(List.of(create("foo", 0)));
+        PassThroughObjectMapper.checkForInvalidPriorities(List.of(create("foo", 10)));
     }
 
-    public void testCheckSupersedesForCircularDepsTwoElementsNoDep() throws IOException {
-        assertTrue(
-            PassThroughObjectMapper.checkSupersedesForCircularDeps(
-                List.of(create("foo", Set.of("A", "B", "C")), create("bar", Set.of("D", "E")))
-            ).isEmpty()
+    public void testCheckForInvalidPrioritiesNegativePriority() throws IOException {
+        MapperException e = expectThrows(
+            MapperException.class,
+            () -> PassThroughObjectMapper.checkForInvalidPriorities(List.of(create("foo", -1)))
         );
+        assertThat(e.getMessage(), containsString("Pass-through object [foo] has a negative value for parameter [priority=-1]"));
     }
 
-    public void testCheckSupersedesForCircularDepsTwoElementsOneDep() throws IOException {
-        assertTrue(
-            PassThroughObjectMapper.checkSupersedesForCircularDeps(
-                List.of(create("foo", Set.of("A", "B", "C")), create("bar", Set.of("foo", "D", "E")))
-            ).isEmpty()
-        );
+    public void testCheckForInvalidPrioritiesManyValidElements() throws IOException {
+        PassThroughObjectMapper.checkForInvalidPriorities(List.of(create("foo", 1), create("bar", 2), create("baz", 3), create("bar", 4)));
     }
 
-    public void testCheckSupersedesForCircularDepsTwoElementsCrossDep() throws IOException {
-        assertThat(
-            PassThroughObjectMapper.checkSupersedesForCircularDeps(
-                List.of(create("foo", Set.of("A", "B", "bar")), create("bar", Set.of("foo", "D", "E")))
-            ).stream().map(PassThroughObjectMapper::name).collect(Collectors.toList()),
-            contains("foo", "bar", "foo")
+    public void testCheckForInvalidPrioritiesManyElementsInvalidPriority() throws IOException {
+        MapperException e = expectThrows(
+            MapperException.class,
+            () -> PassThroughObjectMapper.checkForInvalidPriorities(
+                List.of(create("foo", 1), create("bar", 2), create("baz", 3), create("bar", -4))
+            )
         );
+        assertThat(e.getMessage(), containsString("Pass-through object [bar] has a negative value for parameter [priority=-4]"));
     }
 
-    public void testCheckSupersedesForCircularDepsManyElementsWithCircle() throws IOException {
-        assertThat(
-            PassThroughObjectMapper.checkSupersedesForCircularDeps(
-                List.of(
-                    create("A", Set.of("B", "D")),
-                    create("B", Set.of("E", "G")),
-                    create("C", Set.of()),
-                    create("D", Set.of("C")),
-                    create("E", Set.of("C")),
-                    create("F", Set.of("A", "B")),
-                    create("G", Set.of("C", "H")),
-                    create("H", Set.of("A", "C"))
-                )
-            ).stream().map(PassThroughObjectMapper::name).collect(Collectors.toList()),
-            contains("A", "B", "G", "H", "A")
+    public void testCheckForInvalidPrioritiesManyElementsDuplicatePriority() throws IOException {
+        MapperException e = expectThrows(
+            MapperException.class,
+            () -> PassThroughObjectMapper.checkForInvalidPriorities(
+                List.of(create("foo", 1), create("bar", 1), create("baz", 3), create("bar", 4))
+            )
         );
-    }
-
-    public void testCheckSupersedesForCircularDepsManyElementsNoCircle() throws IOException {
-        assertTrue(
-            PassThroughObjectMapper.checkSupersedesForCircularDeps(
-                List.of(
-                    create("A", Set.of("B", "D")),
-                    create("B", Set.of("E", "G")),
-                    create("C", Set.of()),
-                    create("D", Set.of("C")),
-                    create("E", Set.of("C")),
-                    create("F", Set.of("A", "B")),
-                    create("G", Set.of("C", "H")),
-                    create("H", Set.of("C", "E"))
-                )
-            ).isEmpty()
-        );
+        assertThat(e.getMessage(), containsString("Pass-through object [bar] has a conflicting param [priority=1] with object [foo]"));
     }
 }

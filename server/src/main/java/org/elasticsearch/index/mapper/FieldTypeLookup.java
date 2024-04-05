@@ -103,10 +103,8 @@ final class FieldTypeLookup {
                     // Check for conflict between PassThroughObjectMapper subfields.
                     PassThroughObjectMapper conflict = passThroughFieldAliases.put(name, passThroughMapper);
                     if (conflict != null) {
-                        // Check if there's a "superseded_by" param covering this conflict, otherwise use lexicographical ordering.
-                        if (passThroughMapper.supersededBy().contains(conflict.name())
-                            || (conflict.supersededBy().contains(passThroughMapper.name()) == false
-                                && name.compareTo(conflict.name()) > 0)) {
+                        // Check the priorities of the conflicting objects.
+                        if (conflict.priority() > passThroughMapper.priority()) {
                             passThroughFieldAliases.put(name, conflict);
                             continue;
                         }

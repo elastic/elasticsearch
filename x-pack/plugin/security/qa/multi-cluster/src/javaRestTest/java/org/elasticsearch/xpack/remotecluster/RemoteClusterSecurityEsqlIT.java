@@ -430,6 +430,36 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             .flatMap(innerList -> innerList instanceof List ? ((List<String>) innerList).stream() : Stream.empty())
             .collect(Collectors.toList());
         assertThat(flatList, containsInAnyOrder("1", "3", "engineering", "sales"));
+
+        // no local privs at all will fail
+        final var putRoleNoLocalPrivs = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
+        putRoleNoLocalPrivs.setJsonEntity("""
+            {
+              "indices": [],
+              "remote_indices": [
+                {
+                  "names": ["employees"],
+                  "privileges": ["read"],
+                  "clusters": ["my_remote_cluster"]
+                }
+              ]
+            }""");
+        assertOK(adminClient().performRequest(putRoleNoLocalPrivs));
+
+        ResponseException error = expectThrows(ResponseException.class, () -> { performRequestWithRemoteSearchUser(esqlRequest("""
+            FROM my_remote_cluster:employees
+            | SORT emp_id ASC
+            | LIMIT 2
+            | KEEP emp_id, department""")); });
+
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "action [indices:data/read/esql] is unauthorized for user [remote_search_user] with effective roles [remote_search], "
+                    + "this action is granted by the index privileges [read,read_cross_cluster,all]"
+            )
+        );
     }
 
     @AwaitsFix(bugUrl = "cross-clusters enrich doesn't work with RCS 2.0")

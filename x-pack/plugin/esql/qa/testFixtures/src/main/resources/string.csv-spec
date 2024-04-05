@@ -79,6 +79,20 @@ a:integer | ss:keyword | l:keyword | r:keyword
 1         | bcd        | ab        | cd
 ;
 
+stringCastEmp
+required_feature: esql.string_literal_auto_casting
+
+from employees
+| eval ss = substring(first_name, "2")
+| sort emp_no
+| keep emp_no, first_name, ss
+| limit 2;
+
+emp_no: integer | first_name:keyword | ss:keyword
+10001           | Georgi             | eorgi
+10002           | Bezalel            | ezalel
+;
+
 substring
 from employees | where emp_no <= 10010 | eval f_l = substring(last_name, 3) | keep emp_no, last_name, f_l;
 ignoreOrder:true

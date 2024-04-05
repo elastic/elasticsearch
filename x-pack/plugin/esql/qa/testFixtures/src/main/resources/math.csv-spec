@@ -1438,3 +1438,17 @@ ROW number = -1.0
 number:double  | abs_number:double
 -1.0           | 10.0
 ;
+
+arithmeticOperationWithString
+required_feature: esql.string_literal_auto_casting
+
+from employees
+| eval s1 = salary + "10000",  s2 = height * "2", s3 = avg_worked_seconds / "2", s4 = languages - "1"
+| sort emp_no
+| keep emp_no, salary, s1, height, s2, avg_worked_seconds, s3, languages, s4
+| limit 2;
+
+emp_no:integer | salary:integer | s1:integer | height:double | s2:double | avg_worked_seconds:long | s3:long   | languages:integer | s4:integer
+10001          | 57305          | 67305      | 2.03          | 4.06      | 268728049               | 134364024 | 2                 | 1
+10002          | 56371          | 66371      | 2.08          | 4.16      | 328922887               | 164461443 | 5                 | 4
+;

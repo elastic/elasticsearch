@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
@@ -121,15 +123,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveEnrich(),
             new ResolveRefs(),
             new ResolveFunctions(),
+            new ImplicitCasting(),
             new RemoveDuplicateProjections()
         );
-        var finish = new Batch<>(
-            "Finish Analysis",
-            Limiter.ONCE,
-            new AddImplicitLimit(),
-            new PromoteStringsInDateComparisons(),
-            new ImplicitCasting()
-        );
+        var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new PromoteStringsInDateComparisons());
         rules = List.of(resolution, finish);
     }
 
@@ -820,10 +817,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            return plan.transformExpressionsUp(EsqlScalarFunction.class, ImplicitCasting::cast);
+            return plan.transformExpressionsUp(ScalarFunction.class, ImplicitCasting::cast);
         }
 
-        private static Expression cast(EsqlScalarFunction f) {
+        private static Expression cast(ScalarFunction f) {
+            if (f instanceof EsqlScalarFunction esf) {
+                return processScalarFunction(esf);
+            }
+
+            if (f instanceof EsqlArithmeticOperation eao) {
+                return processArithmeticOperation(eao);
+            }
+
+            return f;
+        }
+
+        private static Expression processScalarFunction(EsqlScalarFunction f) {
             List<Expression> args = f.arguments();
             List<String[]> metaData = getMetaData(f);
             List<Expression> newChildren = new ArrayList<>(args.size());
@@ -832,7 +841,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Expression arg;
             for (int i = 0; i < args.size(); i++) {
                 arg = args.get(i);
-                if (arg.dataType() == KEYWORD && arg.foldable()) {
+                if (arg.resolved() && arg.dataType() == KEYWORD && arg.foldable()) {
                     if (i < metaData.size()) {
                         targetDataType = getTargetType(metaData.get(i));
                     }
@@ -848,7 +857,38 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return childrenChanged ? f.replaceChildren(newChildren) : f;
         }
 
-        private static List<String[]> getMetaData(EsqlScalarFunction f) {
+        private static Expression processArithmeticOperation(EsqlArithmeticOperation o) {
+            Expression left = o.left();
+            Expression right = o.right();
+            if (left.resolved() == false || right.resolved() == false) {
+                return o;
+            }
+            List<Expression> newChildren = new ArrayList<>(2);
+            boolean childrenChanged = false;
+            DataType targetDataType = NULL;
+            Expression from = Literal.NULL;
+
+            if (left.dataType() == KEYWORD && left.foldable() && (right.dataType().isNumeric() || right.dataType() == DATETIME)) {
+                targetDataType = right.dataType();
+                from = left;
+            }
+            if (right.dataType() == KEYWORD && right.foldable() && (left.dataType().isNumeric() || left.dataType() == DATETIME)) {
+                targetDataType = left.dataType();
+                from = right;
+            }
+
+            Expression e = from == Literal.NULL ? from : castStringLiteral(from, targetDataType);
+
+            if (e != Literal.NULL) {
+                childrenChanged = true;
+                newChildren.add(from == left ? e : left);
+                newChildren.add(from == right ? e : right);
+            }
+
+            return childrenChanged ? o.replaceChildren(newChildren) : o;
+        }
+
+        private static List<String[]> getMetaData(ScalarFunction f) {
             List<String[]> paramTypes = new ArrayList<>();
             var constructors = f.getClass().getConstructors();
             Constructor<?> constructor = constructors[0]; // no multiple c'tors supported

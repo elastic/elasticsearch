@@ -123,7 +123,6 @@ public class WatcherLifeCycleService implements ClusterStateListener {
                         } else {
                             logger.info("watcher has not been stopped. not currently in a stopping state, current state [{}]", state.get());
                         }
-
                     });
                 }
             }

@@ -204,7 +204,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         final var nodes = clusterState.nodes();
         final var nodeShutdowns = clusterState.metadata().nodeShutdowns();
         // If we remove a shutdown marker from a node, but it is still in the cluster, we'd need a reset.
-        boolean reset = processedNodeShutdowns.removeIf(nodeId -> nodeShutdowns.contains(nodeId) == false && nodes.get(nodeId) != null);
+        boolean reset = processedNodeShutdowns.stream()
+            .anyMatch(nodeId -> nodeShutdowns.contains(nodeId) == false && nodes.get(nodeId) != null);
         // Clean up processed shutdowns that are removed from the cluster metadata
         processedNodeShutdowns.removeIf(nodeId -> nodeShutdowns.contains(nodeId) == false);
 

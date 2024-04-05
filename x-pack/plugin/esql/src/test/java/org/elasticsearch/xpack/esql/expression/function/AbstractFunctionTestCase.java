@@ -33,6 +33,7 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -596,16 +597,17 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     @AfterClass
     public static void testFunctionInfo() {
+        Logger log = LogManager.getLogger(getTestClass());
         if (ranAllTests == false) {
-            LogManager.getLogger(getTestClass()).info("Skipping function info checks because we're running a portion of the tests");
+            log.info("Skipping function info checks because we're running a portion of the tests");
             return;
         }
         FunctionDefinition definition = definition(functionName());
         if (definition == null) {
-            LogManager.getLogger(getTestClass()).info("Skipping function info checks because the function isn't registered");
+            log.info("Skipping function info checks because the function isn't registered");
             return;
         }
-        LogManager.getLogger(getTestClass()).info("Running function info checks");
+        log.info("Running function info checks");
         EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);
         List<EsqlFunctionRegistry.ArgSignature> args = description.args();
 
@@ -625,15 +627,18 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
 
         for (int i = 0; i < args.size(); i++) {
-            Set<String> annotationTypes = Arrays.stream(args.get(i).type()).collect(Collectors.toCollection(() -> new TreeSet<>()));
+            EsqlFunctionRegistry.ArgSignature arg = args.get(i);
+            Set<String> annotationTypes = Arrays.stream(arg.type()).collect(Collectors.toCollection(TreeSet::new));
             Set<String> signatureTypes = typesFromSignature.get(i);
             if (signatureTypes.isEmpty()) {
+                log.info("{}: skipping", arg.name());
                 continue;
             }
+            log.info("{}: tested {} vs annotated {}", arg.name(), signatureTypes, annotationTypes);
             assertEquals(signatureTypes, annotationTypes);
         }
 
-        Set<String> returnTypes = Arrays.stream(description.returnType()).collect(Collectors.toCollection(() -> new TreeSet<>()));
+        Set<String> returnTypes = Arrays.stream(description.returnType()).collect(Collectors.toCollection(TreeSet::new));
         assertEquals(returnFromSignature, returnTypes);
 
     }
@@ -1289,14 +1294,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             builder.field("returnType", signatures.values().iterator().next().typeName());
             builder.endObject();
         } else {
+            int minArgCount = (int) args.stream().filter(a -> false == a.optional()).count();
             for (Map.Entry<List<DataType>, DataType> sig : sortedSignatures()) {
-                System.err.println("ADF " + sig.getKey() + "   " + args);
+                System.err.println("ADF " + sig.getKey() + "   " + args.stream().map(EsqlFunctionRegistry.ArgSignature::name).toList());
                 if (variadic && sig.getKey().size() > args.size()) {
                     // For variadic functions we test much longer signatures, let's just stop at the last one
                     continue;
                 }
-                if (sig.getKey().size() < args.size()) {
-                    new IllegalArgumentException("expected " + args.size() + " args but got " + sig.getKey());
+                // TODO fix auto_bucket
+                if (name.equals("auto_bucket") == false && sig.getKey().size() < minArgCount) {
+                    throw new IllegalArgumentException("signature " + sig.getKey() + " is missing non-optional arg for " + args);
                 }
                 builder.startObject();
                 builder.startArray("params");

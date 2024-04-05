@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.transform.integration;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -27,7 +26,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -40,22 +38,20 @@ import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
-import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
+import org.elasticsearch.xpack.transform.integration.common.TransformCommonRestTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -67,9 +63,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.Is.is;
 
-public abstract class TransformRestTestCase extends ESRestTestCase {
+public abstract class TransformRestTestCase extends TransformCommonRestTestCase {
 
-    protected static String TRANSFORM_ENDPOINT = "/_transform/";
     protected static final String AUTH_KEY = "Authorization";
     protected static final String SECONDARY_AUTH_KEY = "es-secondary-authorization";
 
@@ -79,49 +74,6 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         logAudits();
         cleanUpTransforms();
         waitForPendingTasks();
-    }
-
-    @SuppressWarnings("unchecked")
-    private void logAudits() throws Exception {
-        logger.info("writing audit messages to the log");
-        Request searchRequest = new Request("GET", TransformInternalIndexConstants.AUDIT_INDEX + "/_search?ignore_unavailable=true");
-        searchRequest.setJsonEntity("""
-            {
-              "size": 100,
-              "sort": [ { "timestamp": { "order": "asc" } } ]
-            }""");
-
-        assertBusy(() -> {
-            try {
-                refreshIndex(TransformInternalIndexConstants.AUDIT_INDEX_PATTERN, RequestOptions.DEFAULT);
-                Response searchResponse = client().performRequest(searchRequest);
-
-                Map<String, Object> searchResult = entityAsMap(searchResponse);
-                List<Map<String, Object>> searchHits = (List<Map<String, Object>>) XContentMapValues.extractValue(
-                    "hits.hits",
-                    searchResult
-                );
-
-                for (Map<String, Object> hit : searchHits) {
-                    Map<String, Object> source = (Map<String, Object>) XContentMapValues.extractValue("_source", hit);
-                    String level = (String) source.getOrDefault("level", "info");
-                    logger.log(
-                        Level.getLevel(level.toUpperCase(Locale.ROOT)),
-                        "Transform audit: [{}] [{}] [{}] [{}]",
-                        Instant.ofEpochMilli((long) source.getOrDefault("timestamp", 0)),
-                        source.getOrDefault("transform_id", "n/a"),
-                        source.getOrDefault("message", "n/a"),
-                        source.getOrDefault("node_name", "n/a")
-                    );
-                }
-            } catch (ResponseException e) {
-                // see gh#54810, wrap temporary 503's as assertion error for retry
-                if (e.getResponse().getStatusLine().getStatusCode() != 503) {
-                    throw e;
-                }
-                throw new AssertionError("Failed to retrieve audit logs", e);
-            }
-        }, 5, TimeUnit.SECONDS);
     }
 
     protected void cleanUpTransforms() throws IOException {
@@ -138,12 +90,6 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             }
         }
         createdTransformIds.clear();
-    }
-
-    protected void refreshIndex(String index, RequestOptions options) throws IOException {
-        var r = new Request("POST", index + "/_refresh");
-        r.setOptions(options);
-        assertOK(adminClient().performRequest(r));
     }
 
     protected Map<String, Object> getIndexMapping(String index, RequestOptions options) throws IOException {

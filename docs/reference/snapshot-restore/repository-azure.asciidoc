@@ -6,16 +6,16 @@ You can use https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blobs-i
 [[repository-azure-usage]]
 ==== Setup
 
-To enable Azure repositories, you have first to define your azure storage settings as
-{ref}/secure-settings.html[secure settings]:
+To enable Azure repositories, you have first to define your Azure storage settings as
+{ref}/secure-settings.html[secure settings].
+
+You can define these settings before the node is started, or call the <<cluster-nodes-reload-secure-settings,Nodes reload secure settings API>> after the settings are defined to apply them to a running node.
 
 [source,sh]
 ----------------------------------------------------------------
 bin/elasticsearch-keystore add azure.client.default.account
 bin/elasticsearch-keystore add azure.client.default.key
 ----------------------------------------------------------------
-
-You can define these settings before the node is started, or call the <<cluster-nodes-reload-secure-settings,Nodes reload secure settings API>> after the settings are defined to apply them to a running node.
 
 Note that you can also define more than one account:
 

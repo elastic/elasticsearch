@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian2;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlAggregate;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.esql.version.BehaviorFlag;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.BaseAnalyzerRule;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.ParameterizedAnalyzerRule;
@@ -721,14 +723,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
             return plan.transformExpressionsOnly(
                 UnresolvedFunction.class,
-                uf -> resolveFunction(uf, context.configuration(), context.functionRegistry())
+                uf -> resolveFunction(uf, context.configuration(), context.functionRegistry(), context.behaviorFlags())
             );
         }
 
         public static org.elasticsearch.xpack.ql.expression.function.Function resolveFunction(
             UnresolvedFunction uf,
             Configuration configuration,
-            FunctionRegistry functionRegistry
+            FunctionRegistry functionRegistry,
+            Set<BehaviorFlag> behaviorFlags
         ) {
             org.elasticsearch.xpack.ql.expression.function.Function f = null;
             if (uf.analyzed()) {
@@ -739,6 +742,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     f = uf.missing(functionName, functionRegistry.listFunctions());
                 } else {
                     FunctionDefinition def = functionRegistry.resolveFunction(functionName);
+                    if (behaviorFlags.contains(BehaviorFlag.MV_MEDIAN_RETURNS_DOUBLE) && def.name().equals("mv_median")) {
+                        def = FunctionRegistry.def(MvMedian2.class, MvMedian2::new, "mv_median");
+                    }
                     f = uf.buildResolved(configuration, def);
                 }
             }

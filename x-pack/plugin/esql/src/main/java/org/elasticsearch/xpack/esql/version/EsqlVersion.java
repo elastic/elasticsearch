@@ -14,13 +14,14 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 public enum EsqlVersion implements VersionId<EsqlVersion> {
     /**
      * Breaking changes go here until the next version is released.
      */
-    SNAPSHOT(Integer.MAX_VALUE, 12, 99, "📷"),
-    ROCKET(2024, 4, "🚀");
+    SNAPSHOT(Integer.MAX_VALUE, 12, 99, "📷", Set.of(BehaviorFlag.MV_MEDIAN_RETURNS_DOUBLE)),
+    ROCKET(2024, 4, "🚀", Set.of());
 
     static final Map<String, EsqlVersion> VERSION_MAP_WITH_AND_WITHOUT_EMOJI = versionMapWithAndWithoutEmoji();
 
@@ -58,12 +59,13 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
     private byte month;
     private byte revision;
     private String emoji;
+    private Set<BehaviorFlag> behaviorFlags;
 
-    EsqlVersion(int year, int month, String emoji) {
-        this(year, month, 1, emoji);
+    EsqlVersion(int year, int month, String emoji, Set<BehaviorFlag> behaviorFlags) {
+        this(year, month, 1, emoji, behaviorFlags);
     }
 
-    EsqlVersion(int year, int month, int revision, String emoji) {
+    EsqlVersion(int year, int month, int revision, String emoji, Set<BehaviorFlag> behaviorFlags) {
         if ((1 <= revision && revision <= 99) == false) {
             throw new IllegalArgumentException("Version revision number must be between 1 and 99 but was [" + revision + "]");
         }
@@ -77,6 +79,7 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
         this.month = (byte) month;
         this.revision = (byte) revision;
         this.emoji = emoji;
+        this.behaviorFlags = behaviorFlags;
     }
 
     public int year() {
@@ -97,6 +100,10 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
 
     public String versionStringWithoutEmoji() {
         return this == SNAPSHOT ? "snapshot" : Strings.format("%d.%02d.%02d", year, month, revision);
+    }
+
+    public Set<BehaviorFlag> behaviorTags() {
+        return behaviorFlags;
     }
 
     @Override

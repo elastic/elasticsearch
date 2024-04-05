@@ -8,12 +8,26 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.version.BehaviorFlag;
+import org.elasticsearch.xpack.esql.version.EsqlVersion;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
+
+import java.util.Set;
 
 public record AnalyzerContext(
     EsqlConfiguration configuration,
     FunctionRegistry functionRegistry,
     IndexResolution indexResolution,
-    EnrichResolution enrichResolution
-) {}
+    EnrichResolution enrichResolution,
+    Set<BehaviorFlag> behaviorFlags
+) {
+    public AnalyzerContext(
+        EsqlConfiguration configuration,
+        FunctionRegistry functionRegistry,
+        IndexResolution indexResolution,
+        EnrichResolution enrichResolution
+    ) {
+        this(configuration, functionRegistry, indexResolution, enrichResolution, EsqlVersion.SNAPSHOT.behaviorTags());
+    }
+}

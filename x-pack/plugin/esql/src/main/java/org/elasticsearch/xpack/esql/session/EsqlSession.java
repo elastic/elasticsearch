@@ -37,6 +37,8 @@ import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.Mapper;
+import org.elasticsearch.xpack.esql.version.BehaviorFlag;
+import org.elasticsearch.xpack.esql.version.EsqlVersion;
 import org.elasticsearch.xpack.ql.analyzer.TableInfo;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -122,6 +124,7 @@ public class EsqlSession {
 
     public void execute(EsqlQueryRequest request, ActionListener<PhysicalPlan> listener) {
         LOGGER.debug("ESQL query:\n{}", request.query());
+        EsqlVersion version = EsqlVersion.parse(request.esqlVersion());
         optimizedPhysicalPlan(
             parse(request.query(), request.params()),
             listener.map(plan -> EstimatesRowSize.estimateRowSize(0, plan.transformUp(FragmentExec.class, f -> {
@@ -136,7 +139,8 @@ public class EsqlSession {
                     f = f.withFilter(filter);
                 }
                 return f;
-            })))
+            }))),
+            version.behaviorTags()
         );
     }
 
@@ -146,14 +150,17 @@ public class EsqlSession {
         return parsed;
     }
 
-    public void analyzedPlan(LogicalPlan parsed, ActionListener<LogicalPlan> listener) {
+    public void analyzedPlan(LogicalPlan parsed, ActionListener<LogicalPlan> listener, Set<BehaviorFlag> behaviorFlags) {
         if (parsed.analyzed()) {
             listener.onResponse(parsed);
             return;
         }
 
         preAnalyze(parsed, (indices, policies) -> {
-            Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indices, policies), verifier);
+            Analyzer analyzer = new Analyzer(
+                new AnalyzerContext(configuration, functionRegistry, indices, policies, behaviorFlags),
+                verifier
+            );
             var plan = analyzer.analyze(parsed);
             LOGGER.debug("Analyzed plan:\n{}", plan);
             return plan;
@@ -455,28 +462,28 @@ public class EsqlSession {
         return names.stream().filter(name -> name.endsWith(WILDCARD) == false).map(name -> name + ".*").collect(Collectors.toSet());
     }
 
-    public void optimizedPlan(LogicalPlan logicalPlan, ActionListener<LogicalPlan> listener) {
+    public void optimizedPlan(LogicalPlan logicalPlan, ActionListener<LogicalPlan> listener, Set<BehaviorFlag> behaviorFlags) {
         analyzedPlan(logicalPlan, map(listener, p -> {
             var plan = logicalPlanOptimizer.optimize(p);
             LOGGER.debug("Optimized logicalPlan plan:\n{}", plan);
             return plan;
-        }));
+        }), behaviorFlags);
     }
 
-    public void physicalPlan(LogicalPlan optimized, ActionListener<PhysicalPlan> listener) {
+    public void physicalPlan(LogicalPlan optimized, ActionListener<PhysicalPlan> listener, Set<BehaviorFlag> behaviorFlags) {
         optimizedPlan(optimized, map(listener, p -> {
             var plan = mapper.map(p);
             LOGGER.debug("Physical plan:\n{}", plan);
             return plan;
-        }));
+        }), behaviorFlags);
     }
 
-    public void optimizedPhysicalPlan(LogicalPlan logicalPlan, ActionListener<PhysicalPlan> listener) {
+    public void optimizedPhysicalPlan(LogicalPlan logicalPlan, ActionListener<PhysicalPlan> listener, Set<BehaviorFlag> behaviorFlags) {
         physicalPlan(logicalPlan, map(listener, p -> {
             var plan = physicalPlanOptimizer.optimize(p);
             LOGGER.debug("Optimized physical plan:\n{}", plan);
             return plan;
-        }));
+        }), behaviorFlags);
     }
 
     public static InvalidMappedField specificValidity(String fieldName, Map<String, FieldCapabilities> types) {

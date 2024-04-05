@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -30,11 +29,6 @@ public abstract class BaseSingleUpdateApiKeyRequest extends BaseUpdateApiKeyRequ
     ) {
         super(roleDescriptors, metadata, expiration);
         this.id = Objects.requireNonNull(id, "API key ID must not be null");
-    }
-
-    public BaseSingleUpdateApiKeyRequest(StreamInput in) throws IOException {
-        super(in);
-        this.id = in.readString();
     }
 
     @Override

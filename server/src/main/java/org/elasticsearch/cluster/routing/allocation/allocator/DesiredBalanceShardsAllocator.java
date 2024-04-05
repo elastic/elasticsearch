@@ -200,7 +200,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         reconcile(currentDesiredBalance, allocation);
     }
 
-    private synchronized void processNodeShutdowns(ClusterState clusterState) {
+    private void processNodeShutdowns(ClusterState clusterState) {
         final var nodes = clusterState.nodes();
         final var nodeShutdowns = clusterState.metadata().nodeShutdowns();
         // If we remove a shutdown marker from a node, but it is still in the cluster, we'd need a reset.

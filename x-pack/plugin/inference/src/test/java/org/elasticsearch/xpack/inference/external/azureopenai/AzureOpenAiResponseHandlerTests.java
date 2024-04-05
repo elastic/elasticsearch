@@ -78,7 +78,7 @@ public class AzureOpenAiResponseHandlerTests extends ESTestCase {
         when(statusLine.getStatusCode()).thenReturn(429);
         retryException = expectThrows(RetryException.class, () -> handler.checkForFailureStatusCode(mockRequest, httpResult));
         assertTrue(retryException.shouldRetry());
-        assertThat(retryException.getCause().getMessage(), containsString("Received a rate limit status code. Token limit"));
+        assertThat(retryException.getCause().getMessage(), containsString("Received a rate limit status code. Remaining tokens"));
         assertThat(((ElasticsearchStatusException) retryException.getCause()).status(), is(RestStatus.TOO_MANY_REQUESTS));
         // 413
         when(statusLine.getStatusCode()).thenReturn(413);
@@ -153,64 +153,30 @@ public class AzureOpenAiResponseHandlerTests extends ESTestCase {
         var httpResult = new HttpResult(response, new byte[] {});
 
         {
-            when(response.getFirstHeader(AzureOpenAiResponseHandler.REQUESTS_LIMIT)).thenReturn(
-                new BasicHeader(AzureOpenAiResponseHandler.REQUESTS_LIMIT, "3000")
-            );
             when(response.getFirstHeader(AzureOpenAiResponseHandler.REMAINING_REQUESTS)).thenReturn(
                 new BasicHeader(AzureOpenAiResponseHandler.REMAINING_REQUESTS, "2999")
-            );
-            when(response.getFirstHeader(AzureOpenAiResponseHandler.TOKENS_LIMIT)).thenReturn(
-                new BasicHeader(AzureOpenAiResponseHandler.TOKENS_LIMIT, "10000")
             );
             when(response.getFirstHeader(AzureOpenAiResponseHandler.REMAINING_TOKENS)).thenReturn(
                 new BasicHeader(AzureOpenAiResponseHandler.REMAINING_TOKENS, "99800")
             );
 
             var error = AzureOpenAiResponseHandler.buildRateLimitErrorMessage(httpResult);
-            assertThat(
-                error,
-                containsString("Token limit [10000], remaining tokens [99800]. Request limit [3000], remaining requests [2999]")
-            );
+            assertThat(error, containsString("Remaining tokens [99800]. Remaining requests [2999]"));
         }
 
         {
-            when(response.getFirstHeader(AzureOpenAiResponseHandler.TOKENS_LIMIT)).thenReturn(null);
             when(response.getFirstHeader(AzureOpenAiResponseHandler.REMAINING_TOKENS)).thenReturn(null);
             var error = AzureOpenAiResponseHandler.buildRateLimitErrorMessage(httpResult);
-            assertThat(
-                error,
-                containsString("Token limit [unknown], remaining tokens [unknown]. Request limit [3000], remaining requests [2999]")
-            );
+            assertThat(error, containsString("Remaining tokens [unknown]. Remaining requests [2999]"));
         }
 
         {
-            when(response.getFirstHeader(AzureOpenAiResponseHandler.REQUESTS_LIMIT)).thenReturn(null);
             when(response.getFirstHeader(AzureOpenAiResponseHandler.REMAINING_REQUESTS)).thenReturn(
                 new BasicHeader(AzureOpenAiResponseHandler.REMAINING_REQUESTS, "2999")
             );
-            when(response.getFirstHeader(AzureOpenAiResponseHandler.TOKENS_LIMIT)).thenReturn(null);
             when(response.getFirstHeader(AzureOpenAiResponseHandler.REMAINING_TOKENS)).thenReturn(null);
             var error = AzureOpenAiResponseHandler.buildRateLimitErrorMessage(httpResult);
-            assertThat(
-                error,
-                containsString("Token limit [unknown], remaining tokens [unknown]. Request limit [unknown], remaining requests [2999]")
-            );
-        }
-
-        {
-            when(response.getFirstHeader(AzureOpenAiResponseHandler.REQUESTS_LIMIT)).thenReturn(null);
-            when(response.getFirstHeader(AzureOpenAiResponseHandler.REMAINING_REQUESTS)).thenReturn(
-                new BasicHeader(AzureOpenAiResponseHandler.REMAINING_REQUESTS, "2999")
-            );
-            when(response.getFirstHeader(AzureOpenAiResponseHandler.TOKENS_LIMIT)).thenReturn(
-                new BasicHeader(AzureOpenAiResponseHandler.TOKENS_LIMIT, "10000")
-            );
-            when(response.getFirstHeader(AzureOpenAiResponseHandler.REMAINING_TOKENS)).thenReturn(null);
-            var error = AzureOpenAiResponseHandler.buildRateLimitErrorMessage(httpResult);
-            assertThat(
-                error,
-                containsString("Token limit [10000], remaining tokens [unknown]. Request limit [unknown], remaining requests [2999]")
-            );
+            assertThat(error, containsString("Remaining tokens [unknown]. Remaining requests [2999]"));
         }
     }
 

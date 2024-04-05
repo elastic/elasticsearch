@@ -16,14 +16,13 @@ import org.elasticsearch.inference.ModelConfigurations;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.USER;
 
 /**
  * This class handles extracting Azure OpenAI task settings from a request. The difference between this class and
  * {@link AzureOpenAiEmbeddingsTaskSettings} is that this class considers all fields as optional. It will not throw an error if a field
  * is missing. This allows overriding persistent task settings.
  * @param user a unique identifier representing your end-user, which can help OpenAI to monitor and detect abuse
- * @param dimensions TODO
- * @param encodingFormat TODO
  */
 public record AzureOpenAiEmbeddingsRequestTaskSettings(@Nullable String user) {
     private static final Logger logger = LogManager.getLogger(AzureOpenAiEmbeddingsRequestTaskSettings.class);

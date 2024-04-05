@@ -46,7 +46,7 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
             service,
             AzureOpenAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             AzureOpenAiEmbeddingsTaskSettings.fromMap(taskSettings, context),
-            DefaultSecretSettings.fromMap(secrets)
+            AzureOpenAiSecretSettings.fromMap(secrets)
         );
     }
 
@@ -57,7 +57,7 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
         String service,
         AzureOpenAiEmbeddingsServiceSettings serviceSettings,
         AzureOpenAiEmbeddingsTaskSettings taskSettings,
-        @Nullable DefaultSecretSettings secrets
+        @Nullable AzureOpenAiSecretSettings secrets
     ) {
         super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
     }

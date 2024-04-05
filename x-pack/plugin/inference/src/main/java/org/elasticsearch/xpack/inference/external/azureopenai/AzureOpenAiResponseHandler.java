@@ -24,23 +24,38 @@ import static org.elasticsearch.xpack.inference.external.http.retry.ResponseHand
 public class AzureOpenAiResponseHandler extends BaseResponseHandler {
 
     /**
-     * TODO: check this - waiting for app approval at the moment
-     * These headers for Azure OpenAi are the same as the OpenAi ones
-     * I don't think we want to rely on this to always be true in the future, so, a lot of duplicate code for now...
-     * Rate limit headers taken from https://platform.openai.com/docs/guides/rate-limits/rate-limits-in-headers
+     * These headers for Azure OpenAi are mostly the same as the OpenAi ones with the major exception
+     * that there is no information returned about the request limit or the tokens limit
+     *
+     * Microsoft does not seem to have any information in their docs about this, but more
+     * information can be found in the following Medium article and accompanying code:
+     *   - https://pablo-81685.medium.com/azure-openais-api-headers-unpacked-6dbe881e732a
+     *   - https://github.com/pablosalvador10/gbbai-azure-ai-aoai
+     *
+     * An example from CURL shows:
+     * < HTTP/2 200
+     * < content-length: 33525
+     * < content-type: application/json
+     * < access-control-allow-origin: *
+     * < x-ratelimit-remaining-requests: 119
+     * < apim-request-id: cb28c608-ff0b-43c0-baca-f6c60a2d120b
+     * < strict-transport-security: max-age=31536000; includeSubDomains; preload
+     * < x-content-type-options: nosniff
+     * < x-request-id: 93117dcb-0193-49cf-9f8e-7aeb2995297d
+     * < x-ms-client-request-id: cb28c608-ff0b-43c0-baca-f6c60a2d120b
+     * < x-ratelimit-remaining-tokens: 119990
+     * < azureml-model-session: d012-20240327190940
+     * < x-ms-region: East US 2
+     * < date: Fri, 05 Apr 2024 12:26:05 GMT
+     *
      */
-    // The maximum number of requests that are permitted before exhausting the rate limit.
-    static final String REQUESTS_LIMIT = "x-ratelimit-limit-requests";
-    // The maximum number of tokens that are permitted before exhausting the rate limit.
-    static final String TOKENS_LIMIT = "x-ratelimit-limit-tokens";
-    // The remaining number of requests that are permitted before exhausting the rate limit.
     static final String REMAINING_REQUESTS = "x-ratelimit-remaining-requests";
     // The remaining number of tokens that are permitted before exhausting the rate limit.
     static final String REMAINING_TOKENS = "x-ratelimit-remaining-tokens";
 
     static final String CONTENT_TOO_LARGE_MESSAGE = "Please reduce your prompt; or completion length.";
 
-    static final String OPENAI_SERVER_BUSY = "Received a server busy error status code";
+    static final String AZURE_OPENAI_SERVER_BUSY = "Received a server busy error status code";
 
     public AzureOpenAiResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, AzureOpenAiErrorResponseEntity::fromResponse);
@@ -71,7 +86,7 @@ public class AzureOpenAiResponseHandler extends BaseResponseHandler {
         if (statusCode == 500) {
             throw new RetryException(true, buildError(SERVER_ERROR, request, result));
         } else if (statusCode == 503) {
-            throw new RetryException(true, buildError(OPENAI_SERVER_BUSY, request, result));
+            throw new RetryException(true, buildError(AZURE_OPENAI_SERVER_BUSY, request, result));
         } else if (statusCode > 500) {
             throw new RetryException(false, buildError(SERVER_ERROR, request, result));
         } else if (statusCode == 429) {
@@ -109,18 +124,9 @@ public class AzureOpenAiResponseHandler extends BaseResponseHandler {
 
     static String buildRateLimitErrorMessage(HttpResult result) {
         var response = result.response();
-        var tokenLimit = getFirstHeaderOrUnknown(response, TOKENS_LIMIT);
         var remainingTokens = getFirstHeaderOrUnknown(response, REMAINING_TOKENS);
-        var requestLimit = getFirstHeaderOrUnknown(response, REQUESTS_LIMIT);
         var remainingRequests = getFirstHeaderOrUnknown(response, REMAINING_REQUESTS);
-
-        var usageMessage = Strings.format(
-            "Token limit [%s], remaining tokens [%s]. Request limit [%s], remaining requests [%s]",
-            tokenLimit,
-            remainingTokens,
-            requestLimit,
-            remainingRequests
-        );
+        var usageMessage = Strings.format("Remaining tokens [%s]. Remaining requests [%s].", remainingTokens, remainingRequests);
 
         return RATE_LIMIT + ". " + usageMessage;
     }

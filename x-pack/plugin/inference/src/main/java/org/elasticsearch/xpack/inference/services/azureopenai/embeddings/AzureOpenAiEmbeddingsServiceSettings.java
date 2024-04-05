@@ -55,14 +55,14 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
         var commonFields = fromMap(map, validationException);
 
         Boolean dimensionsSetByUser = removeAsType(map, DIMENSIONS_SET_BY_USER, Boolean.class);
-        if (dimensionsSetByUser == null) {
+        if (dimensionsSetByUser == null && map.containsKey(DIMENSIONS)) {
             validationException.addValidationError(
                 ServiceUtils.missingSettingErrorMsg(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
             );
         }
 
         Boolean encodingFormatSetByUser = removeAsType(map, ENCODING_FORMAT_SET_BY_USER, Boolean.class);
-        if (encodingFormatSetByUser == null) {
+        if (encodingFormatSetByUser == null && map.containsKey(ENCODING_FORMAT)) {
             validationException.addValidationError(
                 ServiceUtils.missingSettingErrorMsg(ENCODING_FORMAT_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
             );
@@ -255,7 +255,7 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_12_0;
+        return TransportVersions.ML_INFERENCE_AZURE_OPENAI_EMBEDDINGS;
     }
 
     @Override

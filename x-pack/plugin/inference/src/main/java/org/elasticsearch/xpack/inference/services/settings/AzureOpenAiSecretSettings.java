@@ -43,6 +43,9 @@ public record AzureOpenAiSecretSettings(SecureString apiKey, SecureString entraI
         }
 
         if (secureApiToken == null && secureEntraId == null) {
+            validationException.addValidationError(
+                String.format("[secret_settings] must have either the [%s] or the [%s] key set", API_KEY, ENTRA_ID)
+            );
             throw validationException;
         }
 

@@ -85,7 +85,9 @@ public final class IndexPrivilege extends Privilege {
         "internal:transport/proxy/indices:data/read/*",
         ClusterSearchShardsAction.NAME,
         TransportSearchShardsAction.TYPE.name(),
-        TransportResolveClusterAction.NAME
+        TransportResolveClusterAction.NAME,
+        "indices:data/read/esql",
+        "indices:data/read/esql/compute"
     );
     private static final Automaton CREATE_AUTOMATON = patterns(
         "indices:data/write/index*",

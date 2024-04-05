@@ -3,6 +3,13 @@
 
 Also see <<breaking-changes-7.17,Breaking changes in 7.17>>.
 
+[[known-issues-7.17.19]]
+[float]
+=== Known issues
+
+* Due to a bug in the bundled JDK 22 nodes might crash abruptly under high memory pressure.
+  We recommend <<jvm-version,downgrading to JDK 21.0.2>> asap to mitigate the issue.
+
 [[bug-7.17.19]]
 [float]
 === Bug fixes

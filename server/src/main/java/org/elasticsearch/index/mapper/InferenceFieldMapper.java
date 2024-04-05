@@ -17,7 +17,6 @@ import java.util.Set;
  * Field mapper that requires to transform its input before indexation through the {@link InferenceService}.
  */
 public interface InferenceFieldMapper {
-    String NAME = "_inference";
 
     /**
      * Retrieve the inference metadata associated with this mapper.

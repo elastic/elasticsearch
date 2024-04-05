@@ -110,7 +110,8 @@ fetch _ignored via fields:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0.fields._ignored.0: "ignored_keyword" }
   - match: { hits.hits.0.fields._ignored.1: "ignored_value" }
-  - match: { hits.hits.0._ignored: null }
+  - match: { hits.hits.0._ignored.0: "ignored_keyword" }
+  - match: { hits.hits.0._ignored.1: "ignored_value" }
 
 ---
 fetch _seq_no via stored_fields:

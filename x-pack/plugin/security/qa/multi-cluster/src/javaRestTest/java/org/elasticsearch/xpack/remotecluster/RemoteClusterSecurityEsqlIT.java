@@ -508,10 +508,6 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "cross-clusters search should not require local index permissions")
-    // will work if you add change "indices": [] to : "indices": [ { "names": [""], "privileges": ["indices:data/read/esql"] } ]
-    // and if you change "cluster": [] to "cluster": [ "monitor_enrich" ]
-    // however that should not be required to executed search + enrich across clusters
     public void testCrossClusterEnrichWithOnlyRemotePrivs() throws Exception {
         configureRemoteCluster();
         populateData();
@@ -519,10 +515,12 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         // Query cluster
         final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
 
+        //local cross_cluster_search cluster priv is required for enrich
+        //ideally, remote only enrichment wouldn't need this local privilege, however remote only enrichment is not currently supported
         putRoleRequest.setJsonEntity("""
             {
-              "indices": [],
-              "cluster": [],
+              "indices": [{"names": [""], "privileges": ["read_cross_cluster"]}],
+              "cluster": ["cross_cluster_search"],
               "remote_indices": [
                 {
                   "names": ["employees"],

@@ -30,7 +30,7 @@ double e()
 "integer|long|double|boolean|keyword|text|ip|version least(first:integer|long|double|boolean|keyword|text|ip|version, ?rest...:integer|long|double|boolean|keyword|text|ip|version)"
 "keyword left(string:keyword|text, length:integer)"
 "integer length(string:keyword|text)"
-"integer locate(str:keyword|text, substr:keyword|text, ?start:integer)"
+"integer locate(string:keyword|text, substring:keyword|text, ?start:integer)"
 "double log(?base:integer|unsigned_long|long|double, number:integer|unsigned_long|long|double)"
 "double log10(number:double|integer|long|unsigned_long)"
 "keyword|text ltrim(string:keyword|text)"
@@ -139,7 +139,7 @@ greatest      |first                               |"integer|long|double|boolean
 least         |first                               |"integer|long|double|boolean|keyword|text|ip|version"                                                                             |[""]
 left          |[string, length]                    |["keyword|text", integer]                                                                                                         |[The string from which to return a substring., The number of characters to return.]
 length        |string                              |"keyword|text"                                                                                                                    |[""]
-locate        |[str, substr, start]                |["keyword|text", "keyword|text", "integer"]                                                                                       |[An input string, A substring to locate in the input string, The start index]
+locate        |[string, substring, start]          |["keyword|text", "keyword|text", "integer"]                                                                                       |[An input string, A substring to locate in the input string, The start index]
 log           |[base, number]                      |["integer|unsigned_long|long|double", "integer|unsigned_long|long|double"]                                                        |["Base of logarithm. If `null`\, the function returns `null`. If not provided\, this function returns the natural logarithm (base e) of a value.", "Numeric expression. If `null`\, the function returns `null`."]
 log10         |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 ltrim         |string                              |"keyword|text"                                                                                                                    |[""]

@@ -2,8 +2,11 @@
 
 *Parameters*
 
-`str`::
+`string`::
 An input string
 
-`substr`::
-a substring to locate in the input string
+`substring`::
+A substring to locate in the input string
+
+`start`::
+The start index

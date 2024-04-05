@@ -46,8 +46,12 @@ public class Locate extends EsqlScalarFunction implements OptionalArgument {
     )
     public Locate(
         Source source,
-        @Param(name = "str", type = { "keyword", "text" }, description = "An input string") Expression str,
-        @Param(name = "substr", type = { "keyword", "text" }, description = "A substring to locate in the input string") Expression substr,
+        @Param(name = "string", type = { "keyword", "text" }, description = "An input string") Expression str,
+        @Param(
+            name = "substring",
+            type = { "keyword", "text" },
+            description = "A substring to locate in the input string"
+        ) Expression substr,
         @Param(optional = true, name = "start", type = { "integer" }, description = "The start index") Expression start
     ) {
         super(source, start == null ? Arrays.asList(str, substr) : Arrays.asList(str, substr, start));

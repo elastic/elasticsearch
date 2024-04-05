@@ -75,7 +75,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         if (in.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_DOCUMENT_REJECTIONS_COUNT)) {
             primaryDocumentRejections = in.readVLong();
         } else {
-            primaryDocumentRejections = 0;
+            primaryDocumentRejections = -1L;
         }
     }
 

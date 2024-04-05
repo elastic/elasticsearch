@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import com.carrotsearch.randomizedtesting.ClassModel;
+
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
@@ -71,6 +75,8 @@ import org.junit.runners.model.Statement;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -101,6 +107,7 @@ import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -579,46 +586,27 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertSerialization(buildFieldExpression(testCase));
     }
 
-    private static boolean ranAllTests = false;
-
-    @ClassRule
-    public static TestRule rule = new TestRule() {
-        @Override
-        public Statement apply(Statement base, Description description) {
-            for (Description d : description.getChildren()) {
-                if (d.getChildren().size() > 1) {
-                    ranAllTests = true;
-                    return base;
-                }
-            }
-            return base;
-        }
-    };
-
     @AfterClass
     public static void testFunctionInfo() {
         Logger log = LogManager.getLogger(getTestClass());
-        if (ranAllTests == false) {
-            log.info("Skipping function info checks because we're running a portion of the tests");
-            return;
-        }
         FunctionDefinition definition = definition(functionName());
         if (definition == null) {
             log.info("Skipping function info checks because the function isn't registered");
             return;
         }
+        assumeFalse("CASE test incomplete", definition.name().equals("case"));
         log.info("Running function info checks");
         EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);
         List<EsqlFunctionRegistry.ArgSignature> args = description.args();
 
-        assertTrue("expect description to be defined", description.description() != null && description.description().length() > 0);
+        assertTrue("expect description to be defined", description.description() != null && false == description.description().isEmpty());
 
         List<Set<String>> typesFromSignature = new ArrayList<>();
         Set<String> returnFromSignature = new HashSet<>();
         for (int i = 0; i < args.size(); i++) {
             typesFromSignature.add(new HashSet<>());
         }
-        for (Map.Entry<List<DataType>, DataType> entry : signatures.entrySet()) {
+        for (Map.Entry<List<DataType>, DataType> entry : signatures().entrySet()) {
             List<DataType> types = entry.getKey();
             for (int i = 0; i < args.size() && i < types.size(); i++) {
                 typesFromSignature.get(i).add(types.get(i).esType());
@@ -1029,10 +1017,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (System.getProperty("generateDocs") == null) {
             return;
         }
-        if (ranAllTests == false) {
-            LogManager.getLogger(getTestClass()).info("Skipping rendering signature because we're running a portion of the tests");
-            return;
-        }
         String rendered = buildSignatureSvg(functionName());
         if (rendered == null) {
             LogManager.getLogger(getTestClass()).info("Skipping rendering signature because the function isn't registered");
@@ -1058,37 +1042,39 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return null;
     }
 
+    private static Class<?> classGeneratingSignatures = null;
     /**
-     * Unique signatures encountered by this test.
-     * <p>
-     * We clear this at the beginning of the test class with
-     * {@link #clearSignatures} out of paranoia. It <strong>is</strong>
-     * shared by many tests, after all.
-     * </p>
-     * <p>
-     * After each test method we add the signature it operated on via
-     * {@link #trackSignature}. Once the test class is done we render
-     * all the unique signatures to a temp file with {@link #renderTypes}.
-     * We use a temp file because that's all we're allowed to write to.
-     * Gradle will move the files into the docs after this is done.
-     * </p>
+     * Unique signatures in this test's parameters.
      */
-    private static final Map<List<DataType>, DataType> signatures = new HashMap<>();
-
-    @BeforeClass
-    public static void clearSignatures() {
-        signatures.clear();
-    }
-
-    @After
-    public void trackSignature() {
-        if (testCase.getExpectedTypeError() != null) {
-            return;
+    private static Map<List<DataType>, DataType> signatures;
+    private static Map<List<DataType>, DataType> signatures() {
+        Class<?> testClass = getTestClass();
+        if (signatures != null && classGeneratingSignatures == testClass) {
+            return signatures;
         }
-        if (testCase.getData().stream().anyMatch(t -> t.type() == DataTypes.NULL)) {
-            return;
+        signatures = new HashMap<>();
+        System.err.println("getting signatures from " + testClass);
+        Set<Method> paramsFactories = new ClassModel(testClass).getAnnotatedLeafMethods(ParametersFactory.class).keySet();
+        assertThat(paramsFactories, hasSize(1));
+        Method paramsFactory = paramsFactories.iterator().next();
+        List<?> params;
+        try {
+            params = (List<?>) paramsFactory.invoke(null);
+        } catch (InvocationTargetException | IllegalAccessException e) {
+            throw new RuntimeException(e);
         }
-        signatures.putIfAbsent(testCase.getData().stream().map(TestCaseSupplier.TypedData::type).toList(), testCase.expectedType());
+        for (Object p : params) {
+            TestCaseSupplier tcs = (TestCaseSupplier) ((Object[]) p)[0];
+            TestCaseSupplier.TestCase tc = tcs.get();
+            if (tc.getExpectedTypeError() != null) {
+                continue;
+            }
+            if (tc.getData().stream().anyMatch(t -> t.type() == DataTypes.NULL)) {
+                continue;
+            }
+            signatures.putIfAbsent(tc.getData().stream().map(TestCaseSupplier.TypedData::type).toList(), tc.expectedType());
+        }
+        return signatures;
     }
 
     @AfterClass
@@ -1141,7 +1127,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         header.append("result");
 
         List<String> table = new ArrayList<>();
-        for (Map.Entry<List<DataType>, DataType> sig : signatures.entrySet()) { // TODO flip to using sortedSignatures
+        for (Map.Entry<List<DataType>, DataType> sig : signatures().entrySet()) { // TODO flip to using sortedSignatures
             if (sig.getKey().size() != argNames.size()) {
                 continue;
             }
@@ -1291,12 +1277,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             builder.startArray("params");
             builder.endArray();
             // There should only be one return type so just use that as the example
-            builder.field("returnType", signatures.values().iterator().next().typeName());
+            builder.field("returnType", signatures().values().iterator().next().typeName());
             builder.endObject();
         } else {
             int minArgCount = (int) args.stream().filter(a -> false == a.optional()).count();
             for (Map.Entry<List<DataType>, DataType> sig : sortedSignatures()) {
-                System.err.println("ADF " + sig.getKey() + "   " + args.stream().map(EsqlFunctionRegistry.ArgSignature::name).toList());
                 if (variadic && sig.getKey().size() > args.size()) {
                     // For variadic functions we test much longer signatures, let's just stop at the last one
                     continue;
@@ -1342,7 +1327,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     private static List<Map.Entry<List<DataType>, DataType>> sortedSignatures() {
-        List<Map.Entry<List<DataType>, DataType>> sortedSignatures = new ArrayList<>(signatures.entrySet());
+        List<Map.Entry<List<DataType>, DataType>> sortedSignatures = new ArrayList<>(signatures().entrySet());
         Collections.sort(sortedSignatures, new Comparator<>() {
             @Override
             public int compare(Map.Entry<List<DataType>, DataType> lhs, Map.Entry<List<DataType>, DataType> rhs) {

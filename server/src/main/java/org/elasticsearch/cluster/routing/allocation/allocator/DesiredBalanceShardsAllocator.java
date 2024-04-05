@@ -117,6 +117,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
             @Override
             protected void processInput(DesiredBalanceInput desiredBalanceInput) {
+                processNodeShutdowns(desiredBalanceInput.routingAllocation().getClusterState());
 
                 long index = desiredBalanceInput.index();
                 logger.debug("Starting desired balance computation for [{}]", index);
@@ -186,8 +187,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         assert MasterService.assertMasterUpdateOrTestThread() : Thread.currentThread().getName();
         assert allocation.ignoreDisable() == false;
 
-        processNodeShutdowns(clusterService.state());
-
         computationsSubmitted.inc();
 
         var index = indexGenerator.incrementAndGet();
@@ -202,17 +201,21 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     private synchronized void processNodeShutdowns(ClusterState clusterState) {
+        final var nodes = clusterState.nodes();
+        final var nodeShutdowns = clusterState.metadata().nodeShutdowns();
+        // If we remove a shutdown marker from a node, but it is still in the cluster, we'd need a reset.
+        boolean reset = processedNodeShutdowns.removeIf(nodeId -> nodeShutdowns.contains(nodeId) == false && nodes.get(nodeId) != null);
         // Clean up processed shutdowns that are removed from the cluster metadata
-        processedNodeShutdowns.removeIf(nodeId -> clusterState.metadata().nodeShutdowns().contains(nodeId) == false);
+        processedNodeShutdowns.removeIf(nodeId -> nodeShutdowns.contains(nodeId) == false);
 
         Set<String> newShutdowns = new HashSet<>();
-        for (var shutdown : clusterState.metadata().nodeShutdowns().getAll().entrySet()) {
+        for (var shutdown : nodeShutdowns.getAll().entrySet()) {
             if (shutdown.getValue().getType() != SingleNodeShutdownMetadata.Type.RESTART
                 && processedNodeShutdowns.contains(shutdown.getKey()) == false) {
                 newShutdowns.add(shutdown.getKey());
             }
         }
-        if (newShutdowns.isEmpty() == false) {
+        if (reset || newShutdowns.isEmpty() == false) {
             resetDesiredBalance();
         }
         processedNodeShutdowns.addAll(newShutdowns);

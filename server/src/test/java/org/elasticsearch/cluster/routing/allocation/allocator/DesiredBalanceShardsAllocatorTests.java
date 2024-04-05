@@ -723,15 +723,30 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
             final var clusterStateBuilder = ClusterState.builder(clusterState)
                 .metadata(Metadata.builder(clusterState.metadata()).putCustom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY));
-            if (randomBoolean()) {
-                // Remove the node. This shouldn't matter since we rely only on the shutdown metadata.
+            final var nodeRemovedFromCluster = randomBoolean();
+            if (nodeRemovedFromCluster) {
                 clusterStateBuilder.nodes(DiscoveryNodes.builder().add(node1).localNodeId(node1.getId()).masterNodeId(node1.getId()));
             }
             clusterState = clusterStateBuilder.build();
             ClusterServiceUtils.setState(clusterService, clusterState);
             rerouteAndWait(service, clusterState, "random-reroute");
-            assertFalse("desired balance reset should not be called again for processed shutdowns", resetCalled.get());
+            if (nodeRemovedFromCluster) {
+                assertFalse("desired balance reset should not be called again for processed shutdowns", resetCalled.get());
+            } else {
+                assertTrue("desired balance reset should be called again for processed shutdowns", resetCalled.get());
+            }
             assertTrue(desiredBalanceAllocator.getProcessedNodeShutdowns().isEmpty());
+
+            resetCalled.set(false);
+            if (nodeRemovedFromCluster == false) {
+                clusterState = ClusterState.builder(clusterState)
+                    .nodes(DiscoveryNodes.builder().add(node1).localNodeId(node1.getId()).masterNodeId(node1.getId()))
+                    .build();
+                ClusterServiceUtils.setState(clusterService, clusterState);
+                rerouteAndWait(service, clusterState, "reroute-after-node-removed");
+                assertFalse("desired balance reset should not be called", resetCalled.get());
+                assertTrue(desiredBalanceAllocator.getProcessedNodeShutdowns().isEmpty());
+            }
         } finally {
             clusterService.close();
             terminate(threadPool);

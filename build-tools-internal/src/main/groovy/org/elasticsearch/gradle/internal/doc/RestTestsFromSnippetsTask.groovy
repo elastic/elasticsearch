@@ -97,7 +97,7 @@ abstract class RestTestsFromSnippetsTask extends SnippetsTask {
     DirectoryProperty getTestRoot() {
         return testRoot
     }
-/**
+    /**
      * Is this snippet a candidate for conversion to `// CONSOLE`?
      */
     static isConsoleCandidate(Snippet snippet) {

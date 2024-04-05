@@ -71,7 +71,7 @@ public class StoredFieldsPhase implements FetchSubPhase {
                         continue;
                     }
                     MappedFieldType ft = sec.getFieldType(fieldName);
-                    if (ft.isStored() == false) {
+                    if (ft.isStored() == false || sec.isMetadataField(fieldName)) {
                         continue;
                     }
                     storedFields.add(new StoredField(fieldName, ft));

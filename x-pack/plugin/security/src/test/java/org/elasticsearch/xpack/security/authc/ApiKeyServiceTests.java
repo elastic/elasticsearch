@@ -228,10 +228,6 @@ public class ApiKeyServiceTests extends ESTestCase {
     private CacheInvalidatorRegistry cacheInvalidatorRegistry;
     private Clock clock;
 
-    public static String randomCrossClusterApiKeyAccessField() {
-        return randomFrom(ACCESS_CANDIDATES);
-    }
-
     @Before
     public void createThreadPool() {
         threadPool = Mockito.spy(
@@ -2869,6 +2865,10 @@ public class ApiKeyServiceTests extends ESTestCase {
             null,
             RoleRestrictionTests.randomWorkflowsRestriction(1, 3)
         );
+    }
+
+    public static String randomCrossClusterApiKeyAccessField() {
+        return randomFrom(ACCESS_CANDIDATES);
     }
 
     public static class Utils {

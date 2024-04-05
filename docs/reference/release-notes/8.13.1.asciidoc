@@ -3,6 +3,13 @@
 
 Also see <<breaking-changes-8.13,Breaking changes in 8.13>>.
 
+[[known-issues-8.13.1]]
+[float]
+=== Known issues
+
+* Due to a bug in the bundled JDK 22 nodes might crash abruptly under high memory pressure.
+We recommend <<jvm-version,downgrading to JDK 21.0.2>> asap to mitigate the issue.
+
 [[bug-8.13.1]]
 [float]
 === Bug fixes

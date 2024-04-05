@@ -95,6 +95,9 @@ setup:
 ---
 "Test frequent item sets array fields":
 
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/106215"
   - do:
       search:
         index: store
@@ -125,6 +128,9 @@ setup:
 ---
 "Test frequent item sets date format":
 
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/106215"
   - do:
       search:
         index: store
@@ -161,6 +167,9 @@ setup:
 ---
 "Test frequent item sets date format 2":
 
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/106215"
   - do:
       search:
         index: store
@@ -197,6 +206,9 @@ setup:
 ---
 "Test frequent item sets array fields profile":
 
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/106215"
   - do:
       search:
         index: store
@@ -231,6 +243,9 @@ setup:
 ---
 "Test frequent item sets flattened fields":
 
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/106215"
   - do:
       search:
         index: store-flattened
@@ -261,6 +276,9 @@ setup:
 ---
 "Test frequent item sets as subagg":
 
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/106215"
   - do:
       search:
         index: store
@@ -300,6 +318,9 @@ setup:
 ---
 "Test frequent item sets as multi-bucket subagg":
 
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/106215"
   - do:
       search:
         index: store
@@ -337,6 +358,9 @@ setup:
 ---
 "Test frequent item sets filter":
 
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/106215"
   - do:
       search:
         index: store
@@ -371,6 +395,9 @@ setup:
 ---
 "Test frequent item sets exclude":
 
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/106215"
   - do:
       search:
         index: store
@@ -403,6 +430,9 @@ setup:
 ---
 "Test frequent item sets include":
 
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/106215"
   - do:
       search:
         index: store
@@ -481,6 +511,10 @@ setup:
 
 ---
 "Test frequent item sets unsupported subaggs":
+
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/106215"
   - do:
       catch: /Aggregator \[fi\] of type \[frequent_item_sets\] cannot accept sub-aggregations/
       search:
@@ -514,6 +548,8 @@ setup:
   - skip:
       features:
         - "allowed_warnings"
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/106215"
 
   - do:
       allowed_warnings:
@@ -549,7 +585,9 @@ setup:
 "Test frequent items on empty index":
   - skip:
       features: headers
-
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/106215"
+      
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser

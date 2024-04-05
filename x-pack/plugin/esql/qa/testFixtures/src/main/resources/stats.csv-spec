@@ -1568,7 +1568,7 @@ c:l| languages:i
 10 | null
 ;
 
-evalMultipleOverridingKeys
+evalMultipleOverridingKeys#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
 | EVAL k = languages, k1 = k
 | STATS c = COUNT() BY languages, k, k1, languages

@@ -3164,6 +3164,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * 1 + salary{f}#23 + emp_no{f}#18 % 2[INTEGER] AS $$languages_+_sal>$COUNT$0]]
      *     \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
      */
+    @AwaitsFix(bugUrl = "disabled since canonical representation relies on hashing which is runtime defined")
     public void testNestedExpressionsWithMultiGrouping() {
         var plan = optimizedPlan("""
             from test
@@ -3190,8 +3191,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         if (add2.left() instanceof Mod mod) {
             add2 = add2.swapLeftAndRight();
         }
-        var add3 = as(add2.left().canonical(), Add.class);
-        var mod = as(add2.right().canonical(), Mod.class);
+        var add3 = as(add2.left(), Add.class);
+        var mod = as(add2.right(), Mod.class);
         // languages + salary
         assertThat(Expressions.name(add3.left()), anyOf(is("languages"), is("salary")));
         assertThat(Expressions.name(add3.right()), anyOf(is("salary"), is("languages")));

@@ -56,6 +56,7 @@ types:
 ** <<ip-synthetic-source,`ip`>>
 ** <<keyword-synthetic-source,`keyword`>>
 ** <<numeric-synthetic-source,`long`>>
+** <<range-synthetic-source,`range` types>>
 ** <<numeric-synthetic-source,`scaled_float`>>
 ** <<numeric-synthetic-source,`short`>>
 ** <<text-synthetic-source,`text`>>

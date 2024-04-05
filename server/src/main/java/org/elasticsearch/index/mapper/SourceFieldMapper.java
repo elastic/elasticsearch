@@ -152,7 +152,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         private boolean isDefault() {
             Mode m = mode.get();
-            if (m != null && (indexMode == IndexMode.TIME_SERIES && m == Mode.SYNTHETIC) == false) {
+            if (m != null && (((indexMode == IndexMode.TIME_SERIES && m == Mode.SYNTHETIC) == false) || m == Mode.DISABLED)) {
                 return false;
             }
             return enabled.get().value() && includes.getValue().isEmpty() && excludes.getValue().isEmpty();
@@ -170,7 +170,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             }
             if (isDefault()) {
                 return indexMode == IndexMode.TIME_SERIES ? TSDB_DEFAULT : DEFAULT;
-            } else if (supportsNonDefaultParameterValues == false) {
+            }
+            if (supportsNonDefaultParameterValues == false) {
                 List<String> disallowed = new ArrayList<>();
                 if (enabled.get().value() == false) {
                     disallowed.add("enabled");
@@ -180,6 +181,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 }
                 if (excludes.get().isEmpty() == false) {
                     disallowed.add("excludes");
+                }
+                if (mode.get() == Mode.DISABLED) {
+                    disallowed.add("mode=disabled");
                 }
                 assert disallowed.isEmpty() == false;
                 throw new MapperParsingException(

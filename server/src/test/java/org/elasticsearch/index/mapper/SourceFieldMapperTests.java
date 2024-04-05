@@ -248,7 +248,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 .documentMapper()
                 .sourceMapper()
         );
-        assertThat(e.getMessage(), containsString("Failed to parse mapping: Parameter [enabled] is not allowed in source"));
+        assertThat(e.getMessage(), containsString("Parameter [enabled] is not allowed in source"));
 
         e = expectThrows(
             MapperParsingException.class,
@@ -256,7 +256,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 .documentMapper()
                 .sourceMapper()
         );
-        assertThat(e.getMessage(), containsString("Failed to parse mapping: Parameter [includes] is not allowed in source"));
+        assertThat(e.getMessage(), containsString("Parameter [includes] is not allowed in source"));
 
         e = expectThrows(
             MapperParsingException.class,
@@ -264,20 +264,30 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 .documentMapper()
                 .sourceMapper()
         );
-        assertThat(e.getMessage(), containsString("Failed to parse mapping: Parameter [excludes] is not allowed in source"));
+        assertThat(e.getMessage(), containsString("Parameter [excludes] is not allowed in source"));
+
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(settings, topMapping(b -> b.startObject("_source").field("mode", "disabled").endObject()))
+                .documentMapper()
+                .sourceMapper()
+        );
+        assertThat(e.getMessage(), containsString("Parameter [mode=disabled] is not allowed in source"));
 
         e = expectThrows(
             MapperParsingException.class,
             () -> createMapperService(
                 settings,
                 topMapping(
-                    b -> b.startObject("_source").field("enabled", false).array("includes", "foo").array("excludes", "foo").endObject()
+                    b -> b.startObject("_source")
+                        .field("enabled", false)
+                        .field("mode", "disabled")
+                        .array("includes", "foo")
+                        .array("excludes", "foo")
+                        .endObject()
                 )
             ).documentMapper().sourceMapper()
         );
-        assertThat(
-            e.getMessage(),
-            containsString("Failed to parse mapping: Parameters [enabled,includes,excludes] are not allowed in source")
-        );
+        assertThat(e.getMessage(), containsString("Parameters [enabled,mode=disabled,includes,excludes] are not allowed in source"));
     }
 }

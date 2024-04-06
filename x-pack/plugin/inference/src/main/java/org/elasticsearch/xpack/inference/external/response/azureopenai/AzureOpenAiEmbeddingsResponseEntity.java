@@ -20,7 +20,9 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.inference.external.response.XContentUtils.*;
+import static org.elasticsearch.xpack.inference.external.response.XContentUtils.consumeUntilObjectEnd;
+import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
+import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
 
 public class AzureOpenAiEmbeddingsResponseEntity {
     private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in Azure OpenAI embeddings response";

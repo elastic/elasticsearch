@@ -20,7 +20,9 @@ import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOp
 import java.net.URI;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.external.action.ActionUtils.*;
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.createInternalServerError;
+import static org.elasticsearch.xpack.inference.external.action.ActionUtils.wrapFailuresInElasticsearchException;
 
 public class AzureOpenAiEmbeddingsAction implements ExecutableAction {
 

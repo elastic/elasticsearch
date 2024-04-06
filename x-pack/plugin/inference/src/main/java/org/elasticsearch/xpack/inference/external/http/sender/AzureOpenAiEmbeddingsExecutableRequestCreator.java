@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
 public class AzureOpenAiEmbeddingsExecutableRequestCreator implements ExecutableRequestCreator {
@@ -101,7 +102,7 @@ public class AzureOpenAiEmbeddingsExecutableRequestCreator implements Executable
     }
 
     private URI getEmbeddingsUri() throws URISyntaxException {
-        String hostname = String.format("%s.%s", account.resourceName(), AzureOpenAiUtils.HOST_SUFFIX);
+        String hostname = format("%s.%s", account.resourceName(), AzureOpenAiUtils.HOST_SUFFIX);
         return new URIBuilder().setScheme("https")
             .setHost(hostname)
             .setPathSegments(

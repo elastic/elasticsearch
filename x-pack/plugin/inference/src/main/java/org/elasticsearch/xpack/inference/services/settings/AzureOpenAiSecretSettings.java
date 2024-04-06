@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
 
 public record AzureOpenAiSecretSettings(SecureString apiKey, SecureString entraId) implements SecretSettings {
@@ -44,7 +45,7 @@ public record AzureOpenAiSecretSettings(SecureString apiKey, SecureString entraI
 
         if (secureApiToken == null && secureEntraId == null) {
             validationException.addValidationError(
-                String.format("[secret_settings] must have either the [%s] or the [%s] key set", API_KEY, ENTRA_ID)
+                format("[secret_settings] must have either the [%s] or the [%s] key set", API_KEY, ENTRA_ID)
             );
             throw validationException;
         }

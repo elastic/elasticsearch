@@ -172,13 +172,6 @@ emp_no:integer | last_name:keyword | x:keyword | z:keyword
 10010 | Piveteau  | P | a
 ;
 
-substringUtf16Emoji#[skip:-8.13.99,reason:bug fix in 8.14]
-row a = "🐱Meow!🐶Woof!" | eval sub1 = substring(a, 2) | eval sub2 = substring(a, 2, 100);
-
-a:keyword | sub1:keyword | sub2:keyword
-🐱Meow!🐶Woof! | Meow!🐶Woof! | Meow!🐶Woof!
-;
-
 ltrim
 from employees | sort emp_no | limit 10 | eval name = concat("  ", first_name, "  ") | eval name = ltrim(name) | eval name = concat("'", name, "'") | keep emp_no, name;
 

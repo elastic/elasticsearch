@@ -175,6 +175,12 @@ public class LocateTests extends AbstractFunctionTestCase {
         assertThat(process("𠜎a ti𠜎er", "𠜎a ti𠜎ers", 0), equalTo(0));
         assertThat(process("a ti𠜎er", "aa ti𠜎er", 0), equalTo(0));
         assertThat(process("abc𠜎𠜎", "𠜎𠜎𠜎", 0), equalTo(0));
+
+        assert "🐱".length() == 2 && "🐶".length() == 2;
+        assert "🐱".codePointCount(0, 2) == 1 && "🐶".codePointCount(0, 2) == 1;
+        assert "🐱".getBytes(UTF_8).length == 4 && "🐶".getBytes(UTF_8).length == 4;
+        assertThat(process("🐱Meow!🐶Woof!",  "🐱Meow!🐶Woof!", 0), equalTo(1));
+        assertThat(process("🐱Meow!🐶Woof!",  "Meow!🐶Woof!", 0), equalTo(2));
     }
 
     private Integer process(String str, String substr, Integer start) {

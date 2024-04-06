@@ -155,6 +155,9 @@ class GetStackTracesResponseBuilder {
                 if (event != null) {
                     StackTrace stackTrace = entry.getValue();
                     stackTrace.count = event.count;
+                    if (event.subGroups.isEmpty() == false) {
+                        stackTrace.subGroups = event.subGroups;
+                    }
                     stackTrace.annualCO2Tons = event.annualCO2Tons;
                     stackTrace.annualCostsUSD = event.annualCostsUSD;
                 }

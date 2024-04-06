@@ -29,7 +29,7 @@ public class AzureOpenAiEmbeddingsResponseEntity {
      * Parses the Azure OpenAI json response.
      * Note - this uses the same format as the OpenAI responses, but we are not guaranteed that it will stay that
      * way in the future.
-     * 
+     *
      * For a request like:
      *
      * <pre>

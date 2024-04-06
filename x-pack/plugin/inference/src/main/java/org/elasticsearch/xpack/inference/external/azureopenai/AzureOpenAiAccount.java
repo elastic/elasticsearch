@@ -7,13 +7,9 @@
 
 package org.elasticsearch.xpack.inference.external.azureopenai;
 
-import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiUtils;
 
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.Objects;
 
 public record AzureOpenAiAccount(

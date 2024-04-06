@@ -44,7 +44,6 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectation;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-
 import static org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModelTests.createModel;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -203,7 +202,7 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
     ) {
         AzureOpenAiEmbeddingsModel model = null;
         try {
-            model = createModel(resourceName, deploymentId, apiVersion, user, apiKey, inferenceEntityId);
+            model = createModel(resourceName, deploymentId, apiVersion, user, apiKey, null, inferenceEntityId);
             var action = new AzureOpenAiEmbeddingsAction(sender, model, createWithEmptySettings(threadPool));
             action.setRequestUri(new URI(getUrl(webServer)));
             return action;

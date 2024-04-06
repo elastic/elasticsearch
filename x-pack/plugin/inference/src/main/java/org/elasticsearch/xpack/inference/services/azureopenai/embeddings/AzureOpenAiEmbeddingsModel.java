@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.inference.external.action.azureopenai.AzureOpenAi
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiModel;
 import org.elasticsearch.xpack.inference.services.settings.AzureOpenAiSecretSettings;
-import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.Map;
 

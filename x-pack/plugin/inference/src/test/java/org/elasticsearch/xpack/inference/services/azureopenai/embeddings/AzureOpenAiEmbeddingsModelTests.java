@@ -22,16 +22,16 @@ import static org.hamcrest.Matchers.sameInstance;
 public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
 
     public void testOverrideWith_OverridesUser() {
-        var model = createModel("resource", "deployment", "apiversion", null, "api_key", "id");
+        var model = createModel("resource", "deployment", "apiversion", null, "api_key", null, "id");
         var requestTaskSettingsMap = getAzureOpenAiRequestTaskSettingsMap("user_override");
 
         var overriddenModel = AzureOpenAiEmbeddingsModel.of(model, requestTaskSettingsMap);
 
-        assertThat(overriddenModel, is(createModel("resource", "deployment", "apiversion", "user_override", "api_key", "id")));
+        assertThat(overriddenModel, is(createModel("resource", "deployment", "apiversion", "user_override", "api_key", null, "id")));
     }
 
     public void testOverrideWith_EmptyMap() {
-        var model = createModel("resource", "deployment", "apiversion", null, "api_key", "id");
+        var model = createModel("resource", "deployment", "apiversion", null, "api_key", null, "id");
 
         var requestTaskSettingsMap = Map.<String, Object>of();
 
@@ -40,7 +40,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
     }
 
     public void testOverrideWith_NullMap() {
-        var model = createModel("resource", "deployment", "apiversion", null, "api_key", "id");
+        var model = createModel("resource", "deployment", "apiversion", null, "api_key", null, "id");
 
         var overriddenModel = AzureOpenAiEmbeddingsModel.of(model, null);
         assertThat(overriddenModel, sameInstance(model));
@@ -51,16 +51,19 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
         String deploymentId,
         String apiVersion,
         String user,
-        String apiKey,
+        @Nullable String apiKey,
+        @Nullable String entraId,
         String inferenceEntityId
     ) {
+        var secureApiKey = apiKey != null ? new SecureString(apiKey.toCharArray()) : null;
+        var secureEntraId = entraId != null ? new SecureString(entraId.toCharArray()) : null;
         return new AzureOpenAiEmbeddingsModel(
             inferenceEntityId,
             TaskType.TEXT_EMBEDDING,
             "service",
             new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, null, false, null, false, null),
             new AzureOpenAiEmbeddingsTaskSettings(user),
-            new AzureOpenAiSecretSettings(new SecureString(apiKey.toCharArray()), null)
+            new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
         );
     }
 
@@ -78,6 +81,9 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
         @Nullable String entraId,
         String inferenceEntityId
     ) {
+        var secureApiKey = apiKey != null ? new SecureString(apiKey.toCharArray()) : null;
+        var secureEntraId = entraId != null ? new SecureString(entraId.toCharArray()) : null;
+
         return new AzureOpenAiEmbeddingsModel(
             inferenceEntityId,
             TaskType.TEXT_EMBEDDING,
@@ -93,7 +99,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
                 maxInputTokens
             ),
             new AzureOpenAiEmbeddingsTaskSettings(user),
-            new AzureOpenAiSecretSettings(new SecureString(apiKey.toCharArray()), new SecureString(entraId.toCharArray()))
+            new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
         );
     }
 

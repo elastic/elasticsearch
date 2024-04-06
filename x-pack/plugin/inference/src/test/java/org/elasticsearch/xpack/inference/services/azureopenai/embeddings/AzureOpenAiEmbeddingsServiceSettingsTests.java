@@ -68,8 +68,12 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
                     apiVersion,
                     ServiceFields.DIMENSIONS,
                     dims,
+                    DIMENSIONS_SET_BY_USER,
+                    true,
                     AzureOpenAiServiceFields.ENCODING_FORMAT,
                     encodingFormat,
+                    ENCODING_FORMAT_SET_BY_USER,
+                    true,
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens
                 )
@@ -111,6 +115,8 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
                     apiVersion,
                     AzureOpenAiServiceFields.ENCODING_FORMAT,
                     encodingFormat,
+                    ENCODING_FORMAT_SET_BY_USER,
+                    true,
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens
                 )

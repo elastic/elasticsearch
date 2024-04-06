@@ -33,20 +33,20 @@ public class AzureOpenAiResponseHandler extends BaseResponseHandler {
      *   - https://github.com/pablosalvador10/gbbai-azure-ai-aoai
      *
      * An example from CURL shows:
-     * < HTTP/2 200
-     * < content-length: 33525
-     * < content-type: application/json
-     * < access-control-allow-origin: *
-     * < x-ratelimit-remaining-requests: 119
-     * < apim-request-id: cb28c608-ff0b-43c0-baca-f6c60a2d120b
-     * < strict-transport-security: max-age=31536000; includeSubDomains; preload
-     * < x-content-type-options: nosniff
-     * < x-request-id: 93117dcb-0193-49cf-9f8e-7aeb2995297d
-     * < x-ms-client-request-id: cb28c608-ff0b-43c0-baca-f6c60a2d120b
-     * < x-ratelimit-remaining-tokens: 119990
-     * < azureml-model-session: d012-20240327190940
-     * < x-ms-region: East US 2
-     * < date: Fri, 05 Apr 2024 12:26:05 GMT
+     * HTTP/2 200
+     * content-length: 33525
+     * content-type: application/json
+     * access-control-allow-origin: *
+     * x-ratelimit-remaining-requests: 119
+     * apim-request-id: cb28c608-ff0b-43c0-baca-f6c60a2d120b
+     * strict-transport-security: max-age=31536000; includeSubDomains; preload
+     * x-content-type-options: nosniff
+     * x-request-id: 93117dcb-0193-49cf-9f8e-7aeb2995297d
+     * x-ms-client-request-id: cb28c608-ff0b-43c0-baca-f6c60a2d120b
+     * x-ratelimit-remaining-tokens: 119990
+     * azureml-model-session: d012-20240327190940
+     * x-ms-region: East US 2
+     * date: Fri, 05 Apr 2024 12:26:05 GMT
      *
      */
     static final String REMAINING_REQUESTS = "x-ratelimit-remaining-requests";

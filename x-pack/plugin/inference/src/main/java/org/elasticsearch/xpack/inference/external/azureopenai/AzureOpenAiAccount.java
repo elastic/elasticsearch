@@ -23,25 +23,11 @@ public record AzureOpenAiAccount(
     @Nullable SecureString apiKey,
     @Nullable SecureString entraId
 ) {
+
     public AzureOpenAiAccount {
         Objects.requireNonNull(resourceName);
         Objects.requireNonNull(deploymentId);
         Objects.requireNonNull(apiVersion);
         Objects.requireNonNullElse(apiKey, entraId);
-    }
-
-    public URI getEmbeddingsUri() throws URISyntaxException {
-        String hostname = String.format("%s.%s", resourceName, AzureOpenAiUtils.HOST_SUFFIX);
-        return new URIBuilder().setScheme("https")
-            .setHost(hostname)
-            .setPathSegments(
-                AzureOpenAiUtils.OPENAI_PATH,
-                AzureOpenAiUtils.DEPLOYMENTS_PATH,
-                deploymentId,
-                AzureOpenAiUtils.EMBEDDINGS_PATH
-            )
-            .addParameter(AzureOpenAiUtils.API_VERSION_PARAMETER, apiVersion)
-            .build();
-
     }
 }

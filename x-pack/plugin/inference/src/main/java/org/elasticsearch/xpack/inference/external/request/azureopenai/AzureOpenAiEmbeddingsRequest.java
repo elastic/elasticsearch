@@ -41,19 +41,14 @@ public class AzureOpenAiEmbeddingsRequest implements AzureOpenAiRequest {
         Truncator truncator,
         AzureOpenAiAccount account,
         Truncator.TruncationResult input,
-        AzureOpenAiEmbeddingsModel model
+        AzureOpenAiEmbeddingsModel model,
+        URI embeddingsRequestUri
     ) {
         this.truncator = Objects.requireNonNull(truncator);
         this.account = Objects.requireNonNull(account);
         this.truncationResult = Objects.requireNonNull(input);
         this.model = Objects.requireNonNull(model);
-
-        try {
-            this.uri = this.account.getEmbeddingsUri();
-        } catch (URISyntaxException e) {
-            // using bad request here so that potentially sensitive URL information does not get logged
-            throw new ElasticsearchStatusException("Failed to construct Azure OpenAI URL", RestStatus.BAD_REQUEST, e);
-        }
+        this.uri = embeddingsRequestUri;
     }
 
     public HttpRequest createHttpRequest() {
@@ -98,7 +93,7 @@ public class AzureOpenAiEmbeddingsRequest implements AzureOpenAiRequest {
     public Request truncate() {
         var truncatedInput = truncator.truncate(truncationResult.input());
 
-        return new AzureOpenAiEmbeddingsRequest(truncator, account, truncatedInput, model);
+        return new AzureOpenAiEmbeddingsRequest(truncator, account, truncatedInput, model, uri);
     }
 
     @Override

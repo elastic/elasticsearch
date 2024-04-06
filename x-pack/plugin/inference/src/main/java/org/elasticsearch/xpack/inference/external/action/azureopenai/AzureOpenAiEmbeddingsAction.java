@@ -17,13 +17,14 @@ import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
 
+import java.net.URI;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.*;
 
 public class AzureOpenAiEmbeddingsAction implements ExecutableAction {
 
-    private final String errorMessage;
+    private String errorMessage;
     private final AzureOpenAiEmbeddingsExecutableRequestCreator requestCreator;
     private final Sender sender;
 
@@ -32,7 +33,12 @@ public class AzureOpenAiEmbeddingsAction implements ExecutableAction {
         Objects.requireNonNull(model);
         this.sender = Objects.requireNonNull(sender);
         requestCreator = new AzureOpenAiEmbeddingsExecutableRequestCreator(model, serviceComponents.truncator());
-        errorMessage = constructFailedToSendRequestMessage(null, "Azure OpenAI embeddings");
+        errorMessage = constructFailedToSendRequestMessage(requestCreator.getAzureOpenAiRequestUri(), "Azure OpenAI embeddings");
+    }
+
+    public void setRequestUri(URI uri) {
+        this.requestCreator.setAzureOpenAiRequestUri(uri);
+        errorMessage = constructFailedToSendRequestMessage(uri, "Azure OpenAI embeddings");
     }
 
     @Override

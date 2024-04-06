@@ -99,6 +99,39 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
         String encodingFormat = extractOptionalString(map, ENCODING_FORMAT, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer maxTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
 
+        if (dims != null) {
+            Boolean hasUserSetDimensions = extractOptionalBoolean(
+                map,
+                DIMENSIONS_SET_BY_USER,
+                ModelConfigurations.SERVICE_SETTINGS,
+                validationException
+            );
+
+            if (hasUserSetDimensions == null) {
+                validationException.addValidationError(
+                    ServiceUtils.missingSettingErrorMsg(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                );
+            }
+        }
+
+        if (encodingFormat != null) {
+            Boolean hasUserSetEncodingFormat = extractOptionalBoolean(
+                map,
+                ENCODING_FORMAT_SET_BY_USER,
+                ModelConfigurations.SERVICE_SETTINGS,
+                validationException
+            );
+            if (hasUserSetEncodingFormat == null) {
+                validationException.addValidationError(
+                    ServiceUtils.missingSettingErrorMsg(ENCODING_FORMAT_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                );
+            }
+        }
+
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
+        }
+
         return new CommonFields(resourceName, deploymentId, apiVersion, dims, encodingFormat, maxTokens);
     }
 

@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAi
  */
 public class AzureOpenAiEmbeddingsTaskSettings implements TaskSettings {
 
-    public static final String NAME = "openai_embeddings_task_settings";
+    public static final String NAME = "azure_openai_embeddings_task_settings";
 
     public static AzureOpenAiEmbeddingsTaskSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();

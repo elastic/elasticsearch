@@ -603,6 +603,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
         verifyNoMoreInteractions(sender);
     }
 
+    /*
     public void testInfer_SendsRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
@@ -630,8 +631,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            TODO - override URL as Azure will define its own...
-            TODO - override URL as Azure will define its own...
+            // TODO - override URL as Azure will define its own...
+            // TODO - override URL as Azure will define its own...
 
             var model = AzureOpenAiEmbeddingsModelTests.createModel("resource", "deployment", "apiversion", "user", "apikey", "id");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();

@@ -73,6 +73,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         return plugins;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1549")
     public void testCacheIsWarmedBeforeIndexingShardRelocation() throws Exception {
         startMasterOnlyNode();
 

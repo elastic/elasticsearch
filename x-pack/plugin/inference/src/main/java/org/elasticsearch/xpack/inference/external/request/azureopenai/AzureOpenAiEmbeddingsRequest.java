@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.request.azureopenai;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.message.BasicHeader;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
@@ -26,7 +27,6 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
 import static org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiUtils.API_KEY_HEADER;
 
 public class AzureOpenAiEmbeddingsRequest implements AzureOpenAiRequest {
-
     private final Truncator truncator;
     private final AzureOpenAiAccount account;
     private final Truncator.TruncationResult truncationResult;
@@ -50,26 +50,29 @@ public class AzureOpenAiEmbeddingsRequest implements AzureOpenAiRequest {
     public HttpRequest createHttpRequest() {
         HttpPost httpPost = new HttpPost(uri);
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(
-                new AzureOpenAiEmbeddingsRequestEntity(
-                    truncationResult.input(),
-                    model.getTaskSettings().user(),
-                    model.getServiceSettings().dimensions(),
-                    model.getServiceSettings().dimensionsSetByUser(),
-                    model.getServiceSettings().encodingFormat(),
-                    model.getServiceSettings().encodingFormatSetByUser()
-                )
-            ).getBytes(StandardCharsets.UTF_8)
+        String requestEntity = Strings.toString(
+            new AzureOpenAiEmbeddingsRequestEntity(
+                truncationResult.input(),
+                model.getTaskSettings().user(),
+                model.getServiceSettings().dimensions(),
+                model.getServiceSettings().dimensionsSetByUser(),
+                model.getServiceSettings().encodingFormat(),
+                model.getServiceSettings().encodingFormatSetByUser()
+            )
         );
+
+        ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));
         httpPost.setEntity(byteEntity);
 
-        httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
-        var entraId = account.entraId();
-        if (entraId != null) {
+        httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));
+
+        var entraId = model.getSecretSettings().entraId();
+        var apiKey = model.getSecretSettings().apiKey();
+
+        if (entraId != null && entraId.isEmpty() == false) {
             httpPost.setHeader(createAuthBearerHeader(entraId));
-        } else {
-            httpPost.setHeader(API_KEY_HEADER, account.apiKey().toString());
+        } else if (apiKey != null && apiKey.isEmpty() == false) {
+            httpPost.setHeader(new BasicHeader(API_KEY_HEADER, apiKey.toString()));
         }
 
         return new HttpRequest(httpPost, getInferenceEntityId());

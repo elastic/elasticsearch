@@ -50,6 +50,13 @@ public record AzureOpenAiSecretSettings(SecureString apiKey, SecureString entraI
             throw validationException;
         }
 
+        if (secureApiToken != null && secureEntraId != null) {
+            validationException.addValidationError(
+                format("[secret_settings] must have only one of the [%s] or the [%s] key set", API_KEY, ENTRA_ID)
+            );
+            throw validationException;
+        }
+
         return new AzureOpenAiSecretSettings(secureApiToken, secureEntraId);
     }
 
@@ -60,8 +67,15 @@ public record AzureOpenAiSecretSettings(SecureString apiKey, SecureString entraI
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(API_KEY, apiKey.toString());
-        builder.field(ENTRA_ID, apiKey.toString());
+
+        if (apiKey != null) {
+            builder.field(API_KEY, apiKey.toString());
+        }
+
+        if (entraId != null) {
+            builder.field(ENTRA_ID, entraId.toString());
+        }
+
         builder.endObject();
         return builder;
     }

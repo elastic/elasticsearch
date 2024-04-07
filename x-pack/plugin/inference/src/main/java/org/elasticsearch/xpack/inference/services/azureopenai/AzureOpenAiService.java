@@ -183,10 +183,10 @@ public class AzureOpenAiService extends SenderService {
             return;
         }
 
-        AzureOpenAiModel openAiModel = (AzureOpenAiModel) model;
+        AzureOpenAiModel azureOpenAiModel = (AzureOpenAiModel) model;
         var actionCreator = new AzureOpenAiActionCreator(getSender(), getServiceComponents());
 
-        var action = openAiModel.accept(actionCreator, taskSettings);
+        var action = azureOpenAiModel.accept(actionCreator, taskSettings);
         action.execute(new DocumentsOnlyInput(input), listener);
     }
 
@@ -199,7 +199,7 @@ public class AzureOpenAiService extends SenderService {
         InputType inputType,
         ActionListener<InferenceServiceResults> listener
     ) {
-        throw new UnsupportedOperationException("OpenAI service does not support inference with query input");
+        throw new UnsupportedOperationException("Azure OpenAI service does not support inference with query input");
     }
 
     @Override

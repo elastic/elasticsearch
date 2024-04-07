@@ -13,11 +13,17 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.settings.AzureOpenAiSecretSettings.API_KEY;
+import static org.elasticsearch.xpack.inference.services.settings.AzureOpenAiSecretSettings.ENTRA_ID;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -36,7 +42,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractWireSerializingTestC
     }
 
     public void testFromMap_EntraId_Only() {
-        var serviceSettings = AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(AzureOpenAiSecretSettings.ENTRA_ID, "xyz")));
+        var serviceSettings = AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(ENTRA_ID, "xyz")));
         assertThat(new AzureOpenAiSecretSettings(null, new SecureString("xyz".toCharArray())), is(serviceSettings));
     }
 
@@ -44,7 +50,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractWireSerializingTestC
         assertNull(AzureOpenAiSecretSettings.fromMap(null));
     }
 
-    public void testFromMap_MissingApiKeyOrEntraId_ThrowsError() {
+    public void testFromMap_MissingApiKeyAndEntraId_ThrowsError() {
         var thrownException = expectThrows(ValidationException.class, () -> AzureOpenAiSecretSettings.fromMap(new HashMap<>()));
 
         assertThat(
@@ -53,7 +59,23 @@ public class AzureOpenAiSecretSettingsTests extends AbstractWireSerializingTestC
                 Strings.format(
                     "[secret_settings] must have either the [%s] or the [%s] key set",
                     AzureOpenAiSecretSettings.API_KEY,
-                    AzureOpenAiSecretSettings.ENTRA_ID
+                    ENTRA_ID
+                )
+            )
+        );
+    }
+
+    public void testFromMap_HasBothApiKeyAndEntraId_ThrowsError() {
+        var mapValues = getAzureOpenAiSecretSettingsMap("apikey", "entraid");
+        var thrownException = expectThrows(ValidationException.class, () -> AzureOpenAiSecretSettings.fromMap(mapValues));
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format(
+                    "[secret_settings] must have only one of the [%s] or the [%s] key set",
+                    AzureOpenAiSecretSettings.API_KEY,
+                    ENTRA_ID
                 )
             )
         );
@@ -79,18 +101,35 @@ public class AzureOpenAiSecretSettingsTests extends AbstractWireSerializingTestC
     public void testFromMap_EmptyEntraId_ThrowsError() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(AzureOpenAiSecretSettings.ENTRA_ID, "")))
+            () -> AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(ENTRA_ID, "")))
         );
 
         assertThat(
             thrownException.getMessage(),
-            containsString(
-                Strings.format(
-                    "[secret_settings] Invalid value empty string. [%s] must be a non-empty string",
-                    AzureOpenAiSecretSettings.ENTRA_ID
-                )
-            )
+            containsString(Strings.format("[secret_settings] Invalid value empty string. [%s] must be a non-empty string", ENTRA_ID))
         );
+    }
+
+    // test toXContent
+    public void testToXContext_WritesApiKeyOnlyWhenEntraIdIsNull() throws IOException {
+        var testSettings = new AzureOpenAiSecretSettings(new SecureString("apikey"), null);
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        testSettings.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        var expectedResult = Strings.format("{\"%s\":\"apikey\"}", API_KEY);
+        assertThat(xContentResult, CoreMatchers.is(expectedResult));
+    }
+
+    public void testToXContext_WritesEntraIdOnlyWhenApiKeyIsNull() throws IOException {
+        var testSettings = new AzureOpenAiSecretSettings(null, new SecureString("entraid"));
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        testSettings.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        var expectedResult = Strings.format("{\"%s\":\"entraid\"}", ENTRA_ID);
+        assertThat(xContentResult, CoreMatchers.is(expectedResult));
     }
 
     @Override
@@ -114,7 +153,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractWireSerializingTestC
             map.put(AzureOpenAiSecretSettings.API_KEY, apiKey);
         }
         if (entraId != null) {
-            map.put(AzureOpenAiSecretSettings.ENTRA_ID, entraId);
+            map.put(ENTRA_ID, entraId);
         }
         return map;
     }

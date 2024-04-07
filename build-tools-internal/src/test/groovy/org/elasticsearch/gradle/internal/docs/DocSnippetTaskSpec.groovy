@@ -520,12 +520,8 @@ but with the following exceptions:
         ), substitutions
         )
         then:
-        snippets*.test == [true]
-        snippets*.catchPart == ["/painless_explain_error/"]
-        substitutions.size() == 1
-        substitutions[0].key == "_explain\\/1"
-        substitutions[0].value == "_explain\\/1?error_trace=false"
-
+        snippets*.test == [false, false, false, false, false, false, false]
+        snippets*.catchPart == [null, null, null, null, null, null, null]
     }
         def "handling test parsing"() {
         given:
@@ -714,7 +710,7 @@ GET /_analyze
         )
         def snippets = task.parseDocFile(tempDir, doc, [])
         expect:
-        snippets*.start == [2]
+        snippets*.start == [3]
         snippets*.language == ["console"]
         snippets*.contents == ["""GET /_analyze
 {

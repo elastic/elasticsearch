@@ -27,27 +27,10 @@ public class AzureOpenAiResponseHandler extends BaseResponseHandler {
      * These headers for Azure OpenAi are mostly the same as the OpenAi ones with the major exception
      * that there is no information returned about the request limit or the tokens limit
      *
-     * Microsoft does not seem to have any information in their docs about this, but more
+     * Microsoft does not seem to have any published information in their docs about this, but more
      * information can be found in the following Medium article and accompanying code:
      *   - https://pablo-81685.medium.com/azure-openais-api-headers-unpacked-6dbe881e732a
      *   - https://github.com/pablosalvador10/gbbai-azure-ai-aoai
-     *
-     * An example from CURL shows:
-     * HTTP/2 200
-     * content-length: 33525
-     * content-type: application/json
-     * access-control-allow-origin: *
-     * x-ratelimit-remaining-requests: 119
-     * apim-request-id: cb28c608-ff0b-43c0-baca-f6c60a2d120b
-     * strict-transport-security: max-age=31536000; includeSubDomains; preload
-     * x-content-type-options: nosniff
-     * x-request-id: 93117dcb-0193-49cf-9f8e-7aeb2995297d
-     * x-ms-client-request-id: cb28c608-ff0b-43c0-baca-f6c60a2d120b
-     * x-ratelimit-remaining-tokens: 119990
-     * azureml-model-session: d012-20240327190940
-     * x-ms-region: East US 2
-     * date: Fri, 05 Apr 2024 12:26:05 GMT
-     *
      */
     static final String REMAINING_REQUESTS = "x-ratelimit-remaining-requests";
     // The remaining number of tokens that are permitted before exhausting the rate limit.
@@ -72,6 +55,7 @@ public class AzureOpenAiResponseHandler extends BaseResponseHandler {
      * Validates the status code throws an RetryException if not in the range [200, 300).
      *
      * The OpenAI API error codes are documented <a href="https://platform.openai.com/docs/guides/error-codes/api-errors">here</a>.
+     * The Azure OpenAI API uses the same set of error codes.
      * @param request The originating request
      * @param result  The http response and body
      * @throws RetryException Throws if status code is {@code >= 300 or < 200 }

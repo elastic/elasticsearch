@@ -162,7 +162,9 @@ public class TransportVersions {
     public static final TransportVersion FAILURE_STORE_ROLLOVER = def(8_621_00_0);
     public static final TransportVersion CCR_STATS_API_TIMEOUT_PARAM = def(8_622_00_0);
     public static final TransportVersion ESQL_ORDINAL_BLOCK = def(8_623_00_0);
-    public static final TransportVersion ALIAS_ACTION_RESULTS = def(8_624_00_0);
+    public static final TransportVersion ML_INFERENCE_COHERE_RERANK = def(8_624_00_0);
+    public static final TransportVersion ALIAS_ACTION_RESULTS = def(8_625_00_0);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

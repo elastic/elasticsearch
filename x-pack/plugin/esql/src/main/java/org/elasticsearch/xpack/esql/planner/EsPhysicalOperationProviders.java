@@ -24,6 +24,7 @@ import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -145,6 +146,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                     limit,
                     context.pageSize(rowEstimatedSize),
                     context.queryPragmas().taskConcurrency(),
+                    TimeValue.ZERO,
                     shardContexts,
                     querySupplier(esQueryExec.query())
                 );

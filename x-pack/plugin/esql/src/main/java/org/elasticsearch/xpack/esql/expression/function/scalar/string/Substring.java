@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -28,8 +29,8 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 
 public class Substring extends EsqlScalarFunction implements OptionalArgument {
 
@@ -67,12 +68,15 @@ public class Substring extends EsqlScalarFunction implements OptionalArgument {
             return resolution;
         }
 
-        resolution = isInteger(start, sourceText(), SECOND);
+        resolution = TypeResolutions.isType(start, dt -> dt == INTEGER, sourceText(), SECOND, "integer");
+
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        return length == null ? TypeResolution.TYPE_RESOLVED : isInteger(length, sourceText(), THIRD);
+        return length == null
+            ? TypeResolution.TYPE_RESOLVED
+            : TypeResolutions.isType(length, dt -> dt == INTEGER, sourceText(), THIRD, "integer");
     }
 
     @Override

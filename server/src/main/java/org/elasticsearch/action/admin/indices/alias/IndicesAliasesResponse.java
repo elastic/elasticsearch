@@ -226,8 +226,8 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
             AliasActionResult that = (AliasActionResult) o;
             return Objects.equals(indices, that.indices) && Objects.equals(action, that.action)
             // ElasticsearchException does not have hashCode() so assume errors are equal iff class and message are equal
-            && Objects.equals(error == null ? null : error.getMessage(), that.error == null ? null : that.error.getMessage())
-            && Objects.equals(error == null ? null : error.getClass(), that.error == null ? null : that.error.getClass());
+                && Objects.equals(error == null ? null : error.getMessage(), that.error == null ? null : that.error.getMessage())
+                && Objects.equals(error == null ? null : error.getClass(), that.error == null ? null : that.error.getClass());
         }
 
         @Override

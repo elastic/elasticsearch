@@ -22,7 +22,6 @@ public class IndicesAliasesClusterStateUpdateRequest extends ClusterStateUpdateR
     private final List<IndicesAliasesResponse.AliasActionResult> actionResults;
 
     public IndicesAliasesClusterStateUpdateRequest(List<AliasAction> actions, List<AliasActionResult> actionResults) {
-        assert actions.size() == actionResults.size() : "There must be a result for every alias action";
         this.actions = actions;
         this.actionResults = actionResults;
     }

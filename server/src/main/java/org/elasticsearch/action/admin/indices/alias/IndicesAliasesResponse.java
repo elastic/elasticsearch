@@ -83,6 +83,7 @@ public class IndicesAliasesResponse extends AcknowledgedResponse {
      * @return response containing all action results
      */
     public static IndicesAliasesResponse build(final List<AliasActionResult> actionResults) {
+        assert actionResults.isEmpty() == false : "IndicesAliasesResponse must be instantiated with at least one action result.";
         final boolean errors = actionResults.stream().anyMatch(a -> a.error != null);
         return new IndicesAliasesResponse(true, errors, actionResults);
     }

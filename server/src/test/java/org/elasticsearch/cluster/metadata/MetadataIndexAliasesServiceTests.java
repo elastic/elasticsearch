@@ -9,6 +9,8 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse.AliasActionResult;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -691,11 +693,11 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         ClusterState before = createIndex(ClusterState.builder(ClusterName.DEFAULT).build(), index);
         IndicesAliasesClusterStateUpdateRequest addAliasRequest = new IndicesAliasesClusterStateUpdateRequest(
             List.of(new AliasAction.Add(index, "test", null, null, null, null, null)),
-            List.of()
+            List.of(AliasActionResult.buildSuccess(List.of(index), AliasActions.add().aliases("test").indices(index)))
         );
         IndicesAliasesClusterStateUpdateRequest removeAliasRequest = new IndicesAliasesClusterStateUpdateRequest(
             List.of(new AliasAction.Remove(index, "test", true)),
-            List.of()
+            List.of(AliasActionResult.buildSuccess(List.of(index), AliasActions.remove().aliases("test").indices(index)))
         );
 
         ClusterState after = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(

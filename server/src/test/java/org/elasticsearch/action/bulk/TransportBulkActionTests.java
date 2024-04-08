@@ -66,6 +66,7 @@ import static org.elasticsearch.action.bulk.TransportBulkAction.prohibitCustomRo
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests.createDataStream;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assume.assumeThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -323,14 +324,15 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     private void blockWriteThreadPool(CountDownLatch blockingLatch) {
-        try {
-            final var executor = threadPool.executor(ThreadPool.Names.WRITE);
+        assertThat(blockingLatch.getCount(), greaterThan(0L));
+        final var executor = threadPool.executor(ThreadPool.Names.WRITE);
+        // Add tasks repeatedly until we get an EsRejectedExecutionException which indicates that the threadpool and its queue are full.
+        expectThrows(EsRejectedExecutionException.class, () -> {
+            // noinspection InfiniteLoopStatement
             while (true) {
                 executor.execute(() -> safeAwait(blockingLatch));
             }
-        } catch (EsRejectedExecutionException e) {
-            // expected, means the threadpool and its queue are full
-        }
+        });
     }
 
     public void testRejectCoordination() {

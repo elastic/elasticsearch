@@ -1,5 +1,0 @@
-pr: 106920
-summary: Fix downsample action request serialization
-area: Downsampling
-type: bug
-issues: []

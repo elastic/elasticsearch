@@ -8,10 +8,9 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
@@ -21,6 +20,8 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.KeyComparable;
+import org.elasticsearch.search.aggregations.bucket.BucketReducer;
+import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,7 +29,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -282,6 +282,69 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
         return new Bucket(prototype.key, prototype.docCount, prototype.keyed, prototype.format, aggregations);
     }
 
+    private List<Bucket> reduceBuckets(PriorityQueue<IteratorAndCurrent<Bucket>> pq, AggregationReduceContext reduceContext) {
+        int consumeBucketCount = 0;
+        List<Bucket> reducedBuckets = new ArrayList<>();
+        if (pq.size() > 0) {
+            // list of buckets coming from different shards that have the same key
+            List<Bucket> currentBuckets = new ArrayList<>();
+            double key = pq.top().current().key;
+
+            do {
+                final IteratorAndCurrent<Bucket> top = pq.top();
+
+                if (Double.compare(top.current().key, key) != 0) {
+                    // The key changes, reduce what we already buffered and reset the buffer for current buckets.
+                    // Using Double.compare instead of != to handle NaN correctly.
+                    final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
+                    if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
+                        reducedBuckets.add(reduced);
+                        if (consumeBucketCount++ >= REPORT_EMPTY_EVERY) {
+                            reduceContext.consumeBucketsAndMaybeBreak(consumeBucketCount);
+                            consumeBucketCount = 0;
+                        }
+                    }
+                    currentBuckets.clear();
+                    key = top.current().key;
+                }
+
+                currentBuckets.add(top.current());
+
+                if (top.hasNext()) {
+                    top.next();
+                    assert Double.compare(top.current().key, key) > 0 : "shards must return data sorted by key";
+                    pq.updateTop();
+                } else {
+                    pq.pop();
+                }
+            } while (pq.size() > 0);
+
+            if (currentBuckets.isEmpty() == false) {
+                final Bucket reduced = reduceBucket(currentBuckets, reduceContext);
+                if (reduced.getDocCount() >= minDocCount || reduceContext.isFinalReduce() == false) {
+                    reducedBuckets.add(reduced);
+                    if (consumeBucketCount++ >= REPORT_EMPTY_EVERY) {
+                        reduceContext.consumeBucketsAndMaybeBreak(consumeBucketCount);
+                        consumeBucketCount = 0;
+                    }
+                }
+            }
+        }
+
+        reduceContext.consumeBucketsAndMaybeBreak(consumeBucketCount);
+        return reducedBuckets;
+    }
+
+    private Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
+        assert buckets.isEmpty() == false;
+        try (BucketReducer<Bucket> reducer = new BucketReducer<>(buckets.get(0), context, buckets.size())) {
+            for (Bucket bucket : buckets) {
+                reducer.accept(bucket);
+            }
+            return createBucket(buckets.get(0).key, reducer.getDocCount(), reducer.getAggregations());
+        }
+    }
+
     private double nextKey(double key) {
         return round(key + emptyBucketInfo.interval + emptyBucketInfo.interval / 2);
     }
@@ -376,31 +439,25 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
-
-            final LongKeyedMultiBucketsAggregatorReducer<Bucket> reducer = new LongKeyedMultiBucketsAggregatorReducer<>(
-                reduceContext,
-                size,
-                minDocCount
-            ) {
+            final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(size) {
                 @Override
-                protected Bucket createBucket(long key, long docCount, InternalAggregations aggregations) {
-                    return InternalHistogram.this.createBucket(NumericUtils.sortableLongToDouble(key), docCount, aggregations);
+                protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
+                    return Double.compare(a.current().key, b.current().key) < 0;
                 }
             };
 
             @Override
             public void accept(InternalAggregation aggregation) {
-                InternalHistogram histogram = (InternalHistogram) aggregation;
-                for (Bucket bucket : histogram.buckets) {
-                    reducer.accept(NumericUtils.doubleToSortableLong(bucket.key), bucket);
+                final InternalHistogram histogram = (InternalHistogram) aggregation;
+                if (histogram.buckets.isEmpty() == false) {
+                    pq.add(new IteratorAndCurrent<>(histogram.buckets.iterator()));
                 }
             }
 
             @Override
             public InternalAggregation get() {
-                List<Bucket> reducedBuckets = reducer.get();
+                List<Bucket> reducedBuckets = reduceBuckets(pq, reduceContext);
                 if (reduceContext.isFinalReduce()) {
-                    reducedBuckets.sort(Comparator.comparingDouble(b -> b.key));
                     if (minDocCount == 0) {
                         addEmptyBuckets(reducedBuckets, reduceContext);
                     }
@@ -417,11 +474,6 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
                     }
                 }
                 return new InternalHistogram(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, format, keyed, getMetadata());
-            }
-
-            @Override
-            public void close() {
-                Releasables.close(reducer);
             }
         };
     }

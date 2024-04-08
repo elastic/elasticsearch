@@ -14,9 +14,7 @@ import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
-import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
@@ -37,84 +35,40 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
-import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2Ds;
-import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 
 /**
- * This is the primary class for supporting the function ST_CONTAINS.
+ * This is the primary class for supporting the function ST_DISJOINT.
  * The bulk of the capabilities are within the parent class SpatialRelatesFunction,
  * which supports all the relations in the ShapeField.QueryRelation enum.
- * Here we simply wire the rules together specific to ST_CONTAINS and QueryRelation.CONTAINS.
+ * Here we simply wire the rules together specific to ST_DISJOINT and QueryRelation.DISJOINT.
  */
-public class SpatialContains extends SpatialRelatesFunction {
+public class SpatialDisjoint extends SpatialRelatesFunction {
     // public for test access with reflection
-    public static final SpatialRelationsContains GEO = new SpatialRelationsContains(
+    public static final SpatialRelations GEO = new SpatialRelations(
+        ShapeField.QueryRelation.DISJOINT,
         SpatialCoordinateTypes.GEO,
         CoordinateEncoder.GEO,
-        new GeoShapeIndexer(Orientation.CCW, "ST_Contains")
+        new GeoShapeIndexer(Orientation.CCW, "ST_Disjoint")
     );
     // public for test access with reflection
-    public static final SpatialRelationsContains CARTESIAN = new SpatialRelationsContains(
+    public static final SpatialRelations CARTESIAN = new SpatialRelations(
+        ShapeField.QueryRelation.DISJOINT,
         SpatialCoordinateTypes.CARTESIAN,
         CoordinateEncoder.CARTESIAN,
-        new CartesianShapeIndexer("ST_Contains")
+        new CartesianShapeIndexer("ST_Disjoint")
     );
-
-    /**
-     * We override the normal behaviour for CONTAINS because we need to test each component separately.
-     * This applies to multi-component geometries (MultiPolygon, etc.) as well as polygons that cross the dateline.
-     */
-    static final class SpatialRelationsContains extends SpatialRelations {
-        SpatialRelationsContains(SpatialCoordinateTypes spatialCoordinateType, CoordinateEncoder encoder, ShapeIndexer shapeIndexer) {
-            super(ShapeField.QueryRelation.CONTAINS, spatialCoordinateType, encoder, shapeIndexer);
-        }
-
-        @Override
-        protected boolean geometryRelatesGeometry(BytesRef left, BytesRef right) throws IOException {
-            Component2D[] rightComponent2Ds = asLuceneComponent2Ds(crsType, fromBytesRef(right));
-            return geometryRelatesGeometries(left, rightComponent2Ds);
-        }
-
-        private boolean geometryRelatesGeometries(BytesRef left, Component2D[] rightComponent2Ds) throws IOException {
-            Geometry leftGeom = fromBytesRef(left);
-            GeometryDocValueReader leftDocValueReader = asGeometryDocValueReader(coordinateEncoder, shapeIndexer, leftGeom);
-            return geometryRelatesGeometries(leftDocValueReader, rightComponent2Ds);
-        }
-
-        private boolean geometryRelatesGeometries(GeometryDocValueReader leftDocValueReader, Component2D[] rightComponent2Ds)
-            throws IOException {
-            for (Component2D rightComponent2D : rightComponent2Ds) {
-                // Every component of the right geometry must be contained within the left geometry for this to pass
-                if (geometryRelatesGeometry(leftDocValueReader, rightComponent2D) == false) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        private boolean pointRelatesGeometries(long encoded, Component2D[] rightComponent2Ds) {
-            // This code path exists for doc-values points, and we could consider re-using the point class to reduce garbage creation
-            Point point = spatialCoordinateType.longAsPoint(encoded);
-            for (Component2D rightComponent2D : rightComponent2Ds) {
-                // Every component of the right geometry must be contained within the left geometry for this to pass
-                if (pointRelatesGeometry(point, rightComponent2D) == false) {
-                    return false;
-                }
-            }
-            return true;
-        }
-    }
 
     @FunctionInfo(
         returnType = { "boolean" },
-        description = "Returns whether the first geometry contains the second geometry.",
-        examples = @Example(file = "spatial_shapes", tag = "st_contains-airport_city_boundaries")
+        description = "Returns whether the two geometries or geometry columns are disjoint.",
+        examples = @Example(file = "spatial_shapes", tag = "st_disjoint-airport_city_boundaries")
     )
-    public SpatialContains(
+    public SpatialDisjoint(
         Source source,
         @Param(
             name = "geomA",
@@ -130,42 +84,41 @@ public class SpatialContains extends SpatialRelatesFunction {
         this(source, left, right, false, false);
     }
 
-    SpatialContains(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
+    private SpatialDisjoint(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
         super(source, left, right, leftDocValues, rightDocValues);
     }
 
     @Override
     public ShapeField.QueryRelation queryRelation() {
-        return ShapeField.QueryRelation.CONTAINS;
+        return ShapeField.QueryRelation.DISJOINT;
     }
 
     @Override
-    public SpatialContains withDocValues(Set<FieldAttribute> attributes) {
+    public SpatialDisjoint withDocValues(Set<FieldAttribute> attributes) {
         // Only update the docValues flags if the field is found in the attributes
         boolean leftDV = leftDocValues || foundField(left(), attributes);
         boolean rightDV = rightDocValues || foundField(right(), attributes);
-        return new SpatialContains(source(), left(), right(), leftDV, rightDV);
+        return new SpatialDisjoint(source(), left(), right(), leftDV, rightDV);
     }
 
     @Override
-    protected SpatialContains replaceChildren(Expression newLeft, Expression newRight) {
-        return new SpatialContains(source(), newLeft, newRight, leftDocValues, rightDocValues);
+    protected SpatialDisjoint replaceChildren(Expression newLeft, Expression newRight) {
+        return new SpatialDisjoint(source(), newLeft, newRight, leftDocValues, rightDocValues);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, SpatialContains::new, left(), right());
+        return NodeInfo.create(this, SpatialDisjoint::new, left(), right());
     }
 
     @Override
     public Object fold() {
         try {
             GeometryDocValueReader docValueReader = asGeometryDocValueReader(crsType, left());
-            Geometry rightGeom = makeGeometryFromLiteral(right());
-            Component2D[] components = asLuceneComponent2Ds(crsType, rightGeom);
+            Component2D component2D = asLuceneComponent2D(crsType, right());
             return (crsType == SpatialCrsType.GEO)
-                ? GEO.geometryRelatesGeometries(docValueReader, components)
-                : CARTESIAN.geometryRelatesGeometries(docValueReader, components);
+                ? GEO.geometryRelatesGeometry(docValueReader, component2D)
+                : CARTESIAN.geometryRelatesGeometry(docValueReader, component2D);
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to fold constant fields: " + e.getMessage(), e);
         }
@@ -176,18 +129,6 @@ public class SpatialContains extends SpatialRelatesFunction {
         return evaluatorMap;
     }
 
-    /**
-     * To keep the number of evaluators to a minimum, we swap the arguments to get the WITHIN relation.
-     * This also makes other optimizations, like lucene-pushdown, simpler to develop.
-     */
-    @Override
-    public SpatialRelatesFunction surrogate() {
-        if (left().foldable() && right().foldable() == false) {
-            return new SpatialWithin(source(), right(), left(), rightDocValues, leftDocValues);
-        }
-        return this;
-    }
-
     private static final Map<SpatialEvaluatorFactory.SpatialEvaluatorKey, SpatialEvaluatorFactory<?, ?>> evaluatorMap = new HashMap<>();
 
     static {
@@ -196,25 +137,25 @@ public class SpatialContains extends SpatialRelatesFunction {
             for (DataType otherType : new DataType[] { GEO_POINT, GEO_SHAPE }) {
                 evaluatorMap.put(
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType),
-                    new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(SpatialContainsGeoSourceAndSourceEvaluator.Factory::new)
+                    new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(SpatialDisjointGeoSourceAndSourceEvaluator.Factory::new)
                 );
                 evaluatorMap.put(
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType),
-                    new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantArrayFactory(
-                        SpatialContainsGeoSourceAndConstantEvaluator.Factory::new
+                    new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
+                        SpatialDisjointGeoSourceAndConstantEvaluator.Factory::new
                     )
                 );
                 if (EsqlDataTypes.isSpatialPoint(spatialType)) {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
-                            SpatialContainsGeoPointDocValuesAndSourceEvaluator.Factory::new
+                            SpatialDisjointGeoPointDocValuesAndSourceEvaluator.Factory::new
                         )
                     );
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType).withLeftDocValues(),
-                        new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantArrayFactory(
-                            SpatialContainsGeoPointDocValuesAndConstantEvaluator.Factory::new
+                        new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
+                            SpatialDisjointGeoPointDocValuesAndConstantEvaluator.Factory::new
                         )
                     );
                 }
@@ -227,26 +168,26 @@ public class SpatialContains extends SpatialRelatesFunction {
                 evaluatorMap.put(
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType),
                     new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
-                        SpatialContainsCartesianSourceAndSourceEvaluator.Factory::new
+                        SpatialDisjointCartesianSourceAndSourceEvaluator.Factory::new
                     )
                 );
                 evaluatorMap.put(
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType),
-                    new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantArrayFactory(
-                        SpatialContainsCartesianSourceAndConstantEvaluator.Factory::new
+                    new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
+                        SpatialDisjointCartesianSourceAndConstantEvaluator.Factory::new
                     )
                 );
                 if (EsqlDataTypes.isSpatialPoint(spatialType)) {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
-                            SpatialContainsCartesianPointDocValuesAndSourceEvaluator.Factory::new
+                            SpatialDisjointCartesianPointDocValuesAndSourceEvaluator.Factory::new
                         )
                     );
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(spatialType, otherType).withLeftDocValues(),
-                        new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantArrayFactory(
-                            SpatialContainsCartesianPointDocValuesAndConstantEvaluator.Factory::new
+                        new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantFactory(
+                            SpatialDisjointCartesianPointDocValuesAndConstantEvaluator.Factory::new
                         )
                     );
                 }
@@ -255,8 +196,8 @@ public class SpatialContains extends SpatialRelatesFunction {
     }
 
     @Evaluator(extraName = "GeoSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static boolean processGeoSourceAndConstant(BytesRef leftValue, @Fixed Component2D[] rightValue) throws IOException {
-        return GEO.geometryRelatesGeometries(leftValue, rightValue);
+    static boolean processGeoSourceAndConstant(BytesRef leftValue, @Fixed Component2D rightValue) throws IOException {
+        return GEO.geometryRelatesGeometry(leftValue, rightValue);
     }
 
     @Evaluator(extraName = "GeoSourceAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
@@ -265,8 +206,8 @@ public class SpatialContains extends SpatialRelatesFunction {
     }
 
     @Evaluator(extraName = "GeoPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class })
-    static boolean processGeoPointDocValuesAndConstant(long leftValue, @Fixed Component2D[] rightValue) {
-        return GEO.pointRelatesGeometries(leftValue, rightValue);
+    static boolean processGeoPointDocValuesAndConstant(long leftValue, @Fixed Component2D rightValue) {
+        return GEO.pointRelatesGeometry(leftValue, rightValue);
     }
 
     @Evaluator(extraName = "GeoPointDocValuesAndSource", warnExceptions = { IllegalArgumentException.class })
@@ -276,8 +217,8 @@ public class SpatialContains extends SpatialRelatesFunction {
     }
 
     @Evaluator(extraName = "CartesianSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static boolean processCartesianSourceAndConstant(BytesRef leftValue, @Fixed Component2D[] rightValue) throws IOException {
-        return CARTESIAN.geometryRelatesGeometries(leftValue, rightValue);
+    static boolean processCartesianSourceAndConstant(BytesRef leftValue, @Fixed Component2D rightValue) throws IOException {
+        return CARTESIAN.geometryRelatesGeometry(leftValue, rightValue);
     }
 
     @Evaluator(extraName = "CartesianSourceAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
@@ -286,8 +227,8 @@ public class SpatialContains extends SpatialRelatesFunction {
     }
 
     @Evaluator(extraName = "CartesianPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class })
-    static boolean processCartesianPointDocValuesAndConstant(long leftValue, @Fixed Component2D[] rightValue) {
-        return CARTESIAN.pointRelatesGeometries(leftValue, rightValue);
+    static boolean processCartesianPointDocValuesAndConstant(long leftValue, @Fixed Component2D rightValue) {
+        return CARTESIAN.pointRelatesGeometry(leftValue, rightValue);
     }
 
     @Evaluator(extraName = "CartesianPointDocValuesAndSource")

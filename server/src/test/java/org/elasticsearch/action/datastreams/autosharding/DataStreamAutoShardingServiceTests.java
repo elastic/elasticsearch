@@ -794,6 +794,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             null,
             false,
             List.of(),
+            false,
             autoShardingEvent
         );
     }

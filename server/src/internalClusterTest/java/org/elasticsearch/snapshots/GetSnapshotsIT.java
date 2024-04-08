@@ -572,12 +572,6 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         final var failingFuture = clusterAdmin().prepareGetSnapshots(repoName, missingRepoName).setSort(SnapshotSortKey.NAME).execute();
         expectThrows(RepositoryMissingException.class, failingFuture::actionGet);
-
-        final GetSnapshotsResponse response = clusterAdmin().prepareGetSnapshots(repoName, missingRepoName)
-            .setSort(SnapshotSortKey.NAME)
-            .setIgnoreUnavailable(true)
-            .get();
-        assertThat(response.getSnapshots().stream().map(info -> info.snapshotId().getName()).toList(), equalTo(snapshotNames));
     }
 
     // Create a snapshot that is guaranteed to have a unique start time and duration for tests around ordering by either.

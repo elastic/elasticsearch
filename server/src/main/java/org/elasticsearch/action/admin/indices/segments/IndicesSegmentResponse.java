@@ -195,8 +195,7 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
     }
 
     static final class Fields {
-        public static final String KNN_FORMAT = "knnFormat";
-        public static final String KNN_FORMATS = "knnFormats";
+        public static final String KNN_FORMATS = "knn_formats";
         static final String INDICES = "indices";
         static final String SHARDS = "shards";
         static final String ROUTING = "routing";

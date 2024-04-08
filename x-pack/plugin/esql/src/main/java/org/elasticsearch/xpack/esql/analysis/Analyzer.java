@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
-import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
@@ -75,7 +75,6 @@ import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
-import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -95,11 +94,9 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dataTypeCastingPriority;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isString;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
@@ -108,9 +105,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
-import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
     // marker list of attributes for plans that do not have any concrete fields to return, but have other computed columns to return
@@ -798,13 +793,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             var right = cmp.right();
             boolean modified = false;
             if (left.dataType() == DATETIME) {
-                if (right.dataType() == KEYWORD && right.foldable()) {
+                if (right.dataType() == KEYWORD && right.foldable() && ((right instanceof EsqlScalarFunction) == false)) {
                     right = stringToDate(right);
                     modified = true;
                 }
             } else {
                 if (right.dataType() == DATETIME) {
-                    if (left.dataType() == KEYWORD && left.foldable()) {
+                    if (left.dataType() == KEYWORD && left.foldable() && ((left instanceof EsqlScalarFunction) == false)) {
                         left = stringToDate(left);
                         modified = true;
                     }
@@ -844,16 +839,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         return b;
     }
 
-    private static class ImplicitCasting extends Rule<LogicalPlan, LogicalPlan> {
-
+    private static class ImplicitCasting extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
         @Override
-        public LogicalPlan apply(LogicalPlan plan) {
-            return plan.transformExpressionsUp(ScalarFunction.class, ImplicitCasting::cast);
+        protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
+            return plan.transformExpressionsUp(ScalarFunction.class, e -> ImplicitCasting.cast(e, context.functionRegistry()));
         }
 
-        private static Expression cast(ScalarFunction f) {
+        private static Expression cast(ScalarFunction f, FunctionRegistry registry) {
             if (f instanceof EsqlScalarFunction esf) {
-                return processScalarFunction(esf);
+                return processScalarFunction(esf, registry);
             }
 
             if (f instanceof EsqlArithmeticOperation eao) {
@@ -863,20 +857,35 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return f;
         }
 
-        private static Expression processScalarFunction(EsqlScalarFunction f) {
+        private static List<DataType> getTargetDataType(String name, FunctionRegistry registry) {
+            List<FunctionDefinition> defs = registry.listFunctions()
+                .stream()
+                .filter(f -> f.clazz().getSimpleName().equalsIgnoreCase(name))
+                .toList();
+            if (defs.isEmpty()) {
+                return new ArrayList<>();
+            }
+            EsqlFunctionRegistry.FunctionDescription signature = EsqlFunctionRegistry.description(defs.get(0));
+            return signature.args().stream().map(EsqlFunctionRegistry.ArgSignature::targetDataType).collect(Collectors.toList());
+        }
+
+        private static Expression processScalarFunction(EsqlScalarFunction f, FunctionRegistry registry) {
             List<Expression> args = f.arguments();
-            List<String[]> metaData = getMetaData(f);
+            List<DataType> targetDataTypes = getTargetDataType(f.functionName(), registry);
+            if (targetDataTypes.isEmpty()) {
+                return f;
+            }
             List<Expression> newChildren = new ArrayList<>(args.size());
             boolean childrenChanged = false;
-            DataType targetDataType = NULL;
+            DataType targetDataType = DataTypes.NULL;
             Expression arg;
             for (int i = 0; i < args.size(); i++) {
                 arg = args.get(i);
-                if (arg.resolved() && arg.dataType() == KEYWORD && arg.foldable()) {
-                    if (i < metaData.size()) {
-                        targetDataType = getTargetType(metaData.get(i));
+                if (arg.resolved() && arg.dataType() == KEYWORD && arg.foldable() && ((arg instanceof EsqlScalarFunction) == false)) {
+                    if (i < targetDataTypes.size()) {
+                        targetDataType = targetDataTypes.get(i);
                     }
-                    if (targetDataType != NULL && targetDataType != UNSUPPORTED) {
+                    if (targetDataType != DataTypes.NULL && targetDataType != DataTypes.UNSUPPORTED) {
                         Expression e = castStringLiteral(arg, targetDataType);
                         childrenChanged = true;
                         newChildren.add(e);
@@ -896,58 +905,34 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             List<Expression> newChildren = new ArrayList<>(2);
             boolean childrenChanged = false;
-            DataType targetDataType = NULL;
+            DataType targetDataType = DataTypes.NULL;
             Expression from = Literal.NULL;
 
-            if (left.dataType() == KEYWORD && left.foldable() && (right.dataType().isNumeric() || right.dataType() == DATETIME)) {
+            if (left.dataType() == KEYWORD
+                && left.foldable()
+                && (right.dataType().isNumeric() || right.dataType() == DATETIME)
+                && ((left instanceof EsqlScalarFunction) == false)) {
                 targetDataType = right.dataType();
                 from = left;
             }
-            if (right.dataType() == KEYWORD && right.foldable() && (left.dataType().isNumeric() || left.dataType() == DATETIME)) {
+            if (right.dataType() == KEYWORD
+                && right.foldable()
+                && (left.dataType().isNumeric() || left.dataType() == DATETIME)
+                && ((right instanceof EsqlScalarFunction) == false)) {
                 targetDataType = left.dataType();
                 from = right;
             }
-
-            Expression e = from == Literal.NULL ? from : castStringLiteral(from, targetDataType);
-
-            if (e != Literal.NULL) {
-                childrenChanged = true;
+            if (from != Literal.NULL) {
+                Expression e = castStringLiteral(from, targetDataType);
                 newChildren.add(from == left ? e : left);
                 newChildren.add(from == right ? e : right);
+                childrenChanged = true;
             }
-
             return childrenChanged ? o.replaceChildren(newChildren) : o;
         }
 
-        private static List<String[]> getMetaData(ScalarFunction f) {
-            List<String[]> paramTypes = new ArrayList<>();
-            var constructors = f.getClass().getConstructors();
-            Constructor<?> constructor = constructors[0]; // no multiple c'tors supported
-            var params = constructor.getParameters();
-            for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
-                if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
-                    Param paramInfo = params[i].getAnnotation(Param.class);
-                    String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
-                    paramTypes.add(type);
-                }
-            }
-            return paramTypes;
-        }
-
-        private static DataType getTargetType(String[] names) {
-            List<DataType> types = new ArrayList<>();
-            for (String name : names) {
-                types.add(DataTypes.fromEs(name));
-            }
-            try {
-                types.sort((dt1, dt2) -> dataTypeCastingPriority.get(dt1).compareTo(dataTypeCastingPriority.get(dt2)));
-            } catch (Exception e) {
-                return NULL;
-            }
-            return types.size() == 0 || isString(types.get(0)) ? NULL : types.get(0);
-        }
-
-        private static Expression castStringLiteral(Expression from, DataType target) {
+        public static Expression castStringLiteral(Expression from, DataType target) {
+            assert from.foldable();
             try {
                 Object to = EsqlDataTypeConverter.convert(from.fold(), target);
                 return new Literal(from.source(), to, target);

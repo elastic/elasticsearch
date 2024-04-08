@@ -316,8 +316,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            // TODO Check that we can delegate to the chunks
-            return getEmbeddingsField().fieldType().termQuery(value, context);
+            throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support term query");
         }
 
         @Override

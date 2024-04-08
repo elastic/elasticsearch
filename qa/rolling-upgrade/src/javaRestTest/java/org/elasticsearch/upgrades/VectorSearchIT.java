@@ -29,11 +29,64 @@ public class VectorSearchIT extends ParameterizedRollingUpgradeTestCase {
 
     private static final String FLOAT_INDEX_NAME = "float_vector_index";
     private static final String SCRIPT_VECTOR_INDEX_NAME = "script_vector_index";
+    private static final String SCRIPT_BYTE_INDEX_NAME = "script_byte_vector_index";
     private static final String BYTE_INDEX_NAME = "byte_vector_index";
     private static final String QUANTIZED_INDEX_NAME = "quantized_vector_index";
     private static final String FLOAT_VECTOR_SEARCH_VERSION = "8.4.0";
     private static final String BYTE_VECTOR_SEARCH_VERSION = "8.6.0";
     private static final String QUANTIZED_VECTOR_SEARCH_VERSION = "8.12.1";
+
+    public void testScriptByteVectorSearch() throws Exception {
+        assumeTrue(
+            "byte vector search is not supported on this version",
+            getOldClusterTestVersion().onOrAfter(BYTE_VECTOR_SEARCH_VERSION)
+        );
+        if (isOldCluster()) {
+            // create index and index 10 random floating point vectors
+            String mapping = """
+                {
+                  "properties": {
+                    "vector": {
+                      "type": "dense_vector",
+                      "dims": 3,
+                      "element_type": "byte",
+                      "index": false
+                    }
+                  }
+                }
+                """;
+            createIndex(SCRIPT_BYTE_INDEX_NAME, Settings.EMPTY, mapping);
+            indexVectors(SCRIPT_BYTE_INDEX_NAME);
+            // refresh the index
+            client().performRequest(new Request("POST", "/" + SCRIPT_BYTE_INDEX_NAME + "/_refresh"));
+        }
+        // search with a script query
+        Request searchRequest = new Request("POST", "/" + SCRIPT_BYTE_INDEX_NAME + "/_search");
+        searchRequest.setJsonEntity("""
+            {
+              "query": {
+                "script_score": {
+                  "query": {
+                    "exists": {
+                      "field": "vector"
+                    }
+                  },
+                  "script": {
+                    "source": "cosineSimilarity(params.query, 'vector') + 1.0",
+                    "params": {
+                      "query": [4, 5, 6]
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        Map<String, Object> response = search(searchRequest);
+        assertThat(extractValue(response, "hits.total.value"), equalTo(7));
+        List<Map<String, Object>> hits = extractValue(response, "hits.hits");
+        assertThat(hits.get(0).get("_id"), equalTo("0"));
+        assertThat((double) hits.get(0).get("_score"), closeTo(1.9869276, 0.0001));
+    }
 
     public void testScriptVectorSearch() throws Exception {
         assumeTrue(
@@ -248,7 +301,7 @@ public class VectorSearchIT extends ParameterizedRollingUpgradeTestCase {
                       "type": "dense_vector",
                       "dims": 3,
                       "index": true,
-                      "similarity": "l2_norm",
+                      "similarity": "cosine",
                       "index_options": {
                         "type": "int8_hnsw",
                         "ef_construction": 100,
@@ -305,8 +358,8 @@ public class VectorSearchIT extends ParameterizedRollingUpgradeTestCase {
         response = search(searchRequest);
         assertThat(extractValue(response, "hits.total.value"), equalTo(2));
         hits = extractValue(response, "hits.hits");
-        assertThat(hits.get(0).get("_id"), equalTo("2"));
-        assertThat((double) hits.get(0).get("_score"), closeTo(0.11111111, 0.0001));
+        assertThat(hits.get(0).get("_id"), equalTo("0"));
+        assertThat((double) hits.get(0).get("_score"), closeTo(0.9934857, 0.0001));
     }
 
     private void indexVectors(String indexName) throws Exception {

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.ml.inference;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -17,7 +16,6 @@ import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -27,14 +25,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 public class TrainedModelCacheMetadata implements Metadata.Custom {
 
@@ -73,24 +68,6 @@ public class TrainedModelCacheMetadata implements Metadata.Custom {
 
     public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
         return new TrainedModelCacheMetadataDiff(in);
-    }
-
-    public static Set<String> getUpdatedModelIds(ClusterChangedEvent event) {
-        if (event.changedCustomMetadataSet().contains(TrainedModelCacheMetadata.NAME) == false) {
-            return Collections.emptySet();
-        }
-
-        Map<String, TrainedModelCacheMetadataEntry> oldCacheMetadataEntries = TrainedModelCacheMetadata.fromState(event.previousState())
-            .entries();
-        Map<String, TrainedModelCacheMetadataEntry> newCacheMetadataEntries = TrainedModelCacheMetadata.fromState(event.state()).entries();
-
-        return Sets.union(oldCacheMetadataEntries.keySet(), newCacheMetadataEntries.keySet()).stream().filter(modelId -> {
-            if ((oldCacheMetadataEntries.containsKey(modelId) && newCacheMetadataEntries.containsKey(modelId)) == false) {
-                return true;
-            }
-
-            return Objects.equals(oldCacheMetadataEntries.get(modelId), newCacheMetadataEntries.get(modelId)) == false;
-        }).collect(Collectors.toSet());
     }
 
     private final Map<String, TrainedModelCacheMetadataEntry> entries;

@@ -38,7 +38,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelCacheMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
@@ -50,6 +49,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelCacheMetadataService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
@@ -219,7 +219,8 @@ public class ModelLoadingService implements ClusterStateListener {
         Settings settings,
         String localNode,
         CircuitBreaker trainedModelCircuitBreaker,
-        XPackLicenseState licenseState
+        XPackLicenseState licenseState,
+        TrainedModelCacheMetadataService trainedModelCacheMetadataService
     ) {
         this.provider = trainedModelProvider;
         this.threadPool = threadPool;
@@ -233,6 +234,7 @@ public class ModelLoadingService implements ClusterStateListener {
             .removalListener(this::cacheEvictionListener)
             .setExpireAfterAccess(INFERENCE_MODEL_CACHE_TTL.get(settings))
             .build();
+        trainedModelCacheMetadataService.addManagedCache(this.localModelCache);
         clusterService.addListener(this);
         this.localNode = localNode;
         this.trainedModelCircuitBreaker = ExceptionsHelper.requireNonNull(trainedModelCircuitBreaker, "trainedModelCircuitBreaker");
@@ -751,11 +753,6 @@ public class ModelLoadingService implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        TrainedModelCacheMetadata.getUpdatedModelIds(event).forEach(modelId -> {
-            localModelCache.invalidate(modelId);
-            logger.debug("Invalidated cache for model " + modelId);
-        });
-
         final boolean prefetchModels = event.state().nodes().getLocalNode().isIngestNode();
         // If we are not prefetching models and there were no model alias changes, don't bother handling the changes
         if ((prefetchModels == false)

@@ -19,20 +19,31 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelCacheMetadata;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelCacheMetadata.TrainedModelCacheMetadataEntry;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 
 public class TrainedModelCacheMetadataService implements ClusterStateListener {
     private static final Logger LOGGER = LogManager.getLogger(TrainedModelCacheMetadataService.class);
     private final MasterServiceTaskQueue<ModelCacheMetadataManagementTask> modelCacheMetadataManagementTaskQueue;
-
     private volatile boolean isMasterNode = false;
+    private volatile String nodeId = null;
+    private final Collection<Cache<String, ?>> managedCaches = new CopyOnWriteArrayList<>();
 
     public TrainedModelCacheMetadataService(ClusterService clusterService) {
         this.modelCacheMetadataManagementTaskQueue = clusterService.createTaskQueue(
@@ -48,7 +59,6 @@ public class TrainedModelCacheMetadataService implements ClusterStateListener {
             listener.onResponse(AcknowledgedResponse.FALSE);
             return;
         }
-
 
         ModelCacheMetadataManagementTask deleteModelCacheMetadataTask = new DeleteModelCacheMetadataTask(modelId, listener);
         this.modelCacheMetadataManagementTaskQueue.submitTask(
@@ -70,7 +80,40 @@ public class TrainedModelCacheMetadataService implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        if (event.state().clusterRecovered() == false || event.state().nodes().getMasterNode() == null) {
+            return;
+        }
         this.isMasterNode = event.localNodeMaster();
+        this.nodeId = event.state().nodes().getLocalNodeId();
+
+        getUpdatedModelIds(event).forEach(this::invalidateModelCaches);
+    }
+
+    private void invalidateModelCaches(String modelId) {
+        LOGGER.trace("Invalidating cache for model [" + modelId + "] on node [" + nodeId + " ]");
+        managedCaches.forEach(cache -> cache.invalidate(modelId));
+    }
+
+    private Set<String> getUpdatedModelIds(ClusterChangedEvent event) {
+        if (event.changedCustomMetadataSet().contains(TrainedModelCacheMetadata.NAME) == false) {
+            return Collections.emptySet();
+        }
+
+        Map<String, TrainedModelCacheMetadataEntry> oldCacheMetadataEntries = TrainedModelCacheMetadata.fromState(event.previousState())
+            .entries();
+        Map<String, TrainedModelCacheMetadataEntry> newCacheMetadataEntries = TrainedModelCacheMetadata.fromState(event.state()).entries();
+
+        return Sets.union(oldCacheMetadataEntries.keySet(), newCacheMetadataEntries.keySet()).stream().filter(modelId -> {
+            if ((oldCacheMetadataEntries.containsKey(modelId) && newCacheMetadataEntries.containsKey(modelId)) == false) {
+                return true;
+            }
+
+            return Objects.equals(oldCacheMetadataEntries.get(modelId), newCacheMetadataEntries.get(modelId)) == false;
+        }).collect(Collectors.toSet());
+    }
+
+    public void addManagedCache(Cache<String, ?> modelCache) {
+        this.managedCaches.add(modelCache);
     }
 
     private abstract static class ModelCacheMetadataManagementTask implements ClusterStateTaskListener {
@@ -107,7 +150,7 @@ public class TrainedModelCacheMetadataService implements ClusterStateListener {
             TaskContext<ModelCacheMetadataManagementTask> taskContext
         ) {
             var entries = new HashMap<>(currentCacheMetadata.entries());
-            entries.put(modelId, new TrainedModelCacheMetadata.TrainedModelCacheMetadataEntry(modelId));
+            entries.put(modelId, new TrainedModelCacheMetadataEntry(modelId));
             taskContext.success(() -> listener.onResponse(AcknowledgedResponse.TRUE));
             return new TrainedModelCacheMetadata(entries);
         }

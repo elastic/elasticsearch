@@ -1149,7 +1149,8 @@ public class MachineLearning extends Plugin
             settings,
             clusterService.getNodeName(),
             inferenceModelBreaker.get(),
-            getLicenseState()
+            getLicenseState(),
+            trainedModelCacheMetadataService
         );
         this.modelLoadingService.set(modelLoadingService);
 

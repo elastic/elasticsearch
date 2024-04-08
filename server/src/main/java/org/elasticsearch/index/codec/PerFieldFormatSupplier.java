@@ -73,7 +73,7 @@ public class PerFieldFormatSupplier {
         }
         IndexSettings indexSettings = mapperService.getIndexSettings();
         if (mapperService.mappingLookup().isDataStreamTimestampFieldEnabled()) {
-            // In case for time series indices, they _id isn't randomly generated,
+            // In case for time series indices, the _id isn't randomly generated,
             // but based on dimension fields and timestamp field, so during indexing
             // version/seq_no/term needs to be looked up and having a bloom filter
             // can speed this up significantly.

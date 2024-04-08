@@ -103,7 +103,8 @@ public final class Zstd814StoredFieldsFormat extends Lucene90CompressingStoredFi
 
     private static final class ZstdDecompressor extends Decompressor {
 
-        // Buffer for copying between the DataInput and native memory
+        // Buffer for copying between the DataInput and native memory. No hard science behind this number, it just tries to be high enough
+        // to benefit from bulk copying and low enough to keep heap usage under control.
         final byte[] copyBuffer = new byte[4096];
 
         ZstdDecompressor() {}
@@ -154,7 +155,8 @@ public final class Zstd814StoredFieldsFormat extends Lucene90CompressingStoredFi
     private static class ZstdCompressor extends Compressor {
 
         final int level;
-        // Buffer for copying between the DataInput and native memory
+        // Buffer for copying between the DataInput and native memory.  No hard science behind this number, it just tries to be high enough
+        // to benefit from bulk copying and low enough to keep heap usage under control.
         final byte[] copyBuffer = new byte[4096];
 
         ZstdCompressor(int level) {

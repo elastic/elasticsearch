@@ -212,7 +212,8 @@ public class MetadataDataStreamsService {
                     dataStream.getIndexMode(),
                     lifecycle,
                     dataStream.isFailureStore(),
-                    dataStream.getFailureIndices()
+                    dataStream.getFailureIndices(),
+                    dataStream.rolloverOnWrite()
                 )
             );
         }

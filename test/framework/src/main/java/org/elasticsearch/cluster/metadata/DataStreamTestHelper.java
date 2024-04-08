@@ -136,7 +136,8 @@ public final class DataStreamTestHelper {
             null,
             lifecycle,
             failureStores.size() > 0,
-            failureStores
+            failureStores,
+            false
         );
     }
 
@@ -293,13 +294,14 @@ public final class DataStreamTestHelper {
             failureIndices = randomIndexInstances();
         }
 
+        boolean replicated = randomBoolean();
         return new DataStream(
             dataStreamName,
             indices,
             generation,
             metadata,
             randomBoolean(),
-            randomBoolean(),
+            replicated,
             false, // Some tests don't work well with system data streams, since these data streams require special handling
             timeProvider,
             randomBoolean(),
@@ -307,7 +309,7 @@ public final class DataStreamTestHelper {
             randomBoolean() ? DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build() : null,
             failureStore,
             failureIndices,
-            randomBoolean()
+            replicated == false && randomBoolean()
         );
     }
 

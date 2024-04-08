@@ -124,8 +124,6 @@ public class KeyStoreWrapper implements SecureSettings {
     /** The algorithm used to derive the cipher key from a password. */
     private static final String KDF_ALGO = "PBKDF2WithHmacSHA512";
 
-    /** The number of iterations to derive the cipher key, for versions of the keystore preceding the iteration count increase. */
-    private static final int KDF_ITERS_BEFORE_HIGHER_KDF_ITERATION_COUNT_VERSION = 10000;
     /** The number of iterations to derive the cipher key. */
     private static final int KDF_ITERS = 210000;
 
@@ -340,7 +338,8 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     private static int getKdfIterationCountForVersion(int formatVersion) {
-        return formatVersion < HIGHER_KDF_ITERATION_COUNT_VERSION ? KDF_ITERS_BEFORE_HIGHER_KDF_ITERATION_COUNT_VERSION : KDF_ITERS;
+        // iteration count was increased in version 6; it was 10,000 in previous versions
+        return formatVersion < HIGHER_KDF_ITERATION_COUNT_VERSION ? 10000 : KDF_ITERS;
     }
 
     /**

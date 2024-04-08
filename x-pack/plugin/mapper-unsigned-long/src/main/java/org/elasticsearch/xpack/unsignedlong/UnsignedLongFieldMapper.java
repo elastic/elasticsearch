@@ -364,7 +364,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                             throw new UnsupportedOperationException();
                         }
                     ).build(cache, breakerService);
-                    return new UnsignedLongIndexFieldData(signedLongValues, UnsignedLongDocValuesField::new);
+                    return new UnsignedLongIndexFieldData(signedLongValues, UnsignedLongDocValuesField::new, isIndexed());
                 };
             }
 

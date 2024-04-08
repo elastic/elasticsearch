@@ -609,6 +609,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
+        protected boolean isIndexed() {
+            return false; // We don't know how to take advantage of the index with half floats anyway
+        }
+
+        @Override
         public NumericType getNumericType() {
             /*
              * {@link ScaledFloatLeafFieldData#getDoubleValues()} transforms the raw long values in `scaled` floats.

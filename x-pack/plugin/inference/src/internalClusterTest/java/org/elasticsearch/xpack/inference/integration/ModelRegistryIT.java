@@ -26,7 +26,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.InferencePlugin;
-import org.elasticsearch.xpack.inference.registry.ModelRegistryImpl;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elser.ElserInternalModel;
 import org.elasticsearch.xpack.inference.services.elser.ElserInternalService;
 import org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettingsTests;
@@ -55,13 +55,13 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
-public class ModelRegistryImplIT extends ESSingleNodeTestCase {
+public class ModelRegistryIT extends ESSingleNodeTestCase {
 
-    private ModelRegistryImpl ModelRegistryImpl;
+    private ModelRegistry modelRegistry;
 
     @Before
     public void createComponents() {
-        ModelRegistryImpl = new ModelRegistryImpl(client());
+        modelRegistry = new ModelRegistry(client());
     }
 
     @Override
@@ -75,7 +75,7 @@ public class ModelRegistryImplIT extends ESSingleNodeTestCase {
         AtomicReference<Boolean> storeModelHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
-        blockingCall(listener -> ModelRegistryImpl.storeModel(model, listener), storeModelHolder, exceptionHolder);
+        blockingCall(listener -> modelRegistry.storeModel(model, listener), storeModelHolder, exceptionHolder);
 
         assertThat(storeModelHolder.get(), is(true));
         assertThat(exceptionHolder.get(), is(nullValue()));
@@ -87,7 +87,7 @@ public class ModelRegistryImplIT extends ESSingleNodeTestCase {
         AtomicReference<Boolean> storeModelHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
-        blockingCall(listener -> ModelRegistryImpl.storeModel(model, listener), storeModelHolder, exceptionHolder);
+        blockingCall(listener -> modelRegistry.storeModel(model, listener), storeModelHolder, exceptionHolder);
 
         assertNull(storeModelHolder.get());
         assertNotNull(exceptionHolder.get());
@@ -106,12 +106,12 @@ public class ModelRegistryImplIT extends ESSingleNodeTestCase {
         AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
-        blockingCall(listener -> ModelRegistryImpl.storeModel(model, listener), putModelHolder, exceptionHolder);
+        blockingCall(listener -> modelRegistry.storeModel(model, listener), putModelHolder, exceptionHolder);
         assertThat(putModelHolder.get(), is(true));
 
         // now get the model
-        AtomicReference<ModelRegistryImpl.UnparsedModel> modelHolder = new AtomicReference<>();
-        blockingCall(listener -> ModelRegistryImpl.getModelWithSecrets(inferenceEntityId, listener), modelHolder, exceptionHolder);
+        AtomicReference<ModelRegistry.UnparsedModel> modelHolder = new AtomicReference<>();
+        blockingCall(listener -> modelRegistry.getModelWithSecrets(inferenceEntityId, listener), modelHolder, exceptionHolder);
         assertThat(exceptionHolder.get(), is(nullValue()));
         assertThat(modelHolder.get(), not(nullValue()));
 
@@ -133,13 +133,13 @@ public class ModelRegistryImplIT extends ESSingleNodeTestCase {
         AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
-        blockingCall(listener -> ModelRegistryImpl.storeModel(model, listener), putModelHolder, exceptionHolder);
+        blockingCall(listener -> modelRegistry.storeModel(model, listener), putModelHolder, exceptionHolder);
         assertThat(putModelHolder.get(), is(true));
         assertThat(exceptionHolder.get(), is(nullValue()));
 
         putModelHolder.set(false);
         // an model with the same id exists
-        blockingCall(listener -> ModelRegistryImpl.storeModel(model, listener), putModelHolder, exceptionHolder);
+        blockingCall(listener -> modelRegistry.storeModel(model, listener), putModelHolder, exceptionHolder);
         assertThat(putModelHolder.get(), is(false));
         assertThat(exceptionHolder.get(), not(nullValue()));
         assertThat(
@@ -154,20 +154,20 @@ public class ModelRegistryImplIT extends ESSingleNodeTestCase {
             Model model = buildElserModelConfig(id, TaskType.SPARSE_EMBEDDING);
             AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
             AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-            blockingCall(listener -> ModelRegistryImpl.storeModel(model, listener), putModelHolder, exceptionHolder);
+            blockingCall(listener -> modelRegistry.storeModel(model, listener), putModelHolder, exceptionHolder);
             assertThat(putModelHolder.get(), is(true));
         }
 
         AtomicReference<Boolean> deleteResponseHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-        blockingCall(listener -> ModelRegistryImpl.deleteModel("model1", listener), deleteResponseHolder, exceptionHolder);
+        blockingCall(listener -> modelRegistry.deleteModel("model1", listener), deleteResponseHolder, exceptionHolder);
         assertThat(exceptionHolder.get(), is(nullValue()));
         assertTrue(deleteResponseHolder.get());
 
         // get should fail
         deleteResponseHolder.set(false);
-        AtomicReference<ModelRegistryImpl.UnparsedModel> modelHolder = new AtomicReference<>();
-        blockingCall(listener -> ModelRegistryImpl.getModelWithSecrets("model1", listener), modelHolder, exceptionHolder);
+        AtomicReference<ModelRegistry.UnparsedModel> modelHolder = new AtomicReference<>();
+        blockingCall(listener -> modelRegistry.getModelWithSecrets("model1", listener), modelHolder, exceptionHolder);
 
         assertThat(exceptionHolder.get(), not(nullValue()));
         assertFalse(deleteResponseHolder.get());
@@ -187,13 +187,13 @@ public class ModelRegistryImplIT extends ESSingleNodeTestCase {
             AtomicReference<Boolean> putModelHolder = new AtomicReference<>();
             AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
-            blockingCall(listener -> ModelRegistryImpl.storeModel(model, listener), putModelHolder, exceptionHolder);
+            blockingCall(listener -> modelRegistry.storeModel(model, listener), putModelHolder, exceptionHolder);
             assertThat(putModelHolder.get(), is(true));
         }
 
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-        AtomicReference<List<ModelRegistryImpl.UnparsedModel>> modelHolder = new AtomicReference<>();
-        blockingCall(listener -> ModelRegistryImpl.getModelsByTaskType(TaskType.SPARSE_EMBEDDING, listener), modelHolder, exceptionHolder);
+        AtomicReference<List<ModelRegistry.UnparsedModel>> modelHolder = new AtomicReference<>();
+        blockingCall(listener -> modelRegistry.getModelsByTaskType(TaskType.SPARSE_EMBEDDING, listener), modelHolder, exceptionHolder);
         assertThat(modelHolder.get(), hasSize(3));
         var sparseIds = sparseAndTextEmbeddingModels.stream()
             .filter(m -> m.getConfigurations().getTaskType() == TaskType.SPARSE_EMBEDDING)
@@ -204,7 +204,7 @@ public class ModelRegistryImplIT extends ESSingleNodeTestCase {
             assertThat(m.secrets().keySet(), empty());
         });
 
-        blockingCall(listener -> ModelRegistryImpl.getModelsByTaskType(TaskType.TEXT_EMBEDDING, listener), modelHolder, exceptionHolder);
+        blockingCall(listener -> modelRegistry.getModelsByTaskType(TaskType.TEXT_EMBEDDING, listener), modelHolder, exceptionHolder);
         assertThat(modelHolder.get(), hasSize(2));
         var denseIds = sparseAndTextEmbeddingModels.stream()
             .filter(m -> m.getConfigurations().getTaskType() == TaskType.TEXT_EMBEDDING)
@@ -228,13 +228,13 @@ public class ModelRegistryImplIT extends ESSingleNodeTestCase {
             var model = createModel(randomAlphaOfLength(5), randomFrom(TaskType.values()), service);
             createdModels.add(model);
 
-            blockingCall(listener -> ModelRegistryImpl.storeModel(model, listener), putModelHolder, exceptionHolder);
+            blockingCall(listener -> modelRegistry.storeModel(model, listener), putModelHolder, exceptionHolder);
             assertThat(putModelHolder.get(), is(true));
             assertNull(exceptionHolder.get());
         }
 
-        AtomicReference<List<ModelRegistryImpl.UnparsedModel>> modelHolder = new AtomicReference<>();
-        blockingCall(listener -> ModelRegistryImpl.getAllModels(listener), modelHolder, exceptionHolder);
+        AtomicReference<List<ModelRegistry.UnparsedModel>> modelHolder = new AtomicReference<>();
+        blockingCall(listener -> modelRegistry.getAllModels(listener), modelHolder, exceptionHolder);
         assertThat(modelHolder.get(), hasSize(modelCount));
         var getAllModels = modelHolder.get();
 
@@ -258,18 +258,18 @@ public class ModelRegistryImplIT extends ESSingleNodeTestCase {
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
         var modelWithSecrets = createModelWithSecrets(inferenceEntityId, randomFrom(TaskType.values()), service, secret);
-        blockingCall(listener -> ModelRegistryImpl.storeModel(modelWithSecrets, listener), putModelHolder, exceptionHolder);
+        blockingCall(listener -> modelRegistry.storeModel(modelWithSecrets, listener), putModelHolder, exceptionHolder);
         assertThat(putModelHolder.get(), is(true));
         assertNull(exceptionHolder.get());
 
-        AtomicReference<ModelRegistryImpl.UnparsedModel> modelHolder = new AtomicReference<>();
-        blockingCall(listener -> ModelRegistryImpl.getModelWithSecrets(inferenceEntityId, listener), modelHolder, exceptionHolder);
+        AtomicReference<ModelRegistry.UnparsedModel> modelHolder = new AtomicReference<>();
+        blockingCall(listener -> modelRegistry.getModelWithSecrets(inferenceEntityId, listener), modelHolder, exceptionHolder);
         assertThat(modelHolder.get().secrets().keySet(), hasSize(1));
         var secretSettings = (Map<String, Object>) modelHolder.get().secrets().get("secret_settings");
         assertThat(secretSettings.get("secret"), equalTo(secret));
 
         // get model without secrets
-        blockingCall(listener -> ModelRegistryImpl.getModel(inferenceEntityId, listener), modelHolder, exceptionHolder);
+        blockingCall(listener -> modelRegistry.getModel(inferenceEntityId, listener), modelHolder, exceptionHolder);
         assertThat(modelHolder.get().secrets().keySet(), empty());
     }
 

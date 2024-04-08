@@ -31,7 +31,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -422,15 +421,10 @@ public class MetadataCreateDataStreamService {
             return currentState;
         }
 
-        var indexSettings = MetadataRolloverService.HIDDEN_INDEX_SETTINGS;
-        // Optionally set a custom refresh interval for the failure store index.
-        var refreshInterval = getFailureStoreRefreshInterval(settings);
-        if (refreshInterval != null) {
-            indexSettings = Settings.builder()
-                .put(indexSettings)
-                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), refreshInterval)
-                .build();
-        }
+        var indexSettings = DataStreamFailureStoreDefinition.buildFailureStoreIndexSettings(
+            MetadataRolloverService.HIDDEN_INDEX_SETTINGS,
+            settings
+        );
 
         CreateIndexClusterStateUpdateRequest createIndexRequest = new CreateIndexClusterStateUpdateRequest(
             cause,
@@ -488,9 +482,5 @@ public class MetadataCreateDataStreamService {
         }
         // Sanity check (this validation logic should already have been executed when merging mappings):
         fieldMapper.validate(mappingLookup);
-    }
-
-    public static TimeValue getFailureStoreRefreshInterval(Settings settings) {
-        return settings.getAsTime(FAILURE_STORE_REFRESH_INTERVAL_SETTING_NAME, null);
     }
 }

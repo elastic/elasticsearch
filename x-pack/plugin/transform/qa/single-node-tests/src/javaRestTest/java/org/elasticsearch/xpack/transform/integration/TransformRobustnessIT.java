@@ -95,10 +95,16 @@ public class TransformRobustnessIT extends TransformRestTestCase {
             try {
                 // Create the batch transform
                 createPivotReviewsTransform(transformId, destIndex, null);
+                assertThat(getTransformTasks(), is(empty()));
+                assertThat(getTransformTasksFromClusterState(transformId), is(empty()));
+
                 // Wait until the transform finishes
                 startAndWaitForTransform(transformId, destIndex);
+
                 // After the transform finishes, there should be no transform task left
                 assertThat(getTransformTasks(), is(empty()));
+                assertThat(getTransformTasksFromClusterState(transformId), is(empty()));
+
                 // Delete the transform
                 deleteTransform(transformId);
             } catch (AssertionError | Exception e) {

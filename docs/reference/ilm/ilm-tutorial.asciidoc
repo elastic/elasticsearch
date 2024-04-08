@@ -289,8 +289,8 @@ directly, so the index APIs would need to be used directly on the data stream's 
 these cases we still recommend using a data stream.
 
 If you frequently send multiple documents using the same `_id` expecting last-write-wins, you can
-use an index alias to manage indices containing the time series data and periodically roll over to a
-new index.
+use an index alias instead of a data stream to manage indices containing the time series data and
+periodically roll over to a new index.
 
 To automate rollover and management of time series indices with {ilm-init} using an index
 alias, you:

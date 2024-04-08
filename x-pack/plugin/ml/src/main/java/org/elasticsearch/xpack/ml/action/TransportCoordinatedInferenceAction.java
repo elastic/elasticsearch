@@ -119,7 +119,14 @@ public class TransportCoordinatedInferenceAction extends HandledTransportAction<
             client,
             INFERENCE_ORIGIN,
             InferenceAction.INSTANCE,
-            new InferenceAction.Request(TaskType.ANY, request.getModelId(), request.getInputs(), request.getTaskSettings(), inputType),
+            new InferenceAction.Request(
+                TaskType.ANY,
+                request.getModelId(),
+                null,
+                request.getInputs(),
+                request.getTaskSettings(),
+                inputType
+            ),
             listener.delegateFailureAndWrap((l, r) -> l.onResponse(translateInferenceServiceResponse(r.getResults())))
         );
     }

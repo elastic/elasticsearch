@@ -1780,7 +1780,7 @@ public class DataStreamIT extends ESIntegTestCase {
                     DataStream original = currentState.getMetadata().dataStreams().get(dataStreamName);
                     DataStream broken = new DataStream.Builder(original).setIndices(
                         List.of(new Index(original.getIndices().get(0).getName(), "broken"), original.getIndices().get(1))
-                    ).setRolloverOnWrite(false).setAutoShardingEvent(null).build();
+                    ).build();
                     brokenDataStreamHolder.set(broken);
                     return ClusterState.builder(currentState)
                         .metadata(Metadata.builder(currentState.getMetadata()).put(broken).build())

@@ -286,8 +286,6 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             new DataStream.Builder(dataStream).setName(dataStreamName)
                 .setGeneration(dataStream.getGeneration() + 1)
                 .setLifecycle(DataStreamLifecycle.newBuilder().dataRetention(0L).build())
-                .setRolloverOnWrite(false)
-                .setAutoShardingEvent(null)
                 .build()
         );
         clusterState = ClusterState.builder(clusterState).metadata(builder).build();

@@ -301,7 +301,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             ).getMetadata()
         );
         DataStream ds = mb.dataStream(dataStreamName);
-        mb.put(new DataStream.Builder(ds).setIndexMode(IndexMode.TIME_SERIES).setRolloverOnWrite(false).setAutoShardingEvent(null).build());
+        mb.put(new DataStream.Builder(ds).setIndexMode(IndexMode.TIME_SERIES).build());
         Metadata metadata = mb.build();
 
         Instant now = twoHoursAgo.plus(2, ChronoUnit.HOURS);

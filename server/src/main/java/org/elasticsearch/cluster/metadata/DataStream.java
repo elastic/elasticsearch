@@ -132,40 +132,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         DataStreamLifecycle lifecycle,
         boolean failureStore,
         List<Index> failureIndices,
-        @Nullable DataStreamAutoShardingEvent autoShardingEvent
-    ) {
-        this(
-            name,
-            indices,
-            generation,
-            metadata,
-            hidden,
-            replicated,
-            system,
-            System::currentTimeMillis,
-            allowCustomRouting,
-            indexMode,
-            lifecycle,
-            failureStore,
-            failureIndices,
-            false,
-            autoShardingEvent
-        );
-    }
-
-    public DataStream(
-        String name,
-        List<Index> indices,
-        long generation,
-        Map<String, Object> metadata,
-        boolean hidden,
-        boolean replicated,
-        boolean system,
-        boolean allowCustomRouting,
-        IndexMode indexMode,
-        DataStreamLifecycle lifecycle,
-        boolean failureStore,
-        List<Index> failureIndices,
         boolean rolloverOnWrite,
         @Nullable DataStreamAutoShardingEvent autoShardingEvent
     ) {
@@ -222,6 +188,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.failureStore = failureStore;
         this.failureIndices = failureIndices;
         assert assertConsistent(this.indices);
+        assert replicated == false || rolloverOnWrite == false : "replicated data streams cannot be marked for lazy rollover";
         this.rolloverOnWrite = rolloverOnWrite;
         this.autoShardingEvent = autoShardingEvent;
     }
@@ -238,7 +205,22 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         boolean allowCustomRouting,
         IndexMode indexMode
     ) {
-        this(name, indices, generation, metadata, hidden, replicated, system, allowCustomRouting, indexMode, null, false, List.of(), null);
+        this(
+            name,
+            indices,
+            generation,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            allowCustomRouting,
+            indexMode,
+            null,
+            false,
+            List.of(),
+            false,
+            null
+        );
     }
 
     private static boolean assertConsistent(List<Index> indices) {
@@ -615,7 +597,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.remove(index);
         assert backingIndices.size() == indices.size() - 1;
-        return new Builder(this).setIndices(backingIndices).setGeneration(generation + 1).setRolloverOnWrite(false).build();
+        return new Builder(this).setIndices(backingIndices).setGeneration(generation + 1).build();
     }
 
     /**
@@ -647,7 +629,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             );
         }
         backingIndices.set(backingIndexPosition, newBackingIndex);
-        return new Builder(this).setIndices(backingIndices).setGeneration(generation + 1).setRolloverOnWrite(false).build();
+        return new Builder(this).setIndices(backingIndices).setGeneration(generation + 1).build();
     }
 
     /**
@@ -694,7 +676,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(0, index);
         assert backingIndices.size() == indices.size() + 1;
-        return new Builder(this).setIndices(backingIndices).setGeneration(generation + 1).setRolloverOnWrite(false).build();
+        return new Builder(this).setIndices(backingIndices).setGeneration(generation + 1).build();
     }
 
     public DataStream promoteDataStream() {
@@ -721,10 +703,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             return null;
         }
 
-        return new Builder(this).setIndices(reconciledIndices)
-            .setMetadata(metadata == null ? null : new HashMap<>(metadata))
-            .setRolloverOnWrite(false)
-            .build();
+        return new Builder(this).setIndices(reconciledIndices).setMetadata(metadata == null ? null : new HashMap<>(metadata)).build();
     }
 
     /**

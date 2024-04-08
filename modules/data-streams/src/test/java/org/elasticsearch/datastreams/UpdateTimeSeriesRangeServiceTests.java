@@ -139,9 +139,7 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
             List.of(new Tuple<>(start.minus(4, ChronoUnit.HOURS), start), new Tuple<>(start, end))
         ).getMetadata();
         DataStream d = metadata.dataStreams().get(dataStreamName);
-        metadata = Metadata.builder(metadata)
-            .put(new DataStream.Builder(d).setReplicated(true).setRolloverOnWrite(false).setAutoShardingEvent(null).build())
-            .build();
+        metadata = Metadata.builder(metadata).put(new DataStream.Builder(d).setReplicated(true).setRolloverOnWrite(false).build()).build();
 
         now = now.plus(1, ChronoUnit.HOURS);
         ClusterState in = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();

@@ -199,7 +199,7 @@ public class MetadataDataStreamsService {
         Metadata.Builder builder = Metadata.builder(metadata);
         for (var dataStreamName : dataStreamNames) {
             var dataStream = validateDataStream(metadata, dataStreamName);
-            builder.put(new DataStream.Builder(dataStream).setLifecycle(lifecycle).setRolloverOnWrite(false).build());
+            builder.put(new DataStream.Builder(dataStream).setLifecycle(lifecycle).build());
         }
         return ClusterState.builder(currentState).metadata(builder.build()).build();
     }

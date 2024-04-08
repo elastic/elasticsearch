@@ -123,6 +123,9 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
         if (roleDescriptor.hasRemoteIndicesPrivileges()) {
             throw new IllegalArgumentException("remote indices privileges must be empty");
         }
+        if (roleDescriptor.hasRemoteClusterPermissions()) {
+            throw new IllegalArgumentException("remote cluster permissions must be empty");
+        }
         final String[] clusterPrivileges = roleDescriptor.getClusterPrivileges();
         if (false == Arrays.equals(clusterPrivileges, CCS_CLUSTER_PRIVILEGE_NAMES)
             && false == Arrays.equals(clusterPrivileges, CCR_CLUSTER_PRIVILEGE_NAMES)

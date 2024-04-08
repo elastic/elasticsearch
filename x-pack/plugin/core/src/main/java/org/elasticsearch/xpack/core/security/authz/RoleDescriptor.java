@@ -248,7 +248,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return remoteClusterPermissions.hasPrivileges();
     }
 
-
     public RemoteClusterPermissions getRemoteClusterPermissions() {
         return this.remoteClusterPermissions;
     }

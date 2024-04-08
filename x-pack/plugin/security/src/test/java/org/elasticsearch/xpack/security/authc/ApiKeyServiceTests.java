@@ -2480,7 +2480,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             TransportVersionUtils.getPreviousVersion(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
         );
 
-        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemoteIndicesPrivileges(
+        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemotePrivileges(
             userRoleDescriptors,
             minTransportVersion,
             apiKeyId
@@ -2518,7 +2518,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             TransportVersion.current()
         );
 
-        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemoteIndicesPrivileges(
+        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemotePrivileges(
             userRoleDescriptors,
             minTransportVersion,
             apiKeyId

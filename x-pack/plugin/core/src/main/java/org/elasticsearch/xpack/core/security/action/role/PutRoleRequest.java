@@ -44,7 +44,9 @@ public class PutRoleRequest extends ActionRequest {
     private WriteRequest.RefreshPolicy refreshPolicy = WriteRequest.RefreshPolicy.IMMEDIATE;
     private Map<String, Object> metadata;
     private List<RoleDescriptor.RemoteIndicesPrivileges> remoteIndicesPrivileges = new ArrayList<>();
+    private RemoteClusterPermissions remoteClusterPermissions = RemoteClusterPermissions.NONE;
     private boolean restrictRequest = false;
+
 
     public PutRoleRequest() {}
 

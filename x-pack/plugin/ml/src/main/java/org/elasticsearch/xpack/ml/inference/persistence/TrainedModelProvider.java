@@ -129,11 +129,7 @@ public class TrainedModelProvider {
     private final NamedXContentRegistry xContentRegistry;
     private final TrainedModelCacheManager modelCacheMetadataService;
 
-    public TrainedModelProvider(
-        Client client,
-        TrainedModelCacheManager modelCacheMetadataService,
-        NamedXContentRegistry xContentRegistry
-    ) {
+    public TrainedModelProvider(Client client, TrainedModelCacheManager modelCacheMetadataService, NamedXContentRegistry xContentRegistry) {
         this.client = client;
         this.modelCacheMetadataService = modelCacheMetadataService;
         this.xContentRegistry = xContentRegistry;

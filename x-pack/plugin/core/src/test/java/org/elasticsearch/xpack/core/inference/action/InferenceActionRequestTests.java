@@ -232,7 +232,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                         return new InferenceAction.Request(
                             instance.getTaskType(),
                             instance.getInferenceEntityId(),
-                            null,
+                            instance.getQuery(),
                             instance.getInput(),
                             instance.getTaskSettings(),
                             instance.getInputType(),

@@ -322,7 +322,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             matchesMap().entry("values", List.of(List.of(1))).entry("columns", List.of(Map.of("name", "min(value)", "type", "long")))
         );
 
-        builder = new RequestObjectBuilder().query(fromIndex() + " | stats min(value) by group");
+        builder = new RequestObjectBuilder().query(fromIndex() + " | stats min(value) by group | sort group, `min(value)`");
         result = runEsql(builder);
         assertMap(
             result,

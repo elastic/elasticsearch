@@ -165,7 +165,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         if (withoutNull.equals(Arrays.asList(strings()))) {
             return "string";
         }
-        if (withoutNull.equals(Arrays.asList(integers()))) {
+        if (withoutNull.equals(Arrays.asList(integers())) || withoutNull.equals(List.of(DataTypes.INTEGER))) {
             return "integer";
         }
         if (withoutNull.equals(Arrays.asList(rationals()))) {

@@ -1038,6 +1038,7 @@ public class NodeStatsTests extends ESTestCase {
                 randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue)
             );
         }

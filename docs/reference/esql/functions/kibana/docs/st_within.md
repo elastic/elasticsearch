@@ -10,4 +10,3 @@ FROM airport_city_boundaries
 | WHERE ST_WITHIN(city_boundary, TO_GEOSHAPE("POLYGON((109.1 18.15, 109.6 18.15, 109.6 18.65, 109.1 18.65, 109.1 18.15))"))
 | KEEP abbrev, airport, region, city, city_location
 ```
-Note: The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters.

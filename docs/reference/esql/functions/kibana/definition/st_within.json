@@ -3,7 +3,6 @@
   "type" : "eval",
   "name" : "st_within",
   "description" : "Returns whether the first geometry is within the second geometry.",
-  "note" : "The second parameter must also have the same coordinate system as the first. This means it is not possible to combine `geo_*` and `cartesian_*` parameters.",
   "signatures" : [
     {
       "params" : [

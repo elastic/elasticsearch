@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
@@ -171,6 +173,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     }
 
     @Override
+    public NestedObjectMapper innerNestedObjectMapper() {
+        return fieldType().getChunksField();
+    }
+
+    @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         XContentParser parser = context.parser();
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
@@ -301,7 +308,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support term query");
+            // TODO Check that we can delegate to the chunks
+            return getEmbeddingsField().fieldType().termQuery(value, context);
         }
 
         @Override

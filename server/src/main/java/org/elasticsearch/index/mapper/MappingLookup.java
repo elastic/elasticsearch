@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -145,6 +146,7 @@ public final class MappingLookup {
                 nestedMappers.add((NestedObjectMapper) mapper);
             }
         }
+        nestedMappers.addAll(mappers.stream().map(FieldMapper::innerNestedObjectMapper).filter(Objects::nonNull).toList());
         this.nestedLookup = NestedLookup.build(nestedMappers);
 
         final Map<String, NamedAnalyzer> indexAnalyzersMap = new HashMap<>();

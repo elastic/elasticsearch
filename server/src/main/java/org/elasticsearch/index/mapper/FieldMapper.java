@@ -143,6 +143,17 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
+     * Returns any nested object mapper the field can expose that is not directly a {@link NestedObjectMapper}.
+     * Some field mappers can be queried as nested objects without being part of a nested object, and this
+     * method exposes that nested object mapper so nested queries can be performed on then.
+     *
+     * @return nested object mapper the field have
+     */
+    public NestedObjectMapper innerNestedObjectMapper() {
+        return null;
+    }
+
+    /**
      * Will this field ignore malformed values for this field and accept the
      * document ({@code true}) or will it reject documents with malformed
      * values for this field ({@code false}). Some fields don't have a concept

@@ -117,12 +117,7 @@ public class PutCalendarAction extends ActionType<PutCalendarAction.Response> {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private Calendar calendar;
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            calendar = new Calendar(in);
-        }
+        private final Calendar calendar;
 
         public Response(Calendar calendar) {
             this.calendar = calendar;

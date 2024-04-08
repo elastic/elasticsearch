@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -181,6 +182,7 @@ public class CohereService extends SenderService {
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
+        TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         if (model instanceof CohereModel == false) {
@@ -201,6 +203,7 @@ public class CohereService extends SenderService {
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
+        TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         if (model instanceof CohereModel == false) {
@@ -223,13 +226,14 @@ public class CohereService extends SenderService {
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
+        TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         ActionListener<InferenceServiceResults> inferListener = listener.delegateFailureAndWrap(
             (delegate, response) -> delegate.onResponse(translateToChunkedResults(input, response))
         );
 
-        doInfer(model, input, taskSettings, inputType, inferListener);
+        doInfer(model, input, taskSettings, inputType, timeout, inferListener);
     }
 
     private static List<ChunkedInferenceServiceResults> translateToChunkedResults(

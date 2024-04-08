@@ -45,6 +45,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -247,6 +248,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return remoteClusterPermissions.hasPrivileges();
     }
 
+
     public RemoteClusterPermissions getRemoteClusterPermissions() {
         return this.remoteClusterPermissions;
     }
@@ -272,15 +274,11 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     }
 
     public boolean hasUnsupportedPrivileges() {
-        // //this is enforced elsewhere
-        // assert Arrays.stream(this.getRemoteClusterPermissions().privilegeNames("*"))
-        // .anyMatch(s -> s.equalsIgnoreCase("monitor_enrich") == false) : "monitor_enrich is the only value allowed";
-        // TODO: make this validation configurable
-
         return hasConfigurableClusterPrivileges()
             || hasApplicationPrivileges()
             || hasRunAs()
             || hasRemoteIndicesPrivileges()
+            || hasRemoteClusterPermissions()
             || hasWorkflowsRestriction();
     }
 
@@ -716,7 +714,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     private static RemoteClusterPermissions parseRemoteCluster(final String roleName, final XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
             throw new ElasticsearchParseException(
-                "failed to parse remote_cluster for role [{}]. expected field [{}] value " + "to be an array, but found [{}] instead",
+                "failed to parse remote_cluster for role [{}]. expected field [{}] value to be an array, but found [{}] instead",
                 roleName,
                 parser.currentName(),
                 parser.currentToken()
@@ -733,14 +731,17 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     currentFieldName = parser.currentName();
                 } else if (Fields.PRIVILEGES.match(currentFieldName, parser.getDeprecationHandler())) {
                     privileges = readStringArray(roleName, parser, false);
-                    // TODO: re-enable this validation
-                    // if (privileges.length != 1 || "monitor_enrich".equals(privileges[0].trim()) == false) {
-                    // throw new ElasticsearchParseException(
-                    // "failed to parse remote_cluster for role [{}]. " + "[monitor_enrich] is the only value allowed for [{}]",
-                    // roleName,
-                    // currentFieldName
-                    // );
-                    // }
+                    if (privileges.length != 1
+                        || RemoteClusterPermissions.getSupportRemoteClusterPermissions()
+                            .contains(privileges[0].trim().toLowerCase(Locale.ROOT)) == false) {
+                        throw new ElasticsearchParseException(
+                            "failed to parse remote_cluster for role [{}]. "
+                                + RemoteClusterPermissions.getSupportRemoteClusterPermissions()
+                                + " is the only value allowed for [{}] within [remote_cluster]",
+                            roleName,
+                            currentFieldName
+                        );
+                    }
                 } else if (Fields.CLUSTERS.match(currentFieldName, parser.getDeprecationHandler())) {
                     clusters = readStringArray(roleName, parser, false);
                 } else {

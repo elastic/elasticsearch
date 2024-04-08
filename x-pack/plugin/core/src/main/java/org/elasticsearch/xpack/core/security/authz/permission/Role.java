@@ -279,21 +279,7 @@ public interface Role {
             Objects.requireNonNull(remoteClusterPermissions, "remoteClusterPermissions must not be null");
             assert this.remoteClusterPermissions == null : "addRemoteClusterPermissions should only be called once";
             if (remoteClusterPermissions.hasPrivileges()) {
-                Set<String> namedClusterPrivileges = ClusterPrivilegeResolver.names();
-                for (RemoteClusterPermissionGroup group : remoteClusterPermissions.groups()) {
-                    for (String namedPrivilege : group.clusterPrivileges()) {
-                        // TODO: re-enable this validation (and test)
-                        // if ("monitor_enrich".equals(namedPrivilege) == false) {
-                        // //this should be enforced upstream while defining the role, so the check here too is just in case...
-                        // throw new IllegalArgumentException("Only [monitor_enrich] is supported as a remote cluster privilege");
-                        // }
-                        // // this can never happen, but if we ever expand the list of remote cluster privileges then we want to ensure that
-                        // // only named cluster privileges are supported
-                        // if (namedClusterPrivileges.contains(namedPrivilege) == false) {
-                        // throw new IllegalArgumentException("Unknown cluster privilege [" + namedPrivilege + "]");
-                        // }
-                    }
-                }
+                remoteClusterPermissions.validate();
             }
             this.remoteClusterPermissions = remoteClusterPermissions;
             return this;

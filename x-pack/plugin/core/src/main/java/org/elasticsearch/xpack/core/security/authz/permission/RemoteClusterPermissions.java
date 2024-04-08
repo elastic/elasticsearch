@@ -13,13 +13,17 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents a group of permissions for a remote cluster. This is intended to be the model for both the {@link RoleDescriptor}
@@ -51,8 +55,17 @@ import java.util.Objects;
 public class RemoteClusterPermissions implements Writeable, ToXContentObject {
 
     private final List<RemoteClusterPermissionGroup> remoteClusterPermissionGroups;
+    private static final Set<String> allowedRemoteClusterPermissions = Set.of("monitor_enrich");
+    static{
+        assert ClusterPrivilegeResolver.names().containsAll(allowedRemoteClusterPermissions);
+    }
 
     public static final RemoteClusterPermissions NONE = new RemoteClusterPermissions();
+
+    public static Set<String> getSupportRemoteClusterPermissions() {
+        //if there are ever more than 1 allowed permission make related logs/error messages plural
+        return allowedRemoteClusterPermissions;
+    }
 
     public RemoteClusterPermissions(StreamInput in) throws IOException {
         remoteClusterPermissionGroups = in.readCollectionAsList(RemoteClusterPermissionGroup::new);
@@ -78,6 +91,40 @@ public class RemoteClusterPermissions implements Writeable, ToXContentObject {
             .distinct()
             .sorted()
             .toArray(String[]::new);
+    }
+
+    /**
+     * Validates the remote cluster permissions. This method will throw an {@link IllegalArgumentException} if the permissions are invalid.
+     * Generally, this method is just a safety check and validity should be checked before adding the permissions to this class.
+     */
+    public void validate() {
+        assert hasPrivileges();
+        Set<String> invalid = getUnsupportedPrivileges();
+        if (invalid.isEmpty() == false) {
+            throw new IllegalArgumentException(
+                "Invalid remote_cluster permissions found. Please remove the remove the following: "
+                    + invalid
+                    + " Only "
+                    + allowedRemoteClusterPermissions
+                    + " is allowed"
+            );
+        }
+    }
+
+    /**
+     * Returns the unsupported privileges in the remote cluster permissions. Empty set if all privileges are supported.
+     */
+    public Set<String> getUnsupportedPrivileges(){
+        Set<String> invalid = new HashSet<>();
+        for (RemoteClusterPermissionGroup group : remoteClusterPermissionGroups) {
+            for (String namedPrivilege : group.clusterPrivileges()) {
+                String toCheck = namedPrivilege.toLowerCase(Locale.ROOT);
+                if (allowedRemoteClusterPermissions.contains(toCheck) == false) {
+                    invalid.add(namedPrivilege);
+                }
+            }
+        }
+        return invalid;
     }
 
     public boolean hasPrivileges(final String remoteClusterAlias) {

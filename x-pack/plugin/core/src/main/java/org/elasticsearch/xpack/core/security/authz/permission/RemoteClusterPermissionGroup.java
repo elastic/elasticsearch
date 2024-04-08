@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Represents a group of permissions for a remote cluster. For example:
@@ -39,7 +40,6 @@ public class RemoteClusterPermissionGroup implements Writeable, ToXContentObject
     }
 
     public RemoteClusterPermissionGroup(String[] clusterPrivileges, String[] remoteClusterAliases) {
-        // TODO: throw an exception if using unsupported cluster privilges
         this(clusterPrivileges, remoteClusterAliases, StringMatcher.of(remoteClusterAliases));
     }
 
@@ -53,6 +53,7 @@ public class RemoteClusterPermissionGroup implements Writeable, ToXContentObject
         assert remoteClusterAliasMatcher != null;
         assert clusterPrivileges.length > 0;
         assert remoteClusterAliases.length > 0;
+        assert RemoteClusterPermissions.getSupportRemoteClusterPermissions().containsAll(Arrays.asList(clusterPrivileges));
         this.clusterPrivileges = clusterPrivileges;
         this.remoteClusterAliases = remoteClusterAliases;
         this.remoteClusterAliasMatcher = remoteClusterAliasMatcher;

@@ -93,12 +93,6 @@ If no such template exists, you can <<create-index-template,create one>> or
 <<restore-entire-cluster,restore a cluster state>> that
 contains one. Without a matching index template, a data stream can't roll over
 or create backing indices.
-[WARNING]
-====
-If the snapshot of a data stream was taken when the data stream was marked for lazy rollover (e.g. after a change in the underlying index template),
-and you restore that data stream _without_ a matching index template (e.g. by restoring to a name that doesn't match the original index template),
-you will not be able to write to your data stream at all until you configure a matching index template.
-====
 
 * If your snapshot contains data from App Search or Workplace Search, ensure
 you've restored the {enterprise-search-ref}/encryption-keys.html[Enterprise

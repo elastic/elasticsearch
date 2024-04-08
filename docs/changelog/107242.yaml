@@ -1,0 +1,5 @@
+pr: 107242
+summary: Adding a timeout parameter to the inference API
+area: Machine Learning
+type: enhancement
+issues: []

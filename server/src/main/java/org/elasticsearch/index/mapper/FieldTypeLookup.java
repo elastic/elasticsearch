@@ -102,12 +102,10 @@ final class FieldTypeLookup {
                     String name = fieldMapper.simpleName();
                     // Check for conflict between PassThroughObjectMapper subfields.
                     PassThroughObjectMapper conflict = passThroughFieldAliases.put(name, passThroughMapper);
-                    if (conflict != null) {
-                        // Check the priorities of the conflicting objects.
-                        if (conflict.priority() > passThroughMapper.priority()) {
-                            passThroughFieldAliases.put(name, conflict);
-                            continue;
-                        }
+                    if (conflict != null && conflict.priority() > passThroughMapper.priority()) {
+                        // Keep the conflicting field if it has higher priority.
+                        passThroughFieldAliases.put(name, conflict);
+                        continue;
                     } else if (fullNameToFieldType.containsKey(name)) {
                         // There's an existing field or alias for the same field.
                         continue;

@@ -20,10 +20,10 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceSettings;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -56,9 +56,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         }
         Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
         return new OpenAiEmbeddingsServiceSettings(
-            modelId,
-            ServiceUtils.createUri(url),
-            organizationId,
+            new OpenAiServiceSettings(modelId, ServiceUtils.createUri(url), organizationId),
             similarityMeasure,
             dims,
             maxInputTokens,
@@ -97,9 +95,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             serviceSettings,
             is(
                 new OpenAiEmbeddingsServiceSettings(
-                    modelId,
-                    ServiceUtils.createUri(url),
-                    org,
+                    new OpenAiServiceSettings(modelId, ServiceUtils.createUri(url), org),
                     SimilarityMeasure.DOT_PRODUCT,
                     dims,
                     maxInputTokens,
@@ -137,9 +133,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             serviceSettings,
             is(
                 new OpenAiEmbeddingsServiceSettings(
-                    modelId,
-                    ServiceUtils.createUri(url),
-                    org,
+                    new OpenAiServiceSettings(modelId, ServiceUtils.createUri(url), org),
                     SimilarityMeasure.DOT_PRODUCT,
                     null,
                     maxInputTokens,
@@ -182,9 +176,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             serviceSettings,
             is(
                 new OpenAiEmbeddingsServiceSettings(
-                    modelId,
-                    ServiceUtils.createUri(url),
-                    org,
+                    new OpenAiServiceSettings(modelId, ServiceUtils.createUri(url), org),
                     SimilarityMeasure.DOT_PRODUCT,
                     dims,
                     maxInputTokens,
@@ -195,12 +187,18 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
     }
 
     public void testFromMap_PersistentContext_DoesNotThrowException_WhenDimensionsIsNull() {
+        // needed as otherwise compilation would fail due to constructor ambiguity
+        String nullString = null;
+
         var settings = OpenAiEmbeddingsServiceSettings.fromMap(
             new HashMap<>(Map.of(OpenAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER, true, ServiceFields.MODEL_ID, "m")),
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(settings, is(new OpenAiEmbeddingsServiceSettings("m", (URI) null, null, null, null, null, true)));
+        assertThat(
+            settings,
+            is(new OpenAiEmbeddingsServiceSettings(new OpenAiServiceSettings("m", nullString, null), null, null, null, true))
+        );
     }
 
     public void testFromMap_PersistentContext_ThrowsException_WhenDimensionsSetByUserIsNull() {
@@ -313,7 +311,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
     }
 
     public void testToXContent_WritesDimensionsSetByUserTrue() throws IOException {
-        var entity = new OpenAiEmbeddingsServiceSettings("model", "url", "org", null, null, null, true);
+        var entity = new OpenAiEmbeddingsServiceSettings(new OpenAiServiceSettings("model", "url", "org"), null, null, null, true);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -324,7 +322,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
     }
 
     public void testToXContent_WritesDimensionsSetByUserFalse() throws IOException {
-        var entity = new OpenAiEmbeddingsServiceSettings("model", "url", "org", null, null, null, false);
+        var entity = new OpenAiEmbeddingsServiceSettings(new OpenAiServiceSettings("model", "url", "org"), null, null, null, false);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -335,7 +333,13 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var entity = new OpenAiEmbeddingsServiceSettings("model", "url", "org", SimilarityMeasure.DOT_PRODUCT, 1, 2, false);
+        var entity = new OpenAiEmbeddingsServiceSettings(
+            new OpenAiServiceSettings("model", "url", "org"),
+            SimilarityMeasure.DOT_PRODUCT,
+            1,
+            2,
+            false
+        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -347,7 +351,13 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
     }
 
     public void testToFilteredXContent_WritesAllValues_ExceptDimensionsSetByUser() throws IOException {
-        var entity = new OpenAiEmbeddingsServiceSettings("model", "url", "org", SimilarityMeasure.DOT_PRODUCT, 1, 2, false);
+        var entity = new OpenAiEmbeddingsServiceSettings(
+            new OpenAiServiceSettings("model", "url", "org"),
+            SimilarityMeasure.DOT_PRODUCT,
+            1,
+            2,
+            false
+        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         var filteredXContent = entity.getFilteredXContentObject();

@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.Map;
@@ -57,7 +58,7 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
             "id",
             TaskType.COMPLETION,
             "service",
-            new OpenAiChatCompletionServiceSettings(modelName, url, org, null),
+            new OpenAiChatCompletionServiceSettings(new OpenAiServiceSettings(modelName, url, org), null),
             new OpenAiChatCompletionTaskSettings(user),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );

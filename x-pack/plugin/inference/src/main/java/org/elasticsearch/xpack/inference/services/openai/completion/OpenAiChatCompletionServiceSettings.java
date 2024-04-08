@@ -13,10 +13,10 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceSettings;
 
 import java.io.IOException;
 import java.net.URI;
@@ -24,14 +24,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
-import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.ORGANIZATION;
 
 /**
  * Defines the service settings for interacting with OpenAI's chat completion models.
@@ -41,13 +34,9 @@ public class OpenAiChatCompletionServiceSettings implements ServiceSettings {
     public static final String NAME = "openai_completion_service_settings";
 
     public static OpenAiChatCompletionServiceSettings fromMap(Map<String, Object> map) {
+        var commonSettings = OpenAiServiceSettings.fromMap(map);
+
         ValidationException validationException = new ValidationException();
-
-        String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String organizationId = extractOptionalString(map, ORGANIZATION, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
-        String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
 
@@ -55,55 +44,33 @@ public class OpenAiChatCompletionServiceSettings implements ServiceSettings {
             throw validationException;
         }
 
-        return new OpenAiChatCompletionServiceSettings(modelId, uri, organizationId, maxInputTokens);
+        return new OpenAiChatCompletionServiceSettings(commonSettings, maxInputTokens);
     }
 
-    private final String modelId;
-
-    private final URI uri;
-
-    private final String organizationId;
+    private final OpenAiServiceSettings commonSettings;
 
     private final Integer maxInputTokens;
 
-    public OpenAiChatCompletionServiceSettings(
-        String modelId,
-        @Nullable URI uri,
-        @Nullable String organizationId,
-        @Nullable Integer maxInputTokens
-    ) {
-        this.modelId = modelId;
-        this.uri = uri;
-        this.organizationId = organizationId;
+    public OpenAiChatCompletionServiceSettings(OpenAiServiceSettings commonSettings, @Nullable Integer maxInputTokens) {
+        this.commonSettings = commonSettings;
         this.maxInputTokens = maxInputTokens;
     }
 
-    OpenAiChatCompletionServiceSettings(
-        String modelId,
-        @Nullable String uri,
-        @Nullable String organizationId,
-        @Nullable Integer maxInputTokens
-    ) {
-        this(modelId, createOptionalUri(uri), organizationId, maxInputTokens);
-    }
-
     public OpenAiChatCompletionServiceSettings(StreamInput in) throws IOException {
-        this.modelId = in.readString();
-        this.uri = createOptionalUri(in.readOptionalString());
-        this.organizationId = in.readOptionalString();
+        this.commonSettings = new OpenAiServiceSettings(in);
         this.maxInputTokens = in.readOptionalVInt();
     }
 
     public String modelId() {
-        return modelId;
+        return commonSettings.modelId();
     }
 
     public URI uri() {
-        return uri;
+        return commonSettings.uri();
     }
 
     public String organizationId() {
-        return organizationId;
+        return commonSettings.organizationId();
     }
 
     public Integer maxInputTokens() {
@@ -115,15 +82,7 @@ public class OpenAiChatCompletionServiceSettings implements ServiceSettings {
         builder.startObject();
 
         {
-            builder.field(MODEL_ID, modelId);
-
-            if (uri != null) {
-                builder.field(URL, uri.toString());
-            }
-
-            if (organizationId != null) {
-                builder.field(ORGANIZATION, organizationId);
-            }
+            commonSettings.toXContentFragment(builder);
 
             if (maxInputTokens != null) {
                 builder.field(MAX_INPUT_TOKENS, maxInputTokens);
@@ -146,9 +105,7 @@ public class OpenAiChatCompletionServiceSettings implements ServiceSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(modelId);
-        out.writeOptionalString(uri != null ? uri.toString() : null);
-        out.writeOptionalString(organizationId);
+        commonSettings.writeTo(out);
         out.writeOptionalVInt(maxInputTokens);
     }
 
@@ -162,14 +119,11 @@ public class OpenAiChatCompletionServiceSettings implements ServiceSettings {
         if (this == object) return true;
         if (object == null || getClass() != object.getClass()) return false;
         OpenAiChatCompletionServiceSettings that = (OpenAiChatCompletionServiceSettings) object;
-        return Objects.equals(modelId, that.modelId)
-            && Objects.equals(uri, that.uri)
-            && Objects.equals(organizationId, that.organizationId)
-            && Objects.equals(maxInputTokens, that.maxInputTokens);
+        return Objects.equals(commonSettings, that.commonSettings) && Objects.equals(maxInputTokens, that.maxInputTokens);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, uri, organizationId, maxInputTokens);
+        return Objects.hash(commonSettings, maxInputTokens);
     }
 }

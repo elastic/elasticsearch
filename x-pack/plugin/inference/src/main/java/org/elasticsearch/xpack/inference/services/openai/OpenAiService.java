@@ -288,9 +288,11 @@ public class OpenAiService extends SenderService {
         var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
 
         OpenAiEmbeddingsServiceSettings serviceSettings = new OpenAiEmbeddingsServiceSettings(
-            model.getServiceSettings().modelId(),
-            model.getServiceSettings().uri(),
-            model.getServiceSettings().organizationId(),
+            new OpenAiServiceSettings(
+                model.getServiceSettings().modelId(),
+                model.getServiceSettings().uri(),
+                model.getServiceSettings().organizationId()
+            ),
             similarityToUse,
             embeddingSize,
             model.getServiceSettings().maxInputTokens(),

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.openai.completion;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -17,18 +16,19 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceSettings;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceSettingsTests;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.hamcrest.Matchers.is;
 
 public class OpenAiChatCompletionServiceSettingsTests extends AbstractWireSerializingTestCase<OpenAiChatCompletionServiceSettings> {
 
-    public void testFromMap_Request_CreatesSettingsCorrectly() {
+    public void testFromMap_CreatesSettingsCorrectly() {
         var modelId = "some model";
         var url = "https://www.elastic.co";
         var org = "organization";
@@ -43,105 +43,28 @@ public class OpenAiChatCompletionServiceSettingsTests extends AbstractWireSerial
                     url,
                     OpenAiServiceFields.ORGANIZATION,
                     org,
-                    ServiceFields.MAX_INPUT_TOKENS,
+                    MAX_INPUT_TOKENS,
                     maxInputTokens
                 )
             )
         );
 
-        assertThat(serviceSettings, is(new OpenAiChatCompletionServiceSettings(modelId, ServiceUtils.createUri(url), org, maxInputTokens)));
-    }
-
-    public void testFromMap_MissingUrl_DoesNotThrowException() {
-        var modelId = "some model";
-        var organization = "org";
-        var maxInputTokens = 8192;
-
-        var serviceSettings = OpenAiChatCompletionServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    modelId,
-                    OpenAiServiceFields.ORGANIZATION,
-                    organization,
-                    ServiceFields.MAX_INPUT_TOKENS,
+        assertThat(
+            serviceSettings,
+            is(
+                new OpenAiChatCompletionServiceSettings(
+                    new OpenAiServiceSettings(modelId, ServiceUtils.createUri(url), org),
                     maxInputTokens
                 )
             )
         );
-
-        assertNull(serviceSettings.uri());
-        assertThat(serviceSettings.modelId(), is(modelId));
-        assertThat(serviceSettings.organizationId(), is(organization));
-        assertThat(serviceSettings.maxInputTokens(), is(maxInputTokens));
     }
 
-    public void testFromMap_EmptyUrl_ThrowsError() {
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> OpenAiChatCompletionServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, "", ServiceFields.MODEL_ID, "model")))
+    public void testToXContent_WritesMaxInputTokens() throws IOException {
+        var serviceSettings = new OpenAiChatCompletionServiceSettings(
+            new OpenAiServiceSettings("model", ServiceUtils.createUri("url"), "org"),
+            1024
         );
-
-        assertThat(
-            thrownException.getMessage(),
-            containsString(
-                Strings.format(
-                    "Validation Failed: 1: [service_settings] Invalid value empty string. [%s] must be a non-empty string;",
-                    ServiceFields.URL
-                )
-            )
-        );
-    }
-
-    public void testFromMap_MissingOrganization_DoesNotThrowException() {
-        var modelId = "some model";
-        var maxInputTokens = 8192;
-
-        var serviceSettings = OpenAiChatCompletionServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.MODEL_ID, modelId, ServiceFields.MAX_INPUT_TOKENS, maxInputTokens))
-        );
-
-        assertNull(serviceSettings.uri());
-        assertThat(serviceSettings.modelId(), is(modelId));
-        assertThat(serviceSettings.maxInputTokens(), is(maxInputTokens));
-    }
-
-    public void testFromMap_EmptyOrganization_ThrowsError() {
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> OpenAiChatCompletionServiceSettings.fromMap(
-                new HashMap<>(Map.of(OpenAiServiceFields.ORGANIZATION, "", ServiceFields.MODEL_ID, "model"))
-            )
-        );
-
-        assertThat(
-            thrownException.getMessage(),
-            containsString(
-                org.elasticsearch.common.Strings.format(
-                    "Validation Failed: 1: [service_settings] Invalid value empty string. [%s] must be a non-empty string;",
-                    OpenAiServiceFields.ORGANIZATION
-                )
-            )
-        );
-    }
-
-    public void testFromMap_InvalidUrl_ThrowsError() {
-        var url = "https://www.abc^.com";
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> OpenAiChatCompletionServiceSettings.fromMap(
-                new HashMap<>(Map.of(ServiceFields.URL, url, ServiceFields.MODEL_ID, "model"))
-            )
-        );
-
-        assertThat(
-            thrownException.getMessage(),
-            is(Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s];", url, ServiceFields.URL))
-        );
-    }
-
-    public void testToXContent_WritesAllValues() throws IOException {
-        var serviceSettings = new OpenAiChatCompletionServiceSettings("model", "url", "org", 1024);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
@@ -151,17 +74,17 @@ public class OpenAiChatCompletionServiceSettingsTests extends AbstractWireSerial
             {"model_id":"model","url":"url","organization_id":"org","max_input_tokens":1024}"""));
     }
 
-    public void testToXContent_DoesNotWriteOptionalValues() throws IOException {
-        URI uri = null;
-
-        var serviceSettings = new OpenAiChatCompletionServiceSettings("model", uri, null, null);
+    public void testToXContent_DoesNotWriteOptionalMaxInputToken() throws IOException {
+        var serviceSettings = new OpenAiChatCompletionServiceSettings(
+            OpenAiServiceSettingsTests.createRandom(randomAlphaOfLength(8)),
+            null
+        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is("""
-            {"model_id":"model"}"""));
+        assertFalse(xContentResult.contains(MAX_INPUT_TOKENS));
     }
 
     @Override
@@ -171,24 +94,19 @@ public class OpenAiChatCompletionServiceSettingsTests extends AbstractWireSerial
 
     @Override
     protected OpenAiChatCompletionServiceSettings createTestInstance() {
-        return createRandomWithNonNullUrl();
+        return createRandom();
     }
 
     @Override
     protected OpenAiChatCompletionServiceSettings mutateInstance(OpenAiChatCompletionServiceSettings instance) throws IOException {
-        return createRandomWithNonNullUrl();
+        return createRandom();
     }
 
-    private static OpenAiChatCompletionServiceSettings createRandomWithNonNullUrl() {
-        return createRandom(randomAlphaOfLength(15));
-    }
-
-    private static OpenAiChatCompletionServiceSettings createRandom(String url) {
-        var modelId = randomAlphaOfLength(8);
-        var organizationId = randomFrom(randomAlphaOfLength(15), null);
+    private static OpenAiChatCompletionServiceSettings createRandom() {
+        var commonSettings = OpenAiServiceSettingsTests.createRandomWithNonNullUrl();
         var maxInputTokens = randomFrom(randomIntBetween(128, 4096), null);
 
-        return new OpenAiChatCompletionServiceSettings(modelId, ServiceUtils.createUri(url), organizationId, maxInputTokens);
+        return new OpenAiChatCompletionServiceSettings(commonSettings, maxInputTokens);
     }
 
 }

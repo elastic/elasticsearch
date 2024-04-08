@@ -205,7 +205,7 @@ public class OpenAiService extends SenderService {
         var actionCreator = new OpenAiActionCreator(getSender(), getServiceComponents());
 
         var action = openAiModel.accept(actionCreator, taskSettings);
-        action.execute(new DocumentsOnlyInput(input), listener);
+        action.execute(new DocumentsOnlyInput(input), timeout, listener);
     }
 
     @Override

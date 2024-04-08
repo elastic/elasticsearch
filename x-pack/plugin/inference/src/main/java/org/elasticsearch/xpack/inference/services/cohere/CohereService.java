@@ -194,7 +194,7 @@ public class CohereService extends SenderService {
         var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
 
         var action = cohereModel.accept(actionCreator, taskSettings, inputType);
-        action.execute(new QueryAndDocsInputs(query, input), listener);
+        action.execute(new QueryAndDocsInputs(query, input), timeout, listener);
     }
 
     @Override
@@ -215,7 +215,7 @@ public class CohereService extends SenderService {
         var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
 
         var action = cohereModel.accept(actionCreator, taskSettings, inputType);
-        action.execute(new DocumentsOnlyInput(input), listener);
+        action.execute(new DocumentsOnlyInput(input), timeout, listener);
     }
 
     @Override

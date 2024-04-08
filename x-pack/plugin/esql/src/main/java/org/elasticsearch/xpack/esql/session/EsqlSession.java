@@ -140,7 +140,7 @@ public class EsqlSession {
                 }
                 return f;
             }))),
-            version.behaviorTags()
+            version == null ? EsqlVersion.SNAPSHOT.behaviorTags() : version.behaviorTags()
         );
     }
 

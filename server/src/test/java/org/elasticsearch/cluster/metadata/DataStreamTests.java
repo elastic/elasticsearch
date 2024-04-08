@@ -93,7 +93,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var lifecycle = instance.getLifecycle();
         var failureStore = instance.isFailureStore();
         var failureIndices = instance.getFailureIndices();
-        switch (between(0, 10)) {
+        var rolloverOnWrite = instance.rolloverOnWrite();
+        switch (between(0, 11)) {
             case 0 -> name = randomAlphaOfLength(10);
             case 1 -> indices = randomValueOtherThan(List.of(), DataStreamTestHelper::randomIndexInstances);
             case 2 -> generation = instance.getGeneration() + randomIntBetween(1, 10);
@@ -106,7 +107,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                     isHidden = true;
                 }
             }
-            case 5 -> isReplicated = isReplicated == false;
+            case 5 -> {
+                isReplicated = isReplicated == false;
+                // Replicated data streams cannot be marked for lazy rollover.
+                rolloverOnWrite = isReplicated == false && rolloverOnWrite;
+            }
             case 6 -> {
                 if (isSystem == false) {
                     isSystem = true;
@@ -123,12 +128,12 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 ? null
                 : DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build();
             case 10 -> {
-                failureIndices = randomValueOtherThan(List.of(), DataStreamTestHelper::randomIndexInstances);
-                if (failureIndices.isEmpty()) {
-                    failureStore = false;
-                } else {
-                    failureStore = true;
-                }
+                failureIndices = randomValueOtherThan(failureIndices, DataStreamTestHelper::randomIndexInstances);
+                failureStore = failureIndices.isEmpty() == false;
+            }
+            case 11 -> {
+                rolloverOnWrite = rolloverOnWrite == false;
+                isReplicated = rolloverOnWrite == false && isReplicated;
             }
         }
 
@@ -144,7 +149,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             indexMode,
             lifecycle,
             failureStore,
-            failureIndices
+            failureIndices,
+            rolloverOnWrite
         );
     }
 
@@ -201,7 +207,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             indexMode,
             ds.getLifecycle(),
             ds.isFailureStore(),
-            ds.getFailureIndices()
+            ds.getFailureIndices(),
+            ds.rolloverOnWrite()
         );
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
@@ -228,7 +235,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             IndexMode.TIME_SERIES,
             ds.getLifecycle(),
             ds.isFailureStore(),
-            ds.getFailureIndices()
+            ds.getFailureIndices(),
+            ds.rolloverOnWrite()
         );
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
@@ -578,19 +586,21 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         postSnapshotIndices.removeAll(indicesToRemove);
         postSnapshotIndices.addAll(indicesToAdd);
 
+        var replicated = preSnapshotDataStream.isReplicated() && randomBoolean();
         var postSnapshotDataStream = new DataStream(
             preSnapshotDataStream.getName(),
             postSnapshotIndices,
             preSnapshotDataStream.getGeneration() + randomIntBetween(0, 5),
             preSnapshotDataStream.getMetadata() == null ? null : new HashMap<>(preSnapshotDataStream.getMetadata()),
             preSnapshotDataStream.isHidden(),
-            preSnapshotDataStream.isReplicated() && randomBoolean(),
+            replicated,
             preSnapshotDataStream.isSystem(),
             preSnapshotDataStream.isAllowCustomRouting(),
             preSnapshotDataStream.getIndexMode(),
             preSnapshotDataStream.getLifecycle(),
             preSnapshotDataStream.isFailureStore(),
-            preSnapshotDataStream.getFailureIndices()
+            preSnapshotDataStream.getFailureIndices(),
+            replicated == false && preSnapshotDataStream.rolloverOnWrite()
         );
 
         var reconciledDataStream = postSnapshotDataStream.snapshot(
@@ -634,7 +644,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             preSnapshotDataStream.getIndexMode(),
             preSnapshotDataStream.getLifecycle(),
             preSnapshotDataStream.isFailureStore(),
-            preSnapshotDataStream.getFailureIndices()
+            preSnapshotDataStream.getFailureIndices(),
+            preSnapshotDataStream.rolloverOnWrite()
         );
 
         assertNull(postSnapshotDataStream.snapshot(preSnapshotDataStream.getIndices().stream().map(Index::getName).toList()));

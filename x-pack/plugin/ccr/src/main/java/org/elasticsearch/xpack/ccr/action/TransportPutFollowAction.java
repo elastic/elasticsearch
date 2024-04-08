@@ -334,7 +334,10 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 remoteDataStream.getIndexMode(),
                 remoteDataStream.getLifecycle(),
                 remoteDataStream.isFailureStore(),
-                remoteDataStream.getFailureIndices()
+                remoteDataStream.getFailureIndices(),
+                // Replicated data streams can't be rolled over, so having the `rolloverOnWrite` flag set to `true` wouldn't make sense
+                // (and potentially even break things).
+                false
             );
         } else {
             if (localDataStream.isReplicated() == false) {
@@ -387,7 +390,8 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 localDataStream.getIndexMode(),
                 localDataStream.getLifecycle(),
                 localDataStream.isFailureStore(),
-                localDataStream.getFailureIndices()
+                localDataStream.getFailureIndices(),
+                localDataStream.rolloverOnWrite()
             );
         }
     }

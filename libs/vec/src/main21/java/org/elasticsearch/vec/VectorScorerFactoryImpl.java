@@ -24,12 +24,7 @@ class VectorScorerFactoryImpl implements VectorScorerFactory {
     private VectorScorerFactoryImpl() {}
 
     static {
-        var opt = NativeAccess.instance().getVectorSimilarityFunctions();
-        if (opt.isPresent()) {
-            INSTANCE = new VectorScorerFactoryImpl();
-        } else {
-            INSTANCE = null;
-        }
+        INSTANCE = NativeAccess.instance().getVectorSimilarityFunctions().map(ignore -> new VectorScorerFactoryImpl()).orElse(null);
     }
 
     @Override

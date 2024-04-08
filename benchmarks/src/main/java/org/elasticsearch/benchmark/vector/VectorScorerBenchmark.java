@@ -17,6 +17,7 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.vec.VectorScorer;
 import org.elasticsearch.vec.VectorScorerFactory;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -70,11 +71,23 @@ public class VectorScorerBenchmark {
     float vec2Offset;
     float scoreCorrectionConstant;
 
+    ScalarQuantizedVectorSimilarity luceneDotScorer;
+    ScalarQuantizedVectorSimilarity luceneSqrScorer;
+    VectorScorer nativeDotScorer;
+    VectorScorer nativeSqrScorer;
+
     @Setup
     public void setup() throws IOException {
         var optionalVectorScorerFactory = VectorScorerFactory.instance();
         if (optionalVectorScorerFactory.isEmpty()) {
-            throw new AssertionError("Vector scorer factory not present. Cannot run the benchmark.");
+            String msg = "JDK=["
+                + Runtime.version()
+                + "], os.name=["
+                + System.getProperty("os.name")
+                + "], os.arch=["
+                + System.getProperty("os.arch")
+                + "]";
+            throw new AssertionError("Vector scorer factory not present. Cannot run the benchmark. " + msg);
         }
         factory = optionalVectorScorerFactory.get();
         scoreCorrectionConstant = 1f;
@@ -94,6 +107,14 @@ public class VectorScorerBenchmark {
             out.writeInt(Float.floatToIntBits(vec2Offset));
         }
         in = dir.openInput("vector.data", IOContext.DEFAULT);
+
+        luceneDotScorer = ScalarQuantizedVectorSimilarity.fromVectorSimilarity(
+            VectorSimilarityFunction.DOT_PRODUCT,
+            scoreCorrectionConstant
+        );
+        luceneSqrScorer = ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityFunction.EUCLIDEAN, scoreCorrectionConstant);
+        nativeDotScorer = factory.getScalarQuantizedVectorScorer(dims, size, scoreCorrectionConstant, DOT_PRODUCT, in).get();
+        nativeSqrScorer = factory.getScalarQuantizedVectorScorer(dims, size, scoreCorrectionConstant, EUCLIDEAN, in).get();
 
         // sanity
         var f1 = dotProductLucene();
@@ -124,14 +145,12 @@ public class VectorScorerBenchmark {
 
     @Benchmark
     public float dotProductLucene() {
-        var scorer = ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityFunction.DOT_PRODUCT, scoreCorrectionConstant);
-        return scorer.score(vec1, vec1Offset, vec2, vec2Offset);
+        return luceneDotScorer.score(vec1, vec1Offset, vec2, vec2Offset);
     }
 
     @Benchmark
     public float dotProductNative() throws IOException {
-        var scorer = factory.getScalarQuantizedVectorScorer(dims, size, scoreCorrectionConstant, DOT_PRODUCT, in).get();
-        return scorer.score(0, 1);
+        return nativeDotScorer.score(0, 1);
     }
 
     @Benchmark
@@ -148,14 +167,12 @@ public class VectorScorerBenchmark {
 
     @Benchmark
     public float squareDistanceLucene() {
-        var scorer = ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityFunction.EUCLIDEAN, scoreCorrectionConstant);
-        return scorer.score(vec1, vec1Offset, vec2, vec2Offset);
+        return luceneSqrScorer.score(vec1, vec1Offset, vec2, vec2Offset);
     }
 
     @Benchmark
     public float squareDistanceNative() throws IOException {
-        var scorer = factory.getScalarQuantizedVectorScorer(dims, size, scoreCorrectionConstant, EUCLIDEAN, in).get();
-        return scorer.score(0, 1);
+        return nativeSqrScorer.score(0, 1);
     }
 
     @Benchmark

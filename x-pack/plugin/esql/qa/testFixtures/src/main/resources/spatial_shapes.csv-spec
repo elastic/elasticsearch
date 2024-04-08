@@ -459,6 +459,21 @@ id:keyword | name:keyword | shape:cartesian_shape
 ZWE        | Zimbabwe     | BBOX (2809472.180051312, 3681512.6693309383, -1760356.671722378, -2561396.0054164226)
 ;
 
+cartesianPolygonDisjointEmptyGeometry
+required_feature: esql.st_disjoint
+
+FROM countries_bbox_web
+| WHERE ST_DISJOINT(shape, TO_CARTESIANSHAPE("LINESTRING()"))
+| STATS count=COUNT()
+;
+
+warning:Line 2:28: evaluation of [TO_CARTESIANSHAPE(\"LINESTRING()\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:28: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+
+count:long
+0
+;
+
 ###############################################
 # Tests for ST_CONTAINS and ST_WITHIN with CARTESIAN_SHAPE
 

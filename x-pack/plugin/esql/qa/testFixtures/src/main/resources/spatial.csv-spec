@@ -1364,6 +1364,36 @@ x:double  |  y:double  |  count:long
 -1        |  1         |  2
 ;
 
+cartesianPointDisjointEmptyGeometry
+required_feature: esql.st_disjoint
+
+FROM airports_web
+| WHERE ST_DISJOINT(location, TO_CARTESIANSHAPE("LINESTRING()"))
+| STATS count=COUNT()
+;
+
+warning:Line 2:31: evaluation of [TO_CARTESIANSHAPE(\"LINESTRING()\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:31: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+
+count:long
+0
+;
+
+cartesianPointDisjointInvalidGeometry
+required_feature: esql.st_disjoint
+
+FROM airports_web
+| WHERE ST_DISJOINT(location, TO_CARTESIANSHAPE("Invalid Geometry"))
+| STATS count=COUNT()
+;
+
+warning:Line 2:31: evaluation of [TO_CARTESIANSHAPE(\"Invalid Geometry\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:31: java.lang.IllegalArgumentException: Failed to parse WKT: Unknown geometry type: invalid
+
+count:long
+0
+;
+
 ###############################################
 # Tests for ST_CONTAINS on CARTESIAN_POINT type
 

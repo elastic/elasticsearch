@@ -16,7 +16,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.geo.LuceneGeometriesUtils;
@@ -244,8 +243,7 @@ public class SpatialRelatesQuery extends Query {
         ) {
             final boolean hasDocValues = context.getFieldType(fieldName).hasDocValues();
             if (geometry == null || geometry.isEmpty()) {
-                // Should never be null, but could be an empty geometry
-                return relation == ShapeField.QueryRelation.DISJOINT ? new MatchAllDocsQuery() : new MatchNoDocsQuery("Empty geometry");
+                throw new QueryShardException(context, "Invalid/empty geometry");
             }
             if (geometry.type() != ShapeType.POINT && relation == ShapeField.QueryRelation.CONTAINS) {
                 return new MatchNoDocsQuery("A point field can never contain a non-point geometry");
@@ -284,8 +282,7 @@ public class SpatialRelatesQuery extends Query {
                 throw new QueryShardException(context, relation + " query relation not supported for Field [" + fieldName + "].");
             }
             if (geometry == null || geometry.isEmpty()) {
-                // Should never be null, but can be an empty geometry
-                return new MatchNoDocsQuery();
+                throw new QueryShardException(context, "Invalid/empty geometry");
             }
             final XYGeometry[] luceneGeometries;
             try {

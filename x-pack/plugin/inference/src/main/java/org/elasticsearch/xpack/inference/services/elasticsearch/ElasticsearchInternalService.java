@@ -50,6 +50,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings.MODEL_ID;
@@ -266,8 +267,28 @@ public class ElasticsearchInternalService implements InferenceService {
         client.execute(
             InferTrainedModelDeploymentAction.INSTANCE,
             request,
-            listener.delegateFailureAndWrap((l, inferenceResult) -> l.onResponse(translateChunkedResults(inferenceResult.getResults())))
+            listener.delegateFailureAndWrap((l, inferenceResult) -> l.onResponse(translateToChunkedResults(inferenceResult.getResults())))
         );
+    }
+
+    private static List<ChunkedInferenceServiceResults> translateToChunkedResults(List<InferenceResults> inferenceResults) {
+        var translated = new ArrayList<ChunkedInferenceServiceResults>();
+
+        for (var inferenceResult : inferenceResults) {
+            translated.add(translateToChunkedResult(inferenceResult));
+        }
+
+        return translated;
+    }
+
+    private static ChunkedInferenceServiceResults translateToChunkedResult(InferenceResults inferenceResult) {
+        if (inferenceResult instanceof org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults mlChunkedResult) {
+            return ChunkedTextEmbeddingResults.ofMlResult(mlChunkedResult);
+        } else if (inferenceResult instanceof ErrorInferenceResults error) {
+            return new ErrorChunkedInferenceResults(error.getException());
+        } else {
+            throw createInvalidChunkedResultException(inferenceResult.getWriteableName());
+        }
     }
 
     @Override
@@ -376,27 +397,6 @@ public class ElasticsearchInternalService implements InferenceService {
         if (TaskType.TEXT_EMBEDDING.isAnyOrSame(taskType) == false) {
             throw new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
         }
-    }
-
-    private List<ChunkedInferenceServiceResults> translateChunkedResults(List<InferenceResults> inferenceResults) {
-        var translated = new ArrayList<ChunkedInferenceServiceResults>();
-
-        for (var inferenceResult : inferenceResults) {
-            if (inferenceResult instanceof org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults mlChunkedResult) {
-                translated.add(ChunkedTextEmbeddingResults.ofMlResult(mlChunkedResult));
-            } else if (inferenceResult instanceof ErrorInferenceResults error) {
-                translated.add(new ErrorChunkedInferenceResults(error.getException()));
-            } else {
-                throw new ElasticsearchStatusException(
-                    "Expected a chunked inference [{}] received [{}]",
-                    RestStatus.INTERNAL_SERVER_ERROR,
-                    ChunkedTextEmbeddingResults.NAME,
-                    inferenceResult.getWriteableName()
-                );
-            }
-        }
-
-        return translated;
     }
 
     @Override

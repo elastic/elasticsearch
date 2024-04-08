@@ -1217,9 +1217,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             indexNames = indexNameExpressionResolver.concreteIndexNames(state, includeHiddenOptions, visibleAlias);
             assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
 
-            // A total wildcards does not resolve the hidden index in this case
+            // total wildcards should also resolve both visible and hidden indices if there is a visible alias
             indexNames = indexNameExpressionResolver.concreteIndexNames(state, excludeHiddenOptions, "*");
-            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex));
+            assertThat(Arrays.asList(indexNames), containsInAnyOrder(visibleIndex, hiddenIndex));
         }
 
         {

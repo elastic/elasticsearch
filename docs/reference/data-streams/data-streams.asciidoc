@@ -37,8 +37,7 @@ using the same `_id` expecting last-write-wins), you may want to use an index al
 index instead. See documentation for <<manage-time-series-data-without-data-streams,managing time
 series data without a data stream>> for more information.
 
-Keep in mind that some features such as <<tsds,Time Series Data Streams (TSDS)>> and
-<<data-stream-lifecycle,data stream lifecycles>> require a data stream.
+Keep in mind that some features such as <<tsds,Time Series Data Streams (TSDS)>> require a data stream.
 
 [discrete]
 [[backing-indices]]

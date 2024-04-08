@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -129,6 +130,58 @@ public class LocateTests extends AbstractFunctionTestCase {
         assertThat(process("a tiger", "a tiger", 0), equalTo(1));
         assertThat(process("tigers", "tigers", 0), equalTo(1));
         assertThat(process("界世", "界世", 0), equalTo(1));
+    }
+
+    public void testSupplementaryCharacter() {
+        // some assertions about the supplementary (4-byte) character we'll use for testing
+        assert "𠜎".length() == 2;
+        assert "𠜎".codePointCount(0, 2) == 1;
+        assert "𠜎".getBytes(UTF_8).length == 4;
+
+        assertThat(process("a ti𠜎er", "𠜎er", 0), equalTo(5));
+        assertThat(process("a ti𠜎er", "i𠜎e", 0), equalTo(4));
+        assertThat(process("a ti𠜎er", "ti𠜎", 0), equalTo(3));
+        assertThat(process("a ti𠜎er", "er", 0), equalTo(6));
+        assertThat(process("a ti𠜎er", "r", 0), equalTo(7));
+
+        assertThat(process("𠜎a ti𠜎er", "𠜎er", 0), equalTo(6));
+        assertThat(process("𠜎a ti𠜎er", "i𠜎e", 0), equalTo(5));
+        assertThat(process("𠜎a ti𠜎er", "ti𠜎", 0), equalTo(4));
+        assertThat(process("𠜎a ti𠜎er", "er", 0), equalTo(7));
+        assertThat(process("𠜎a ti𠜎er", "r", 0), equalTo(8));
+
+        // exact
+        assertThat(process("a ti𠜎er", "a ti𠜎er", 0), equalTo(1));
+        assertThat(process("𠜎𠜎𠜎abc", "𠜎𠜎𠜎abc", 0), equalTo(1));
+        assertThat(process(" 𠜎𠜎𠜎abc", " 𠜎𠜎𠜎abc", 0), equalTo(1));
+        assertThat(process("𠜎𠜎𠜎 abc ", "𠜎𠜎𠜎 abc ", 0), equalTo(1));
+
+        // prefix
+        assertThat(process("𠜎abc", "𠜎", 0), equalTo(1));
+        assertThat(process("𠜎 abc", "𠜎 ", 0), equalTo(1));
+        assertThat(process("𠜎𠜎𠜎abc", "𠜎𠜎𠜎", 0), equalTo(1));
+        assertThat(process("𠜎𠜎𠜎 abc", "𠜎𠜎𠜎 ", 0), equalTo(1));
+        assertThat(process(" 𠜎𠜎𠜎 abc", " 𠜎𠜎𠜎 ", 0), equalTo(1));
+        assertThat(process("𠜎 𠜎 𠜎 abc", "𠜎 𠜎 𠜎 ", 0), equalTo(1));
+
+        // suffix
+        assertThat(process("abc𠜎", "𠜎", 0), equalTo(4));
+        assertThat(process("abc 𠜎", " 𠜎", 0), equalTo(4));
+        assertThat(process("abc𠜎𠜎𠜎", "𠜎𠜎𠜎", 0), equalTo(4));
+        assertThat(process("abc 𠜎𠜎𠜎", " 𠜎𠜎𠜎", 0), equalTo(4));
+        assertThat(process("abc𠜎𠜎𠜎 ", "𠜎𠜎𠜎 ", 0), equalTo(4));
+
+        // out of range
+        assertThat(process("𠜎a ti𠜎er", "𠜎a ti𠜎ers", 0), equalTo(0));
+        assertThat(process("a ti𠜎er", "aa ti𠜎er", 0), equalTo(0));
+        assertThat(process("abc𠜎𠜎", "𠜎𠜎𠜎", 0), equalTo(0));
+
+        assert "🐱".length() == 2 && "🐶".length() == 2;
+        assert "🐱".codePointCount(0, 2) == 1 && "🐶".codePointCount(0, 2) == 1;
+        assert "🐱".getBytes(UTF_8).length == 4 && "🐶".getBytes(UTF_8).length == 4;
+        assertThat(process("🐱Meow!🐶Woof!", "🐱Meow!🐶Woof!", 0), equalTo(1));
+        assertThat(process("🐱Meow!🐶Woof!", "Meow!🐶Woof!", 0), equalTo(2));
+        assertThat(process("🐱Meow!🐶Woof!", "eow!🐶Woof!", 0), equalTo(3));
     }
 
     private Integer process(String str, String substr, Integer start) {

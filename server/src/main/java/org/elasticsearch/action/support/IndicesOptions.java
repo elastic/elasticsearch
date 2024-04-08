@@ -417,8 +417,8 @@ public record IndicesOptions(
             ToXContentFragment {
 
         public static final String FAILURE_STORE = "failure_store";
-        public static final String INCLUDE_ALL = "true";
-        public static final String INCLUDE_ONLY_REGULAR_INDICES = "false";
+        public static final String INCLUDE_ALL = "include";
+        public static final String INCLUDE_ONLY_REGULAR_INDICES = "exclude";
         public static final String INCLUDE_ONLY_FAILURE_INDICES = "only";
 
         public static final FailureStoreOptions DEFAULT = new FailureStoreOptions(true, false);

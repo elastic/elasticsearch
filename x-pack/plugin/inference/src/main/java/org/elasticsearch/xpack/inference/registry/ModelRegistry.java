@@ -24,7 +24,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -32,7 +31,6 @@ import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -57,21 +55,49 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class ModelRegistryImpl implements ModelRegistry {
+public class ModelRegistry {
     public record ModelConfigMap(Map<String, Object> config, Map<String, Object> secrets) {}
+
+    /**
+     * Semi parsed model where inference entity id, task type and service
+     * are known but the settings are not parsed.
+     */
+    public record UnparsedModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        Map<String, Object> settings,
+        Map<String, Object> secrets
+    ) {
+
+        public static UnparsedModel unparsedModelFromMap(ModelConfigMap modelConfigMap) {
+            if (modelConfigMap.config() == null) {
+                throw new ElasticsearchStatusException("Missing config map", RestStatus.BAD_REQUEST);
+            }
+            String inferenceEntityId = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.MODEL_ID);
+            String service = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.SERVICE);
+            String taskTypeStr = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), TaskType.NAME);
+            TaskType taskType = TaskType.fromString(taskTypeStr);
+
+            return new UnparsedModel(inferenceEntityId, taskType, service, modelConfigMap.config(), modelConfigMap.secrets());
+        }
+    }
 
     private static final String TASK_TYPE_FIELD = "task_type";
     private static final String MODEL_ID_FIELD = "model_id";
-    private static final Logger logger = LogManager.getLogger(ModelRegistryImpl.class);
+    private static final Logger logger = LogManager.getLogger(ModelRegistry.class);
 
     private final OriginSettingClient client;
 
-    @Inject
-    public ModelRegistryImpl(Client client) {
+    public ModelRegistry(Client client) {
         this.client = new OriginSettingClient(client, ClientHelper.INFERENCE_ORIGIN);
     }
 
-    @Override
+    /**
+     * Get a model with its secret settings
+     * @param inferenceEntityId Model to get
+     * @param listener Model listener
+     */
     public void getModelWithSecrets(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             // There should be a hit for the configurations and secrets
@@ -80,7 +106,7 @@ public class ModelRegistryImpl implements ModelRegistry {
                 return;
             }
 
-            delegate.onResponse(unparsedModelFromMap(createModelConfigMap(searchResponse.getHits(), inferenceEntityId)));
+            delegate.onResponse(UnparsedModel.unparsedModelFromMap(createModelConfigMap(searchResponse.getHits(), inferenceEntityId)));
         });
 
         QueryBuilder queryBuilder = documentIdQuery(inferenceEntityId);
@@ -92,7 +118,12 @@ public class ModelRegistryImpl implements ModelRegistry {
         client.search(modelSearch, searchListener);
     }
 
-    @Override
+    /**
+     * Get a model.
+     * Secret settings are not included
+     * @param inferenceEntityId Model to get
+     * @param listener Model listener
+     */
     public void getModel(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             // There should be a hit for the configurations and secrets
@@ -101,7 +132,7 @@ public class ModelRegistryImpl implements ModelRegistry {
                 return;
             }
 
-            var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(ModelRegistryImpl::unparsedModelFromMap).toList();
+            var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(UnparsedModel::unparsedModelFromMap).toList();
             assert modelConfigs.size() == 1;
             delegate.onResponse(modelConfigs.get(0));
         });
@@ -116,7 +147,12 @@ public class ModelRegistryImpl implements ModelRegistry {
         client.search(modelSearch, searchListener);
     }
 
-    @Override
+    /**
+     * Get all models of a particular task type.
+     * Secret settings are not included
+     * @param taskType The task type
+     * @param listener Models listener
+     */
     public void getModelsByTaskType(TaskType taskType, ActionListener<List<UnparsedModel>> listener) {
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             // Not an error if no models of this task_type
@@ -125,7 +161,7 @@ public class ModelRegistryImpl implements ModelRegistry {
                 return;
             }
 
-            var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(ModelRegistryImpl::unparsedModelFromMap).toList();
+            var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(UnparsedModel::unparsedModelFromMap).toList();
             delegate.onResponse(modelConfigs);
         });
 
@@ -141,7 +177,11 @@ public class ModelRegistryImpl implements ModelRegistry {
         client.search(modelSearch, searchListener);
     }
 
-    @Override
+    /**
+     * Get all models.
+     * Secret settings are not included
+     * @param listener Models listener
+     */
     public void getAllModels(ActionListener<List<UnparsedModel>> listener) {
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             // Not an error if no models of this task_type
@@ -150,7 +190,7 @@ public class ModelRegistryImpl implements ModelRegistry {
                 return;
             }
 
-            var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(ModelRegistryImpl::unparsedModelFromMap).toList();
+            var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(UnparsedModel::unparsedModelFromMap).toList();
             delegate.onResponse(modelConfigs);
         });
 
@@ -217,7 +257,6 @@ public class ModelRegistryImpl implements ModelRegistry {
         );
     }
 
-    @Override
     public void storeModel(Model model, ActionListener<Boolean> listener) {
         ActionListener<BulkResponse> bulkResponseActionListener = getStoreModelListener(model, listener);
 
@@ -314,7 +353,6 @@ public class ModelRegistryImpl implements ModelRegistry {
         return null;
     }
 
-    @Override
     public void deleteModel(String inferenceEntityId, ActionListener<Boolean> listener) {
         DeleteByQueryRequest request = new DeleteByQueryRequest().setAbortOnVersionConflict(false);
         request.indices(InferenceIndex.INDEX_PATTERN, InferenceSecretsIndex.INDEX_PATTERN);
@@ -338,17 +376,5 @@ public class ModelRegistryImpl implements ModelRegistry {
 
     private QueryBuilder documentIdQuery(String inferenceEntityId) {
         return QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds(Model.documentId(inferenceEntityId)));
-    }
-
-    private static UnparsedModel unparsedModelFromMap(ModelRegistryImpl.ModelConfigMap modelConfigMap) {
-        if (modelConfigMap.config() == null) {
-            throw new ElasticsearchStatusException("Missing config map", RestStatus.BAD_REQUEST);
-        }
-        String modelId = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.MODEL_ID);
-        String service = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), ModelConfigurations.SERVICE);
-        String taskTypeStr = ServiceUtils.removeStringOrThrowIfNull(modelConfigMap.config(), TaskType.NAME);
-        TaskType taskType = TaskType.fromString(taskTypeStr);
-
-        return new UnparsedModel(modelId, taskType, service, modelConfigMap.config(), modelConfigMap.secrets());
     }
 }

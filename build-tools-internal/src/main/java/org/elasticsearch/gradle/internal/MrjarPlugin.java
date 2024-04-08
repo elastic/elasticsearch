@@ -49,6 +49,7 @@ import static org.objectweb.asm.Opcodes.V_PREVIEW;
 public class MrjarPlugin implements Plugin<Project> {
 
     private static final Pattern MRJAR_SOURCESET_PATTERN = Pattern.compile("main(\\d{2})");
+    private static final String MRJAR_IDEA_ENABLED = "org.gradle.mrjar.idea.enabled";
 
     private final JavaToolchainService javaToolchains;
 
@@ -61,23 +62,30 @@ public class MrjarPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         var javaExtension = project.getExtensions().getByType(JavaPluginExtension.class);
+        var isIdeaSync = System.getProperty("idea.sync.active", "false").equals("true");
+        var ideaSourceSetsEnabled = project.hasProperty(MRJAR_IDEA_ENABLED) && project.property(MRJAR_IDEA_ENABLED).equals("true");
 
-        List<Integer> mainVersions = findSourceVersions(project);
-        List<String> mainSourceSets = new ArrayList<>();
-        mainSourceSets.add(SourceSet.MAIN_SOURCE_SET_NAME);
-        List<String> testSourceSets = new ArrayList<>(mainSourceSets);
-        testSourceSets.add(SourceSet.TEST_SOURCE_SET_NAME);
-        for (int javaVersion : mainVersions) {
-            String mainSourceSetName = SourceSet.MAIN_SOURCE_SET_NAME + javaVersion;
-            SourceSet mainSourceSet = addSourceSet(project, javaExtension, mainSourceSetName, mainSourceSets, javaVersion);
-            configureSourceSetInJar(project, mainSourceSet, javaVersion);
-            mainSourceSets.add(mainSourceSetName);
-            testSourceSets.add(mainSourceSetName);
+        // Ignore version-specific source sets if we are importing into IntelliJ and have not explicitly enabled this.
+        // Avoids an IntelliJ bug:
+        // https://youtrack.jetbrains.com/issue/IDEA-285640/Compiler-Options-Settings-language-level-is-set-incorrectly-with-JDK-19ea
+        if (isIdeaSync == false || ideaSourceSetsEnabled) {
+            List<Integer> mainVersions = findSourceVersions(project);
+            List<String> mainSourceSets = new ArrayList<>();
+            mainSourceSets.add(SourceSet.MAIN_SOURCE_SET_NAME);
+            List<String> testSourceSets = new ArrayList<>(mainSourceSets);
+            testSourceSets.add(SourceSet.TEST_SOURCE_SET_NAME);
+            for (int javaVersion : mainVersions) {
+                String mainSourceSetName = SourceSet.MAIN_SOURCE_SET_NAME + javaVersion;
+                SourceSet mainSourceSet = addSourceSet(project, javaExtension, mainSourceSetName, mainSourceSets, javaVersion);
+                configureSourceSetInJar(project, mainSourceSet, javaVersion);
+                mainSourceSets.add(mainSourceSetName);
+                testSourceSets.add(mainSourceSetName);
 
-            String testSourceSetName = SourceSet.TEST_SOURCE_SET_NAME + javaVersion;
-            SourceSet testSourceSet = addSourceSet(project, javaExtension, testSourceSetName, testSourceSets, javaVersion);
-            testSourceSets.add(testSourceSetName);
-            createTestTask(project, testSourceSet, javaVersion, mainSourceSets);
+                String testSourceSetName = SourceSet.TEST_SOURCE_SET_NAME + javaVersion;
+                SourceSet testSourceSet = addSourceSet(project, javaExtension, testSourceSetName, testSourceSets, javaVersion);
+                testSourceSets.add(testSourceSetName);
+                createTestTask(project, testSourceSet, javaVersion, mainSourceSets);
+            }
         }
 
         configureMrjar(project);

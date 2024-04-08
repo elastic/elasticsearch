@@ -46,7 +46,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ModelRegistryImplTests extends ESTestCase {
+public class ModelRegistryTests extends ESTestCase {
 
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
@@ -66,9 +66,9 @@ public class ModelRegistryImplTests extends ESTestCase {
         var client = mockClient();
         mockClientExecuteSearch(client, mockSearchResponse(SearchHits.EMPTY));
 
-        var registry = new ModelRegistryImpl(client);
+        var registry = new ModelRegistry(client);
 
-        var listener = new PlainActionFuture<ModelRegistryImpl.UnparsedModel>();
+        var listener = new PlainActionFuture<ModelRegistry.UnparsedModel>();
         registry.getModelWithSecrets("1", listener);
 
         ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class, () -> listener.actionGet(TIMEOUT));
@@ -80,9 +80,9 @@ public class ModelRegistryImplTests extends ESTestCase {
         var unknownIndexHit = SearchResponseUtils.searchHitFromMap(Map.of("_index", "unknown_index"));
         mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { unknownIndexHit }));
 
-        var registry = new ModelRegistryImpl(client);
+        var registry = new ModelRegistry(client);
 
-        var listener = new PlainActionFuture<ModelRegistryImpl.UnparsedModel>();
+        var listener = new PlainActionFuture<ModelRegistry.UnparsedModel>();
         registry.getModelWithSecrets("1", listener);
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> listener.actionGet(TIMEOUT));
@@ -97,9 +97,9 @@ public class ModelRegistryImplTests extends ESTestCase {
         var inferenceSecretsHit = SearchResponseUtils.searchHitFromMap(Map.of("_index", ".secrets-inference"));
         mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { inferenceSecretsHit }));
 
-        var registry = new ModelRegistryImpl(client);
+        var registry = new ModelRegistry(client);
 
-        var listener = new PlainActionFuture<ModelRegistryImpl.UnparsedModel>();
+        var listener = new PlainActionFuture<ModelRegistry.UnparsedModel>();
         registry.getModelWithSecrets("1", listener);
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
@@ -114,9 +114,9 @@ public class ModelRegistryImplTests extends ESTestCase {
         var inferenceHit = SearchResponseUtils.searchHitFromMap(Map.of("_index", ".inference"));
         mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { inferenceHit }));
 
-        var registry = new ModelRegistryImpl(client);
+        var registry = new ModelRegistry(client);
 
-        var listener = new PlainActionFuture<ModelRegistryImpl.UnparsedModel>();
+        var listener = new PlainActionFuture<ModelRegistry.UnparsedModel>();
         registry.getModelWithSecrets("1", listener);
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
@@ -148,9 +148,9 @@ public class ModelRegistryImplTests extends ESTestCase {
 
         mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { inferenceHit, inferenceSecretsHit }));
 
-        var registry = new ModelRegistryImpl(client);
+        var registry = new ModelRegistry(client);
 
-        var listener = new PlainActionFuture<ModelRegistryImpl.UnparsedModel>();
+        var listener = new PlainActionFuture<ModelRegistry.UnparsedModel>();
         registry.getModelWithSecrets("1", listener);
 
         var modelConfig = listener.actionGet(TIMEOUT);
@@ -177,9 +177,9 @@ public class ModelRegistryImplTests extends ESTestCase {
 
         mockClientExecuteSearch(client, mockSearchResponse(new SearchHit[] { inferenceHit }));
 
-        var registry = new ModelRegistryImpl(client);
+        var registry = new ModelRegistry(client);
 
-        var listener = new PlainActionFuture<ModelRegistryImpl.UnparsedModel>();
+        var listener = new PlainActionFuture<ModelRegistry.UnparsedModel>();
         registry.getModel("1", listener);
 
         registry.getModel("1", listener);
@@ -202,7 +202,7 @@ public class ModelRegistryImplTests extends ESTestCase {
         mockClientExecuteBulk(client, bulkResponse);
 
         var model = TestModel.createRandomInstance();
-        var registry = new ModelRegistryImpl(client);
+        var registry = new ModelRegistry(client);
         var listener = new PlainActionFuture<Boolean>();
 
         registry.storeModel(model, listener);
@@ -219,7 +219,7 @@ public class ModelRegistryImplTests extends ESTestCase {
         mockClientExecuteBulk(client, bulkResponse);
 
         var model = TestModel.createRandomInstance();
-        var registry = new ModelRegistryImpl(client);
+        var registry = new ModelRegistry(client);
         var listener = new PlainActionFuture<Boolean>();
 
         registry.storeModel(model, listener);
@@ -250,7 +250,7 @@ public class ModelRegistryImplTests extends ESTestCase {
         mockClientExecuteBulk(client, bulkResponse);
 
         var model = TestModel.createRandomInstance();
-        var registry = new ModelRegistryImpl(client);
+        var registry = new ModelRegistry(client);
         var listener = new PlainActionFuture<Boolean>();
 
         registry.storeModel(model, listener);
@@ -276,7 +276,7 @@ public class ModelRegistryImplTests extends ESTestCase {
         mockClientExecuteBulk(client, bulkResponse);
 
         var model = TestModel.createRandomInstance();
-        var registry = new ModelRegistryImpl(client);
+        var registry = new ModelRegistry(client);
         var listener = new PlainActionFuture<Boolean>();
 
         registry.storeModel(model, listener);

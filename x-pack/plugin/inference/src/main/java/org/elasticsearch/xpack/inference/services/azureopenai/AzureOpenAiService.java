@@ -268,8 +268,6 @@ public class AzureOpenAiService extends SenderService {
             );
         }
 
-        // TODO - validate encoding format
-
         AzureOpenAiEmbeddingsServiceSettings serviceSettings = new AzureOpenAiEmbeddingsServiceSettings(
             model.getServiceSettings().resourceName(),
             model.getServiceSettings().deploymentId(),

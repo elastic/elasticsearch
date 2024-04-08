@@ -3,6 +3,9 @@
   - requires:
       cluster_features: ["cat_shards_dataset_size"]
       reason:  dataset size was added in 8.11.0
+  - skip:
+      version: " - 8.13.99"
+      reason: added flush.total_time_excluding_waiting in 8.14.0
   - do:
       cat.shards:
         help: true
@@ -32,7 +35,7 @@
                     query_cache.evictions            .+   \n
                     flush.total                      .+   \n
                     flush.total_time                 .+   \n
-                    flush.total_time_excluding_waiting.+  \n
+                    flush.total_time_excluding_waiting .+ \n
                     get.current                      .+   \n
                     get.time                         .+   \n
                     get.total                        .+   \n

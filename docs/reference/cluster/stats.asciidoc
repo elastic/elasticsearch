@@ -1821,7 +1821,8 @@ The API returns the following response:
                 "all_in_bytes": 0,
                 "coordinating_rejections": 0,
                 "primary_rejections": 0,
-                "replica_rejections": 0
+                "replica_rejections": 0,
+                "primary_document_rejections": 0
             },
             "limit" : "0b",
             "limit_in_bytes": 0

@@ -7,8 +7,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
@@ -37,7 +38,7 @@ public final class MvMedian2IntEvaluator extends AbstractMultivalueFunction.Abst
     }
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       MvMedian2.Ints work = new MvMedian2.Ints();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
@@ -51,8 +52,8 @@ public final class MvMedian2IntEvaluator extends AbstractMultivalueFunction.Abst
           int value = v.getInt(i);
           MvMedian2.process(work, value);
         }
-        int result = MvMedian2.finish(work);
-        builder.appendInt(result);
+        double result = MvMedian2.finish(work);
+        builder.appendDouble(result);
       }
       return builder.build();
     }
@@ -68,7 +69,7 @@ public final class MvMedian2IntEvaluator extends AbstractMultivalueFunction.Abst
     }
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (IntVector.FixedBuilder builder = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       MvMedian2.Ints work = new MvMedian2.Ints();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
@@ -78,8 +79,8 @@ public final class MvMedian2IntEvaluator extends AbstractMultivalueFunction.Abst
           int value = v.getInt(i);
           MvMedian2.process(work, value);
         }
-        int result = MvMedian2.finish(work);
-        builder.appendInt(result);
+        double result = MvMedian2.finish(work);
+        builder.appendDouble(result);
       }
       return builder.build().asBlock();
     }
@@ -91,7 +92,7 @@ public final class MvMedian2IntEvaluator extends AbstractMultivalueFunction.Abst
   private Block evalAscendingNullable(Block fieldVal) {
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       MvMedian2.Ints work = new MvMedian2.Ints();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
@@ -100,8 +101,8 @@ public final class MvMedian2IntEvaluator extends AbstractMultivalueFunction.Abst
           continue;
         }
         int first = v.getFirstValueIndex(p);
-        int result = MvMedian2.ascending(v, first, valueCount);
-        builder.appendInt(result);
+        double result = MvMedian2.ascending(v, first, valueCount);
+        builder.appendDouble(result);
       }
       return builder.build();
     }
@@ -113,13 +114,13 @@ public final class MvMedian2IntEvaluator extends AbstractMultivalueFunction.Abst
   private Block evalAscendingNotNullable(Block fieldVal) {
     IntBlock v = (IntBlock) fieldVal;
     int positionCount = v.getPositionCount();
-    try (IntVector.FixedBuilder builder = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       MvMedian2.Ints work = new MvMedian2.Ints();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = v.getValueCount(p);
         int first = v.getFirstValueIndex(p);
-        int result = MvMedian2.ascending(v, first, valueCount);
-        builder.appendInt(result);
+        double result = MvMedian2.ascending(v, first, valueCount);
+        builder.appendDouble(result);
       }
       return builder.build().asBlock();
     }

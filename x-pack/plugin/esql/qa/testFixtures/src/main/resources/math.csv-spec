@@ -888,7 +888,7 @@ ROW a=[3, 5, 1]
 ;
 
 // tag::mv_median-result[]
-a:integer | median_a:integer
+a:integer | median_a:double
 [3, 5, 1] | 3
 // end::mv_median-result[]
 ;
@@ -901,8 +901,8 @@ ROW a=[3, 7, 1, 6]
 ;
 
 // tag::mv_median_round_down-result[]
-   a:integer | median_a:integer
-[3, 7, 1, 6] | 4
+   a:integer | median_a:d
+[3, 7, 1, 6] | 4.5
 // end::mv_median_round_down-result[]
 ;
 
@@ -1145,8 +1145,8 @@ null
 ulMvNonSumFunctions
 row ul = [18446744073709551615, 0, 1, 9223372036854775807, 9223372036854775808] | eval mv_min(ul), mv_max(ul), mv_median(ul), mv_count(ul) | drop ul;
 
-  mv_min(ul):ul|     mv_max(ul):ul  |   mv_median(ul):ul| mv_count(ul):i
-0              |18446744073709551615|9223372036854775807|5
+  mv_min(ul):ul|      mv_max(ul):ul   |    mv_median(ul):d    | mv_count(ul):i
+0              | 18446744073709551615 | 9223372036854775807.0 |5
 ;
 
 ulMvSum
@@ -1159,8 +1159,8 @@ row ul = [1, 9223372036854775806, 9223372036854775808] | eval mv_sum(ul), mv_avg
 ulMedianEvenCount
 row ul = [18446744073709551615, 0, 1, 9223372036854775807, 9223372036854775808, 2] | eval mv_median(ul) | drop ul;
 
-mv_median(ul):ul
-4611686018427387904
+mv_median(ul):d
+4611686018427387904.5
 ;
 
 pi

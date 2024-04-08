@@ -12,6 +12,7 @@ import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -20,13 +21,12 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToBigInteger;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 // TODO: needs to return non-rounded doubles, only.
 public class MvMedian2 extends AbstractMultivalueFunction {
     @FunctionInfo(
-        returnType = { "double", "integer", "long", "unsigned_long" },
+        returnType = { "double" },
         description = "Converts a multivalued field into a single valued field containing the median value."
     )
     public MvMedian2(Source source, @Param(name = "number", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
@@ -50,13 +50,19 @@ public class MvMedian2 extends AbstractMultivalueFunction {
     }
 
     @Override
+    public DataType dataType() {
+        return DataTypes.DOUBLE;
+    }
+
+    @Override
     protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
         return switch (PlannerUtils.toElementType(field().dataType())) {
-            case DOUBLE -> new MvMedianDoubleEvaluator.Factory(fieldEval);
-            case INT -> new MvMedianIntEvaluator.Factory(fieldEval);
+            case DOUBLE -> new MvMedian2DoubleEvaluator.Factory(fieldEval);
+            case INT -> new MvMedian2IntEvaluator.Factory(fieldEval);
             case LONG -> field().dataType() == DataTypes.UNSIGNED_LONG
-                ? new MvMedianUnsignedLongEvaluator.Factory(fieldEval)
-                : new MvMedianLongEvaluator.Factory(fieldEval);
+                ? new MvMedian2UnsignedLongEvaluator.Factory(fieldEval)
+                : new MvMedian2LongEvaluator.Factory(fieldEval);
+            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }
@@ -114,7 +120,7 @@ public class MvMedian2 extends AbstractMultivalueFunction {
         longs.values[longs.count++] = v;
     }
 
-    static long finish(Longs longs) {
+    static double finish(Longs longs) {
         // TODO quickselect
         Arrays.sort(longs.values, 0, longs.count);
         int middle = longs.count / 2;
@@ -123,25 +129,18 @@ public class MvMedian2 extends AbstractMultivalueFunction {
             return longs.values[middle];
         }
         longs.count = 0;
-        return avgWithoutOverflow(longs.values[middle - 1], longs.values[middle]);
+        return ((double) longs.values[middle - 1] + (double) longs.values[middle]) / 2;
     }
 
     /**
      * If the values are ascending pick the middle value or average the two middle values together.
      */
-    static long ascending(LongBlock values, int firstValue, int count) {
+    static double ascending(LongBlock values, int firstValue, int count) {
         int middle = firstValue + count / 2;
         if (count % 2 == 1) {
             return values.getLong(middle);
         }
-        return avgWithoutOverflow(values.getLong(middle - 1), values.getLong(middle));
-    }
-
-    /**
-     * Average two {@code long}s without any overflow.
-     */
-    static long avgWithoutOverflow(long a, long b) {
-        return (a & b) + ((a ^ b) >> 1);
+        return ((double) values.getLong(middle - 1) + (double) values.getLong(middle)) / 2;
     }
 
     @MvEvaluator(extraName = "UnsignedLong", finish = "finishUnsignedLong", ascending = "ascendingUnsignedLong")
@@ -149,30 +148,31 @@ public class MvMedian2 extends AbstractMultivalueFunction {
         process(longs, v);
     }
 
-    static long finishUnsignedLong(Longs longs) {
-        if (longs.count % 2 == 1) {
-            return finish(longs);
-        }
+    static double finishUnsignedLong(Longs longs) {
         // TODO quickselect
         Arrays.sort(longs.values, 0, longs.count);
         int middle = longs.count / 2;
+        if (longs.count % 2 == 1) {
+            longs.count = 0;
+            return unsignedLongToBigInteger(longs.values[middle]).doubleValue();
+        }
         longs.count = 0;
-        BigInteger a = unsignedLongToBigInteger(longs.values[middle - 1]);
-        BigInteger b = unsignedLongToBigInteger(longs.values[middle]);
-        return bigIntegerToUnsignedLong(a.add(b).shiftRight(1));
+        double a = unsignedLongToBigInteger(longs.values[middle - 1]).doubleValue();
+        double b = unsignedLongToBigInteger(longs.values[middle]).doubleValue();
+        return (a + b) / 2;
     }
 
     /**
      * If the values are ascending pick the middle value or average the two middle values together.
      */
-    static long ascendingUnsignedLong(LongBlock values, int firstValue, int count) {
+    static double ascendingUnsignedLong(LongBlock values, int firstValue, int count) {
         int middle = firstValue + count / 2;
         if (count % 2 == 1) {
-            return values.getLong(middle);
+            return unsignedLongToBigInteger(values.getLong(middle)).doubleValue();
         }
-        BigInteger a = unsignedLongToBigInteger(values.getLong(middle - 1));
-        BigInteger b = unsignedLongToBigInteger(values.getLong(middle));
-        return bigIntegerToUnsignedLong(a.add(b).shiftRight(1));
+        double a = unsignedLongToBigInteger(values.getLong(middle - 1)).doubleValue();
+        double b = unsignedLongToBigInteger(values.getLong(middle)).doubleValue();
+        return (a + b) / 2;
     }
 
     static class Ints {
@@ -188,7 +188,7 @@ public class MvMedian2 extends AbstractMultivalueFunction {
         ints.values[ints.count++] = v;
     }
 
-    static int finish(Ints ints) {
+    static double finish(Ints ints) {
         // TODO quickselect
         Arrays.sort(ints.values, 0, ints.count);
         int middle = ints.count / 2;
@@ -197,24 +197,17 @@ public class MvMedian2 extends AbstractMultivalueFunction {
             return ints.values[middle];
         }
         ints.count = 0;
-        return avgWithoutOverflow(ints.values[middle - 1], ints.values[middle]);
+        return ((double) ints.values[middle - 1] + (double) ints.values[middle]) / 2;
     }
 
     /**
      * If the values are ascending pick the middle value or average the two middle values together.
      */
-    static int ascending(IntBlock values, int firstValue, int count) {
+    static double ascending(IntBlock values, int firstValue, int count) {
         int middle = firstValue + count / 2;
         if (count % 2 == 1) {
             return values.getInt(middle);
         }
-        return avgWithoutOverflow(values.getInt(middle - 1), values.getInt(middle));
-    }
-
-    /**
-     * Average two {@code int}s together without overflow.
-     */
-    static int avgWithoutOverflow(int a, int b) {
-        return (a & b) + ((a ^ b) >> 1);
+        return ((double) values.getInt(middle - 1) + (double) values.getInt(middle)) / 2;
     }
 }

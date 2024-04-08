@@ -10,7 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.test.ESTestCase;
 
-public class MapperBuilderContextTest extends ESTestCase {
+public class MapperBuilderContextTests extends ESTestCase {
 
     public void testRoot() {
         MapperBuilderContext root = MapperBuilderContext.root(false, false);

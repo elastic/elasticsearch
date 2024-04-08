@@ -50,12 +50,14 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         public static final ParseField INPUT = new ParseField("input");
         public static final ParseField TASK_SETTINGS = new ParseField("task_settings");
+        public static final ParseField QUERY = new ParseField("query");
 
         static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME, Request.Builder::new);
         static {
             // TODO timeout
             PARSER.declareStringArray(Request.Builder::setInput, INPUT);
             PARSER.declareObject(Request.Builder::setTaskSettings, (p, c) -> p.mapOrdered(), TASK_SETTINGS);
+            PARSER.declareString(Request.Builder::setQuery, QUERY);
         }
 
         private static final EnumSet<InputType> validEnumsBeforeUnspecifiedAdded = EnumSet.of(InputType.INGEST, InputType.SEARCH);
@@ -64,7 +66,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             InputType.UNSPECIFIED
         );
 
-        public static Request parseRequest(String inferenceEntityId, TaskType taskType, XContentParser parser) {
+        public static Request parseRequest(String inferenceEntityId, TaskType taskType, XContentParser parser) throws IOException {
             Request.Builder builder = PARSER.apply(parser, null);
             builder.setInferenceEntityId(inferenceEntityId);
             builder.setTaskType(taskType);
@@ -75,6 +77,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         private final TaskType taskType;
         private final String inferenceEntityId;
+        private final String query;
         private final List<String> input;
         private final Map<String, Object> taskSettings;
         private final InputType inputType;
@@ -82,12 +85,14 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         public Request(
             TaskType taskType,
             String inferenceEntityId,
+            String query,
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType
         ) {
             this.taskType = taskType;
             this.inferenceEntityId = inferenceEntityId;
+            this.query = query;
             this.input = input;
             this.taskSettings = taskSettings;
             this.inputType = inputType;
@@ -108,6 +113,12 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             } else {
                 this.inputType = InputType.UNSPECIFIED;
             }
+
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_RERANK)) {
+                this.query = in.readOptionalString();
+            } else {
+                this.query = null;
+            }
         }
 
         public TaskType getTaskType() {
@@ -120,6 +131,10 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         public List<String> getInput() {
             return input;
+        }
+
+        public String getQuery() {
+            return query;
         }
 
         public Map<String, Object> getTaskSettings() {
@@ -161,6 +176,10 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED)) {
                 out.writeEnum(getInputTypeToWrite(inputType, out.getTransportVersion()));
             }
+
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_RERANK)) {
+                out.writeOptionalString(query);
+            }
         }
 
         // default for easier testing
@@ -185,12 +204,13 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 && Objects.equals(inferenceEntityId, request.inferenceEntityId)
                 && Objects.equals(input, request.input)
                 && Objects.equals(taskSettings, request.taskSettings)
-                && Objects.equals(inputType, request.inputType);
+                && Objects.equals(inputType, request.inputType)
+                && Objects.equals(query, request.query);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(taskType, inferenceEntityId, input, taskSettings, inputType);
+            return Objects.hash(taskType, inferenceEntityId, input, taskSettings, inputType, query);
         }
 
         public static class Builder {
@@ -200,6 +220,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             private List<String> input;
             private InputType inputType = InputType.UNSPECIFIED;
             private Map<String, Object> taskSettings = Map.of();
+            private String query;
 
             private Builder() {}
 
@@ -218,6 +239,11 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 return this;
             }
 
+            public Builder setQuery(String query) {
+                this.query = query;
+                return this;
+            }
+
             public Builder setInputType(InputType inputType) {
                 this.inputType = inputType;
                 return this;
@@ -229,8 +255,24 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             }
 
             public Request build() {
-                return new Request(taskType, inferenceEntityId, input, taskSettings, inputType);
+                return new Request(taskType, inferenceEntityId, query, input, taskSettings, inputType);
             }
+        }
+
+        public String toString() {
+            return "InferenceAction.Request(taskType="
+                + this.getTaskType()
+                + ", inferenceEntityId="
+                + this.getInferenceEntityId()
+                + ", query="
+                + this.getQuery()
+                + ", input="
+                + this.getInput()
+                + ", taskSettings="
+                + this.getTaskSettings()
+                + ", inputType="
+                + this.getInputType()
+                + ")";
         }
     }
 

@@ -13,17 +13,16 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 
 import java.io.Closeable;
-import java.util.List;
 
 public interface Sender extends Closeable {
     void start();
 
     void send(
         ExecutableRequestCreator requestCreator,
-        List<String> input,
+        InferenceInputs inferenceInputs,
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     );
 
-    void send(ExecutableRequestCreator requestCreator, List<String> input, ActionListener<InferenceServiceResults> listener);
+    void send(ExecutableRequestCreator requestCreator, InferenceInputs inferenceInputs, ActionListener<InferenceServiceResults> listener);
 }

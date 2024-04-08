@@ -10,6 +10,7 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -73,16 +74,19 @@ public class StoredFieldsPhase implements FetchSubPhase {
         if (storedFieldsContext.fieldNames() != null) {
             SearchExecutionContext sec = fetchContext.getSearchExecutionContext();
             for (String field : storedFieldsContext.fieldNames()) {
-                if (SourceFieldMapper.NAME.equals(field) == false) {
-                    Collection<String> fieldNames = sec.getMatchingFieldNames(field);
-                    for (String fieldName : fieldNames) {
-                        MappedFieldType ft = sec.getFieldType(fieldName);
-                        if (ft.isStored() == false) {
-                            continue;
-                        }
-                        storedFields.add(new StoredField(fieldName, ft, sec.isMetadataField(ft.name())));
-                        fieldsToLoad.add(ft.name());
+                Collection<String> fieldNames = sec.getMatchingFieldNames(field);
+                for (String fieldName : fieldNames) {
+                    // _id and _source are always retrieved anyway, no need to do it explicitly. See FieldsVisitor.
+                    // They are not returned as part of HitContext#loadedFields hence they are not added to documents by this sub-phase
+                    if (IdFieldMapper.NAME.equals(field) || SourceFieldMapper.NAME.equals(field)) {
+                        continue;
                     }
+                    MappedFieldType ft = sec.getFieldType(fieldName);
+                    if (ft.isStored() == false) {
+                        continue;
+                    }
+                    storedFields.add(new StoredField(fieldName, ft, sec.isMetadataField(ft.name())));
+                    fieldsToLoad.add(ft.name());
                 }
             }
         }

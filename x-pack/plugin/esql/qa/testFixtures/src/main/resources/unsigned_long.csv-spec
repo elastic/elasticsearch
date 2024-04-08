@@ -187,3 +187,34 @@ warning:Line 1:22: java.lang.IllegalArgumentException: single-value function enc
          bytes_in:ul | rad:double
 16002960716282089759 | 2.79304354566432608E17
 ;
+
+signumOfPositiveUnsignedLong#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row l = to_ul(100) | eval s = signum(l);
+
+l:ul | s:double
+100  | 1.0
+;
+
+signumOfZeroUnsignedLong#[skip:-8.13.99,reason:new scalar function added in 8.14]
+row l = to_ul(0) | eval s = signum(l);
+
+l:ul | s:double
+0    | 0.0
+;
+
+signumWithEvalAndWhere#[skip:-8.13.99,reason:new scalar function added in 8.14]
+
+from ul_logs |
+where signum(bytes_in) >= 0.0 |
+eval s = signum(bytes_out) |
+keep s, bytes_in, bytes_out |
+sort bytes_out, s |
+limit 2;
+
+warning:Line 2:7: evaluation of [signum(bytes_in)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:7: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+s:double | bytes_in:ul | bytes_out:ul
+1.0      | 1957665857956635540          | 352442273299370793
+1.0      | 2408213296071189837          | 419872666232023984
+;

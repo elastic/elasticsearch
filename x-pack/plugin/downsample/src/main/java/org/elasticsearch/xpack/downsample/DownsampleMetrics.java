@@ -55,7 +55,8 @@ public class DownsampleMetrics extends AbstractLifecycleComponent {
 
         SUCCESS("success"),
         MISSING_DOCS("missing_docs"),
-        FAILED("failed");
+        FAILED("failed"),
+        INVALID_CONFIGURATION("invalid_configuration");
 
         static final String NAME = "status";
 

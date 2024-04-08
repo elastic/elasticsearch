@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -100,8 +99,8 @@ public class PassThroughObjectMapper extends ObjectMapper {
         return builder;
     }
 
-    public PassThroughObjectMapper merge(ObjectMapper mergeWith, MergeReason reason, MapperMergeContext parentBuilderContext) {
-        final var mergeResult = MergeResult.build(this, mergeWith, reason, parentBuilderContext);
+    public PassThroughObjectMapper merge(ObjectMapper mergeWith, MapperMergeContext parentBuilderContext) {
+        final var mergeResult = MergeResult.build(this, mergeWith, parentBuilderContext);
         PassThroughObjectMapper mergeWithObject = (PassThroughObjectMapper) mergeWith;
 
         final Explicit<Boolean> containsDimensions = (mergeWithObject.timeSeriesDimensionSubFields.explicit())

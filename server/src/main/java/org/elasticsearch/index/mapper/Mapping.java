@@ -138,7 +138,7 @@ public final class Mapping implements ToXContentFragment {
      */
     Mapping merge(Mapping mergeWith, MergeReason reason, long newFieldsBudget) {
         MapperMergeContext mergeContext = MapperMergeContext.root(isSourceSynthetic(), false, reason, newFieldsBudget);
-        RootObjectMapper mergedRoot = root.merge(mergeWith.root, reason, mergeContext);
+        RootObjectMapper mergedRoot = root.merge(mergeWith.root, mergeContext);
 
         // When merging metadata fields as part of applying an index template, new field definitions
         // completely overwrite existing ones instead of being merged. This behavior matches how we
@@ -180,7 +180,7 @@ public final class Mapping implements ToXContentFragment {
         // get a copy of the root mapper, without any fields
         RootObjectMapper shallowRoot = root.withoutMappers();
         // calling merge on the shallow root to ensure we're only adding as many fields as allowed by the fields budget
-        return new Mapping(shallowRoot.merge(root, MergeReason.MAPPING_RECOVERY, mergeContext), metadataMappers, meta);
+        return new Mapping(shallowRoot.merge(root, mergeContext), metadataMappers, meta);
     }
 
     @Override

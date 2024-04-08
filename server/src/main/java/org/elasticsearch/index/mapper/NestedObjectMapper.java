@@ -227,16 +227,14 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public ObjectMapper merge(Mapper mergeWith, MapperService.MergeReason reason, MapperMergeContext parentMergeContext) {
+    public ObjectMapper merge(Mapper mergeWith, MapperMergeContext parentMergeContext) {
         if ((mergeWith instanceof NestedObjectMapper) == false) {
             MapperErrors.throwNestedMappingConflictError(mergeWith.name());
         }
         NestedObjectMapper mergeWithObject = (NestedObjectMapper) mergeWith;
-        return merge(mergeWithObject, reason, parentMergeContext);
-    }
 
-    ObjectMapper merge(NestedObjectMapper mergeWithObject, MapperService.MergeReason reason, MapperMergeContext parentMergeContext) {
-        var mergeResult = MergeResult.build(this, mergeWithObject, reason, parentMergeContext);
+        final MapperService.MergeReason reason = parentMergeContext.getMapperBuilderContext().getMergeReason();
+        var mergeResult = MergeResult.build(this, mergeWithObject, parentMergeContext);
         Explicit<Boolean> incInParent = this.includeInParent;
         Explicit<Boolean> incInRoot = this.includeInRoot;
         if (reason == MapperService.MergeReason.INDEX_TEMPLATE) {

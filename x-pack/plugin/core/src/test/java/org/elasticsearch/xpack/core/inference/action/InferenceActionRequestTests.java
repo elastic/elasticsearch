@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -159,15 +160,22 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 instance.getInputType(),
                 instance.getInferenceTimeout()
             );
-            case 6 -> new InferenceAction.Request(
-                instance.getTaskType(),
-                instance.getInferenceEntityId(),
-                instance.getQuery(),
-                instance.getInput(),
-                instance.getTaskSettings(),
-                instance.getInputType(),
-                TimeValue.timeValueMillis(randomLongBetween(2048, 5000))
-            );
+            case 6 -> {
+                var newDuration = Duration.of(
+                    instance.getInferenceTimeout().duration(),
+                    instance.getInferenceTimeout().timeUnit().toChronoUnit()
+                );
+                var additionalTime = Duration.ofMillis(randomLongBetween(1, 2048));
+                yield new InferenceAction.Request(
+                    instance.getTaskType(),
+                    instance.getInferenceEntityId(),
+                    instance.getQuery(),
+                    instance.getInput(),
+                    instance.getTaskSettings(),
+                    instance.getInputType(),
+                    TimeValue.timeValueMillis(newDuration.plus(additionalTime).toMillis())
+                );
+            }
             default -> throw new UnsupportedOperationException();
         };
     }

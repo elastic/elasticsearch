@@ -52,7 +52,7 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
         return readFrom((BlockStreamInput) in);
     }
 
-    private static DoubleBlock readFrom(BlockStreamInput in) throws IOException {
+    static DoubleBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
         return switch (serializationType) {
             case SERIALIZE_BLOCK_VALUES -> DoubleBlock.readValues(in);

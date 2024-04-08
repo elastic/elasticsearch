@@ -8,6 +8,7 @@
 
 package org.elasticsearch.reservedstate.service;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -54,6 +55,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106968")
 public class FileSettingsServiceTests extends ESTestCase {
     private Environment env;
     private ClusterService clusterService;

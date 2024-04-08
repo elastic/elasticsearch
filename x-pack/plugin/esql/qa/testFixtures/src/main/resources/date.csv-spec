@@ -159,6 +159,39 @@ x:date                  |hire_date:date
 1995-01-01T00:00:00.000Z|1995-01-27T00:00:00.000Z
 ;
 
+dateTruncHour
+  FROM sample_data
+| SORT @timestamp ASC
+| EVAL t = DATE_TRUNC(1 HOUR, @timestamp)
+| KEEP t;
+
+t:date
+2023-10-23T12:00:00
+2023-10-23T12:00:00
+2023-10-23T13:00:00
+2023-10-23T13:00:00
+2023-10-23T13:00:00
+2023-10-23T13:00:00
+2023-10-23T13:00:00
+;
+
+dateTruncMinute
+  FROM sample_data
+| SORT @timestamp ASC
+| EVAL t = DATE_TRUNC(1 MINUTE, @timestamp)
+| KEEP t;
+
+t:date
+2023-10-23T12:15:00
+2023-10-23T12:27:00
+2023-10-23T13:33:00
+2023-10-23T13:51:00
+2023-10-23T13:52:00
+2023-10-23T13:53:00
+2023-10-23T13:55:00
+;
+
+
 convertFromDatetime
 from employees | sort emp_no | keep birth_date | eval bd = to_datetime(birth_date) | limit 2;
 
@@ -1181,4 +1214,62 @@ count:long | age:long
 8          | 72
 8          | 70
 8          | 64
+;
+
+values
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10003
+| STATS birth_date=MV_SORT(VALUES(birth_date))
+;
+
+   birth_date:datetime
+["1953-09-02T00:00:00Z", "1959-12-03T00:00:00.000Z", "1964-06-02T00:00:00.000Z"]
+;
+
+valuesGrouped
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| EVAL first_letter = SUBSTRING(first_name, 0, 1)
+| STATS birth_date=MV_SORT(VALUES(birth_date)) BY first_letter
+| SORT first_letter
+;
+
+                        birth_date:datetime  | first_letter:keyword
+                        1953-04-20T00:00:00Z | A
+                        1964-06-02T00:00:00Z | B
+                        1954-05-01T00:00:00Z | C
+                        1953-09-02T00:00:00Z | G
+                        1955-01-21T00:00:00Z | K
+                        1959-12-03T00:00:00Z | P
+[1952-04-19T00:00:00Z, 1958-02-19T00:00:00Z] | S
+                        1957-05-23T00:00:00Z | T
+;
+
+valuesGroupedByOrdinals
+required_feature: esql.agg_values
+
+  FROM employees
+| WHERE emp_no <= 10009
+| EVAL first_letter = SUBSTRING(first_name, 0, 1)
+| STATS birth_date=MV_SORT(VALUES(birth_date)) BY job_positions
+| SORT job_positions
+;
+
+                                              birth_date:datetime  | job_positions:keyword
+                                              1953-09-02T00:00:00Z | Accountant
+                                              1954-05-01T00:00:00Z | Head Human Resources
+                      [1952-04-19T00:00:00Z, 1958-02-19T00:00:00Z] | Internship
+                                              1958-02-19T00:00:00Z | Junior Developer
+                                              1953-04-20T00:00:00Z | Principal Support Engineer
+                                              1958-02-19T00:00:00Z | Purchase Manager
+                                               1954-05-01T00:00:00 | Reporting Analyst
+[1952-04-19T00:00:00Z, 1953-09-02T00:00:00Z, 1958-02-19T00:00:00Z] | Senior Python Developer
+                      [1953-04-20T00:00:00Z, 1964-06-02T00:00:00Z] | Senior Team Lead
+                                              1954-05-01T00:00:00Z | Support Engineer
+                      [1953-04-20T00:00:00Z, 1954-05-01T00:00:00Z] | Tech Lead
+[1955-01-21T00:00:00Z, 1957-05-23T00:00:00Z, 1959-12-03T00:00:00Z] | null
 ;

@@ -27,15 +27,7 @@ import java.util.stream.Collectors;
  */
 public class CompositeRoleMapper implements UserRoleMapper {
 
-    private List<UserRoleMapper> delegates;
-
-    public CompositeRoleMapper(
-        RealmConfig realmConfig,
-        ResourceWatcherService watcherService,
-        NativeRoleMappingStore nativeRoleMappingStore
-    ) {
-        this(new DnRoleMapper(realmConfig, watcherService), nativeRoleMappingStore);
-    }
+    private final List<UserRoleMapper> delegates;
 
     public CompositeRoleMapper(UserRoleMapper... delegates) {
         this.delegates = new ArrayList<>(Arrays.asList(delegates));

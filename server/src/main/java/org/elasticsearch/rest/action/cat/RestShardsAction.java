@@ -148,7 +148,7 @@ public class RestShardsAction extends AbstractCatAction {
         table.addCell("flush.total_time", "alias:ftt,flushTotalTime;default:false;text-align:right;desc:time spent in flush");
         table.addCell(
             "flush.total_time_excluding_waiting",
-            "alias:ftt,flushTotalTime;default:false;text-align:right;desc:time spent in flush excluding waiting"
+            "alias:fttew,flushTotalTimeExcludingWaiting;default:false;text-align:right;desc:time spent in flush excluding waiting"
         );
 
         table.addCell("get.current", "alias:gc,getCurrent;default:false;text-align:right;desc:number of current get ops");

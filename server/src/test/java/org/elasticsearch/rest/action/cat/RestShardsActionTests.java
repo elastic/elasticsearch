@@ -99,6 +99,7 @@ public class RestShardsActionTests extends ESTestCase {
         assertThat(headers.get(7).value, equalTo("ip"));
         assertThat(headers.get(8).value, equalTo("id"));
         assertThat(headers.get(9).value, equalTo("node"));
+        assertThat(headers.get(23).value, equalTo("flush.total_time_excluding_waiting"));
 
         final List<List<Table.Cell>> rows = table.getRows();
         assertThat(rows.size(), equalTo(numShards));

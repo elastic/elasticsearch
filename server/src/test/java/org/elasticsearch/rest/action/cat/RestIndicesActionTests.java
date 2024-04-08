@@ -134,6 +134,8 @@ public class RestIndicesActionTests extends ESTestCase {
         assertThat(headers.get(3).value, equalTo("uuid"));
         assertThat(headers.get(4).value, equalTo("pri"));
         assertThat(headers.get(5).value, equalTo("rep"));
+        assertThat(headers.get(35).value, equalTo("flush.total_time_excluding_waiting"));
+        assertThat(headers.get(36).value, equalTo("pri.flush.total_time_excluding_waiting"));
 
         final List<List<Table.Cell>> rows = table.getRows();
         assertThat(rows.size(), equalTo(clusterState.metadata().indices().size()));

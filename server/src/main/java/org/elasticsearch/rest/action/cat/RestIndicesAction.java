@@ -236,7 +236,7 @@ public class RestIndicesAction extends AbstractCatAction {
 
         table.addCell(
             "flush.total_time_excluding_waiting",
-            "sibling:pri;alias:ftt,flushTotalTime;default:false;text-align:right;desc:time spent in flush excluding waiting in queue"
+            "sibling:pri;alias:fttew,flushTotalTimeExcludingWaiting;default:false;text-align:right;desc:time spent in flush excluding waiting in queue"
         );
         table.addCell(
             "pri.flush.total_time_excluding_waiting",

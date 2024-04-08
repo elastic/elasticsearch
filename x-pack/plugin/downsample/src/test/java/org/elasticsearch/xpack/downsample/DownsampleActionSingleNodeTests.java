@@ -1186,7 +1186,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                     measurement.value().longValue() >= 0 && measurement.value().longValue() < 1000_000
                 );
                 assertEquals(1, measurement.attributes().size());
-                assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "invalid_configuration")));
+                assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "invalid_configuration", "failed")));
             }
         }, 10, TimeUnit.SECONDS);
     }

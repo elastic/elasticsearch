@@ -38,14 +38,14 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
-public class TrainedModelCacheMetadataService implements ClusterStateListener {
-    private static final Logger LOGGER = LogManager.getLogger(TrainedModelCacheMetadataService.class);
+public class TrainedModelCacheManager implements ClusterStateListener {
+    private static final Logger LOGGER = LogManager.getLogger(TrainedModelCacheManager.class);
     private final MasterServiceTaskQueue<ModelCacheMetadataManagementTask> modelCacheMetadataManagementTaskQueue;
     private volatile boolean isMasterNode = false;
     private volatile String nodeId = null;
     private final Collection<Cache<String, ?>> managedCaches = new CopyOnWriteArrayList<>();
 
-    public TrainedModelCacheMetadataService(ClusterService clusterService) {
+    public TrainedModelCacheManager(ClusterService clusterService) {
         this.modelCacheMetadataManagementTaskQueue = clusterService.createTaskQueue(
             "trained-models-cache-metadata",
             Priority.IMMEDIATE,

@@ -127,11 +127,11 @@ public class TrainedModelProvider {
     private static final Logger logger = LogManager.getLogger(TrainedModelProvider.class);
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
-    private final TrainedModelCacheMetadataService modelCacheMetadataService;
+    private final TrainedModelCacheManager modelCacheMetadataService;
 
     public TrainedModelProvider(
         Client client,
-        TrainedModelCacheMetadataService modelCacheMetadataService,
+        TrainedModelCacheManager modelCacheMetadataService,
         NamedXContentRegistry xContentRegistry
     ) {
         this.client = client;

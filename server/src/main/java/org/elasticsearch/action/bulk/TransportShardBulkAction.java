@@ -462,11 +462,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
      */
     private static DocumentSizeObserver getDocumentSizeObserver(DocumentParsingProvider documentParsingProvider, IndexRequest request) {
         if (request.getNormalisedBytesParsed() != -1) {
-            return documentParsingProvider.newFixedSizeDocumentObserver(request.getNormalisedBytesParsed(), request.index());
+            return documentParsingProvider.newFixedSizeDocumentObserver(request.getNormalisedBytesParsed());
         } else if (request.getNormalisedBytesParsed() == 0) {
             return DocumentSizeObserver.EMPTY_INSTANCE;
         }
-        return documentParsingProvider.newDocumentSizeObserver(request.index());
+        return documentParsingProvider.newDocumentSizeObserver();
     }
 
     private static Engine.Result exceptionToResult(Exception e, IndexShard primary, boolean isDelete, long version, String id) {
@@ -487,7 +487,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         final BulkItemResponse executionResult = context.getExecutionResult();
         final boolean isFailed = executionResult.isFailed();
         if (isFailed == false && opType != DocWriteRequest.OpType.DELETE) {
-            DocumentSizeReporter documentSizeReporter = documentParsingProvider.getDocumentParsingReporter();
+            DocumentSizeReporter documentSizeReporter = documentParsingProvider.getDocumentParsingReporter(docWriteRequest.index());
             DocumentSizeObserver documentSizeObserver = context.getDocumentSizeObserver();
             documentSizeReporter.onCompleted(docWriteRequest.index(), documentSizeObserver.normalisedBytesParsed());
         }

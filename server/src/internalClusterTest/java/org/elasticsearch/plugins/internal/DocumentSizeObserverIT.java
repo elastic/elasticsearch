@@ -76,17 +76,17 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
             return new DocumentParsingProvider() {
 
                 @Override
-                public DocumentSizeObserver newFixedSizeDocumentObserver(long normalisedBytesParsed, String indexName) {
+                public DocumentSizeObserver newFixedSizeDocumentObserver(long normalisedBytesParsed) {
                     return new TestDocumentSizeObserver();
                 }
 
                 @Override
-                public DocumentSizeObserver newDocumentSizeObserver(String indexName) {
+                public DocumentSizeObserver newDocumentSizeObserver() {
                     return new TestDocumentSizeObserver();
                 }
 
                 @Override
-                public DocumentSizeReporter getDocumentParsingReporter() {
+                public DocumentSizeReporter getDocumentParsingReporter(String indexName) {
                     return new TestDocumentSizeReporter();
                 }
             };

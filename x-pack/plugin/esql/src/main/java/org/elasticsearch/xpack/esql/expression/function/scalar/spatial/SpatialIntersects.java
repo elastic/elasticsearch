@@ -66,8 +66,6 @@ public class SpatialIntersects extends SpatialRelatesFunction {
     @FunctionInfo(
         returnType = { "boolean" },
         description = "Returns whether the two geometries or geometry columns intersect.",
-        note = "The second parameter must also have the same coordinate system as the first. "
-            + "This means it is not possible to combine `geo_*` and `cartesian_*` parameters.",
         examples = @Example(file = "spatial", tag = "st_intersects-airports")
     )
     public SpatialIntersects(

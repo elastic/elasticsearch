@@ -167,7 +167,7 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
 
     public void testMatchField_ImplicitFieldsList() throws IOException {
         Map<String, Object> result = runEsql(
-            new RestEsqlTestCase.RequestObjectBuilder().query("from test | enrich countries | keep number")
+            new RestEsqlTestCase.RequestObjectBuilder().query("from test | enrich countries | keep number | sort number")
         );
         var columns = List.of(Map.of("name", "number", "type", "long"));
         var values = List.of(List.of(1000), List.of(1000), List.of(5000));

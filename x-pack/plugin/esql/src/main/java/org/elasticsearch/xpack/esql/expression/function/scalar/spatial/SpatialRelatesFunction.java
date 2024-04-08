@@ -116,8 +116,12 @@ public abstract class SpatialRelatesFunction extends BinaryScalarFunction
         if (resolution.unresolved()) {
             return resolution;
         }
-        crsType = SpatialCrsType.fromDataType(spatialExpression.dataType());
+        setCrsType(spatialExpression.dataType());
         return TypeResolution.TYPE_RESOLVED;
+    }
+
+    protected void setCrsType(DataType dataType) {
+        crsType = SpatialCrsType.fromDataType(dataType);
     }
 
     public static TypeResolution isSameSpatialType(

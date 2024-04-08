@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWithin;
@@ -2933,6 +2934,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         String function() {
             return switch (relation) {
                 case INTERSECTS -> "ST_INTERSECTS";
+                case DISJOINT -> "ST_DISJOINT";
                 case WITHIN -> "ST_WITHIN";
                 case CONTAINS -> "ST_CONTAINS";
                 default -> throw new IllegalArgumentException("Unsupported relation: " + relation);
@@ -2942,6 +2944,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         Class<? extends SpatialRelatesFunction> functionClass() {
             return switch (relation) {
                 case INTERSECTS -> SpatialIntersects.class;
+                case DISJOINT -> SpatialDisjoint.class;
                 case WITHIN -> literalRight ? SpatialWithin.class : SpatialContains.class;
                 case CONTAINS -> literalRight ? SpatialContains.class : SpatialWithin.class;
                 default -> throw new IllegalArgumentException("Unsupported relation: " + relation);
@@ -2975,12 +2978,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         TestSpatialRelation[] tests = new TestSpatialRelation[] {
             new TestSpatialRelation(ShapeRelation.INTERSECTS, airports, true, true),
             new TestSpatialRelation(ShapeRelation.INTERSECTS, airports, false, true),
+            new TestSpatialRelation(ShapeRelation.DISJOINT, airports, true, true),
+            new TestSpatialRelation(ShapeRelation.DISJOINT, airports, false, true),
             new TestSpatialRelation(ShapeRelation.WITHIN, airports, true, true),
             new TestSpatialRelation(ShapeRelation.WITHIN, airports, false, true),
             new TestSpatialRelation(ShapeRelation.CONTAINS, airports, true, true),
             new TestSpatialRelation(ShapeRelation.CONTAINS, airports, false, true),
             new TestSpatialRelation(ShapeRelation.INTERSECTS, airportsWeb, true, true),
             new TestSpatialRelation(ShapeRelation.INTERSECTS, airportsWeb, false, true),
+            new TestSpatialRelation(ShapeRelation.DISJOINT, airportsWeb, true, true),
+            new TestSpatialRelation(ShapeRelation.DISJOINT, airportsWeb, false, true),
             new TestSpatialRelation(ShapeRelation.WITHIN, airportsWeb, true, true),
             new TestSpatialRelation(ShapeRelation.WITHIN, airportsWeb, false, true),
             new TestSpatialRelation(ShapeRelation.CONTAINS, airportsWeb, true, true),
@@ -3027,10 +3034,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         TestSpatialRelation[] tests = new TestSpatialRelation[] {
             new TestSpatialRelation(ShapeRelation.INTERSECTS, airports, true, true),
             new TestSpatialRelation(ShapeRelation.INTERSECTS, airports, false, true),
+            new TestSpatialRelation(ShapeRelation.DISJOINT, airports, true, true),
+            new TestSpatialRelation(ShapeRelation.DISJOINT, airports, false, true),
             new TestSpatialRelation(ShapeRelation.WITHIN, airports, true, true),
             new TestSpatialRelation(ShapeRelation.WITHIN, airports, false, true),
             new TestSpatialRelation(ShapeRelation.CONTAINS, airports, true, true),
             new TestSpatialRelation(ShapeRelation.CONTAINS, airports, false, true),
+            new TestSpatialRelation(ShapeRelation.INTERSECTS, airportsWeb, true, true),
+            new TestSpatialRelation(ShapeRelation.INTERSECTS, airportsWeb, false, true),
+            new TestSpatialRelation(ShapeRelation.DISJOINT, airportsWeb, true, true),
+            new TestSpatialRelation(ShapeRelation.DISJOINT, airportsWeb, false, true),
             new TestSpatialRelation(ShapeRelation.WITHIN, airportsWeb, true, true),
             new TestSpatialRelation(ShapeRelation.WITHIN, airportsWeb, false, true),
             new TestSpatialRelation(ShapeRelation.CONTAINS, airportsWeb, true, true),

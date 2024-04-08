@@ -30,6 +30,7 @@ double e()
 "integer|long|double|boolean|keyword|text|ip|version least(first:integer|long|double|boolean|keyword|text|ip|version, ?rest...:integer|long|double|boolean|keyword|text|ip|version)"
 "keyword left(string:keyword|text, length:integer)"
 "integer length(string:keyword|text)"
+"integer locate(string:keyword|text, substring:keyword|text, ?start:integer)"
 "double log(?base:integer|unsigned_long|long|double, number:integer|unsigned_long|long|double)"
 "double log10(number:double|integer|long|unsigned_long)"
 "keyword|text ltrim(string:keyword|text)"
@@ -65,6 +66,7 @@ double pi()
 "double sqrt(number:double|integer|long|unsigned_long)"
 "geo_point|cartesian_point st_centroid(field:geo_point|cartesian_point)"
 "boolean st_contains(geomA:geo_point|cartesian_point|geo_shape|cartesian_shape, geomB:geo_point|cartesian_point|geo_shape|cartesian_shape)"
+"boolean st_disjoint(geomA:geo_point|cartesian_point|geo_shape|cartesian_shape, geomB:geo_point|cartesian_point|geo_shape|cartesian_shape)"
 "boolean st_intersects(geomA:geo_point|cartesian_point|geo_shape|cartesian_shape, geomB:geo_point|cartesian_point|geo_shape|cartesian_shape)"
 "boolean st_within(geomA:geo_point|cartesian_point|geo_shape|cartesian_shape, geomB:geo_point|cartesian_point|geo_shape|cartesian_shape)"
 "double st_x(point:geo_point|cartesian_point)"
@@ -138,6 +140,7 @@ greatest      |first                               |"integer|long|double|boolean
 least         |first                               |"integer|long|double|boolean|keyword|text|ip|version"                                                                             |[""]
 left          |[string, length]                    |["keyword|text", integer]                                                                                                         |[The string from which to return a substring., The number of characters to return.]
 length        |string                              |"keyword|text"                                                                                                                    |[""]
+locate        |[string, substring, start]          |["keyword|text", "keyword|text", "integer"]                                                                                       |[An input string, A substring to locate in the input string, The start index]
 log           |[base, number]                      |["integer|unsigned_long|long|double", "integer|unsigned_long|long|double"]                                                        |["Base of logarithm. If `null`\, the function returns `null`. If not provided\, this function returns the natural logarithm (base e) of a value.", "Numeric expression. If `null`\, the function returns `null`."]
 log10         |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 ltrim         |string                              |"keyword|text"                                                                                                                    |[""]
@@ -173,6 +176,7 @@ split         |[string, delim]                     |["keyword|text", "keyword|te
 sqrt          |number                              |"double|integer|long|unsigned_long"                                                                                               |[""]
 st_centroid   |field                               |"geo_point|cartesian_point"                                                                                                       |[""]
 st_contains   |[geomA, geomB]                      |["geo_point|cartesian_point|geo_shape|cartesian_shape", "geo_point|cartesian_point|geo_shape|cartesian_shape"]                    |[Geometry column name or variable of geometry type, Geometry column name or variable of geometry type]
+st_disjoint   |[geomA, geomB]                      |["geo_point|cartesian_point|geo_shape|cartesian_shape", "geo_point|cartesian_point|geo_shape|cartesian_shape"]                    |[Geometry column name or variable of geometry type, Geometry column name or variable of geometry type]
 st_intersects |[geomA, geomB]                      |["geo_point|cartesian_point|geo_shape|cartesian_shape", "geo_point|cartesian_point|geo_shape|cartesian_shape"]                    |[Geometry column name or variable of geometry type, Geometry column name or variable of geometry type]
 st_within     |[geomA, geomB]                      |["geo_point|cartesian_point|geo_shape|cartesian_shape", "geo_point|cartesian_point|geo_shape|cartesian_shape"]                    |[Geometry column name or variable of geometry type, Geometry column name or variable of geometry type]
 st_x          |point                               |"geo_point|cartesian_point"                                                                                                       |[""]
@@ -247,6 +251,7 @@ greatest      |Returns the maximum value from many columns.
 least         |Returns the minimum value from many columns.
 left          |Returns the substring that extracts 'length' chars from 'string' starting from the left.
 length        |Returns the character length of a string.
+locate        |Returns an integer that indicates the position of a keyword substring within another string
 log           |Returns the logarithm of a value to a base. The input can be any numeric value, the return value is always a double.  Logs of zero, negative numbers, and base of one return `null` as well as a warning.
 log10         |Returns the logarithm of a value to base 10. The input can be any numeric value, the return value is always a double.  Logs of 0 and negative numbers return `null` as well as a warning.
 ltrim         |Removes leading whitespaces from a string.
@@ -282,6 +287,7 @@ split         |Split a single valued string into multiple strings.
 sqrt          |Returns the square root of a number.
 st_centroid   |The centroid of a spatial field.
 st_contains   |Returns whether the first geometry contains the second geometry.
+st_disjoint   |Returns whether the two geometries or geometry columns are disjoint.
 st_intersects |Returns whether the two geometries or geometry columns intersect.
 st_within     |Returns whether the first geometry is within the second geometry.
 st_x          |Extracts the x-coordinate from a point geometry.
@@ -357,6 +363,7 @@ greatest      |"integer|long|double|boolean|keyword|text|ip|version"            
 least         |"integer|long|double|boolean|keyword|text|ip|version"                                                                       |false                       |true            |false
 left          |keyword                                                                                                                     |[false, false]              |false           |false
 length        |integer                                                                                                                     |false                       |false           |false
+locate        |integer                                                                                                                     |[false, false, true]        |false           |false
 log           |double                                                                                                                      |[true, false]               |false           |false
 log10         |double                                                                                                                      |false                       |false           |false
 ltrim         |"keyword|text"                                                                                                              |false                       |false           |false
@@ -392,6 +399,7 @@ split         |keyword                                                          
 sqrt          |double                                                                                                                      |false                       |false           |false
 st_centroid   |"geo_point|cartesian_point"                                                                                                 |false                       |false           |true
 st_contains   |boolean                                                                                                                     |[false, false]              |false           |false
+st_disjoint   |boolean                                                                                                                     |[false, false]              |false           |false
 st_intersects |boolean                                                                                                                     |[false, false]              |false           |false
 st_within     |boolean                                                                                                                     |[false, false]              |false           |false
 st_x          |double                                                                                                                      |false                       |false           |false
@@ -447,5 +455,5 @@ countFunctions#[skip:-8.13.99]
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-100    | 100    | 100
+102    | 102    | 102
 ;

@@ -22,7 +22,7 @@ import java.util.Iterator;
  */
 public class ClusterAllocationExplainResponse extends ActionResponse implements ChunkedToXContentObject {
 
-    private ClusterAllocationExplanation cae;
+    private final ClusterAllocationExplanation cae;
 
     public ClusterAllocationExplainResponse(StreamInput in) throws IOException {
         super(in);

@@ -66,6 +66,7 @@ double pi()
 "double sqrt(number:double|integer|long|unsigned_long)"
 "geo_point|cartesian_point st_centroid(field:geo_point|cartesian_point)"
 "boolean st_contains(geomA:geo_point|cartesian_point|geo_shape|cartesian_shape, geomB:geo_point|cartesian_point|geo_shape|cartesian_shape)"
+"boolean st_disjoint(geomA:geo_point|cartesian_point|geo_shape|cartesian_shape, geomB:geo_point|cartesian_point|geo_shape|cartesian_shape)"
 "boolean st_intersects(geomA:geo_point|cartesian_point|geo_shape|cartesian_shape, geomB:geo_point|cartesian_point|geo_shape|cartesian_shape)"
 "boolean st_within(geomA:geo_point|cartesian_point|geo_shape|cartesian_shape, geomB:geo_point|cartesian_point|geo_shape|cartesian_shape)"
 "double st_x(point:geo_point|cartesian_point)"
@@ -175,6 +176,7 @@ split         |[string, delim]                     |["keyword|text", "keyword|te
 sqrt          |number                              |"double|integer|long|unsigned_long"                                                                                               |[""]
 st_centroid   |field                               |"geo_point|cartesian_point"                                                                                                       |[""]
 st_contains   |[geomA, geomB]                      |["geo_point|cartesian_point|geo_shape|cartesian_shape", "geo_point|cartesian_point|geo_shape|cartesian_shape"]                    |[Geometry column name or variable of geometry type, Geometry column name or variable of geometry type]
+st_disjoint   |[geomA, geomB]                      |["geo_point|cartesian_point|geo_shape|cartesian_shape", "geo_point|cartesian_point|geo_shape|cartesian_shape"]                    |[Geometry column name or variable of geometry type, Geometry column name or variable of geometry type]
 st_intersects |[geomA, geomB]                      |["geo_point|cartesian_point|geo_shape|cartesian_shape", "geo_point|cartesian_point|geo_shape|cartesian_shape"]                    |[Geometry column name or variable of geometry type, Geometry column name or variable of geometry type]
 st_within     |[geomA, geomB]                      |["geo_point|cartesian_point|geo_shape|cartesian_shape", "geo_point|cartesian_point|geo_shape|cartesian_shape"]                    |[Geometry column name or variable of geometry type, Geometry column name or variable of geometry type]
 st_x          |point                               |"geo_point|cartesian_point"                                                                                                       |[""]
@@ -285,6 +287,7 @@ split         |Split a single valued string into multiple strings.
 sqrt          |Returns the square root of a number.
 st_centroid   |The centroid of a spatial field.
 st_contains   |Returns whether the first geometry contains the second geometry.
+st_disjoint   |Returns whether the two geometries or geometry columns are disjoint.
 st_intersects |Returns whether the two geometries or geometry columns intersect.
 st_within     |Returns whether the first geometry is within the second geometry.
 st_x          |Extracts the x-coordinate from a point geometry.
@@ -396,6 +399,7 @@ split         |keyword                                                          
 sqrt          |double                                                                                                                      |false                       |false           |false
 st_centroid   |"geo_point|cartesian_point"                                                                                                 |false                       |false           |true
 st_contains   |boolean                                                                                                                     |[false, false]              |false           |false
+st_disjoint   |boolean                                                                                                                     |[false, false]              |false           |false
 st_intersects |boolean                                                                                                                     |[false, false]              |false           |false
 st_within     |boolean                                                                                                                     |[false, false]              |false           |false
 st_x          |double                                                                                                                      |false                       |false           |false
@@ -451,5 +455,5 @@ countFunctions#[skip:-8.13.99]
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-101    | 101    | 101
+102    | 102    | 102
 ;

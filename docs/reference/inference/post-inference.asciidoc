@@ -58,7 +58,7 @@ The type of {infer} task that the model performs.
 == {api-query-parms-title}
 
 `timeout`::
-(Optional, time)
+(Optional, timeout)
 Controls the amount of time to wait for the inference to complete. Defaults to 30
 seconds.
 

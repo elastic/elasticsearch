@@ -37,10 +37,7 @@ public class VectorSearchIT extends ParameterizedRollingUpgradeTestCase {
     private static final String QUANTIZED_VECTOR_SEARCH_VERSION = "8.12.1";
 
     public void testScriptByteVectorSearch() throws Exception {
-        assumeTrue(
-            "byte vector search is not supported on this version",
-            getOldClusterTestVersion().onOrAfter(BYTE_VECTOR_SEARCH_VERSION)
-        );
+        assumeTrue("byte vector search is not supported on this version", getOldClusterTestVersion().onOrAfter(BYTE_VECTOR_SEARCH_VERSION));
         if (isOldCluster()) {
             // create index and index 10 random floating point vectors
             String mapping = """

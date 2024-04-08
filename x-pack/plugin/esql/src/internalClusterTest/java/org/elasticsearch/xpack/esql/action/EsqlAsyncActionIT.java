@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -122,24 +121,18 @@ public class EsqlAsyncActionIT extends EsqlActionIT {
         }
     }
 
-    // Overridden to allow for not-serializable wrapper.
+    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
     @Override
-    protected Exception assertVerificationException(String esqlCommand) {
-        var e = expectThrowsAnyOf(List.of(NotSerializableExceptionWrapper.class, VerificationException.class), () -> run(esqlCommand));
-        if (e instanceof NotSerializableExceptionWrapper wrapper) {
-            assertThat(wrapper.unwrapCause().getMessage(), containsString("verification_exception"));
-        }
-        return e;
+    public void testErrorMessageForUnknownColumn() {
+        var e = expectThrows(VerificationException.class, () -> run("row a = 1 | eval x = b"));
+        assertThat(e.getMessage(), containsString("Unknown column [b]"));
     }
 
-    // Overridden to allow for not-serializable wrapper.
+    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
     @Override
-    protected Exception assertParsingException(String esqlCommand) {
-        var e = expectThrowsAnyOf(List.of(NotSerializableExceptionWrapper.class, ParsingException.class), () -> run(esqlCommand));
-        if (e instanceof NotSerializableExceptionWrapper wrapper) {
-            assertThat(wrapper.unwrapCause().getMessage(), containsString("parsing_exception"));
-        }
-        return e;
+    public void testErrorMessageForEmptyParams() {
+        var e = expectThrows(ParsingException.class, () -> run("row a = 1 | eval x = ?"));
+        assertThat(e.getMessage(), containsString("Not enough actual parameters 0"));
     }
 
     public static class LocalStateEsqlAsync extends LocalStateCompositeXPackPlugin {

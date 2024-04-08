@@ -9,6 +9,8 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
@@ -55,6 +57,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -1044,6 +1047,7 @@ public abstract class Engine implements Closeable {
                     }
                     segment.segmentSort = info.info.getIndexSort();
                     segment.attributes = info.info.getAttributes();
+                    segment.codec = info.info.getCodec().getName();
                     segments.put(info.info.name, segment);
                 } else {
                     segment.committed = true;
@@ -1072,6 +1076,25 @@ public abstract class Engine implements Closeable {
         }
         segment.segmentSort = info.info.getIndexSort();
         segment.attributes = info.info.getAttributes();
+        Codec codec = info.info.getCodec();
+        segment.codec = codec.getName();
+        if (codec instanceof PerFieldMapperCodec) {
+            try {
+                // potentially expensive with many fields
+                for (FieldInfo fieldInfos : segmentReader.getFieldInfos()) {
+                    String name = fieldInfos.getName();
+                    if (fieldInfos.getVectorDimension() > 0) {
+                        KnnVectorsFormat knnVectorsFormatForField = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField(name);
+                        if (segment.knnFormats == null) {
+                            segment.knnFormats = new HashMap<>();
+                        }
+                        segment.knnFormats.put(name, knnVectorsFormatForField.getName());
+                    }
+                }
+            } catch (AlreadyClosedException ace) {
+                // silently ignore ?
+            }
+        }
         // TODO: add more fine grained mem stats values to per segment info here
         segments.put(info.info.name, segment);
     }

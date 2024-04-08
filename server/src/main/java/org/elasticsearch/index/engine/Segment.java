@@ -40,6 +40,8 @@ public class Segment implements Writeable {
     public String mergeId;
     public Sort segmentSort;
     public Map<String, String> attributes;
+    public String codec;
+    public Map<String, String> knnFormats;
 
     public Segment(StreamInput in) throws IOException {
         name = in.readString();
@@ -63,6 +65,12 @@ public class Segment implements Writeable {
             attributes = in.readMap(StreamInput::readString);
         } else {
             attributes = null;
+        }
+        codec = in.readString();
+        if (in.readBoolean()) {
+            knnFormats = in.readMap(StreamInput::readString);
+        } else {
+            knnFormats = null;
         }
     }
 
@@ -132,6 +140,14 @@ public class Segment implements Writeable {
         return attributes;
     }
 
+    public String getCodec() {
+        return codec;
+    }
+
+    public Map<String, String> getKnnFormats() {
+        return knnFormats;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -169,6 +185,12 @@ public class Segment implements Writeable {
         out.writeBoolean(hasAttributes);
         if (hasAttributes) {
             out.writeMap(attributes, StreamOutput::writeString);
+        }
+        out.writeString(codec);
+        boolean hasKnnFormats = knnFormats != null;
+        out.writeBoolean(hasKnnFormats);
+        if (hasKnnFormats) {
+            out.writeMap(knnFormats, StreamOutput::writeString);
         }
     }
 

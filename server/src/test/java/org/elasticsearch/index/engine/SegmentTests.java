@@ -86,6 +86,10 @@ public class SegmentTests extends ESTestCase {
         if (randomBoolean()) {
             segment.attributes = Collections.singletonMap("foo", "bar");
         }
+        segment.codec = "Lucene" + randomInt(99);
+        if (randomBoolean()) {
+            segment.knnFormats = Collections.singletonMap("field", "hnsw");
+        }
         return segment;
     }
 

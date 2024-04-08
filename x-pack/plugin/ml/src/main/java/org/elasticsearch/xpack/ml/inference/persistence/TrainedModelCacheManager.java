@@ -47,7 +47,7 @@ public class TrainedModelCacheManager implements ClusterStateListener {
 
     public TrainedModelCacheManager(ClusterService clusterService) {
         this.modelCacheMetadataManagementTaskQueue = clusterService.createTaskQueue(
-            "trained-models-cache-metadata",
+            "trained-models-cache-metadata-management",
             Priority.IMMEDIATE,
             new ModelCacheMetadataManagementTaskExecutor()
         );

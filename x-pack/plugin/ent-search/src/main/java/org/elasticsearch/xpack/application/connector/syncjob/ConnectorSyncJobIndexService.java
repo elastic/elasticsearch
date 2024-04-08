@@ -23,6 +23,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -35,6 +36,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -597,47 +599,28 @@ public class ConnectorSyncJobIndexService {
      * @param connectorId The id of the connector to match in the sync job documents.
      * @param listener    The action listener to invoke on response/failure.
      */
-    public void deleteAllSyncJobsByConnectorId(String connectorId, ActionListener<Boolean> listener) {
+    public void deleteAllSyncJobsByConnectorId(String connectorId, ActionListener<BulkByScrollResponse> listener) {
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(CONNECTOR_SYNC_JOB_INDEX_NAME).setQuery(
             new TermQueryBuilder(
                 ConnectorSyncJob.CONNECTOR_FIELD.getPreferredName() + "." + Connector.ID_FIELD.getPreferredName(),
                 connectorId
             )
-        ).setRefresh(true);
+        ).setRefresh(true).setIndicesOptions(IndicesOptions.fromOptions(true, true, false, false));
 
-        try {
-            client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener.delegateFailureAndWrap((l, r) -> l.onResponse(Boolean.TRUE)));
-        } catch (Exception e) {
-
-        }
-
-//        try {
-//
-//            client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(response -> {
-//                final List<BulkItemResponse.Failure> bulkDeleteFailures = response.getBulkFailures();
-//                if (bulkDeleteFailures.isEmpty() == false) {
-//                    listener.onFailure(
-//                        new ElasticsearchException(
-//                            "Error deleting sync jobs associated with connector ["
-//                                + connectorId
-//                                + "] "
-//                                + bulkDeleteFailures.stream().map(BulkItemResponse.Failure::getMessage).collect(Collectors.joining("\n"))
-//                        )
-//                    );
-//                }
-//                listener.onResponse(true);
-//            }, e -> {
-//                Throwable cause = ExceptionsHelper.unwrapCause(e);
-//                // handle non-existent index gracefully
-//                if (cause instanceof IndexNotFoundException) {
-//                    listener.onResponse(true);
-//                    return;
-//                }
-//                listener.onFailure(e);
-//            }));
-//        } catch (Exception e) {
-//            listener.onFailure(e);
-//        }
+        client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener.delegateFailureAndWrap((l, r) -> {
+            final List<BulkItemResponse.Failure> bulkDeleteFailures = r.getBulkFailures();
+            if (bulkDeleteFailures.isEmpty() == false) {
+                l.onFailure(
+                    new ElasticsearchException(
+                        "Error deleting sync jobs associated with connector ["
+                            + connectorId
+                            + "] "
+                            + bulkDeleteFailures.stream().map(BulkItemResponse.Failure::getMessage).collect(Collectors.joining("\n"))
+                    )
+                );
+            }
+            l.onResponse(r);
+        }));
     }
 
     /**

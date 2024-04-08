@@ -24,7 +24,8 @@ reporting that the coordinating node is waiting for all other nodes to
 confirm they are on mapping update request.
 
 * Discover's **Fields for wildcard** page-loading API command or {kibana-ref}/console-kibana.html[Dev Tools] page-refreshing Autocomplete API commands are taking a long time (more than 10 seconds) or
-timing out in the browser's Developer Tools Network tab.
+timing out in the browser's Developer Tools Network tab. For more 
+information, refer to our https://www.elastic.co/blog/troubleshooting-guide-common-issues-kibana-discover-load[walkthrough on troubleshooting Discover].
 
 * Discover's **Available fields** taking a long time to compile Javascript in the browser's Developer Tools Performance tab. This may potentially escalate to temporary browser page unresponsiveness.
 

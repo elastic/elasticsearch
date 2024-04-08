@@ -46,8 +46,6 @@ s|abbreviations
 | nanosecond  | nanoseconds, ns
 |===
 
-*Supported types*
-
 include::types/date_diff.asciidoc[]
 
 *Example*

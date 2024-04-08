@@ -191,7 +191,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         createIndexWithSettings(client(), index, alias, settings, mapping);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105437")
+    @TestLogging(value = "org.elasticsearch.xpack.ilm:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/105437")
     public void testRollupIndex() throws Exception {
         createIndex(index, alias, true);
         index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
@@ -327,7 +327,7 @@ public class DownsampleActionIT extends ESRestTestCase {
                 explainIndex(client(), backingIndexName).get("step"),
                 is(CheckNotDataStreamWriteIndexStep.NAME)
             ),
-            30,
+            120,  // look_ahead_time is 1m, need to wait for longer than that.
             TimeUnit.SECONDS
         );
 
@@ -374,7 +374,7 @@ public class DownsampleActionIT extends ESRestTestCase {
                 explainIndex(client(), backingIndexName).get("step"),
                 is(CheckNotDataStreamWriteIndexStep.NAME)
             ),
-            30,
+            120,  // look_ahead_time is 1m, need to wait for longer than that.
             TimeUnit.SECONDS
         );
 
@@ -465,7 +465,7 @@ public class DownsampleActionIT extends ESRestTestCase {
                 explainIndex(client(), firstBackingIndex).get("step"),
                 is(CheckNotDataStreamWriteIndexStep.NAME)
             ),
-            30,
+            120,  // look_ahead_time is 1m, need to wait for longer than that.
             TimeUnit.SECONDS
         );
 
@@ -547,7 +547,7 @@ public class DownsampleActionIT extends ESRestTestCase {
                 explainIndex(client(), firstBackingIndex).get("step"),
                 is(CheckNotDataStreamWriteIndexStep.NAME)
             ),
-            30,
+            120,  // look_ahead_time is 1m, need to wait for longer than that.
             TimeUnit.SECONDS
         );
 

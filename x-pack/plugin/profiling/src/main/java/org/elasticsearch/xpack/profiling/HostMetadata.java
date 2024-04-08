@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.profiling;
 
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -20,22 +21,27 @@ final class HostMetadata implements ToXContentObject {
     static final int DEFAULT_PROFILING_NUM_CORES = 4;
     final String hostID;
     final InstanceType instanceType;
-    final String profilingHostMachine; // aarch64 or x86_64
+    final String hostArchitecture; // arm64 or amd64, (pre-8.14.0: aarch64 or x86_64)
     final int profilingNumCores; // number of cores on the profiling host machine
 
-    HostMetadata(String hostID, InstanceType instanceType, String profilingHostMachine, Integer profilingNumCores) {
+    HostMetadata(String hostID, InstanceType instanceType, String hostArchitecture, Integer profilingNumCores) {
         this.hostID = hostID;
         this.instanceType = instanceType;
-        this.profilingHostMachine = profilingHostMachine;
+        this.hostArchitecture = hostArchitecture;
         this.profilingNumCores = profilingNumCores != null ? profilingNumCores : DEFAULT_PROFILING_NUM_CORES;
     }
 
+    @UpdateForV9 // remove fallback to the "profiling.host.machine" field and remove it from the component template "profiling-hosts".
     public static HostMetadata fromSource(Map<String, Object> source) {
         if (source != null) {
             String hostID = (String) source.get("host.id");
-            String profilingHostMachine = (String) source.get("profiling.host.machine");
+            String hostArchitecture = (String) source.get("host.arch");
+            if (hostArchitecture == null) {
+                // fallback to pre-8.14.0 field name
+                hostArchitecture = (String) source.get("profiling.host.machine");
+            }
             Integer profilingNumCores = (Integer) source.get("profiling.agent.config.present_cpu_cores");
-            return new HostMetadata(hostID, InstanceType.fromHostSource(source), profilingHostMachine, profilingNumCores);
+            return new HostMetadata(hostID, InstanceType.fromHostSource(source), hostArchitecture, profilingNumCores);
         }
         return new HostMetadata("", new InstanceType("", "", ""), "", null);
     }

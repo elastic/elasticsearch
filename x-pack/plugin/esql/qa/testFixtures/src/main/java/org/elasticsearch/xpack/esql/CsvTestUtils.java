@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
@@ -352,27 +353,33 @@ public final class CsvTestUtils {
                 List<Object> rowValues = new ArrayList<>(row.size());
                 for (int i = 0; i < row.size(); i++) {
                     String value = row.get(i);
-                    if (value == null || value.trim().equalsIgnoreCase(NULL_VALUE)) {
+                    if (value == null) {
                         rowValues.add(null);
                         continue;
                     }
 
                     value = value.trim();
-                    if (value.startsWith("[") ^ value.endsWith("]")) {
-                        throw new IllegalArgumentException("Incomplete multi-value (opening and closing square brackets) found " + value);
+                    if (value.equalsIgnoreCase(NULL_VALUE)) {
+                        rowValues.add(null);
+                        continue;
                     }
-                    if (value.contains(",") && value.startsWith("[")) {
+                    if (value.startsWith("[")) {
+                        if (false == value.endsWith("]")) {
+                            throw new IllegalArgumentException(
+                                "Incomplete multi-value (opening and closing square brackets) found " + value + " on row " + values.size()
+                            );
+                        }
                         // split on commas but ignoring escaped commas
                         String[] multiValues = value.substring(1, value.length() - 1).split(COMMA_ESCAPING_REGEX);
-                        if (multiValues.length > 0) {
-                            List<Object> listOfMvValues = new ArrayList<>();
-                            for (String mvValue : multiValues) {
-                                listOfMvValues.add(columnTypes.get(i).convert(mvValue.trim().replace(ESCAPED_COMMA_SEQUENCE, ",")));
-                            }
-                            rowValues.add(listOfMvValues);
-                        } else {
-                            rowValues.add(columnTypes.get(i).convert(value.replace(ESCAPED_COMMA_SEQUENCE, ",")));
+                        if (multiValues.length == 1) {
+                            rowValues.add(columnTypes.get(i).convert(multiValues[0].replace(ESCAPED_COMMA_SEQUENCE, ",")));
+                            continue;
                         }
+                        List<Object> listOfMvValues = new ArrayList<>();
+                        for (String mvValue : multiValues) {
+                            listOfMvValues.add(columnTypes.get(i).convert(mvValue.trim().replace(ESCAPED_COMMA_SEQUENCE, ",")));
+                        }
+                        rowValues.add(listOfMvValues);
                     } else {
                         // The value considered here is the one where any potential escaped comma is kept as is (with the escape char)
                         // TODO if we'd want escaped commas outside multi-values fields, we'd have to adjust this value here as well
@@ -414,6 +421,10 @@ public final class CsvTestUtils {
                 : ((BytesRef) l).compareTo((BytesRef) r),
             BytesRef.class
         ),
+        IP_RANGE(InetAddresses::parseCidr, BytesRef.class),
+        INTEGER_RANGE(s -> s == null ? null : Arrays.stream(s.split("-")).map(Integer::parseInt).toArray(), int[].class),
+        DOUBLE_RANGE(s -> s == null ? null : Arrays.stream(s.split("-")).map(Double::parseDouble).toArray(), double[].class),
+        DATE_RANGE(s -> s == null ? null : Arrays.stream(s.split("-")).map(BytesRef::new).toArray(), BytesRef[].class),
         VERSION(v -> new org.elasticsearch.xpack.versionfield.Version(v).toBytesRef(), BytesRef.class),
         NULL(s -> null, Void.class),
         DATETIME(

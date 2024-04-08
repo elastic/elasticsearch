@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.hamcrest.Matchers.containsString;
 
@@ -67,14 +68,6 @@ public class VerifierTests extends ESTestCase {
             error("from test | eval z = 2 | stats x = avg(z), salary by emp_no")
         );
         assertEquals(
-            "1:26: scalar functions over groupings [first_name] not allowed yet",
-            error("from test | stats length(first_name), count(1) by first_name")
-        );
-        assertEquals(
-            "1:36: scalar functions over groupings [languages] not allowed yet",
-            error("from test | stats max(languages) + languages by l = languages")
-        );
-        assertEquals(
             "1:23: nested aggregations [max(salary)] not allowed inside other aggregations [max(max(salary))]",
             error("from test | stats max(max(salary)) by first_name")
         );
@@ -90,7 +83,35 @@ public class VerifierTests extends ESTestCase {
             "1:23: second argument of [count_distinct(languages, languages)] must be a constant, received [languages]",
             error("from test | stats x = count_distinct(languages, languages) by emp_no")
         );
+        // no agg function
+        assertEquals("1:19: expected an aggregate function but found [5]", error("from test | stats 5 by emp_no"));
 
+        // don't allow naked group
+        assertEquals("1:19: grouping key [emp_no] already specified in the STATS BY clause", error("from test | stats emp_no BY emp_no"));
+        // don't allow naked group - even when it's an expression
+        assertEquals(
+            "1:19: grouping key [languages + emp_no] already specified in the STATS BY clause",
+            error("from test | stats languages + emp_no BY languages + emp_no")
+        );
+        // don't allow group alias
+        assertEquals(
+            "1:19: grouping key [e] already specified in the STATS BY clause",
+            error("from test | stats e BY e = languages + emp_no")
+        );
+
+        var message = error("from test | stats languages + emp_no BY e = languages + emp_no");
+        assertThat(
+            message,
+            containsString(
+                "column [emp_no] cannot be used as an aggregate once declared in the STATS BY grouping key [e = languages + emp_no]"
+            )
+        );
+        assertThat(
+            message,
+            containsString(
+                " column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [e = languages + emp_no]"
+            )
+        );
     }
 
     public void testAggsInsideGrouping() {
@@ -102,16 +123,37 @@ public class VerifierTests extends ESTestCase {
 
     public void testAggsWithInvalidGrouping() {
         assertEquals(
-            "1:35: column [languages] must appear in the STATS BY clause or be used in an aggregate function",
+            "1:35: column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [l = languages % 3]",
             error("from test| stats max(languages) + languages by l = languages % 3")
         );
+    }
+
+    public void testGroupingAlias() throws Exception {
+        assertEquals(
+            "1:23: column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [l = languages % 3]",
+            error("from test | stats l = languages + 3 by l = languages % 3 | keep l")
+        );
+    }
+
+    public void testGroupingAliasDuplicate() throws Exception {
+        assertEquals(
+            "1:22: column [languages] cannot be used as an aggregate "
+                + "once declared in the STATS BY grouping key [l = languages % 3, l = languages, l = languages % 2]",
+            error("from test| stats l = languages + 3 by l = languages % 3, l = languages, l = languages % 2 | keep l")
+        );
+
+        assertEquals(
+            "1:22: column [languages] cannot be used as an aggregate " + "once declared in the STATS BY grouping key [l = languages % 3]",
+            error("from test| stats l = languages + 3, l = languages % 2  by l = languages % 3 | keep l")
+        );
+
     }
 
     public void testAggsIgnoreCanonicalGrouping() {
         // the grouping column should appear verbatim - ignore canonical representation as they complicate things significantly
         // for no real benefit (1+languages != languages + 1)
         assertEquals(
-            "1:39: column [languages] must appear in the STATS BY clause or be used in an aggregate function",
+            "1:39: column [languages] cannot be used as an aggregate once declared in the STATS BY grouping key [l = languages + 1]",
             error("from test| stats max(languages) + 1 + languages by l = languages + 1")
         );
     }
@@ -126,20 +168,6 @@ public class VerifierTests extends ESTestCase {
 
     public void testAggsInsideEval() throws Exception {
         assertEquals("1:29: aggregate function [max(b)] not allowed outside STATS command", error("row a = 1, b = 2 | eval x = max(b)"));
-    }
-
-    public void testAggsWithExpressionOverAggs() {
-        assertEquals(
-            "1:44: scalar functions over groupings [languages] not allowed yet",
-            error("from test | stats max(languages + 1) , m = languages + min(salary + 1) by l = languages, s = salary")
-        );
-    }
-
-    public void testAggScalarOverGroupingColumn() {
-        assertEquals(
-            "1:26: scalar functions over groupings [first_name] not allowed yet",
-            error("from test | stats length(first_name), count(1) by first_name")
-        );
     }
 
     public void testGroupingInAggs() {
@@ -351,8 +379,33 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:27: Unknown column [avg]", error("from test | stats c = avg(avg)"));
     }
 
-    public void testUnfinishedAggFunction() {
-        assertEquals("1:23: invalid stats declaration; [avg] is not an aggregate function", error("from test | stats c = avg"));
+    public void testNotFoundFieldInNestedFunction() {
+        assertEquals("""
+            1:30: Unknown column [missing]
+            line 1:43: Unknown column [not_found]
+            line 1:23: Unknown column [avg]""", error("from test | stats c = avg by missing + 1, not_found"));
+    }
+
+    public void testSpatialSort() {
+        String prefix = "ROW wkt = [\"POINT(42.9711 -14.7553)\", \"POINT(75.8093 22.7277)\"] | MV_EXPAND wkt ";
+        assertEquals("1:130: cannot sort on geo_point", error(prefix + "| EVAL shape = TO_GEOPOINT(wkt) | limit 5 | sort shape"));
+        assertEquals(
+            "1:136: cannot sort on cartesian_point",
+            error(prefix + "| EVAL shape = TO_CARTESIANPOINT(wkt) | limit 5 | sort shape")
+        );
+        assertEquals("1:130: cannot sort on geo_shape", error(prefix + "| EVAL shape = TO_GEOSHAPE(wkt) | limit 5 | sort shape"));
+        assertEquals(
+            "1:136: cannot sort on cartesian_shape",
+            error(prefix + "| EVAL shape = TO_CARTESIANSHAPE(wkt) | limit 5 | sort shape")
+        );
+        var airports = AnalyzerTestUtils.analyzer(loadMapping("mapping-airports.json", "airports"));
+        var airportsWeb = AnalyzerTestUtils.analyzer(loadMapping("mapping-airports_web.json", "airports_web"));
+        var countriesBbox = AnalyzerTestUtils.analyzer(loadMapping("mapping-countries_bbox.json", "countries_bbox"));
+        var countriesBboxWeb = AnalyzerTestUtils.analyzer(loadMapping("mapping-countries_bbox_web.json", "countries_bbox_web"));
+        assertEquals("1:32: cannot sort on geo_point", error("FROM airports | LIMIT 5 | sort location", airports));
+        assertEquals("1:36: cannot sort on cartesian_point", error("FROM airports_web | LIMIT 5 | sort location", airportsWeb));
+        assertEquals("1:38: cannot sort on geo_shape", error("FROM countries_bbox | LIMIT 5 | sort shape", countriesBbox));
+        assertEquals("1:42: cannot sort on cartesian_shape", error("FROM countries_bbox_web | LIMIT 5 | sort shape", countriesBboxWeb));
     }
 
     private String error(String query) {

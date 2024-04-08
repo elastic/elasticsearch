@@ -1,7 +1,7 @@
 ---
 "One request has pipeline and another not":
-  - skip:
-      version: " - 7.9.0"
+  - requires:
+      cluster_features: ["bulk_pipeline_validate"]
       reason: "fixed in 7.9.1"
   - do:
       bulk:

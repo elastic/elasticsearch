@@ -121,7 +121,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-k]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-num-candidates]
 
 `query_vector`::
-(Required, array of floats)
+(Required, array of floats or string)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector]
 ====
 

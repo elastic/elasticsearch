@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
-import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
+import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -85,8 +85,8 @@ public class Mapper {
         }
 
         // Commands
-        if (p instanceof ShowFunctions showFunctions) {
-            return new ShowExec(showFunctions.source(), showFunctions.output(), showFunctions.values(functionRegistry));
+        if (p instanceof MetaFunctions metaFunctions) {
+            return new ShowExec(metaFunctions.source(), metaFunctions.output(), metaFunctions.values(functionRegistry));
         }
         if (p instanceof ShowInfo showInfo) {
             return new ShowExec(showInfo.source(), showInfo.output(), showInfo.values());
@@ -116,7 +116,7 @@ public class Mapper {
         throw new EsqlIllegalArgumentException("unsupported logical plan node [" + p.nodeName() + "]");
     }
 
-    private static boolean isPipelineBreaker(LogicalPlan p) {
+    static boolean isPipelineBreaker(LogicalPlan p) {
         return p instanceof Aggregate || p instanceof TopN || p instanceof Limit || p instanceof OrderBy;
     }
 
@@ -149,6 +149,7 @@ public class Mapper {
                 enrich.source(),
                 child,
                 enrich.mode(),
+                enrich.policy().getType(),
                 enrich.matchField(),
                 BytesRefs.toString(enrich.policyName().fold()),
                 enrich.policy().getMatchField(),

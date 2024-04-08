@@ -1,0 +1,5 @@
+pr: 106381
+summary: Dedupe terms in terms queries
+area: Mapping
+type: bug
+issues: []

@@ -1,8 +1,8 @@
 ---
 "Dynamic templates":
-  - skip:
-      features: contains
-      version: " - 8.7.99"
+  - requires:
+      test_runner_features: ["contains"]
+      cluster_features: ["bulk_dynamic_template_document_parse_exception"]
       reason: "Exception type has changed in 8.8.0"
 
   - do:
@@ -175,8 +175,8 @@
 
 ---
 "Dynamic templates with op_type":
-  - skip:
-      version: " - 8.6.0"
+  - requires:
+      cluster_features: ["bulk_dynamic_template_op_type"]
       reason: "bug fixed in 8.6.1"
 
   - do:

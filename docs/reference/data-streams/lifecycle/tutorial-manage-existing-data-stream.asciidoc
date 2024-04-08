@@ -74,7 +74,9 @@ The response will look like:
       "generation_time": "6.84s",                       <9>
       "lifecycle": {
         "enabled": true,
-        "data_retention": "30d"                         <10>
+        "data_retention": "30d",
+        "effective_retention": "30d"                    <10>
+        "retention_determined_by": "data_stream_configuration"
       }
     }
   }

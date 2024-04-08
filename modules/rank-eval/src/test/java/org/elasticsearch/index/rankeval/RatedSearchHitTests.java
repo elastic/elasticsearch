@@ -11,6 +11,7 @@ package org.elasticsearch.index.rankeval;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -34,7 +35,11 @@ public class RatedSearchHitTests extends ESTestCase {
     );
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> SearchHit.fromXContent(p), new ParseField("hit"));
+        PARSER.declareObject(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> SearchResponseUtils.parseSearchHit(p),
+            new ParseField("hit")
+        );
         PARSER.declareField(
             ConstructingObjectParser.constructorArg(),
             (p) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? OptionalInt.empty() : OptionalInt.of(p.intValue()),

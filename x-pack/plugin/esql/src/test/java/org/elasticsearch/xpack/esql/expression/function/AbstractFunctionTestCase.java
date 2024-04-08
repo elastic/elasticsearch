@@ -1189,9 +1189,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             builder.append("*Examples*\n\n");
         }
         for (Example example : info.examples()) {
+            if (example.description().length() > 0) {
+                builder.append(example.description());
+                builder.append("\n");
+            }
             builder.append("""
-                $DESCRIPTION$
-
                 [source.merge.styled,esql]
                 ----
                 include::{esql-specs}/$FILE$.csv-spec[tag=$TAG$]
@@ -1200,7 +1202,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 |===
                 include::{esql-specs}/$FILE$.csv-spec[tag=$TAG$-result]
                 |===
-                """.replace("$FILE$", example.file()).replace("$TAG$", example.tag()).replace("$DESCRIPTION$", example.description()));
+                """.replace("$FILE$", example.file()).replace("$TAG$", example.tag()));
         }
         builder.append('\n');
         String rendered = builder.toString();

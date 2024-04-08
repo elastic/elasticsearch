@@ -1,11 +1,11 @@
 pr: 107191
 summary: Stricter failure handling in `TransportGetSnapshotsAction`
 area: Snapshot/Restore
-type: "breaking, bug"
+type: breaking
 issues: []
 breaking:
   title: Stricter failure handling in `TransportGetSnapshotsAction`
-  area: Snapshot/Restore
+  area: REST API
   details: Please describe the details of this change for the release notes. You can
     use asciidoc.
   impact: Please describe the impact of this change to users

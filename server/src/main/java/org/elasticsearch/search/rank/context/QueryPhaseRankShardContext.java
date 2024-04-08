@@ -19,7 +19,7 @@ import java.util.List;
  * results on each shard. It specifies the queries to run during {@code QueryPhase} and is responsible for combining all query scores and
  * order all results through the {@link QueryPhaseRankShardContext#combineQueryPhaseResults} method.
  */
-public abstract class QueryPhaseRankShardContext implements QueryPhaseRankContext {
+public abstract class QueryPhaseRankShardContext {
 
     protected final List<Query> queries;
     protected final int windowSize;

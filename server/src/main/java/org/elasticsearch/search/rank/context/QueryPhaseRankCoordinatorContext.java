@@ -20,7 +20,7 @@ import java.util.List;
  * The output is a `window_size` ranked list of ordered results from all shards.
  * Note: Currently this can use only sort by score; sort by field is not supported.
  */
-public abstract class QueryPhaseRankCoordinatorContext implements QueryPhaseRankContext {
+public abstract class QueryPhaseRankCoordinatorContext {
 
     protected final int windowSize;
 

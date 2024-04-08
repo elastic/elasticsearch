@@ -99,9 +99,14 @@ public class PassThroughObjectMapper extends ObjectMapper {
         return builder;
     }
 
-    public PassThroughObjectMapper merge(ObjectMapper mergeWith, MapperMergeContext parentBuilderContext) {
-        final var mergeResult = MergeResult.build(this, mergeWith, parentBuilderContext);
+    @Override
+    public PassThroughObjectMapper merge(Mapper mergeWith, MapperMergeContext parentBuilderContext) {
+        if (mergeWith instanceof PassThroughObjectMapper == false) {
+            MapperErrors.throwObjectMappingConflictError(mergeWith.name());
+        }
+
         PassThroughObjectMapper mergeWithObject = (PassThroughObjectMapper) mergeWith;
+        final var mergeResult = MergeResult.build(this, mergeWithObject, parentBuilderContext);
 
         final Explicit<Boolean> containsDimensions = (mergeWithObject.timeSeriesDimensionSubFields.explicit())
             ? mergeWithObject.timeSeriesDimensionSubFields

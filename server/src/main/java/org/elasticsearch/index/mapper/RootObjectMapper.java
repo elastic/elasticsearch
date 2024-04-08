@@ -344,6 +344,7 @@ public class RootObjectMapper extends ObjectMapper {
         return mapperMergeContext.createChildContext(null, dynamic);
     }
 
+    @Override
     public RootObjectMapper merge(Mapper mergeWith, MapperMergeContext parentMergeContext) {
         if (mergeWith instanceof RootObjectMapper == false) {
             MapperErrors.throwObjectMappingConflictError(mergeWith.name());

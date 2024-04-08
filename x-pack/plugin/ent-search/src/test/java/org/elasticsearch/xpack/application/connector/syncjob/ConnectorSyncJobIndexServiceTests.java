@@ -189,28 +189,28 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnectorSyncJob(NON_EXISTING_SYNC_JOB_ID));
     }
 
-    // public void testDeleteAllSyncJobsByConnectorId() throws Exception {
-    //
-    // PostConnectorSyncJobAction.Request syncJobRequest = new PostConnectorSyncJobAction.Request(
-    // connectorOneId,
-    // ConnectorSyncJobType.FULL,
-    // ConnectorSyncJobTriggerMethod.ON_DEMAND
-    // );
-    //
-    // int numJobs = 5;
-    // // Create 5 jobs associated with connector
-    // for(int i = 0; i < numJobs; i++) {
-    // awaitPutConnectorSyncJob(syncJobRequest);
-    // }
-    //
-    // BulkByScrollResponse response = awaitDeleteAllSyncJobsByConnectorId(connectorOneId);
-    // // 5 jobs should be deleted
-    // assertEquals(numJobs, response.getDeleted());
-    //
-    // response = awaitDeleteAllSyncJobsByConnectorId(connectorOneId);
-    // // No jobs should be deleted
-    // assertEquals(0, response.getDeleted());
-    // }
+    public void testDeleteAllSyncJobsByConnectorId() throws Exception {
+
+        PostConnectorSyncJobAction.Request syncJobRequest = new PostConnectorSyncJobAction.Request(
+            connectorOneId,
+            ConnectorSyncJobType.FULL,
+            ConnectorSyncJobTriggerMethod.ON_DEMAND
+        );
+
+        int numJobs = 5;
+        // Create 5 jobs associated with connector
+        for (int i = 0; i < numJobs; i++) {
+            awaitPutConnectorSyncJob(syncJobRequest);
+        }
+
+        BulkByScrollResponse response = awaitDeleteAllSyncJobsByConnectorId(connectorOneId);
+        // 5 jobs should be deleted
+        assertEquals(numJobs, response.getDeleted());
+
+        response = awaitDeleteAllSyncJobsByConnectorId(connectorOneId);
+        // No jobs should be deleted
+        assertEquals(0, response.getDeleted());
+    }
 
     public void testGetConnectorSyncJob() throws Exception {
         PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(

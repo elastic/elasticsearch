@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.application.connector;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -15,13 +14,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -35,6 +34,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
+import org.elasticsearch.index.reindex.DeleteByQueryAction;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorPipel
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorServiceTypeAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorStatusAction;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobIndexService;
 
 import java.time.Instant;
@@ -71,6 +73,7 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobIndexService.CONNECTOR_SYNC_JOB_INDEX_NAME;
 
 /**
  * A service that manages persistent {@link Connector} configurations.
@@ -274,29 +277,22 @@ public class ConnectorIndexService {
                 }
 
                 if (shouldDeleteSyncJobs) {
-                    ConnectorSyncJobIndexService syncJobIndexService = new ConnectorSyncJobIndexService(client);
+                    DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(CONNECTOR_SYNC_JOB_INDEX_NAME).setQuery(
+                        new TermQueryBuilder(
+                            ConnectorSyncJob.CONNECTOR_FIELD.getPreferredName() + "." + Connector.ID_FIELD.getPreferredName(),
+                            connectorId
+                        )
+                    ).setRefresh(true).setIndicesOptions(IndicesOptions.fromOptions(true, true, false, false));;
 
-                    syncJobIndexService.deleteAllSyncJobsByConnectorId(
-                        connectorId,
-                        listener.delegateFailure((deleteByQueryResponseListener, bulkDeleteResponse) -> {
-                            final List<BulkItemResponse.Failure> bulkDeleteFailures = bulkDeleteResponse.getBulkFailures();
-                            if (bulkDeleteFailures.isEmpty() == false) {
-                                listener.onFailure(
-                                    new ElasticsearchException(
-                                        "Error deleting sync jobs associated with connector ["
-                                            + connectorId
-                                            + "] "
-                                            + bulkDeleteFailures.stream()
-                                                .map(BulkItemResponse.Failure::getMessage)
-                                                .collect(Collectors.joining("\n"))
-                                    )
-                                );
-                            }
-                        })
-                    );
+                    try {
+                        client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.noop());
+                    }
+                    catch (Exception e) {
+                        System.out.println("Catching excetpion !!!! \n\n");
+                        System.out.println(e.getMessage());
+                    }
 
                 }
-
                 l.onResponse(deleteResponse);
             }));
         } catch (Exception e) {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.connector.syncjob;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -14,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -33,7 +35,6 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -61,6 +62,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -595,7 +597,7 @@ public class ConnectorSyncJobIndexService {
      * @param connectorId The id of the connector to match in the sync job documents.
      * @param listener    The action listener to invoke on response/failure.
      */
-    public void deleteAllSyncJobsByConnectorId(String connectorId, ActionListener<BulkByScrollResponse> listener) {
+    public void deleteAllSyncJobsByConnectorId(String connectorId, ActionListener<Boolean> listener) {
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(CONNECTOR_SYNC_JOB_INDEX_NAME).setQuery(
             new TermQueryBuilder(
                 ConnectorSyncJob.CONNECTOR_FIELD.getPreferredName() + "." + Connector.ID_FIELD.getPreferredName(),
@@ -603,22 +605,54 @@ public class ConnectorSyncJobIndexService {
             )
         ).setRefresh(true);
 
-        client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
-                listener.onResponse(bulkByScrollResponse);
-            }
+        try {
+            client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener.delegateFailureAndWrap((l, r) -> l.onResponse(Boolean.TRUE)));
+        } catch (Exception e) {
 
-            @Override
-            public void onFailure(Exception e) {
-                Throwable cause = ExceptionsHelper.unwrapCause(e);
-                // If sync job index doesn't exist don't fail
-                if (cause instanceof IndexNotFoundException) {
-                    return;
-                }
-                listener.onFailure(e);
-            }
-        });
+        }
+
+//        try {
+//
+//            client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(response -> {
+//                final List<BulkItemResponse.Failure> bulkDeleteFailures = response.getBulkFailures();
+//                if (bulkDeleteFailures.isEmpty() == false) {
+//                    listener.onFailure(
+//                        new ElasticsearchException(
+//                            "Error deleting sync jobs associated with connector ["
+//                                + connectorId
+//                                + "] "
+//                                + bulkDeleteFailures.stream().map(BulkItemResponse.Failure::getMessage).collect(Collectors.joining("\n"))
+//                        )
+//                    );
+//                }
+//                listener.onResponse(true);
+//            }, e -> {
+//                Throwable cause = ExceptionsHelper.unwrapCause(e);
+//                // handle non-existent index gracefully
+//                if (cause instanceof IndexNotFoundException) {
+//                    listener.onResponse(true);
+//                    return;
+//                }
+//                listener.onFailure(e);
+//            }));
+//        } catch (Exception e) {
+//            listener.onFailure(e);
+//        }
+    }
+
+    /**
+     * Deletes all {@link ConnectorSyncJob} documents that match a specific connector id in the underlying index.
+     *
+     * @param connectorId The id of the connector to match in the sync job documents.
+     * @param listener    The action listener to invoke on response/failure.
+     */
+    public void connectorSyncJobIndexExists(String connectorId, ActionListener<Boolean> listener) {
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(CONNECTOR_SYNC_JOB_INDEX_NAME).setQuery(
+            new TermQueryBuilder(
+                ConnectorSyncJob.CONNECTOR_FIELD.getPreferredName() + "." + Connector.ID_FIELD.getPreferredName(),
+                connectorId
+            )
+        ).setRefresh(true);
     }
 
     /**

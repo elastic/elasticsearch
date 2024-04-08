@@ -52,6 +52,7 @@ setup:
   - do:
       connector_sync_job.list:
         connector_id: test-connector-to-delete
+
   - match: { count: 3 }
 
   - do:
@@ -65,6 +66,7 @@ setup:
   - do:
       connector_sync_job.list:
         connector_id: test-connector-to-delete
+
   - match: { count: 0 }
 
 ---

@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -68,6 +69,14 @@ public class DeleteConnectorAction {
 
         public boolean shouldDeleteSyncJobs() {
             return deleteSyncJobs;
+        }
+
+        @Override
+        public String[] indices() {
+            // When deleting a connector, corresponding sync jobs can also be deleted
+            return new String[] {
+                ConnectorTemplateRegistry.CONNECTOR_SYNC_JOBS_INDEX_NAME_PATTERN,
+                ConnectorTemplateRegistry.CONNECTOR_INDEX_NAME_PATTERN };
         }
 
         @Override

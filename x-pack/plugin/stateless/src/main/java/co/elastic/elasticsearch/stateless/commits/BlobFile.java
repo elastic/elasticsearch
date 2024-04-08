@@ -17,6 +17,9 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
+/**
+ * Represents a file (typically a compound commit) stored in the blobstore.
+ */
 public record BlobFile(long primaryTerm, String blobName) {
 
     @Override

@@ -172,6 +172,13 @@ emp_no:integer | last_name:keyword | x:keyword | z:keyword
 10010 | Piveteau  | P | a
 ;
 
+substring Emoji#[skip:-8.13.99,reason:bug fix in 8.14]
+row a = "🐱Meow!🐶Woof!" | eval sub1 = substring(a, 2) | eval sub2 = substring(a, 2, 100);
+
+a:keyword | sub1:keyword | sub2:keyword
+🐱Meow!🐶Woof! | Meow!🐶Woof! | Meow!🐶Woof!
+;
+
 ltrim
 from employees | sort emp_no | limit 10 | eval name = concat("  ", first_name, "  ") | eval name = ltrim(name) | eval name = concat("'", name, "'") | keep emp_no, name;
 
@@ -1236,7 +1243,7 @@ emp_no:integer | last_name:keyword | f_s:keyword | f_l:integer
 ;
 
 locateUtf16Emoji#[skip:-8.13.99,reason:new string function added in 8.14]
-row a = "🐱Meow!🐶Woof!" | eval f_s = substring(a, 3) | eval f_l = locate(a, f_s);
+row a = "🐱Meow!🐶Woof!" | eval f_s = substring(a, 2) | eval f_l = locate(a, f_s);
 
 a:keyword | f_s:keyword | f_l:integer
 🐱Meow!🐶Woof! | Meow!🐶Woof! | 3

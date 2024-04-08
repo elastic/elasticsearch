@@ -33,12 +33,16 @@ import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportV
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * References a location where a file is written on the blob store.
+ * Represents a file embedded in a {@code BlobFile} stored in the blobstore.
  *
- * @param blobFile the blob file in which this location points
- * @param blobLength the length of the blob file TODO: to be removed
+ * In order to save costs for uploading multiple files (such as compound commits)
+ * to the blobstore they are merged into a single {@code BlobFile}.
+ *
+ * Each of the original files could be located in {@code BlobFile} using offset and fileLength.
+ *
+ * @param blobFile the blob file containing this location
  * @param offset the offset inside the blob file where the file is written
- * @param fileLength the length of the file
+ * @param fileLength the length of the embedded file
  */
 public record BlobLocation(BlobFile blobFile, long blobLength, long offset, long fileLength) implements Writeable, ToXContentObject {
 

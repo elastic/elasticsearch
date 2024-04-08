@@ -70,7 +70,7 @@ abstract class RestTestsFromSnippetsTask extends SnippetsTask {
     abstract FileOperations getFileOperations();
 
     @Inject
-    RestTestsFromSnippetsTask(ObjectFactory objectFactory) {
+    RestTestsFromDocSnippetsTask(ObjectFactory objectFactory) {
         testRoot = objectFactory.directoryProperty()
         TestBuilder builder = new TestBuilder()
         perSnippet = new Action<Snippet>() {
@@ -202,7 +202,6 @@ abstract class RestTestsFromSnippetsTask extends SnippetsTask {
          * Called each time a snippet is encountered. Tracks the snippets and
          * calls buildTest to actually build the test.
          */
-
         void handleSnippet(Snippet snippet) {
             if (RestTestsFromSnippetsTask.isConsoleCandidate(snippet)) {
                 unconvertedCandidates.add(snippet.path.toString()

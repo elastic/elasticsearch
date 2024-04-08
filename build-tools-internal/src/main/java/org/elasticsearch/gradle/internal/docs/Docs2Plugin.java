@@ -72,7 +72,7 @@ public class Docs2Plugin implements Plugin<Project> {
             task.setGroup("Docs");
             task.setDescription("List each snippet");
             task.setDefaultSubstitutions(commonDefaultSubstitutions);
-            task.setPerSnippet(snippet -> System.out.println(snippet.toString()));
+            task.setPerSnippet(snippet -> System.out.println(snippet));
         });
 
         project.getTasks().register("listConsoleCandidates", DocSnippetTask.class, task -> {
@@ -80,31 +80,11 @@ public class Docs2Plugin implements Plugin<Project> {
             task.setDescription("List snippets that probably should be marked // CONSOLE");
             task.setDefaultSubstitutions(commonDefaultSubstitutions);
             task.setPerSnippet(snippet -> {
-                if (isConsoleCandidate(snippet)) {
-                    System.out.println(snippet.toString());
+                if (snippet.isConsoleCandidate()) {
+                    System.out.println(snippet);
                 }
             });
         });
     }
 
-    /**
-     * Is this snippet a candidate for conversion to `// CONSOLE`?
-     */
-    private static boolean isConsoleCandidate(Snippet snippet) {
-        /* Snippets that are responses or already marked as `// CONSOLE` or
-         * `// NOTCONSOLE` are not candidates. */
-        if (snippet.console != null || snippet.testResponse) {
-            return false;
-        }
-        /* js snippets almost always should be marked with `// CONSOLE`. js
-         * snippets that shouldn't be marked `// CONSOLE`, like examples for
-         * js client, should always be marked with `// NOTCONSOLE`.
-         *
-         * `sh` snippets that contain `curl` almost always should be marked
-         * with `// CONSOLE`. In the exceptionally rare cases where they are
-         * not communicating with Elasticsearch, like the examples in the ec2
-         * and gce discovery plugins, the snippets should be marked
-         * `// NOTCONSOLE`. */
-        return snippet.language.equals("js") || snippet.curl;
-    }
 }

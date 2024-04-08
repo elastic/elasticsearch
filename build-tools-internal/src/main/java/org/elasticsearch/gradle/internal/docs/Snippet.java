@@ -68,6 +68,10 @@ public class Snippet {
         assertValidJsonInput();
     }
 
+    String getLocation() {
+        return path + "[" + start + ":" + end + "]";
+    }
+
     private void assertValidCurlInput() {
         // Try to detect snippets that contain `curl`
         if (language == "sh" || language == "shell") {
@@ -159,4 +163,26 @@ public class Snippet {
         }
         return result;
     }
+
+    /**
+     * Is this snippet a candidate for conversion to `// CONSOLE`?
+     */
+    boolean isConsoleCandidate() {
+        /* Snippets that are responses or already marked as `// CONSOLE` or
+         * `// NOTCONSOLE` are not candidates. */
+        if (console != null || testResponse) {
+            return false;
+        }
+        /* js snippets almost always should be marked with `// CONSOLE`. js
+         * snippets that shouldn't be marked `// CONSOLE`, like examples for
+         * js client, should always be marked with `// NOTCONSOLE`.
+         *
+         * `sh` snippets that contain `curl` almost always should be marked
+         * with `// CONSOLE`. In the exceptionally rare cases where they are
+         * not communicating with Elasticsearch, like the examples in the ec2
+         * and gce discovery plugins, the snippets should be marked
+         * `// NOTCONSOLE`. */
+        return language.equals("js") || curl;
+    }
+
 }

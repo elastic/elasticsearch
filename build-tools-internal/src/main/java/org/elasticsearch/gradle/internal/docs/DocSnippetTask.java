@@ -338,24 +338,24 @@ public class DocSnippetTask extends DefaultTask {
      * match then blow up. If the closure takes two parameters then the second
      * one is "is this the last match?".
      */
-    protected void parse(String location, String s, String pattern, BiConsumer<Matcher, Boolean> testHandler) {
-        if (s == null) {
+    protected void parse(String location, String content, String pattern, BiConsumer<Matcher, Boolean> testHandler) {
+        if (content == null) {
             return; // Silly null, only real stuff gets to match!
         }
-        Matcher m = Pattern.compile(pattern).matcher(s);
+        Matcher m = Pattern.compile(pattern).matcher(content);
         int offset = 0;
         while (m.find()) {
             if (m.start() != offset) {
-                extraContent("between [$offset] and [${m.start()}]", s, offset, location, pattern);
+                extraContent("between [$offset] and [${m.start()}]", content, offset, location, pattern);
             }
             offset = m.end();
-            testHandler.accept(m, offset == s.length());
+            testHandler.accept(m, offset == content.length());
         }
         if (offset == 0) {
-            throw new InvalidUserDataException(location + ": Didn't match " + pattern + ": " + s);
+            throw new InvalidUserDataException(location + ": Didn't match " + pattern + ": " + content);
         }
-        if (offset != s.length()) {
-            extraContent("after [" + offset + "]", s, offset, location, pattern);
+        if (offset != content.length()) {
+            extraContent("after [" + offset + "]", content, offset, location, pattern);
         }
     }
 
@@ -414,5 +414,6 @@ public class DocSnippetTask extends DefaultTask {
             this.name = name;
         }
     }
+
 
 }

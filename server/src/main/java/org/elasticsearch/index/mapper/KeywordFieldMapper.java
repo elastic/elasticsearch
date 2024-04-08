@@ -210,7 +210,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                             + "] are true"
                     );
                 }
-            }).precludesParameters(normalizer, ignoreAbove);
+            }).precludesParameters(normalizer);
         }
 
         public Builder(String name, IndexVersion indexCreatedVersion) {

@@ -9,6 +9,7 @@
 package org.elasticsearch.datastreams;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.junit.After;
@@ -826,9 +827,12 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
     }
 
     static void bulk(RestClient client, String dataStreamName, List<String> bulkLines) throws IOException {
-        Request request = new Request("POST", "/" + dataStreamName + "/_bulk?refresh=true");
+        Request request = new Request("POST", "/" + dataStreamName + "/_bulk?refresh=true&pretty&error_trace");
         request.setJsonEntity(bulkLines.stream().map(s -> s.replace("\n", "")).collect(Collectors.joining("\n")) + "\n");
-        assertOK(client.performRequest(request));
+        Response response = client.performRequest(request);
+        assertOK(response);
+        Map<String, Object> bulkResponse = entityAsMap(response.getEntity());
+        assertFalse("Bulk response contains errors: " + bulkResponse, (boolean) bulkResponse.get("errors"));
     }
 
     @SuppressWarnings("unchecked")

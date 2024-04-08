@@ -64,7 +64,9 @@ public class OtelMetircsDataStreamIT extends DisabledSecurityDataStreamTestCase 
                 }
               },
               "attributes": {
-                "foo": "bar"
+                "foo": "bar",
+                "numeric": 42,
+                "host.ip": "127.0.0.1"
               },
               "metrics": {
                 "my.gauge": 42
@@ -94,5 +96,7 @@ public class OtelMetircsDataStreamIT extends DisabledSecurityDataStreamTestCase 
         Map<String, Object> properties = getMappingProperties(client, getWriteBackingIndex(client, dataStream));
         assertThat(getValueFromPath(properties, List.of("metrics", "properties", "my.gauge", "type")), is("long"));
         assertThat(getValueFromPath(properties, List.of("metrics", "properties", "my.gauge", "time_series_metric")), is("gauge"));
+        assertThat(getValueFromPath(properties, List.of("attributes", "properties", "numeric", "type")), is("long"));
+        assertThat(getValueFromPath(properties, List.of("attributes", "properties", "host.ip", "type")), is("ip"));
     }
 }

@@ -48,14 +48,6 @@
       },
       "dynamic_templates": [
         {
-          "dimensions": {
-            "path_match": ["resource.attributes.*", "scope.attributes.*", "attributes.*"],
-            "mapping": {
-              "type": "keyword"
-            }
-          }
-        },
-        {
           "histograms": {
             "mapping": {
               "type": "histogram",

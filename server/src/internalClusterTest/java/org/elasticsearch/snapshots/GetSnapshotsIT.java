@@ -34,7 +34,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
@@ -302,6 +301,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(
             clusterAdmin().prepareGetSnapshots(matchAllPattern())
                 .setSnapshots("non-existing*", otherPrefixSnapshot1, "-o*")
+                .setIgnoreUnavailable(true)
                 .get()
                 .getSnapshots(),
             empty()
@@ -570,12 +570,14 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final List<String> snapshotNames = createNSnapshots(repoName, randomIntBetween(1, 10));
         snapshotNames.sort(String::compareTo);
 
+        final var failingFuture = clusterAdmin().prepareGetSnapshots(repoName, missingRepoName).setSort(SnapshotSortKey.NAME).execute();
+        expectThrows(RepositoryMissingException.class, failingFuture::actionGet);
+
         final GetSnapshotsResponse response = clusterAdmin().prepareGetSnapshots(repoName, missingRepoName)
             .setSort(SnapshotSortKey.NAME)
+            .setIgnoreUnavailable(true)
             .get();
         assertThat(response.getSnapshots().stream().map(info -> info.snapshotId().getName()).toList(), equalTo(snapshotNames));
-        assertTrue(response.getFailures().containsKey(missingRepoName));
-        assertThat(response.getFailures().get(missingRepoName), instanceOf(RepositoryMissingException.class));
     }
 
     // Create a snapshot that is guaranteed to have a unique start time and duration for tests around ordering by either.

@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.CancellableTask;
@@ -214,13 +213,6 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
      */
     public String[] policies() {
         return policies;
-    }
-
-    public boolean isSingleRepositoryRequest() {
-        return repositories.length == 1
-            && repositories[0] != null
-            && "_all".equals(repositories[0]) == false
-            && Regex.isSimpleMatchPattern(repositories[0]) == false;
     }
 
     /**

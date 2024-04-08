@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -33,6 +34,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
 
     private final List<SnapshotInfo> snapshots;
 
+    @UpdateForV9 // always empty, can be dropped
     private final Map<String, ElasticsearchException> failures;
 
     @Nullable

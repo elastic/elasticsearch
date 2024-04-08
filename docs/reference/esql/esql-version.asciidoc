@@ -20,7 +20,26 @@ This is the only available version for now.
 Their goal is to make sure that queries that were once written
 remain valid even as Elasticsearch and {esql} evolve.
 
-// TODO: example at 2024.04.01
+For instance, the following query
+
+[source,console]
+----
+POST /_query?format=txt
+{
+  "version": "2024.04.01.🚀",
+  "query": """
+    FROM library
+    | EVAL release_month = DATE_TRUNC(1 month, release_date)
+    | KEEP release_month
+    | SORT release_month ASC
+    | LIMIT 3
+  """
+}
+----
+// TEST[setup:library]
+
+will remain valid, even if a future version of {esql} introduces
+syntax changes or changes how the used commands or functions work.
 
 A released {esql} version will not receive breaking changes and
 will remain supported until it is deprecated.

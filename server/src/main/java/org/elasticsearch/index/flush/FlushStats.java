@@ -87,14 +87,14 @@ public class FlushStats implements Writeable, ToXContentFragment {
     }
 
     /**
-     * The total time merges have been executed.
+     * The total time flushes have been executed.
      */
     public TimeValue getTotalTime() {
         return new TimeValue(totalTimeInMillis);
     }
 
     /**
-     * The total time merges have been executed excluding waiting time on locks.
+     * The total time flushes have been executed excluding waiting time on locks.
      */
     public TimeValue getTotalTimeExcludingWaiting() {
         return new TimeValue(totalTimeExcludingWaitingInMillis);

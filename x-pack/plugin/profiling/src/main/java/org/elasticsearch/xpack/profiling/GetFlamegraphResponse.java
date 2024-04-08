@@ -13,6 +13,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -24,7 +25,9 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
     private final int size;
     private final double samplingRate;
     private final long selfCPU;
+    @UpdateForV9 // remove this field - it is unused in Kibana
     private final long totalCPU;
+    @UpdateForV9 // remove this field - it is unused in Kibana
     private final long totalSamples;
     private final List<Map<String, Integer>> edges;
     private final List<String> fileIds;

@@ -24,7 +24,7 @@ include multi-node and mixed-cluster.
 ## Organization
 
 The CSV-SPEC tests grew organically for a long time, but we've since grown
-general organizing principals. But lots of tests don't follow those principals.
+general organizing principles. But lots of tests don't follow those principles.
 See organic growth. Anyway!
 
 ### Files named after types
@@ -99,6 +99,23 @@ include::{esql-specs}/floats.csv-spec[tag=sin]
 include::{esql-specs}/floats.csv-spec[tag=sin-result]
 |===
 ```
+<details>
+  <summary>What is this asciidoc syntax?</summary>
+
+The first section is a source code block for the ES|QL query: 
+
+- a [source](https://docs.asciidoctor.org/asciidoc/latest/verbatim/source-blocks/) code block (delimited by `----`)
+	- `source.merge.styled,esql` indicates custom syntax highlighting for ES|QL
+- an [include directive](https://docs.asciidoctor.org/asciidoc/latest/directives/include/) to import content from another file (i.e. test files here) into the current document
+- a directory path defined as an [attribute](https://docs.asciidoctor.org/asciidoc/latest/attributes/document-attributes/) or variable, within curly braces: `{esql-specs}`
+- a [tagged region](https://docs.asciidoctor.org/asciidoc/latest/directives/include-tagged-regions/#tagging-regions) `[tag=sin]` to only include a specific section of file
+
+The second section is the response returned as a table:
+
+- styled using `[%header.monospaced.styled,format=dsv,separator=|]`
+- delimited by `|===`
+- again using includes, attributes, and tagged regions
+</details>
 
 The example above extracts the `sin` test from the `floats` file. If you are
 writing the tests for a function don't build this by hand, instead annotate
@@ -116,8 +133,8 @@ field like this:
 Running the tests will generate the asciidoc files for you. See
 `esql/functions/README.md` for all of the docs the tests generate.
 
-Either way, the docs need four special comments in the CSV-SPEC files to find
-the bits to extract:
+Either way, CSV-SPEC files must be tagged using four special comments so snippets can be
+included in the docs:
 
 ```csv-spec
 sin
@@ -134,7 +151,7 @@ a:double | sin:double
 ;
 ```
 
-The `// tag::` and `// end::` are standard asciidoc syntax. Weird looking but
+The `// tag::` and `// end::` are standard asciidoc syntax for working with [tagged regions](https://docs.asciidoctor.org/asciidoc/latest/directives/include-tagged-regions/#tagging-regions). Weird looking but
 you aren't going to type it by accident!
 
 Finally, this'll appear in the docs as a table kind of like this:

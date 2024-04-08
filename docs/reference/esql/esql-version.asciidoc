@@ -1,0 +1,29 @@
+[[esql-version]]
+=== {esql} language versions
+
+++++
+<titleabbrev>Language versions</titleabbrev>
+++++
+
+[discrete]
+[[esql-versions-released]]
+==== Released versions
+
+{esql} is released at version `2024.04.01.🚀`.
+This is the only available version for now.
+
+[discrete]
+[[esql-versions-explanation]]
+=== How versions work
+
+{esql} versions are separate from Elasticsearch versions.
+Their goal is to make sure that queries that were once written
+remain valid even as Elasticsearch and {esql} evolve.
+
+// TODO: example at 2024.04.01
+
+A released {esql} version will not receive breaking changes and
+will remain supported until it is deprecated.
+Already released {esql} versions will still profit from new features,
+bug fixes and performance improvements as long as those do not
+require breaking changes.

@@ -621,7 +621,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerDoubleGauge(
-                "es.indexing.primary_operations.rejections.ratio",
+                "es.indexing.primary_operations.document.rejections.ratio",
                 "Ratio of rejected primary operations",
                 "ratio",
                 () -> {
@@ -629,13 +629,13 @@ public class NodeMetrics extends AbstractLifecycleComponent {
                         .map(NodeStats::getIndexingPressureStats)
                         .map(IndexingPressureStats::getTotalPrimaryOps)
                         .orElse(0L);
-                    var totalPrimaryRejections = Optional.ofNullable(stats.getOrRefresh())
+                    var totalPrimaryDocumentRejections = Optional.ofNullable(stats.getOrRefresh())
                         .map(NodeStats::getIndexingPressureStats)
-                        .map(IndexingPressureStats::getPrimaryRejections)
+                        .map(IndexingPressureStats::getPrimaryDocumentRejections)
                         .orElse(0L);
-                    // rejections do not count towards `totalPrimaryOperations`
-                    var totalOps = totalPrimaryOperations + totalPrimaryRejections;
-                    return new DoubleWithAttributes(totalOps != 0 ? (double) totalPrimaryRejections / totalOps : 0.0);
+                    // primary document rejections do not count towards `totalPrimaryOperations`
+                    var totalOps = totalPrimaryOperations + totalPrimaryDocumentRejections;
+                    return new DoubleWithAttributes(totalOps != 0 ? (double) totalPrimaryDocumentRejections / totalOps : 0.0);
                 }
             )
         );

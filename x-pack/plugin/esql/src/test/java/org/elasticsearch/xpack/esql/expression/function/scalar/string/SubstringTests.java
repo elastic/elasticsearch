@@ -64,7 +64,32 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
                 DataTypes.KEYWORD,
                 equalTo(new BytesRef(text.substring(start - 1, start + length - 1)))
             );
-        })));
+        }),
+            new TestCaseSupplier(
+                "Substring basic test with start long",
+                List.of(DataTypes.KEYWORD, DataTypes.LONG, DataTypes.INTEGER),
+                () -> TestCaseSupplier.TestCase.typeError(
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BytesRef("text"), DataTypes.KEYWORD, "str"),
+                        new TestCaseSupplier.TypedData(1L, DataTypes.LONG, "start"),
+                        new TestCaseSupplier.TypedData(2, DataTypes.INTEGER, "length")
+                    ),
+                    "second argument of [] must be [integer], found value [start] type [long]"
+                )
+            ),
+            new TestCaseSupplier(
+                "Substring basic test with length double",
+                List.of(DataTypes.KEYWORD, DataTypes.INTEGER, DataTypes.DOUBLE),
+                () -> TestCaseSupplier.TestCase.typeError(
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BytesRef("text"), DataTypes.KEYWORD, "str"),
+                        new TestCaseSupplier.TypedData(1L, DataTypes.INTEGER, "start"),
+                        new TestCaseSupplier.TypedData(2.0, DataTypes.DOUBLE, "length")
+                    ),
+                    "third argument of [] must be [integer], found value [length] type [double]"
+                )
+            )
+        ));
     }
 
     @Override
@@ -90,7 +115,7 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected List<AbstractScalarFunctionTestCase.ArgumentSpec> argSpec() {
-        return List.of(required(strings()), required(integers()), optional(integers()));
+        return List.of(required(strings()), required(DataTypes.INTEGER), optional(DataTypes.INTEGER));
     }
 
     @Override

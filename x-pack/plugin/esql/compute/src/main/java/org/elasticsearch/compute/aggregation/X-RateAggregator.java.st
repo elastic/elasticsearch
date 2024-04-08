@@ -9,6 +9,7 @@ package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -26,6 +27,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.util.Arrays;
+
 /**
  * A rate grouping aggregation definition for $type$.
  * This class is generated. Edit `X-RateAggregator.java.st` instead.
@@ -38,9 +41,9 @@ import org.elasticsearch.core.Releasables;
         @IntermediateState(name = "resets", type = "DOUBLE") }
 )
 public class Rate$Type$Aggregator {
-    public static $Type$RateGroupingState initGrouping(BigArrays bigArrays, long unitInMillis) {
-        // TODO: pass BlockFactory instead bigArrays so we can use the breaker
-        return new $Type$RateGroupingState(bigArrays, unitInMillis);
+
+    public static $Type$RateGroupingState initGrouping(DriverContext driverContext, long unitInMillis) {
+        return new $Type$RateGroupingState(driverContext.bigArrays(), driverContext.breaker(), unitInMillis);
     }
 
     public static void combine($Type$RateGroupingState current, int groupId, long timestamp, $type$ value) {
@@ -61,17 +64,17 @@ public class Rate$Type$Aggregator {
     public static void combineStates(
         $Type$RateGroupingState current,
         int currentGroupId, // make the stylecheck happy
-        $Type$RateGroupingState state,
-        int statePosition
+        $Type$RateGroupingState otherState,
+        int otherGroupId
     ) {
-        throw new UnsupportedOperationException("ordinals grouping is not supported yet");
+        current.combineState(currentGroupId, otherState, otherGroupId);
     }
 
     public static Block evaluateFinal($Type$RateGroupingState state, IntVector selected, DriverContext driverContext) {
         return state.evaluateFinal(selected, driverContext.blockFactory());
     }
 
-    private static class $Type$RateState implements Accountable {
+    private static class $Type$RateState {
         static final long BASE_RAM_USAGE = RamUsageEstimator.sizeOfObject($Type$RateState.class);
         final long[] timestamps; // descending order
         final $type$[] values;
@@ -104,9 +107,10 @@ public class Rate$Type$Aggregator {
             return timestamps.length;
         }
 
-        @Override
-        public long ramBytesUsed() {
-            return BASE_RAM_USAGE;
+        static long bytesUsed(int entries) {
+            var ts = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * entries);
+            var vs = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) $BYTES$ * entries);
+            return BASE_RAM_USAGE + ts + vs;
         }
     }
 
@@ -114,9 +118,12 @@ public class Rate$Type$Aggregator {
         private ObjectArray<$Type$RateState> states;
         private final long unitInMillis;
         private final BigArrays bigArrays;
+        private final CircuitBreaker breaker;
+        private long stateBytes; // for individual states
 
-        $Type$RateGroupingState(BigArrays bigArrays, long unitInMillis) {
+        $Type$RateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, long unitInMillis) {
             this.bigArrays = bigArrays;
+            this.breaker = breaker;
             this.states = bigArrays.newObjectArray(1);
             this.unitInMillis = unitInMillis;
         }
@@ -125,16 +132,25 @@ public class Rate$Type$Aggregator {
             states = bigArrays.grow(states, groupId + 1);
         }
 
+        void adjustBreaker(long bytes) {
+            breaker.addEstimateBytesAndMaybeBreak(bytes, "<<rate aggregation>>");
+            stateBytes += bytes;
+            assert stateBytes >= 0 : stateBytes;
+        }
+
         void append(int groupId, long timestamp, $type$ value) {
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
+                adjustBreaker($Type$RateState.bytesUsed(1));
                 state = new $Type$RateState(new long[] { timestamp }, new $type$[] { value });
                 states.set(groupId, state);
             } else {
                 if (state.entries() == 1) {
+                    adjustBreaker($Type$RateState.bytesUsed(2));
                     state = new $Type$RateState(new long[] { state.timestamps[0], timestamp }, new $type$[] { state.values[0], value });
                     states.set(groupId, state);
+                    adjustBreaker(-$Type$RateState.bytesUsed(1)); // old state
                 } else {
                     state.append(timestamp, value);
                 }
@@ -150,7 +166,9 @@ public class Rate$Type$Aggregator {
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
+                adjustBreaker($Type$RateState.bytesUsed(valueCount));
                 state = new $Type$RateState(valueCount);
+                state.reset = reset;
                 states.set(groupId, state);
                 // TODO: add bulk_copy to Block
                 for (int i = 0; i < valueCount; i++) {
@@ -158,11 +176,13 @@ public class Rate$Type$Aggregator {
                     state.values[i] = values.get$Type$(firstIndex + i);
                 }
             } else {
+                adjustBreaker($Type$RateState.bytesUsed(state.entries() + valueCount));
                 var newState = new $Type$RateState(state.entries() + valueCount);
+                newState.reset = state.reset + reset;
                 states.set(groupId, newState);
                 merge(state, newState, firstIndex, valueCount, timestamps, values);
+                adjustBreaker(-$Type$RateState.bytesUsed(state.entries())); // old state
             }
-            state.reset += reset;
         }
 
         void merge($Type$RateState curr, $Type$RateState dst, int firstIndex, int rightCount, LongBlock timestamps, $Type$Block values) {
@@ -194,14 +214,57 @@ public class Rate$Type$Aggregator {
             }
         }
 
+        void combineState(int groupId, $Type$RateGroupingState otherState, int otherGroupId) {
+            var other = otherGroupId < otherState.states.size() ? otherState.states.get(otherGroupId) : null;
+            if (other == null) {
+                return;
+            }
+            ensureCapacity(groupId);
+            var curr = states.get(groupId);
+            if (curr == null) {
+                var len = other.entries();
+                adjustBreaker($Type$RateState.bytesUsed(len));
+                curr = new $Type$RateState(Arrays.copyOf(other.timestamps, len), Arrays.copyOf(other.values, len));
+                curr.reset = other.reset;
+                states.set(groupId, curr);
+            } else {
+                states.set(groupId, mergeState(curr, other));
+            }
+        }
+
+        $Type$RateState mergeState($Type$RateState s1, $Type$RateState s2) {
+            var newLen = s1.entries() + s2.entries();
+            adjustBreaker($Type$RateState.bytesUsed(newLen));
+            var dst = new $Type$RateState(newLen);
+            dst.reset = s1.reset + s2.reset;
+            int i = 0, j = 0, k = 0;
+            while (i < s1.entries() && j < s2.entries()) {
+                if (s1.timestamps[i] > s2.timestamps[j]) {
+                    dst.timestamps[k] = s1.timestamps[i];
+                    dst.values[k] = s1.values[i];
+                    ++i;
+                } else {
+                    dst.timestamps[k] = s2.timestamps[j];
+                    dst.values[k] = s2.values[j];
+                    ++j;
+                }
+                ++k;
+            }
+            System.arraycopy(s1.timestamps, i, dst.timestamps, k, s1.entries() - i);
+            System.arraycopy(s1.values, i, dst.values, k, s1.entries() - i);
+            System.arraycopy(s2.timestamps, j, dst.timestamps, k, s2.entries() - j);
+            System.arraycopy(s2.values, j, dst.values, k, s2.entries() - j);
+            return dst;
+        }
+
         @Override
         public long ramBytesUsed() {
-            return states.ramBytesUsed();
+            return states.ramBytesUsed() + stateBytes;
         }
 
         @Override
         public void close() {
-            Releasables.close(states);
+            Releasables.close(states, () -> adjustBreaker(-stateBytes));
         }
 
         @Override

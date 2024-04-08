@@ -1,0 +1,6 @@
+pr: 106338
+summary: Text fields are stored by default in TSDB indices
+area: TSDB
+type: enhancement
+issues:
+ - 97039

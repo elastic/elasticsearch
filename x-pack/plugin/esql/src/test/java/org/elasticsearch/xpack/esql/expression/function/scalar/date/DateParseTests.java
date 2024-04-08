@@ -63,6 +63,18 @@ public class DateParseTests extends AbstractScalarFunctionTestCase {
                     )
                 ),
                 new TestCaseSupplier(
+                    "With Both Text",
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataTypes.TEXT, "second"),
+                            new TestCaseSupplier.TypedData(new BytesRef("2023-05-05"), DataTypes.TEXT, "first")
+                        ),
+                        "DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId=Z]",
+                        DataTypes.DATETIME,
+                        equalTo(1683244800000L)
+                    )
+                ),
+                new TestCaseSupplier(
                     List.of(DataTypes.KEYWORD, DataTypes.KEYWORD),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(

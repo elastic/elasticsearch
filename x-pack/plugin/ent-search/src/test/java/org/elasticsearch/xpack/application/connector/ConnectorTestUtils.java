@@ -325,7 +325,7 @@ public final class ConnectorTestUtils {
     /**
      * Second (0 - 59) Minute (0 - 59) Hour (0 - 23) Day of month (1 - 31) Month (1 - 12)
      */
-    private static Cron getRandomCronExpression() {
+    public static Cron getRandomCronExpression() {
         return new Cron(
             String.format(
                 Locale.ROOT,

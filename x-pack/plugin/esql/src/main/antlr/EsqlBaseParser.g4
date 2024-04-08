@@ -99,7 +99,20 @@ field
     ;
 
 fromCommand
-    : FROM fromIdentifier (COMMA fromIdentifier)* metadata?
+    : FROM fromIdentifier (COMMA fromIdentifier)* metadata? fromOptions?
+    ;
+
+fromIdentifier
+    : FROM_UNQUOTED_IDENTIFIER
+    | QUOTED_IDENTIFIER
+    ;
+
+fromOptions
+    : OPTIONS configOption (COMMA configOption)*
+    ;
+
+configOption
+    : string ASSIGN string
     ;
 
 metadata
@@ -127,10 +140,6 @@ inlinestatsCommand
     : INLINESTATS stats=fields (BY grouping=fields)?
     ;
 
-fromIdentifier
-    : FROM_UNQUOTED_IDENTIFIER
-    | QUOTED_IDENTIFIER
-    ;
 
 qualifiedName
     : identifier (DOT identifier)*
@@ -228,7 +237,7 @@ integerValue
     ;
 
 string
-    : STRING
+    : QUOTED_STRING
     ;
 
 comparisonOperator

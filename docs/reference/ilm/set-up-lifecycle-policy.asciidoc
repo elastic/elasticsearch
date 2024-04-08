@@ -81,6 +81,8 @@ To use a policy that triggers the rollover action,
 you need to configure the policy in the index template used to create each new index.
 You specify the name of the policy and the alias used to reference the rolling indices.
 
+TIP: An `index.lifecycle.rollover_alias` setting is only required if using {ilm} with an alias. It is unnecessary when using <<data-streams,Data Streams>>.
+
 You can use the {kib} Create template wizard to create a template. To access the
 wizard, open the menu and go to *Stack Management > Index Management*. In the
 *Index Templates* tab, click *Create template*.
@@ -128,8 +130,9 @@ DELETE _index_template/my_template
 [[create-initial-index]]
 ==== Create an initial managed index
 
-When you set up policies for your own rolling indices, you need to manually create the first index 
-managed by a policy and designate it as the write index.
+When you set up policies for your own rolling indices, if you are not using the recommended
+<<data-streams,data streams>>, you need to manually create the first index managed by a policy and
+designate it as the write index.
 
 IMPORTANT: When you enable {ilm} for {beats} or the {ls} {es} output plugin, 
 the necessary policies and configuration changes are applied automatically. 

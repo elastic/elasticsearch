@@ -190,6 +190,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
@@ -807,6 +808,9 @@ public class Security extends Plugin
         );
         components.add(nativeUsersStore);
         components.add(nativeRoleMappingStore);
+        components.add(
+            new PluginComponentBinding<>(UserRoleMapper.class, new CompositeRoleMapper(nativeRoleMappingStore, clusterStateRoleMapper))
+        );
         components.add(realms);
         components.add(reservedRealm);
         this.realms.set(realms);

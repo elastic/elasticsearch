@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 
 public class ClusterStateRoleMapper implements UserRoleMapper, ClusterStateListener {
 
-    private static final Logger logger = LogManager.getLogger(NativeRoleMappingStore.class);
+    private static final Logger logger = LogManager.getLogger(ClusterStateRoleMapper.class);
 
     private final ScriptService scriptService;
     private final ClusterService clusterService;

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -29,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.common.Failures;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -112,15 +115,17 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         return new Batch<>(
             "Substitutions",
             Limiter.ONCE,
-            // first extract nested aggs top-level - this simplifies the rest of the rules
-            new ReplaceStatsAggExpressionWithEval(),
-            // second extract nested aggs inside of them
+            new RemoveStatsOverride(),
+            // first extract nested expressions inside aggs
             new ReplaceStatsNestedExpressionWithEval(),
+            // then extract nested aggs top-level
+            new ReplaceStatsAggExpressionWithEval(),
             // lastly replace surrogate functions
             new SubstituteSurrogates(),
             new ReplaceRegexMatch(),
             new ReplaceAliasingEvalWithProject(),
-            new SkipQueryOnEmptyMappings()
+            new SkipQueryOnEmptyMappings(),
+            new SubstituteSpatialSurrogates()
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
         );
     }
@@ -297,6 +302,25 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
+    /**
+     * Currently this works similarly to SurrogateExpression, leaving the logic inside the expressions,
+     * so each can decide for itself whether or not to change to a surrogate expression.
+     * But what is actually being done is similar to LiteralsOnTheRight. We can consider in the future moving
+     * this in either direction, reducing the number of rules, but for now,
+     * it's a separate rule to reduce the risk of unintended interactions with other rules.
+     */
+    static class SubstituteSpatialSurrogates extends OptimizerRules.OptimizerExpressionRule<SpatialRelatesFunction> {
+
+        SubstituteSpatialSurrogates() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected SpatialRelatesFunction rule(SpatialRelatesFunction function) {
+            return function.surrogate();
+        }
+    }
+
     static class ConvertStringToByteRef extends OptimizerRules.OptimizerExpressionRule<Literal> {
 
         ConvertStringToByteRef() {
@@ -379,11 +403,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             List<? extends NamedExpression> upperProjection,
             List<? extends NamedExpression> lowerAggregations
         ) {
-            AttributeMap<Expression> lowerAliases = new AttributeMap<>();
-            for (NamedExpression ne : lowerAggregations) {
-                lowerAliases.put(ne.toAttribute(), Alias.unwrap(ne));
-            }
-
             AttributeSet seen = new AttributeSet();
             for (NamedExpression upper : upperProjection) {
                 Expression unwrapped = Alias.unwrap(upper);
@@ -407,11 +426,18 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             List<? extends NamedExpression> lower
         ) {
 
-            // collect aliases in the lower list
-            AttributeMap<NamedExpression> aliases = new AttributeMap<>();
+            // collect named expressions declaration in the lower list
+            AttributeMap<NamedExpression> namedExpressions = new AttributeMap<>();
+            // while also collecting the alias map for resolving the source (f1 = 1, f2 = f1, etc..)
+            AttributeMap<Expression> aliases = new AttributeMap<>();
             for (NamedExpression ne : lower) {
-                if ((ne instanceof Attribute) == false) {
-                    aliases.put(ne.toAttribute(), ne);
+                // record the alias
+                aliases.put(ne.toAttribute(), Alias.unwrap(ne));
+
+                // record named expression as is
+                if (ne instanceof Alias as) {
+                    Expression child = as.child();
+                    namedExpressions.put(ne.toAttribute(), as.replaceChild(aliases.resolve(child, child)));
                 }
             }
             List<NamedExpression> replaced = new ArrayList<>();
@@ -419,7 +445,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // replace any matching attribute with a lower alias (if there's a match)
             // but clean-up non-top aliases at the end
             for (NamedExpression ne : upper) {
-                NamedExpression replacedExp = (NamedExpression) ne.transformUp(Attribute.class, a -> aliases.resolve(a, a));
+                NamedExpression replacedExp = (NamedExpression) ne.transformUp(Attribute.class, a -> namedExpressions.resolve(a, a));
                 replaced.add((NamedExpression) trimNonTopLevelAliases(replacedExp));
             }
             return replaced;
@@ -452,7 +478,10 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
             var newGroupings = new ArrayList<Expression>(groupings.size());
             for (Expression group : groupings) {
-                newGroupings.add(group.transformUp(Attribute.class, a -> removedAliases.resolve(a, a)));
+                var transformed = group.transformUp(Attribute.class, a -> removedAliases.resolve(a, a));
+                if (Expressions.anyMatch(newGroupings, g -> Expressions.equalsAsAttribute(g, transformed)) == false) {
+                    newGroupings.add(transformed);
+                }
             }
 
             return newGroupings;
@@ -1016,11 +1045,23 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                     recheck = false;
                     if (p instanceof Aggregate aggregate) {
                         var remaining = seenProjection.get() ? removeUnused(aggregate.aggregates(), used) : null;
-                        // no aggregates, no need
+
                         if (remaining != null) {
                             if (remaining.isEmpty()) {
-                                recheck = true;
-                                p = aggregate.child();
+                                // We still need to have a plan that produces 1 row per group.
+                                if (aggregate.groupings().isEmpty()) {
+                                    p = new LocalRelation(
+                                        aggregate.source(),
+                                        List.of(new EmptyAttribute(aggregate.source())),
+                                        LocalSupplier.of(
+                                            new Block[] { BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1) }
+                                        )
+                                    );
+                                } else {
+                                    // Aggs cannot produce pages with 0 columns, so retain one grouping.
+                                    remaining = List.of(Expressions.attribute(aggregate.groupings().get(0)));
+                                    p = new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), remaining);
+                                }
                             } else {
                                 p = new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), remaining);
                             }
@@ -1256,9 +1297,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                             Attribute attr = expToAttribute.computeIfAbsent(field.canonical(), k -> {
                                 Alias newAlias = new Alias(k.source(), syntheticName(k, af, counter[0]++), null, k, null, true);
                                 evals.add(newAlias);
-                                aggsChanged.set(true);
                                 return newAlias.toAttribute();
                             });
+                            aggsChanged.set(true);
                             // replace field with attribute
                             List<Expression> newChildren = new ArrayList<>(af.children());
                             newChildren.set(0, attr);
@@ -1294,7 +1335,12 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
      * stats a = sum(a) + min(b) by x
      * becomes
      * stats a1 = sum(a), a2 = min(b) by x | eval a = a1 + a2 | keep a, x
-     *
+     * The rule also considers expressions applied over groups:
+     * stats a = x + 1 by x becomes stats by x | eval a = x + 1 | keep a, x
+     * And to combine the two:
+     * stats a = x + count(*) by x
+     * becomes
+     * stats a1 = count(*) by x | eval a = x + a1 | keep a1, x
      * Since the logic is very similar, this rule also handles duplicate aggregate functions to avoid duplicate compute
      * stats a = min(x), b = min(x), c = count(*), d = count() by g
      * becomes
@@ -1311,7 +1357,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             AttributeMap<Expression> aliases = new AttributeMap<>();
             aggregate.forEachExpressionUp(Alias.class, a -> aliases.put(a.toAttribute(), a.child()));
 
-            // break down each aggregate into AggregateFunction
+            // break down each aggregate into AggregateFunction and/or grouping key
             // preserve the projection at the end
             List<? extends NamedExpression> aggs = aggregate.aggregates();
 
@@ -1353,14 +1399,11 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                             newProjections.add(as.replaceChild(found.toAttribute()));
                         }
                     }
-                    // nested expression over aggregate function - replace them with reference and move the expression into a
-                    // follow-up eval
+                    // nested expression over aggregate function or groups
+                    // replace them with reference and move the expression into a follow-up eval
                     else {
-                        Holder<Boolean> transformed = new Holder<>(false);
+                        changed.set(true);
                         Expression aggExpression = child.transformUp(AggregateFunction.class, af -> {
-                            transformed.set(true);
-                            changed.set(true);
-
                             AggregateFunction canonical = (AggregateFunction) af.canonical();
                             Alias alias = rootAggs.get(canonical);
                             if (alias == null) {
@@ -1382,17 +1425,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                             return alias.toAttribute();
                         });
 
-                        Alias alias = as;
-                        if (transformed.get()) {
-                            // if at least a change occurred, update the alias and add it to the eval
-                            alias = as.replaceChild(aggExpression);
-                            newEvals.add(alias);
-                        }
-                        // aliased grouping
-                        else {
-                            newAggs.add(alias);
-                        }
-
+                        Alias alias = as.replaceChild(aggExpression);
+                        newEvals.add(alias);
                         newProjections.add(alias.toAttribute());
                     }
                 }
@@ -1499,6 +1533,58 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             }
 
             return plan;
+        }
+    }
+
+    /**
+     * Rule that removes Aggregate overrides in grouping, aggregates and across them inside.
+     * The overrides appear when the same alias is used multiple times in aggregations and/or groupings:
+     * STATS x = COUNT(*), x = MIN(a) BY x = b + 1, x = c + 10
+     * becomes
+     * STATS BY x = c + 10
+     * That is the last declaration for a given alias, overrides all the other declarations, with
+     * groups having priority vs aggregates.
+     * Separately, it replaces expressions used as group keys inside the aggregates with references:
+     * STATS max(a + b + 1) BY a + b
+     * becomes
+     * STATS max($x + 1) BY $x = a + b
+     */
+    private static class RemoveStatsOverride extends AnalyzerRules.AnalyzerRule<Aggregate> {
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(Aggregate agg) {
+            return agg.resolved() ? removeAggDuplicates(agg) : agg;
+        }
+
+        private static Aggregate removeAggDuplicates(Aggregate agg) {
+            var groupings = agg.groupings();
+            var aggregates = agg.aggregates();
+
+            groupings = removeDuplicateNames(groupings);
+            aggregates = removeDuplicateNames(aggregates);
+
+            // replace EsqlAggregate with Aggregate
+            return new Aggregate(agg.source(), agg.child(), groupings, aggregates);
+        }
+
+        private static <T extends Expression> List<T> removeDuplicateNames(List<T> list) {
+            var newList = new ArrayList<>(list);
+            var nameSet = Sets.newHashSetWithExpectedSize(list.size());
+
+            // remove duplicates
+            for (int i = list.size() - 1; i >= 0; i--) {
+                var element = list.get(i);
+                var name = Expressions.name(element);
+                if (nameSet.add(name) == false) {
+                    newList.remove(i);
+                }
+            }
+            return newList.size() == list.size() ? list : newList;
         }
     }
 

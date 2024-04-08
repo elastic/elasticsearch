@@ -16,10 +16,12 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
@@ -28,6 +30,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.junit.After;
 import org.junit.Before;
 
@@ -77,12 +80,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     private static final String MAPPING_ALL_TYPES;
 
     static {
-        try (InputStream mappingPropertiesStream = RestEsqlTestCase.class.getResourceAsStream("/mapping-all-types.json")) {
-            String properties = new String(mappingPropertiesStream.readAllBytes(), StandardCharsets.UTF_8);
-            MAPPING_ALL_TYPES = "{\"mappings\": " + properties + "}";
-        } catch (IOException ex) {
-            throw new RuntimeException(ex);
-        }
+        String properties = EsqlTestUtils.loadUtf8TextFile("/mapping-all-types.json");
+        MAPPING_ALL_TYPES = "{\"mappings\": " + properties + "}";
     }
 
     private static final String DOCUMENT_TEMPLATE = """
@@ -213,6 +212,84 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("verification_exception"));
         assertThat(e.getMessage(), containsString("Unknown index [doesNotExist]"));
+    }
+
+    public void testUseKnownIndexWithUnknownIndex() throws IOException {
+        // to ignore a concrete non-existent index, we need to opt in (which is not the default)
+        useKnownIndexWithOther("noSuchIndex", "ignore_unavailable");
+    }
+
+    public void testUseKnownIndexWithUnknownPattern() throws IOException {
+        // to not ignore a non-existing index, we need to opt in (which is the default)
+        useKnownIndexWithOther("noSuchPattern*", "allow_no_indices");
+    }
+
+    private void useKnownIndexWithOther(String other, String option) throws IOException {
+        final int count = randomIntBetween(1, 10);
+        bulkLoadTestData(count);
+
+        CheckedFunction<Boolean, RequestObjectBuilder, IOException> builder = o -> {
+            String q = fromIndex() + ',' + other;
+            q += " OPTIONS \"" + option + "\"=\"" + o + "\"";
+            q += " | KEEP keyword, integer | SORT integer asc | LIMIT 10";
+            return builder().query(q);
+        };
+
+        // test failure
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql(builder.apply(false)));
+        assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(e.getMessage(), containsString("no such index [" + other + "]"));
+
+        // test success
+        assertEquals(expectedTextBody("txt", count, null), runEsqlAsTextWithFormat(builder.apply(true), "txt", null));
+    }
+
+    // https://github.com/elastic/elasticsearch/issues/106805
+    public void testUseUnknownIndexOnly() {
+        useUnknownIndex("ignore_unavailable");
+        useUnknownIndex("allow_no_indices");
+    }
+
+    private void useUnknownIndex(String option) {
+        CheckedFunction<Boolean, RequestObjectBuilder, IOException> builder = o -> {
+            String q = "FROM doesnotexist OPTIONS \"" + option + "\"=\"" + o + "\"";
+            q += " | KEEP keyword, integer | SORT integer asc | LIMIT 10";
+            return builder().query(q);
+        };
+
+        // test failure 404 from resolver
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql(builder.apply(false)));
+        assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(e.getMessage(), containsString("index_not_found_exception"));
+        assertThat(e.getMessage(), containsString("no such index [doesnotexist]"));
+
+        // test failure 400 from verifier
+        e = expectThrows(ResponseException.class, () -> runEsql(builder.apply(true)));
+        assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
+        assertThat(e.getMessage(), containsString("verification_exception"));
+        assertThat(e.getMessage(), containsString("Unknown index [doesnotexist]"));
+
+    }
+
+    public void testSearchPreference() throws IOException {
+        final int count = randomIntBetween(1, 10);
+        bulkLoadTestData(count);
+
+        CheckedFunction<String, RequestObjectBuilder, IOException> builder = o -> {
+            String q = fromIndex();
+            if (Strings.hasText(o)) {
+                q += " OPTIONS " + o;
+            }
+            q += " | KEEP keyword, integer | SORT integer asc | LIMIT 10";
+            return builder().query(q);
+        };
+
+        // verify that it returns as expected
+        assertEquals(expectedTextBody("txt", count, null), runEsqlAsTextWithFormat(builder.apply(null), "txt", null));
+
+        // returns nothing (0 for count), given the non-existing shard as preference
+        String option = "\"preference\"=\"_shards:666\"";
+        assertEquals(expectedTextBody("txt", 0, null), runEsqlAsTextWithFormat(builder.apply(option), "txt", null));
     }
 
     public void testNullInAggs() throws IOException {

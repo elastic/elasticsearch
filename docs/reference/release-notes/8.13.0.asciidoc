@@ -3,6 +3,19 @@
 
 Also see <<breaking-changes-8.13,Breaking changes in 8.13>>.
 
+[[known-issues-8.13.0]]
+[float]
+=== Known issues
+
+* Due to a bug in the bundled JDK 22 nodes might crash abruptly under high memory pressure.
+  We recommend <<jvm-version,downgrading to JDK 21.0.2>> asap to mitigate the issue.
+
+* Nodes upgraded to 8.13.0 fail to load downsampling persistent tasks. This prevents them from joining the cluster, blocking its upgrade (issue: {es-issue}106880[#106880])
++
+This affects clusters running version 8.10 or later, with an active downsampling
+https://www.elastic.co/guide/en/elasticsearch/reference/current/downsampling-ilm.html[configuration]
+or a configuration that was activated at some point since upgrading to version 8.10 or later.
+
 [[breaking-8.13.0]]
 [float]
 === Breaking changes

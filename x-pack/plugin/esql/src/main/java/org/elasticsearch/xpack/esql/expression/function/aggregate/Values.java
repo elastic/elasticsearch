@@ -68,7 +68,7 @@ public class Values extends AggregateFunction implements ToAggregator {
         if (type == DataTypes.INTEGER) {
             return new ValuesIntAggregatorFunctionSupplier(inputChannels);
         }
-        if (type == DataTypes.LONG) {
+        if (type == DataTypes.LONG || type == DataTypes.DATETIME) {
             return new ValuesLongAggregatorFunctionSupplier(inputChannels);
         }
         if (type == DataTypes.DOUBLE) {

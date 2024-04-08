@@ -97,7 +97,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String SEARCH_COORDINATION = "search_coordination";
         public static final String AUTO_COMPLETE = "auto_complete";
         public static final String SEARCH_THROTTLED = "search_throttled";
-        /** Cluster management tasks. Tasks that manage data, and tasks that report on the cluster health via statistics etc. */
+        /**
+         * Cluster management tasks. Tasks that manage data, and tasks that report on cluster health via statistics etc.
+         * Not a latency sensitive thread pool: some tasks may time be long-running; and the thread pool size is limited / relatively small.
+         */
         public static final String MANAGEMENT = "management";
         public static final String FLUSH = "flush";
         public static final String REFRESH = "refresh";

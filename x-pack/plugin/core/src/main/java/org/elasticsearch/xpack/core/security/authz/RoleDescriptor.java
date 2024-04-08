@@ -273,13 +273,21 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return runAs.length != 0;
     }
 
-    public boolean hasUnsupportedPrivileges() {
+    /**
+     * The general strategy to define roles for a remote cluster for the API key connected clusters is to redefine the remote_indices and
+     * remote_cluster permissions to be local indices and local cluster permissions inside the remote cluster. This method is intended be
+     * called after building the role in the receiving (aka fulfilling) cluster to ensure the role as was rebuilt does not have
+     * any unsupported privileges. It is most likely a bug or malicious intent if this method return true.
+     */
+    public boolean hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster() {
         return hasConfigurableClusterPrivileges()
             || hasApplicationPrivileges()
             || hasRunAs()
             || hasRemoteIndicesPrivileges()
             || hasRemoteClusterPermissions()
-            || hasWorkflowsRestriction();
+            || hasWorkflowsRestriction()
+            || (hasClusterPrivileges()
+                && RemoteClusterPermissions.getSupportRemoteClusterPermissions().containsAll(Arrays.asList(clusterPrivileges)) == false);
     }
 
     public String[] getRunAs() {

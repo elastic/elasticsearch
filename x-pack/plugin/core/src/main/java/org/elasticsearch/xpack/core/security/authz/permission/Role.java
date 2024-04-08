@@ -432,7 +432,7 @@ public interface Role {
         RemoteClusterPermissions remoteClusterPermissions = roleDescriptor.getRemoteClusterPermissions();
         for (RemoteClusterPermissionGroup group : remoteClusterPermissions.groups()) {
             final String[] clusterAliases = group.remoteClusterAliases();
-            // note: this validation only occurs from reserved roles, see the builder for additional general validation
+            // note: this validation only occurs from reserved roles
             assert Arrays.equals(new String[] { "*" }, clusterAliases)
                 : "reserved role should not define remote cluster privileges for specific clusters";
         }

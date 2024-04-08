@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -24,12 +25,13 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class CrossClusterApiKeyRoleDescriptorBuilder {
 
+
+    //TODO: write test to assert this contains all of the cluster privileges you can add to a role
     public static final String[] CCS_CLUSTER_PRIVILEGE_NAMES = {
         "cross_cluster_search",
         "monitor_enrich",
         "cluster:data/read/esql/open_exchange",
-        "cluster:data/read/esql/exchange",
-        "cluster:admin/xpack/security/user/has_privileges" }; // TODO: don't add this here ... just a hack for now
+        "cluster:data/read/esql/exchange" };
     public static final String[] CCR_CLUSTER_PRIVILEGE_NAMES = { "cross_cluster_replication" };
     public static final String[] CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES = Stream.concat(
         Arrays.stream(CCS_CLUSTER_PRIVILEGE_NAMES),

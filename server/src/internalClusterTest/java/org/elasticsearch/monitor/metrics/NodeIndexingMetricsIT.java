@@ -164,11 +164,11 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             );
             assertThat(primaryOperationsRejectionsTotal.getLong(), equalTo(0L));
 
-            var primaryOperationsRejectionsRatio = getRecordedMetric(
+            var primaryOperationsDocumentRejectionsRatio = getRecordedMetric(
                 plugin::getDoubleGaugeMeasurement,
-                "es.indexing.primary_operations.rejections.ratio"
+                "es.indexing.primary_operations.document.rejections.ratio"
             );
-            assertThat(primaryOperationsRejectionsRatio.getDouble(), equalTo(0.0));
+            assertThat(primaryOperationsDocumentRejectionsRatio.getDouble(), equalTo(0.0));
 
         });
 
@@ -207,13 +207,19 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
                 "es.indexing.coordinating_operations.rejections.total"
             );
             assertThat(coordinatingOperationsRejectionsTotal.getLong(), equalTo(1L));
+
+            var coordinatingOperationsRejectionsRatio = getRecordedMetric(
+                plugin::getDoubleGaugeMeasurement,
+                "es.indexing.coordinating_operations.rejections.ratio"
+            );
+            assertThat(coordinatingOperationsRejectionsRatio.getDouble(), equalTo(1.0));
         });
     }
 
-    public void testPrimaryRejectionMetricsArePublishing() throws Exception {
+    public void testPrimaryDocumentRejectionMetricsArePublishing() throws Exception {
 
         // setting low Indexing Pressure limits to trigger primary rejections
-        final String dataNode = internalCluster().startNode(Settings.builder().put(MAX_INDEXING_BYTES.getKey(), "1KB").build());
+        final String dataNode = internalCluster().startNode(Settings.builder().put(MAX_INDEXING_BYTES.getKey(), "2KB").build());
         // setting high Indexing Pressure limits to pass coordinating checks
         final String coordinatingNode = internalCluster().startCoordinatingOnlyNode(
             Settings.builder().put(MAX_INDEXING_BYTES.getKey(), "10MB").build()
@@ -227,19 +233,32 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         plugin.resetMeter();
 
         final int numberOfShards = randomIntBetween(1, 5);
-        assertAcked(prepareCreate("test", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)).get());
+        assertAcked(prepareCreate("test-one", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)).get());
+        assertAcked(prepareCreate("test-two", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)).get());
 
-        final BulkRequest bulkRequest = new BulkRequest();
-        final int batchCount = randomIntBetween(50, 100);
-        for (int i = 0; i < batchCount; i++) {
-            bulkRequest.add(new IndexRequest("test").source("field", randomAlphaOfLength(2048)));
+        final BulkRequest bulkRequestOne = new BulkRequest();
+        final int batchCountOne = randomIntBetween(50, 100);
+        for (int i = 0; i < batchCountOne; i++) {
+            bulkRequestOne.add(new IndexRequest("test-one").source("field", randomAlphaOfLength(3096)));
         }
 
-        // big batch should pass thru coordinating limit check but fail on primary
-        // note the bulk request is sent to coordinating client
-        final BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
-        assertThat(bulkResponse.hasFailures(), equalTo(true));
-        assertThat(Arrays.stream(bulkResponse.getItems()).allMatch(item -> item.status() == RestStatus.TOO_MANY_REQUESTS), equalTo(true));
+        final BulkRequest bulkRequestTwo = new BulkRequest();
+        final int batchCountTwo = randomIntBetween(1, 5);
+        for (int i = 0; i < batchCountTwo; i++) {
+            bulkRequestTwo.add(new IndexRequest("test-two").source("field", randomAlphaOfLength(1)));
+        }
+
+        // big batch should pass through coordinating gate but trip on primary gate
+        // note the bulk request is sent to coordinating node
+        final BulkResponse bulkResponseOne = client(coordinatingNode).bulk(bulkRequestOne).actionGet();
+        assertThat(bulkResponseOne.hasFailures(), equalTo(true));
+        assertThat(
+            Arrays.stream(bulkResponseOne.getItems()).allMatch(item -> item.status() == RestStatus.TOO_MANY_REQUESTS),
+            equalTo(true)
+        );
+        // small bulk request is expected to pass through primary indexing pressure gate
+        final BulkResponse bulkResponseTwo = client(coordinatingNode).bulk(bulkRequestTwo).actionGet();
+        assertThat(bulkResponseTwo.hasFailures(), equalTo(false));
 
         // simulate async apm `polling` call for metrics
         plugin.collect();
@@ -251,6 +270,16 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
                 "es.indexing.primary_operations.rejections.total"
             );
             assertThat(primaryOperationsRejectionsTotal.getLong(), equalTo((long) numberOfShards));
+
+            var primaryOperationsDocumentRejectionsRatio = getRecordedMetric(
+                plugin::getDoubleGaugeMeasurement,
+                "es.indexing.primary_operations.document.rejections.ratio"
+            );
+            // ratio of rejected documents vs all indexing documents
+            assertThat(
+                equals(primaryOperationsDocumentRejectionsRatio.getDouble(), (double) batchCountOne / (batchCountOne + batchCountTwo)),
+                equalTo(true)
+            );
         });
 
     }
@@ -260,5 +289,10 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         assertFalse("Indexing metric is not recorded", measurements.isEmpty());
         assertThat(measurements.size(), equalTo(1));
         return measurements.get(0);
+    }
+
+    private static boolean equals(double expected, double actual) {
+        final double eps = .0000001;
+        return Math.abs(expected - actual) < eps;
     }
 }

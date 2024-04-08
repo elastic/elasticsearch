@@ -1467,4 +1467,102 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertNull(mapper.mappers().getMapper("parent.child"));
     }
 
+    public void testMergeDottedAndNestedNotation() throws IOException {
+        CompressedXContent mapping1 = new CompressedXContent("""
+            {
+              "properties": {
+                "parent.child": {
+                  "type": "keyword"
+                }
+              }
+            }""");
+
+        CompressedXContent mapping2 = new CompressedXContent("""
+            {
+              "properties": {
+                "parent" : {
+                  "properties" : {
+                    "child" : {
+                      "type" : "integer"
+                    }
+                  }
+                }
+              }
+            }""");
+
+        assertMergeEquals(List.of(mapping1, mapping2), """
+            {
+              "_doc" : {
+                "properties" : {
+                  "parent" : {
+                    "properties" : {
+                      "child" : {
+                        "type" : "integer"
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
+
+        assertMergeEquals(List.of(mapping2, mapping1), """
+            {
+              "_doc" : {
+                "properties" : {
+                  "parent" : {
+                    "properties" : {
+                      "child" : {
+                        "type" : "keyword"
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
+    }
+
+    public void testDottedAndNestedNotationInSameMapping() throws IOException {
+        CompressedXContent mapping = new CompressedXContent("""
+            {
+              "properties": {
+                "parent.child": {
+                  "type": "keyword"
+                },
+                "parent" : {
+                  "properties" : {
+                    "child" : {
+                      "type" : "integer"
+                    }
+                  }
+                }
+              }
+            }""");
+
+        assertMergeEquals(List.of(mapping), """
+            {
+              "_doc" : {
+                "properties" : {
+                  "parent" : {
+                    "properties" : {
+                      "child" : {
+                        "type" : "integer"
+                      }
+                    }
+                  }
+                }
+              }
+            }""");
+    }
+
+    private void assertMergeEquals(List<CompressedXContent> mappingSources, String expected) throws IOException {
+        final MapperService mapperServiceBulk = createMapperService(mapping(b -> {}));
+        // simulates multiple component templates being merged in a composable index template
+        mapperServiceBulk.merge("_doc", mappingSources, MergeReason.INDEX_TEMPLATE);
+        assertEquals(expected, Strings.toString(mapperServiceBulk.documentMapper().mapping(), true, true));
+
+        MapperService mapperServiceSequential = createMapperService(mapping(b -> {}));
+        // simulates a series of mapping updates
+        mappingSources.forEach(m -> mapperServiceSequential.merge("_doc", m, MergeReason.INDEX_TEMPLATE));
+        assertEquals(expected, Strings.toString(mapperServiceSequential.documentMapper().mapping(), true, true));
+    }
 }

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
+
 /**
  * Holds context used when merging mappings.
  * As the merge process also involves building merged {@link Mapper.Builder}s,
@@ -23,11 +25,18 @@ public final class MapperMergeContext {
         this.newFieldsBudget = newFieldsBudget;
     }
 
+    static MapperMergeContext root(boolean isSourceSynthetic, boolean isDataStream, long newFieldsBudget) {
+        return root(isSourceSynthetic, isDataStream, MergeReason.MAPPING_UPDATE, newFieldsBudget);
+    }
+
     /**
      * The root context, to be used when merging a tree of mappers
      */
-    public static MapperMergeContext root(boolean isSourceSynthetic, boolean isDataStream, long newFieldsBudget) {
-        return new MapperMergeContext(MapperBuilderContext.root(isSourceSynthetic, isDataStream), NewFieldsBudget.of(newFieldsBudget));
+    public static MapperMergeContext root(boolean isSourceSynthetic, boolean isDataStream, MergeReason mergeReason, long newFieldsBudget) {
+        return new MapperMergeContext(
+            MapperBuilderContext.root(isSourceSynthetic, isDataStream, mergeReason),
+            NewFieldsBudget.of(newFieldsBudget)
+        );
     }
 
     /**

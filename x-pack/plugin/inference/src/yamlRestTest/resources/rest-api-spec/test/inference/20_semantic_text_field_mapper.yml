@@ -50,15 +50,13 @@ setup:
                 type: text
 
 ---
-"Sparse vector results indexing":
+"Sparse vector results format":
     - do:
         index:
           index: test-index
           id: doc_1
           body:
             sparse_field: "you know, for testing"
-
-
 
 ---
 "Dense vector results format":

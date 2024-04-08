@@ -64,8 +64,5 @@ public class RRFRankBuilderTests extends AbstractXContentSerializingTestCase<RRF
         assertEquals(rrfRankBuilder.windowSize(), queryPhaseRankShardContext.windowSize());
 
         assertNotNull(rrfRankBuilder.buildQueryPhaseCoordinatorContext(randomInt(), randomInt()));
-
-        assertNull(rrfRankBuilder.buildRankFeaturePhaseShardContext());
-        assertNull(rrfRankBuilder.buildRankFeaturePhaseCoordinatorContext(randomInt(), randomInt()));
     }
 }

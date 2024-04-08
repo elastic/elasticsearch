@@ -37,6 +37,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -282,16 +283,27 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             var request = requests.get(i);
                             var result = results.get(i);
                             var acc = inferenceResults.get(request.id);
-                            acc.addOrUpdateResponse(
-                                new FieldInferenceResponse(
-                                    request.field(),
-                                    request.input(),
-                                    request.inputOrder(),
-                                    request.isOriginalFieldInput(),
-                                    inferenceProvider.model,
-                                    result
-                                )
-                            );
+                            if (result instanceof ErrorChunkedInferenceResults error) {
+                                acc.addFailure(
+                                    new ElasticsearchException(
+                                        "Exception when running inference id [{}] on field [{}]",
+                                        error.getException(),
+                                        inferenceProvider.model.getInferenceEntityId(),
+                                        request.field
+                                    )
+                                );
+                            } else {
+                                acc.addOrUpdateResponse(
+                                    new FieldInferenceResponse(
+                                        request.field(),
+                                        request.input(),
+                                        request.inputOrder(),
+                                        request.isOriginalFieldInput(),
+                                        inferenceProvider.model,
+                                        result
+                                    )
+                                );
+                            }
                         }
                     } finally {
                         onFinish();

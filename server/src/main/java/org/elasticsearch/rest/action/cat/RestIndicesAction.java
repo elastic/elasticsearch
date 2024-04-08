@@ -234,6 +234,15 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("flush.total_time", "sibling:pri;alias:ftt,flushTotalTime;default:false;text-align:right;desc:time spent in flush");
         table.addCell("pri.flush.total_time", "default:false;text-align:right;desc:time spent in flush");
 
+        table.addCell(
+            "flush.total_time_excluding_waiting",
+            "sibling:pri;alias:ftt,flushTotalTime;default:false;text-align:right;desc:time spent in flush excluding waiting in queue"
+        );
+        table.addCell(
+            "pri.flush.total_time_excluding_waiting",
+            "default:false;text-align:right;desc:time spent in flush excluding waiting in queue"
+        );
+
         table.addCell("get.current", "sibling:pri;alias:gc,getCurrent;default:false;text-align:right;desc:number of current get ops");
         table.addCell("pri.get.current", "default:false;text-align:right;desc:number of current get ops");
 
@@ -626,6 +635,9 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(totalStats.getFlush() == null ? null : totalStats.getFlush().getTotalTime());
             table.addCell(primaryStats.getFlush() == null ? null : primaryStats.getFlush().getTotalTime());
+
+            table.addCell(totalStats.getFlush() == null ? null : totalStats.getFlush().getTotalTimeExcludingWaiting());
+            table.addCell(primaryStats.getFlush() == null ? null : primaryStats.getFlush().getTotalTimeExcludingWaiting());
 
             table.addCell(totalStats.getGet() == null ? null : totalStats.getGet().current());
             table.addCell(primaryStats.getGet() == null ? null : primaryStats.getGet().current());

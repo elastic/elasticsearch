@@ -204,6 +204,10 @@ public class RestNodesAction extends AbstractCatAction {
 
         table.addCell("flush.total", "alias:ft,flushTotal;default:false;text-align:right;desc:number of flushes");
         table.addCell("flush.total_time", "alias:ftt,flushTotalTime;default:false;text-align:right;desc:time spent in flush");
+        table.addCell(
+            "flush.total_time_excluding_waiting",
+            "alias:ftt,flushTotalTime;default:false;text-align:right;desc:time spent in flush excluding waiting"
+        );
 
         table.addCell("get.current", "alias:gc,getCurrent;default:false;text-align:right;desc:number of current get ops");
         table.addCell("get.time", "alias:gti,getTime;default:false;text-align:right;desc:time spent in get");
@@ -447,6 +451,7 @@ public class RestNodesAction extends AbstractCatAction {
             FlushStats flushStats = indicesStats == null ? null : indicesStats.getFlush();
             table.addCell(flushStats == null ? null : flushStats.getTotal());
             table.addCell(flushStats == null ? null : flushStats.getTotalTime());
+            table.addCell(flushStats == null ? null : flushStats.getTotalTimeExcludingWaiting());
 
             GetStats getStats = indicesStats == null ? null : indicesStats.getGet();
             table.addCell(getStats == null ? null : getStats.current());

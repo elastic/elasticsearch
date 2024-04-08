@@ -41,6 +41,10 @@ public class RoleMappingMetadata extends AbstractNamedDiffable<ClusterState.Cust
         this.roleMappings = input.readCollectionAsList(ExpressionRoleMapping::new);
     }
 
+    public List<ExpressionRoleMapping> getRoleMappings() {
+        return this.roleMappings;
+    }
+
     public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput streamInput) throws IOException {
         return readDiffFrom(Metadata.Custom.class, TYPE, streamInput);
     }

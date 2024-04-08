@@ -486,8 +486,8 @@ ROW message="[1998-08-10T17:15:42]          [WARN]"
 ;
 
 // tag::dissectEmptyRightPaddingModifier-result[]
-message:keyword  | ts:keyword | level:keyword
-[1998-08-10T17:15:42]          [WARN]|1998-08-10T17:15:42 |WARN
+             message:keyword             |     ts:keyword     |level:keyword
+["[1998-08-10T17:15:42]          [WARN]"]|1998-08-10T17:15:42 |WARN
 // end::dissectEmptyRightPaddingModifier-result[]
 ;
 

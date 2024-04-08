@@ -439,6 +439,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         final var maxRetries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
         new ClusterStateObserver(
             internalCluster().getCurrentMasterNodeInstance(ClusterService.class),
+            TimeValue.timeValueMillis(60000),
             logger,
             new ThreadContext(Settings.EMPTY)
         ).waitForNextChange(new ClusterStateObserver.Listener() {

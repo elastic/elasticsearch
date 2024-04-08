@@ -156,13 +156,11 @@ public class PutDataFrameAnalyticsAction extends ActionType<PutDataFrameAnalytic
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private DataFrameAnalyticsConfig config;
+        private final DataFrameAnalyticsConfig config;
 
         public Response(DataFrameAnalyticsConfig config) {
             this.config = config;
         }
-
-        Response() {}
 
         public Response(StreamInput in) throws IOException {
             super(in);

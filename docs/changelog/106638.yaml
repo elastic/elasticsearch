@@ -1,0 +1,5 @@
+pr: 106638
+summary: Allow users to get status of own async search tasks
+area: Authorization
+type: enhancement
+issues: []

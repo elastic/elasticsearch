@@ -54,6 +54,18 @@ public class DateExtractTests extends AbstractScalarFunctionTestCase {
                     )
                 ),
                 new TestCaseSupplier(
+                    List.of(DataTypes.TEXT, DataTypes.DATETIME),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(new BytesRef("YeAr"), DataTypes.TEXT, "chrono"),
+                            new TestCaseSupplier.TypedData(1687944333000L, DataTypes.DATETIME, "date")
+                        ),
+                        "DateExtractEvaluator[value=Attribute[channel=1], chronoField=Attribute[channel=0], zone=Z]",
+                        DataTypes.LONG,
+                        equalTo(2023L)
+                    )
+                ),
+                new TestCaseSupplier(
                     List.of(DataTypes.KEYWORD, DataTypes.DATETIME),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(

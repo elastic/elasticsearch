@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.RandomObjects;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -24,6 +25,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
@@ -34,9 +36,46 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ExplainResponseTests extends AbstractXContentSerializingTestCase<ExplainResponse> {
 
+    private static final ConstructingObjectParser<ExplainResponse, Boolean> PARSER = new ConstructingObjectParser<>(
+        "explain",
+        true,
+        (arg, exists) -> new ExplainResponse((String) arg[0], (String) arg[1], exists, (Explanation) arg[2], (GetResult) arg[3])
+    );
+
+    static {
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), ExplainResponse._INDEX);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), ExplainResponse._ID);
+        final ConstructingObjectParser<Explanation, Boolean> explanationParser = getExplanationsParser();
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), explanationParser, ExplainResponse.EXPLANATION);
+        PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> GetResult.fromXContentEmbedded(p),
+            ExplainResponse.GET
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ConstructingObjectParser<Explanation, Boolean> getExplanationsParser() {
+        final ConstructingObjectParser<Explanation, Boolean> explanationParser = new ConstructingObjectParser<>(
+            "explanation",
+            true,
+            arg -> {
+                if ((float) arg[0] > 0) {
+                    return Explanation.match((float) arg[0], (String) arg[1], (Collection<Explanation>) arg[2]);
+                } else {
+                    return Explanation.noMatch((String) arg[1], (Collection<Explanation>) arg[2]);
+                }
+            }
+        );
+        explanationParser.declareFloat(ConstructingObjectParser.constructorArg(), ExplainResponse.VALUE);
+        explanationParser.declareString(ConstructingObjectParser.constructorArg(), ExplainResponse.DESCRIPTION);
+        explanationParser.declareObjectArray(ConstructingObjectParser.constructorArg(), explanationParser, ExplainResponse.DETAILS);
+        return explanationParser;
+    }
+
     @Override
     protected ExplainResponse doParseInstance(XContentParser parser) throws IOException {
-        return ExplainResponse.fromXContent(parser, randomBoolean());
+        return PARSER.apply(parser, randomBoolean());
     }
 
     @Override

@@ -26,7 +26,7 @@ final class StackTrace implements ToXContentObject {
     String[] fileIds;
     String[] frameIds;
     int[] typeIds;
-
+    Map<String, Long> subGroups;
     double annualCO2Tons;
     double annualCostsUSD;
     long count;
@@ -247,10 +247,10 @@ final class StackTrace implements ToXContentObject {
             && Arrays.equals(fileIds, that.fileIds)
             && Arrays.equals(frameIds, that.frameIds)
             && Arrays.equals(typeIds, that.typeIds);
-        // Don't compare metadata like annualized co2, annualized costs and count.
+        // Don't compare metadata like annualized co2, annualized costs, subGroups and count.
     }
 
-    // Don't hash metadata like annualized co2, annualized costs and count.
+    // Don't hash metadata like annualized co2, annualized costs, subGroups and count.
     @Override
     public int hashCode() {
         int result = Arrays.hashCode(addressOrLines);

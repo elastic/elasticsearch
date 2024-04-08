@@ -1246,7 +1246,7 @@ locateUtf16Emoji#[skip:-8.13.99,reason:new string function added in 8.14]
 row a = "🐱Meow!🐶Woof!" | eval f_s = substring(a, 2) | eval f_l = locate(a, f_s);
 
 a:keyword | f_s:keyword | f_l:integer
-🐱Meow!🐶Woof! | Meow!🐶Woof! | 3
+🐱Meow!🐶Woof! | Meow!🐶Woof! | 2
 ;
 
 locateNestedSubstring#[skip:-8.13.99,reason:new string function added in 8.14]

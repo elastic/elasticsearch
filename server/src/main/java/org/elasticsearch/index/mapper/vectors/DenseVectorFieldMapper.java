@@ -1103,7 +1103,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         notInMultiFields(CONTENT_TYPE)
     );
 
-    public static final class DenseVectorFieldType extends SimpleMappedFieldType {
+    public static final class DenseVectorFieldType extends SimpleMappedFieldType implements KnnFieldType {
         private final ElementType elementType;
         private final Integer dims;
         private final boolean indexed;
@@ -1176,6 +1176,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support term queries");
         }
 
+        @Override
         public Query createKnnQuery(
             byte[] queryVector,
             int numCands,
@@ -1218,6 +1219,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return knnQuery;
         }
 
+        @Override
         public Query createExactKnnQuery(VectorData queryVector) {
             if (isIndexed() == false) {
                 throw new IllegalArgumentException(
@@ -1291,16 +1293,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         Query createKnnQuery(float[] queryVector, int numCands, Query filter, Float similarityThreshold, BitSetProducer parentFilter) {
-            return createKnnQuery(VectorData.fromFloats(queryVector), numCands, filter, similarityThreshold, parentFilter);
+            return createKnnQuery(VectorData.fromFloats(queryVector), numCands, filter, similarityThreshold, parentFilter, null);
         }
 
+        @Override
         public Query createKnnQuery(
             VectorData queryVector,
             int numCands,
             Query filter,
             Float similarityThreshold,
-            BitSetProducer parentFilter
-        ) {
+            BitSetProducer parentFilter,
+            SearchExecutionContext context) {
             if (isIndexed() == false) {
                 throw new IllegalArgumentException(
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"

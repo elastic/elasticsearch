@@ -8,11 +8,15 @@
 package org.elasticsearch.xpack.inference.mapper;
 
 import org.apache.lucene.document.FeatureField;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -30,16 +34,20 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMergeContext;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.KnnFieldType;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
@@ -260,7 +268,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         return new InferenceFieldMetadata(name(), fieldType().inferenceId, copyFields);
     }
 
-    public static class SemanticTextFieldType extends SimpleMappedFieldType {
+    public static class SemanticTextFieldType extends SimpleMappedFieldType implements KnnFieldType {
         private final String inferenceId;
         private final SemanticTextField.ModelSettings modelSettings;
         private final ObjectMapper inferenceField;
@@ -321,6 +329,37 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             throw new IllegalArgumentException("[semantic_text] fields do not support sorting, scripting or aggregating");
+        }
+
+        @Override
+        public Query createKnnQuery(byte[] queryVector, int numCands, Query filter, Float similarityThreshold, BitSetProducer parentFilter) {
+            return null;
+        }
+
+        @Override
+        public Query createKnnQuery(VectorData queryVector, int numCands, Query filter, Float similarityThreshold, BitSetProducer parentFilter, SearchExecutionContext context) {
+            if (parentFilter == null) {
+                Query parentFilterQuery = new FieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+                parentFilter = context.bitsetFilter(parentFilterQuery);
+                // TODO Adjust for filterQuery
+            }
+
+            Query knnQuery = ((DenseVectorFieldMapper.DenseVectorFieldType) getEmbeddingsField().fieldType()).createKnnQuery(
+                queryVector,
+                numCands,
+                filter,
+                similarityThreshold,
+                parentFilter,
+                context
+            );
+
+            return new ESToParentBlockJoinQuery(knnQuery, parentFilter, ScoreMode.Avg, null);
+        }
+
+        @Override
+        public Query createExactKnnQuery(VectorData queryVector) {
+
+            return null;
         }
     }
 

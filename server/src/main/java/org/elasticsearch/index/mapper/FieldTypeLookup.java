@@ -102,15 +102,20 @@ final class FieldTypeLookup {
                     String name = fieldMapper.simpleName();
                     // Check for conflict between PassThroughObjectMapper subfields.
                     PassThroughObjectMapper conflict = passThroughFieldAliases.put(name, passThroughMapper);
-                    if (conflict != null && conflict.priority() > passThroughMapper.priority()) {
-                        // Keep the conflicting field if it has higher priority.
-                        passThroughFieldAliases.put(name, conflict);
-                    } else if (fullNameToFieldType.containsKey(name) == false) {  // No existing field or alias with the same name.
-                        MappedFieldType fieldType = fieldMapper.fieldType();
-                        fullNameToFieldType.put(name, fieldType);
-                        if (fieldType instanceof DynamicFieldType) {
-                            dynamicFieldTypes.put(name, (DynamicFieldType) fieldType);
+                    if (conflict != null) {
+                        if (conflict.priority() > passThroughMapper.priority()) {
+                            // Keep the conflicting field if it has higher priority.
+                            passThroughFieldAliases.put(name, conflict);
+                            continue;
                         }
+                    } else if (fullNameToFieldType.containsKey(name)) {
+                        // There's an existing field or alias for the same field.
+                        continue;
+                    }
+                    MappedFieldType fieldType = fieldMapper.fieldType();
+                    fullNameToFieldType.put(name, fieldType);
+                    if (fieldType instanceof DynamicFieldType) {
+                        dynamicFieldTypes.put(name, (DynamicFieldType) fieldType);
                     }
                 }
             }

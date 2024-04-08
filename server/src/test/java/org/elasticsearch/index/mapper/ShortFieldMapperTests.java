@@ -9,8 +9,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.List;
@@ -23,12 +23,12 @@ public class ShortFieldMapperTests extends WholeNumberFieldMapperTests {
     }
 
     @Override
-    protected List<OutOfRangeSpec> outOfRangeSpecs() {
+    protected List<NumberTypeOutOfRangeSpec> outOfRangeSpecs() {
         return List.of(
-            OutOfRangeSpec.of(NumberType.SHORT, "32768", "is out of range for a short"),
-            OutOfRangeSpec.of(NumberType.SHORT, "-32769", "is out of range for a short"),
-            OutOfRangeSpec.of(NumberType.SHORT, 32768, "out of range of Java short"),
-            OutOfRangeSpec.of(NumberType.SHORT, -32769, "out of range of Java short")
+            NumberTypeOutOfRangeSpec.of(NumberType.SHORT, "32768", "is out of range for a short"),
+            NumberTypeOutOfRangeSpec.of(NumberType.SHORT, "-32769", "is out of range for a short"),
+            NumberTypeOutOfRangeSpec.of(NumberType.SHORT, 32768, "out of range of Java short"),
+            NumberTypeOutOfRangeSpec.of(NumberType.SHORT, -32769, "out of range of Java short")
         );
     }
 
@@ -46,5 +46,10 @@ public class ShortFieldMapperTests extends WholeNumberFieldMapperTests {
             return randomDouble();
         }
         return randomDoubleBetween(Short.MIN_VALUE, Short.MAX_VALUE, true);
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

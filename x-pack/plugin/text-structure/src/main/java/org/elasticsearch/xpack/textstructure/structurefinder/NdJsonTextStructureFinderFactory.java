@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
@@ -57,7 +58,7 @@ public class NdJsonTextStructureFinderFactory implements TextStructureFinderFact
                     }
                 }
             }
-        } catch (IOException | IllegalStateException e) {
+        } catch (IOException | IllegalStateException | XContentParseException e) {
             explanation.add("Not NDJSON because there was a parsing exception: [" + e.getMessage().replaceAll("\\s?\r?\n\\s?", " ") + "]");
             return false;
         }
@@ -69,6 +70,16 @@ public class NdJsonTextStructureFinderFactory implements TextStructureFinderFact
 
         explanation.add("Deciding sample is newline delimited NDJSON");
         return true;
+    }
+
+    public boolean canCreateFromMessages(List<String> explanation, List<String> messages, double allowedFractionOfBadLines) {
+        for (String message : messages) {
+            if (message.contains("\n")) {
+                explanation.add("Not NDJSON because message contains multiple lines: [" + message + "]");
+                return false;
+            }
+        }
+        return canCreateFromSample(explanation, String.join("\n", messages), allowedFractionOfBadLines);
     }
 
     @Override
@@ -89,6 +100,19 @@ public class NdJsonTextStructureFinderFactory implements TextStructureFinderFact
             overrides,
             timeoutChecker
         );
+    }
+
+    public TextStructureFinder createFromMessages(
+        List<String> explanation,
+        List<String> messages,
+        TextStructureOverrides overrides,
+        TimeoutChecker timeoutChecker
+    ) throws IOException {
+        // NdJsonTextStructureFinderFactory::canCreateFromMessages already
+        // checked that every line contains a single valid JSON message,
+        // so we can safely concatenate and run the logic for a sample.
+        String sample = String.join("\n", messages);
+        return NdJsonTextStructureFinder.makeNdJsonTextStructureFinder(explanation, sample, "UTF-8", null, overrides, timeoutChecker);
     }
 
     private static class ContextPrintingStringReader extends StringReader {

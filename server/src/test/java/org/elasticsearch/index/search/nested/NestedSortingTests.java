@@ -31,8 +31,8 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
@@ -99,7 +99,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         MultiValueMode sortMode = randomFrom(Arrays.asList(MultiValueMode.MIN, MultiValueMode.MAX));
         DirectoryReader reader = DirectoryReader.open(writer);
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(indexService.index(), 0));
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader, false);
         PagedBytesIndexFieldData indexFieldData1 = getForField("f");
         IndexFieldData<?> indexFieldData2 = NoOrdinalsStringFieldDataTests.hideOrdinals(indexFieldData1);
         final String missingValue = randomBoolean() ? null : TestUtil.randomSimpleString(random(), 2);
@@ -291,7 +291,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         MultiValueMode sortMode = MultiValueMode.MIN;
         DirectoryReader reader = DirectoryReader.open(writer);
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(indexService.index(), 0));
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader, false);
         PagedBytesIndexFieldData indexFieldData = getForField("field2");
         Query parentFilter = new TermQuery(new Term("_nested_path", "parent"));
         Query childFilter = Queries.not(parentFilter);
@@ -612,7 +612,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         }
         DirectoryReader reader = DirectoryReader.open(writer);
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId(indexService.index(), 0));
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader, false);
         SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(0, 0, searcher, () -> 0L, null, emptyMap());
 
         FieldSortBuilder sortBuilder = new FieldSortBuilder("chapters.paragraphs.word_count");
@@ -817,7 +817,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         IndexSearcher searcher
     ) throws IOException {
         Query query = new BooleanQuery.Builder().add(queryBuilder.toQuery(searchExecutionContext), Occur.MUST)
-            .add(Queries.newNonNestedFilter(), Occur.FILTER)
+            .add(Queries.newNonNestedFilter(searchExecutionContext.indexVersionCreated()), Occur.FILTER)
             .build();
         Sort sort = new Sort(sortBuilder.build(searchExecutionContext).field);
         return searcher.search(query, 10, sort);

@@ -1,0 +1,34 @@
+---
+apm_server:
+  cluster: ['manage_ilm', 'manage_security', 'manage_api_key']
+  indices:
+    - names: ['apm-*', 'logs-apm*', 'metrics-apm*', 'traces-apm*']
+      privileges: ['write', 'create_index', 'manage', 'manage_ilm']
+  applications:
+    - application: 'apm'
+      privileges: ['sourcemap:write', 'event:write', 'config_agent:read']
+      resources: '*'
+beats:
+  cluster: ['manage_index_templates', 'monitor', 'manage_ingest_pipelines', 'manage_ilm', 'manage_security', 'manage_api_key']
+  indices:
+    - names: ['filebeat-*', 'shrink-filebeat-*']
+      privileges: ['all']
+filebeat:
+  cluster: ['manage_index_templates', 'monitor', 'manage_ingest_pipelines', 'manage_ilm']
+  indices:
+    - names: ['filebeat-*', 'shrink-filebeat-*']
+      privileges: ['all']
+heartbeat:
+  cluster: ['manage_index_templates', 'monitor', 'manage_ingest_pipelines', 'manage_ilm']
+  indices:
+    - names: ['heartbeat-*', 'shrink-heartbeat-*']
+      privileges: ['all']
+metricbeat:
+  cluster: ['manage_index_templates', 'monitor', 'manage_ingest_pipelines', 'manage_ilm']
+  indices:
+    - names: ['metricbeat-*', 'shrink-metricbeat-*']
+      privileges: ['all']
+opbeans:
+  indices:
+    - names: ['opbeans-*']
+      privileges: ['write', 'read']

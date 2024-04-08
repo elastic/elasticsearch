@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -24,7 +25,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Locale;
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -99,7 +99,7 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
         {
             // null version
             int version = randomInt();
-            String configJson = String.format(Locale.ROOT, """
+            String configJson = Strings.format("""
                 {"version": %d, "description": "blah", "_meta" : {"foo": "bar"}}
                 """, version);
             PipelineConfiguration configuration = new PipelineConfiguration(

@@ -10,12 +10,12 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -142,7 +142,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             }
             // Close and reopen the main engine
             try (InternalEngine recoveringEngine = new InternalEngine(config)) {
-                recoveringEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+                recoverFromTranslog(recoveringEngine, translogHandler, Long.MAX_VALUE);
                 // the locked down engine should still point to the previous commit
                 assertThat(readOnlyEngine.getPersistedLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
                 assertThat(readOnlyEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
@@ -364,7 +364,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             }
             try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, Function.identity(), true, randomBoolean())) {
                 final TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), config.getIndexSettings());
-                readOnlyEngine.recoverFromTranslog(translogHandler, randomNonNegativeLong());
+                recoverFromTranslog(readOnlyEngine, translogHandler, randomNonNegativeLong());
 
                 assertThat(translogHandler.appliedOperations(), equalTo(0L));
             }

@@ -60,7 +60,7 @@ public class ShrinkStep extends AsyncActionStep {
         ActionListener<Void> listener
     ) {
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
-        if (lifecycleState.getLifecycleDate() == null) {
+        if (lifecycleState.lifecycleDate() == null) {
             throw new IllegalStateException("source index [" + indexMetadata.getIndex().getName() + "] is missing lifecycle date");
         }
 
@@ -70,19 +70,19 @@ public class ShrinkStep extends AsyncActionStep {
                 "skipping [{}] step for index [{}] as part of policy [{}] as the shrunk index [{}] already exists",
                 ShrinkStep.NAME,
                 indexMetadata.getIndex().getName(),
-                LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()),
+                indexMetadata.getLifecyclePolicyName(),
                 shrunkenIndexName
             );
             listener.onResponse(null);
             return;
         }
 
-        String lifecycle = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+        String policyName = indexMetadata.getLifecyclePolicyName();
 
         Settings.Builder builder = Settings.builder();
         // need to remove the single shard, allocation so replicas can be allocated
         builder.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, indexMetadata.getNumberOfReplicas())
-            .put(LifecycleSettings.LIFECYCLE_NAME, lifecycle)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", (String) null);
         if (numberOfShards != null) {
             builder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards);
@@ -95,12 +95,10 @@ public class ShrinkStep extends AsyncActionStep {
         resizeRequest.setMaxPrimaryShardSize(maxPrimaryShardSize);
         resizeRequest.getTargetIndexRequest().settings(relevantTargetSettings);
 
-        getClient().admin().indices().resizeIndex(resizeRequest, ActionListener.wrap(response -> {
-            // Hard coding this to true as the resize request was executed and the corresponding cluster change was committed, so the
-            // eventual retry will not be able to succeed anymore (shrunk index was created already)
-            // The next step in the ShrinkAction will wait for the shrunk index to be created and for the shards to be allocated.
-            listener.onResponse(null);
-        }, listener::onFailure));
+        // Hard coding this to true as the resize request was executed and the corresponding cluster change was committed, so the
+        // eventual retry will not be able to succeed anymore (shrunk index was created already)
+        // The next step in the ShrinkAction will wait for the shrunk index to be created and for the shards to be allocated.
+        getClient().admin().indices().resizeIndex(resizeRequest, listener.delegateFailureAndWrap((l, response) -> l.onResponse(null)));
 
     }
 

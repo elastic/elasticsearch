@@ -8,22 +8,24 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle.State;
+import org.elasticsearch.common.scheduler.SchedulerEngine;
+import org.elasticsearch.common.scheduler.TimeValueSchedule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
@@ -35,18 +37,18 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ilm.CheckShrinkReadyStep;
+import org.elasticsearch.xpack.core.ilm.DownsampleStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
-import org.elasticsearch.xpack.core.ilm.RollupStep;
+import org.elasticsearch.xpack.core.ilm.OperationModeUpdateTask;
 import org.elasticsearch.xpack.core.ilm.SetSingleNodeAllocateStep;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
 import org.elasticsearch.xpack.core.ilm.ShrunkShardsAllocatedStep;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 
 import java.io.Closeable;
@@ -58,8 +60,10 @@ import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.parseIndexNameAndExtractDate;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.shouldParseIndexName;
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
 
 /**
  * A service which runs the {@link LifecyclePolicy}s associated with indexes.
@@ -73,7 +77,7 @@ public class IndexLifecycleService
         IndexEventListener,
         ShutdownAwarePlugin {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleService.class);
-    private static final Set<String> IGNORE_STEPS_MAINTENANCE_REQUESTED = Set.of(ShrinkStep.NAME, RollupStep.NAME);
+    private static final Set<String> IGNORE_STEPS_MAINTENANCE_REQUESTED = Set.of(ShrinkStep.NAME, DownsampleStep.NAME);
     private volatile boolean isMaster = false;
     private volatile TimeValue pollInterval;
 
@@ -86,6 +90,7 @@ public class IndexLifecycleService
     private final LongSupplier nowSupplier;
     private SchedulerEngine.Job scheduledJob;
 
+    @SuppressWarnings("this-escape")
     public IndexLifecycleService(
         Settings settings,
         Client client,
@@ -113,8 +118,7 @@ public class IndexLifecycleService
     }
 
     public void maybeRunAsyncAction(ClusterState clusterState, IndexMetadata indexMetadata, StepKey nextStepKey) {
-        String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
-        lifecycleRunner.maybeRunAsyncAction(clusterState, indexMetadata, policyName, nextStepKey);
+        lifecycleRunner.maybeRunAsyncAction(clusterState, indexMetadata, indexMetadata.getLifecyclePolicyName(), nextStepKey);
     }
 
     /**
@@ -167,7 +171,7 @@ public class IndexLifecycleService
 
         final IndexLifecycleMetadata currentMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
         if (currentMetadata != null) {
-            OperationMode currentMode = currentMetadata.getOperationMode();
+            OperationMode currentMode = currentILMMode(clusterState);
             if (OperationMode.STOPPED.equals(currentMode)) {
                 return;
             }
@@ -177,19 +181,19 @@ public class IndexLifecycleService
             // If we just became master, we need to kick off any async actions that
             // may have not been run due to master rollover
             for (IndexMetadata idxMeta : clusterState.metadata().indices().values()) {
-                String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
-                if (Strings.isNullOrEmpty(policyName) == false) {
+                if (clusterState.metadata().isIndexManagedByILM(idxMeta)) {
+                    String policyName = idxMeta.getLifecyclePolicyName();
                     final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
                     StepKey stepKey = Step.getCurrentStepKey(lifecycleState);
 
                     try {
                         if (OperationMode.STOPPING == currentMode) {
-                            if (stepKey != null && IGNORE_STEPS_MAINTENANCE_REQUESTED.contains(stepKey.getName())) {
+                            if (stepKey != null && IGNORE_STEPS_MAINTENANCE_REQUESTED.contains(stepKey.name())) {
                                 logger.info(
                                     "waiting to stop ILM because index [{}] with policy [{}] is currently in step [{}]",
                                     idxMeta.getIndex().getName(),
                                     policyName,
-                                    stepKey.getName()
+                                    stepKey.name()
                                 );
                                 lifecycleRunner.maybeRunAsyncAction(clusterState, idxMeta, policyName, stepKey);
                                 // ILM is trying to stop, but this index is in a Shrink step (or other dangerous step) so we can't stop
@@ -197,7 +201,7 @@ public class IndexLifecycleService
                             } else {
                                 logger.info(
                                     "skipping policy execution of step [{}] for index [{}] with policy [{}]" + " because ILM is stopping",
-                                    stepKey == null ? "n/a" : stepKey.getName(),
+                                    stepKey == null ? "n/a" : stepKey.name(),
                                     idxMeta.getIndex().getName(),
                                     policyName
                                 );
@@ -208,9 +212,9 @@ public class IndexLifecycleService
                     } catch (Exception e) {
                         if (logger.isTraceEnabled()) {
                             logger.warn(
-                                new ParameterizedMessage(
+                                () -> format(
                                     "async action execution failed during master election trigger"
-                                        + " for index [{}] with policy [{}] in step [{}], lifecycle state: [{}]",
+                                        + " for index [%s] with policy [%s] in step [%s], lifecycle state: [%s]",
                                     idxMeta.getIndex().getName(),
                                     policyName,
                                     stepKey,
@@ -220,9 +224,9 @@ public class IndexLifecycleService
                             );
                         } else {
                             logger.warn(
-                                new ParameterizedMessage(
+                                () -> format(
                                     "async action execution failed during master election trigger"
-                                        + " for index [{}] with policy [{}] in step [{}]",
+                                        + " for index [%s] with policy [%s] in step [%s]",
                                     idxMeta.getIndex().getName(),
                                     policyName,
                                     stepKey
@@ -238,13 +242,13 @@ public class IndexLifecycleService
             }
 
             if (safeToStop && OperationMode.STOPPING == currentMode) {
-                clusterService.submitStateUpdateTask(
-                    "ilm_operation_mode_update[stopped]",
-                    OperationModeUpdateTask.ilmMode(OperationMode.STOPPED),
-                    ClusterStateTaskExecutor.unbatched()
-                );
+                stopILM();
             }
         }
+    }
+
+    private void stopILM() {
+        submitUnbatchedTask("ilm_operation_mode_update[stopped]", OperationModeUpdateTask.ilmMode(OperationMode.STOPPED));
     }
 
     @Override
@@ -301,14 +305,27 @@ public class IndexLifecycleService
         if (prevIsMaster != event.localNodeMaster()) {
             this.isMaster = event.localNodeMaster();
             if (this.isMaster) {
+                // we weren't the master, and now we are
                 onMaster(event.state());
             } else {
+                // we were the master, and now we aren't
                 cancelJob();
+                policyRegistry.clear();
             }
         }
 
-        final IndexLifecycleMetadata lifecycleMetadata = event.state().metadata().custom(IndexLifecycleMetadata.TYPE);
-        if (this.isMaster && lifecycleMetadata != null) {
+        // if we're the master, then process deleted indices and trigger policies
+        if (this.isMaster) {
+            // cleanup cache in policyRegistry on another thread since its not critical to have it run on the applier thread and computing
+            // the deleted indices becomes expensive for larger cluster states
+            if (event.state().metadata().indices() != event.previousState().metadata().indices()) {
+                clusterService.getClusterApplierService().threadPool().executor(ThreadPool.Names.MANAGEMENT).execute(() -> {
+                    for (Index index : event.indicesDeleted()) {
+                        policyRegistry.delete(index);
+                    }
+                });
+            }
+
             triggerPolicies(event.state(), true);
         }
     }
@@ -358,11 +375,14 @@ public class IndexLifecycleService
     void triggerPolicies(ClusterState clusterState, boolean fromClusterStateChange) {
         IndexLifecycleMetadata currentMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE);
 
+        OperationMode currentMode = currentILMMode(clusterState);
         if (currentMetadata == null) {
+            if (currentMode == OperationMode.STOPPING) {
+                // There are no policies and ILM is in stopping mode, so stop ILM and get out of here
+                stopILM();
+            }
             return;
         }
-
-        OperationMode currentMode = currentMetadata.getOperationMode();
 
         if (OperationMode.STOPPED.equals(currentMode)) {
             return;
@@ -374,19 +394,19 @@ public class IndexLifecycleService
         // managed by the Index Lifecycle Service they have a index.lifecycle.name setting
         // associated to a policy
         for (IndexMetadata idxMeta : clusterState.metadata().indices().values()) {
-            String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
-            if (Strings.isNullOrEmpty(policyName) == false) {
+            if (clusterState.metadata().isIndexManagedByILM(idxMeta)) {
+                String policyName = idxMeta.getLifecyclePolicyName();
                 final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
                 StepKey stepKey = Step.getCurrentStepKey(lifecycleState);
 
                 try {
                     if (OperationMode.STOPPING == currentMode) {
-                        if (stepKey != null && IGNORE_STEPS_MAINTENANCE_REQUESTED.contains(stepKey.getName())) {
+                        if (stepKey != null && IGNORE_STEPS_MAINTENANCE_REQUESTED.contains(stepKey.name())) {
                             logger.info(
                                 "waiting to stop ILM because index [{}] with policy [{}] is currently in step [{}]",
                                 idxMeta.getIndex().getName(),
                                 policyName,
-                                stepKey.getName()
+                                stepKey.name()
                             );
                             if (fromClusterStateChange) {
                                 lifecycleRunner.runPolicyAfterStateChange(policyName, idxMeta);
@@ -398,7 +418,7 @@ public class IndexLifecycleService
                         } else {
                             logger.info(
                                 "skipping policy execution of step [{}] for index [{}] with policy [{}] because ILM is stopping",
-                                stepKey == null ? "n/a" : stepKey.getName(),
+                                stepKey == null ? "n/a" : stepKey.name(),
                                 idxMeta.getIndex().getName(),
                                 policyName
                             );
@@ -413,9 +433,9 @@ public class IndexLifecycleService
                 } catch (Exception e) {
                     if (logger.isTraceEnabled()) {
                         logger.warn(
-                            new ParameterizedMessage(
+                            () -> format(
                                 "async action execution failed during policy trigger"
-                                    + " for index [{}] with policy [{}] in step [{}], lifecycle state: [{}]",
+                                    + " for index [%s] with policy [%s] in step [%s], lifecycle state: [%s]",
                                 idxMeta.getIndex().getName(),
                                 policyName,
                                 stepKey,
@@ -425,8 +445,8 @@ public class IndexLifecycleService
                         );
                     } else {
                         logger.warn(
-                            new ParameterizedMessage(
-                                "async action execution failed during policy trigger" + " for index [{}] with policy [{}] in step [{}]",
+                            () -> format(
+                                "async action execution failed during policy trigger" + " for index [%s] with policy [%s] in step [%s]",
                                 idxMeta.getIndex().getName(),
                                 policyName,
                                 stepKey
@@ -442,11 +462,7 @@ public class IndexLifecycleService
         }
 
         if (safeToStop && OperationMode.STOPPING == currentMode) {
-            clusterService.submitStateUpdateTask(
-                "ilm_operation_mode_update[stopped]",
-                OperationModeUpdateTask.ilmMode(OperationMode.STOPPED),
-                ClusterStateTaskExecutor.unbatched()
-            );
+            stopILM();
         }
     }
 
@@ -480,6 +496,7 @@ public class IndexLifecycleService
         final Set<String> shutdownNodes = PluginShutdownService.shutdownTypeNodes(
             state,
             SingleNodeShutdownMetadata.Type.REMOVE,
+            SingleNodeShutdownMetadata.Type.SIGTERM,
             SingleNodeShutdownMetadata.Type.REPLACE
         );
         if (shutdownNodes.isEmpty()) {
@@ -488,16 +505,15 @@ public class IndexLifecycleService
 
         Set<String> indicesPreventingShutdown = state.metadata()
             .indices()
+            .entrySet()
             .stream()
             // Filter out to only consider managed indices
-            .filter(
-                indexToMetadata -> Strings.hasText(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexToMetadata.getValue().getSettings()))
-            )
+            .filter(indexToMetadata -> Strings.hasText(indexToMetadata.getValue().getLifecyclePolicyName()))
             // Only look at indices in the shrink action
-            .filter(indexToMetadata -> ShrinkAction.NAME.equals(indexToMetadata.getValue().getLifecycleExecutionState().getAction()))
+            .filter(indexToMetadata -> ShrinkAction.NAME.equals(indexToMetadata.getValue().getLifecycleExecutionState().action()))
             // Only look at indices on a step that may potentially be dangerous if we removed the node
             .filter(indexToMetadata -> {
-                String step = indexToMetadata.getValue().getLifecycleExecutionState().getStep();
+                String step = indexToMetadata.getValue().getLifecycleExecutionState().step();
                 return SetSingleNodeAllocateStep.NAME.equals(step)
                     || CheckShrinkReadyStep.NAME.equals(step)
                     || ShrinkStep.NAME.equals(step)
@@ -528,6 +544,7 @@ public class IndexLifecycleService
                 return true;
             case REPLACE:
             case REMOVE:
+            case SIGTERM:
                 Set<String> indices = indicesOnShuttingDownNodesInDangerousStep(clusterService.state(), nodeId);
                 return indices.isEmpty();
             default:
@@ -538,5 +555,10 @@ public class IndexLifecycleService
     @Override
     public void signalShutdown(Collection<String> shutdownNodeIds) {
         // TODO: in the future we could take proactive measures for when a shutdown is actually triggered
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 }

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -71,13 +73,6 @@ public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAgg
         return this;
     }
 
-    /**
-     * Gets the format to use on the output of this aggregation.
-     */
-    public String format() {
-        return format;
-    }
-
     protected DocValueFormat formatter() {
         if (format != null) {
             return new DocValueFormat.Decimal(format);
@@ -96,7 +91,7 @@ public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAgg
         if (bucketsPaths.length != 1) {
             context.addBucketPathValidationError("must contain a single entry for aggregation [" + name + "]");
         }
-        context.validateParentAggSequentiallyOrdered(NAME, name);
+        context.validateParentAggSequentiallyOrderedWithoutSkips(NAME, name);
     }
 
     @Override
@@ -124,5 +119,10 @@ public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAgg
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_7_4_0;
     }
 }

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -26,6 +28,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.ToLongFunction;
 
 public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilder<DiversifiedAggregationBuilder> {
     public static final String NAME = "diversified_sampler";
@@ -105,13 +108,6 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     /**
-     * Get the max num docs to be returned from each shard.
-     */
-    public int shardSize() {
-        return shardSize;
-    }
-
-    /**
      * Set the max num docs to be returned per value.
      */
     public DiversifiedAggregationBuilder maxDocsPerValue(int maxDocsPerValue) {
@@ -125,25 +121,11 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     /**
-     * Get the max num docs to be returned per value.
-     */
-    public int maxDocsPerValue() {
-        return maxDocsPerValue;
-    }
-
-    /**
      * Set the execution hint.
      */
     public DiversifiedAggregationBuilder executionHint(String executionHint) {
         this.executionHint = executionHint;
         return this;
-    }
-
-    /**
-     * Get the execution hint.
-     */
-    public String executionHint() {
-        return executionHint;
     }
 
     @Override
@@ -205,7 +187,12 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
+    }
+
+    @Override
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        return false;
     }
 }

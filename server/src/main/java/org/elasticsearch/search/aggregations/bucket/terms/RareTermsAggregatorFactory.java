@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -56,49 +55,34 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
      * including those that need global ordinals
      */
     private static RareTermsAggregatorSupplier bytesSupplier() {
-        return new RareTermsAggregatorSupplier() {
-            @Override
-            public Aggregator build(
-                String name,
-                AggregatorFactories factories,
-                ValuesSource valuesSource,
-                DocValueFormat format,
-                int maxDocCount,
-                double precision,
-                IncludeExclude includeExclude,
-                AggregationContext context,
-                Aggregator parent,
-                CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
-            ) throws IOException {
+        return (name, factories, valuesSource, format, maxDocCount, precision, includeExclude, context, parent, cardinality, metadata) -> {
 
-                ExecutionMode execution = ExecutionMode.MAP; // TODO global ords not implemented yet, only supports "map"
+            ExecutionMode execution = ExecutionMode.MAP; // TODO global ords not implemented yet, only supports "map"
 
-                if ((includeExclude != null) && (includeExclude.isRegexBased()) && format != DocValueFormat.RAW) {
-                    throw new IllegalArgumentException(
-                        "Aggregation ["
-                            + name
-                            + "] cannot support "
-                            + "regular expression style include/exclude settings as they can only be applied to string fields. "
-                            + "Use an array of values for include/exclude clauses"
-                    );
-                }
-
-                return execution.create(
-                    name,
-                    factories,
-                    valuesSource,
-                    format,
-                    includeExclude,
-                    context,
-                    parent,
-                    metadata,
-                    maxDocCount,
-                    precision,
-                    cardinality
+            if ((includeExclude != null) && (includeExclude.isRegexBased()) && format != DocValueFormat.RAW) {
+                throw new IllegalArgumentException(
+                    "Aggregation ["
+                        + name
+                        + "] cannot support "
+                        + "regular expression style include/exclude settings as they can only be applied to string fields. "
+                        + "Use an array of values for include/exclude clauses"
                 );
-
             }
+
+            return execution.create(
+                name,
+                factories,
+                valuesSource,
+                format,
+                includeExclude,
+                context,
+                parent,
+                metadata,
+                maxDocCount,
+                precision,
+                cardinality
+            );
+
         };
     }
 
@@ -107,53 +91,38 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
      * This includes floating points, and formatted types that use numerics internally for storage (date, boolean, etc)
      */
     private static RareTermsAggregatorSupplier numericSupplier() {
-        return new RareTermsAggregatorSupplier() {
-            @Override
-            public Aggregator build(
-                String name,
-                AggregatorFactories factories,
-                ValuesSource valuesSource,
-                DocValueFormat format,
-                int maxDocCount,
-                double precision,
-                IncludeExclude includeExclude,
-                AggregationContext context,
-                Aggregator parent,
-                CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
-            ) throws IOException {
+        return (name, factories, valuesSource, format, maxDocCount, precision, includeExclude, context, parent, cardinality, metadata) -> {
 
-                if ((includeExclude != null) && (includeExclude.isRegexBased())) {
-                    throw new IllegalArgumentException(
-                        "Aggregation ["
-                            + name
-                            + "] cannot support regular expression "
-                            + "style include/exclude settings as they can only be applied to string fields. Use an array of numeric "
-                            + "values for include/exclude clauses used to filter numeric fields"
-                    );
-                }
-
-                IncludeExclude.LongFilter longFilter = null;
-                if (((ValuesSource.Numeric) valuesSource).isFloatingPoint()) {
-                    throw new IllegalArgumentException("RareTerms aggregation does not support floating point fields.");
-                }
-                if (includeExclude != null) {
-                    longFilter = includeExclude.convertToLongFilter(format);
-                }
-                return new LongRareTermsAggregator(
-                    name,
-                    factories,
-                    (ValuesSource.Numeric) valuesSource,
-                    format,
-                    context,
-                    parent,
-                    longFilter,
-                    maxDocCount,
-                    precision,
-                    cardinality,
-                    metadata
+            if ((includeExclude != null) && (includeExclude.isRegexBased())) {
+                throw new IllegalArgumentException(
+                    "Aggregation ["
+                        + name
+                        + "] cannot support regular expression "
+                        + "style include/exclude settings as they can only be applied to string fields. Use an array of numeric "
+                        + "values for include/exclude clauses used to filter numeric fields"
                 );
             }
+
+            IncludeExclude.LongFilter longFilter = null;
+            if (((ValuesSource.Numeric) valuesSource).isFloatingPoint()) {
+                throw new IllegalArgumentException("RareTerms aggregation does not support floating point fields.");
+            }
+            if (includeExclude != null) {
+                longFilter = includeExclude.convertToLongFilter(format);
+            }
+            return new LongRareTermsAggregator(
+                name,
+                factories,
+                (ValuesSource.Numeric) valuesSource,
+                format,
+                context,
+                parent,
+                longFilter,
+                maxDocCount,
+                precision,
+                cardinality,
+                metadata
+            );
         };
     }
 
@@ -240,19 +209,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 );
             }
 
-            @Override
-            boolean needsGlobalOrdinals() {
-                return false;
-            }
-
         };
-
-        public static ExecutionMode fromString(String value, final DeprecationLogger deprecationLogger) {
-            return switch (value) {
-                case "map" -> MAP;
-                default -> throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of [map]");
-            };
-        }
 
         private final ParseField parseField;
 
@@ -273,8 +230,6 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             double precision,
             CardinalityUpperBound cardinality
         ) throws IOException;
-
-        abstract boolean needsGlobalOrdinals();
 
         @Override
         public String toString() {

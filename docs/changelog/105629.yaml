@@ -1,0 +1,5 @@
+pr: 105629
+summary: Show owner `realm_type` for returned API keys
+area: Security
+type: enhancement
+issues: []

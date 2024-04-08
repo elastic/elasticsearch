@@ -9,11 +9,10 @@
 package org.elasticsearch.rest.action.admin.cluster.dangling;
 
 import org.elasticsearch.action.admin.indices.dangling.delete.DeleteDanglingIndexRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.admin.indices.dangling.delete.TransportDeleteDanglingIndexAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -44,11 +43,10 @@ public class RestDeleteDanglingIndexAction extends BaseRestHandler {
         deleteRequest.timeout(request.paramAsTime("timeout", deleteRequest.timeout()));
         deleteRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteRequest.masterNodeTimeout()));
 
-        return channel -> client.admin().cluster().deleteDanglingIndex(deleteRequest, new RestToXContentListener<>(channel) {
-            @Override
-            protected RestStatus getStatus(AcknowledgedResponse acknowledgedResponse) {
-                return ACCEPTED;
-            }
-        });
+        return channel -> client.execute(
+            TransportDeleteDanglingIndexAction.TYPE,
+            deleteRequest,
+            new RestToXContentListener<>(channel, r -> ACCEPTED)
+        );
     }
 }

@@ -6,8 +6,7 @@
  * Side Public License, v 1.
  */
 
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
@@ -16,9 +15,9 @@ testClusters.configureEach {
   user username: 'admin', password: 'admin-password', role: 'superuser'
 }
 
-tasks.named("integTest").configure {
+tasks.named("javaRestTest").configure {
   systemProperty 'tests.security.manager', 'false' // Allows the test the add databases to config directory.
-  nonInputProperties.systemProperty 'tests.config.dir', testClusters.named("integTest").map(c -> c.singleNode().getConfigDir())
+  nonInputProperties.systemProperty 'tests.config.dir', testClusters.named("javaRestTest").map(c -> c.singleNode().getConfigDir())
 }
 
 tasks.named("forbiddenPatterns").configure {

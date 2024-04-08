@@ -17,13 +17,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class PyTorchPassThroughResultsTests extends InferenceResultsTestCase<PyTorchPassThroughResults> {
-    @Override
-    protected Writeable.Reader<PyTorchPassThroughResults> instanceReader() {
-        return PyTorchPassThroughResults::new;
-    }
 
-    @Override
-    protected PyTorchPassThroughResults createTestInstance() {
+    public static PyTorchPassThroughResults createRandomResults() {
         int rows = randomIntBetween(1, 10);
         int columns = randomIntBetween(1, 10);
         double[][] arr = new double[rows][columns];
@@ -34,6 +29,21 @@ public class PyTorchPassThroughResultsTests extends InferenceResultsTestCase<PyT
         }
 
         return new PyTorchPassThroughResults(DEFAULT_RESULTS_FIELD, arr, randomBoolean());
+    }
+
+    @Override
+    protected Writeable.Reader<PyTorchPassThroughResults> instanceReader() {
+        return PyTorchPassThroughResults::new;
+    }
+
+    @Override
+    protected PyTorchPassThroughResults createTestInstance() {
+        return createRandomResults();
+    }
+
+    @Override
+    protected PyTorchPassThroughResults mutateInstance(PyTorchPassThroughResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public void testAsMap() {
@@ -48,10 +58,7 @@ public class PyTorchPassThroughResultsTests extends InferenceResultsTestCase<PyT
     }
 
     @Override
-    void assertFieldValues(PyTorchPassThroughResults createdInstance, IngestDocument document, String resultsField) {
-        assertArrayEquals(
-            createdInstance.getInference(),
-            document.getFieldValue(resultsField + "." + createdInstance.getResultsField(), double[][].class)
-        );
+    void assertFieldValues(PyTorchPassThroughResults createdInstance, IngestDocument document, String parentField, String resultsField) {
+        assertArrayEquals(createdInstance.getInference(), document.getFieldValue(parentField + resultsField, double[][].class));
     }
 }

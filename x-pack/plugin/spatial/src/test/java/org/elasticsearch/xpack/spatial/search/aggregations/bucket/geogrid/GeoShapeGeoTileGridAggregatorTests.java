@@ -7,15 +7,22 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileBoundedPredicate;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoTileGridBucket;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.query.GeoGridQueryBuilder;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
+
+import java.io.IOException;
 
 public class GeoShapeGeoTileGridAggregatorTests extends GeoShapeGeoGridTestCase<InternalGeoTileGridBucket> {
 
@@ -25,8 +32,8 @@ public class GeoShapeGeoTileGridAggregatorTests extends GeoShapeGeoGridTestCase<
     }
 
     @Override
-    protected String hashAsString(double lng, double lat, int precision) {
-        return GeoTileUtils.stringEncode(GeoTileUtils.longEncode(lng, lat, precision));
+    protected String[] hashAsStrings(double lng, double lat, int precision) {
+        return new String[] { GeoTileUtils.stringEncode(GeoTileUtils.longEncode(lng, lat, precision)) };
     }
 
     @Override
@@ -54,8 +61,21 @@ public class GeoShapeGeoTileGridAggregatorTests extends GeoShapeGeoGridTestCase<
     }
 
     @Override
-    protected Rectangle getTile(double lng, double lat, int precision) {
-        return GeoTileUtils.toBoundingBox(GeoTileUtils.longEncode(lng, lat, precision));
+    protected boolean intersects(String hash, GeoShapeValues.GeoShapeValue value) throws IOException {
+        final Rectangle r = GeoGridQueryBuilder.getQueryTile(GeoTileUtils.stringEncode(GeoTileUtils.longEncode(hash)));
+        return value.relate(
+            GeoEncodingUtils.encodeLongitude(r.getMinLon()),
+            GeoEncodingUtils.encodeLongitude(r.getMaxLon()),
+            GeoEncodingUtils.encodeLatitude(r.getMinLat()),
+            GeoEncodingUtils.encodeLatitude(r.getMaxLat())
+        ) != GeoRelation.QUERY_DISJOINT;
+    }
+
+    @Override
+    protected boolean intersectsBounds(String hash, GeoBoundingBox box) {
+        final int[] values = GeoTileUtils.parseHash(hash);
+        final GeoTileBoundedPredicate predicate = new GeoTileBoundedPredicate(values[0], box);
+        return predicate.validTile(values[1], values[2], values[0]);
     }
 
     @Override

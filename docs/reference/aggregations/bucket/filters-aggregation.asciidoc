@@ -66,6 +66,7 @@ Response:
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
 // TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
+[[anonymous-filters]]
 ==== Anonymous filters
 
 The filters field can also be provided as an array of filters, as in the
@@ -187,3 +188,67 @@ The response would be something like the following:
 // TESTRESPONSE[s/"took": 3/"took": $body.took/]
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
 // TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
+
+[[non-keyed-response]]
+==== Non-keyed Response
+
+By default, the named filters aggregation returns the buckets as an object. But in some sorting cases, such as
+<<search-aggregations-pipeline-bucket-sort-aggregation,bucket sort>>, the JSON doesn't guarantee the order of elements
+in the object. You can use the `keyed` parameter to specify the buckets as an array of objects. The value of this
+parameter can be as follows:
+
+`true`::        (Default) Returns the buckets as an object
+`false`::       Returns the buckets as an array of objects
+
+NOTE: This parameter is ignored by <<anonymous-filters,Anonymous filters>>.
+
+Example:
+
+[source,console,id=filters-aggregation-sortable-example]
+----
+POST /sales/_search?size=0&filter_path=aggregations
+{
+  "aggs": {
+    "the_filter": {
+      "filters": {
+        "keyed": false,
+        "filters": {
+          "t-shirt": { "term": { "type": "t-shirt" } },
+          "hat": { "term": { "type": "hat" } }
+        }
+      },
+      "aggs": {
+        "avg_price": { "avg": { "field": "price" } },
+        "sort_by_avg_price": {
+          "bucket_sort": { "sort": { "avg_price": "asc" } }
+        }
+      }
+    }
+  }
+}
+----
+// TEST[setup:sales]
+
+Response:
+
+[source,console-result]
+----
+{
+  "aggregations": {
+    "the_filter": {
+      "buckets": [
+        {
+          "key": "t-shirt",
+          "doc_count": 3,
+          "avg_price": { "value": 128.33333333333334 }
+        },
+        {
+          "key": "hat",
+          "doc_count": 3,
+          "avg_price": { "value": 150.0 }
+        }
+      ]
+    }
+  }
+}
+----

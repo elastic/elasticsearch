@@ -5,3 +5,4 @@ limited_operator:
     - "cluster:admin/settings/update"
     - "cluster:admin/snapshot/restore"
     - "cluster:admin/shutdown/*"
+    - "cluster:admin/desired_nodes/*"

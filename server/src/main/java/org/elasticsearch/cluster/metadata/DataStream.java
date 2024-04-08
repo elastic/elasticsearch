@@ -11,48 +11,80 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
+import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling.Round;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-public final class DataStream extends AbstractDiffable<DataStream> implements ToXContentObject {
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
+import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
+
+public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject, IndexAbstraction {
+
+    public static final FeatureFlag FAILURE_STORE_FEATURE_FLAG = new FeatureFlag("failure_store");
+    public static final TransportVersion ADDED_FAILURE_STORE_TRANSPORT_VERSION = TransportVersions.V_8_12_0;
+    public static final TransportVersion ADDED_AUTO_SHARDING_EVENT_VERSION = TransportVersions.DATA_STREAM_AUTO_SHARDING_EVENT;
+
+    public static boolean isFailureStoreEnabled() {
+        return FAILURE_STORE_FEATURE_FLAG.isEnabled();
+    }
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
+    public static final String FAILURE_STORE_PREFIX = ".fs-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
+    public static final String TIMESTAMP_FIELD_NAME = "@timestamp";
     // Timeseries indices' leaf readers should be sorted by desc order of their timestamp field, as it allows search time optimizations
     public static Comparator<LeafReader> TIMESERIES_LEAF_READERS_SORTER = Comparator.comparingLong((LeafReader r) -> {
         try {
-            PointValues points = r.getPointValues(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+            PointValues points = r.getPointValues(TIMESTAMP_FIELD_NAME);
             if (points != null) {
                 byte[] sortValue = points.getMaxPackedValue();
                 return LongPoint.decodeDimension(sortValue, 0);
@@ -64,16 +96,12 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
                 return Long.MIN_VALUE;
             }
         } catch (IOException e) {
-            throw new ElasticsearchException(
-                "Can't access [" + DataStream.TimestampField.FIXED_TIMESTAMP_FIELD + "] field for the index!",
-                e
-            );
+            throw new ElasticsearchException("Can't access [" + TIMESTAMP_FIELD_NAME + "] field for the index!", e);
         }
     }).reversed();
 
     private final LongSupplier timeProvider;
     private final String name;
-    private final TimestampField timeStampField;
     private final List<Index> indices;
     private final long generation;
     private final Map<String, Object> metadata;
@@ -81,21 +109,33 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     private final boolean replicated;
     private final boolean system;
     private final boolean allowCustomRouting;
+    private final IndexMode indexMode;
+    @Nullable
+    private final DataStreamLifecycle lifecycle;
+    private final boolean rolloverOnWrite;
+    private final boolean failureStore;
+    private final List<Index> failureIndices;
+    private volatile Set<String> failureStoreLookup;
+    @Nullable
+    private final DataStreamAutoShardingEvent autoShardingEvent;
 
     public DataStream(
         String name,
-        TimestampField timeStampField,
         List<Index> indices,
         long generation,
         Map<String, Object> metadata,
         boolean hidden,
         boolean replicated,
         boolean system,
-        boolean allowCustomRouting
+        boolean allowCustomRouting,
+        IndexMode indexMode,
+        DataStreamLifecycle lifecycle,
+        boolean failureStore,
+        List<Index> failureIndices,
+        @Nullable DataStreamAutoShardingEvent autoShardingEvent
     ) {
         this(
             name,
-            timeStampField,
             indices,
             generation,
             metadata,
@@ -103,14 +143,54 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
             replicated,
             system,
             System::currentTimeMillis,
-            allowCustomRouting
+            allowCustomRouting,
+            indexMode,
+            lifecycle,
+            failureStore,
+            failureIndices,
+            false,
+            autoShardingEvent
+        );
+    }
+
+    public DataStream(
+        String name,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata,
+        boolean hidden,
+        boolean replicated,
+        boolean system,
+        boolean allowCustomRouting,
+        IndexMode indexMode,
+        DataStreamLifecycle lifecycle,
+        boolean failureStore,
+        List<Index> failureIndices,
+        boolean rolloverOnWrite,
+        @Nullable DataStreamAutoShardingEvent autoShardingEvent
+    ) {
+        this(
+            name,
+            indices,
+            generation,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            System::currentTimeMillis,
+            allowCustomRouting,
+            indexMode,
+            lifecycle,
+            failureStore,
+            failureIndices,
+            rolloverOnWrite,
+            autoShardingEvent
         );
     }
 
     // visible for testing
     DataStream(
         String name,
-        TimestampField timeStampField,
         List<Index> indices,
         long generation,
         Map<String, Object> metadata,
@@ -118,11 +198,17 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         boolean replicated,
         boolean system,
         LongSupplier timeProvider,
-        boolean allowCustomRouting
+        boolean allowCustomRouting,
+        IndexMode indexMode,
+        DataStreamLifecycle lifecycle,
+        boolean failureStore,
+        List<Index> failureIndices,
+        boolean rolloverOnWrite,
+        @Nullable DataStreamAutoShardingEvent autoShardingEvent
     ) {
         this.name = name;
-        this.timeStampField = timeStampField;
-        this.indices = Collections.unmodifiableList(indices);
+        this.indices = List.copyOf(indices);
+        assert indices.isEmpty() == false;
         this.generation = generation;
         this.metadata = metadata;
         assert system == false || hidden; // system indices must be hidden
@@ -131,17 +217,56 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         this.timeProvider = timeProvider;
         this.system = system;
         this.allowCustomRouting = allowCustomRouting;
-        assert indices.size() > 0;
+        this.indexMode = indexMode;
+        this.lifecycle = lifecycle;
+        this.failureStore = failureStore;
+        this.failureIndices = failureIndices;
+        assert assertConsistent(this.indices);
+        this.rolloverOnWrite = rolloverOnWrite;
+        this.autoShardingEvent = autoShardingEvent;
     }
 
+    // mainly available for testing
+    public DataStream(
+        String name,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata,
+        boolean hidden,
+        boolean replicated,
+        boolean system,
+        boolean allowCustomRouting,
+        IndexMode indexMode
+    ) {
+        this(name, indices, generation, metadata, hidden, replicated, system, allowCustomRouting, indexMode, null, false, List.of(), null);
+    }
+
+    private static boolean assertConsistent(List<Index> indices) {
+        assert indices.size() > 0;
+        final Set<String> indexNames = new HashSet<>();
+        for (Index index : indices) {
+            final boolean added = indexNames.add(index.getName());
+            assert added : "found duplicate index entries in " + indices;
+        }
+        return true;
+    }
+
+    @Override
+    public Type getType() {
+        return Type.DATA_STREAM;
+    }
+
+    @Override
     public String getName() {
         return name;
     }
 
-    public TimestampField getTimeStampField() {
-        return timeStampField;
+    @Override
+    public boolean isDataStreamRelated() {
+        return true;
     }
 
+    @Override
     public List<Index> getIndices() {
         return indices;
     }
@@ -150,8 +275,43 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         return generation;
     }
 
+    public List<Index> getFailureIndices() {
+        return failureIndices;
+    }
+
+    @Override
     public Index getWriteIndex() {
         return indices.get(indices.size() - 1);
+    }
+
+    /**
+     * @return the write failure index if the failure store is enabled and there is already at least one failure, null otherwise
+     */
+    @Nullable
+    public Index getFailureStoreWriteIndex() {
+        return isFailureStore() == false || failureIndices.isEmpty() ? null : failureIndices.get(failureIndices.size() - 1);
+    }
+
+    /**
+     * Returns true if the index name provided belongs to a failure store index.
+     * This method builds a local Set with all the failure store index names and then checks if it contains the name.
+     * This will perform better if there are multiple indices of this data stream checked.
+     */
+    public boolean isFailureStoreIndex(String indexName) {
+        if (failureStoreLookup == null) {
+            // There is a chance this will be calculated twice, but it's a relatively cheap action,
+            // so it's not worth synchronising
+            if (failureIndices == null || failureIndices.isEmpty()) {
+                failureStoreLookup = Set.of();
+            } else {
+                failureStoreLookup = failureIndices.stream().map(Index::getName).collect(Collectors.toSet());
+            }
+        }
+        return failureStoreLookup.contains(indexName);
+    }
+
+    public boolean rolloverOnWrite() {
+        return rolloverOnWrite;
     }
 
     /**
@@ -165,10 +325,16 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
             Index index = indices.get(i);
             IndexMetadata im = metadata.index(index);
 
-            // TODO: make start and end time fields in IndexMetadata class.
+            // TODO: make index_mode, start and end time fields in IndexMetadata class.
             // (this to avoid the overhead that occurs when reading a setting)
-            Instant start = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());
-            Instant end = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
+            if (im.getIndexMode() != IndexMode.TIME_SERIES) {
+                // Not a tsdb backing index, so skip.
+                // (This can happen if this is a migrated tsdb data stream)
+                continue;
+            }
+
+            Instant start = im.getTimeSeriesStart();
+            Instant end = im.getTimeSeriesEnd();
             // Check should be in sync with DataStreamTimestampFieldMapper#validateTimestamp(...) method
             if (timestamp.compareTo(start) >= 0 && timestamp.compareTo(end) < 0) {
                 return index;
@@ -177,13 +343,61 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         return null;
     }
 
-    public boolean isTimeSeries(Function<Index, IndexMetadata> indices) {
-        return isTimeSeries(indices.apply(getWriteIndex()));
-    }
+    /**
+     * Validates this data stream. If this is a time series data stream then this method validates that temporal range
+     * of backing indices (defined by index.time_series.start_time and index.time_series.end_time) do not overlap with each other.
+     *
+     * @param imSupplier Function that supplies {@link IndexMetadata} instances based on the provided index name
+     */
+    public void validate(Function<String, IndexMetadata> imSupplier) {
+        if (indexMode == IndexMode.TIME_SERIES) {
+            // Get a sorted overview of each backing index with there start and end time range:
+            var startAndEndTimes = indices.stream().map(index -> {
+                IndexMetadata im = imSupplier.apply(index.getName());
+                if (im == null) {
+                    throw new IllegalStateException("index [" + index.getName() + "] is not found in the index metadata supplier");
+                }
+                return im;
+            })
+                .filter(
+                    // Migrated tsdb data streams have non tsdb backing indices:
+                    im -> im.getTimeSeriesStart() != null && im.getTimeSeriesEnd() != null
+                )
+                .map(im -> {
+                    Instant start = im.getTimeSeriesStart();
+                    Instant end = im.getTimeSeriesEnd();
+                    assert end.isAfter(start); // This is also validated by TIME_SERIES_END_TIME setting.
+                    return new Tuple<>(im.getIndex().getName(), new Tuple<>(start, end));
+                })
+                .sorted(Comparator.comparing(entry -> entry.v2().v1())) // Sort by start time
+                .toList();
 
-    public boolean isTimeSeries(IndexMetadata indexMetadata) {
-        IndexMode indexMode = IndexSettings.MODE.get(indexMetadata.getSettings());
-        return indexMode == IndexMode.TIME_SERIES;
+            Tuple<String, Tuple<Instant, Instant>> previous = null;
+            var formatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+            for (var current : startAndEndTimes) {
+                if (previous == null) {
+                    previous = current;
+                } else {
+                    // The end_time of previous backing index should be equal or less than start_time of current backing index.
+                    // If previous.end_time > current.start_time then we should fail here:
+                    if (previous.v2().v2().compareTo(current.v2().v1()) > 0) {
+                        String range1 = formatter.format(previous.v2().v1()) + " TO " + formatter.format(previous.v2().v2());
+                        String range2 = formatter.format(current.v2().v1()) + " TO " + formatter.format(current.v2().v2());
+                        throw new IllegalArgumentException(
+                            "backing index ["
+                                + previous.v1()
+                                + "] with range ["
+                                + range1
+                                + "] is overlapping with backing index ["
+                                + current.v1()
+                                + "] with range ["
+                                + range2
+                                + "]"
+                        );
+                    }
+                }
+            }
+        }
     }
 
     @Nullable
@@ -191,13 +405,14 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         return metadata;
     }
 
+    @Override
     public boolean isHidden() {
         return hidden;
     }
 
     /**
      * Determines whether this data stream is replicated from elsewhere,
-     * for example a remote cluster.
+     * for example a remote cluster
      *
      * @return Whether this data stream is replicated.
      */
@@ -205,6 +420,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         return replicated;
     }
 
+    @Override
     public boolean isSystem() {
         return system;
     }
@@ -214,37 +430,169 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     }
 
     /**
-     * Performs a rollover on a {@code DataStream} instance and returns a new instance containing
-     * the updated list of backing indices and incremented generation.
+     * Determines if this data stream should persist ingest pipeline and mapping failures from bulk requests to a locally
+     * configured failure store.
      *
-     * @param writeIndex new write index
-     * @param generation new generation
-     *
-     * @return new {@code DataStream} instance with the rollover operation applied
+     * @return Whether this data stream should store ingestion failures.
      */
-    public DataStream rollover(Index writeIndex, long generation) {
-        ensureNotReplicated();
+    public boolean isFailureStore() {
+        return failureStore;
+    }
 
-        List<Index> backingIndices = new ArrayList<>(indices);
-        backingIndices.add(writeIndex);
-        return new DataStream(name, timeStampField, backingIndices, generation, metadata, hidden, false, system, allowCustomRouting);
+    @Nullable
+    public IndexMode getIndexMode() {
+        return indexMode;
+    }
+
+    @Nullable
+    public DataStreamLifecycle getLifecycle() {
+        return lifecycle;
     }
 
     /**
-     * Performs a dummy rollover on a {@code DataStream} instance and returns the tuple of the next write index name and next generation
-     * that this {@code DataStream} should roll over to using {@link #rollover(Index, long)}.
+     * Returns the latest auto sharding event that happened for this data stream
+     */
+    public DataStreamAutoShardingEvent getAutoShardingEvent() {
+        return autoShardingEvent;
+    }
+
+    /**
+     * Performs a rollover on a {@code DataStream} instance and returns a new instance containing
+     * the updated list of backing indices and incremented generation.
+     *
+     * @param writeIndex    new write index
+     * @param generation    new generation
+     * @param timeSeries    whether the template that created this data stream is in time series mode
+     * @param autoShardingEvent the auto sharding event this rollover operation is applying
+     *
+     * @return new {@code DataStream} instance with the rollover operation applied
+     */
+    public DataStream rollover(
+        Index writeIndex,
+        long generation,
+        boolean timeSeries,
+        @Nullable DataStreamAutoShardingEvent autoShardingEvent
+    ) {
+        ensureNotReplicated();
+
+        return unsafeRollover(writeIndex, generation, timeSeries, autoShardingEvent);
+    }
+
+    /**
+     * Like {@link #rollover(Index, long, boolean, DataStreamAutoShardingEvent)}, but does no validation, use with care only.
+     */
+    public DataStream unsafeRollover(Index writeIndex, long generation, boolean timeSeries, DataStreamAutoShardingEvent autoShardingEvent) {
+        IndexMode indexMode = this.indexMode;
+        if ((indexMode == null || indexMode == IndexMode.STANDARD) && timeSeries) {
+            // This allows for migrating a data stream to be a tsdb data stream:
+            // (only if index_mode=null|standard then allow it to be set to time_series)
+            indexMode = IndexMode.TIME_SERIES;
+        } else if (indexMode == IndexMode.TIME_SERIES && timeSeries == false) {
+            // Allow downgrading a time series data stream to a regular data stream
+            indexMode = null;
+        }
+
+        List<Index> backingIndices = new ArrayList<>(indices);
+        backingIndices.add(writeIndex);
+        return new DataStream(
+            name,
+            backingIndices,
+            generation,
+            metadata,
+            hidden,
+            false,
+            system,
+            allowCustomRouting,
+            indexMode,
+            lifecycle,
+            failureStore,
+            failureIndices,
+            autoShardingEvent
+        );
+    }
+
+    /**
+     * Performs a rollover on the failure store of a {@code DataStream} instance and returns a new instance containing
+     * the updated list of failure store indices and incremented generation.
+     *
+     * @param writeIndex new failure store write index
+     * @param generation new generation
+     * @return new {@code DataStream} instance with the rollover operation applied
+     */
+    public DataStream rolloverFailureStore(Index writeIndex, long generation) {
+        ensureNotReplicated();
+
+        return unsafeRolloverFailureStore(writeIndex, generation);
+    }
+
+    /**
+     * Like {@link #rolloverFailureStore(Index, long)}, but does no validation, use with care only.
+     */
+    public DataStream unsafeRolloverFailureStore(Index writeIndex, long generation) {
+        List<Index> failureIndices = new ArrayList<>(this.failureIndices);
+        failureIndices.add(writeIndex);
+        return new DataStream(
+            name,
+            indices,
+            generation,
+            metadata,
+            hidden,
+            false,
+            system,
+            allowCustomRouting,
+            indexMode,
+            lifecycle,
+            failureStore,
+            failureIndices,
+            autoShardingEvent
+        );
+    }
+
+    /**
+     * Generates the next write index name and <code>generation</code> to be used for rolling over this data stream.
      *
      * @param clusterMetadata Cluster metadata
-     *
-     * @return new {@code DataStream} instance with the dummy rollover operation applied
+     * @return tuple of the next write index name and next generation.
      */
     public Tuple<String, Long> nextWriteIndexAndGeneration(Metadata clusterMetadata) {
         ensureNotReplicated();
+        return unsafeNextWriteIndexAndGeneration(clusterMetadata);
+    }
+
+    /**
+     * Like {@link #nextWriteIndexAndGeneration(Metadata)}, but does no validation, use with care only.
+     */
+    public Tuple<String, Long> unsafeNextWriteIndexAndGeneration(Metadata clusterMetadata) {
+        return generateNextWriteIndexAndGeneration(clusterMetadata, DataStream::getDefaultBackingIndexName);
+    }
+
+    /**
+     * Generates the next write index name and <code>generation</code> to be used for rolling over the failure store of this data stream.
+     *
+     * @param clusterMetadata Cluster metadata
+     * @return tuple of the next failure store write index name and next generation.
+     */
+    public Tuple<String, Long> nextFailureStoreWriteIndexAndGeneration(Metadata clusterMetadata) {
+        ensureNotReplicated();
+        return unsafeNextFailureStoreWriteIndexAndGeneration(clusterMetadata);
+    }
+
+    /**
+     * Like {@link #nextFailureStoreWriteIndexAndGeneration(Metadata)}, but does no validation, use with care only.
+     */
+    public Tuple<String, Long> unsafeNextFailureStoreWriteIndexAndGeneration(Metadata clusterMetadata) {
+        return generateNextWriteIndexAndGeneration(clusterMetadata, DataStream::getDefaultFailureStoreName);
+    }
+
+    private Tuple<String, Long> generateNextWriteIndexAndGeneration(
+        Metadata clusterMetadata,
+        TriFunction<String, Long, Long, String> nameGenerator
+    ) {
         String newWriteIndexName;
         long generation = this.generation;
         long currentTimeMillis = timeProvider.getAsLong();
         do {
-            newWriteIndexName = DataStream.getDefaultBackingIndexName(getName(), ++generation, currentTimeMillis);
+            newWriteIndexName = nameGenerator.apply(getName(), ++generation, currentTimeMillis);
         } while (clusterMetadata.hasIndexAbstraction(newWriteIndexName));
         return Tuple.tuple(newWriteIndexName, generation);
     }
@@ -287,14 +635,18 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         assert backingIndices.size() == indices.size() - 1;
         return new DataStream(
             name,
-            timeStampField,
             backingIndices,
             generation + 1,
             metadata,
             hidden,
             replicated,
             system,
-            allowCustomRouting
+            allowCustomRouting,
+            indexMode,
+            lifecycle,
+            failureStore,
+            failureIndices,
+            autoShardingEvent
         );
     }
 
@@ -329,14 +681,18 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         backingIndices.set(backingIndexPosition, newBackingIndex);
         return new DataStream(
             name,
-            timeStampField,
             backingIndices,
             generation + 1,
             metadata,
             hidden,
             replicated,
             system,
-            allowCustomRouting
+            allowCustomRouting,
+            indexMode,
+            lifecycle,
+            failureStore,
+            failureIndices,
+            autoShardingEvent
         );
     }
 
@@ -352,7 +708,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         // validate that index is not part of another data stream
         final var parentDataStream = clusterMetadata.getIndicesLookup().get(index.getName()).getParentDataStream();
         if (parentDataStream != null) {
-            if (parentDataStream.getDataStream().equals(this)) {
+            if (parentDataStream.equals(this)) {
                 return this;
             } else {
                 throw new IllegalArgumentException(
@@ -376,9 +732,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
                     "cannot add index [%s] to data stream [%s] until its alias(es) [%s] are removed",
                     index.getName(),
                     getName(),
-                    Strings.collectionToCommaDelimitedString(
-                        im.getAliases().stream().map(Map.Entry::getKey).sorted().collect(Collectors.toList())
-                    )
+                    Strings.collectionToCommaDelimitedString(im.getAliases().keySet().stream().sorted().toList())
                 )
             );
         }
@@ -388,21 +742,24 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         assert backingIndices.size() == indices.size() + 1;
         return new DataStream(
             name,
-            timeStampField,
             backingIndices,
             generation + 1,
             metadata,
             hidden,
             replicated,
             system,
-            allowCustomRouting
+            allowCustomRouting,
+            indexMode,
+            lifecycle,
+            failureStore,
+            failureIndices,
+            autoShardingEvent
         );
     }
 
     public DataStream promoteDataStream() {
         return new DataStream(
             name,
-            timeStampField,
             indices,
             getGeneration(),
             metadata,
@@ -410,7 +767,13 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
             false,
             system,
             timeProvider,
-            allowCustomRouting
+            allowCustomRouting,
+            indexMode,
+            lifecycle,
+            failureStore,
+            failureIndices,
+            rolloverOnWrite,
+            autoShardingEvent
         );
     }
 
@@ -436,15 +799,177 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
         return new DataStream(
             name,
-            timeStampField,
             reconciledIndices,
             generation,
             metadata == null ? null : new HashMap<>(metadata),
             hidden,
             replicated,
             system,
-            allowCustomRouting
+            allowCustomRouting,
+            indexMode,
+            lifecycle,
+            failureStore,
+            failureIndices,
+            autoShardingEvent
         );
+    }
+
+    /**
+     * Iterate over the backing indices and return the ones that are managed by the data stream lifecycle and past the configured
+     * retention in their lifecycle.
+     * NOTE that this specifically does not return the write index of the data stream as usually retention
+     * is treated differently for the write index (i.e. they first need to be rolled over)
+     */
+    public List<Index> getIndicesPastRetention(
+        Function<String, IndexMetadata> indexMetadataSupplier,
+        LongSupplier nowSupplier,
+        DataStreamGlobalRetention globalRetention
+    ) {
+        if (lifecycle == null || lifecycle.isEnabled() == false || lifecycle.getEffectiveDataRetention(globalRetention) == null) {
+            return List.of();
+        }
+
+        List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
+            lifecycle.getEffectiveDataRetention(globalRetention),
+            indexMetadataSupplier,
+            this::isIndexManagedByDataStreamLifecycle,
+            nowSupplier
+        );
+        return indicesPastRetention;
+    }
+
+    /**
+     * Returns a list of downsampling rounds this index is eligible for (based on the rounds `after` configuration) or
+     * an empty list if this data streams' lifecycle doesn't have downsampling configured or the index's generation age
+     * doesn't yet match any `after` downsampling configuration.
+     *
+     * An empty list is returned for indices that are not time series.
+     */
+    public List<Round> getDownsamplingRoundsFor(
+        Index index,
+        Function<String, IndexMetadata> indexMetadataSupplier,
+        LongSupplier nowSupplier
+    ) {
+        assert indices.contains(index) : "the provided index must be a backing index for this datastream";
+        if (lifecycle == null || lifecycle.getDownsamplingRounds() == null) {
+            return List.of();
+        }
+
+        IndexMetadata indexMetadata = indexMetadataSupplier.apply(index.getName());
+        if (indexMetadata == null || IndexSettings.MODE.get(indexMetadata.getSettings()) != IndexMode.TIME_SERIES) {
+            return List.of();
+        }
+        TimeValue indexGenerationTime = getGenerationLifecycleDate(indexMetadata);
+
+        if (indexGenerationTime != null) {
+            long nowMillis = nowSupplier.getAsLong();
+            long indexGenerationTimeMillis = indexGenerationTime.millis();
+            List<Round> orderedRoundsForIndex = new ArrayList<>(lifecycle.getDownsamplingRounds().size());
+            for (Round round : lifecycle.getDownsamplingRounds()) {
+                if (nowMillis >= indexGenerationTimeMillis + round.after().getMillis()) {
+                    orderedRoundsForIndex.add(round);
+                }
+            }
+            return orderedRoundsForIndex;
+        }
+        return List.of();
+    }
+
+    /**
+     * Returns the non-write backing indices that are older than the provided age, *excluding the write index*.
+     * The index age is calculated from the rollover or index creation date (or the origination date if present).
+     * If an indices predicate is provided the returned list of indices will be filtered
+     * according to the predicate definition. This is useful for things like "return only
+     * the backing indices that are managed by the data stream lifecycle".
+     */
+    public List<Index> getNonWriteIndicesOlderThan(
+        TimeValue retentionPeriod,
+        Function<String, IndexMetadata> indexMetadataSupplier,
+        @Nullable Predicate<IndexMetadata> indicesPredicate,
+        LongSupplier nowSupplier
+    ) {
+        List<Index> olderIndices = new ArrayList<>();
+        for (Index index : indices) {
+            if (isIndexOderThan(index, retentionPeriod.getMillis(), nowSupplier.getAsLong(), indicesPredicate, indexMetadataSupplier)) {
+                olderIndices.add(index);
+            }
+        }
+        return olderIndices;
+    }
+
+    private boolean isIndexOderThan(
+        Index index,
+        long retentionPeriod,
+        long now,
+        Predicate<IndexMetadata> indicesPredicate,
+        Function<String, IndexMetadata> indexMetadataSupplier
+    ) {
+        IndexMetadata indexMetadata = indexMetadataSupplier.apply(index.getName());
+        if (indexMetadata == null) {
+            // we would normally throw exception in a situation like this however, this is meant to be a helper method
+            // so let's ignore deleted indices
+            return false;
+        }
+        TimeValue indexLifecycleDate = getGenerationLifecycleDate(indexMetadata);
+        return indexLifecycleDate != null
+            && now >= indexLifecycleDate.getMillis() + retentionPeriod
+            && (indicesPredicate == null || indicesPredicate.test(indexMetadata));
+    }
+
+    /**
+     * Checks if the provided backing index is managed by the data stream lifecycle as part of this data stream.
+     * If the index is not a backing index of this data stream, or we cannot supply its metadata
+     * we return false.
+     */
+    public boolean isIndexManagedByDataStreamLifecycle(Index index, Function<String, IndexMetadata> indexMetadataSupplier) {
+        if (indices.contains(index) == false) {
+            return false;
+        }
+        IndexMetadata indexMetadata = indexMetadataSupplier.apply(index.getName());
+        if (indexMetadata == null) {
+            // the index was deleted
+            return false;
+        }
+        return isIndexManagedByDataStreamLifecycle(indexMetadata);
+    }
+
+    /**
+     * This is the raw definition of an index being managed by the data stream lifecycle. An index is managed by the data stream lifecycle
+     * if it's part of a data stream that has a data stream lifecycle configured and enabled and depending on the value of
+     * {@link org.elasticsearch.index.IndexSettings#PREFER_ILM_SETTING} having an ILM policy configured will play into the decision.
+     * This method also skips any validation to make sure the index is part of this data stream, hence the private
+     * access method.
+     */
+    private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata) {
+        if (indexMetadata.getLifecyclePolicyName() != null && lifecycle != null && lifecycle.isEnabled()) {
+            // when both ILM and data stream lifecycle are configured, choose depending on the configured preference for this backing index
+            return PREFER_ILM_SETTING.get(indexMetadata.getSettings()) == false;
+        }
+        return lifecycle != null && lifecycle.isEnabled();
+    }
+
+    /**
+     * Returns the generation date of the index whose metadata is passed. The generation date of the index represents the time at which the
+     * index started progressing towards the user configurable / business specific parts of the lifecycle (e.g. retention).
+     * The generation date is the origination date if it exists, or the rollover date if it exists and the origination date does not, or
+     * the creation date if neither the origination date nor the rollover date exist.
+     * If the index is the write index the generation date will be null because it is not eligible for retention or other parts of the
+     * lifecycle.
+     * @param indexMetadata The metadata of the index whose generation date is returned
+     * @return The generation date of the index, or null if this is the write index
+     */
+    @Nullable
+    public TimeValue getGenerationLifecycleDate(IndexMetadata indexMetadata) {
+        if (indexMetadata.getIndex().equals(getWriteIndex())) {
+            return null;
+        }
+        Long originationDate = indexMetadata.getSettings().getAsLong(LIFECYCLE_ORIGINATION_DATE, null);
+        RolloverInfo rolloverInfo = indexMetadata.getRolloverInfos().get(getName());
+        if (rolloverInfo != null) {
+            return TimeValue.timeValueMillis(Objects.requireNonNullElseGet(originationDate, rolloverInfo::getTime));
+        } else {
+            return TimeValue.timeValueMillis(Objects.requireNonNullElseGet(originationDate, indexMetadata::getCreationDate));
+        }
     }
 
     /**
@@ -478,36 +1003,88 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         );
     }
 
-    public DataStream(StreamInput in) throws IOException {
-        this(
-            in.readString(),
-            new TimestampField(in),
-            in.readList(Index::new),
-            in.readVLong(),
-            in.readMap(),
-            in.readBoolean(),
-            in.readBoolean(),
-            in.readBoolean(),
-            in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readBoolean() : false
+    /**
+     * Generates the name of the index that conforms to the default naming convention for backing indices
+     * on data streams given the specified data stream name, generation, and time.
+     *
+     * @param dataStreamName name of the data stream
+     * @param generation generation of the data stream
+     * @param epochMillis creation time for the backing index
+     * @return backing index name
+     */
+    public static String getDefaultFailureStoreName(String dataStreamName, long generation, long epochMillis) {
+        return String.format(
+            Locale.ROOT,
+            FAILURE_STORE_PREFIX + "%s-%s-%06d",
+            dataStreamName,
+            DATE_FORMATTER.formatMillis(epochMillis),
+            generation
         );
     }
 
+    public DataStream(StreamInput in) throws IOException {
+        this(
+            readName(in),
+            readIndices(in),
+            in.readVLong(),
+            in.readGenericMap(),
+            in.readBoolean(),
+            in.readBoolean(),
+            in.readBoolean(),
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0) ? in.readBoolean() : false,
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null,
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X) ? in.readOptionalWriteable(DataStreamLifecycle::new) : null,
+            in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION) ? in.readBoolean() : false,
+            in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION) ? readIndices(in) : List.of(),
+            in.getTransportVersion().onOrAfter(TransportVersions.LAZY_ROLLOVER_ADDED) ? in.readBoolean() : false,
+            in.getTransportVersion().onOrAfter(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION)
+                ? in.readOptionalWriteable(DataStreamAutoShardingEvent::new)
+                : null
+        );
+    }
+
+    static String readName(StreamInput in) throws IOException {
+        String name = in.readString();
+        in.readString(); // TODO: clear out the timestamp field, which is a constant https://github.com/elastic/elasticsearch/issues/101991
+        return name;
+    }
+
+    static List<Index> readIndices(StreamInput in) throws IOException {
+        return in.readCollectionAsImmutableList(Index::new);
+    }
+
     public static Diff<DataStream> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(DataStream::new, in);
+        return SimpleDiffable.readDiffFrom(DataStream::new, in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        timeStampField.writeTo(out);
-        out.writeList(indices);
+        out.writeString(TIMESTAMP_FIELD_NAME); // TODO: clear this out in the future https://github.com/elastic/elasticsearch/issues/101991
+        out.writeCollection(indices);
         out.writeVLong(generation);
-        out.writeMap(metadata);
+        out.writeGenericMap(metadata);
         out.writeBoolean(hidden);
         out.writeBoolean(replicated);
         out.writeBoolean(system);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
             out.writeBoolean(allowCustomRouting);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+            out.writeOptionalEnum(indexMode);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            out.writeOptionalWriteable(lifecycle);
+        }
+        if (out.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {
+            out.writeBoolean(failureStore);
+            out.writeCollection(failureIndices);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.LAZY_ROLLOVER_ADDED)) {
+            out.writeBoolean(rolloverOnWrite);
+        }
+        if (out.getTransportVersion().onOrAfter(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION)) {
+            out.writeOptionalWriteable(autoShardingEvent);
         }
     }
 
@@ -520,26 +1097,47 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     public static final ParseField REPLICATED_FIELD = new ParseField("replicated");
     public static final ParseField SYSTEM_FIELD = new ParseField("system");
     public static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
+    public static final ParseField INDEX_MODE = new ParseField("index_mode");
+    public static final ParseField LIFECYCLE = new ParseField("lifecycle");
+    public static final ParseField FAILURE_STORE_FIELD = new ParseField("failure_store");
+    public static final ParseField FAILURE_INDICES_FIELD = new ParseField("failure_indices");
+    public static final ParseField ROLLOVER_ON_WRITE_FIELD = new ParseField("rollover_on_write");
+    public static final ParseField AUTO_SHARDING_FIELD = new ParseField("auto_sharding");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>(
-        "data_stream",
-        args -> new DataStream(
+    private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream", args -> {
+        // Fields behind a feature flag need to be parsed last otherwise the parser will fail when the feature flag is disabled.
+        // Until the feature flag is removed we keep them separately to be mindful of this.
+        boolean failureStoreEnabled = DataStream.isFailureStoreEnabled() && args[12] != null && (boolean) args[12];
+        List<Index> failureStoreIndices = DataStream.isFailureStoreEnabled() && args[13] != null ? (List<Index>) args[13] : List.of();
+        return new DataStream(
             (String) args[0],
-            (TimestampField) args[1],
-            (List<Index>) args[2],
-            (Long) args[3],
-            (Map<String, Object>) args[4],
+            (List<Index>) args[1],
+            (Long) args[2],
+            (Map<String, Object>) args[3],
+            args[4] != null && (boolean) args[4],
             args[5] != null && (boolean) args[5],
             args[6] != null && (boolean) args[6],
             args[7] != null && (boolean) args[7],
-            args[8] != null && (boolean) args[8]
-        )
-    );
+            args[8] != null ? IndexMode.fromString((String) args[8]) : null,
+            (DataStreamLifecycle) args[9],
+            failureStoreEnabled,
+            failureStoreIndices,
+            args[10] != null && (boolean) args[10],
+            (DataStreamAutoShardingEvent) args[11]
+        );
+    });
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), TimestampField.PARSER, TIMESTAMP_FIELD_FIELD);
+        final ConstructingObjectParser<String, Void> tsFieldParser = new ConstructingObjectParser<>("timestamp_field", args -> {
+            if (TIMESTAMP_FIELD_NAME.equals(args[0]) == false) {
+                throw new IllegalArgumentException("unexpected timestamp field [" + args[0] + "]");
+            }
+            return TIMESTAMP_FIELD_NAME;
+        });
+        tsFieldParser.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
+        PARSER.declareObject((f, v) -> { assert v == TIMESTAMP_FIELD_NAME; }, tsFieldParser, TIMESTAMP_FIELD_FIELD);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> Index.fromXContent(p), INDICES_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), GENERATION_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA_FIELD);
@@ -547,6 +1145,23 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), REPLICATED_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SYSTEM_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DataStreamLifecycle.fromXContent(p), LIFECYCLE);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ROLLOVER_ON_WRITE_FIELD);
+        PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> DataStreamAutoShardingEvent.fromXContent(p),
+            AUTO_SHARDING_FIELD
+        );
+        // The fields behind the feature flag should always be last.
+        if (DataStream.isFailureStoreEnabled()) {
+            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE_FIELD);
+            PARSER.declareObjectArray(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> Index.fromXContent(p),
+                FAILURE_INDICES_FIELD
+            );
+        }
     }
 
     public static DataStream fromXContent(XContentParser parser) throws IOException {
@@ -555,11 +1170,29 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return toXContent(builder, params, null, null);
+    }
+
+    /**
+     * Converts the data stream to XContent and passes the RolloverConditions, when provided, to the lifecycle.
+     */
+    public XContentBuilder toXContent(
+        XContentBuilder builder,
+        Params params,
+        @Nullable RolloverConfiguration rolloverConfiguration,
+        @Nullable DataStreamGlobalRetention globalRetention
+    ) throws IOException {
         builder.startObject();
         builder.field(NAME_FIELD.getPreferredName(), name);
-        builder.field(TIMESTAMP_FIELD_FIELD.getPreferredName(), timeStampField);
+        builder.field(TIMESTAMP_FIELD_FIELD.getPreferredName())
+            .startObject()
+            .field(NAME_FIELD.getPreferredName(), TIMESTAMP_FIELD_NAME)
+            .endObject();
         builder.xContentList(INDICES_FIELD.getPreferredName(), indices);
         builder.field(GENERATION_FIELD.getPreferredName(), generation);
+        if (DataStream.isFailureStoreEnabled() && failureIndices.isEmpty() == false) {
+            builder.xContentList(FAILURE_INDICES_FIELD.getPreferredName(), failureIndices);
+        }
         if (metadata != null) {
             builder.field(METADATA_FIELD.getPreferredName(), metadata);
         }
@@ -567,6 +1200,22 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         builder.field(REPLICATED_FIELD.getPreferredName(), replicated);
         builder.field(SYSTEM_FIELD.getPreferredName(), system);
         builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), allowCustomRouting);
+        if (DataStream.isFailureStoreEnabled()) {
+            builder.field(FAILURE_STORE_FIELD.getPreferredName(), failureStore);
+        }
+        if (indexMode != null) {
+            builder.field(INDEX_MODE.getPreferredName(), indexMode);
+        }
+        if (lifecycle != null) {
+            builder.field(LIFECYCLE.getPreferredName());
+            lifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention);
+        }
+        builder.field(ROLLOVER_ON_WRITE_FIELD.getPreferredName(), rolloverOnWrite);
+        if (autoShardingEvent != null) {
+            builder.startObject(AUTO_SHARDING_FIELD.getPreferredName());
+            autoShardingEvent.toXContent(builder, params);
+            builder.endObject();
+        }
         builder.endObject();
         return builder;
     }
@@ -577,77 +1226,174 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         if (o == null || getClass() != o.getClass()) return false;
         DataStream that = (DataStream) o;
         return name.equals(that.name)
-            && timeStampField.equals(that.timeStampField)
             && indices.equals(that.indices)
             && generation == that.generation
             && Objects.equals(metadata, that.metadata)
             && hidden == that.hidden
+            && system == that.system
             && replicated == that.replicated
-            && allowCustomRouting == that.allowCustomRouting;
+            && allowCustomRouting == that.allowCustomRouting
+            && indexMode == that.indexMode
+            && Objects.equals(lifecycle, that.lifecycle)
+            && failureStore == that.failureStore
+            && failureIndices.equals(that.failureIndices)
+            && rolloverOnWrite == that.rolloverOnWrite
+            && Objects.equals(autoShardingEvent, that.autoShardingEvent);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, timeStampField, indices, generation, metadata, hidden, replicated, allowCustomRouting);
+        return Objects.hash(
+            name,
+            indices,
+            generation,
+            metadata,
+            hidden,
+            system,
+            replicated,
+            allowCustomRouting,
+            indexMode,
+            lifecycle,
+            failureStore,
+            failureIndices,
+            rolloverOnWrite,
+            autoShardingEvent
+        );
     }
 
-    public static final class TimestampField implements Writeable, ToXContentObject {
-
-        public static final String FIXED_TIMESTAMP_FIELD = "@timestamp";
-
-        static ParseField NAME_FIELD = new ParseField("name");
-
-        @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<TimestampField, Void> PARSER = new ConstructingObjectParser<>(
-            "timestamp_field",
-            args -> new TimestampField((String) args[0])
-        );
-
-        static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
+    @Override
+    public Index getWriteIndex(IndexRequest request, Metadata metadata) {
+        if (request.opType() != DocWriteRequest.OpType.CREATE) {
+            return getWriteIndex();
         }
 
-        private final String name;
+        if (getIndexMode() != IndexMode.TIME_SERIES) {
+            return getWriteIndex();
+        }
 
-        public TimestampField(String name) {
-            if (FIXED_TIMESTAMP_FIELD.equals(name) == false) {
-                throw new IllegalArgumentException("unexpected timestamp field [" + name + "]");
+        Instant timestamp;
+        Object rawTimestamp = request.getRawTimestamp();
+        if (rawTimestamp != null) {
+            timestamp = getTimeStampFromRaw(rawTimestamp);
+        } else {
+            timestamp = getTimestampFromParser(request.source(), request.getContentType());
+        }
+        timestamp = getCanonicalTimestampBound(timestamp);
+        Index result = selectTimeSeriesWriteIndex(timestamp, metadata);
+        if (result == null) {
+            String timestampAsString = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(timestamp);
+            String writeableIndicesString = getIndices().stream()
+                .map(metadata::index)
+                .map(IndexMetadata::getSettings)
+                .map(
+                    settings -> "["
+                        + settings.get(IndexSettings.TIME_SERIES_START_TIME.getKey())
+                        + ","
+                        + settings.get(IndexSettings.TIME_SERIES_END_TIME.getKey())
+                        + "]"
+                )
+                .collect(Collectors.joining());
+            throw new IllegalArgumentException(
+                "the document timestamp ["
+                    + timestampAsString
+                    + "] is outside of ranges of currently writable indices ["
+                    + writeableIndicesString
+                    + "]"
+            );
+        }
+        return result;
+    }
+
+    @Override
+    public DataStream getParentDataStream() {
+        // a data stream cannot have a parent data stream
+        return null;
+    }
+
+    public static final XContentParserConfiguration TS_EXTRACT_CONFIG = XContentParserConfiguration.EMPTY.withFiltering(
+        Set.of(TIMESTAMP_FIELD_NAME),
+        null,
+        false
+    );
+
+    private static final DateFormatter TIMESTAMP_FORMATTER = DateFormatter.forPattern(
+        "strict_date_optional_time_nanos||strict_date_optional_time||epoch_millis"
+    );
+
+    /**
+     * Returns the indices created within the {@param maxIndexAge} interval. Note that this strives to cover
+     * the entire {@param maxIndexAge} interval so one backing index created before the specified age will also
+     * be return.
+     */
+    public static List<Index> getIndicesWithinMaxAgeRange(
+        DataStream dataStream,
+        Function<Index, IndexMetadata> indexProvider,
+        TimeValue maxIndexAge,
+        LongSupplier nowSupplier
+    ) {
+        final List<Index> dataStreamIndices = dataStream.getIndices();
+        final long currentTimeMillis = nowSupplier.getAsLong();
+        // Consider at least 1 index (including the write index) for cases where rollovers happen less often than maxIndexAge
+        int firstIndexWithinAgeRange = Math.max(dataStreamIndices.size() - 2, 0);
+        for (int i = 0; i < dataStreamIndices.size(); i++) {
+            Index index = dataStreamIndices.get(i);
+            final IndexMetadata indexMetadata = indexProvider.apply(index);
+            final long indexAge = currentTimeMillis - indexMetadata.getCreationDate();
+            if (indexAge < maxIndexAge.getMillis()) {
+                // We need to consider the previous index too in order to cover the entire max-index-age range.
+                firstIndexWithinAgeRange = i == 0 ? 0 : i - 1;
+                break;
             }
-            this.name = name;
         }
+        return dataStreamIndices.subList(firstIndexWithinAgeRange, dataStreamIndices.size());
+    }
 
-        public TimestampField(StreamInput in) throws IOException {
-            this(in.readString());
+    private static Instant getTimeStampFromRaw(Object rawTimestamp) {
+        try {
+            if (rawTimestamp instanceof Long lTimestamp) {
+                return Instant.ofEpochMilli(lTimestamp);
+            } else if (rawTimestamp instanceof String sTimestamp) {
+                return DateFormatters.from(TIMESTAMP_FORMATTER.parse(sTimestamp), TIMESTAMP_FORMATTER.locale()).toInstant();
+            } else {
+                throw new IllegalArgumentException("timestamp [" + rawTimestamp + "] type [" + rawTimestamp.getClass() + "] error");
+            }
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Error get data stream timestamp field: " + e.getMessage(), e);
         }
+    }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(name);
+    private static Instant getTimestampFromParser(BytesReference source, XContentType xContentType) {
+        try (XContentParser parser = XContentHelper.createParserNotCompressed(TS_EXTRACT_CONFIG, source, xContentType)) {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+            return switch (parser.nextToken()) {
+                case VALUE_STRING -> DateFormatters.from(TIMESTAMP_FORMATTER.parse(parser.text()), TIMESTAMP_FORMATTER.locale())
+                    .toInstant();
+                case VALUE_NUMBER -> Instant.ofEpochMilli(parser.longValue());
+                default -> throw new ParsingException(
+                    parser.getTokenLocation(),
+                    String.format(
+                        Locale.ROOT,
+                        "Failed to parse object: expecting token of type [%s] or [%s] but found [%s]",
+                        XContentParser.Token.VALUE_STRING,
+                        XContentParser.Token.VALUE_NUMBER,
+                        parser.currentToken()
+                    )
+                );
+            };
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Error extracting data stream timestamp field: " + e.getMessage(), e);
         }
+    }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(NAME_FIELD.getPreferredName(), name);
-            builder.endObject();
-            return builder;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            TimestampField that = (TimestampField) o;
-            return name.equals(that.name);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(name);
-        }
+    /**
+     * Modifies the passed Instant object to be used as a bound for a timestamp field in TimeSeries. It needs to be called in both backing
+     * index construction (rollover) and index selection for doc insertion. Failure to do so may lead to errors due to document timestamps
+     * exceeding the end time of the selected backing index for insertion.
+     * @param time The initial Instant object that's used to generate the canonical time
+     * @return A canonical Instant object to be used as a timestamp bound
+     */
+    public static Instant getCanonicalTimestampBound(Instant time) {
+        return time.truncatedTo(ChronoUnit.SECONDS);
     }
 }

@@ -8,11 +8,11 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.test.ESTokenStreamTestCase;
@@ -27,7 +27,7 @@ public class PatternCaptureTokenFilterTests extends ESTokenStreamTestCase {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .loadFromStream(json, getClass().getResourceAsStream(json), false)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .build();
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);

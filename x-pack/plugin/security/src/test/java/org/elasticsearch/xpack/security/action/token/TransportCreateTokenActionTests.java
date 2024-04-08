@@ -10,21 +10,18 @@ package org.elasticsearch.xpack.security.action.token;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -47,6 +44,7 @@ import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -87,6 +85,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         .build();
 
     private ThreadPool threadPool;
+    private TransportService transportService;
     private Client client;
     private SecurityIndexManager securityIndex;
     private ClusterService clusterService;
@@ -98,17 +97,18 @@ public class TransportCreateTokenActionTests extends ESTestCase {
     @Before
     public void setupClient() {
         threadPool = new TestThreadPool(getTestName());
+        transportService = mock(TransportService.class);
         client = mock(Client.class);
         idxReqReference = new AtomicReference<>();
         authenticationService = mock(AuthenticationService.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(SETTINGS);
         doAnswer(invocationOnMock -> {
-            GetRequestBuilder builder = new GetRequestBuilder(client, GetAction.INSTANCE);
+            GetRequestBuilder builder = new GetRequestBuilder(client);
             builder.setIndex((String) invocationOnMock.getArguments()[0]).setId((String) invocationOnMock.getArguments()[1]);
             return builder;
         }).when(client).prepareGet(anyString(), anyString());
-        when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
+        when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client));
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<MultiGetResponse> listener = (ActionListener<MultiGetResponse>) invocationOnMock.getArguments()[1];
@@ -126,10 +126,8 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             listener.onResponse(response);
             return Void.TYPE;
         }).when(client).multiGet(any(MultiGetRequest.class), anyActionListener());
-        when(client.prepareIndex(nullable(String.class))).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
-        when(client.prepareUpdate(any(String.class), any(String.class))).thenReturn(
-            new UpdateRequestBuilder(client, UpdateAction.INSTANCE)
-        );
+        when(client.prepareIndex(nullable(String.class))).thenReturn(new IndexRequestBuilder(client));
+        when(client.prepareUpdate(any(String.class), any(String.class))).thenReturn(new UpdateRequestBuilder(client));
         doAnswer(invocationOnMock -> {
             idxReqReference.set((IndexRequest) invocationOnMock.getArguments()[1]);
             @SuppressWarnings("unchecked")
@@ -145,7 +143,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
                 )
             );
             return null;
-        }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), anyActionListener());
+        }).when(client).execute(eq(TransportIndexAction.TYPE), any(IndexRequest.class), anyActionListener());
 
         securityContext = new SecurityContext(Settings.EMPTY, threadPool.getThreadContext());
 
@@ -178,7 +176,10 @@ public class TransportCreateTokenActionTests extends ESTestCase {
                 user = new User(token.principal());
                 threadPool.getThreadContext().addResponseHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE, "Negotiate SUCCESS");
             }
-            Authentication authentication = new Authentication(user, new Authentication.RealmRef("fake", "mock", "n1"), null);
+            Authentication authentication = AuthenticationTestHelper.builder()
+                .user(user)
+                .realmRef(new Authentication.RealmRef("fake", "mock", "n1"))
+                .build(false);
             authentication.writeToContext(threadPool.getThreadContext());
             authListener.onResponse(authentication);
             return Void.TYPE;
@@ -209,12 +210,15 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             securityIndex,
             clusterService
         );
-        Authentication authentication = new Authentication(new User("joe"), new Authentication.RealmRef("realm", "type", "node"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("joe"))
+            .realmRef(new Authentication.RealmRef("realm", "type", "node"))
+            .build(false);
         authentication.writeToContext(threadPool.getThreadContext());
 
         final TransportCreateTokenAction action = new TransportCreateTokenAction(
             threadPool,
-            mock(TransportService.class),
+            transportService,
             new ActionFilters(Collections.emptySet()),
             tokenService,
             authenticationService,
@@ -247,12 +251,15 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             securityIndex,
             clusterService
         );
-        Authentication authentication = new Authentication(new User("joe"), new Authentication.RealmRef("realm", "type", "node"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("joe"))
+            .realmRef(new Authentication.RealmRef("realm", "type", "node"))
+            .build(false);
         authentication.writeToContext(threadPool.getThreadContext());
 
         final TransportCreateTokenAction action = new TransportCreateTokenAction(
             threadPool,
-            mock(TransportService.class),
+            transportService,
             new ActionFilters(Collections.emptySet()),
             tokenService,
             authenticationService,
@@ -287,12 +294,15 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             securityIndex,
             clusterService
         );
-        Authentication authentication = new Authentication(new User("joe"), new Authentication.RealmRef("realm", "type", "node"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("joe"))
+            .realmRef(new Authentication.RealmRef("realm", "type", "node"))
+            .build(false);
         authentication.writeToContext(threadPool.getThreadContext());
 
         final TransportCreateTokenAction action = new TransportCreateTokenAction(
             threadPool,
-            mock(TransportService.class),
+            transportService,
             new ActionFilters(Collections.emptySet()),
             tokenService,
             authenticationService,
@@ -337,12 +347,15 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             securityIndex,
             clusterService
         );
-        Authentication authentication = new Authentication(new User("joe"), new Authentication.RealmRef("realm", "type", "node"), null);
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("joe"))
+            .realmRef(new Authentication.RealmRef("realm", "type", "node"))
+            .build(false);
         authentication.writeToContext(threadPool.getThreadContext());
 
         final TransportCreateTokenAction action = new TransportCreateTokenAction(
             threadPool,
-            mock(TransportService.class),
+            transportService,
             new ActionFilters(Collections.emptySet()),
             tokenService,
             authenticationService,
@@ -376,16 +389,12 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             securityIndex,
             clusterService
         );
-        Authentication authentication = new Authentication(
-            new User(randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8)),
-            new Authentication.RealmRef("_service_account", "_service_account", "node"),
-            null
-        );
+        Authentication authentication = AuthenticationTestHelper.builder().serviceAccount().build(false);
         authentication.writeToContext(threadPool.getThreadContext());
 
         final TransportCreateTokenAction action = new TransportCreateTokenAction(
             threadPool,
-            mock(TransportService.class),
+            transportService,
             new ActionFilters(Collections.emptySet()),
             tokenService,
             authenticationService,

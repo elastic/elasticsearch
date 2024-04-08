@@ -9,10 +9,15 @@ package org.elasticsearch.xpack.sql.analysis;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.ClosePointInTimeResponse;
+import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -26,7 +31,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 import org.elasticsearch.xpack.sql.SqlTestUtils;
-import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequestBuilder;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
@@ -42,11 +46,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -65,7 +71,7 @@ public class CancellationTests extends ESTestCase {
         IndexResolver indexResolver = indexResolver(client);
         PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, new NamedWriteableRegistry(Collections.emptyList()));
         CountDownLatch countDownLatch = new CountDownLatch(1);
-        SqlQueryRequest request = new SqlQueryRequestBuilder(client, SqlQueryAction.INSTANCE).query("SELECT foo FROM bar").request();
+        SqlQueryRequest request = new SqlQueryRequestBuilder(client).query("SELECT foo FROM bar").request();
         TransportSqlQueryAction.operation(planExecutor, task, request, new ActionListener<>() {
             @Override
             public void onResponse(SqlQueryResponse sqlSearchResponse) {
@@ -128,8 +134,7 @@ public class CancellationTests extends ESTestCase {
         IndexResolver indexResolver = indexResolver(client);
         PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, new NamedWriteableRegistry(Collections.emptyList()));
         CountDownLatch countDownLatch = new CountDownLatch(1);
-        SqlQueryRequest request = new SqlQueryRequestBuilder(client, SqlQueryAction.INSTANCE).query("SELECT foo FROM " + indices[0])
-            .request();
+        SqlQueryRequest request = new SqlQueryRequestBuilder(client).query("SELECT foo FROM " + indices[0]).request();
         TransportSqlQueryAction.operation(planExecutor, task, request, new ActionListener<>() {
             @Override
             public void onResponse(SqlQueryResponse sqlSearchResponse) {
@@ -150,7 +155,15 @@ public class CancellationTests extends ESTestCase {
         verifyNoMoreInteractions(client);
     }
 
-    public void testCancellationDuringSearch() throws InterruptedException {
+    public void testCancellationDuringSearchWithSearchHitCursor() throws InterruptedException {
+        testCancellationDuringSearch("SELECT foo FROM endgame");
+    }
+
+    public void testCancellationDuringSearchWithCompositeAggCursor() throws InterruptedException {
+        testCancellationDuringSearch("SELECT foo FROM endgame GROUP BY foo");
+    }
+
+    public void testCancellationDuringSearch(String query) throws InterruptedException {
         Client client = mock(Client.class);
 
         SqlQueryTask task = randomTask();
@@ -158,6 +171,7 @@ public class CancellationTests extends ESTestCase {
         ClusterService mockClusterService = mockClusterService(nodeId);
 
         String[] indices = new String[] { "endgame" };
+        String pitId = randomAlphaOfLength(10);
 
         // Emulation of field capabilities
         FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
@@ -170,12 +184,21 @@ public class CancellationTests extends ESTestCase {
             return null;
         }).when(client).fieldCaps(any(), any());
 
+        // Emulation of open pit
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<OpenPointInTimeResponse> listener = (ActionListener<OpenPointInTimeResponse>) invocation.getArguments()[2];
+            listener.onResponse(new OpenPointInTimeResponse(pitId));
+            return null;
+        }).when(client).execute(eq(TransportOpenPointInTimeAction.TYPE), any(), any());
+
         // Emulation of search cancellation
         ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
-        when(client.prepareSearch(any())).thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(indices));
+        when(client.prepareSearch(any())).thenReturn(new SearchRequestBuilder(client).setIndices(indices));
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
             SearchRequest request = (SearchRequest) invocation.getArguments()[1];
+            assertEquals(pitId, request.pointInTimeBuilder().getEncodedId());
             TaskId parentTask = request.getParentTask();
             assertNotNull(parentTask);
             assertEquals(task.getId(), parentTask.getId());
@@ -184,12 +207,22 @@ public class CancellationTests extends ESTestCase {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
             listener.onFailure(new TaskCancelledException("cancelled"));
             return null;
-        }).when(client).execute(any(), searchRequestCaptor.capture(), any());
+        }).when(client).execute(eq(TransportSearchAction.TYPE), searchRequestCaptor.capture(), any());
+
+        // Emulation of close pit
+        doAnswer(invocation -> {
+            ClosePointInTimeRequest request = (ClosePointInTimeRequest) invocation.getArguments()[1];
+            assertEquals(pitId, request.getId());
+
+            @SuppressWarnings("unchecked")
+            ActionListener<ClosePointInTimeResponse> listener = (ActionListener<ClosePointInTimeResponse>) invocation.getArguments()[2];
+            listener.onResponse(new ClosePointInTimeResponse(true, 1));
+            return null;
+        }).when(client).execute(eq(TransportClosePointInTimeAction.TYPE), any(), any());
 
         IndexResolver indexResolver = indexResolver(client);
         PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, new NamedWriteableRegistry(Collections.emptyList()));
-        SqlQueryRequest request = new SqlQueryRequestBuilder(client, SqlQueryAction.INSTANCE).query("SELECT foo FROM " + indices[0])
-            .request();
+        SqlQueryRequest request = new SqlQueryRequestBuilder(client).query(query).request();
         CountDownLatch countDownLatch = new CountDownLatch(1);
         TransportSqlQueryAction.operation(planExecutor, task, request, new ActionListener<>() {
             @Override
@@ -204,10 +237,12 @@ public class CancellationTests extends ESTestCase {
                 countDownLatch.countDown();
             }
         }, "", mock(TransportService.class), mockClusterService);
-        countDownLatch.await();
+        assertTrue(countDownLatch.await(5, TimeUnit.SECONDS));
         // Final verification to ensure no more interaction
         verify(client).fieldCaps(any(), any());
-        verify(client).execute(any(), any(), any());
+        verify(client, times(1)).execute(eq(TransportOpenPointInTimeAction.TYPE), any(), any());
+        verify(client, times(1)).execute(eq(TransportSearchAction.TYPE), any(), any());
+        verify(client, times(1)).execute(eq(TransportClosePointInTimeAction.TYPE), any(), any());
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
         verifyNoMoreInteractions(client);

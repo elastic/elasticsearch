@@ -12,7 +12,9 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -75,7 +77,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
                         null,
                         query,
                         "user",
-                        "pass",
+                        new SecureString("pass".toCharArray()),
                         emptyMap(),
                         RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
                         RemoteInfo.DEFAULT_CONNECT_TIMEOUT
@@ -114,7 +116,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
 
     @Override
     protected ReindexRequest doParseInstance(XContentParser parser) throws IOException {
-        return ReindexRequest.fromXContent(parser);
+        return ReindexRequest.fromXContent(parser, Predicates.never());
     }
 
     @Override
@@ -264,7 +266,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
               "a" : "b"
             }""", remoteInfo.getQuery().utf8ToString());
         assertEquals("testuser", remoteInfo.getUsername());
-        assertEquals("testpass", remoteInfo.getPassword());
+        assertEquals("testpass", remoteInfo.getPassword().toString());
         assertEquals(headers, remoteInfo.getHeaders());
         assertEquals(timeValueSeconds(90), remoteInfo.getSocketTimeout());
         assertEquals(timeValueSeconds(10), remoteInfo.getConnectTimeout());
@@ -348,7 +350,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             request = BytesReference.bytes(b);
         }
         try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
-            ReindexRequest r = ReindexRequest.fromXContent(p);
+            ReindexRequest r = ReindexRequest.fromXContent(p, nf -> false);
             assertEquals("localhost", r.getRemoteInfo().getHost());
             assertArrayEquals(new String[] { "source" }, r.getSearchRequest().indices());
         }
@@ -402,7 +404,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             request = BytesReference.bytes(b);
         }
         try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
-            return ReindexRequest.fromXContent(p);
+            return ReindexRequest.fromXContent(p, Predicates.never());
         }
     }
 }

@@ -15,8 +15,11 @@ import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 
+import java.util.Map;
+
 public interface HttpServerTransport extends LifecycleComponent, ReportingService<HttpInfo> {
 
+    String HTTP_PROFILE_NAME = ".http";
     String HTTP_SERVER_WORKER_THREAD_NAME_PREFIX = "http_server_worker";
 
     BoundTransportAddress boundAddress();
@@ -51,5 +54,8 @@ public interface HttpServerTransport extends LifecycleComponent, ReportingServic
          */
         void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause);
 
+        default Map<String, HttpRouteStats> getStats() {
+            return Map.of();
+        }
     }
 }

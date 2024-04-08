@@ -43,8 +43,6 @@ final class JNACLibrary {
 
     static native int mlockall(int flags);
 
-    static native int geteuid();
-
     /** corresponds to struct rlimit */
     public static final class Rlimit extends Structure implements Structure.ByReference {
         public NativeLong rlim_cur = new NativeLong(0);

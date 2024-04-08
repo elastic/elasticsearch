@@ -13,7 +13,7 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -27,8 +27,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -100,6 +105,11 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
 
         when(indexShard.getLastKnownGlobalCheckpoint()).thenReturn(globalCheckpoint);
         when(indexShard.getLastSyncedGlobalCheckpoint()).thenReturn(lastSyncedGlobalCheckpoint);
+        doAnswer(invocation -> {
+            Consumer<Exception> argument = invocation.getArgument(1);
+            argument.accept(null);
+            return null;
+        }).when(indexShard).syncGlobalCheckpoint(anyLong(), any());
 
         final GlobalCheckpointSyncAction action = new GlobalCheckpointSyncAction(
             Settings.EMPTY,
@@ -123,9 +133,10 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
 
         if (durability == Translog.Durability.ASYNC || lastSyncedGlobalCheckpoint == globalCheckpoint) {
             verify(indexShard, never()).sync();
+            verify(indexShard, never()).syncGlobalCheckpoint(anyLong(), any());
         } else {
-            verify(indexShard).sync();
+            verify(indexShard, never()).sync();
+            verify(indexShard).syncGlobalCheckpoint(eq(globalCheckpoint), any());
         }
     }
-
 }

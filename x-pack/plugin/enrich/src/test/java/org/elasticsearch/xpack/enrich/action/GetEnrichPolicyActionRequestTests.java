@@ -18,6 +18,11 @@ public class GetEnrichPolicyActionRequestTests extends AbstractWireSerializingTe
     }
 
     @Override
+    protected GetEnrichPolicyAction.Request mutateInstance(GetEnrichPolicyAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<GetEnrichPolicyAction.Request> instanceReader() {
         return GetEnrichPolicyAction.Request::new;
     }

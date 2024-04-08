@@ -123,7 +123,7 @@ public class FieldStats implements ToXContentObject, Writeable {
         medianValue = in.readOptionalDouble();
         earliestTimestamp = in.readOptionalString();
         latestTimestamp = in.readOptionalString();
-        topHits = in.readList(StreamInput::readMap);
+        topHits = in.readCollectionAsList(StreamInput::readGenericMap);
     }
 
     @Override
@@ -136,7 +136,7 @@ public class FieldStats implements ToXContentObject, Writeable {
         out.writeOptionalDouble(medianValue);
         out.writeOptionalString(earliestTimestamp);
         out.writeOptionalString(latestTimestamp);
-        out.writeCollection(topHits, StreamOutput::writeMap);
+        out.writeCollection(topHits, StreamOutput::writeGenericMap);
     }
 
     public long getCount() {

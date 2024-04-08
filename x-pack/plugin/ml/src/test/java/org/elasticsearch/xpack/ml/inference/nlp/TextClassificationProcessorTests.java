@@ -32,19 +32,33 @@ public class TextClassificationProcessorTests extends ESTestCase {
 
     public void testInvalidResult() {
         {
-            PyTorchInferenceResult torchResult = new PyTorchInferenceResult("foo", new double[][][] {}, 0L, null);
+            PyTorchInferenceResult torchResult = new PyTorchInferenceResult(new double[][][] {});
             var e = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> TextClassificationProcessor.processResult(null, torchResult, randomInt(), List.of("a", "b"), randomAlphaOfLength(10))
+                () -> TextClassificationProcessor.processResult(
+                    null,
+                    torchResult,
+                    randomInt(),
+                    List.of("a", "b"),
+                    randomAlphaOfLength(10),
+                    false
+                )
             );
             assertThat(e, instanceOf(ElasticsearchStatusException.class));
             assertThat(e.getMessage(), containsString("Text classification result has no data"));
         }
         {
-            PyTorchInferenceResult torchResult = new PyTorchInferenceResult("foo", new double[][][] { { { 1.0 } } }, 0L, null);
+            PyTorchInferenceResult torchResult = new PyTorchInferenceResult(new double[][][] { { { 1.0 } } });
             var e = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> TextClassificationProcessor.processResult(null, torchResult, randomInt(), List.of("a", "b"), randomAlphaOfLength(10))
+                () -> TextClassificationProcessor.processResult(
+                    null,
+                    torchResult,
+                    randomInt(),
+                    List.of("a", "b"),
+                    randomAlphaOfLength(10),
+                    false
+                )
             );
             assertThat(e, instanceOf(ElasticsearchStatusException.class));
             assertThat(e.getMessage(), containsString("Expected exactly [2] values in text classification result; got [1]"));
@@ -54,8 +68,8 @@ public class TextClassificationProcessorTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testBuildRequest() throws IOException {
         NlpTokenizer tokenizer = NlpTokenizer.build(
-            new Vocabulary(TEST_CASED_VOCAB, randomAlphaOfLength(10)),
-            new BertTokenization(null, null, 512, Tokenization.Truncate.NONE)
+            new Vocabulary(TEST_CASED_VOCAB, randomAlphaOfLength(10), List.of(), List.of()),
+            new BertTokenization(null, null, 512, Tokenization.Truncate.NONE, -1)
         );
 
         TextClassificationConfig config = new TextClassificationConfig(
@@ -69,9 +83,9 @@ public class TextClassificationProcessorTests extends ESTestCase {
         TextClassificationProcessor processor = new TextClassificationProcessor(tokenizer, config);
 
         NlpTask.Request request = processor.getRequestBuilder(config)
-            .buildRequest(List.of("Elasticsearch fun"), "request1", Tokenization.Truncate.NONE);
+            .buildRequest(List.of("Elasticsearch fun"), "request1", Tokenization.Truncate.NONE, -1, null);
 
-        Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput, true, XContentType.JSON).v2();
+        Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput(), true, XContentType.JSON).v2();
 
         assertThat(jsonDocAsMap.keySet(), hasSize(5));
         assertEquals("request1", jsonDocAsMap.get("request_id"));

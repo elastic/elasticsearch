@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -59,7 +58,6 @@ import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction;
 
-import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -76,82 +74,78 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 class MlUpgradeModeActionFilter extends ActionFilter.Simple {
 
-    private static final Set<String> ACTIONS_DISALLOWED_IN_UPGRADE_MODE = Collections.unmodifiableSet(
-        Sets.newHashSet(
-            PutJobAction.NAME,
-            UpdateJobAction.NAME,
-            DeleteJobAction.NAME,
-            OpenJobAction.NAME,
-            FlushJobAction.NAME,
-            CloseJobAction.NAME,
-            PersistJobAction.NAME,
+    private static final Set<String> ACTIONS_DISALLOWED_IN_UPGRADE_MODE = Set.of(
+        PutJobAction.NAME,
+        UpdateJobAction.NAME,
+        DeleteJobAction.NAME,
+        OpenJobAction.NAME,
+        FlushJobAction.NAME,
+        CloseJobAction.NAME,
+        PersistJobAction.NAME,
 
-            FinalizeJobExecutionAction.NAME,
-            PostDataAction.NAME,
+        FinalizeJobExecutionAction.NAME,
+        PostDataAction.NAME,
 
-            RevertModelSnapshotAction.NAME,
-            UpdateModelSnapshotAction.NAME,
-            DeleteModelSnapshotAction.NAME,
-            UpgradeJobModelSnapshotAction.NAME,
+        RevertModelSnapshotAction.NAME,
+        UpdateModelSnapshotAction.NAME,
+        DeleteModelSnapshotAction.NAME,
+        UpgradeJobModelSnapshotAction.NAME,
 
-            PutDatafeedAction.NAME,
-            UpdateDatafeedAction.NAME,
-            DeleteDatafeedAction.NAME,
-            StartDatafeedAction.NAME,
-            StopDatafeedAction.NAME,
+        PutDatafeedAction.NAME,
+        UpdateDatafeedAction.NAME,
+        DeleteDatafeedAction.NAME,
+        StartDatafeedAction.NAME,
+        StopDatafeedAction.NAME,
 
-            PutFilterAction.NAME,
-            UpdateFilterAction.NAME,
-            DeleteFilterAction.NAME,
+        PutFilterAction.NAME,
+        UpdateFilterAction.NAME,
+        DeleteFilterAction.NAME,
 
-            PutCalendarAction.NAME,
-            UpdateCalendarJobAction.NAME,
-            PostCalendarEventsAction.NAME,
-            DeleteCalendarAction.NAME,
-            DeleteCalendarEventAction.NAME,
+        PutCalendarAction.NAME,
+        UpdateCalendarJobAction.NAME,
+        PostCalendarEventsAction.NAME,
+        DeleteCalendarAction.NAME,
+        DeleteCalendarEventAction.NAME,
 
-            UpdateProcessAction.NAME,
-            KillProcessAction.NAME,
+        UpdateProcessAction.NAME,
+        KillProcessAction.NAME,
 
-            DeleteExpiredDataAction.NAME,
+        DeleteExpiredDataAction.NAME,
 
-            ForecastJobAction.NAME,
-            DeleteForecastAction.NAME,
+        ForecastJobAction.NAME,
+        DeleteForecastAction.NAME,
 
-            PutDataFrameAnalyticsAction.NAME,
-            DeleteDataFrameAnalyticsAction.NAME,
-            StartDataFrameAnalyticsAction.NAME,
-            StopDataFrameAnalyticsAction.NAME,
-            ExplainDataFrameAnalyticsAction.NAME,
+        PutDataFrameAnalyticsAction.NAME,
+        DeleteDataFrameAnalyticsAction.NAME,
+        StartDataFrameAnalyticsAction.NAME,
+        StopDataFrameAnalyticsAction.NAME,
+        ExplainDataFrameAnalyticsAction.NAME,
 
-            PutTrainedModelAliasAction.NAME,
-            PutTrainedModelAction.NAME,
-            PutTrainedModelDefinitionPartAction.NAME,
-            PutTrainedModelVocabularyAction.NAME,
-            // NOTE: StopTrainedModelDeploymentAction doesn't mutate internal indices, and technically neither does this action.
-            // But, preventing new deployments from being created while upgrading is for safety.
-            StartTrainedModelDeploymentAction.NAME,
-            DeleteTrainedModelAction.NAME,
-            DeleteTrainedModelAliasAction.NAME
-        )
+        PutTrainedModelAliasAction.NAME,
+        PutTrainedModelAction.NAME,
+        PutTrainedModelDefinitionPartAction.NAME,
+        PutTrainedModelVocabularyAction.NAME,
+        // NOTE: StopTrainedModelDeploymentAction doesn't mutate internal indices, and technically neither does this action.
+        // But, preventing new deployments from being created while upgrading is for safety.
+        StartTrainedModelDeploymentAction.NAME,
+        DeleteTrainedModelAction.NAME,
+        DeleteTrainedModelAliasAction.NAME
     );
 
-    private static final Set<String> RESET_MODE_EXEMPTIONS = Collections.unmodifiableSet(
-        Sets.newHashSet(
-            DeleteJobAction.NAME,
-            CloseJobAction.NAME,
+    private static final Set<String> RESET_MODE_EXEMPTIONS = Set.of(
+        DeleteJobAction.NAME,
+        CloseJobAction.NAME,
 
-            DeleteDatafeedAction.NAME,
-            StopDatafeedAction.NAME,
+        DeleteDatafeedAction.NAME,
+        StopDatafeedAction.NAME,
 
-            KillProcessAction.NAME,
+        KillProcessAction.NAME,
 
-            DeleteDataFrameAnalyticsAction.NAME,
-            StopDataFrameAnalyticsAction.NAME,
+        DeleteDataFrameAnalyticsAction.NAME,
+        StopDataFrameAnalyticsAction.NAME,
 
-            // No other trained model APIs need to be exempted as `StopTrainedModelDeploymentAction` isn't filtered during upgrade mode
-            DeleteTrainedModelAction.NAME
-        )
+        // No other trained model APIs need to be exempted as `StopTrainedModelDeploymentAction` isn't filtered during upgrade mode
+        DeleteTrainedModelAction.NAME
     );
 
     // At the time the action filter is installed no cluster state is available, so

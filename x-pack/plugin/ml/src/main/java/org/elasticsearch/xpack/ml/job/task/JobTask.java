@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.job.task;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.license.LicensedAllocatedPersistentTask;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.TaskId;
@@ -19,6 +18,8 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManage
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class JobTask extends LicensedAllocatedPersistentTask implements OpenJobAction.JobTaskMatcher {
 
@@ -57,7 +58,7 @@ public class JobTask extends LicensedAllocatedPersistentTask implements OpenJobA
     @Override
     protected void onCancelled() {
         String reason = getReasonCancelled();
-        logger.trace(() -> new ParameterizedMessage("[{}] Cancelling job task because: {}", jobId, reason));
+        logger.trace(() -> format("[%s] Cancelling job task because: %s", jobId, reason));
         closingOrVacating.set(ClosingOrVacating.CLOSING);
         autodetectProcessManager.killProcess(this, false, reason);
     }

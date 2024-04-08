@@ -9,7 +9,7 @@ package org.elasticsearch.gradle.internal;
 
 import org.gradle.api.DefaultTask;
 import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.Internal;
+import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.internal.file.Chmod;
 
@@ -39,7 +39,7 @@ public class EmptyDirTask extends DefaultTask {
         throw new UnsupportedOperationException();
     }
 
-    @Internal
+    @OutputDirectory
     public File getDir() {
         return dir;
     }
@@ -54,13 +54,6 @@ public class EmptyDirTask extends DefaultTask {
      */
     public void setDir(File dir) {
         this.dir = dir;
-    }
-
-    /**
-     * @param dir The path of the directory to create. Takes a String and coerces it to a file.
-     */
-    public void setDir(String dir) {
-        this.dir = getProject().file(dir);
     }
 
     @Input

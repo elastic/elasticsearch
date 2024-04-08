@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -110,10 +112,6 @@ public class VariableWidthHistogramAggregationBuilder extends ValuesSourceAggreg
         }
         this.initialBuffer = initialBuffer;
         return this;
-    }
-
-    public int getNumBuckets() {
-        return numBuckets;
     }
 
     public int getShardSize() {
@@ -235,7 +233,7 @@ public class VariableWidthHistogramAggregationBuilder extends ValuesSourceAggreg
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_7_9_0;
     }
 }

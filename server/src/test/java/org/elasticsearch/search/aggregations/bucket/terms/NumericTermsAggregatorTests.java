@@ -11,17 +11,13 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
@@ -92,12 +88,12 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testBadIncludeExclude() throws IOException {
-        IncludeExclude includeExclude = new IncludeExclude(new RegExp("foo"), null);
+        IncludeExclude includeExclude = new IncludeExclude("foo", null, null, null);
 
         // Numerics don't support any regex include/exclude, so should fail no matter what we do
 
-        AggregationExecutionException e = expectThrows(
-            AggregationExecutionException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> testSearchCase(
                 new MatchNoDocsQuery(),
                 dataset,
@@ -116,7 +112,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
         );
 
         e = expectThrows(
-            AggregationExecutionException.class,
+            IllegalArgumentException.class,
             () -> testSearchCase(
                 new MatchNoDocsQuery(),
                 dataset,
@@ -154,9 +150,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
                 }
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name");
                 if (valueType != null) {
                     aggregationBuilder.userValueTypeHint(valueType);
@@ -167,7 +161,10 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
 
                 MappedFieldType longFieldType = new NumberFieldMapper.NumberFieldType(LONG_FIELD, NumberFieldMapper.NumberType.LONG);
 
-                InternalMappedTerms<?, ?> rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, longFieldType);
+                InternalMappedTerms<?, ?> rareTerms = searchAndReduce(
+                    indexReader,
+                    new AggTestConfig(aggregationBuilder, longFieldType).withQuery(query)
+                );
                 verify.accept(rareTerms);
             }
         }

@@ -11,11 +11,12 @@ import joptsimple.OptionSpec;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.MultiCommand;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
-import org.elasticsearch.common.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -43,10 +44,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class UsersTool extends LoggingAwareMultiCommand {
+class UsersTool extends MultiCommand {
 
-    public static void main(String[] args) throws Exception {
-        exit(new UsersTool().main(args, Terminal.DEFAULT));
+    // Initialize the reserved roles store for the list of reserved roles so that they can be accessed by commands
+    // By not include a filtering, it includes everything the reserved roles store has to offer.
+    static {
+        new ReservedRolesStore();
     }
 
     UsersTool() {
@@ -103,7 +106,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
 
             String username = parseUsername(arguments.values(options), env.settings());
             final boolean allowReserved = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(env.settings()) == false;
@@ -158,7 +161,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
 
             String username = parseUsername(arguments.values(options), env.settings());
             Path passwordFile = FileUserPasswdStore.resolveFile(env);
@@ -213,7 +216,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
 
             String username = parseUsername(arguments.values(options), env.settings());
             char[] passwordHash = getPasswordHash(terminal, env, passwordOption.value(options));
@@ -261,7 +264,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
 
             String username = parseUsername(arguments.values(options), env.settings());
             String[] addRoles = parseRoles(terminal, env, addOption.value(options));
@@ -321,7 +324,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
 
             String username = null;
             if (options.has(arguments)) {

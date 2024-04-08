@@ -13,10 +13,5 @@ esplugin {
 }
 
 dependencies {
-  api project(path: ':modules:reindex')
+  clusterModules project(':modules:reindex')
 }
-
-testClusters.configureEach {
-  module ':modules:reindex'
-}
-

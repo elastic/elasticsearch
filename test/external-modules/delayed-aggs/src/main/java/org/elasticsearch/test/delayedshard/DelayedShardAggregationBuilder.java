@@ -8,6 +8,8 @@
 
 package org.elasticsearch.test.delayedshard;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -129,5 +131,10 @@ public class DelayedShardAggregationBuilder extends AbstractAggregationBuilder<D
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), delay);
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_7_10_0;
     }
 }

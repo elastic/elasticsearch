@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.core.transform;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -65,7 +67,7 @@ public class MockDeprecatedQueryBuilder extends AbstractQueryBuilder<MockDepreca
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 
@@ -82,5 +84,10 @@ public class MockDeprecatedQueryBuilder extends AbstractQueryBuilder<MockDepreca
     @Override
     protected int doHashCode() {
         return 0;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

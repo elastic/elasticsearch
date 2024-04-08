@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -17,12 +15,12 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
 import java.io.IOException;
 import java.util.List;
@@ -59,12 +57,12 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             String errorMessage = String.format(
                 Locale.ROOT,
                 "[%s] lifecycle action for index [%s] executed but index no longer exists",
-                getKey().getAction(),
+                getKey().action(),
                 index.getName()
             );
             // Index must have been since deleted
             logger.debug(errorMessage);
-            return new Result(false, new Info(errorMessage));
+            return new Result(false, new SingleMessageFieldInfo(errorMessage));
         }
 
         boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(originalIndexMeta.getSettings());
@@ -76,14 +74,14 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
                 WaitForActiveShardsStep.NAME
             );
             logger.trace(message);
-            return new Result(true, new Info(message));
+            return new Result(true, new SingleMessageFieldInfo(message));
         }
 
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index.getName());
         final String rolledIndexName;
         final String waitForActiveShardsSettingValue;
-        if (indexAbstraction.getParentDataStream() != null) {
-            DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
+        DataStream dataStream = indexAbstraction.getParentDataStream();
+        if (dataStream != null) {
             IndexAbstraction dataStreamAbstraction = metadata.getIndicesLookup().get(dataStream.getName());
             assert dataStreamAbstraction != null : dataStream.getName() + " datastream is not present in the metadata indices lookup";
             if (dataStreamAbstraction.getWriteIndex() == null) {
@@ -136,8 +134,8 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
 
         IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(rolledIndexName);
         int currentActiveShards = 0;
-        for (final IntObjectCursor<IndexShardRoutingTable> shardRouting : indexRoutingTable.getShards()) {
-            currentActiveShards += shardRouting.value.activeShards().size();
+        for (int i = 0; i < indexRoutingTable.size(); i++) {
+            currentActiveShards += indexRoutingTable.shard(i).activeShards().size();
         }
         return new Result(enoughShardsActive, new ActiveShardsInfo(currentActiveShards, activeShardCount.toString(), enoughShardsActive));
     }
@@ -147,12 +145,12 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             Locale.ROOT,
             "unable to find the index that was rolled over from [%s] as part of lifecycle action [%s]",
             originalIndex.getName(),
-            key.getAction()
+            key.action()
         );
 
         // Index must have been since deleted
         logger.debug(errorMessage);
-        return new Result(false, new Info(errorMessage));
+        return new Result(false, new SingleMessageFieldInfo(errorMessage));
     }
 
     static final class ActiveShardsInfo implements ToXContentObject {
@@ -212,42 +210,6 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
         @Override
         public int hashCode() {
             return Objects.hash(currentActiveShardsCount, targetActiveShardsCount, enoughShardsActive, message);
-        }
-    }
-
-    static final class Info implements ToXContentObject {
-
-        private final String message;
-
-        static final ParseField MESSAGE = new ParseField("message");
-
-        Info(String message) {
-            this.message = message;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(MESSAGE.getPreferredName(), message);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Info info = (Info) o;
-            return Objects.equals(message, info.message);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(message);
         }
     }
 }

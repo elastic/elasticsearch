@@ -7,16 +7,21 @@
 
 package org.elasticsearch.xpack.eql;
 
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.eql.EqlRestTestCase;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.eql.EqlRestTestCase;
+import org.junit.ClassRule;
+
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class EqlRestIT extends EqlRestTestCase {
 
+    @ClassRule
+    public static final ElasticsearchCluster cluster = EqlTestCluster.CLUSTER;
+
     @Override
-    protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 }

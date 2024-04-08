@@ -6,23 +6,19 @@
  */
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.ml.job.config.AnalysisConfig;
-import org.elasticsearch.client.ml.job.config.DataDescription;
-import org.elasticsearch.client.ml.job.config.Detector;
-import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.test.rest.IndexMappingTemplateAsserter;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -34,6 +30,11 @@ import static org.hamcrest.Matchers.is;
 public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final String JOB_ID = "ml-mappings-upgrade-job";
+
+    @BeforeClass
+    public static void maybeSkip() {
+        assumeFalse("Skip ML tests on unsupported glibc versions", SKIP_ML_TESTS);
+    }
 
     @Override
     protected Collection<String> templatesToWaitFor() {
@@ -72,19 +73,21 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private void createAndOpenTestJob() throws IOException {
-
-        Detector.Builder d = new Detector.Builder("metric", "responsetime");
-        d.setByFieldName("airline");
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
-        analysisConfig.setBucketSpan(TimeValue.timeValueMinutes(10));
-        Job.Builder job = new Job.Builder(JOB_ID);
-        job.setAnalysisConfig(analysisConfig);
-        job.setDataDescription(new DataDescription.Builder());
         // Use a custom index because other rolling upgrade tests meddle with the shared index
-        job.setResultsIndexName("mappings-upgrade-test");
+        String jobConfig = """
+                        {
+                            "results_index_name":"mappings-upgrade-test",
+                            "analysis_config" : {
+                                "bucket_span": "600s",
+                                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+                            },
+                            "data_description" : {
+                            }
+                        }"
+            """;
 
         Request putJob = new Request("PUT", "_ml/anomaly_detectors/" + JOB_ID);
-        putJob.setJsonEntity(Strings.toString(job.build()));
+        putJob.setJsonEntity(jobConfig);
         Response response = client().performRequest(putJob);
         assertEquals(200, response.getStatusLine().getStatusCode());
 
@@ -127,7 +130,10 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             }
             assertNotNull(indexLevel);
 
-            assertEquals(Version.CURRENT.toString(), extractValue("mappings._meta.version", indexLevel));
+            assertEquals(
+                AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION,
+                extractValue("mappings._meta.managed_index_mappings_version", indexLevel)
+            );
 
             // TODO: as the years go by, the field we assert on here should be changed
             // to the most recent field we've added that is NOT of type "keyword"
@@ -160,7 +166,10 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             }
             assertNotNull(indexLevel);
 
-            assertEquals(Version.CURRENT.toString(), extractValue("mappings._meta.version", indexLevel));
+            assertEquals(
+                AnnotationIndex.ANNOTATION_INDEX_MAPPINGS_VERSION,
+                extractValue("mappings._meta.managed_index_mappings_version", indexLevel)
+            );
 
             // TODO: as the years go by, the field we assert on here should be changed
             // to the most recent field we've added that would be incorrectly mapped by dynamic
@@ -214,7 +223,10 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             Map<String, Object> indexLevel = (Map<String, Object>) responseLevel.get(".ml-config");
             assertNotNull(indexLevel);
 
-            assertEquals(Version.CURRENT.toString(), extractValue("mappings._meta.version", indexLevel));
+            assertEquals(
+                MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION,
+                extractValue("mappings._meta.managed_index_mappings_version", indexLevel)
+            );
 
             // TODO: as the years go by, the field we assert on here should be changed
             // to the most recent field we've added that is NOT of type "keyword"

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -25,7 +26,6 @@ import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 /**
  * Request for an update cluster settings action
@@ -62,6 +62,13 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         ActionRequestValidationException validationException = null;
         if (transientSettings.isEmpty() && persistentSettings.isEmpty()) {
             validationException = addValidationError("no settings to update", validationException);
+        }
+        // for bwc we have to reject logger settings on the REST level instead of using a validator
+        for (String error : Loggers.checkRestrictedLoggers(transientSettings)) {
+            validationException = addValidationError(error, validationException);
+        }
+        for (String error : Loggers.checkRestrictedLoggers(persistentSettings)) {
+            validationException = addValidationError(error, validationException);
         }
         return validationException;
     }
@@ -162,8 +169,8 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        writeSettingsToStream(transientSettings, out);
-        writeSettingsToStream(persistentSettings, out);
+        transientSettings.writeTo(out);
+        persistentSettings.writeTo(out);
     }
 
     @Override

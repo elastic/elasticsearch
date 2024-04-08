@@ -28,13 +28,16 @@ public class GlobalAggregatorFactory extends AggregatorFactory {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, subFactories, metadata);
+        if (subFactories.isInSortOrderExecutionRequired()) {
+            throw new IllegalArgumentException("Time series aggregations cannot be used inside global aggregation.");
+        }
     }
 
     @Override
     public Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
         if (parent != null) {
-            throw new AggregationExecutionException(
+            throw new IllegalArgumentException(
                 "Aggregation ["
                     + parent.name()
                     + "] cannot have a global "
@@ -44,6 +47,7 @@ public class GlobalAggregatorFactory extends AggregatorFactory {
             );
         }
         if (cardinality != CardinalityUpperBound.ONE) {
+            // Hitting this exception is a programmer error. Hopefully never seen in production.
             throw new AggregationExecutionException("Aggregation [" + name() + "] must have cardinality 1 but was [" + cardinality + "]");
         }
         return new GlobalAggregator(name, factories, context, metadata);

@@ -1,0 +1,19 @@
+{
+  "index_patterns": ["logs-*-*"],
+  "priority": 100,
+  "data_stream": {},
+  "composed_of": [
+    "logs@mappings",
+    "logs@settings",
+    "logs@custom",
+    "ecs@mappings"
+  ],
+  "ignore_missing_component_templates": ["logs@custom"],
+  "allow_auto_create": true,
+  "_meta": {
+    "description": "default logs template installed by x-pack",
+    "managed": true
+  },
+  "version": ${xpack.stack.template.version},
+  "deprecated": ${xpack.stack.template.deprecated}
+}

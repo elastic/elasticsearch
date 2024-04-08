@@ -34,6 +34,11 @@ public class RoundingWireTests extends AbstractWireSerializingTestCase<Rounding>
     }
 
     @Override
+    protected Rounding mutateInstance(Rounding instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<Rounding> instanceReader() {
         return Rounding::read;
     }

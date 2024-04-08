@@ -27,7 +27,7 @@ public class ParsedMediaType {
     private final String subType;
     private final Map<String, String> parameters;
     // tchar pattern as defined by RFC7230 section 3.2.6
-    private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-z0-9!#$%&'*+\\-.\\^_`|~]+");
+    private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-Z0-9!#$%&'*+\\-.\\^_`|~]+");
 
     private ParsedMediaType(String originalHeaderValue, String type, String subType, Map<String, String> parameters) {
         this.originalHeaderValue = originalHeaderValue;
@@ -62,7 +62,7 @@ public class ParsedMediaType {
             if (isMediaRange(headerValue) || "*/*".equals(headerValue)) {
                 return null;
             }
-            final String[] elements = headerValue.toLowerCase(Locale.ROOT).split("[\\s\\t]*;");
+            final String[] elements = headerValue.toLowerCase(Locale.ROOT).split(";");
 
             final String[] splitMediaType = elements[0].split("/");
             if ((splitMediaType.length == 2
@@ -139,7 +139,7 @@ public class ParsedMediaType {
         return null;
     }
 
-    private boolean isValidParameter(String paramName, String value, Map<String, Pattern> registeredParams) {
+    private static boolean isValidParameter(String paramName, String value, Map<String, Pattern> registeredParams) {
         if (registeredParams.containsKey(paramName)) {
             Pattern regex = registeredParams.get(paramName);
             return regex.matcher(value).matches();
@@ -162,7 +162,7 @@ public class ParsedMediaType {
         return mediaTypeWithoutParameters() + formatParameters(params);
     }
 
-    private String formatParameters(Map<String, String> params) {
+    private static String formatParameters(Map<String, String> params) {
         String joined = params.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining(";"));
         return joined.isEmpty() ? "" : ";" + joined;
     }

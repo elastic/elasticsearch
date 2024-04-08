@@ -6,7 +6,7 @@
         body:
           - index:
               _index: test
-              _id:    1
+              _id:    "1"
           - str: test1
             int: 1
 
@@ -24,3 +24,4 @@
               order: asc
               missing: _last
               unmapped_type: long
+        track_total_hits: -1

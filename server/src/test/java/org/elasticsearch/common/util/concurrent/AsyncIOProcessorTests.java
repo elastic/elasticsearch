@@ -23,7 +23,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class AsyncIOProcessorTests extends ESTestCase {
@@ -195,7 +194,7 @@ public class AsyncIOProcessorTests extends ESTestCase {
 
         // first thread blocks, the rest should be non blocking.
         CountDownLatch nonBlockingDone = new CountDownLatch(randomIntBetween(0, threadCount - 1));
-        List<Thread> threads = IntStream.range(0, threadCount).mapToObj(i -> new Thread(getTestName() + "_" + i) {
+        List<Thread> threads = IntStream.range(0, threadCount).<Thread>mapToObj(i -> new Thread(getTestName() + "_" + i) {
             private final String response = randomAlphaOfLength(10);
             {
                 setDaemon(true);
@@ -210,7 +209,7 @@ public class AsyncIOProcessorTests extends ESTestCase {
                 });
                 nonBlockingDone.countDown();
             }
-        }).collect(Collectors.toList());
+        }).toList();
         threads.forEach(Thread::start);
         assertTrue(nonBlockingDone.await(10, TimeUnit.SECONDS));
         writeDelay.countDown();
@@ -241,7 +240,7 @@ public class AsyncIOProcessorTests extends ESTestCase {
         int threadCount = randomIntBetween(2, 10);
         CyclicBarrier barrier = new CyclicBarrier(threadCount);
         Semaphore serializePutSemaphore = new Semaphore(1);
-        List<Thread> threads = IntStream.range(0, threadCount).mapToObj(i -> new Thread(getTestName() + "_" + i) {
+        List<Thread> threads = IntStream.range(0, threadCount).<Thread>mapToObj(i -> new Thread(getTestName() + "_" + i) {
             {
                 setDaemon(true);
             }
@@ -263,7 +262,7 @@ public class AsyncIOProcessorTests extends ESTestCase {
                     notified.incrementAndGet();
                 });
             }
-        }).collect(Collectors.toList());
+        }).toList();
         threads.forEach(Thread::start);
         threads.forEach(t -> {
             try {

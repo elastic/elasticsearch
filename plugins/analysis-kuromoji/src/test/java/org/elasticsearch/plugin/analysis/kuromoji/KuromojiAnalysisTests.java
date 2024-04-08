@@ -12,13 +12,14 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ja.JapaneseAnalyzer;
+import org.apache.lucene.analysis.ja.JapaneseCompletionAnalyzer;
 import org.apache.lucene.analysis.ja.JapaneseTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
@@ -35,7 +36,7 @@ import java.io.StringReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -67,9 +68,15 @@ public class KuromojiAnalysisTests extends ESTestCase {
         filterFactory = analysis.tokenFilter.get("kuromoji_number");
         assertThat(filterFactory, instanceOf(KuromojiNumberFilterFactory.class));
 
+        filterFactory = analysis.tokenFilter.get("kuromoji_completion");
+        assertThat(filterFactory, instanceOf(KuromojiCompletionFilterFactory.class));
+
         IndexAnalyzers indexAnalyzers = analysis.indexAnalyzers;
         NamedAnalyzer analyzer = indexAnalyzers.get("kuromoji");
         assertThat(analyzer.analyzer(), instanceOf(JapaneseAnalyzer.class));
+
+        analyzer = indexAnalyzers.get("kuromoji_completion");
+        assertThat(analyzer.analyzer(), instanceOf(JapaneseCompletionAnalyzer.class));
 
         analyzer = indexAnalyzers.get("my_analyzer");
         assertThat(analyzer.analyzer(), instanceOf(CustomAnalyzer.class));
@@ -225,6 +232,42 @@ public class KuromojiAnalysisTests extends ESTestCase {
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
     }
 
+    public void testCompletionFilterFactory() throws IOException {
+        // mode=INDEX
+        TestAnalysis analysis = createTestAnalysis();
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("kuromoji_completion_index");
+        assertThat(tokenFilter, instanceOf(KuromojiCompletionFilterFactory.class));
+        String source = "東京都";
+        String[] expected_tokens = new String[] { "東京", "toukyou", "都", "to" };
+        Tokenizer tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
+        tokenizer.setReader(new StringReader(source));
+        assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens);
+
+        // mode=QUERY
+        tokenFilter = analysis.tokenFilter.get("kuromoji_completion_query");
+        assertThat(tokenFilter, instanceOf(KuromojiCompletionFilterFactory.class));
+        source = "サッk";
+        expected_tokens = new String[] { "サッk", "sakk" };
+        tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
+        tokenizer.setReader(new StringReader(source));
+        assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens);
+    }
+
+    public void testCompletionAnalyzer() throws IOException {
+        // mode=INDEX
+        TestAnalysis analysis = createTestAnalysis();
+        Analyzer analyzer = analysis.indexAnalyzers.get("completion_index_analyzer");
+        try (TokenStream stream = analyzer.tokenStream("", "ｿｰｽｺｰﾄﾞ")) {
+            assertTokenStreamContents(stream, new String[] { "ソース", "soーsu", "コード", "koーdo" });
+        }
+
+        // mode=QUERY
+        analyzer = analysis.indexAnalyzers.get("completion_query_analyzer");
+        try (TokenStream stream = analyzer.tokenStream("", "ｿｰｽｺｰﾄﾞ")) {
+            assertTokenStreamContents(stream, new String[] { "ソースコード", "soーsukoーdo" });
+        }
+    }
+
     private static TestAnalysis createTestAnalysis() throws IOException {
         InputStream empty_dict = KuromojiAnalysisTests.class.getResourceAsStream("empty_user_dict.txt");
         InputStream dict = KuromojiAnalysisTests.class.getResourceAsStream("user_dict.txt");
@@ -237,7 +280,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
 
         Settings settings = Settings.builder()
             .loadFromStream(json, KuromojiAnalysisTests.class.getResourceAsStream(json), false)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .build();
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
         return createTestAnalysis(new Index("test", "_na_"), nodeSettings, settings, new AnalysisKuromojiPlugin());
@@ -394,7 +437,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
         Files.createDirectory(config);
         Files.copy(dict, config.resolve("user_dict.txt"));
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(Environment.PATH_HOME_SETTING.getKey(), home)
             .put(analysisSettings)
             .build();

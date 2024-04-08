@@ -10,13 +10,10 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
-import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.xcontent.ToXContentFragment;
 
@@ -31,7 +28,7 @@ import java.util.Objects;
  */
 public abstract class PipelineAggregationBuilder
     implements
-        NamedWriteable,
+        VersionedNamedWriteable,
         BaseAggregationBuilder,
         ToXContentFragment,
         Rewriteable<PipelineAggregationBuilder> {
@@ -77,10 +74,9 @@ public abstract class PipelineAggregationBuilder
          */
         public static ValidationContext forTreeRoot(
             Collection<AggregationBuilder> siblingAggregations,
-            Collection<PipelineAggregationBuilder> siblingPipelineAggregations,
             ActionRequestValidationException validationFailuresSoFar
         ) {
-            return new ForTreeRoot(siblingAggregations, siblingPipelineAggregations, validationFailuresSoFar);
+            return new ForTreeRoot(siblingAggregations, validationFailuresSoFar);
         }
 
         /**
@@ -98,26 +94,15 @@ public abstract class PipelineAggregationBuilder
 
         private static class ForTreeRoot extends ValidationContext {
             private final Collection<AggregationBuilder> siblingAggregations;
-            private final Collection<PipelineAggregationBuilder> siblingPipelineAggregations;
 
-            ForTreeRoot(
-                Collection<AggregationBuilder> siblingAggregations,
-                Collection<PipelineAggregationBuilder> siblingPipelineAggregations,
-                ActionRequestValidationException validationFailuresSoFar
-            ) {
+            ForTreeRoot(Collection<AggregationBuilder> siblingAggregations, ActionRequestValidationException validationFailuresSoFar) {
                 super(validationFailuresSoFar);
                 this.siblingAggregations = Objects.requireNonNull(siblingAggregations);
-                this.siblingPipelineAggregations = Objects.requireNonNull(siblingPipelineAggregations);
             }
 
             @Override
             public Collection<AggregationBuilder> getSiblingAggregations() {
                 return siblingAggregations;
-            }
-
-            @Override
-            public Collection<PipelineAggregationBuilder> getSiblingPipelineAggregations() {
-                return siblingPipelineAggregations;
             }
 
             @Override
@@ -127,6 +112,15 @@ public abstract class PipelineAggregationBuilder
 
             @Override
             public void validateParentAggSequentiallyOrdered(String type, String name) {
+                noParentCantBeOrdered(type, name);
+            }
+
+            @Override
+            public void validateParentAggSequentiallyOrderedWithoutSkips(String type, String name) {
+                noParentCantBeOrdered(type, name);
+            }
+
+            private void noParentCantBeOrdered(String type, String name) {
                 addValidationError(
                     type
                         + " aggregation ["
@@ -150,32 +144,18 @@ public abstract class PipelineAggregationBuilder
             }
 
             @Override
-            public Collection<PipelineAggregationBuilder> getSiblingPipelineAggregations() {
-                return parent.getPipelineAggregations();
-            }
-
-            @Override
             public void validateHasParent(String type, String name) {
                 // There is a parent inside the tree.
             }
 
             @Override
             public void validateParentAggSequentiallyOrdered(String type, String name) {
-                if (parent instanceof HistogramAggregationBuilder histoParent) {
-                    if (histoParent.minDocCount() != 0) {
-                        addValidationError("parent histogram of " + type + " aggregation [" + name + "] must have min_doc_count of 0");
-                    }
-                } else if (parent instanceof DateHistogramAggregationBuilder histoParent) {
-                    if (histoParent.minDocCount() != 0) {
-                        addValidationError("parent histogram of " + type + " aggregation [" + name + "] must have min_doc_count of 0");
-                    }
-                } else if (parent instanceof AutoDateHistogramAggregationBuilder) {
-                    // Nothing to check
-                } else {
-                    addValidationError(
-                        type + " aggregation [" + name + "] must have a histogram, date_histogram or auto_date_histogram as parent"
-                    );
-                }
+                parent.validateSequentiallyOrdered(type, name, this::addValidationError);
+            }
+
+            @Override
+            public void validateParentAggSequentiallyOrderedWithoutSkips(String type, String name) {
+                parent.validateSequentiallyOrderedWithoutGaps(type, name, this::addValidationError);
             }
         }
 
@@ -183,11 +163,6 @@ public abstract class PipelineAggregationBuilder
          * Aggregations that are siblings to the aggregation being validated.
          */
         public abstract Collection<AggregationBuilder> getSiblingAggregations();
-
-        /**
-         * Pipeline aggregations that are siblings to the aggregation being validated.
-         */
-        public abstract Collection<PipelineAggregationBuilder> getSiblingPipelineAggregations();
 
         /**
          * Add a validation error to this context. All validation errors
@@ -215,6 +190,11 @@ public abstract class PipelineAggregationBuilder
          * Validates that the parent is sequentially ordered.
          */
         public abstract void validateParentAggSequentiallyOrdered(String type, String name);
+
+        /**
+         * Validates that the parent is sequentially ordered and doesn't have any gps.
+         */
+        public abstract void validateParentAggSequentiallyOrderedWithoutSkips(String type, String name);
 
         /**
          * The validation exception, if there is one. It'll be {@code null}

@@ -19,7 +19,6 @@ import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder;
-import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
@@ -30,10 +29,8 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -56,7 +53,6 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryRequestBuilder;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequestBuilder;
@@ -69,12 +65,8 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequestBui
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardStoreRequestBuilder;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
-import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequestBuilder;
-import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -88,6 +80,7 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateReque
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.elasticsearch.core.Nullable;
@@ -134,7 +127,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      *
      * @param request The indices segments request
      * @return The result future
-     * @see Requests#indicesSegmentsRequest(String...)
      */
     ActionFuture<IndicesSegmentResponse> segments(IndicesSegmentsRequest request);
 
@@ -143,7 +135,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      *
      * @param request  The indices segments request
      * @param listener A listener to be notified with a result
-     * @see Requests#indicesSegmentsRequest(String...)
      */
     void segments(IndicesSegmentsRequest request, ActionListener<IndicesSegmentResponse> listener);
 
@@ -153,34 +144,10 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     IndicesSegmentsRequestBuilder prepareSegments(String... indices);
 
     /**
-     * The shard stores info of one or more indices.
-     *
-     * @param request The indices shard stores request
-     * @return The result future
-     * @see Requests#indicesShardStoresRequest(String...)
-     */
-    ActionFuture<IndicesShardStoresResponse> shardStores(IndicesShardStoresRequest request);
-
-    /**
-     * The shard stores info of one or more indices.
-     *
-     * @param request The indices shard stores request
-     * @param listener A listener to be notified with a result
-     * @see Requests#indicesShardStoresRequest(String...)
-     */
-    void shardStores(IndicesShardStoresRequest request, ActionListener<IndicesShardStoresResponse> listener);
-
-    /**
-     * The shard stores info of one or more indices.
-     */
-    IndicesShardStoreRequestBuilder prepareShardStores(String... indices);
-
-    /**
      * Creates an index using an explicit request allowing to specify the settings of the index.
      *
      * @param request The create index request
      * @return The result future
-     * @see org.elasticsearch.client.internal.Requests#createIndexRequest(String)
      */
     ActionFuture<CreateIndexResponse> create(CreateIndexRequest request);
 
@@ -189,7 +156,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      *
      * @param request  The create index request
      * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.internal.Requests#createIndexRequest(String)
      */
     void create(CreateIndexRequest request, ActionListener<CreateIndexResponse> listener);
 
@@ -205,7 +171,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      *
      * @param request The delete index request
      * @return The result future
-     * @see org.elasticsearch.client.internal.Requests#deleteIndexRequest(String)
      */
     ActionFuture<AcknowledgedResponse> delete(DeleteIndexRequest request);
 
@@ -214,7 +179,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      *
      * @param request  The delete index request
      * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.internal.Requests#deleteIndexRequest(String)
      */
     void delete(DeleteIndexRequest request, ActionListener<AcknowledgedResponse> listener);
 
@@ -230,7 +194,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      *
      * @param request The close index request
      * @return The result future
-     * @see org.elasticsearch.client.internal.Requests#closeIndexRequest(String)
      */
     ActionFuture<CloseIndexResponse> close(CloseIndexRequest request);
 
@@ -239,7 +202,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      *
      * @param request  The close index request
      * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.internal.Requests#closeIndexRequest(String)
      */
     void close(CloseIndexRequest request, ActionListener<CloseIndexResponse> listener);
 
@@ -253,18 +215,16 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     /**
      * Open an index based on the index name.
      *
-     * @param request The close index request
+     * @param request The open index request
      * @return The result future
-     * @see org.elasticsearch.client.internal.Requests#openIndexRequest(String)
      */
     ActionFuture<OpenIndexResponse> open(OpenIndexRequest request);
 
     /**
      * Open an index based on the index name.
      *
-     * @param request  The close index request
+     * @param request  The open index request
      * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.internal.Requests#openIndexRequest(String)
      */
     void open(OpenIndexRequest request, ActionListener<OpenIndexResponse> listener);
 
@@ -281,7 +241,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      *
      * @param request  The add index block request
      * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.internal.Requests#openIndexRequest(String)
      */
     void addBlock(AddIndexBlockRequest request, ActionListener<AddIndexBlockResponse> listener);
 
@@ -297,18 +256,16 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      *
      * @param request The refresh request
      * @return The result future
-     * @see org.elasticsearch.client.internal.Requests#refreshRequest(String...)
      */
-    ActionFuture<RefreshResponse> refresh(RefreshRequest request);
+    ActionFuture<BroadcastResponse> refresh(RefreshRequest request);
 
     /**
      * Explicitly refresh one or more indices (making the content indexed since the last refresh searchable).
      *
      * @param request  The refresh request
      * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.internal.Requests#refreshRequest(String...)
      */
-    void refresh(RefreshRequest request, ActionListener<RefreshResponse> listener);
+    void refresh(RefreshRequest request, ActionListener<BroadcastResponse> listener);
 
     /**
      * Explicitly refresh one or more indices (making the content indexed since the last refresh searchable).
@@ -320,18 +277,16 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      *
      * @param request The flush request
      * @return A result future
-     * @see org.elasticsearch.client.internal.Requests#flushRequest(String...)
      */
-    ActionFuture<FlushResponse> flush(FlushRequest request);
+    ActionFuture<BroadcastResponse> flush(FlushRequest request);
 
     /**
      * Explicitly flush one or more indices (releasing memory from the node).
      *
      * @param request  The flush request
      * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.internal.Requests#flushRequest(String...)
      */
-    void flush(FlushRequest request, ActionListener<FlushResponse> listener);
+    void flush(FlushRequest request, ActionListener<BroadcastResponse> listener);
 
     /**
      * Explicitly flush one or more indices (releasing memory from the node).
@@ -343,18 +298,16 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      *
      * @param request The optimize request
      * @return A result future
-     * @see org.elasticsearch.client.internal.Requests#forceMergeRequest(String...)
      */
-    ActionFuture<ForceMergeResponse> forceMerge(ForceMergeRequest request);
+    ActionFuture<BroadcastResponse> forceMerge(ForceMergeRequest request);
 
     /**
      * Explicitly force merge one or more indices into a the number of segments.
      *
      * @param request  The force merge request
      * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.internal.Requests#forceMergeRequest(String...)
      */
-    void forceMerge(ForceMergeRequest request, ActionListener<ForceMergeResponse> listener);
+    void forceMerge(ForceMergeRequest request, ActionListener<BroadcastResponse> listener);
 
     /**
      * Explicitly force merge one or more indices into a the number of segments.
@@ -396,7 +349,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      *
      * @param request The create mapping request
      * @return A result future
-     * @see org.elasticsearch.client.internal.Requests#putMappingRequest(String...)
      */
     ActionFuture<AcknowledgedResponse> putMapping(PutMappingRequest request);
 
@@ -405,7 +357,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      *
      * @param request  The create mapping request
      * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.internal.Requests#putMappingRequest(String...)
      */
     void putMapping(PutMappingRequest request, ActionListener<AcknowledgedResponse> listener);
 
@@ -419,7 +370,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      *
      * @param request The index aliases request
      * @return The result future
-     * @see Requests#indexAliasesRequest()
      */
     ActionFuture<AcknowledgedResponse> aliases(IndicesAliasesRequest request);
 
@@ -428,7 +378,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      *
      * @param request  The index aliases request
      * @param listener A listener to be notified with a result
-     * @see Requests#indexAliasesRequest()
      */
     void aliases(IndicesAliasesRequest request, ActionListener<AcknowledgedResponse> listener);
 
@@ -482,18 +431,16 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      *
      * @param request The clear indices cache request
      * @return The result future
-     * @see Requests#clearIndicesCacheRequest(String...)
      */
-    ActionFuture<ClearIndicesCacheResponse> clearCache(ClearIndicesCacheRequest request);
+    ActionFuture<BroadcastResponse> clearCache(ClearIndicesCacheRequest request);
 
     /**
      * Clear indices cache.
      *
      * @param request  The clear indices cache request
      * @param listener A listener to be notified with a result
-     * @see Requests#clearIndicesCacheRequest(String...)
      */
-    void clearCache(ClearIndicesCacheRequest request, ActionListener<ClearIndicesCacheResponse> listener);
+    void clearCache(ClearIndicesCacheRequest request, ActionListener<BroadcastResponse> listener);
 
     /**
      * Clear indices cache.
@@ -570,11 +517,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     PutIndexTemplateRequestBuilder preparePutTemplate(String name);
 
     /**
-     * Deletes index template.
-     */
-    ActionFuture<AcknowledgedResponse> deleteTemplate(DeleteIndexTemplateRequest request);
-
-    /**
      * Deletes an index template.
      */
     void deleteTemplate(DeleteIndexTemplateRequest request, ActionListener<AcknowledgedResponse> listener);
@@ -585,11 +527,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param name The name of the template.
      */
     DeleteIndexTemplateRequestBuilder prepareDeleteTemplate(String name);
-
-    /**
-     * Gets index template.
-     */
-    ActionFuture<GetIndexTemplatesResponse> getTemplates(GetIndexTemplatesRequest request);
 
     /**
      * Gets an index template.
@@ -648,14 +585,9 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     ResizeRequestBuilder prepareResizeIndex(String sourceIndex, String targetIndex);
 
     /**
-     * Resize an index using an explicit request allowing to specify the settings, mappings and aliases of the target index of the index.
-     */
-    ActionFuture<ResizeResponse> resizeIndex(ResizeRequest request);
-
-    /**
      * Shrinks an index using an explicit request allowing to specify the settings, mappings and aliases of the target index of the index.
      */
-    void resizeIndex(ResizeRequest request, ActionListener<ResizeResponse> listener);
+    void resizeIndex(ResizeRequest request, ActionListener<CreateIndexResponse> listener);
 
     /**
      * Swaps the index pointed to by an alias given all provided conditions are satisfied

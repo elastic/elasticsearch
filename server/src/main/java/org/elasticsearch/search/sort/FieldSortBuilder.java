@@ -15,7 +15,8 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,9 +31,9 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -55,13 +56,12 @@ import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.Resolution.MILLISECONDS;
 import static org.elasticsearch.index.mapper.DateFieldMapper.Resolution.NANOSECONDS;
-import static org.elasticsearch.index.search.NestedHelper.parentObject;
 import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
 
 /**
  * A sort builder to sort based on a document field.
  */
-public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
+public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     public static final String NAME = "field_sort";
     public static final ParseField MISSING = new ParseField("missing");
@@ -133,7 +133,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      */
     public FieldSortBuilder(StreamInput in) throws IOException {
         fieldName = in.readString();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             if (in.readOptionalNamedWriteable(QueryBuilder.class) != null || in.readOptionalString() != null) {
                 throw new IOException(
                     "the [sort] options [nested_path] and [nested_filter] are removed in 8.x, " + "please use [nested] instead"
@@ -145,18 +145,14 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
         unmappedType = in.readOptionalString();
         nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            numericType = in.readOptionalString();
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
-            format = in.readOptionalString();
-        }
+        numericType = in.readOptionalString();
+        format = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeOptionalNamedWriteable(null);
             out.writeOptionalString(null);
         }
@@ -165,16 +161,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         out.writeOptionalWriteable(sortMode);
         out.writeOptionalString(unmappedType);
         out.writeOptionalWriteable(nestedSort);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            out.writeOptionalString(numericType);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-            out.writeOptionalString(format);
-        } else {
-            if (format != null) {
-                throw new IllegalArgumentException("Custom format for output of sort fields requires all nodes on 8.0 or later");
-            }
-        }
+        out.writeOptionalString(numericType);
+        out.writeOptionalString(format);
     }
 
     /** Returns the document field this sort should be based on. */
@@ -363,7 +351,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             fieldType = resolveUnmappedType(context);
         }
 
-        IndexFieldData<?> fieldData = context.getForField(fieldType);
+        IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
         if (fieldData instanceof IndexNumericFieldData == false
             && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
             throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
@@ -463,7 +451,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             fieldType = resolveUnmappedType(context);
         }
 
-        IndexFieldData<?> fieldData = context.getForField(fieldType);
+        IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
         if (fieldData instanceof IndexNumericFieldData == false
             && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
             throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
@@ -660,17 +648,13 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             // already in nested context
             return;
         }
-        for (String parent = parentObject(field); parent != null; parent = parentObject(parent)) {
-            ObjectMapper parentMapper = context.getObjectMapper(parent);
-            if (parentMapper != null && parentMapper.isNested()) {
-                NestedObjectMapper parentNested = (NestedObjectMapper) parentMapper;
-                if (parentNested.isIncludeInRoot() == false) {
-                    throw new QueryShardException(
-                        context,
-                        "it is mandatory to set the [nested] context on the nested sort field: [" + field + "]."
-                    );
-                }
-            }
+        NestedLookup nestedLookup = context.nestedLookup();
+        String nestedParent = nestedLookup.getNestedParent(field);
+        if (nestedParent != null && nestedLookup.getNestedMappers().get(nestedParent).isIncludeInRoot() == false) {
+            throw new QueryShardException(
+                context,
+                "it is mandatory to set the [nested] context on the nested sort field: [" + field + "]."
+            );
         }
     }
 
@@ -714,6 +698,11 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         return NAME;
     }
 
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
+    }
+
     /**
      * Creates a new {@link FieldSortBuilder} from the query held by the {@link XContentParser} in
      * {@link org.elasticsearch.xcontent.XContent} format.
@@ -737,22 +726,13 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         PARSER.declareObject(FieldSortBuilder::setNestedSort, (p, c) -> NestedSortBuilder.fromXContent(p), NESTED_FIELD);
         PARSER.declareString(FieldSortBuilder::setNumericType, NUMERIC_TYPE);
         PARSER.declareString(FieldSortBuilder::setFormat, FORMAT);
-        PARSER.declareField(
-            (b, v) -> {},
-            (p, c) -> {
-                throw new ParsingException(p.getTokenLocation(), "[nested_path] has been removed in favour of the [nested] parameter", c);
-            },
-            NESTED_PATH_FIELD,
-            ValueType.STRING
-        );
+        PARSER.declareField((b, v) -> {}, (p, c) -> {
+            throw new ParsingException(p.getTokenLocation(), "[nested_path] has been removed in favour of the [nested] parameter", c);
+        }, NESTED_PATH_FIELD, ValueType.STRING);
 
-        PARSER.declareObject(
-            (b, v) -> {},
-            (p, c) -> {
-                throw new ParsingException(p.getTokenLocation(), "[nested_filter] has been removed in favour of the [nested] parameter", c);
-            },
-            NESTED_FILTER_FIELD
-        );
+        PARSER.declareObject((b, v) -> {}, (p, c) -> {
+            throw new ParsingException(p.getTokenLocation(), "[nested_filter] has been removed in favour of the [nested] parameter", c);
+        }, NESTED_FILTER_FIELD);
     }
 
     @Override

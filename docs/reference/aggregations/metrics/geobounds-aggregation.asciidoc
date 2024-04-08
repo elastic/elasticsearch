@@ -4,7 +4,7 @@
 <titleabbrev>Geo-bounds</titleabbrev>
 ++++
 
-A metric aggregation that computes the bounding box containing all geo values for a field.
+A metric aggregation that computes the geographic bounding box containing all values for a <<geo-point>> or <<geo-shape>> field.
 
 Example:
 
@@ -23,17 +23,17 @@ PUT /museums
 
 POST /museums/_bulk?refresh
 {"index":{"_id":1}}
-{"location": "52.374081,4.912350", "name": "NEMO Science Museum"}
+{"location": "POINT (4.912350 52.374081)", "name": "NEMO Science Museum"}
 {"index":{"_id":2}}
-{"location": "52.369219,4.901618", "name": "Museum Het Rembrandthuis"}
+{"location": "POINT (4.901618 52.369219)", "name": "Museum Het Rembrandthuis"}
 {"index":{"_id":3}}
-{"location": "52.371667,4.914722", "name": "Nederlands Scheepvaartmuseum"}
+{"location": "POINT (4.914722 52.371667)", "name": "Nederlands Scheepvaartmuseum"}
 {"index":{"_id":4}}
-{"location": "51.222900,4.405200", "name": "Letterenhuis"}
+{"location": "POINT (4.405200 51.222900)", "name": "Letterenhuis"}
 {"index":{"_id":5}}
-{"location": "48.861111,2.336389", "name": "Musée du Louvre"}
+{"location": "POINT (2.336389 48.861111)", "name": "Musée du Louvre"}
 {"index":{"_id":6}}
-{"location": "48.860000,2.327000", "name": "Musée d'Orsay"}
+{"location": "POINT (2.327000 48.860000)", "name": "Musée d'Orsay"}
 
 POST /museums/_search?size=0
 {
@@ -51,10 +51,10 @@ POST /museums/_search?size=0
 }
 --------------------------------------------------
 
-<1> The `geo_bounds` aggregation specifies the field to use to obtain the bounds.
+<1> The `geo_bounds` aggregation specifies the field to use to obtain the bounds, which must be a <<geo-point>> or a <<geo-shape>> type.
 <2> [[geo-bounds-wrap-longitude]] `wrap_longitude` is an optional parameter which specifies whether the bounding box should be allowed to overlap the international date line. The default value is `true`.
 
-The above aggregation demonstrates how one would compute the bounding box of the location field for all documents with a business type of shop.
+The above aggregation demonstrates how one would compute the bounding box of the location field for all documents with a name matching "musée".
 
 The response for the above aggregation:
 

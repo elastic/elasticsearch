@@ -10,27 +10,23 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.script.field.DocValuesField;
-import org.elasticsearch.script.field.ToScriptField;
-
-import java.util.Collection;
-import java.util.Collections;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 
 public abstract class AbstractLeafOrdinalsFieldData implements LeafOrdinalsFieldData {
 
-    private final ToScriptField<SortedSetDocValues> toScriptField;
+    private final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
 
-    protected AbstractLeafOrdinalsFieldData(ToScriptField<SortedSetDocValues> toScriptField) {
-        this.toScriptField = toScriptField;
+    protected AbstractLeafOrdinalsFieldData(ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory) {
+        this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
     @Override
-    public final DocValuesField<?> getScriptField(String name) {
-        return toScriptField.getScriptField(getOrdinalsValues(), name);
+    public final DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+        return toScriptFieldFactory.getScriptFieldFactory(getOrdinalsValues(), name);
     }
 
     @Override
@@ -38,17 +34,12 @@ public abstract class AbstractLeafOrdinalsFieldData implements LeafOrdinalsField
         return FieldData.toString(getOrdinalsValues());
     }
 
-    public static LeafOrdinalsFieldData empty(ToScriptField<SortedSetDocValues> toScriptField) {
-        return new AbstractLeafOrdinalsFieldData(toScriptField) {
+    public static LeafOrdinalsFieldData empty(ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory) {
+        return new AbstractLeafOrdinalsFieldData(toScriptFieldFactory) {
 
             @Override
             public long ramBytesUsed() {
                 return 0;
-            }
-
-            @Override
-            public Collection<Accountable> getChildResources() {
-                return Collections.emptyList();
             }
 
             @Override

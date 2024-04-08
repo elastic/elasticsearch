@@ -13,7 +13,7 @@ import org.apache.hadoop.fs.DelegateToFileSystem;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.RawLocalFileSystem;
 import org.apache.hadoop.fs.permission.FsPermission;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;

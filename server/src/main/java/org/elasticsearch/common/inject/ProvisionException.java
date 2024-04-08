@@ -20,10 +20,8 @@ import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.spi.Message;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Set;
 
-import static java.util.Collections.singleton;
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
@@ -46,15 +44,6 @@ public final class ProvisionException extends RuntimeException {
             throw new IllegalArgumentException();
         }
         initCause(Errors.getOnlyCause(this.messages));
-    }
-
-    public ProvisionException(String message, Throwable cause) {
-        super(cause);
-        this.messages = singleton(new Message(Collections.emptyList(), message, cause));
-    }
-
-    public ProvisionException(String message) {
-        this.messages = singleton(new Message(message));
     }
 
     /**

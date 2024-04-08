@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.alias;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.support.ActionFilters;
@@ -29,9 +30,9 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
@@ -44,10 +45,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableList;
@@ -57,6 +58,8 @@ import static java.util.Collections.unmodifiableList;
  */
 public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNodeAction<IndicesAliasesRequest> {
 
+    public static final String NAME = "indices:admin/aliases";
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportIndicesAliasesAction.class);
 
     private final MetadataIndexAliasesService indexAliasesService;
@@ -75,14 +78,14 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
         final SystemIndices systemIndices
     ) {
         super(
-            IndicesAliasesAction.NAME,
+            NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
             IndicesAliasesRequest::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexAliasesService = indexAliasesService;
         this.requestValidators = Objects.requireNonNull(requestValidators);
@@ -128,7 +131,7 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                 List<Index> nonBackingIndices = Arrays.stream(unprocessedConcreteIndices).filter(index -> {
                     var ia = state.metadata().getIndicesLookup().get(index.getName());
                     return ia.getParentDataStream() == null;
-                }).collect(Collectors.toList());
+                }).toList();
                 concreteIndices = nonBackingIndices.toArray(Index[]::new);
                 switch (action.actionType()) {
                     case ADD -> {
@@ -204,7 +207,7 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                 switch (action.actionType()) {
                     case ADD:
                         for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
-                            String resolvedName = this.indexNameExpressionResolver.resolveDateMathExpression(alias, now);
+                            String resolvedName = IndexNameExpressionResolver.resolveDateMathExpression(alias, now);
                             finalActions.add(
                                 new AliasAction.Add(
                                     index.getName(),
@@ -249,7 +252,7 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
         if (action.expandAliasesWildcards()) {
             // for DELETE we expand the aliases
             String[] concreteIndices = { concreteIndex };
-            ImmutableOpenMap<String, List<AliasMetadata>> aliasMetadata = metadata.findAliases(action.aliases(), concreteIndices);
+            Map<String, List<AliasMetadata>> aliasMetadata = metadata.findAliases(action.aliases(), concreteIndices);
             List<String> finalAliases = new ArrayList<>();
             for (List<AliasMetadata> aliases : aliasMetadata.values()) {
                 for (AliasMetadata aliasMeta : aliases) {

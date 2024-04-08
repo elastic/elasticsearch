@@ -8,6 +8,7 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
@@ -22,7 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 import static org.objectweb.asm.Opcodes.H_INVOKEINTERFACE;
@@ -73,14 +74,12 @@ public class FunctionRef {
 
             if (interfaceMethod == null) {
                 throw new IllegalArgumentException(
-                    "cannot convert function reference ["
-                        + typeName
-                        + "::"
-                        + methodName
-                        + "] "
-                        + "to a non-functional interface ["
-                        + targetClassName
-                        + "]"
+                    Strings.format(
+                        "cannot convert function reference [%s::%s] to a non-functional interface [%s]",
+                        typeName,
+                        methodName,
+                        targetClassName
+                    )
                 );
             }
 
@@ -110,18 +109,14 @@ public class FunctionRef {
 
                 if (localFunction == null) {
                     throw new IllegalArgumentException(
-                        "function reference [this::"
-                            + localFunctionKey
-                            + "] "
-                            + "matching ["
-                            + targetClassName
-                            + ", "
-                            + interfaceMethodName
-                            + "/"
-                            + interfaceTypeParametersSize
-                            + "] "
-                            + "not found"
-                            + (localFunctionKey.contains("$") ? " due to an incorrect number of arguments" : "")
+                        Strings.format(
+                            "function reference [this::%s] matching [%s, %s/%d] not found%s",
+                            localFunctionKey,
+                            targetClassName,
+                            interfaceMethodName,
+                            interfaceTypeParametersSize,
+                            localFunctionKey.contains("$") ? " due to an incorrect number of arguments" : ""
+                        )
                     );
                 }
 
@@ -144,19 +139,14 @@ public class FunctionRef {
 
                 if (painlessConstructor == null) {
                     throw new IllegalArgumentException(
-                        "function reference ["
-                            + typeName
-                            + "::new/"
-                            + interfaceTypeParametersSize
-                            + "] "
-                            + "matching ["
-                            + targetClassName
-                            + ", "
-                            + interfaceMethodName
-                            + "/"
-                            + interfaceTypeParametersSize
-                            + "] "
-                            + "not found"
+                        Strings.format(
+                            "function reference [%s::new/%d] matching [%s, %s/%d] not found",
+                            typeName,
+                            interfaceTypeParametersSize,
+                            targetClassName,
+                            interfaceMethodName,
+                            interfaceTypeParametersSize
+                        )
                     );
                 }
 
@@ -193,35 +183,25 @@ public class FunctionRef {
 
                     if (painlessMethod == null) {
                         throw new IllegalArgumentException(
-                            "function reference "
-                                + "["
-                                + typeName
-                                + "::"
-                                + methodName
-                                + "/"
-                                + interfaceTypeParametersSize
-                                + "] "
-                                + "matching ["
-                                + targetClassName
-                                + ", "
-                                + interfaceMethodName
-                                + "/"
-                                + interfaceTypeParametersSize
-                                + "] "
-                                + "not found"
+                            Strings.format(
+                                "function reference [%s::%s/%d] matching [%s, %s/%d] not found",
+                                typeName,
+                                methodName,
+                                interfaceTypeParametersSize,
+                                targetClassName,
+                                interfaceMethodName,
+                                interfaceTypeParametersSize
+                            )
                         );
                     }
                 } else if (captured) {
                     throw new IllegalArgumentException(
-                        "cannot use a static method as a function reference "
-                            + "["
-                            + typeName
-                            + "::"
-                            + methodName
-                            + "/"
-                            + interfaceTypeParametersSize
-                            + "] "
-                            + "with a non-static captured variable"
+                        Strings.format(
+                            "cannot use a static method as a function reference [%s::%s/%d] with a non-static captured variable",
+                            typeName,
+                            methodName,
+                            interfaceTypeParametersSize
+                        )
                     );
                 }
 
@@ -360,19 +340,20 @@ public class FunctionRef {
         if (factoryMethodReceiver == null) {
             return factoryMethodType.toMethodDescriptorString();
         }
-        List<Type> arguments = factoryMethodType.parameterList().stream().map(Type::getType).collect(Collectors.toList());
-        arguments.add(0, factoryMethodReceiver);
-        Type[] argArray = new Type[arguments.size()];
-        arguments.toArray(argArray);
-        return Type.getMethodDescriptor(Type.getType(factoryMethodType.returnType()), argArray);
+        Type[] arguments = Stream.concat(Stream.of(factoryMethodReceiver), factoryMethodType.parameterList().stream().map(Type::getType))
+            .toArray(Type[]::new);
+        return Type.getMethodDescriptor(Type.getType(factoryMethodType.returnType()), arguments);
     }
 
     /** Get the factory method type, updating the receiver if {@code factoryMethodReceiverClass} is non-null */
     public Class<?>[] factoryMethodParameters(Class<?> factoryMethodReceiverClass) {
-        List<Class<?>> parameters = new ArrayList<>(factoryMethodType.parameterList());
+        Class<?>[] parameters = factoryMethodType.parameterList().toArray(Class<?>[]::new);
         if (factoryMethodReceiverClass != null) {
-            parameters.add(0, factoryMethodReceiverClass);
+            Class<?>[] withReceiver = new Class<?>[parameters.length + 1];
+            withReceiver[0] = factoryMethodReceiverClass;
+            System.arraycopy(parameters, 0, withReceiver, 1, parameters.length);
+            parameters = withReceiver;
         }
-        return parameters.toArray(new Class<?>[0]);
+        return parameters;
     }
 }

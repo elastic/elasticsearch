@@ -20,6 +20,7 @@ import java.net.Proxy;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.URLConnection;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.sql.SQLClientInfoException;
@@ -31,6 +32,9 @@ import java.sql.SQLRecoverableException;
 import java.sql.SQLSyntaxErrorException;
 import java.sql.SQLTimeoutException;
 import java.util.Base64;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.zip.GZIPInputStream;
 
@@ -150,7 +154,7 @@ public class JreHttpUrlConnection implements Closeable {
 
     public <R> ResponseOrException<R> request(
         CheckedConsumer<OutputStream, IOException> doc,
-        CheckedBiFunction<InputStream, Function<String, String>, R, IOException> parser,
+        CheckedBiFunction<InputStream, Function<String, List<String>>, R, IOException> parser,
         String requestMethod
     ) throws ClientException {
         return request(doc, parser, requestMethod, "application/json");
@@ -158,7 +162,7 @@ public class JreHttpUrlConnection implements Closeable {
 
     public <R> ResponseOrException<R> request(
         CheckedConsumer<OutputStream, IOException> doc,
-        CheckedBiFunction<InputStream, Function<String, String>, R, IOException> parser,
+        CheckedBiFunction<InputStream, Function<String, List<String>>, R, IOException> parser,
         String requestMethod,
         String contentTypeHeader
     ) throws ClientException {
@@ -174,7 +178,7 @@ public class JreHttpUrlConnection implements Closeable {
             }
             if (shouldParseBody(con.getResponseCode())) {
                 try (InputStream stream = getStream(con, con.getInputStream())) {
-                    return new ResponseOrException<>(parser.apply(new BufferedInputStream(stream), con::getHeaderField));
+                    return new ResponseOrException<>(parser.apply(new BufferedInputStream(stream), getHeaderFields(con)));
                 }
             }
             return parserError();
@@ -183,7 +187,19 @@ public class JreHttpUrlConnection implements Closeable {
         }
     }
 
-    private boolean shouldParseBody(int responseCode) {
+    private static Function<String, List<String>> getHeaderFields(URLConnection con) {
+        return header -> {
+            List<String> values = new LinkedList<>();
+            for (Map.Entry<String, List<String>> entry : con.getHeaderFields().entrySet()) {
+                if (header.equalsIgnoreCase(entry.getKey())) {
+                    values.addAll(entry.getValue());
+                }
+            }
+            return values;
+        };
+    }
+
+    private static boolean shouldParseBody(int responseCode) {
         return responseCode == 200 || responseCode == 201 || responseCode == 202;
     }
 
@@ -329,6 +345,7 @@ public class JreHttpUrlConnection implements Closeable {
                 case "analysis_exception":
                 case "resource_not_found_exception":
                 case "verification_exception":
+                case "invalid_argument_exception":
                     return DATA;
                 case "planning_exception":
                 case "mapping_exception":

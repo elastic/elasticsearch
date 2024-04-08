@@ -25,7 +25,9 @@ import java.util.Map;
  */
 public class SuggestPhase {
 
-    public void execute(SearchContext context) {
+    private SuggestPhase() {}
+
+    public static void execute(SearchContext context) {
         final SuggestionSearchContext suggest = context.suggest();
         if (suggest == null) {
             return;

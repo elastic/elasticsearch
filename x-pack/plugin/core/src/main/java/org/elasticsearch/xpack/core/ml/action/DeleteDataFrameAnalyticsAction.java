@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -28,10 +27,10 @@ public class DeleteDataFrameAnalyticsAction extends ActionType<AcknowledgedRespo
     public static final String DELETION_TASK_DESCRIPTION_PREFIX = "delete-analytics-";
 
     private DeleteDataFrameAnalyticsAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
+    public static final class Request extends AcknowledgedRequest<Request> {
 
         public static final ParseField FORCE = new ParseField("force");
         public static final ParseField TIMEOUT = new ParseField("timeout");
@@ -67,11 +66,6 @@ public class DeleteDataFrameAnalyticsAction extends ActionType<AcknowledgedRespo
 
         public void setForce(boolean force) {
             this.force = force;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

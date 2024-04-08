@@ -30,8 +30,8 @@ that is significant and probably very relevant to their search. 5/10,000,000 vs 
 
 ==== Basic use
 
-In the typical use case, the _foreground_ set of interest is a selection of the top-matching search results for a query 
-and the _background_set used for statistical comparisons is the index or indices from which the results were gathered.
+In the typical use case, the _foreground_ set of interest is a selection of the top-matching search results for a query
+and the _background_ set used for statistical comparisons is the index or indices from which the results were gathered.
 
 Example:
 

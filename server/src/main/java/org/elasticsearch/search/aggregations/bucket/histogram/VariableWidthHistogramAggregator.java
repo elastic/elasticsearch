@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.InPlaceMergeSorter;
@@ -19,6 +18,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -51,7 +51,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
      * Running a clustering algorithm like K-Means is unfeasible because large indices don't fit into memory.
      * But having multiple collection phases lets us accurately bucket the docs in one pass.
      */
-    private abstract class CollectionPhase implements Releasable {
+    private abstract static class CollectionPhase implements Releasable {
 
         /**
          * This method will collect the doc and then either return itself or a new CollectionPhase
@@ -82,7 +82,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
 
         private DoubleArray buffer;
         private int bufferSize;
-        private int bufferLimit;
+        private final int bufferLimit;
         private MergeBucketsPhase mergeBucketsPhase;
 
         BufferValuesPhase(int bufferLimit) {
@@ -97,7 +97,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             if (bufferSize < bufferLimit) {
                 // Add to the buffer i.e store the doc in a new bucket
                 buffer = bigArrays().grow(buffer, bufferSize + 1);
-                buffer.set((long) bufferSize, val);
+                buffer.set(bufferSize, val);
                 collectBucket(sub, doc, bufferSize);
                 bufferSize += 1;
             }
@@ -179,7 +179,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
          * Sorts the <b>indices</b> of <code>values</code> by their underlying value
          * This will produce a merge map whose application will sort <code>values</code>
          */
-        private class ClusterSorter extends InPlaceMergeSorter {
+        private static class ClusterSorter extends InPlaceMergeSorter {
 
             final DoubleArray values;
             final long[] indexes;
@@ -352,20 +352,17 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
                 clusterSizes.set(index, holdSize);
 
                 // Move the underlying buckets
-                LongUnaryOperator mergeMap = new LongUnaryOperator() {
-                    @Override
-                    public long applyAsLong(long i) {
-                        if (i < index) {
-                            // The clusters in range {0 ... idx - 1} don't move
-                            return i;
-                        }
-                        if (i == numClusters - 1) {
-                            // The new cluster moves to index
-                            return (long) index;
-                        }
-                        // The clusters in range {index ... numClusters - 1} shift forward
-                        return i + 1;
+                LongUnaryOperator mergeMap = i -> {
+                    if (i < index) {
+                        // The clusters in range {0 ... idx - 1} don't move
+                        return i;
                     }
+                    if (i == numClusters - 1) {
+                        // The new cluster moves to index
+                        return (long) index;
+                    }
+                    // The clusters in range {index ... numClusters - 1} shift forward
+                    return i + 1;
                 };
 
                 rewriteBuckets(numClusters, mergeMap);
@@ -435,7 +432,6 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
     // Aggregation parameters
     private final int numBuckets;
     private final int shardSize;
-    private final int bufferLimit;
 
     private CollectionPhase collector;
 
@@ -458,9 +454,8 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
         this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
         this.formatter = valuesSourceConfig.format();
         this.shardSize = shardSize;
-        this.bufferLimit = initialBuffer;
 
-        collector = new BufferValuesPhase(this.bufferLimit);
+        collector = new BufferValuesPhase(initialBuffer);
 
         String scoringAgg = subAggsNeedScore();
         String nestedAgg = descendsFromNestedAggregator(parent);
@@ -495,7 +490,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
         return null;
     }
 
-    private String descendsFromNestedAggregator(Aggregator parent) {
+    private static String descendsFromNestedAggregator(Aggregator parent) {
         while (parent != null) {
             if (parent.getClass() == NestedAggregator.class) {
                 return parent.name();
@@ -525,11 +520,11 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
     }
 
     @Override
-    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+    protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
+        final SortedNumericDoubleValues values = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -560,11 +555,11 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
             bucketOrdsToCollect[i] = i;
         }
 
-        InternalAggregations[] subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
+        var subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
 
         List<InternalVariableWidthHistogram.Bucket> buckets = new ArrayList<>(numClusters);
         for (int bucketOrd = 0; bucketOrd < numClusters; bucketOrd++) {
-            buckets.add(collector.buildBucket(bucketOrd, subAggregationResults[bucketOrd]));
+            buckets.add(collector.buildBucket(bucketOrd, subAggregationResults.apply(bucketOrd)));
         }
 
         Function<List<InternalVariableWidthHistogram.Bucket>, InternalAggregation> resultBuilder = bucketsToFormat -> {

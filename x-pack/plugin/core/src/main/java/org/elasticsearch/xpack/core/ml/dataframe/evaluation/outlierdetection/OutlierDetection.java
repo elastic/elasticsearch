@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationN
 /**
  * Evaluation of outlier detection results.
  */
-public class OutlierDetection implements Evaluation {
+public final class OutlierDetection implements Evaluation {
 
     public static final ParseField NAME = new ParseField("outlier_detection", "binary_soft_classification");
 
@@ -98,7 +98,7 @@ public class OutlierDetection implements Evaluation {
 
     public OutlierDetection(StreamInput in) throws IOException {
         this.fields = new EvaluationFields(in.readString(), null, null, null, in.readString(), false);
-        this.metrics = in.readNamedWriteableList(EvaluationMetric.class);
+        this.metrics = in.readNamedWriteableCollectionAsList(EvaluationMetric.class);
     }
 
     @Override
@@ -125,7 +125,7 @@ public class OutlierDetection implements Evaluation {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fields.getActualField());
         out.writeString(fields.getPredictedProbabilityField());
-        out.writeNamedWriteableList(metrics);
+        out.writeNamedWriteableCollection(metrics);
     }
 
     @Override

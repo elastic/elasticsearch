@@ -6,31 +6,27 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.extractor;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.metrics.Cardinality;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -41,13 +37,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -89,7 +85,7 @@ public class ExtractedFieldsDetectorFactory {
 
         // Step 3. Get cardinalities for fields with constraints
         ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(fieldCapabilitiesResponse -> {
-            LOGGER.debug(() -> new ParameterizedMessage("[{}] Field capabilities response: {}", config.getId(), fieldCapabilitiesResponse));
+            LOGGER.debug(() -> format("[%s] Field capabilities response: %s", config.getId(), fieldCapabilitiesResponse));
             fieldCapsResponseHolder.set(fieldCapabilitiesResponse);
             getCardinalitiesForFieldsWithConstraints(index, config, fieldCapabilitiesResponse, fieldCardinalitiesHandler);
         }, listener::onFailure);
@@ -116,11 +112,6 @@ public class ExtractedFieldsDetectorFactory {
             return;
         }
 
-        ActionListener<SearchResponse> searchListener = ActionListener.wrap(
-            searchResponse -> buildFieldCardinalitiesMap(config, searchResponse, listener),
-            listener::onFailure
-        );
-
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0)
             .query(config.getSource().getParsedQuery())
             .runtimeMappings(config.getSource().getRuntimeMappings());
@@ -145,15 +136,22 @@ public class ExtractedFieldsDetectorFactory {
             );
         }
         SearchRequest searchRequest = new SearchRequest(index).source(searchSourceBuilder);
-        ClientHelper.executeWithHeadersAsync(config.getHeaders(), ML_ORIGIN, client, SearchAction.INSTANCE, searchRequest, searchListener);
+        ClientHelper.executeWithHeadersAsync(
+            config.getHeaders(),
+            ML_ORIGIN,
+            client,
+            TransportSearchAction.TYPE,
+            searchRequest,
+            listener.delegateFailureAndWrap((l, searchResponse) -> buildFieldCardinalitiesMap(config, searchResponse, l))
+        );
     }
 
-    private void buildFieldCardinalitiesMap(
+    private static void buildFieldCardinalitiesMap(
         DataFrameAnalyticsConfig config,
         SearchResponse searchResponse,
         ActionListener<Map<String, Long>> listener
     ) {
-        Aggregations aggs = searchResponse.getAggregations();
+        InternalAggregations aggs = searchResponse.getAggregations();
         if (aggs == null) {
             listener.onFailure(ExceptionsHelper.serverError("Unexpected null response when gathering field cardinalities"));
             return;
@@ -177,9 +175,9 @@ public class ExtractedFieldsDetectorFactory {
         fieldCapabilitiesRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         fieldCapabilitiesRequest.fields("*");
         fieldCapabilitiesRequest.runtimeFields(config.getSource().getRuntimeMappings());
-        LOGGER.debug(() -> new ParameterizedMessage("[{}] Requesting field caps for index {}", config.getId(), Arrays.toString(index)));
+        LOGGER.debug(() -> format("[%s] Requesting field caps for index %s", config.getId(), Arrays.toString(index)));
         ClientHelper.executeWithHeaders(config.getHeaders(), ML_ORIGIN, client, () -> {
-            client.execute(FieldCapabilitiesAction.INSTANCE, fieldCapabilitiesRequest, listener);
+            client.execute(TransportFieldCapabilitiesAction.TYPE, fieldCapabilitiesRequest, listener);
             // This response gets discarded - the listener handles the real response
             return null;
         });
@@ -189,11 +187,9 @@ public class ExtractedFieldsDetectorFactory {
         ActionListener<GetSettingsResponse> settingsListener = ActionListener.wrap(getSettingsResponse -> {
             Integer minDocValueFieldsLimit = Integer.MAX_VALUE;
 
-            ImmutableOpenMap<String, Settings> indexToSettings = getSettingsResponse.getIndexToSettings();
-            Iterator<ObjectObjectCursor<String, Settings>> iterator = indexToSettings.iterator();
-            while (iterator.hasNext()) {
-                ObjectObjectCursor<String, Settings> indexSettings = iterator.next();
-                Integer indexMaxDocValueFields = IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.get(indexSettings.value);
+            Map<String, Settings> indexToSettings = getSettingsResponse.getIndexToSettings();
+            for (var indexSettings : indexToSettings.values()) {
+                Integer indexMaxDocValueFields = IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.get(indexSettings);
                 if (indexMaxDocValueFields < minDocValueFieldsLimit) {
                     minDocValueFieldsLimit = indexMaxDocValueFields;
                 }

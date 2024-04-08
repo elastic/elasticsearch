@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -20,7 +21,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -44,6 +44,7 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
     ClusterAllocationExplainRequest,
     ClusterAllocationExplainResponse> {
 
+    public static final ActionType<ClusterAllocationExplainResponse> TYPE = new ActionType<>("cluster:monitor/allocation/explain");
     private static final Logger logger = LogManager.getLogger(TransportClusterAllocationExplainAction.class);
 
     private final ClusterInfoService clusterInfoService;
@@ -64,7 +65,8 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
         AllocationService allocationService
     ) {
         super(
-            ClusterAllocationExplainAction.NAME,
+            TYPE.name(),
+            false,
             transportService,
             clusterService,
             threadPool,
@@ -72,7 +74,7 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
             ClusterAllocationExplainRequest::new,
             indexNameExpressionResolver,
             ClusterAllocationExplainResponse::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;
@@ -92,11 +94,9 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
         final ClusterState state,
         final ActionListener<ClusterAllocationExplainResponse> listener
     ) {
-        final RoutingNodes routingNodes = state.getRoutingNodes();
         final ClusterInfo clusterInfo = clusterInfoService.getClusterInfo();
         final RoutingAllocation allocation = new RoutingAllocation(
             allocationDeciders,
-            routingNodes,
             state,
             clusterInfo,
             snapshotsInfoService.snapshotShardSizes(),

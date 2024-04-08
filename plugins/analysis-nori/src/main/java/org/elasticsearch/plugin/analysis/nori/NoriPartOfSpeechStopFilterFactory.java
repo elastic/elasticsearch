@@ -17,7 +17,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.Analysis;
 
-import java.util.HashSet;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
@@ -25,7 +25,7 @@ public class NoriPartOfSpeechStopFilterFactory extends AbstractTokenFilterFactor
     private final Set<POS.Tag> stopTags;
 
     public NoriPartOfSpeechStopFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         List<String> tagList = Analysis.getWordList(env, settings, "stoptags");
         this.stopTags = tagList != null ? resolvePOSList(tagList) : KoreanPartOfSpeechStopFilter.DEFAULT_STOP_TAGS;
     }
@@ -36,7 +36,7 @@ public class NoriPartOfSpeechStopFilterFactory extends AbstractTokenFilterFactor
     }
 
     static Set<POS.Tag> resolvePOSList(List<String> tagList) {
-        Set<POS.Tag> stopTags = new HashSet<>();
+        Set<POS.Tag> stopTags = EnumSet.noneOf(POS.Tag.class);
         for (String tag : tagList) {
             stopTags.add(POS.resolveTag(tag));
         }

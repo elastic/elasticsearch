@@ -25,7 +25,7 @@ public class FingerprintTokenFilterFactory extends AbstractTokenFilterFactory {
     private final int maxOutputSize;
 
     FingerprintTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         this.separator = FingerprintAnalyzerProvider.parseSeparator(settings);
         this.maxOutputSize = settings.getAsInt(MAX_OUTPUT_SIZE.getPreferredName(), DEFAULT_MAX_OUTPUT_SIZE);
     }

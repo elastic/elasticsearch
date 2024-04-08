@@ -14,6 +14,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -30,7 +31,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -66,17 +66,17 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     private static void setupDataAccessRole(String index) throws IOException {
         Request request = new Request("PUT", "/_security/role/test_data_access");
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             {  "indices" : [    { "names": ["%s"], "privileges": ["read"] }  ]}
-            """.formatted(index));
+            """, index));
         client().performRequest(request);
     }
 
     private void setupFullAccessRole(String index) throws IOException {
         Request request = new Request("PUT", "/_security/role/test_data_access");
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             {  "indices" : [    { "names": ["%s"], "privileges": ["all"] }  ]}
-            """.formatted(index));
+            """, index));
         client().performRequest(request);
     }
 
@@ -84,9 +84,9 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         String password = new String(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING.getChars());
 
         Request request = new Request("PUT", "/_security/user/" + user);
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             { "password" : "%s", "roles" : [ %s ]}
-            """.formatted(password, roles.stream().map(unquoted -> "\"" + unquoted + "\"").collect(Collectors.joining(", "))));
+            """, password, roles.stream().map(unquoted -> "\"" + unquoted + "\"").collect(Collectors.joining(", "))));
         client().performRequest(request);
     }
 
@@ -330,11 +330,11 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         for (int i = 0; i < 120; i++) {
             long byteCount = randomNonNegativeLong();
             bulk.append("{\"index\": {\"_index\": \"").append(index).append("\"}}\n");
-            bulk.append(String.format(Locale.ROOT, docTemplate, date.getTime(), "hostA", byteCount)).append('\n');
+            bulk.append(Strings.format(docTemplate, date.getTime(), "hostA", byteCount)).append('\n');
 
             byteCount = randomNonNegativeLong();
             bulk.append("{\"index\": {\"_index\": \"").append(index).append("\"}}\n");
-            bulk.append(String.format(Locale.ROOT, docTemplate, date.getTime(), "hostB", byteCount)).append('\n');
+            bulk.append(Strings.format(docTemplate, date.getTime(), "hostB", byteCount)).append('\n');
 
             date = new Date(date.getTime() + 10_000);
         }
@@ -681,7 +681,6 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         options.addHeader("Authorization", BASIC_AUTH_VALUE_ML_ADMIN);
         getFeed.setOptions(options);
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(getFeed));
-
         assertThat(e.getMessage(), containsString("[indices:data/read/field_caps] is unauthorized for user [ml_admin]"));
     }
 
@@ -722,7 +721,12 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         options.addHeader("es-secondary-authorization", BASIC_AUTH_VALUE_ML_ADMIN_WITH_SOME_DATA_ACCESS);
         getFeed.setOptions(options);
         // Should not fail as secondary auth has permissions.
-        client().performRequest(getFeed);
+        var response = client().performRequest(getFeed);
+        assertXProductResponseHeader(response);
+    }
+
+    private void assertXProductResponseHeader(Response response) {
+        assertEquals("Elasticsearch", response.getHeader("X-elastic-product"));
     }
 
     public void testLookbackOnlyGivenAggregationsWithHistogram() throws Exception {
@@ -788,6 +792,91 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":4"));
         assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":4"));
         assertThat(jobStatsResponseAsString, containsString("\"missing_field_count\":0"));
+    }
+
+    /**
+     * This test confirms the fix for <a href="https://github.com/elastic/elasticsearch/issues/104699">the issue
+     * where a datafeed with aggregations that filter everything for a bucket can go into an infinite loop</a>.
+     * In this test the filter in the aggregation is crazy as it literally filters everything. Real users would
+     * have a filter that only occasionally results in no results from the aggregation while the query alone
+     * returns data. But the code path that's exercised is the same.
+     */
+    public void testLookbackOnlyGivenAggregationsWithHistogramAndBucketFilter() throws Exception {
+        String jobId = "aggs-histogram-filter-job";
+        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
+        createJobRequest.setJsonEntity("""
+            {
+              "description": "Aggs job with dodgy filter",
+              "analysis_config": {
+                "bucket_span": "1h",
+                "summary_count_field_name": "doc_count",
+                "detectors": [
+                  {
+                    "function": "mean",
+                    "field_name": "responsetime",
+                    "by_field_name": "airline"
+                  }
+                ]
+              },
+              "data_description": {"time_field": "time stamp"}
+            }""");
+        client().performRequest(createJobRequest);
+
+        String datafeedId = "datafeed-" + jobId;
+        // The "filter_everything" aggregation in here means the output is always empty.
+        String aggregations = """
+            {
+              "buckets": {
+                "histogram": {
+                  "field": "time stamp",
+                  "interval": 3600000
+                },
+                "aggregations": {
+                  "time stamp": {
+                    "max": {
+                      "field": "time stamp"
+                    }
+                  },
+                  "filter_everything" : {
+                    "filter": {
+                      "term" : {
+                        "airline": "does not exist"
+                      }
+                    },
+                    "aggregations": {
+                      "airline": {
+                        "terms": {
+                          "field": "airline",
+                          "size": 10
+                        },
+                        "aggregations": {
+                          "responsetime": {
+                            "avg": {
+                              "field": "responsetime"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }""";
+        // The chunking timespan of 1 hour here must be less than the span of the data in order for the problem to be reproduced
+        new DatafeedBuilder(datafeedId, jobId, "airline-data-aggs").setChunkingTimespan("1h").setAggregations(aggregations).build();
+        openJob(client(), jobId);
+
+        startDatafeedAndWaitUntilStopped(datafeedId);
+        waitUntilJobIsClosed(jobId);
+        Response jobStatsResponse = client().performRequest(
+            new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats")
+        );
+        String jobStatsResponseAsString = EntityUtils.toString(jobStatsResponse.getEntity());
+        assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":0"));
+        assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":0"));
+        assertThat(jobStatsResponseAsString, containsString("\"bucket_count\":0"));
+
+        // The most important thing this test is asserting is that we don't go into an infinite loop!
     }
 
     public void testLookbackOnlyGivenAggregationsWithDateHistogram() throws Exception {
@@ -1086,7 +1175,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 "\"message\":\"Datafeed is encountering errors extracting data: "
                     + "action [indices:data/read/search] is unauthorized"
                     + " for user [ml_admin_plus_data]"
-                    + " with roles [machine_learning_admin,test_data_access]"
+                    + " with effective roles [machine_learning_admin,test_data_access]"
                     + " on indices [network-data]"
             )
         );
@@ -1286,7 +1375,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 "\"message\":\"Datafeed is encountering errors extracting data: "
                     + "action [indices:data/read/xpack/rollup/search] is unauthorized"
                     + " for user [ml_admin_plus_data]"
-                    + " with roles [machine_learning_admin,test_data_access]"
+                    + " with effective roles [machine_learning_admin,test_data_access]"
                     + " on indices [airline-data-aggs-rollup]"
             )
         );
@@ -1518,6 +1607,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
         public void execute() throws Exception {
             Response jobResponse = createJob(jobId, airlineVariant);
+            assertXProductResponseHeader(jobResponse);
             assertThat(jobResponse.getStatusLine().getStatusCode(), equalTo(200));
             String datafeedId = "datafeed-" + jobId;
             new DatafeedBuilder(datafeedId, jobId, dataIndex).setScriptedFields(scriptedFields).build();
@@ -1529,6 +1619,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             Response jobStatsResponse = client().performRequest(
                 new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats")
             );
+            assertXProductResponseHeader(jobStatsResponse);
             String jobStatsResponseAsString = EntityUtils.toString(jobStatsResponse.getEntity());
             if (shouldSucceedInput) {
                 assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":2"));
@@ -1556,12 +1647,14 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         options.addHeader("Authorization", authHeader);
         request.setOptions(options);
         Response startDatafeedResponse = client().performRequest(request);
+        assertXProductResponseHeader(startDatafeedResponse);
         assertThat(EntityUtils.toString(startDatafeedResponse.getEntity()), containsString("\"started\":true"));
         assertBusy(() -> {
             try {
                 Response datafeedStatsResponse = client().performRequest(
                     new Request("GET", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stats")
                 );
+                assertXProductResponseHeader(datafeedStatsResponse);
                 assertThat(EntityUtils.toString(datafeedStatsResponse.getEntity()), containsString("\"state\":\"stopped\""));
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -1575,6 +1668,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 Response jobStatsResponse = client().performRequest(
                     new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats")
                 );
+                assertXProductResponseHeader(jobStatsResponse);
                 assertThat(EntityUtils.toString(jobStatsResponse.getEntity()), containsString("\"state\":\"closed\""));
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -1584,7 +1678,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     private Response createJob(String id, String airlineVariant) throws Exception {
         Request request = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + id);
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             {
               "description": "Analysis of response time by airline",
               "analysis_config": {
@@ -1596,7 +1690,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 "time_field": "time stamp",
                 "time_format": "yyyy-MM-dd'T'HH:mm:ssX"
               }
-            }""".formatted(airlineVariant));
+            }""", airlineVariant));
         return client().performRequest(request);
     }
 
@@ -1667,30 +1761,28 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
         Response build() throws IOException {
             Request request = new Request("PUT", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId);
-            request.setJsonEntity(
-                """
-                    {
-                      "job_id": "%s",
-                      "indexes":["%s"]
-                       %s
-                       %s
-                       %s
-                       %s
-                       %s
-                       %s
-                    }""".formatted(
-                    jobId,
-                    index,
-                    source ? ",\"_source\":true" : "",
-                    scriptedFields == null ? "" : ",\"script_fields\":" + scriptedFields,
-                    aggregations == null ? "" : ",\"aggs\":" + aggregations,
-                    frequency == null ? "" : ",\"frequency\":\"" + frequency + "\"",
-                    indicesOptions == null ? "" : ",\"indices_options\":" + indicesOptions,
-                    chunkingTimespan == null ? "" : """
-                        ,"chunking_config":{"mode":"MANUAL","time_span":"%s"}
-                        """.formatted(chunkingTimespan)
-                )
-            );
+            Object[] args = new Object[] {
+                jobId,
+                index,
+                source ? ",\"_source\":true" : "",
+                scriptedFields == null ? "" : ",\"script_fields\":" + scriptedFields,
+                aggregations == null ? "" : ",\"aggs\":" + aggregations,
+                frequency == null ? "" : ",\"frequency\":\"" + frequency + "\"",
+                indicesOptions == null ? "" : ",\"indices_options\":" + indicesOptions,
+                chunkingTimespan == null ? "" : Strings.format("""
+                    ,"chunking_config":{"mode":"MANUAL","time_span":"%s"}
+                    """, chunkingTimespan) };
+            request.setJsonEntity(Strings.format("""
+                {
+                  "job_id": "%s",
+                  "indexes":["%s"]
+                   %s
+                   %s
+                   %s
+                   %s
+                   %s
+                   %s
+                }""", args));
             RequestOptions.Builder options = request.getOptions().toBuilder();
             options.addHeader("Authorization", authHeader);
             if (this.secondaryAuthHeader != null) {

@@ -101,7 +101,11 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         // if this is not a data node, we need to start it ourselves possibly
         if (event.state().nodes().getLocalNode().canContainData() == false && isWatcherStoppedManually == false && isStoppedOrStopping) {
             this.state.set(WatcherState.STARTING);
-            watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED));
+            watcherService.start(
+                event.state(),
+                () -> this.state.set(WatcherState.STARTED),
+                (exception -> this.state.set(WatcherState.STOPPED))
+            );
             return;
         }
 
@@ -140,7 +144,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
         }
 
         String watchIndex = watcherIndexMetadata.getIndex().getName();
-        List<ShardRouting> localShards = routingNode.shardsWithState(watchIndex, RELOCATING, STARTED);
+        List<ShardRouting> localShards = routingNode.shardsWithState(watchIndex, RELOCATING, STARTED).toList();
         // no local shards, empty out watcher and dont waste resources!
         if (localShards.isEmpty()) {
             pauseExecution("no local watcher shards found");
@@ -156,16 +160,21 @@ public class WatcherLifeCycleService implements ClusterStateListener {
             .filter(shardRouting -> localShardIds.contains(shardRouting.shardId()))
             // shardrouting is not comparable, so we need some order mechanism
             .sorted(Comparator.comparing(ShardRouting::hashCode))
-            .collect(Collectors.toList());
+            .toList();
 
         if (previousShardRoutings.get().equals(localAffectedShardRoutings) == false) {
             if (watcherService.validate(event.state())) {
                 previousShardRoutings.set(localAffectedShardRoutings);
                 if (state.get() == WatcherState.STARTED) {
-                    watcherService.reload(event.state(), "new local watcher shard allocation ids");
+                    watcherService.reload(event.state(), "new local watcher shard allocation ids", (exception) -> {
+                        clearAllocationIds(); // will cause reload again
+                    });
                 } else if (isStoppedOrStopping) {
                     this.state.set(WatcherState.STARTING);
-                    watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED));
+                    watcherService.start(event.state(), () -> this.state.set(WatcherState.STARTED), (exception) -> {
+                        clearAllocationIds();
+                        this.state.set(WatcherState.STOPPED);
+                    });
                 }
             } else {
                 clearAllocationIds();
@@ -184,7 +193,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
     /**
      * check if watcher has been stopped manually via the stop API
      */
-    private boolean isWatcherStoppedManually(ClusterState state) {
+    private static boolean isWatcherStoppedManually(ClusterState state) {
         WatcherMetadata watcherMetadata = state.getMetadata().custom(WatcherMetadata.TYPE);
         return watcherMetadata != null && watcherMetadata.manuallyStopped();
     }

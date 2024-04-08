@@ -10,11 +10,16 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -22,6 +27,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestRolloverIndexAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestRolloverIndexAction.class);
@@ -44,14 +50,27 @@ public class RestRolloverIndexAction extends BaseRestHandler {
         RolloverRequest rolloverIndexRequest = new RolloverRequest(request.param("index"), request.param("new_index"));
         request.applyContentParser(parser -> rolloverIndexRequest.fromXContent(includeTypeName, parser));
         rolloverIndexRequest.dryRun(request.paramAsBoolean("dry_run", false));
+        rolloverIndexRequest.lazy(request.paramAsBoolean("lazy", false));
         rolloverIndexRequest.timeout(request.paramAsTime("timeout", rolloverIndexRequest.timeout()));
         rolloverIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", rolloverIndexRequest.masterNodeTimeout()));
+        if (DataStream.isFailureStoreEnabled()) {
+            boolean failureStore = request.paramAsBoolean("target_failure_store", false);
+            if (failureStore) {
+                rolloverIndexRequest.setIndicesOptions(
+                    IndicesOptions.builder(rolloverIndexRequest.indicesOptions())
+                        .failureStoreOptions(new IndicesOptions.FailureStoreOptions(false, true))
+                        .build()
+                );
+            }
+        }
         rolloverIndexRequest.getCreateIndexRequest()
             .waitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
-        return channel -> client.admin().indices().rolloverIndex(rolloverIndexRequest, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
+            .indices()
+            .rolloverIndex(rolloverIndexRequest, new RestToXContentListener<>(channel));
     }
 
-    private boolean includeTypeName(RestRequest request) {
+    private static boolean includeTypeName(RestRequest request) {
         boolean includeTypeName = false;
         if (request.getRestApiVersion() == RestApiVersion.V_7) {
             if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {

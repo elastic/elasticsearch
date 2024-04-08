@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.global;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -75,5 +77,10 @@ public class GlobalAggregationBuilder extends AbstractAggregationBuilder<GlobalA
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

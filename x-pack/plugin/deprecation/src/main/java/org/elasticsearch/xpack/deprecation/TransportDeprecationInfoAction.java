@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -69,7 +70,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             DeprecationInfoAction.Request::new,
             indexNameExpressionResolver,
             DeprecationInfoAction.Response::new,
-            ThreadPool.Names.GENERIC
+            threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -104,7 +105,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             ClientHelper.DEPRECATION_ORIGIN,
             NodesDeprecationCheckAction.INSTANCE,
             nodeDepReq,
-            ActionListener.wrap(response -> {
+            listener.delegateFailureAndWrap((delegate, response) -> {
                 if (response.hasFailures()) {
                     List<String> failedNodeIds = response.failures()
                         .stream()
@@ -121,22 +122,26 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                     settings,
                     new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN)
                 );
-                pluginSettingIssues(PLUGIN_CHECKERS, components, ActionListener.wrap(deprecationIssues -> {
-                    listener.onResponse(
-                        DeprecationInfoAction.Response.from(
-                            state,
-                            indexNameExpressionResolver,
-                            request,
-                            response,
-                            INDEX_SETTINGS_CHECKS,
-                            CLUSTER_SETTINGS_CHECKS,
-                            deprecationIssues,
-                            skipTheseDeprecations
+                pluginSettingIssues(
+                    PLUGIN_CHECKERS,
+                    components,
+                    new ThreadedActionListener<>(
+                        client.threadPool().generic(),
+                        delegate.map(
+                            deprecationIssues -> DeprecationInfoAction.Response.from(
+                                state,
+                                indexNameExpressionResolver,
+                                request,
+                                response,
+                                INDEX_SETTINGS_CHECKS,
+                                CLUSTER_SETTINGS_CHECKS,
+                                deprecationIssues,
+                                skipTheseDeprecations
+                            )
                         )
-                    );
-                }, listener::onFailure));
-
-            }, listener::onFailure)
+                    )
+                );
+            })
         );
     }
 
@@ -145,24 +150,21 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         DeprecationChecker.Components components,
         ActionListener<Map<String, List<DeprecationIssue>>> listener
     ) {
-        List<DeprecationChecker> enabledCheckers = checkers.stream()
-            .filter(c -> c.enabled(components.settings()))
-            .collect(Collectors.toList());
+        List<DeprecationChecker> enabledCheckers = checkers.stream().filter(c -> c.enabled(components.settings())).toList();
         if (enabledCheckers.isEmpty()) {
             listener.onResponse(Collections.emptyMap());
             return;
         }
         GroupedActionListener<DeprecationChecker.CheckResult> groupedActionListener = new GroupedActionListener<>(
-            ActionListener.wrap(
-                checkResults -> listener.onResponse(
+            enabledCheckers.size(),
+            listener.delegateFailureAndWrap(
+                (l, checkResults) -> l.onResponse(
                     checkResults.stream()
                         .collect(
                             Collectors.toMap(DeprecationChecker.CheckResult::getCheckerName, DeprecationChecker.CheckResult::getIssues)
                         )
-                ),
-                listener::onFailure
-            ),
-            enabledCheckers.size()
+                )
+            )
         );
         for (DeprecationChecker checker : checkers) {
             checker.check(components, groupedActionListener);

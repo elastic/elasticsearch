@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -14,12 +13,12 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 
 import java.util.List;
 import java.util.UUID;
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.is;
 
@@ -38,8 +37,8 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         BiFunction<String, LifecycleExecutionState, String> indexNameSupplier = instance.getTargetIndexNameSupplier();
 
         switch (between(0, 2)) {
-            case 0 -> key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 0 -> key = new Step.StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new Step.StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             case 2 -> indexNameSupplier = (index, state) -> randomAlphaOfLengthBetween(11, 15) + index;
             default -> throw new AssertionError("Illegal randomisation branch");
         }
@@ -55,7 +54,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
         IndexMetadata.Builder sourceIndexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5));
 
@@ -72,7 +71,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         String policyName = "test-ilm-policy";
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -81,7 +80,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             .metadata(
                 Metadata.builder()
                     .put(sourceIndexMetadata, true)
-                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), List.of(sourceIndexMetadata.getIndex())))
+                    .put(newInstance(dataStreamName, List.of(sourceIndexMetadata.getIndex())))
                     .build()
             )
             .build();
@@ -94,14 +93,14 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         String policyName = "test-ilm-policy";
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
         String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
         IndexMetadata writeIndexMetadata = IndexMetadata.builder(writeIndexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -112,7 +111,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
                 Metadata.builder()
                     .put(sourceIndexMetadata, true)
                     .put(writeIndexMetadata, true)
-                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), backingIndices))
+                    .put(newInstance(dataStreamName, backingIndices))
                     .build()
             )
             .build();
@@ -133,14 +132,14 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         String policyName = "test-ilm-policy";
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
         String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
         IndexMetadata writeIndexMetadata = IndexMetadata.builder(writeIndexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -149,7 +148,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         String targetIndex = indexPrefix + indexName;
 
         IndexMetadata targetIndexMetadata = IndexMetadata.builder(targetIndex)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -160,7 +159,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
                 Metadata.builder()
                     .put(sourceIndexMetadata, true)
                     .put(writeIndexMetadata, true)
-                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), backingIndices))
+                    .put(newInstance(dataStreamName, backingIndices))
                     .put(targetIndexMetadata, true)
                     .build()
             )
@@ -186,13 +185,13 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         String indexName = writeIndexName;
         String policyName = "test-ilm-policy";
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
         IndexMetadata writeIndexMetadata = IndexMetadata.builder(writeIndexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -201,18 +200,18 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         String targetIndex = indexPrefix + indexName;
 
         IndexMetadata targetIndexMetadata = IndexMetadata.builder(targetIndex)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
-        List<Index> backingIndices = List.of(sourceIndexMetadata.getIndex(), writeIndexMetadata.getIndex());
+        List<Index> backingIndices = List.of(writeIndexMetadata.getIndex());
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
             .metadata(
                 Metadata.builder()
                     .put(sourceIndexMetadata, true)
                     .put(writeIndexMetadata, true)
-                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), backingIndices))
+                    .put(newInstance(dataStreamName, backingIndices))
                     .put(targetIndexMetadata, true)
                     .build()
             )

@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.lucene.queries;
 
-import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -22,13 +21,14 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryUtils;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.search.QueryUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
@@ -37,8 +37,10 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils.MutateFunction;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -228,21 +230,109 @@ public class BlendedTermQueryTests extends ESTestCase {
             Document d = new Document();
             d.add(new TextField("id", Integer.toString(i), Field.Store.YES));
             d.add(new Field("dense", "foo foo foo", ft));
-            if (i % 10 == 0) {
+            if (i % 2 == 0) {
                 d.add(new Field("sparse", "foo", ft));
+            }
+            if (i % 10 == 0) {
+                d.add(new Field("more_sparse", "foo", ft));
             }
             w.addDocument(d);
         }
+
         w.commit();
+        w.forceMerge(1);
+
         DirectoryReader reader = DirectoryReader.open(w);
         IndexSearcher searcher = setSimilarity(newSearcher(reader));
         {
-            String[] fields = new String[] { "dense", "sparse" };
+            String[] fields = new String[] { "dense", "sparse", "more_sparse" };
             Query query = BlendedTermQuery.dismaxBlendedQuery(toTerms(fields, "foo"), 0.1f);
             TopDocs search = searcher.search(query, 10);
             ScoreDoc[] scoreDocs = search.scoreDocs;
             assertEquals(Integer.toString(0), reader.document(scoreDocs[0].doc).getField("id").stringValue());
         }
+        reader.close();
+        w.close();
+        dir.close();
+    }
+
+    public void testRandomFields() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())));
+        FieldType ft = new FieldType(TextField.TYPE_NOT_STORED);
+        ft.freeze();
+
+        Map<String, Float> fields = new HashMap<>();
+        fields.put("field", 1.0f);
+
+        int numRandomFields = random().nextInt(7);
+        for (int i = 0; i < numRandomFields; i++) {
+            String field = "field" + i;
+            float probability = randomBoolean() ? 1.0f : randomFloat();
+            fields.put(field, probability);
+        }
+
+        int numDocs = atLeast(100);
+        for (int i = 0; i < numDocs; i++) {
+            Document d = new Document();
+            for (Map.Entry<String, Float> entry : fields.entrySet()) {
+                String field = entry.getKey();
+                float probability = entry.getValue();
+                if (randomFloat() < probability) {
+                    String value = randomBoolean() ? "foo" : "foo foo foo";
+                    d.add(new Field(field, value, ft));
+                }
+                if (randomFloat() < probability) {
+                    d.add(new Field(field, "bar bar", ft));
+                }
+            }
+            w.addDocument(d);
+        }
+
+        w.commit();
+
+        DirectoryReader reader = DirectoryReader.open(w);
+        IndexSearcher searcher = setSimilarity(newSearcher(reader));
+        {
+            String[] fieldNames = fields.keySet().toArray(new String[0]);
+            Query query = BlendedTermQuery.dismaxBlendedQuery(toTerms(fieldNames, "foo"), 0.1f);
+            TopDocs search = searcher.search(query, 10);
+            assertTrue(search.totalHits.value > 0);
+            assertTrue(search.scoreDocs.length > 0);
+        }
+        reader.close();
+        w.close();
+        dir.close();
+    }
+
+    public void testMissingFields() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())));
+        FieldType ft = new FieldType(TextField.TYPE_NOT_STORED);
+        ft.freeze();
+
+        for (int i = 0; i < 10; i++) {
+            Document d = new Document();
+            d.add(new TextField("id", Integer.toString(i), Field.Store.YES));
+            d.add(new Field("dense", "foo", ft));
+            // Add a sparse field with high totalTermFreq but low docCount
+            if (i % 5 == 0) {
+                d.add(new Field("sparse", "foo", ft));
+                d.add(new Field("sparse", "one two three four five size", ft));
+            }
+            w.addDocument(d);
+        }
+        w.commit();
+
+        DirectoryReader reader = DirectoryReader.open(w);
+        IndexSearcher searcher = setSimilarity(newSearcher(reader));
+
+        String[] fields = new String[] { "dense", "sparse" };
+        Query query = BlendedTermQuery.dismaxBlendedQuery(toTerms(fields, "foo"), 0.1f);
+        TopDocs search = searcher.search(query, 10);
+        ScoreDoc[] scoreDocs = search.scoreDocs;
+        assertEquals(Integer.toString(0), reader.document(scoreDocs[0].doc).getField("id").stringValue());
+
         reader.close();
         w.close();
         dir.close();

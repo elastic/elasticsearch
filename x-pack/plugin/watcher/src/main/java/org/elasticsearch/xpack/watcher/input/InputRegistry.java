@@ -21,6 +21,7 @@ public class InputRegistry {
 
     private final Map<String, InputFactory<?, ?, ?>> factories;
 
+    @SuppressWarnings("this-escape")
     public InputRegistry(Map<String, InputFactory<?, ?, ?>> factories) {
         Map<String, InputFactory<?, ?, ?>> map = new HashMap<>(factories);
         map.put(ChainInput.TYPE, new ChainInputFactory(this));

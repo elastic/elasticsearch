@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 /*
@@ -10,8 +11,8 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 
 esplugin {
   name 'unsigned-long'
@@ -19,7 +20,9 @@ esplugin {
   classname 'org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin'
   extendedPlugins = ['x-pack-core', 'lang-painless']
 }
-archivesBaseName = 'x-pack-unsigned-long'
+base {
+  archivesName = 'x-pack-unsigned-long'
+}
 
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
@@ -50,7 +53,5 @@ if (BuildParams.isSnapshotBuild() == false) {
 }
 
 testClusters.configureEach {
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.index_mode_feature_flag_registered', 'true'
-  }
+  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
 }

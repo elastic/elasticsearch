@@ -7,13 +7,14 @@
  */
 package org.elasticsearch.gradle.internal.precommit;
 
-import org.apache.tools.ant.taskdefs.condition.Os;
+import org.elasticsearch.gradle.OS;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.provider.ListProperty;
+import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.OutputFile;
@@ -75,6 +76,7 @@ public abstract class FilePermissionsTask extends DefaultTask {
      * Returns the files this task will check
      */
     @InputFiles
+    @IgnoreEmptyDirectories
     @SkipWhenEmpty
     public FileCollection getFiles() {
         return getSources().get()
@@ -86,7 +88,7 @@ public abstract class FilePermissionsTask extends DefaultTask {
 
     @TaskAction
     public void checkInvalidPermissions() throws IOException {
-        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+        if (OS.current() == OS.WINDOWS) {
             throw new StopExecutionException();
         }
         List<String> failures = getFiles().getFiles()

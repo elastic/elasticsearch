@@ -53,7 +53,7 @@ DELETE /_enrich/policy/my-policy
 ==== {api-prereq-title}
 
 // tag::enrich-policy-api-prereqs[]
-If you use {es} {security-features}, you must have:
+To use enrich policies, you must have:
 
 * `read` index privileges for any indices used
 * The `enrich_user` <<built-in-roles,built-in role>>

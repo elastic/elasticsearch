@@ -8,29 +8,31 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.Explanations;
 import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -81,9 +83,11 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
 
     public void testExplanationToXContent() throws Exception {
         ClusterAllocationExplanation cae = randomClusterAllocationExplanation(true, true);
+        AbstractChunkedSerializingTestCase.assertChunkCount(cae, ignored -> 3);
+
         XContentBuilder builder = XContentFactory.jsonBuilder();
-        cae.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals(XContentHelper.stripWhitespace("""
+        ChunkedToXContent.wrapAsToXContent(cae).toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals(XContentHelper.stripWhitespace(Strings.format("""
             {
               "index": "idx",
               "shard": 0,
@@ -93,40 +97,53 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
                 "id": "node-0",
                 "name": "",
                 "transport_address": "%s",
+                "roles": [],
                 "weight_ranking": 3
               },
               "can_remain_on_current_node": "yes",
               "can_rebalance_cluster": "yes",
               "can_rebalance_to_other_node": "no",
-              "rebalance_explanation": "cannot rebalance as no target node exists that can both allocate this shard \
-            and improve the cluster balance"
-            }""".formatted(cae.getCurrentNode().getAddress())), Strings.toString(builder));
+              "rebalance_explanation": "%s"
+            }""", cae.getCurrentNode().getAddress(), Explanations.Rebalance.ALREADY_BALANCED)), Strings.toString(builder));
     }
 
     public void testRandomShardExplanationToXContent() throws Exception {
         ClusterAllocationExplanation cae = randomClusterAllocationExplanation(true, false);
+        AbstractChunkedSerializingTestCase.assertChunkCount(cae, ignored -> 3);
         XContentBuilder builder = XContentFactory.jsonBuilder();
-        cae.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsToXContent(cae).toXContent(builder, ToXContent.EMPTY_PARAMS);
         final String actual = Strings.toString(builder);
-        assertThat(actual, equalTo(XContentHelper.stripWhitespace("""
-            {
-              "note": "%s",
-              "index": "idx",
-              "shard": 0,
-              "primary": true,
-              "current_state": "started",
-              "current_node": {
-                "id": "node-0",
-                "name": "",
-                "transport_address": "%s",
-                "weight_ranking": 3
-              },
-              "can_remain_on_current_node": "yes",
-              "can_rebalance_cluster": "yes",
-              "can_rebalance_to_other_node": "no",
-              "rebalance_explanation": "cannot rebalance as no target node exists that can both allocate this shard \
-            and improve the cluster balance"
-            }""".formatted(ClusterAllocationExplanation.NO_SHARD_SPECIFIED_MESSAGE, cae.getCurrentNode().getAddress()))));
+        assertThat(
+            actual,
+            equalTo(
+                XContentHelper.stripWhitespace(
+                    Strings.format(
+                        """
+                            {
+                              "note": "%s",
+                              "index": "idx",
+                              "shard": 0,
+                              "primary": true,
+                              "current_state": "started",
+                              "current_node": {
+                                "id": "node-0",
+                                "name": "",
+                                "transport_address": "%s",
+                                "roles": [],
+                                "weight_ranking": 3
+                              },
+                              "can_remain_on_current_node": "yes",
+                              "can_rebalance_cluster": "yes",
+                              "can_rebalance_to_other_node": "no",
+                              "rebalance_explanation": "%s"
+                            }""",
+                        ClusterAllocationExplanation.NO_SHARD_SPECIFIED_MESSAGE,
+                        cae.getCurrentNode().getAddress(),
+                        Explanations.Rebalance.ALREADY_BALANCED
+                    )
+                )
+            )
+        );
         assertThat(
             actual,
             allOf(
@@ -145,9 +162,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
             true,
             assignedShard ? ShardRoutingState.STARTED : ShardRoutingState.UNASSIGNED
         );
-        DiscoveryNode node = assignedShard
-            ? new DiscoveryNode("node-0", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT)
-            : null;
+        DiscoveryNode node = assignedShard ? DiscoveryNodeUtils.builder("node-0").roles(emptySet()).build() : null;
         ShardAllocationDecision shardAllocationDecision;
         if (assignedShard) {
             MoveDecision moveDecision = MoveDecision.cannotRebalance(Decision.YES, AllocationDecision.NO, 3, null)

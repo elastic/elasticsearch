@@ -17,7 +17,9 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -55,7 +57,7 @@ public class TransportGetJobsAction extends TransportMasterNodeReadAction<GetJob
             GetJobsAction.Request::new,
             indexNameExpressionResolver,
             GetJobsAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.jobManager = jobManager;
         this.datafeedManager = datafeedManager;
@@ -68,13 +70,16 @@ public class TransportGetJobsAction extends TransportMasterNodeReadAction<GetJob
         ClusterState state,
         ActionListener<GetJobsAction.Response> listener
     ) {
+        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         logger.debug("Get job '{}'", request.getJobId());
         jobManager.expandJobBuilders(
             request.getJobId(),
             request.allowNoMatch(),
+            parentTaskId,
             ActionListener.wrap(
                 jobs -> datafeedManager.getDatafeedsByJobIds(
                     jobs.stream().map(Job.Builder::getId).collect(Collectors.toSet()),
+                    parentTaskId,
                     ActionListener.wrap(
                         dfsByJobId -> listener.onResponse(new GetJobsAction.Response(new QueryPage<>(jobs.stream().map(jb -> {
                             Optional.ofNullable(dfsByJobId.get(jb.getId())).ifPresent(jb::setDatafeed);

@@ -75,18 +75,25 @@ public class GitInfo {
                 head = dotGit.resolve("HEAD");
                 gitDir = dotGit;
             } else {
-                // this is a git worktree, follow the pointer to the repository
-                final Path workTree = Paths.get(readFirstLine(dotGit).substring("gitdir:".length()).trim());
-                if (Files.exists(workTree) == false) {
-                    return new GitInfo("unknown", "unknown");
-                }
-                head = workTree.resolve("HEAD");
-                final Path commonDir = Paths.get(readFirstLine(workTree.resolve("commondir")));
-                if (commonDir.isAbsolute()) {
-                    gitDir = commonDir;
+                // this is a git worktree or submodule, follow the pointer to the repository
+                final Path reference = Paths.get(readFirstLine(dotGit).substring("gitdir:".length()).trim());
+                if (reference.getParent().endsWith("modules")) {
+                    // this is a git submodule so follow the reference to the git repo
+                    gitDir = rootDir.toPath().resolve(reference);
+                    head = gitDir.resolve("HEAD");
                 } else {
-                    // this is the common case
-                    gitDir = workTree.resolve(commonDir);
+                    // this is a worktree so resolve the root repo directory
+                    if (Files.exists(reference) == false) {
+                        return new GitInfo("unknown", "unknown");
+                    }
+                    head = reference.resolve("HEAD");
+                    final Path commonDir = Paths.get(readFirstLine(reference.resolve("commondir")));
+                    if (commonDir.isAbsolute()) {
+                        gitDir = commonDir;
+                    } else {
+                        // this is the common case
+                        gitDir = reference.resolve(commonDir);
+                    }
                 }
             }
             final String ref = readFirstLine(head);
@@ -168,7 +175,6 @@ public class GitInfo {
 
     /** Find the reponame. */
     public String urlFromOrigin() {
-        String oritin = getOrigin();
         if (origin == null) {
             return null; // best effort, the url doesnt really matter, it is just required by maven central
         }

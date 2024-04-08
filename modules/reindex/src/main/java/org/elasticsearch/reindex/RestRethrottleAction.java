@@ -12,14 +12,17 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.tasks.TaskId;
 
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.Scope.INTERNAL;
 import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.listTasksResponseListener;
 
+@ServerlessScope(INTERNAL)
 public class RestRethrottleAction extends BaseRestHandler {
     private final Supplier<DiscoveryNodes> nodesInCluster;
 
@@ -52,7 +55,7 @@ public class RestRethrottleAction extends BaseRestHandler {
         internalRequest.setRequestsPerSecond(requestsPerSecond);
         final String groupBy = request.param("group_by", "nodes");
         return channel -> client.execute(
-            RethrottleAction.INSTANCE,
+            ReindexPlugin.RETHROTTLE_ACTION,
             internalRequest,
             listTasksResponseListener(nodesInCluster, groupBy, channel)
         );

@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -308,27 +309,39 @@ public class ConvertProcessorTests extends ESTestCase {
     }
 
     public void testConvertIpV4() throws Exception {
-        // valid ipv4 address
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-        String fieldName = RandomDocumentPicks.randomFieldName(random());
-        String targetField = randomValueOtherThan(fieldName, () -> RandomDocumentPicks.randomFieldName(random()));
-        String validIpV4 = "192.168.1.1";
-        ingestDocument.setFieldValue(fieldName, validIpV4);
+        {
+            // valid ipv4 address
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+            String fieldName = RandomDocumentPicks.randomFieldName(random());
+            // We can't have targetField be a nested field under fieldName since we're going to set a top-level value for fieldName:
+            String targetField = randomValueOtherThanMany(
+                targetFieldName -> fieldName.equals(targetFieldName) || targetFieldName.startsWith(fieldName + "."),
+                () -> RandomDocumentPicks.randomFieldName(random())
+            );
+            String validIpV4 = "192.168.1.1";
+            ingestDocument.setFieldValue(fieldName, validIpV4);
 
-        Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, targetField, Type.IP, false);
-        processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(targetField, String.class), equalTo(validIpV4));
+            Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, targetField, Type.IP, false);
+            processor.execute(ingestDocument);
+            assertThat(ingestDocument.getFieldValue(targetField, String.class), equalTo(validIpV4));
+        }
 
-        // invalid ipv4 address
-        IngestDocument ingestDocument2 = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-        fieldName = RandomDocumentPicks.randomFieldName(random());
-        targetField = randomValueOtherThan(fieldName, () -> RandomDocumentPicks.randomFieldName(random()));
-        String invalidIpV4 = "192.168.1.256";
-        ingestDocument2.setFieldValue(fieldName, invalidIpV4);
+        {
+            // invalid ipv4 address
+            IngestDocument ingestDocument2 = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
+            String fieldName = RandomDocumentPicks.randomFieldName(random());
+            // We can't have targetField be a nested field under fieldName since we're going to set a top-level value for fieldName:
+            String targetField = randomValueOtherThanMany(
+                targetFieldName -> fieldName.equals(targetFieldName) || targetFieldName.startsWith(fieldName + "."),
+                () -> RandomDocumentPicks.randomFieldName(random())
+            );
+            String invalidIpV4 = "192.168.1.256";
+            ingestDocument2.setFieldValue(fieldName, invalidIpV4);
 
-        Processor processor2 = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, targetField, Type.IP, false);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor2.execute(ingestDocument2));
-        assertThat(e.getMessage(), containsString("'" + invalidIpV4 + "' is not an IP string literal."));
+            Processor processor2 = new ConvertProcessor(randomAlphaOfLength(10), null, fieldName, targetField, Type.IP, false);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor2.execute(ingestDocument2));
+            assertThat(e.getMessage(), containsString("'" + invalidIpV4 + "' is not an IP string literal."));
+        }
     }
 
     public void testConvertIpV6() throws Exception {
@@ -415,7 +428,7 @@ public class ConvertProcessorTests extends ESTestCase {
         for (int j = 0; j < numItems; j++) {
             Object randomValue;
             String randomValueString;
-            switch (randomIntBetween(0, 2)) {
+            switch (randomIntBetween(0, 4)) {
                 case 0 -> {
                     float randomFloat = randomFloat();
                     randomValue = randomFloat;
@@ -513,7 +526,7 @@ public class ConvertProcessorTests extends ESTestCase {
             }
             default -> throw new UnsupportedOperationException();
         }
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", randomValue));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", randomValue));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -522,7 +535,7 @@ public class ConvertProcessorTests extends ESTestCase {
 
     public void testAutoConvertStringNotMatched() throws Exception {
         String value = "notAnIntFloatOrBool";
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", value));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", value));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -532,10 +545,7 @@ public class ConvertProcessorTests extends ESTestCase {
     public void testAutoConvertMatchBoolean() throws Exception {
         boolean randomBoolean = randomBoolean();
         String booleanString = Boolean.toString(randomBoolean);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(
-            random(),
-            Collections.singletonMap("field", booleanString)
-        );
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", booleanString));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -545,7 +555,7 @@ public class ConvertProcessorTests extends ESTestCase {
     public void testAutoConvertMatchInteger() throws Exception {
         int randomInt = randomInt();
         String randomString = Integer.toString(randomInt);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", randomString));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", randomString));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -555,7 +565,7 @@ public class ConvertProcessorTests extends ESTestCase {
     public void testAutoConvertMatchLong() throws Exception {
         long randomLong = randomLong();
         String randomString = Long.toString(randomLong);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", randomString));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", randomString));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -566,7 +576,7 @@ public class ConvertProcessorTests extends ESTestCase {
         double randomDouble = randomDouble();
         String randomString = Double.toString(randomDouble);
         float randomFloat = Float.parseFloat(randomString);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", randomString));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", randomString));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -577,7 +587,7 @@ public class ConvertProcessorTests extends ESTestCase {
     public void testAutoConvertMatchFloat() throws Exception {
         float randomFloat = randomFloat();
         String randomString = Float.toString(randomFloat);
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", randomString));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Map.of("field", randomString));
         Processor processor = new ConvertProcessor(randomAlphaOfLength(10), null, "field", "field", Type.AUTO, false);
         processor.execute(ingestDocument);
         Object convertedValue = ingestDocument.getFieldValue("field", Object.class);
@@ -585,7 +595,7 @@ public class ConvertProcessorTests extends ESTestCase {
     }
 
     public void testTargetField() throws Exception {
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         int randomInt = randomInt();
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, String.valueOf(randomInt));
         String targetField = fieldName + randomAlphaOfLength(5);

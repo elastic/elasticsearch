@@ -9,7 +9,6 @@
 package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -55,6 +54,7 @@ public class RecoveriesCollection {
     public long startRecovery(
         IndexShard indexShard,
         DiscoveryNode sourceNode,
+        long clusterStateVersion,
         SnapshotFilesProvider snapshotFilesProvider,
         PeerRecoveryTargetService.RecoveryListener listener,
         TimeValue activityTimeout,
@@ -63,6 +63,7 @@ public class RecoveriesCollection {
         RecoveryTarget recoveryTarget = new RecoveryTarget(
             indexShard,
             sourceNode,
+            clusterStateVersion,
             snapshotFilesProvider,
             snapshotFileDownloadsPermit,
             listener
@@ -83,7 +84,7 @@ public class RecoveriesCollection {
         threadPool.schedule(
             new RecoveryMonitor(recoveryTarget.recoveryId(), recoveryTarget.lastAccessTime(), activityTimeout),
             activityTimeout,
-            ThreadPool.Names.GENERIC
+            threadPool.generic()
         );
     }
 
@@ -165,6 +166,7 @@ public class RecoveriesCollection {
             throw new IndexShardClosedException(shardId);
         }
         assert recoveryRef.target().shardId().equals(shardId);
+        assert recoveryRef.target().indexShard().routingEntry().isPromotableToPrimary();
         return recoveryRef;
     }
 
@@ -255,11 +257,11 @@ public class RecoveriesCollection {
     }
 
     /**
-     * a reference to {@link RecoveryTarget}, which implements {@link AutoCloseable}. closing the reference
+     * a reference to {@link RecoveryTarget}, which implements {@link Releasable}. closing the reference
      * causes {@link RecoveryTarget#decRef()} to be called. This makes sure that the underlying resources
      * will not be freed until {@link RecoveryRef#close()} is called.
      */
-    public static class RecoveryRef implements AutoCloseable {
+    public static class RecoveryRef implements Releasable {
 
         private final RecoveryTarget status;
         private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -299,7 +301,7 @@ public class RecoveriesCollection {
 
         @Override
         public void onFailure(Exception e) {
-            logger.error(() -> new ParameterizedMessage("unexpected error while monitoring recovery [{}]", recoveryId), e);
+            logger.error(() -> "unexpected error while monitoring recovery [" + recoveryId + "]", e);
         }
 
         @Override
@@ -321,7 +323,7 @@ public class RecoveriesCollection {
             }
             lastSeenAccessTime = accessTime;
             logger.trace("[monitor] rescheduling check for [{}]. last access time is [{}]", recoveryId, lastSeenAccessTime);
-            threadPool.schedule(this, checkInterval, ThreadPool.Names.GENERIC);
+            threadPool.schedule(this, checkInterval, threadPool.generic());
         }
     }
 

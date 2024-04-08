@@ -28,11 +28,10 @@ import org.hamcrest.Matchers;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
@@ -78,10 +77,13 @@ public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
         final InternalTestCluster remoteCluster = cluster("cluster_a");
         int minRemotes = between(2, 5);
         remoteCluster.ensureAtLeastNumDataNodes(minRemotes);
-        List<String> remoteDataNodes = StreamSupport.stream(remoteCluster.clusterService().state().nodes().spliterator(), false)
+        List<String> remoteDataNodes = remoteCluster.clusterService()
+            .state()
+            .nodes()
+            .stream()
             .filter(DiscoveryNode::canContainData)
             .map(DiscoveryNode::getName)
-            .collect(Collectors.toList());
+            .toList();
         assertThat(remoteDataNodes.size(), Matchers.greaterThanOrEqualTo(minRemotes));
         List<String> seedNodes = randomSubsetOf(between(1, remoteDataNodes.size() - 1), remoteDataNodes);
         disconnectFromRemoteClusters();
@@ -135,18 +137,23 @@ public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
         }
 
         for (ActionFuture<SearchResponse> future : futures) {
-            SearchResponse searchResponse = future.get();
-            if (searchResponse.getScrollId() != null) {
-                ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-                clearScrollRequest.scrollIds(List.of(searchResponse.getScrollId()));
-                client(LOCAL_CLUSTER).clearScroll(clearScrollRequest).get();
-            }
+            assertResponse(future, response -> {
+                if (response.getScrollId() != null) {
+                    ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+                    clearScrollRequest.scrollIds(List.of(response.getScrollId()));
+                    try {
+                        client(LOCAL_CLUSTER).clearScroll(clearScrollRequest).get();
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
 
-            Terms terms = searchResponse.getAggregations().get("f");
-            assertThat(terms.getBuckets().size(), equalTo(docs));
-            for (Terms.Bucket bucket : terms.getBuckets()) {
-                assertThat(bucket.getDocCount(), equalTo(1L));
-            }
+                Terms terms = response.getAggregations().get("f");
+                assertThat(terms.getBuckets().size(), equalTo(docs));
+                for (Terms.Bucket bucket : terms.getBuckets()) {
+                    assertThat(bucket.getDocCount(), equalTo(1L));
+                }
+            });
         }
     }
 

@@ -10,8 +10,8 @@ package org.elasticsearch.action.admin.indices.readonly;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -22,11 +22,13 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
 import java.util.Collections;
 
 /**
@@ -39,6 +41,7 @@ import java.util.Collections;
  */
 public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddIndexBlockRequest, AddIndexBlockResponse> {
 
+    public static final ActionType<AddIndexBlockResponse> TYPE = new ActionType<>("indices:admin/block/add");
     private static final Logger logger = LogManager.getLogger(TransportAddIndexBlockAction.class);
 
     private final MetadataIndexStateService indexStateService;
@@ -55,7 +58,7 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
         DestructiveOperations destructiveOperations
     ) {
         super(
-            AddIndexBlockAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
@@ -63,7 +66,7 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
             AddIndexBlockRequest::new,
             indexNameExpressionResolver,
             AddIndexBlockResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexStateService = indexStateService;
         this.destructiveOperations = destructiveOperations;
@@ -103,7 +106,7 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
             task.getId()
         ).ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout()).indices(concreteIndices);
         indexStateService.addIndexBlock(addBlockRequest, listener.delegateResponse((delegatedListener, t) -> {
-            logger.debug(() -> new ParameterizedMessage("failed to mark indices as readonly [{}]", (Object) concreteIndices), t);
+            logger.debug(() -> "failed to mark indices as readonly [" + Arrays.toString(concreteIndices) + "]", t);
             delegatedListener.onFailure(t);
         }));
     }

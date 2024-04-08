@@ -74,6 +74,11 @@ public class StoredAsyncResponseTests extends AbstractWireSerializingTestCase<St
     }
 
     @Override
+    protected StoredAsyncResponse<TestResponse> mutateInstance(StoredAsyncResponse<TestResponse> instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<StoredAsyncResponse<TestResponse>> instanceReader() {
         return in -> new StoredAsyncResponse<>(TestResponse::new, in);
     }

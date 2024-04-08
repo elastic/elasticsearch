@@ -17,11 +17,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * A request to delete an index. Best created with {@link org.elasticsearch.client.internal.Requests#deleteIndexRequest(String)}.
+ * A request to delete an index.
  */
 public class DeleteIndexRequest extends AcknowledgedRequest<DeleteIndexRequest> implements IndicesRequest.Replaceable {
 
@@ -104,5 +106,24 @@ public class DeleteIndexRequest extends AcknowledgedRequest<DeleteIndexRequest> 
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        DeleteIndexRequest that = (DeleteIndexRequest) o;
+        return Arrays.equals(indices, that.indices) && Objects.equals(indicesOptions, that.indicesOptions);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(indicesOptions);
+        result = 31 * result + Arrays.hashCode(indices);
+        return result;
     }
 }

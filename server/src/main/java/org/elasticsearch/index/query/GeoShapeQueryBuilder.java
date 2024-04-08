@@ -10,6 +10,8 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -99,6 +101,7 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
      * @param relation relation of the shapes
      * @return this
      */
+    @Override
     public GeoShapeQueryBuilder relation(ShapeRelation relation) {
         if (relation == null) {
             throw new IllegalArgumentException("No Shape Relation defined");
@@ -176,7 +179,7 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
             );
         }
         final GeoShapeQueryable ft = (GeoShapeQueryable) fieldType;
-        return new ConstantScoreQuery(ft.geoShapeQuery(shape, fieldType.name(), strategy, relation, context));
+        return new ConstantScoreQuery(ft.geoShapeQuery(context, fieldType.name(), strategy, relation, shape));
     }
 
     @Override
@@ -265,5 +268,10 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
         builder.boost(pgsqp.boost);
         builder.ignoreUnmapped(pgsqp.ignoreUnmapped);
         return builder;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

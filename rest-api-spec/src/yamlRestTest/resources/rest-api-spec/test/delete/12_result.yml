@@ -6,13 +6,13 @@
  - do:
       index:
           index:   test_1
-          id:      1
+          id:      "1"
           body:    { foo: bar }
 
  - do:
       delete:
           index:   test_1
-          id:      1
+          id:      "1"
 
  - match: { result: deleted }
 
@@ -20,6 +20,6 @@
       catch: missing
       delete:
           index:   test_1
-          id:      1
+          id:      "1"
 
  - match: { result: not_found }

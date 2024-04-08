@@ -9,14 +9,14 @@ package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class SuggestionSearchContext {
 
-    private final Map<String, SuggestionContext> suggestions = new LinkedHashMap<>(4);
+    private final Map<String, SuggestionContext> suggestions = Maps.newLinkedHashMapWithExpectedSize(4);
 
     public void addSuggestion(String name, SuggestionContext suggestion) {
         suggestions.put(name, suggestion);
@@ -35,8 +35,8 @@ public class SuggestionSearchContext {
         private Analyzer analyzer;
         private int size = 5;
         private int shardSize = -1;
-        private SearchExecutionContext searchExecutionContext;
-        private Suggester<?> suggester;
+        private final SearchExecutionContext searchExecutionContext;
+        private final Suggester<?> suggester;
 
         protected SuggestionContext(Suggester<?> suggester, SearchExecutionContext searchExecutionContext) {
             this.suggester = suggester;

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.autoscaling.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -33,7 +32,7 @@ public class GetAutoscalingCapacityAction extends ActionType<GetAutoscalingCapac
     public static final String NAME = "cluster:admin/autoscaling/get_autoscaling_capacity";
 
     private GetAutoscalingCapacityAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<GetAutoscalingCapacityAction.Request> {
@@ -49,11 +48,6 @@ public class GetAutoscalingCapacityAction extends ActionType<GetAutoscalingCapac
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override
@@ -85,12 +79,12 @@ public class GetAutoscalingCapacityAction extends ActionType<GetAutoscalingCapac
 
         public Response(final StreamInput in) throws IOException {
             super(in);
-            results = new TreeMap<>(in.readMap(StreamInput::readString, AutoscalingDeciderResults::new));
+            results = new TreeMap<>(in.readMap(AutoscalingDeciderResults::new));
         }
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
-            out.writeMap(results, StreamOutput::writeString, (o, decision) -> decision.writeTo(o));
+            out.writeMap(results, StreamOutput::writeWriteable);
         }
 
         public SortedMap<String, AutoscalingDeciderResults> results() {

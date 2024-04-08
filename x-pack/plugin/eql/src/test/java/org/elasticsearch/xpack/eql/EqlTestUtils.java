@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.eql;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchSortValues;
 import org.elasticsearch.tasks.TaskId;
@@ -20,10 +22,9 @@ import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.Inse
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveNotEquals;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardEquals;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardNotEquals;
+import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Expression;
-
-import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
@@ -35,8 +36,6 @@ import static org.elasticsearch.test.ESTestCase.randomZone;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
 public final class EqlTestUtils {
-
-    public static final Version EQL_GA_VERSION = Version.V_7_10_0;
 
     private EqlTestUtils() {}
 
@@ -51,10 +50,10 @@ public final class EqlTestUtils {
         TimeValue.timeValueSeconds(30),
         null,
         123,
+        1,
         "",
         new TaskId("test", 123),
-        null,
-        x -> Collections.emptySet()
+        null
     );
 
     public static EqlConfiguration randomConfiguration() {
@@ -69,10 +68,10 @@ public final class EqlTestUtils {
             new TimeValue(randomNonNegativeLong()),
             randomIndicesOptions(),
             randomIntBetween(1, 1000),
+            randomIntBetween(1, 1000),
             randomAlphaOfLength(16),
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
-            randomTask(),
-            x -> Collections.emptySet()
+            randomTask()
         );
     }
 
@@ -129,5 +128,26 @@ public final class EqlTestUtils {
             sortValueFormats[i] = DocValueFormat.RAW;
         }
         return new SearchSortValues(values, sortValueFormats);
+    }
+
+    public static BreakerSettings circuitBreakerSettings(Settings settings) {
+        return BreakerSettings.updateFromSettings(
+            new BreakerSettings(
+                EqlPlugin.CIRCUIT_BREAKER_NAME,
+                EqlPlugin.CIRCUIT_BREAKER_LIMIT,
+                EqlPlugin.CIRCUIT_BREAKER_OVERHEAD,
+                CircuitBreaker.Type.MEMORY,
+                CircuitBreaker.Durability.TRANSIENT
+            ),
+            settings
+        );
+    }
+
+    public static boolean[] booleanArrayOf(int size, boolean value) {
+        boolean[] missing = new boolean[size];
+        for (int i = 0; i < size; i++) {
+            missing[i] = value;
+        }
+        return missing;
     }
 }

@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -21,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.ToLongFunction;
 
 public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder> {
 
@@ -91,14 +91,14 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             factory.format("###.##");
         }
         if (randomBoolean()) {
-            RegExp includeRegexp = null, excludeRegexp = null;
+            String includeRegexp = null, excludeRegexp = null;
             SortedSet<BytesRef> includeValues = null, excludeValues = null;
             boolean hasIncludeOrExclude = false;
 
             if (randomBoolean()) {
                 hasIncludeOrExclude = true;
                 if (randomBoolean()) {
-                    includeRegexp = new RegExp(randomAlphaOfLengthBetween(5, 10));
+                    includeRegexp = randomAlphaOfLengthBetween(5, 10);
                 } else {
                     includeValues = new TreeSet<>();
                     int numIncs = randomIntBetween(1, 20);
@@ -111,7 +111,7 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             if (randomBoolean()) {
                 hasIncludeOrExclude = true;
                 if (randomBoolean()) {
-                    excludeRegexp = new RegExp(randomAlphaOfLengthBetween(5, 10));
+                    excludeRegexp = randomAlphaOfLengthBetween(5, 10);
                 } else {
                     excludeValues = new TreeSet<>();
                     int numIncs = randomIntBetween(1, 20);
@@ -165,4 +165,60 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
         return orders;
     }
 
+    public void testSupportsParallelCollection() {
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").executionHint("map");
+            assertFalse(terms.supportsParallelCollection(field -> randomIntBetween(-1, 100)));
+        }
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").executionHint("global_ordinals");
+            assertTrue(terms.supportsParallelCollection(field -> 0));
+        }
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            terms.order(randomBoolean() ? BucketOrder.key(randomBoolean()) : BucketOrder.compound(BucketOrder.key(randomBoolean())));
+            if (randomBoolean()) {
+                terms.shardSize(randomIntBetween(1, 100));
+            }
+            assertTrue(terms.supportsParallelCollection(field -> randomIntBetween(0, 49)));
+        }
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            terms.order(randomBoolean() ? BucketOrder.key(randomBoolean()) : BucketOrder.compound(BucketOrder.key(randomBoolean())));
+            if (randomBoolean()) {
+                terms.shardSize(randomIntBetween(1, 100));
+            }
+            assertFalse(terms.supportsParallelCollection(field -> randomIntBetween(51, 100)));
+        }
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            assertFalse(terms.supportsParallelCollection(field -> -1));
+        }
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            assertTrue(terms.supportsParallelCollection(field -> 0));
+        }
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            terms.subAggregation(new TermsAggregationBuilder("name") {
+                @Override
+                public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+                    return false;
+                }
+            });
+            assertFalse(terms.supportsParallelCollection(field -> 0));
+        }
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            terms.shardSize(10);
+            assertTrue(terms.supportsParallelCollection(field -> randomIntBetween(1, 10)));
+            assertFalse(terms.supportsParallelCollection(field -> randomIntBetween(11, 100)));
+        }
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            terms.shardSize(randomIntBetween(1, 100));
+            terms.minDocCount(0);
+            assertFalse(terms.supportsParallelCollection(field -> randomIntBetween(1, 100)));
+        }
+    }
 }

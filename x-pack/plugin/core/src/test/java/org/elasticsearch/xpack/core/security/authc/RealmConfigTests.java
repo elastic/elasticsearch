@@ -11,10 +11,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 import org.mockito.Mockito;
 
+import java.io.IOException;
+
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class RealmConfigTests extends ESTestCase {
@@ -56,5 +63,14 @@ public class RealmConfigTests extends ESTestCase {
             .build();
         final RealmConfig realmConfig = new RealmConfig(realmIdentifier, settings, environment, threadContext);
         assertThat(realmConfig.enabled(), is(false));
+    }
+
+    public void testXContentSerialization() throws IOException {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            realmIdentifier.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            try (XContentParser parser = createParser(builder)) {
+                assertThat(RealmConfig.REALM_IDENTIFIER_PARSER.parse(parser, null), equalTo(realmIdentifier));
+            }
+        }
     }
 }

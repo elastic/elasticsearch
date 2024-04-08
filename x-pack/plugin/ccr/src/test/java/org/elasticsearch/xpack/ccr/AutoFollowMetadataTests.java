@@ -9,11 +9,10 @@ package org.elasticsearch.xpack.ccr;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 
@@ -24,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class AutoFollowMetadataTests extends AbstractSerializingTestCase<AutoFollowMetadata> {
+public class AutoFollowMetadataTests extends AbstractChunkedSerializingTestCase<AutoFollowMetadata> {
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
@@ -56,10 +55,10 @@ public class AutoFollowMetadataTests extends AbstractSerializingTestCase<AutoFol
                 randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
                 randomIntBetween(0, Integer.MAX_VALUE),
-                new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES),
-                new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES),
+                ByteSizeValue.ofBytes(randomNonNegativeLong()),
+                ByteSizeValue.ofBytes(randomNonNegativeLong()),
                 randomIntBetween(0, Integer.MAX_VALUE),
-                new ByteSizeValue(randomNonNegativeLong()),
+                ByteSizeValue.ofBytes(randomNonNegativeLong()),
                 TimeValue.timeValueMillis(500),
                 TimeValue.timeValueMillis(500)
             );
@@ -75,6 +74,11 @@ public class AutoFollowMetadataTests extends AbstractSerializingTestCase<AutoFol
             }
         }
         return new AutoFollowMetadata(configs, followedLeaderIndices, headers);
+    }
+
+    @Override
+    protected AutoFollowMetadata mutateInstance(AutoFollowMetadata instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

@@ -168,6 +168,10 @@ public class SamlIdentityProviderBuilder {
             ex.addValidationError("Service provider defaults must be specified");
         }
 
+        if (allowedNameIdFormats == null || allowedNameIdFormats.isEmpty()) {
+            ex.addValidationError("At least 1 allowed NameID format must be specified");
+        }
+
         if (ex.validationErrors().isEmpty() == false) {
             throw ex;
         }
@@ -260,6 +264,9 @@ public class SamlIdentityProviderBuilder {
     }
 
     public SamlIdentityProviderBuilder allowedNameIdFormat(String nameIdFormat) {
+        if (this.allowedNameIdFormats == null) {
+            this.allowedNameIdFormats = new HashSet<>();
+        }
         this.allowedNameIdFormats.add(nameIdFormat);
         return this;
     }

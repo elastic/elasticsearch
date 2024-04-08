@@ -9,7 +9,7 @@
 package org.elasticsearch.common.compress;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -17,20 +17,26 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.DigestOutputStream;
 import java.security.MessageDigest;
 import java.util.Base64;
+import java.util.Map;
 import java.util.zip.CRC32;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
@@ -41,9 +47,11 @@ import java.util.zip.Inflater;
  * memory. Note that the compressed string might still sometimes need to be
  * decompressed in order to perform equality checks or to compute hash codes.
  */
-public final class CompressedXContent {
+public final class CompressedXContent implements Writeable {
 
     private static final ThreadLocal<InflaterAndBuffer> inflater = ThreadLocal.withInitial(InflaterAndBuffer::new);
+
+    private static final ThreadLocal<BytesStreamOutput> baos = ThreadLocal.withInitial(BytesStreamOutput::new);
 
     private static String sha256(BytesReference data) {
         MessageDigest messageDigest = MessageDigests.sha256();
@@ -85,6 +93,10 @@ public final class CompressedXContent {
         assertConsistent();
     }
 
+    public CompressedXContent(Map<String, Object> map) throws IOException {
+        this(((builder, params) -> builder.mapContents(map)), ToXContent.EMPTY_PARAMS);
+    }
+
     public CompressedXContent(ToXContent xcontent) throws IOException {
         this(xcontent, ToXContent.EMPTY_PARAMS);
     }
@@ -93,19 +105,26 @@ public final class CompressedXContent {
      * Create a {@link CompressedXContent} out of a {@link ToXContent} instance.
      */
     public CompressedXContent(ToXContent xcontent, ToXContent.Params params) throws IOException {
-        BytesStreamOutput bStream = new BytesStreamOutput();
         MessageDigest messageDigest = MessageDigests.sha256();
-        OutputStream checkedStream = new DigestOutputStream(CompressorFactory.COMPRESSOR.threadLocalOutputStream(bStream), messageDigest);
-        try (XContentBuilder builder = XContentFactory.jsonBuilder(checkedStream)) {
-            if (xcontent.isFragment()) {
-                builder.startObject();
+        BytesStreamOutput bStream = baos.get();
+        try {
+            OutputStream checkedStream = new DigestOutputStream(
+                CompressorFactory.COMPRESSOR.threadLocalOutputStream(bStream),
+                messageDigest
+            );
+            try (XContentBuilder builder = XContentFactory.jsonBuilder(checkedStream)) {
+                if (xcontent.isFragment()) {
+                    builder.startObject();
+                }
+                xcontent.toXContent(builder, params);
+                if (xcontent.isFragment()) {
+                    builder.endObject();
+                }
             }
-            xcontent.toXContent(builder, params);
-            if (xcontent.isFragment()) {
-                builder.endObject();
-            }
+            this.bytes = bStream.copyBytes().array();
+        } finally {
+            bStream.reset();
         }
-        this.bytes = BytesReference.toBytes(bStream.bytes());
         this.sha256 = Base64.getEncoder().encodeToString(messageDigest.digest());
         assertConsistent();
     }
@@ -145,17 +164,9 @@ public final class CompressedXContent {
      * @return compressed x-content normalized to not contain any whitespaces
      */
     public static CompressedXContent fromJSON(String json) throws IOException {
-        return new CompressedXContent(new ToXContent() {
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return builder.copyCurrentStructure(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json));
-            }
-
-            @Override
-            public boolean isFragment() {
-                return false;
-            }
-        });
+        try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+            return new CompressedXContent((ToXContentObject) (builder, params) -> builder.copyCurrentStructure(parser));
+        }
     }
 
     public CompressedXContent(String str) throws IOException {
@@ -192,7 +203,7 @@ public final class CompressedXContent {
     public static CompressedXContent readCompressedString(StreamInput in) throws IOException {
         final String sha256;
         final byte[] compressedData;
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
             sha256 = in.readString();
             compressedData = in.readByteArray();
         } else {
@@ -203,8 +214,9 @@ public final class CompressedXContent {
         return new CompressedXContent(compressedData, sha256);
     }
 
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
             out.writeString(sha256);
         } else {
             int crc32 = crc32FromCompressed(bytes);
@@ -220,6 +232,22 @@ public final class CompressedXContent {
 
         CompressedXContent that = (CompressedXContent) o;
         return sha256.equals(that.sha256);
+    }
+
+    /**
+     * Copies the x-content in this instance to the given builder token by token. This operation is equivalent to parsing the contents
+     * of this instance into a map and then writing the map to the given {@link XContentBuilder} functionally but is much more efficient.
+     *
+     * @param builder builder to copy to
+     * @throws IOException on failure
+     */
+    public void copyTo(XContentBuilder builder) throws IOException {
+        try (
+            InputStream decompressed = CompressorFactory.COMPRESSOR.threadLocalInputStream(new ByteArrayInputStream(bytes));
+            XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, decompressed)
+        ) {
+            builder.copyCurrentStructure(parser);
+        }
     }
 
     @Override

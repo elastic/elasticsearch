@@ -85,14 +85,7 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
                     throw new IllegalArgumentException("Token type: 'custom' requires setting `custom_token_chars`");
                 }
                 final Set<Integer> customCharSet = customCharacters.chars().boxed().collect(Collectors.toSet());
-                matcher = new CharMatcher() {
-
-                    @Override
-                    public boolean isTokenChar(int c) {
-                        return customCharSet.contains(c);
-                    }
-
-                };
+                matcher = customCharSet::contains;
             }
             builder.or(matcher);
         }

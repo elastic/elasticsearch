@@ -12,11 +12,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -26,14 +25,14 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.node.DiscoveryNode.DISCOVERY_NODE_COMPARATOR;
+
 /**
  * Represents a collection of individual autoscaling decider results that can be aggregated into a single autoscaling capacity for a
  * policy
  */
-public class AutoscalingDeciderResults implements ToXContent, Writeable {
+public class AutoscalingDeciderResults implements ToXContentObject, Writeable {
 
-    public static final Comparator<DiscoveryNode> DISCOVERY_NODE_COMPARATOR = Comparator.comparing(DiscoveryNode::getName)
-        .thenComparing(DiscoveryNode::getId);
     private final AutoscalingCapacity currentCapacity;
     private final SortedSet<DiscoveryNode> currentNodes;
     private final SortedMap<String, AutoscalingDeciderResult> results;
@@ -62,22 +61,17 @@ public class AutoscalingDeciderResults implements ToXContent, Writeable {
 
     public AutoscalingDeciderResults(final StreamInput in) throws IOException {
         this.currentCapacity = new AutoscalingCapacity(in);
-        this.currentNodes = in.readSet(DiscoveryNode::new)
+        this.currentNodes = in.readCollectionAsSet(DiscoveryNode::new)
             .stream()
             .collect(Collectors.toCollection(() -> new TreeSet<>(DISCOVERY_NODE_COMPARATOR)));
-        this.results = new TreeMap<>(in.readMap(StreamInput::readString, AutoscalingDeciderResult::new));
+        this.results = new TreeMap<>(in.readMap(AutoscalingDeciderResult::new));
     }
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         currentCapacity.writeTo(out);
         out.writeCollection(currentNodes);
-        out.writeMap(results, StreamOutput::writeString, (output, result) -> result.writeTo(output));
-    }
-
-    @Override
-    public boolean isFragment() {
-        return false;
+        out.writeMap(results, StreamOutput::writeWriteable);
     }
 
     @Override

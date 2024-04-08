@@ -8,11 +8,18 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.geo.LatLonGeometry;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.geo.LuceneGeometriesUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+
+import java.util.function.Consumer;
 
 /**
  * Implemented by {@link org.elasticsearch.index.mapper.MappedFieldType} that support
@@ -20,16 +27,37 @@ import org.elasticsearch.index.query.SearchExecutionContext;
  */
 public interface GeoShapeQueryable {
 
-    Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context);
+    Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, LatLonGeometry... luceneGeometries);
+
+    default Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, Geometry geometry) {
+        final Consumer<ShapeType> checker = relation == ShapeRelation.WITHIN ? t -> {
+            if (t == ShapeType.LINESTRING) {
+                // Line geometries and WITHIN relation is not supported by Lucene. Throw an error here
+                // to have same behavior for runtime fields.
+                throw new IllegalArgumentException("found an unsupported shape Line");
+            }
+        } : t -> {};
+        final LatLonGeometry[] luceneGeometries;
+        try {
+            // quantize the geometries to match the values on the index
+            luceneGeometries = LuceneGeometriesUtils.toLatLonGeometry(geometry, true, checker);
+        } catch (IllegalArgumentException e) {
+            throw new QueryShardException(context, "Exception creating query on Field [" + fieldName + "] " + e.getMessage(), e);
+        }
+        if (luceneGeometries.length == 0) {
+            return new MatchNoDocsQuery();
+        }
+        return geoShapeQuery(context, fieldName, relation, luceneGeometries);
+    }
 
     @Deprecated
     default Query geoShapeQuery(
-        Geometry shape,
+        SearchExecutionContext context,
         String fieldName,
         SpatialStrategy strategy,
         ShapeRelation relation,
-        SearchExecutionContext context
+        Geometry shape
     ) {
-        return geoShapeQuery(shape, fieldName, relation, context);
+        return geoShapeQuery(context, fieldName, relation, shape);
     }
 }

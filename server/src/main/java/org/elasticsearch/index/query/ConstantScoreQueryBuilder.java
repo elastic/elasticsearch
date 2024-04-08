@@ -10,6 +10,8 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -156,5 +158,10 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     @Override
     protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
         InnerHitContextBuilder.extractInnerHits(filterBuilder, innerHits);
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
@@ -19,25 +21,15 @@ class UnmappedCategorizationAggregation extends InternalCategorizationAggregatio
         String name,
         int requiredSize,
         long minDocCount,
-        int maxChildren,
-        int maxDepth,
         int similarityThreshold,
         Map<String, Object> metadata
     ) {
-        super(name, requiredSize, minDocCount, maxChildren, maxDepth, similarityThreshold, metadata);
+        super(name, requiredSize, minDocCount, similarityThreshold, metadata);
     }
 
     @Override
     public InternalCategorizationAggregation create(List<Bucket> buckets) {
-        return new UnmappedCategorizationAggregation(
-            name,
-            getRequiredSize(),
-            getMinDocCount(),
-            getMaxUniqueTokens(),
-            getMaxMatchTokens(),
-            getSimilarityThreshold(),
-            super.metadata
-        );
+        return new UnmappedCategorizationAggregation(name, getRequiredSize(), getMinDocCount(), getSimilarityThreshold(), super.metadata);
     }
 
     @Override
@@ -46,20 +38,35 @@ class UnmappedCategorizationAggregation extends InternalCategorizationAggregatio
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        return new UnmappedCategorizationAggregation(
-            name,
-            getRequiredSize(),
-            getMinDocCount(),
-            getMaxUniqueTokens(),
-            getMaxMatchTokens(),
-            getSimilarityThreshold(),
-            super.metadata
-        );
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        InternalAggregation empty = this;
+        return new AggregatorReducer() {
+            AggregatorReducer aggregatorReducer = null;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                if (aggregatorReducer != null) {
+                    aggregatorReducer.accept(aggregation);
+                } else if ((aggregation instanceof UnmappedCategorizationAggregation) == false) {
+                    aggregatorReducer = aggregation.getReducer(reduceContext, size);
+                    aggregatorReducer.accept(aggregation);
+                }
+            }
+
+            @Override
+            public InternalAggregation get() {
+                return aggregatorReducer != null ? aggregatorReducer.get() : empty;
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(aggregatorReducer);
+            }
+        };
     }
 
     @Override
-    public boolean isMapped() {
+    public boolean canLeadReduction() {
         return false;
     }
 
@@ -67,5 +74,4 @@ class UnmappedCategorizationAggregation extends InternalCategorizationAggregatio
     public List<Bucket> getBuckets() {
         return List.of();
     }
-
 }

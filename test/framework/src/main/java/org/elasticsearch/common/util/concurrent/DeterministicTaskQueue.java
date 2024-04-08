@@ -14,7 +14,6 @@ import org.apache.logging.log4j.CloseableThreadContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -29,6 +28,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Delayed;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
@@ -36,8 +36,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
-
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 
 /**
  * Permits the testing of async processes by interleaving all the tasks on a single thread in a pseudo-random (deterministic) fashion,
@@ -52,7 +50,6 @@ public class DeterministicTaskQueue {
 
     public static final String NODE_ID_LOG_CONTEXT_KEY = "nodeId";
 
-    private final Settings settings;
     private final List<Runnable> runnableTasks = new ArrayList<>();
     private final Random random;
     private List<DeferredTask> deferredTasks = new ArrayList<>();
@@ -61,17 +58,12 @@ public class DeterministicTaskQueue {
     private long executionDelayVariabilityMillis;
     private long latestDeferredExecutionTime;
 
-    public DeterministicTaskQueue(Settings settings, Random random) {
-        this.settings = settings;
+    public DeterministicTaskQueue(Random random) {
         this.random = random;
     }
 
     public DeterministicTaskQueue() {
-        this(
-            // the node name is required by the thread pool but is unused since the thread pool in question doesn't create any threads
-            Settings.builder().put(NODE_NAME_SETTING.getKey(), "deterministic-task-queue").build(),
-            ESTestCase.random()
-        );
+        this(ESTestCase.random());
     }
 
     public long getExecutionDelayVariabilityMillis() {
@@ -90,7 +82,7 @@ public class DeterministicTaskQueue {
     }
 
     public void runAllTasks() {
-        while (hasDeferredTasks() || hasRunnableTasks()) {
+        while (hasAnyTasks()) {
             if (hasDeferredTasks() && random.nextBoolean()) {
                 advanceTime();
             } else if (hasRunnableTasks()) {
@@ -100,13 +92,26 @@ public class DeterministicTaskQueue {
     }
 
     public void runAllTasksInTimeOrder() {
-        while (hasDeferredTasks() || hasRunnableTasks()) {
+        while (hasAnyTasks()) {
             if (hasRunnableTasks()) {
                 runRandomTask();
             } else {
                 advanceTime();
             }
         }
+    }
+
+    /**
+     * Run all {@code runnableTasks} and {@code deferredTasks} that are scheduled to run before or on the given {@code timeInMillis}.
+     * The current time will be set to {@code timeInMillis} once the method returns.
+     */
+    public void runTasksUpToTimeInOrder(long timeInMillis) {
+        runAllRunnableTasks();
+        while (nextDeferredTaskExecutionTimeMillis <= timeInMillis) {
+            advanceTime();
+            runAllRunnableTasks();
+        }
+        currentTimeMillis = timeInMillis;
     }
 
     /**
@@ -121,6 +126,13 @@ public class DeterministicTaskQueue {
      */
     public boolean hasDeferredTasks() {
         return deferredTasks.isEmpty() == false;
+    }
+
+    /**
+     * @return whether there are any runnable or deferred tasks
+     */
+    public boolean hasAnyTasks() {
+        return hasDeferredTasks() || hasRunnableTasks();
     }
 
     /**
@@ -175,6 +187,14 @@ public class DeterministicTaskQueue {
         }
     }
 
+    /**
+     * Similar to {@link #scheduleAt} but also advance time to {@code executionTimeMillis} and run all eligible tasks.
+     */
+    public void scheduleAtAndRunUpTo(final long executionTimeMillis, final Runnable task) {
+        scheduleAt(executionTimeMillis, task);
+        runTasksUpToTimeInOrder(executionTimeMillis);
+    }
+
     private void scheduleDeferredTask(DeferredTask deferredTask) {
         nextDeferredTaskExecutionTimeMillis = Math.min(nextDeferredTaskExecutionTimeMillis, deferredTask.executionTimeMillis());
         latestDeferredExecutionTime = Math.max(latestDeferredExecutionTime, deferredTask.executionTimeMillis());
@@ -209,6 +229,27 @@ public class DeterministicTaskQueue {
         assert deferredTasks.isEmpty() == (nextDeferredTaskExecutionTimeMillis == Long.MAX_VALUE);
     }
 
+    public PrioritizedEsThreadPoolExecutor getPrioritizedEsThreadPoolExecutor() {
+        return getPrioritizedEsThreadPoolExecutor(Function.identity());
+    }
+
+    public PrioritizedEsThreadPoolExecutor getPrioritizedEsThreadPoolExecutor(Function<Runnable, Runnable> runnableWrapper) {
+        return new PrioritizedEsThreadPoolExecutor("DeterministicTaskQueue", 1, 1, 1, TimeUnit.SECONDS, r -> {
+            throw new AssertionError("should not create new threads");
+        }, null, null) {
+            @Override
+            public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {
+                throw new AssertionError("not implemented");
+            }
+
+            @Override
+            public void execute(Runnable command) {
+                final var wrappedCommand = runnableWrapper.apply(command);
+                runnableWrapper.apply(() -> scheduleNow(wrappedCommand)).run();
+            }
+        };
+    }
+
     /**
      * @return A <code>ThreadPool</code> that uses this task queue.
      */
@@ -220,12 +261,7 @@ public class DeterministicTaskQueue {
      * @return A <code>ThreadPool</code> that uses this task queue and wraps <code>Runnable</code>s in the given wrapper.
      */
     public ThreadPool getThreadPool(Function<Runnable, Runnable> runnableWrapper) {
-        return new ThreadPool(settings) {
-
-            {
-                stopCachedTimeThread();
-            }
-
+        return new ThreadPool() {
             private final Map<String, ThreadPool.Info> infos = new HashMap<>();
 
             private final ExecutorService forkingExecutor = new ExecutorService() {
@@ -242,7 +278,7 @@ public class DeterministicTaskQueue {
 
                 @Override
                 public boolean isShutdown() {
-                    throw new UnsupportedOperationException();
+                    return false;
                 }
 
                 @Override
@@ -294,7 +330,17 @@ public class DeterministicTaskQueue {
                 public void execute(Runnable command) {
                     scheduleNow(runnableWrapper.apply(command));
                 }
+
+                @Override
+                public String toString() {
+                    return "DeterministicTaskQueue/forkingExecutor";
+                }
             };
+
+            @Override
+            public long relativeTimeInNanos() {
+                throw new AssertionError("DeterministicTaskQueue does not support nanosecond-precision timestamps");
+            }
 
             @Override
             public long relativeTimeInMillis() {
@@ -337,17 +383,18 @@ public class DeterministicTaskQueue {
             }
 
             @Override
-            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
                 final int NOT_STARTED = 0;
                 final int STARTED = 1;
                 final int CANCELLED = 2;
                 final AtomicInteger taskState = new AtomicInteger(NOT_STARTED);
+                final Runnable contextPreservingRunnable = getThreadContext().preserveContext(command);
 
                 scheduleAt(currentTimeMillis + delay.millis(), runnableWrapper.apply(new Runnable() {
                     @Override
                     public void run() {
                         if (taskState.compareAndSet(NOT_STARTED, STARTED)) {
-                            command.run();
+                            contextPreservingRunnable.run();
                         }
                     }
 
@@ -379,11 +426,6 @@ public class DeterministicTaskQueue {
                     }
 
                 };
-            }
-
-            @Override
-            public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
-                return super.scheduleWithFixedDelay(command, interval, executor);
             }
 
             @Override
@@ -512,7 +554,7 @@ public class DeterministicTaskQueue {
         return new Runnable() {
             @Override
             public void run() {
-                try (CloseableThreadContext.Instance ignored = CloseableThreadContext.put(NODE_ID_LOG_CONTEXT_KEY, nodeId)) {
+                try (var ignored = getLogContext(nodeId)) {
                     runnable.run();
                 }
             }
@@ -522,6 +564,10 @@ public class DeterministicTaskQueue {
                 return nodeId + ": " + runnable.toString();
             }
         };
+    }
+
+    public static CloseableThreadContext.Instance getLogContext(String value) {
+        return CloseableThreadContext.put(NODE_ID_LOG_CONTEXT_KEY, value);
     }
 
 }

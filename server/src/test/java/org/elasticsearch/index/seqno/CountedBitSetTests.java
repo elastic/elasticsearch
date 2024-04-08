@@ -12,7 +12,6 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -41,7 +40,7 @@ public class CountedBitSetTests extends ESTestCase {
     public void testReleaseInternalBitSet() {
         int numBits = (short) randomIntBetween(8, 4096);
         final CountedBitSet countedBitSet = new CountedBitSet((short) numBits);
-        final List<Integer> values = IntStream.range(0, numBits).boxed().collect(Collectors.toList());
+        final List<Integer> values = IntStream.range(0, numBits).boxed().toList();
 
         for (int i = 1; i < numBits; i++) {
             final int value = values.get(i);

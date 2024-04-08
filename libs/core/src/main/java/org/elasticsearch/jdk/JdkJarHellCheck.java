@@ -22,6 +22,8 @@ import java.util.Set;
 
 public class JdkJarHellCheck {
 
+    private JdkJarHellCheck() {}
+
     private Set<String> detected = new HashSet<>();
 
     private void scanForJDKJarHell(Path root) throws IOException {

@@ -25,13 +25,14 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -77,41 +78,66 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         final int count = INDICES_CACHE_QUERY_COUNT_SETTING.get(settings);
         logger.debug("using [node] query cache with size [{}] max filter count [{}]", size, count);
         if (INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.get(settings)) {
-            cache = new ElasticsearchLRUQueryCache(count, size.getBytes(), context -> true, 1f);
+            // Use the default skip_caching_factor (i.e., 10f) in Lucene
+            cache = new ElasticsearchLRUQueryCache(count, size.getBytes(), Predicates.always(), 10f);
         } else {
             cache = new ElasticsearchLRUQueryCache(count, size.getBytes());
         }
         sharedRamBytesUsed = 0;
     }
 
+    private static QueryCacheStats toQueryCacheStatsSafe(@Nullable Stats stats) {
+        return stats == null ? new QueryCacheStats() : stats.toQueryCacheStats();
+    }
+
+    private long getShareOfAdditionalRamBytesUsed(long cacheSize) {
+        if (sharedRamBytesUsed == 0L) {
+            return 0L;
+        }
+
+        // We also have some shared ram usage that we try to distribute proportionally to the cache footprint of each shard.
+        // TODO avoid looping over all local shards here - see https://github.com/elastic/elasticsearch/issues/97222
+        long totalSize = 0L;
+        int shardCount = 0;
+        if (cacheSize == 0L) {
+            for (final var stats : shardStats.values()) {
+                shardCount += 1;
+                if (stats.cacheSize > 0L) {
+                    // some shard has nonzero cache footprint, so we apportion the shared size by cache footprint, and this shard has none
+                    return 0L;
+                }
+            }
+        } else {
+            // branchless loop for the common case
+            for (final var stats : shardStats.values()) {
+                shardCount += 1;
+                totalSize += stats.cacheSize;
+            }
+        }
+
+        if (shardCount == 0) {
+            // Sometimes it's not possible to do this when there are no shard entries at all, which can happen as the shared ram usage can
+            // extend beyond the closing of all shards.
+            return 0L;
+        }
+
+        final long additionalRamBytesUsed;
+        if (totalSize == 0) {
+            // all shards have zero cache footprint, so we apportion the size of the shared bytes equally across all shards
+            additionalRamBytesUsed = Math.round((double) sharedRamBytesUsed / shardCount);
+        } else {
+            // some shards have nonzero cache footprint, so we apportion the size of the shared bytes proportionally to cache footprint
+            additionalRamBytesUsed = Math.round((double) sharedRamBytesUsed * cacheSize / totalSize);
+        }
+        assert additionalRamBytesUsed >= 0L : additionalRamBytesUsed;
+        return additionalRamBytesUsed;
+    }
+
     /** Get usage statistics for the given shard. */
     public QueryCacheStats getStats(ShardId shard) {
-        final Map<ShardId, QueryCacheStats> stats = new HashMap<>();
-        for (Map.Entry<ShardId, Stats> entry : shardStats.entrySet()) {
-            stats.put(entry.getKey(), entry.getValue().toQueryCacheStats());
-        }
-        QueryCacheStats shardStats = new QueryCacheStats();
-        QueryCacheStats info = stats.get(shard);
-        if (info == null) {
-            info = new QueryCacheStats();
-        }
-        shardStats.add(info);
-
-        // We also have some shared ram usage that we try to distribute
-        // proportionally to their number of cache entries of each shard.
-        // Sometimes it's not possible to do this when there are no shard entries at all,
-        // which can happen as the shared ram usage can extend beyond the closing of all shards.
-        if (stats.isEmpty() == false) {
-            long totalSize = 0;
-            for (QueryCacheStats s : stats.values()) {
-                totalSize += s.getCacheSize();
-            }
-            final double weight = totalSize == 0 ? 1d / stats.size() : ((double) shardStats.getCacheSize()) / totalSize;
-            final long additionalRamBytesUsed = Math.round(weight * sharedRamBytesUsed);
-            assert additionalRamBytesUsed >= 0L : additionalRamBytesUsed;
-            shardStats.add(new QueryCacheStats(additionalRamBytesUsed, 0, 0, 0, 0));
-        }
-        return shardStats;
+        final QueryCacheStats queryCacheStats = toQueryCacheStatsSafe(shardStats.get(shard));
+        queryCacheStats.addRamBytesUsed(getShareOfAdditionalRamBytesUsed(queryCacheStats.getCacheSize()));
+        return queryCacheStats;
     }
 
     @Override
@@ -138,6 +164,12 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         public Explanation explain(LeafReaderContext context, int doc) throws IOException {
             shardKeyMap.add(context.reader());
             return in.explain(context, doc);
+        }
+
+        @Override
+        public int count(LeafReaderContext context) throws IOException {
+            shardKeyMap.add(context.reader());
+            return in.count(context);
         }
 
         @Override
@@ -242,7 +274,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
     }
 
-    private boolean empty(Stats stats) {
+    private static boolean empty(Stats stats) {
         if (stats == null) {
             return true;
         }
@@ -273,13 +305,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
 
         private Stats getOrCreateStats(Object coreKey) {
-            final ShardId shardId = shardKeyMap.getShardId(coreKey);
-            Stats stats = shardStats.get(shardId);
-            if (stats == null) {
-                stats = new Stats(shardId);
-                shardStats.put(shardId, stats);
-            }
-            return stats;
+            return shardStats.computeIfAbsent(shardKeyMap.getShardId(coreKey), Stats::new);
         }
 
         // It's ok to not protect these callbacks by a lock since it is

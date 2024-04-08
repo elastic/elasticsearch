@@ -86,6 +86,18 @@ setup:
                   non_indexed_date:
                     type:     date
                     index:    false
+                  non_indexed_keyword:
+                    type:     keyword
+                    index:    false
+                  non_indexed_boolean:
+                    type:     boolean
+                    index:    false
+                  non_indexed_ip:
+                    type:     ip
+                    index:    false
+                  non_indexed_geo_point:
+                    type:     geo_point
+                    index:    false
                   geo:
                     type:     keyword
                   object:
@@ -109,7 +121,6 @@ setup:
 
 ---
 "Get simple field caps":
-
   - do:
       field_caps:
         index: 'test1,test2,test3'
@@ -150,6 +161,21 @@ setup:
   - match: {fields.geo.keyword.indices:                 ["test3"]}
   - is_false: fields.geo.keyword.non_searchable_indices
   - is_false: fields.geo.keyword.on_aggregatable_indices
+
+---
+"Get field caps with fields in body":
+  - skip:
+      version: " - 8.4.99"
+      reason: re-added support for fields in the request body in 8.5
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        body:
+          fields: [text]
+
+  - match: {fields.text.text.searchable:                true}
+  - match: {fields.text.text.aggregatable:              false}
+  - is_false: fields.keyword
 ---
 "Get date_nanos field caps":
 
@@ -224,6 +250,55 @@ setup:
         fields: non_indexed_date
 
   - match: {fields.non_indexed_date.date.searchable:                       true}
+
+---
+"Field caps for keyword field with only doc values":
+  - skip:
+      version: " - 8.0.99"
+      reason: "doc values search was added in 8.1.0"
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        fields: non_indexed_keyword
+
+  - match: {fields.non_indexed_keyword.keyword.searchable:                 true}
+
+---
+"Field caps for boolean field with only doc values":
+  - skip:
+      version: " - 8.0.99"
+      reason: "doc values search was added in 8.1.0"
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        fields: non_indexed_boolean
+
+  - match: {fields.non_indexed_boolean.boolean.searchable:                 true}
+
+---
+"Field caps for ip field with only doc values":
+  - skip:
+      version: " - 8.0.99"
+      reason: "doc values search was added in 8.1.0"
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        fields: non_indexed_ip
+
+  - match: {fields.non_indexed_ip.ip.searchable:                          true}
+
+---
+"Field caps for geo_point field with only doc values":
+  - skip:
+      version: " - 8.0.99"
+      reason: "doc values search was added in 8.1.0"
+  - do:
+      field_caps:
+        index: 'test1,test2,test3'
+        fields: non_indexed_geo_point
+
+  - match: {fields.non_indexed_geo_point.geo_point.searchable:            true}
+
 
 ---
 "Get object and nested field caps":

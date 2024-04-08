@@ -10,22 +10,34 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DocumentDimensions;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.NestedLookup;
+import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toSet;
@@ -38,7 +50,7 @@ import static java.util.stream.Collectors.toSet;
  * to be set or not set and by enabling extra fields in the mapping.
  */
 public enum IndexMode {
-    STANDARD {
+    STANDARD("standard") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
             settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
@@ -46,9 +58,9 @@ public enum IndexMode {
             settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
         }
 
-        private void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
+        private static void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
             if (false == Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
-                throw new IllegalArgumentException("[" + setting.getKey() + "] requires [" + IndexSettings.MODE.getKey() + "=time_series]");
+                throw new IllegalArgumentException("[" + setting.getKey() + "] requires " + tsdbMode());
             }
         }
 
@@ -71,12 +83,51 @@ public enum IndexMode {
         }
 
         @Override
-        public MetadataFieldMapper buildTimeSeriesIdFieldMapper() {
+        public TimestampBounds getTimestampBound(IndexMetadata indexMetadata) {
+            return null;
+        }
+
+        @Override
+        public MetadataFieldMapper timeSeriesIdFieldMapper() {
             // non time-series indices must not have a TimeSeriesIdFieldMapper
             return null;
         }
+
+        @Override
+        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
+            // non time-series indices must not have a TimeSeriesRoutingIdFieldMapper
+            return null;
+        }
+
+        @Override
+        public IdFieldMapper idFieldMapperWithoutFieldData() {
+            return ProvidedIdFieldMapper.NO_FIELD_DATA;
+        }
+
+        @Override
+        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
+            return new ProvidedIdFieldMapper(fieldDataEnabled);
+        }
+
+        @Override
+        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
+            return new DocumentDimensions.OnlySingleValueAllowed();
+        }
+
+        @Override
+        public boolean shouldValidateTimestamp() {
+            return false;
+        }
+
+        @Override
+        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {}
+
+        @Override
+        public boolean isSyntheticSourceEnabled() {
+            return false;
+        }
     },
-    TIME_SERIES {
+    TIME_SERIES("time_series") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
             if (settings.get(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING) != Integer.valueOf(1)) {
@@ -87,23 +138,24 @@ public enum IndexMode {
                     throw new IllegalArgumentException(error(unsupported));
                 }
             }
-            settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
-            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
-            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
+            checkSetting(settings, IndexMetadata.INDEX_ROUTING_PATH);
         }
 
-        private void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
+        private static void checkSetting(Map<Setting<?>, Object> settings, Setting<?> setting) {
             if (Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
-                throw new IllegalArgumentException("[" + IndexSettings.MODE.getKey() + "=time_series] requires [" + setting.getKey() + "]");
+                throw new IllegalArgumentException(tsdbMode() + " requires a non-empty [" + setting.getKey() + "]");
             }
         }
 
-        private String error(Setting<?> unsupported) {
+        private static String error(Setting<?> unsupported) {
             return tsdbMode() + " is incompatible with [" + unsupported.getKey() + "]";
         }
 
         @Override
         public void validateMapping(MappingLookup lookup) {
+            if (lookup.nestedLookup() != NestedLookup.EMPTY) {
+                throw new IllegalArgumentException("cannot have nested fields when index is in " + tsdbMode());
+            }
             if (((RoutingFieldMapper) lookup.getMapper(RoutingFieldMapper.NAME)).required()) {
                 throw new IllegalArgumentException(routingRequiredBad());
             }
@@ -126,19 +178,62 @@ public enum IndexMode {
             return DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
         }
 
-        private String routingRequiredBad() {
+        @Override
+        public TimestampBounds getTimestampBound(IndexMetadata indexMetadata) {
+            return new TimestampBounds(indexMetadata.getTimeSeriesStart(), indexMetadata.getTimeSeriesEnd());
+        }
+
+        private static String routingRequiredBad() {
             return "routing is forbidden on CRUD operations that target indices in " + tsdbMode();
         }
 
-        private String tsdbMode() {
-            return "[" + IndexSettings.MODE.getKey() + "=time_series]";
+        @Override
+        public MetadataFieldMapper timeSeriesIdFieldMapper() {
+            return TimeSeriesIdFieldMapper.INSTANCE;
         }
 
         @Override
-        public MetadataFieldMapper buildTimeSeriesIdFieldMapper() {
-            return TimeSeriesIdFieldMapper.INSTANCE;
+        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
+            return TimeSeriesRoutingHashFieldMapper.INSTANCE;
+        }
+
+        public IdFieldMapper idFieldMapperWithoutFieldData() {
+            return TsidExtractingIdFieldMapper.INSTANCE;
+        }
+
+        @Override
+        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
+            // We don't support field data on TSDB's _id
+            return TsidExtractingIdFieldMapper.INSTANCE;
+        }
+
+        @Override
+        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
+            IndexRouting.ExtractFromSource routing = (IndexRouting.ExtractFromSource) settings.getIndexRouting();
+            return new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(routing.builder());
+        }
+
+        @Override
+        public boolean shouldValidateTimestamp() {
+            return true;
+        }
+
+        @Override
+        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
+            if (sourceFieldMapper.isSynthetic() == false) {
+                throw new IllegalArgumentException("time series indices only support synthetic source");
+            }
+        }
+
+        @Override
+        public boolean isSyntheticSourceEnabled() {
+            return true;
         }
     };
+
+    protected static String tsdbMode() {
+        return "[" + IndexSettings.MODE.getKey() + "=time_series]";
+    }
 
     public static final CompressedXContent DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
 
@@ -152,6 +247,7 @@ public enum IndexMode {
                     .startObject("properties")
                     .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
                     .field("type", DateFieldMapper.CONTENT_TYPE)
+                    .field("ignore_malformed", "false")
                     .endObject()
                     .endObject()
                     .endObject())
@@ -180,6 +276,16 @@ public enum IndexMode {
         ).collect(toSet())
     );
 
+    private final String name;
+
+    IndexMode(String name) {
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
+    }
+
     abstract void validateWithOtherSettings(Map<Setting<?>, Object> settings);
 
     /**
@@ -204,9 +310,76 @@ public enum IndexMode {
     public abstract CompressedXContent getDefaultMapping();
 
     /**
+     * Build the {@link FieldMapper} for {@code _id}.
+     */
+    public abstract IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled);
+
+    /**
+     * Get the singleton {@link FieldMapper} for {@code _id}. It can never support
+     * field data.
+     */
+    public abstract IdFieldMapper idFieldMapperWithoutFieldData();
+
+    /**
+     * @return the time range based on the provided index metadata and index mode implementation.
+     * Otherwise <code>null</code> is returned.
+     */
+    @Nullable
+    public abstract TimestampBounds getTimestampBound(IndexMetadata indexMetadata);
+
+    /**
      * Return an instance of the {@link TimeSeriesIdFieldMapper} that generates
      * the _tsid field. The field mapper will be added to the list of the metadata
      * field mappers for the index.
      */
-    public abstract MetadataFieldMapper buildTimeSeriesIdFieldMapper();
+    public abstract MetadataFieldMapper timeSeriesIdFieldMapper();
+
+    /**
+     * Return an instance of the {@link TimeSeriesRoutingHashFieldMapper} that generates
+     * the _ts_routing_hash field. The field mapper will be added to the list of the metadata
+     * field mappers for the index.
+     */
+    public abstract MetadataFieldMapper timeSeriesRoutingHashFieldMapper();
+
+    /**
+     * How {@code time_series_dimension} fields are handled by indices in this mode.
+     */
+    public abstract DocumentDimensions buildDocumentDimensions(IndexSettings settings);
+
+    /**
+     * @return Whether timestamps should be validated for being withing the time range of an index.
+     */
+    public abstract boolean shouldValidateTimestamp();
+
+    /**
+     * Validates the source field mapper
+     */
+    public abstract void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper);
+
+    /**
+     * @return whether synthetic source is the only allowed source mode.
+     */
+    public abstract boolean isSyntheticSourceEnabled();
+
+    /**
+     * Parse a string into an {@link IndexMode}.
+     */
+    public static IndexMode fromString(String value) {
+        return switch (value) {
+            case "standard" -> IndexMode.STANDARD;
+            case "time_series" -> IndexMode.TIME_SERIES;
+            default -> throw new IllegalArgumentException(
+                "["
+                    + value
+                    + "] is an invalid index mode, valid modes are: ["
+                    + Arrays.stream(IndexMode.values()).map(IndexMode::toString).collect(Collectors.joining())
+                    + "]"
+            );
+        };
+    }
+
+    @Override
+    public String toString() {
+        return getName();
+    }
 }

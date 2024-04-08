@@ -12,7 +12,7 @@ setup:
     - do:
         index:
             index: test
-            id: 0
+            id: "0"
             body: { "foo": null }
 
     - do:
@@ -30,25 +30,25 @@ setup:
     - do:
         index:
             index: test
-            id: 1
+            id: "1"
             body: { "foo": "bar" }
 
     - do:
         index:
             index: test
-            id: 2
+            id: "2"
             body: { "foo": "baz" }
 
     - do:
         index:
             index: test
-            id: 3
+            id: "3"
             body: { "foo": "quux" }
 
     - do:
         index:
             index: test
-            id: 4
+            id: "4"
             body: { "foo": "bar" }
 
     - do:
@@ -67,7 +67,7 @@ setup:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         body: { "foo": "foo" }
 
   - do:
@@ -84,3 +84,23 @@ setup:
                 source: "field('foo.hash').get(10L)"
 
   - match: { hits.hits.0.fields.field.0: -2129773440516405919 }
+---
+"Murmur3 fields api":
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body: { "foo": "foo" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test
+        body:
+          sort: [ { foo.hash: desc } ]
+          fields: [ foo.hash ]
+
+  - match: { hits.hits.0.fields: {foo.hash: ["foo"]} }

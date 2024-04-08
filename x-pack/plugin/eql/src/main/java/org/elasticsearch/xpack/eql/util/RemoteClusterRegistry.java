@@ -7,14 +7,11 @@
 
 package org.elasticsearch.xpack.eql.util;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 
 import java.util.Set;
-import java.util.TreeSet;
 
 public class RemoteClusterRegistry {
 
@@ -24,17 +21,6 @@ public class RemoteClusterRegistry {
     public RemoteClusterRegistry(RemoteClusterService remoteClusterService, IndicesOptions indicesOptions) {
         this.remoteClusterService = remoteClusterService;
         this.indicesOptions = indicesOptions;
-    }
-
-    public Set<String> versionIncompatibleClusters(String indexPattern) {
-        Set<String> incompatibleClusters = new TreeSet<>();
-        for (String clusterAlias : clusterAliases(Strings.splitStringByCommaToArray(indexPattern), true)) {
-            Version clusterVersion = remoteClusterService.getConnection(clusterAlias).getVersion();
-            if (clusterVersion.equals(Version.CURRENT) == false) { // TODO: should newer clusters be eventually allowed?
-                incompatibleClusters.add(clusterAlias);
-            }
-        }
-        return incompatibleClusters;
     }
 
     public Set<String> clusterAliases(String[] indices, boolean discardLocal) {

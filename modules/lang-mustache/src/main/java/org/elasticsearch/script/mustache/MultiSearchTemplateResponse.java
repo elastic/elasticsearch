@@ -9,20 +9,22 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -98,10 +100,24 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     private final Item[] items;
     private final long tookInMillis;
 
+    private final RefCounted refCounted = LeakTracker.wrap(new AbstractRefCounted() {
+        @Override
+        protected void closeInternal() {
+            for (int i = 0; i < items.length; i++) {
+                Item item = items[i];
+                var r = item.response;
+                if (r != null) {
+                    r.decRef();
+                    items[i] = null;
+                }
+            }
+        }
+    });
+
     MultiSearchTemplateResponse(StreamInput in) throws IOException {
         super(in);
         items = in.readArray(Item::new, Item[]::new);
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_0_0)) {
             tookInMillis = in.readVLong();
         } else {
             tookInMillis = -1L;
@@ -135,7 +151,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeArray(items);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_0_0)) {
             out.writeVLong(tookInMillis);
         }
     }
@@ -146,38 +162,44 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
         builder.field("took", tookInMillis);
         builder.startArray(Fields.RESPONSES);
         for (Item item : items) {
+            builder.startObject();
             if (item.isFailure()) {
-                builder.startObject();
                 ElasticsearchException.generateFailureXContent(builder, params, item.getFailure(), true);
-                builder.endObject();
+                builder.field(Fields.STATUS, ExceptionsHelper.status(item.getFailure()).getStatus());
             } else {
-                item.getResponse().toXContent(builder, params);
+                item.getResponse().innerToXContent(builder, params);
+                builder.field(Fields.STATUS, item.getResponse().status().getStatus());
             }
+            builder.endObject();
         }
         builder.endArray();
         builder.endObject();
         return builder;
     }
 
-    static final class Fields {
-        static final String RESPONSES = "responses";
+    @Override
+    public void incRef() {
+        refCounted.incRef();
     }
 
-    public static MultiSearchTemplateResponse fromXContext(XContentParser parser) {
-        // The MultiSearchTemplateResponse is identical to the multi search response so we reuse the parsing logic in multi search response
-        MultiSearchResponse mSearchResponse = MultiSearchResponse.fromXContext(parser);
-        org.elasticsearch.action.search.MultiSearchResponse.Item[] responses = mSearchResponse.getResponses();
-        Item[] templateResponses = new Item[responses.length];
-        int i = 0;
-        for (org.elasticsearch.action.search.MultiSearchResponse.Item item : responses) {
-            SearchTemplateResponse stResponse = null;
-            if (item.getResponse() != null) {
-                stResponse = new SearchTemplateResponse();
-                stResponse.setResponse(item.getResponse());
-            }
-            templateResponses[i++] = new Item(stResponse, item.getFailure());
-        }
-        return new MultiSearchTemplateResponse(templateResponses, mSearchResponse.getTook().millis());
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return refCounted.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return refCounted.hasReferences();
+    }
+
+    static final class Fields {
+        static final String RESPONSES = "responses";
+        static final String STATUS = "status";
     }
 
     @Override

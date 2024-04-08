@@ -37,7 +37,7 @@ public final class CustomMapFieldsConverter extends LogEventPatternConverter {
 
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        if (event.getMessage()instanceof ESLogMessage logMessage) {
+        if (event.getMessage() instanceof ESLogMessage logMessage) {
             logMessage.addJsonNoBrackets(toAppendTo);
         }
     }

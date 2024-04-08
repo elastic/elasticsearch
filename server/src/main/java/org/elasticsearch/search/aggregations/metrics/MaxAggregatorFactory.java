@@ -14,6 +14,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -29,7 +30,12 @@ class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             MaxAggregationBuilder.REGISTRY_KEY,
-            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            List.of(
+                CoreValuesSourceType.NUMERIC,
+                CoreValuesSourceType.DATE,
+                CoreValuesSourceType.BOOLEAN,
+                TimeSeriesValuesSourceType.COUNTER
+            ),
             MaxAggregator::new,
             true
         );
@@ -50,7 +56,8 @@ class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new MaxAggregator(name, config, context, parent, metadata);
+        final Max empty = Max.createEmptyMax(name, config.format(), metadata);
+        return new NonCollectingSingleMetricAggregator(name, context, parent, empty, metadata);
     }
 
     @Override

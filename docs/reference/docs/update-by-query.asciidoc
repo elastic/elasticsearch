@@ -99,8 +99,6 @@ If the request contains `wait_for_completion=false`, {es}
 performs some preflight checks, launches the request, and returns a
 <<tasks,`task`>> you can use to cancel or get the status of the task.
 {es} creates a record of this task as a document at `.tasks/task/${taskId}`.
-When you are done with a task, you should delete the task document so
-{es} can reclaim the space.
 
 ===== Waiting for active shards
 
@@ -188,8 +186,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=df]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
-
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 

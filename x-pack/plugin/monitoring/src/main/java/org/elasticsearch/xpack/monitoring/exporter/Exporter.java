@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 public abstract class Exporter implements AutoCloseable {
 
@@ -99,14 +98,7 @@ public abstract class Exporter implements AutoCloseable {
     public static final Setting.AffixSetting<List<String>> CLUSTER_ALERTS_BLACKLIST_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
         "cluster_alerts.management.blacklist",
-        key -> Setting.listSetting(
-            key,
-            Collections.emptyList(),
-            Function.identity(),
-            Property.Dynamic,
-            Property.NodeScope,
-            Property.DeprecatedWarning
-        ),
+        key -> Setting.stringListSetting(key, Property.Dynamic, Property.NodeScope, Property.DeprecatedWarning),
         TYPE_DEPENDENCY
     );
 

@@ -31,7 +31,7 @@ public class PutCalendarAction extends ActionType<PutCalendarAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/calendars/put";
 
     private PutCalendarAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

@@ -39,7 +39,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         """
 
         when:
-        def result = gradleRunner("setupDistro", '-g', testProjectDir.newFolder('GUH').path).build()
+        def result = gradleRunner("setupDistro", '-g', gradleUserHome).build()
 
         then:
         result.task(":distribution:archives:${testArchiveProjectName}:buildExpanded").outcome == TaskOutcome.SUCCESS

@@ -1,0 +1,34 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+
+apply plugin: 'elasticsearch.build'
+
+dependencies {
+  compileOnly project(":server")
+  compileOnly project(":libs:elasticsearch-cli")
+
+  testImplementation project(":test:framework")
+}
+
+tasks.named("test").configure {
+  systemProperty "tests.security.manager", "false"
+}
+
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+["javadoc", "loggerUsageCheck", "jarHell"].each { tsk ->
+  tasks.named(tsk).configure { enabled = false }
+}
+
+tasks.named("test").configure {
+  // this is necessary to jvm options can invoke java to find final options
+  systemProperty "tests.system_call_filter", "false"
+}

@@ -10,14 +10,14 @@ package org.elasticsearch.ingest.geoip;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Setting;
@@ -36,9 +36,8 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -48,6 +47,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * Main component responsible for downloading new GeoIP databases.
@@ -59,16 +59,14 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     private static final Logger logger = LogManager.getLogger(GeoIpDownloader.class);
 
-    public static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting(
-        "ingest.geoip.downloader.poll.interval",
-        TimeValue.timeValueDays(3),
-        TimeValue.timeValueDays(1),
-        Property.Dynamic,
-        Property.NodeScope
+    // for overriding in tests
+    private static final String DEFAULT_ENDPOINT = System.getProperty(
+        "ingest.geoip.downloader.endpoint.default",
+        "https://geoip.elastic.co/v1/database"
     );
     public static final Setting<String> ENDPOINT_SETTING = Setting.simpleString(
         "ingest.geoip.downloader.endpoint",
-        "https://geoip.elastic.co/v1/database",
+        DEFAULT_ENDPOINT,
         Property.NodeScope
     );
 
@@ -85,9 +83,16 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     // visible for testing
     protected volatile GeoIpTaskState state;
-    private volatile TimeValue pollInterval;
     private volatile Scheduler.ScheduledCancellable scheduled;
     private volatile GeoIpDownloaderStats stats = GeoIpDownloaderStats.EMPTY;
+    private final Supplier<TimeValue> pollIntervalSupplier;
+    private final Supplier<Boolean> eagerDownloadSupplier;
+    /*
+     * This variable tells us whether we have at least one pipeline with a geoip processor. If there are no geoip processors then we do
+     * not download geoip databases (unless configured to eagerly download). Access is not protected because it is set in the constructor
+     * and then only ever updated on the cluster state update thread (it is also read on the generic thread). Non-private for unit testing.
+     */
+    private final Supplier<Boolean> atLeastOneGeoipProcessorSupplier;
 
     GeoIpDownloader(
         Client client,
@@ -100,7 +105,10 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         String action,
         String description,
         TaskId parentTask,
-        Map<String, String> headers
+        Map<String, String> headers,
+        Supplier<TimeValue> pollIntervalSupplier,
+        Supplier<Boolean> eagerDownloadSupplier,
+        Supplier<Boolean> atLeastOneGeoipProcessorSupplier
     ) {
         super(id, type, action, description, parentTask, headers);
         this.httpClient = httpClient;
@@ -108,25 +116,37 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         endpoint = ENDPOINT_SETTING.get(settings);
-        pollInterval = POLL_INTERVAL_SETTING.get(settings);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(POLL_INTERVAL_SETTING, this::setPollInterval);
-    }
-
-    public void setPollInterval(TimeValue pollInterval) {
-        this.pollInterval = pollInterval;
-        if (scheduled != null && scheduled.cancel()) {
-            scheduleNextRun(new TimeValue(1));
-        }
+        this.pollIntervalSupplier = pollIntervalSupplier;
+        this.eagerDownloadSupplier = eagerDownloadSupplier;
+        this.atLeastOneGeoipProcessorSupplier = atLeastOneGeoipProcessorSupplier;
     }
 
     // visible for testing
     void updateDatabases() throws IOException {
-        logger.debug("updating geoip databases");
-        List<Map<String, Object>> response = fetchDatabasesOverview();
-        for (Map<String, Object> res : response) {
-            if (res.get("name").toString().endsWith(".tgz")) {
-                processDatabase(res);
+        var clusterState = clusterService.state();
+        var geoipIndex = clusterState.getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
+        if (geoipIndex != null) {
+            logger.trace("The {} index is not null", GeoIpDownloader.DATABASES_INDEX);
+            if (clusterState.getRoutingTable().index(geoipIndex.getWriteIndex()).allPrimaryShardsActive() == false) {
+                throw new ElasticsearchException("not all primary shards of [" + DATABASES_INDEX + "] index are active");
             }
+            var blockException = clusterState.blocks().indexBlockedException(ClusterBlockLevel.WRITE, geoipIndex.getWriteIndex().getName());
+            if (blockException != null) {
+                throw blockException;
+            }
+        }
+        if (eagerDownloadSupplier.get() || atLeastOneGeoipProcessorSupplier.get()) {
+            logger.trace("Updating geoip databases");
+            List<Map<String, Object>> response = fetchDatabasesOverview();
+            for (Map<String, Object> res : response) {
+                if (res.get("name").toString().endsWith(".tgz")) {
+                    processDatabase(res);
+                }
+            }
+        } else {
+            logger.trace(
+                "Not updating geoip databases because no geoip processors exist in the cluster and eager downloading is not configured"
+            );
         }
     }
 
@@ -135,10 +155,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         String url = endpoint + "?elastic_geoip_service_tos=agree";
         logger.debug("fetching geoip databases overview from [{}]", url);
         byte[] data = httpClient.getBytes(url);
-        try (
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, data)
-        ) {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, data)) {
             return (List<T>) parser.list();
         }
     }
@@ -171,7 +188,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             }
         } catch (Exception e) {
             stats = stats.failedDownload();
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("error downloading geoip database [{}]", name), e);
+            logger.error(() -> "error downloading geoip database [" + name + "]", e);
         }
     }
 
@@ -198,7 +215,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     void updateTaskState() {
-        PlainActionFuture<PersistentTask<?>> future = PlainActionFuture.newFuture();
+        PlainActionFuture<PersistentTask<?>> future = new PlainActionFuture<>();
         updatePersistentTaskState(state, future);
         state = ((GeoIpTaskState) future.actionGet().getState());
     }
@@ -231,7 +248,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     // visible for testing
-    byte[] getChunk(InputStream is) throws IOException {
+    static byte[] getChunk(InputStream is) throws IOException {
         byte[] buf = new byte[MAX_CHUNK_SIZE];
         int chunkSize = 0;
         while (chunkSize < MAX_CHUNK_SIZE) {
@@ -251,6 +268,9 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         this.state = state;
     }
 
+    /**
+     * Downloads the geoip databases now, and schedules them to be downloaded again after pollInterval.
+     */
     void runDownloader() {
         if (isCancelled() || isCompleted()) {
             return;
@@ -258,6 +278,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         try {
             updateDatabases();
         } catch (Exception e) {
+            stats = stats.failedDownload();
             logger.error("exception during geoip databases update", e);
         }
         try {
@@ -265,7 +286,22 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         } catch (Exception e) {
             logger.error("exception during geoip databases cleanup", e);
         }
-        scheduleNextRun(pollInterval);
+        scheduleNextRun(pollIntervalSupplier.get());
+    }
+
+    /**
+     * This method requests that the downloader be rescheduled to run immediately (presumably because a dynamic property supplied by
+     * pollIntervalSupplier or eagerDownloadSupplier has changed, or a pipeline with a geoip processor has been added). This method does
+     * nothing if this task is cancelled, completed, or has not yet been scheduled to run for the first time. It cancels any existing
+     * scheduled run.
+     */
+    public void requestReschedule() {
+        if (isCancelled() || isCompleted()) {
+            return;
+        }
+        if (scheduled != null && scheduled.cancel()) {
+            scheduleNextRun(TimeValue.ZERO);
+        }
     }
 
     private void cleanDatabases() {
@@ -292,6 +328,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         if (scheduled != null) {
             scheduled.cancel();
         }
+        markAsCompleted();
     }
 
     @Override
@@ -301,7 +338,8 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     private void scheduleNextRun(TimeValue time) {
         if (threadPool.scheduler().isShutdown() == false) {
-            scheduled = threadPool.schedule(this::runDownloader, time, ThreadPool.Names.GENERIC);
+            scheduled = threadPool.schedule(this::runDownloader, time, threadPool.generic());
         }
     }
+
 }

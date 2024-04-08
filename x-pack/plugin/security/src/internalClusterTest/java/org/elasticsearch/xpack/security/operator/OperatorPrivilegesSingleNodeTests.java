@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.security.operator;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.client.internal.Client;
@@ -69,7 +69,7 @@ public class OperatorPrivilegesSingleNodeTests extends SecuritySingleNodeTestCas
         final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
         final ElasticsearchSecurityException e = expectThrows(
             ElasticsearchSecurityException.class,
-            () -> client().execute(ClearVotingConfigExclusionsAction.INSTANCE, clearVotingConfigExclusionsRequest).actionGet()
+            () -> client().execute(TransportClearVotingConfigExclusionsAction.TYPE, clearVotingConfigExclusionsRequest).actionGet()
         );
         assertThat(e.getCause().getMessage(), containsString("Operator privileges are required for action"));
     }
@@ -92,7 +92,7 @@ public class OperatorPrivilegesSingleNodeTests extends SecuritySingleNodeTestCas
     public void testOperatorUserWillSucceedToCallOperatorOnlyAction() {
         final Client client = createOperatorClient();
         final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
-        client.execute(ClearVotingConfigExclusionsAction.INSTANCE, clearVotingConfigExclusionsRequest).actionGet();
+        client.execute(TransportClearVotingConfigExclusionsAction.TYPE, clearVotingConfigExclusionsRequest).actionGet();
     }
 
     public void testOperatorUserWillSucceedToSetOperatorOnlySettings() {

@@ -10,8 +10,8 @@ package org.elasticsearch.action.admin.indices.close;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -26,11 +26,13 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
 import java.util.Collections;
 
 /**
@@ -38,6 +40,8 @@ import java.util.Collections;
  */
 public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIndexRequest, CloseIndexResponse> {
 
+    public static final String NAME = "indices:admin/close";
+    public static final ActionType<CloseIndexResponse> TYPE = new ActionType<>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportCloseIndexAction.class);
 
     private final MetadataIndexStateService indexStateService;
@@ -63,7 +67,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
         DestructiveOperations destructiveOperations
     ) {
         super(
-            CloseIndexAction.NAME,
+            NAME,
             transportService,
             clusterService,
             threadPool,
@@ -71,7 +75,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
             CloseIndexRequest::new,
             indexNameExpressionResolver,
             CloseIndexResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexStateService = indexStateService;
         this.destructiveOperations = destructiveOperations;
@@ -119,7 +123,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
             request.timeout()
         ).masterNodeTimeout(request.masterNodeTimeout()).waitForActiveShards(request.waitForActiveShards()).indices(concreteIndices);
         indexStateService.closeIndices(closeRequest, listener.delegateResponse((delegatedListener, t) -> {
-            logger.debug(() -> new ParameterizedMessage("failed to close indices [{}]", (Object) concreteIndices), t);
+            logger.debug(() -> "failed to close indices [" + Arrays.toString(concreteIndices) + "]", t);
             delegatedListener.onFailure(t);
         }));
     }

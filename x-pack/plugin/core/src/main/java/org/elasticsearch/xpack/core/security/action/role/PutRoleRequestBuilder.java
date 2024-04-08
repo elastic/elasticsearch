@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
@@ -20,16 +19,10 @@ import java.util.Map;
 /**
  * Builder for requests to add a role to the administrative index
  */
-public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, PutRoleResponse>
-    implements
-        WriteRequestBuilder<PutRoleRequestBuilder> {
+public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, PutRoleResponse> {
 
     public PutRoleRequestBuilder(ElasticsearchClient client) {
-        this(client, PutRoleAction.INSTANCE);
-    }
-
-    public PutRoleRequestBuilder(ElasticsearchClient client, PutRoleAction action) {
-        super(client, action, new PutRoleRequest());
+        super(client, PutRoleAction.INSTANCE, new PutRoleRequest());
     }
 
     /**
@@ -38,12 +31,13 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
     public PutRoleRequestBuilder source(String name, BytesReference source, XContentType xContentType) throws IOException {
         // we pass false as last parameter because we want to reject the request if field permissions
         // are given in 2.x syntax
-        RoleDescriptor descriptor = RoleDescriptor.parse(name, source, false, xContentType);
+        RoleDescriptor descriptor = RoleDescriptor.parse(name, source, false, xContentType, false);
         assert name.equals(descriptor.getName());
         request.name(name);
         request.cluster(descriptor.getClusterPrivileges());
         request.conditionalCluster(descriptor.getConditionalClusterPrivileges());
         request.addIndex(descriptor.getIndicesPrivileges());
+        request.addRemoteIndex(descriptor.getRemoteIndicesPrivileges());
         request.addApplicationPrivileges(descriptor.getApplicationPrivileges());
         request.runAs(descriptor.getRunAs());
         request.metadata(descriptor.getMetadata());
@@ -79,6 +73,11 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
 
     public PutRoleRequestBuilder metadata(Map<String, Object> metadata) {
         request.metadata(metadata);
+        return this;
+    }
+
+    public PutRoleRequestBuilder setRefreshPolicy(@Nullable String refreshPolicy) {
+        request.setRefreshPolicy(refreshPolicy);
         return this;
     }
 }

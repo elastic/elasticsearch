@@ -65,6 +65,9 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, subFactories, metadata);
+        if (context.isInSortOrderExecutionRequired()) {
+            throw new IllegalArgumentException("Top hits aggregations cannot be used together with time series aggregations");
+        }
         this.from = from;
         this.size = size;
         this.explain = explain;

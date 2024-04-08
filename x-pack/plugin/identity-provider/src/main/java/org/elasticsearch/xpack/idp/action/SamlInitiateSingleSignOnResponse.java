@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -71,5 +72,15 @@ public class SamlInitiateSingleSignOnResponse extends ActionResponse {
         out.writeString(samlResponse);
         out.writeString(samlStatus);
         out.writeOptionalString(error);
+    }
+
+    public void toXContent(XContentBuilder builder) throws IOException {
+        builder.field("post_url", this.getPostUrl());
+        builder.field("saml_response", this.getSamlResponse());
+        builder.field("saml_status", this.getSamlStatus());
+        builder.field("error", this.getError());
+        builder.startObject("service_provider");
+        builder.field("entity_id", this.getEntityId());
+        builder.endObject();
     }
 }

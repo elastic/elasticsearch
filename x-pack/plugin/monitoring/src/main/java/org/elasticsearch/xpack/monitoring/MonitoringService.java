@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.monitoring;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -30,9 +28,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * The {@code MonitoringService} is a service that does the work of publishing the details to the monitoring cluster.
@@ -96,6 +97,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
 
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
+    private final Executor executor;
     private final Set<Collector> collectors;
     private final Exporters exporters;
 
@@ -113,6 +115,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
     ) {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.threadPool = Objects.requireNonNull(threadPool);
+        this.executor = threadPool.generic();
         this.collectors = Objects.requireNonNull(collectors);
         this.exporters = Objects.requireNonNull(exporters);
         this.elasticsearchCollectionEnabled = ELASTICSEARCH_COLLECTION_ENABLED.get(settings);
@@ -158,10 +161,6 @@ public class MonitoringService extends AbstractLifecycleComponent {
         return isElasticsearchCollectionEnabled() && isMonitoringActive();
     }
 
-    private String threadPoolName() {
-        return ThreadPool.Names.GENERIC;
-    }
-
     boolean isStarted() {
         return started.get();
     }
@@ -174,7 +173,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
                 scheduleExecution();
                 logger.debug("monitoring service started");
             } catch (Exception e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to start monitoring service"), e);
+                logger.error("failed to start monitoring service", e);
                 started.set(false);
                 throw e;
             }
@@ -187,6 +186,20 @@ public class MonitoringService extends AbstractLifecycleComponent {
             logger.debug("monitoring service is stopping");
             cancelExecution();
             logger.debug("monitoring service stopped");
+        }
+    }
+
+    // exposed for tests
+    public void unpause() {
+        synchronized (lifecycle) {
+            doStart();
+        }
+    }
+
+    // exposed for tests
+    public void pause() {
+        synchronized (lifecycle) {
+            doStop();
         }
     }
 
@@ -203,7 +216,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
             cancelExecution();
         }
         if (shouldScheduleExecution()) {
-            scheduler = threadPool.scheduleWithFixedDelay(monitor, interval, threadPoolName());
+            scheduler = threadPool.scheduleWithFixedDelay(monitor, interval, executor);
         }
     }
 
@@ -250,7 +263,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
                 return;
             }
 
-            threadPool.executor(threadPoolName()).submit(new AbstractRunnable() {
+            executor.execute(new AbstractRunnable() {
                 @Override
                 protected void doRun() throws Exception {
                     final long timestamp = System.currentTimeMillis();
@@ -271,13 +284,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
                                 results.addAll(result);
                             }
                         } catch (Exception e) {
-                            logger.warn(
-                                (Supplier<?>) () -> new ParameterizedMessage(
-                                    "monitoring collector [{}] failed to collect data",
-                                    collector.name()
-                                ),
-                                e
-                            );
+                            logger.warn(() -> format("monitoring collector [%s] failed to collect data", collector.name()), e);
                         }
                     }
                     if (shouldScheduleExecution()) {

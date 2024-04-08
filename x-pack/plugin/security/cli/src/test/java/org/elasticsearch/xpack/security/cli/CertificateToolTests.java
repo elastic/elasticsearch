@@ -25,9 +25,14 @@ import org.bouncycastle.asn1.x509.Extensions;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.cert.X509CertificateHolder;
+import org.bouncycastle.openssl.PEMEncryptedKeyPair;
+import org.bouncycastle.openssl.PEMKeyPair;
 import org.bouncycastle.openssl.PEMParser;
+import org.bouncycastle.openssl.bc.BcPEMDecryptorProvider;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
@@ -35,11 +40,12 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.PemUtils;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -59,6 +65,7 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.net.InetAddress;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -73,6 +80,7 @@ import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.RSAKey;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -84,6 +92,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
@@ -139,7 +148,7 @@ public class CertificateToolTests extends ESTestCase {
     public void testOutputDirectory() throws Exception {
         Path outputDir = createTempDir();
         Path outputFile = outputDir.resolve("certs.zip");
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
 
         // test with a user provided file
         Path resolvedOutputFile = CertificateCommand.resolveOutputPath(terminal, outputFile.toString(), "something");
@@ -183,7 +192,7 @@ public class CertificateToolTests extends ESTestCase {
         }
 
         int count = 0;
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
         for (Entry<String, Map<String, String>> entry : instanceInput.entrySet()) {
             terminal.addTextInput(entry.getKey());
             terminal.addTextInput("");
@@ -251,7 +260,7 @@ public class CertificateToolTests extends ESTestCase {
     public void testParsingFileWithInvalidDetails() throws Exception {
         Path tempDir = initTempDir();
         Path instanceFile = writeInvalidInstanceInformation(tempDir.resolve("instances-invalid.yml"));
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
         final UserException exception = expectThrows(
             UserException.class,
             () -> CertificateTool.parseAndValidateFile(terminal, instanceFile)
@@ -262,9 +271,12 @@ public class CertificateToolTests extends ESTestCase {
         assertThat(terminal.getErrorOutput(), containsString("could not be converted to a valid DN"));
     }
 
-    public void testGeneratingCsr() throws Exception {
+    public void testGeneratingCsrFromInstancesFile() throws Exception {
         Path tempDir = initTempDir();
         Path outputFile = tempDir.resolve("out.zip");
+        MockTerminal terminal = MockTerminal.create();
+        final List<String> args = new ArrayList<>();
+
         Path instanceFile = writeInstancesTo(tempDir.resolve("instances.yml"));
         Collection<CertificateInformation> certInfos = CertificateTool.parseFile(instanceFile);
         assertEquals(4, certInfos.size());
@@ -272,7 +284,22 @@ public class CertificateToolTests extends ESTestCase {
         assertFalse(Files.exists(outputFile));
         int keySize = randomFrom(1024, 2048);
 
-        new CertificateTool.SigningRequestCommand().generateAndWriteCsrs(outputFile, keySize, certInfos);
+        final boolean encrypt = randomBoolean();
+        final String password = encrypt ? randomAlphaOfLengthBetween(8, 12) : null;
+        if (encrypt) {
+            args.add("--pass");
+            if (randomBoolean()) {
+                args.add(password);
+            } else {
+                for (var ignore : certInfos) {
+                    terminal.addSecretInput(password);
+                }
+            }
+        }
+
+        final CertificateTool.SigningRequestCommand command = new CertificateTool.SigningRequestCommand();
+        final OptionSet options = command.getParser().parse(Strings.toStringArray(args));
+        command.generateAndWriteCsrs(terminal, options, outputFile, keySize, certInfos);
         assertTrue(Files.exists(outputFile));
 
         Set<PosixFilePermission> perms = Files.getPosixFilePermissions(outputFile);
@@ -280,8 +307,7 @@ public class CertificateToolTests extends ESTestCase {
         assertTrue(perms.toString(), perms.contains(PosixFilePermission.OWNER_WRITE));
         assertEquals(perms.toString(), 2, perms.size());
 
-        FileSystem fileSystem = FileSystems.newFileSystem(new URI("jar:" + outputFile.toUri()), Collections.emptyMap());
-        Path zipRoot = fileSystem.getPath("/");
+        final Path zipRoot = getRootPathOfZip(outputFile);
 
         assertFalse(Files.exists(zipRoot.resolve("ca")));
         for (CertificateInformation certInfo : certInfos) {
@@ -289,7 +315,6 @@ public class CertificateToolTests extends ESTestCase {
             assertTrue(Files.exists(zipRoot.resolve(filename)));
             final Path csr = zipRoot.resolve(filename + "/" + filename + ".csr");
             assertTrue(Files.exists(csr));
-            assertTrue(Files.exists(zipRoot.resolve(filename + "/" + filename + ".key")));
             PKCS10CertificationRequest request = readCertificateRequest(csr);
             assertEquals(certInfo.name.x500Principal.getName(), request.getSubject().toString());
             Attribute[] extensionsReq = request.getAttributes(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest);
@@ -301,7 +326,82 @@ public class CertificateToolTests extends ESTestCase {
             } else {
                 assertEquals(0, extensionsReq.length);
             }
+
+            final Path keyPath = zipRoot.resolve(filename + "/" + filename + ".key");
+            assertTrue(Files.exists(keyPath));
+            PEMKeyPair key = readPrivateKey(keyPath, password);
+            assertNotNull(key);
         }
+    }
+
+    public void testGeneratingCsrFromCommandLineParameters() throws Exception {
+        Path tempDir = initTempDir();
+        Path outputFile = tempDir.resolve("out.zip");
+        MockTerminal terminal = MockTerminal.create();
+        final List<String> args = new ArrayList<>();
+
+        final int keySize = randomFrom(1024, 2048);
+        args.add("--keysize");
+        args.add(String.valueOf(keySize));
+
+        final String name = randomAlphaOfLengthBetween(4, 16);
+        args.add("--name");
+        args.add(name);
+
+        final List<String> dns = randomList(0, 4, () -> randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(2, 5));
+        dns.stream().map(s -> "--dns=" + s).forEach(args::add);
+        final List<String> ip = randomList(
+            0,
+            2,
+            () -> Stream.generate(() -> randomIntBetween(10, 250)).limit(4).map(String::valueOf).collect(Collectors.joining("."))
+        );
+        ip.stream().map(s -> "--ip=" + s).forEach(args::add);
+
+        final boolean encrypt = randomBoolean();
+        final String password = encrypt ? randomAlphaOfLengthBetween(8, 12) : null;
+        if (encrypt) {
+            args.add("--pass");
+            if (randomBoolean()) {
+                args.add(password);
+            } else {
+                terminal.addSecretInput(password);
+            }
+        }
+
+        final CertificateTool.SigningRequestCommand command = new CertificateTool.SigningRequestCommand();
+        final OptionSet options = command.getParser().parse(Strings.toStringArray(args));
+        command.generateAndWriteCsrs(terminal, options, outputFile);
+        assertTrue(Files.exists(outputFile));
+
+        Set<PosixFilePermission> perms = Files.getPosixFilePermissions(outputFile);
+        assertTrue(perms.toString(), perms.contains(PosixFilePermission.OWNER_READ));
+        assertTrue(perms.toString(), perms.contains(PosixFilePermission.OWNER_WRITE));
+        assertEquals(perms.toString(), 2, perms.size());
+
+        final Path zipRoot = getRootPathOfZip(outputFile);
+
+        assertFalse(Files.exists(zipRoot.resolve("ca")));
+        assertTrue(Files.exists(zipRoot.resolve(name)));
+        final Path csr = zipRoot.resolve(name + "/" + name + ".csr");
+        assertTrue(Files.exists(csr));
+
+        PKCS10CertificationRequest request = readCertificateRequest(csr);
+        assertEquals("CN=" + name, request.getSubject().toString());
+
+        Attribute[] extensionsReq = request.getAttributes(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest);
+        if (dns.size() > 0 || ip.size() > 0) {
+            assertEquals(1, extensionsReq.length);
+            Extensions extensions = Extensions.getInstance(extensionsReq[0].getAttributeValues()[0]);
+            GeneralNames subjAltNames = GeneralNames.fromExtensions(extensions, Extension.subjectAlternativeName);
+            assertSubjAltNames(subjAltNames, ip, dns);
+        } else {
+            assertEquals(0, extensionsReq.length);
+        }
+
+        final Path keyPath = zipRoot.resolve(name + "/" + name + ".key");
+        assertTrue(Files.exists(keyPath));
+        PEMKeyPair key = readPrivateKey(keyPath, password);
+        assertNotNull(key);
     }
 
     public void testGeneratingSignedPemCertificates() throws Exception {
@@ -340,8 +440,7 @@ public class CertificateToolTests extends ESTestCase {
         assertTrue(perms.toString(), perms.contains(PosixFilePermission.OWNER_WRITE));
         assertEquals(perms.toString(), 2, perms.size());
 
-        FileSystem fileSystem = FileSystems.newFileSystem(new URI("jar:" + outputFile.toUri()), Collections.emptyMap());
-        Path zipRoot = fileSystem.getPath("/");
+        final Path zipRoot = getRootPathOfZip(outputFile);
 
         assertFalse(Files.exists(zipRoot.resolve("ca")));
 
@@ -385,6 +484,7 @@ public class CertificateToolTests extends ESTestCase {
     public void testErrorMessageOnInvalidKeepCaOption() {
         final CertificateTool certificateTool = new CertificateTool();
         final OptionSet optionSet = mock(OptionSet.class);
+        final ProcessInfo processInfo = new ProcessInfo(Map.of(), Map.of(), createTempDir());
         when(optionSet.valuesOf(any(OptionSpec.class))).thenAnswer(invocation -> {
             if (invocation.getArguments()[0] instanceof NonOptionArgumentSpec) {
                 return List.of("cert", "--keep-ca-key");
@@ -392,14 +492,17 @@ public class CertificateToolTests extends ESTestCase {
                 return List.of();
             }
         });
-        final UserException e = expectThrows(UserException.class, () -> certificateTool.execute(new MockTerminal(), optionSet));
+        final UserException e = expectThrows(
+            UserException.class,
+            () -> certificateTool.execute(MockTerminal.create(), optionSet, processInfo)
+        );
         assertThat(e.getMessage(), containsString("Generating certificates without providing a CA is no longer supported"));
     }
 
     public void testHandleLongPasswords() throws Exception {
         final Path tempDir = initTempDir();
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", tempDir).build());
 
         final Path caFile = tempDir.resolve("ca.p12");
@@ -411,12 +514,13 @@ public class CertificateToolTests extends ESTestCase {
         final CertificateAuthorityCommand caCommand = new PathAwareCertificateAuthorityCommand(caFile);
         final OptionSet gen1Options = caCommand.getParser()
             .parse("-ca-dn", "CN=Test-Ca", (expectPrompt ? "-pass" : "-pass=" + longPassword), "-out", caFile.toString());
+        final ProcessInfo processInfo = new ProcessInfo(Map.of(), Map.of(), createTempDir());
 
         if (expectPrompt) {
             terminal.addSecretInput(longPassword);
             terminal.addTextInput("y"); // Yes, really use it
         }
-        caCommand.execute(terminal, gen1Options, env);
+        caCommand.execute(terminal, gen1Options, env, processInfo);
         assertThat(terminal.getOutput(), containsString("50 characters"));
         assertThat(terminal.getOutput(), containsString("OpenSSL"));
         assertThat(terminal.getOutput(), containsString("1.1.0"));
@@ -443,7 +547,7 @@ public class CertificateToolTests extends ESTestCase {
             terminal.addSecretInput(longPassword);
             terminal.addTextInput("y"); // This time, yes we will use it
         }
-        genCommand.execute(terminal, gen2Options, env);
+        genCommand.execute(terminal, gen2Options, env, processInfo);
         assertThat(terminal.getOutput(), containsString("50 characters"));
         assertThat(terminal.getOutput(), containsString("OpenSSL"));
         assertThat(terminal.getOutput(), containsString("1.1.0"));
@@ -454,8 +558,7 @@ public class CertificateToolTests extends ESTestCase {
         Certificate caCert = caKeyStore.getCertificate("ca");
         assertThat(caCert, notNullValue());
 
-        FileSystem zip = FileSystems.newFileSystem(new URI("jar:" + pemZipFile.toUri()), Collections.emptyMap());
-        Path zipRoot = zip.getPath("/");
+        final Path zipRoot = getRootPathOfZip(pemZipFile);
 
         final Path keyPath = zipRoot.resolve("cert/cert.key");
         final PrivateKey key = PemUtils.readPrivateKey(keyPath, () -> longPassword.toCharArray());
@@ -475,7 +578,7 @@ public class CertificateToolTests extends ESTestCase {
         Path testNodeCertPath = getDataPath("/org/elasticsearch/xpack/security/cli/testnode.crt");
         Path testNodeKeyPath = getDataPath("/org/elasticsearch/xpack/security/cli/testnode.pem");
         final boolean passwordPrompt = randomBoolean();
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
         if (passwordPrompt) {
             terminal.addSecretInput("testnode");
         }
@@ -617,7 +720,7 @@ public class CertificateToolTests extends ESTestCase {
     public void testCreateCaAndMultipleInstances() throws Exception {
         final Path tempDir = initTempDir();
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", tempDir).build());
 
         final Path caFile = tempDir.resolve("ca.p12");
@@ -639,7 +742,7 @@ public class CertificateToolTests extends ESTestCase {
         final String node2Ip = "200.182." + randomIntBetween(1, 250) + "." + randomIntBetween(1, 250);
         final String node3Ip = "200.183." + randomIntBetween(1, 250) + "." + randomIntBetween(1, 250);
 
-        final String caPassword = generateCA(caFile, terminal, env);
+        final String caPassword = generateCA(caFile, terminal, env, false);
 
         final GenerateCertificateCommand gen1Command = new PathAwareGenerateCertificateCommand(caFile, node1File);
         final OptionSet gen1Options = gen1Command.getParser()
@@ -663,7 +766,8 @@ public class CertificateToolTests extends ESTestCase {
                 "-name",
                 "node01"
             );
-        gen1Command.execute(terminal, gen1Options, env);
+        final ProcessInfo processInfo = new ProcessInfo(Map.of(), Map.of(), createTempDir());
+        gen1Command.execute(terminal, gen1Options, env, processInfo);
 
         assertThat(node1File, pathExists());
 
@@ -689,7 +793,7 @@ public class CertificateToolTests extends ESTestCase {
                 "-name",
                 "node02"
             );
-        gen2Command.execute(terminal, gen2Options, env);
+        gen2Command.execute(terminal, gen2Options, env, processInfo);
 
         assertThat(node2File, pathExists());
 
@@ -709,9 +813,9 @@ public class CertificateToolTests extends ESTestCase {
             node3Ip
         );
         gen3Args.add("-self-signed");
-        final GenerateCertificateCommand gen3Command = new PathAwareGenerateCertificateCommand(null, node3File);
+        final GenerateCertificateCommand gen3Command = new PathAwareGenerateCertificateCommand(Map.of(), node3File);
         final OptionSet gen3Options = gen3Command.getParser().parse(Strings.toStringArray(gen3Args));
-        gen3Command.execute(terminal, gen3Options, env);
+        gen3Command.execute(terminal, gen3Options, env, processInfo);
 
         assertThat(node3File, pathExists());
 
@@ -762,11 +866,11 @@ public class CertificateToolTests extends ESTestCase {
     public void testTrustBetweenPEMandPKCS12() throws Exception {
         final Path tempDir = initTempDir();
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", tempDir).build());
 
         final Path caFile = tempDir.resolve("ca.p12");
-        final String caPassword = generateCA(caFile, terminal, env);
+        final String caPassword = generateCA(caFile, terminal, env, false);
 
         final Path node1Pkcs12 = tempDir.resolve("node1.p12");
         final Path pemZip = tempDir.resolve("pem.zip");
@@ -794,9 +898,10 @@ public class CertificateToolTests extends ESTestCase {
                 "-name",
                 "node01"
             );
+        final ProcessInfo processInfo = new ProcessInfo(Map.of(), Map.of(), createTempDir());
 
         terminal.addSecretInput(node1Password);
-        gen1Command.execute(terminal, gen1Options, env);
+        gen1Command.execute(terminal, gen1Options, env, processInfo);
 
         assertThat(node1Pkcs12, pathExists());
 
@@ -819,12 +924,11 @@ public class CertificateToolTests extends ESTestCase {
             );
 
         terminal.addSecretInput(caPassword);
-        gen2Command.execute(terminal, gen2Options, env);
+        gen2Command.execute(terminal, gen2Options, env, processInfo);
 
         assertThat(pemZip, pathExists());
 
-        FileSystem zip2FS = FileSystems.newFileSystem(new URI("jar:" + pemZip.toUri()), Collections.emptyMap());
-        Path zip2Root = zip2FS.getPath("/");
+        final Path zip2Root = getRootPathOfZip(pemZip);
 
         final Path ca2 = zip2Root.resolve("ca/ca.p12");
         assertThat(ca2, not(pathExists()));
@@ -847,13 +951,13 @@ public class CertificateToolTests extends ESTestCase {
     public void testZipOutputFromCommandLineOptions() throws Exception {
         final Path tempDir = initTempDir();
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", tempDir).build());
 
         final Path zip = tempDir.resolve("pem.zip");
 
         final AtomicBoolean isZip = new AtomicBoolean(false);
-        final GenerateCertificateCommand genCommand = new PathAwareGenerateCertificateCommand(null, zip) {
+        final GenerateCertificateCommand genCommand = new PathAwareGenerateCertificateCommand(Map.of(), zip) {
             @Override
             void generateAndWriteSignedCertificates(
                 Path output,
@@ -878,9 +982,49 @@ public class CertificateToolTests extends ESTestCase {
 
         final String optionThatTriggersZip = randomFrom("-pem", "-multiple", "-in=input.yml");
         final OptionSet genOptions = genCommand.getParser().parse("--self-signed", "-out", "<zip>", optionThatTriggersZip);
-        genCommand.execute(terminal, genOptions, env);
+        final ProcessInfo processInfo = new ProcessInfo(Map.of(), Map.of(), createTempDir());
+        genCommand.execute(terminal, genOptions, env, processInfo);
 
         assertThat("For command line option " + optionThatTriggersZip, isZip.get(), equalTo(true));
+    }
+
+    public void testErrorIfSigningCertificateAndKeyDontMatch() throws Exception {
+        final Path tempDir = initTempDir();
+
+        final var terminal = MockTerminal.create();
+        final var env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", tempDir).build());
+        final var processInfo = new ProcessInfo(Map.of(), Map.of(), createTempDir());
+
+        final Path ca1zip = tempDir.resolve("ca1.zip");
+        final String ca1Password = generateCA(ca1zip, terminal, env, true);
+        terminal.reset();
+        final Path ca2zip = tempDir.resolve("ca2.zip");
+        final String ca2Password = generateCA(ca2zip, terminal, env, true);
+
+        var ca1Root = getRootPathOfZip(ca1zip);
+        var ca1Cert = ca1Root.resolve("ca/ca.crt");
+        var ca1Key = ca1Root.resolve("ca/ca.key");
+
+        var ca2Root = getRootPathOfZip(ca2zip);
+        var ca2Key = ca2Root.resolve("ca/ca.key");
+
+        var p12Out = tempDir.resolve("certs.p12");
+        var p12Password = randomAlphaOfLength(8);
+
+        final var gen1Command = new PathAwareGenerateCertificateCommand(Map.of("ca-cert", ca1Cert, "ca-key", ca2Key), p12Out);
+        final var gen1Options = gen1Command.getParser()
+            .parse("--ca-cert", "<ca_crt>", "--ca-key", "<ca_key>", "--ca-pass", ca2Password, "--out", "<p12>", "--pass", p12Password);
+
+        final UserException e = expectThrows(UserException.class, () -> gen1Command.execute(terminal, gen1Options, env, processInfo));
+        assertThat(e.exitCode, is(ExitCodes.CONFIG));
+        assertThat(e.getMessage(), containsString("Certificate verification failed"));
+        assertThat(p12Out, not(pathExists()));
+
+        final var gen2Command = new PathAwareGenerateCertificateCommand(Map.of("ca-cert", ca1Cert, "ca-key", ca1Key), p12Out);
+        final var gen2Options = gen2Command.getParser()
+            .parse("--ca-cert", "<ca_crt>", "--ca-key", "<ca_key>", "--ca-pass", ca1Password, "--out", "<p12>", "--pass", p12Password);
+        gen2Command.execute(terminal, gen2Options, env, processInfo);
+        assertThat(p12Out, pathExists());
     }
 
     private int getKeySize(Key node1Key) {
@@ -890,19 +1034,6 @@ public class CertificateToolTests extends ESTestCase {
 
     private int getDurationInDays(X509Certificate cert) {
         return (int) ChronoUnit.DAYS.between(cert.getNotBefore().toInstant(), cert.getNotAfter().toInstant());
-    }
-
-    private void assertSubjAltNames(Certificate certificate, String ip, String dns) throws Exception {
-        final X509CertificateHolder holder = new X509CertificateHolder(certificate.getEncoded());
-        final GeneralNames names = GeneralNames.fromExtensions(holder.getExtensions(), Extension.subjectAlternativeName);
-        final CertificateInformation certInfo = new CertificateInformation(
-            "n",
-            "n",
-            Collections.singletonList(ip),
-            Collections.singletonList(dns),
-            Collections.emptyList()
-        );
-        assertSubjAltNames(names, certInfo);
     }
 
     /**
@@ -934,11 +1065,37 @@ public class CertificateToolTests extends ESTestCase {
         }
     }
 
+    private PEMKeyPair readPrivateKey(Path path, String password) throws Exception {
+        try (Reader reader = Files.newBufferedReader(path); PEMParser pemParser = new PEMParser(reader)) {
+            Object object = pemParser.readObject();
+            if (password == null) {
+                assertThat(object, instanceOf(PEMKeyPair.class));
+                return (PEMKeyPair) object;
+            } else {
+                assertThat(object, instanceOf(PEMEncryptedKeyPair.class));
+                final PEMEncryptedKeyPair encryptedKeyPair = (PEMEncryptedKeyPair) object;
+                assertThat(encryptedKeyPair.getDekAlgName(), is("AES-128-CBC"));
+                return encryptedKeyPair.decryptKeyPair(new BcPEMDecryptorProvider(password.toCharArray()));
+            }
+        }
+    }
+
     private X509Certificate readX509Certificate(InputStream input) throws Exception {
         List<Certificate> list = CertParsingUtils.readCertificates(input);
         assertEquals(1, list.size());
         assertThat(list.get(0), instanceOf(X509Certificate.class));
         return (X509Certificate) list.get(0);
+    }
+
+    private void assertSubjAltNames(Certificate certificate, String ip, String dns) throws Exception {
+        final X509CertificateHolder holder = new X509CertificateHolder(certificate.getEncoded());
+        final GeneralNames names = GeneralNames.fromExtensions(holder.getExtensions(), Extension.subjectAlternativeName);
+        assertSubjAltNames(names, Collections.singletonList(ip), Collections.singletonList(dns));
+    }
+
+    private void assertSubjAltNames(GeneralNames generalNames, List<String> ip, List<String> dns) throws Exception {
+        final CertificateInformation certInfo = new CertificateInformation("n", "n", ip, dns, Collections.emptyList());
+        assertSubjAltNames(generalNames, certInfo);
     }
 
     private void assertSubjAltNames(GeneralNames subjAltNames, CertificateInformation certInfo) throws Exception {
@@ -961,8 +1118,8 @@ public class CertificateToolTests extends ESTestCase {
                 assertThat(seq.getObjectAt(0).toString(), equalTo(CN_OID));
                 assertThat(seq.getObjectAt(1), instanceOf(ASN1TaggedObject.class));
                 ASN1TaggedObject tagged = (ASN1TaggedObject) seq.getObjectAt(1);
-                assertThat(tagged.getObject(), instanceOf(ASN1String.class));
-                assertThat(tagged.getObject().toString(), is(in(certInfo.commonNames)));
+                assertThat(tagged.getBaseObject(), instanceOf(ASN1String.class));
+                assertThat(tagged.getBaseObject().toString(), is(in(certInfo.commonNames)));
             } else {
                 fail("unknown general name with tag " + generalName.getTagNo());
             }
@@ -1025,26 +1182,34 @@ public class CertificateToolTests extends ESTestCase {
         return PathUtils.get(path).toAbsolutePath();
     }
 
-    private String generateCA(Path caFile, MockTerminal terminal, Environment env) throws Exception {
+    private static Path getRootPathOfZip(Path pemZip) throws IOException, URISyntaxException {
+        FileSystem zipFS = FileSystems.newFileSystem(new URI("jar:" + pemZip.toUri()), Collections.emptyMap());
+        return zipFS.getPath("/");
+    }
+
+    private String generateCA(Path caFile, MockTerminal terminal, Environment env, boolean pem) throws Exception {
         final int caKeySize = randomIntBetween(4, 8) * 512;
         final int days = randomIntBetween(7, 1500);
         final String caPassword = randomFrom("", randomAlphaOfLengthBetween(4, 80));
 
         final CertificateAuthorityCommand caCommand = new PathAwareCertificateAuthorityCommand(caFile);
-        final OptionSet caOptions = caCommand.getParser()
-            .parse(
-                "-ca-dn",
-                "CN=My ElasticSearch Cluster",
-                "-pass",
-                caPassword,
-                "-out",
-                caFile.toString(),
-                "-keysize",
-                String.valueOf(caKeySize),
-                "-days",
-                String.valueOf(days)
-            );
-        caCommand.execute(terminal, caOptions, env);
+        String[] args = {
+            "-ca-dn",
+            "CN=My ElasticSearch Cluster",
+            "-pass",
+            caPassword,
+            "-out",
+            caFile.toString(),
+            "-keysize",
+            String.valueOf(caKeySize),
+            "-days",
+            String.valueOf(days) };
+        if (pem) {
+            args = ArrayUtils.append(args, "--pem");
+        }
+        final OptionSet caOptions = caCommand.getParser().parse(args);
+        final ProcessInfo processInfo = new ProcessInfo(Map.of(), Map.of(), createTempDir());
+        caCommand.execute(terminal, caOptions, env, processInfo);
 
         // Check output for OpenSSL compatibility version
         if (caPassword.length() > 50) {
@@ -1081,20 +1246,26 @@ public class CertificateToolTests extends ESTestCase {
      * This class works around that by sticking with the original path objects
      */
     private static class PathAwareGenerateCertificateCommand extends GenerateCertificateCommand {
-        private final Path caFile;
+        private final Map<String, Path> inputPaths;
         private final Path outFile;
 
         PathAwareGenerateCertificateCommand(Path caFile, Path outFile) {
-            this.caFile = caFile;
+            this(Map.of("ca", caFile), outFile);
+        }
+
+        PathAwareGenerateCertificateCommand(Map<String, Path> inputPaths, Path outFile) {
+            this.inputPaths = Map.copyOf(inputPaths);
             this.outFile = outFile;
         }
 
         @Override
         protected Path resolvePath(OptionSet options, OptionSpec<String> spec) {
-            if (spec.options().contains("ca")) {
-                return caFile;
-            }
-            return super.resolvePath(options, spec);
+            return this.inputPaths.entrySet()
+                .stream()
+                .filter(entry -> spec.options().contains(entry.getKey()))
+                .findFirst()
+                .map(Entry::getValue)
+                .orElseGet(() -> super.resolvePath(options, spec));
         }
 
         @Override

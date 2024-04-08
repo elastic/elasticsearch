@@ -9,7 +9,7 @@
 package org.elasticsearch.index.get;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -18,14 +18,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.rest.action.document.RestMultiGetAction;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -53,21 +52,20 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
     private static final String FOUND = "found";
     private static final String FIELDS = "fields";
 
-    private String index;
-    private String id;
-    private long version;
-    private long seqNo;
-    private long primaryTerm;
-    private boolean exists;
+    private final String index;
+    private final String id;
+    private final long version;
+    private final long seqNo;
+    private final long primaryTerm;
+    private final boolean exists;
     private final Map<String, DocumentField> documentFields;
     private final Map<String, DocumentField> metaFields;
     private Map<String, Object> sourceAsMap;
     private BytesReference source;
-    private byte[] sourceAsBytes;
 
     public GetResult(StreamInput in) throws IOException {
         index = in.readString();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             in.readOptionalString();
         }
         id = in.readString();
@@ -80,8 +78,8 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
             if (source.length() == 0) {
                 source = null;
             }
-            documentFields = readFields(in);
-            metaFields = readFields(in);
+            documentFields = in.readMapValues(DocumentField::new, DocumentField::getName);
+            metaFields = in.readMapValues(DocumentField::new, DocumentField::getName);
         } else {
             metaFields = Collections.emptyMap();
             documentFields = Collections.emptyMap();
@@ -157,20 +155,6 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
     }
 
     /**
-     * The source of the document if exists.
-     */
-    public byte[] source() {
-        if (source == null) {
-            return null;
-        }
-        if (sourceAsBytes != null) {
-            return sourceAsBytes;
-        }
-        this.sourceAsBytes = BytesReference.toBytes(sourceRef());
-        return this.sourceAsBytes;
-    }
-
-    /**
      * Returns bytes reference, also un compress the source if needed.
      */
     public BytesReference sourceRef() {
@@ -226,12 +210,8 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
             return sourceAsMap;
         }
 
-        sourceAsMap = SourceLookup.sourceAsMap(source);
+        sourceAsMap = Source.fromBytes(source).source();
         return sourceAsMap;
-    }
-
-    public Map<String, Object> getSource() {
-        return sourceAsMap();
     }
 
     public Map<String, DocumentField> getMetadataFields() {
@@ -384,25 +364,10 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
         return fromXContentEmbedded(parser);
     }
 
-    private Map<String, DocumentField> readFields(StreamInput in) throws IOException {
-        Map<String, DocumentField> fields;
-        int size = in.readVInt();
-        if (size == 0) {
-            fields = emptyMap();
-        } else {
-            fields = Maps.newMapWithExpectedSize(size);
-            for (int i = 0; i < size; i++) {
-                DocumentField field = new DocumentField(in);
-                fields.put(field.getName(), field);
-            }
-        }
-        return fields;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
         }
         out.writeString(id);
@@ -412,19 +377,8 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
         out.writeBoolean(exists);
         if (exists) {
             out.writeBytesReference(source);
-            writeFields(out, documentFields);
-            writeFields(out, metaFields);
-        }
-    }
-
-    private void writeFields(StreamOutput out, Map<String, DocumentField> fields) throws IOException {
-        if (fields == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(fields.size());
-            for (DocumentField field : fields.values()) {
-                field.writeTo(out);
-            }
+            out.writeMapValues(documentFields);
+            out.writeMapValues(metaFields);
         }
     }
 

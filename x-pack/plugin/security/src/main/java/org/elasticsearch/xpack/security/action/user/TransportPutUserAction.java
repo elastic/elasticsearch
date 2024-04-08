@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.action.user;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -14,15 +13,16 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
+import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -39,7 +39,7 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
         NativeUsersStore usersStore,
         TransportService transportService
     ) {
-        super(PutUserAction.NAME, transportService, actionFilters, PutUserRequest::new);
+        super(PutUserAction.NAME, transportService, actionFilters, PutUserRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.settings = settings;
         this.usersStore = usersStore;
     }
@@ -63,7 +63,7 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to put user [{}]", request.username()), e);
+                    logger.error((Supplier<?>) () -> "failed to put user [" + request.username() + "]", e);
                     listener.onFailure(e);
                 }
             });
@@ -85,10 +85,8 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
                     validationException
                 );
             }
-        } else if (User.isInternalUsername(username)) {
-            validationException = addValidationError("user [" + username + "] is internal", validationException);
         } else {
-            Validation.Error usernameError = Validation.Users.validateUsername(username, true, settings);
+            Validation.Error usernameError = NativeRealmValidationUtil.validateUsername(username, true, settings);
             if (usernameError != null) {
                 validationException = addValidationError(usernameError.toString(), validationException);
             }
@@ -96,7 +94,7 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
 
         if (request.roles() != null) {
             for (String role : request.roles()) {
-                Validation.Error roleNameError = Validation.Roles.validateRoleName(role, true);
+                Validation.Error roleNameError = NativeRealmValidationUtil.validateRoleName(role, true);
                 if (roleNameError != null) {
                     validationException = addValidationError(roleNameError.toString(), validationException);
                 }

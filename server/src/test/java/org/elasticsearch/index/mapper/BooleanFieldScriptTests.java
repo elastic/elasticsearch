@@ -10,8 +10,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.script.AbstractFieldScript;
 import org.elasticsearch.script.BooleanFieldScript;
@@ -23,10 +23,11 @@ import java.util.List;
 import java.util.Map;
 
 public class BooleanFieldScriptTests extends FieldScriptTestCase<BooleanFieldScript.Factory> {
-    public static final BooleanFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new BooleanFieldScript(
+    public static final BooleanFieldScript.Factory DUMMY = (fieldName, params, lookup, onScriptError) -> ctx -> new BooleanFieldScript(
         fieldName,
         params,
         lookup,
+        OnScriptError.FAIL,
         ctx
     ) {
         @Override
@@ -57,13 +58,14 @@ public class BooleanFieldScriptTests extends FieldScriptTestCase<BooleanFieldScr
                 BooleanFieldScript script = new BooleanFieldScript(
                     "test",
                     Map.of(),
-                    new SearchLookup(field -> null, (ft, lookup) -> null),
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, (ctx, doc) -> null),
+                    OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
                     @Override
                     public void execute() {
                         for (int i = 0; i <= AbstractFieldScript.MAX_VALUES * 1000; i++) {
-                            emit(i % 2 == 0);
+                            new Emit(this).value(i % 2 == 0);
                         }
                     }
                 };

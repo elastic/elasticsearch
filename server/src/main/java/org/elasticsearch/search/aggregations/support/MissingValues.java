@@ -15,7 +15,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
@@ -118,7 +117,7 @@ public enum MissingValues {
         };
     }
 
-    static SortedNumericDocValues replaceMissing(final SortedNumericDocValues values, final long missing) {
+    public static SortedNumericDocValues replaceMissing(final SortedNumericDocValues values, final long missing) {
         return new AbstractSortedNumericDocValues() {
 
             private int count;
@@ -227,6 +226,11 @@ public enum MissingValues {
             }
 
             @Override
+            public boolean supportsGlobalOrdinalsMapping() {
+                return valuesSource.supportsGlobalOrdinalsMapping();
+            }
+
+            @Override
             public String toString() {
                 return "anon ValuesSource.Bytes.WithOrdinals of [" + super.toString() + "]";
             }
@@ -276,6 +280,11 @@ public enum MissingValues {
             }
 
             @Override
+            public int docValueCount() {
+                return values.docValueCount();
+            }
+
+            @Override
             public boolean advanceExact(int doc) throws IOException {
                 hasOrds = values.advanceExact(doc);
                 nextMissingOrd = missingOrd;
@@ -307,6 +316,11 @@ public enum MissingValues {
                 } else {
                     return missingValue;
                 }
+            }
+
+            @Override
+            public int docValueCount() {
+                return values.docValueCount();
             }
 
             @Override
@@ -399,52 +413,13 @@ public enum MissingValues {
             }
 
             @Override
-            public MultiGeoPointValues geoPointValues(LeafReaderContext context) {
-                final MultiGeoPointValues values = valuesSource.geoPointValues(context);
-                return replaceMissing(values, missing);
+            public SortedNumericDocValues geoSortedNumericDocValues(LeafReaderContext context) {
+                return replaceMissing(valuesSource.geoSortedNumericDocValues(context), missing.getEncoded());
             }
 
             @Override
             public String toString() {
                 return "anon ValuesSource.GeoPoint of [" + super.toString() + "]";
-            }
-        };
-    }
-
-    static MultiGeoPointValues replaceMissing(final MultiGeoPointValues values, final GeoPoint missing) {
-        return new MultiGeoPointValues() {
-
-            private int count;
-
-            @Override
-            public boolean advanceExact(int doc) throws IOException {
-                if (values.advanceExact(doc)) {
-                    count = values.docValueCount();
-                } else {
-                    count = 0;
-                }
-                // always return true because we want to return a value even if
-                // the document does not have a value
-                return true;
-            }
-
-            @Override
-            public int docValueCount() {
-                return count == 0 ? 1 : count;
-            }
-
-            @Override
-            public GeoPoint nextValue() throws IOException {
-                if (count > 0) {
-                    return values.nextValue();
-                } else {
-                    return missing;
-                }
-            }
-
-            @Override
-            public String toString() {
-                return "anon MultiGeoPointValues of [" + super.toString() + "]";
             }
         };
     }

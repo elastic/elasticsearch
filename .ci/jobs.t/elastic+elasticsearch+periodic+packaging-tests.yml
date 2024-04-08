@@ -2,7 +2,8 @@
 - job:
     name: elastic+elasticsearch+%BRANCH%+periodic+packaging-tests
     display-name: "elastic / elasticsearch # %BRANCH% - packaging tests"
-    description: "Testing of the Elasticsearch %BRANCH% branch packaging tests.\n"
+    description: "This job has been migrated to Buildkite.\n"
+    disabled: true
     project-type: multijob
     node: master
     vault: []

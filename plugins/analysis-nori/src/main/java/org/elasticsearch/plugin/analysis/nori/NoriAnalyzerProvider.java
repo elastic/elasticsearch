@@ -28,9 +28,9 @@ public class NoriAnalyzerProvider extends AbstractIndexAnalyzerProvider<KoreanAn
     private final KoreanAnalyzer analyzer;
 
     public NoriAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         final KoreanTokenizer.DecompoundMode mode = NoriTokenizerFactory.getMode(settings);
-        final UserDictionary userDictionary = NoriTokenizerFactory.getUserDictionary(env, settings);
+        final UserDictionary userDictionary = NoriTokenizerFactory.getUserDictionary(env, settings, indexSettings);
         final List<String> tagList = Analysis.getWordList(env, settings, "stoptags");
         final Set<POS.Tag> stopTags = tagList != null ? resolvePOSList(tagList) : KoreanPartOfSpeechStopFilter.DEFAULT_STOP_TAGS;
         analyzer = new KoreanAnalyzer(userDictionary, mode, stopTags, false);

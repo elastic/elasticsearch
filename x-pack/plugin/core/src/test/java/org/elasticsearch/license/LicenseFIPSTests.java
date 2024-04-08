@@ -17,7 +17,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
-public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
+public class LicenseFIPSTests extends AbstractClusterStateLicenseServiceTestCase {
 
     public void testFIPSCheckWithAllowedLicense() throws Exception {
         License newLicense = TestUtils.generateSignedLicense(randomFrom("trial", "platinum"), TimeValue.timeValueHours(24L));
@@ -40,7 +40,7 @@ public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
             // In which case, this `actionGet` should throw a more useful exception than the verify below.
             responseFuture.actionGet();
         }
-        verify(clusterService).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class), any());
+        verify(clusterService).submitUnbatchedStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
     }
 
     public void testFIPSCheckWithoutAllowedLicense() throws Exception {
@@ -80,6 +80,6 @@ public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
             // In which case, this `actionGet` should throw a more useful exception than the verify below.
             responseFuture.actionGet();
         }
-        verify(clusterService).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class), any());
+        verify(clusterService).submitUnbatchedStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
     }
 }

@@ -48,14 +48,11 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<
     ) {
         super(
             ClearRealmCacheAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            ClearRealmCacheRequest::new,
             ClearRealmCacheRequest.Node::new,
-            ThreadPool.Names.MANAGEMENT,
-            ClearRealmCacheResponse.Node.class
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.realms = realms;
         this.authenticationService = authenticationService;
@@ -86,6 +83,7 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<
             for (Realm realm : realms) {
                 clearCache(realm, nodeRequest.getUsernames());
             }
+            clearAuthenticationServiceCache(nodeRequest.getUsernames());
             return new ClearRealmCacheResponse.Node(clusterService.localNode());
         }
 
@@ -113,7 +111,7 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<
         }
     }
 
-    private void clearCache(Realm realm, String[] usernames) {
+    private static void clearCache(Realm realm, String[] usernames) {
         if ((realm instanceof CachingRealm) == false) {
             return;
         }

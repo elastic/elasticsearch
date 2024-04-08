@@ -10,7 +10,7 @@
 A common requirement when dealing with date/time in general revolves around
 the notion of `interval`, a topic that is worth exploring in the context of {es} and {es-sql}.
 
-{es} has comprehensive support for <<date-math, date math>> both inside <<date-math-index-names, index names>> and <<mapping-date-format, queries>>.
+{es} has comprehensive support for <<date-math, date math>> both inside <<api-date-math-index-names, index names>> and <<mapping-date-format, queries>>.
 Inside {es-sql} the former is supported as is by passing the expression in the table name, while the latter is supported through the standard SQL `INTERVAL`.
 
 The table below shows the mapping between {es} and {es-sql}:
@@ -420,6 +420,49 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateTimeMinutes]
 include-tagged::{sql-specs}/docs/docs.csv-spec[dateDiffDateMinutes]
 --------------------------------------------------
 
+[[sql-functions-datetime-dateformat]]
+==== `DATE_FORMAT`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+DATE_FORMAT(
+    date_exp/datetime_exp/time_exp, <1>
+    string_exp) <2>
+--------------------------------------------------
+
+*Input*:
+
+<1> date/datetime/time expression. If `null`, the function returns `null`.
+<2> format pattern. If `null` or an empty string, the function returns `null`.
+
+*Output*: string
+
+*Description*: Returns the date/datetime/time as a string using the format specified in the 2nd argument. The formatting
+pattern is one of the specifiers used in the
+https://dev.mysql.com/doc/refman/8.0/en/date-and-time-functions.html#function_date-format[MySQL DATE_FORMAT() function].
+
+[NOTE]
+If the 1st argument is of type `time`, then pattern specified by the 2nd argument cannot contain date related units
+(e.g. 'dd', 'MM', 'yyyy', etc.). If it contains such units an error is returned.
+Ranges for month and day specifiers (%c, %D, %d, %e, %m) start at one, unlike MySQL, where they start at zero, due to
+the fact that MySQL permits the storing of incomplete dates such as '2014-00-00'.
+Elasticsearch in this case returns an error.
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateFormatDate]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateFormatDateTime]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[dateFormatTime]
+--------------------------------------------------
+
 [[sql-functions-datetime-dateparse]]
 ==== `DATE_PARSE`
 
@@ -454,7 +497,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[dateParse1]
 
 [NOTE]
 ====
-The resulting `date` will have the time zone specified by the user through the 
+The resulting `date` will have the time zone specified by the user through the
 <<sql-search-api-time-zone,`time_zone`>>/<<jdbc-cfg-timezone,`timezone`>> REST/driver parameters
 with no conversion applied.
 
@@ -810,7 +853,7 @@ SQL Server Format Specification].
 
 [NOTE]
 If the 1st argument is of type `time`, then pattern specified by the 2nd argument cannot contain date related units
-(e.g. 'dd', 'MM', 'YYYY', etc.). If it contains such units an error is returned. +
+(e.g. 'dd', 'MM', 'yyyy', etc.). If it contains such units an error is returned. +
 Format specifier `F` will be working similar to format specifier `f`.
 It will return the fractional part of seconds, and the number of digits will be same as of the number of `Fs` provided as input (up to 9 digits).
 Result will contain `0` appended in the end to match with number of `F` provided.
@@ -862,9 +905,9 @@ Patterns for Date/Time Formatting].
 If the 1st argument is of type `time`, then the pattern specified by the 2nd argument cannot contain date related units
 (e.g. 'dd', 'MM', 'YYYY', etc.). If it contains such units an error is returned. +
 The result of the patterns `TZ` and `tz` (time zone abbreviations) in some cases differ from the results returned by the `TO_CHAR`
-in PostgreSQL. The reason is that the time zone abbreviations specified by the JDK are different from the ones specified by PostgreSQL. 
-This function might show an actual time zone abbreviation instead of the generic `LMT` or empty string or offset returned by the PostgreSQL 
-implementation. The summer/daylight markers might also differ between the two implementations (e.g. will show `HT` instead of `HST` 
+in PostgreSQL. The reason is that the time zone abbreviations specified by the JDK are different from the ones specified by PostgreSQL.
+This function might show an actual time zone abbreviation instead of the generic `LMT` or empty string or offset returned by the PostgreSQL
+implementation. The summer/daylight markers might also differ between the two implementations (e.g. will show `HT` instead of `HST`
 for Hawaii). +
 The `FX`, `TM`, `SP` pattern modifiers are not supported and will show up as `FX`, `TM`, `SP` literals in the output.
 

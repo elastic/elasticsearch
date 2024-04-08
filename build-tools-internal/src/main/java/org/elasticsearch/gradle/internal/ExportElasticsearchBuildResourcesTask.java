@@ -12,6 +12,7 @@ import org.gradle.api.GradleException;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputDirectory;
@@ -28,6 +29,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
+import javax.inject.Inject;
+
 /**
  * Export Elasticsearch build resources to configurable paths
  * <p>
@@ -37,14 +40,15 @@ import java.util.Set;
  */
 public class ExportElasticsearchBuildResourcesTask extends DefaultTask {
 
-    private final Logger logger = Logging.getLogger(ExportElasticsearchBuildResourcesTask.class);
+    private static final Logger logger = Logging.getLogger(ExportElasticsearchBuildResourcesTask.class);
 
     private final Set<String> resources = new HashSet<>();
 
     private DirectoryProperty outputDir;
 
-    public ExportElasticsearchBuildResourcesTask() {
-        outputDir = getProject().getObjects().directoryProperty();
+    @Inject
+    public ExportElasticsearchBuildResourcesTask(ObjectFactory objects) {
+        outputDir = objects.directoryProperty();
     }
 
     @OutputDirectory

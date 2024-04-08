@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.parser;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -119,9 +120,7 @@ public class EscapedFunctionsTests extends ESTestCase {
     }
 
     private LikePattern likeEscape(String like, String character) {
-        Expression exp = parser.createExpression(
-            format(Locale.ROOT, "exp LIKE '%s' ", like) + buildExpression("escape", "'%s'", character)
-        );
+        Expression exp = parser.createExpression(Strings.format("exp LIKE '%s' ", like) + buildExpression("escape", "'%s'", character));
         assertThat(exp, instanceOf(Like.class));
         return ((Like) exp).pattern();
     }

@@ -18,8 +18,8 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException;
 
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -61,7 +61,18 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
 
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(e);
+                if (e instanceof SnapshotNameAlreadyInUseException snapshotNameAlreadyInUseException) {
+                    // we treat a snapshot that was already created before this step as an incomplete snapshot. This scenario is triggered
+                    // by a master restart or a failover which can result in a double invocation of this step.
+                    logger.warn(
+                        "snapshot [{}] is already in-progress or in-use for index [{}], ILM will attempt to clean it up and recreate it",
+                        snapshotNameAlreadyInUseException.getSnapshotName(),
+                        indexMetadata.getIndex().getName()
+                    );
+                    onResponse(false);
+                } else {
+                    listener.onFailure(e);
+                }
             }
         });
     }
@@ -71,8 +82,8 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
 
         final LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
 
-        final String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
-        final String snapshotRepository = lifecycleState.getSnapshotRepository();
+        final String policyName = indexMetadata.getLifecyclePolicyName();
+        final String snapshotRepository = lifecycleState.snapshotRepository();
         if (Strings.hasText(snapshotRepository) == false) {
             listener.onFailure(
                 new IllegalStateException(
@@ -82,7 +93,7 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             return;
         }
 
-        final String snapshotName = lifecycleState.getSnapshotName();
+        final String snapshotName = lifecycleState.snapshotName();
         if (Strings.hasText(snapshotName) == false) {
             listener.onFailure(
                 new IllegalStateException("snapshot name was not generated for policy [" + policyName + "] and index [" + indexName + "]")
@@ -96,7 +107,8 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         request.waitForCompletion(true);
         request.includeGlobalState(false);
         request.masterNodeTimeout(TimeValue.MAX_VALUE);
-        getClient().admin().cluster().createSnapshot(request, ActionListener.wrap(response -> {
+
+        getClient().admin().cluster().createSnapshot(request, listener.map(response -> {
             logger.debug(
                 "create snapshot response for policy [{}] and index [{}] is: {}",
                 policyName,
@@ -108,20 +120,22 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             // Check that there are no failed shards, since the request may not entirely
             // fail, but may still have failures (such as in the case of an aborted snapshot)
             if (snapInfo.failedShards() == 0) {
-                listener.onResponse(true);
+                return true;
             } else {
-                int failures = snapInfo.failedShards();
-                int total = snapInfo.totalShards();
-                String message = String.format(
-                    Locale.ROOT,
-                    "failed to create snapshot successfully, %s failures out of %s total shards failed",
-                    failures,
-                    total
+                logger.warn(
+                    Strings.format(
+                        "failed to create snapshot [%s:%s] for policy [%s] and index [%s]: %s of %s shards failed",
+                        snapshotRepository,
+                        snapshotName,
+                        policyName,
+                        indexName,
+                        snapInfo.failedShards(),
+                        snapInfo.totalShards()
+                    )
                 );
-                logger.warn(message);
-                listener.onResponse(false);
+                return false;
             }
-        }, listener::onFailure));
+        }));
     }
 
     @Override

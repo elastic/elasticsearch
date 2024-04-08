@@ -8,11 +8,10 @@ package org.elasticsearch.xpack.watcher.support.xcontent;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherXContentParser;
 
@@ -31,7 +30,7 @@ public class WatcherXContentParserTests extends ESTestCase {
 
             try (
                 XContentParser xContentParser = XContentType.JSON.xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, Strings.toString(builder))
+                    .createParser(XContentParserConfiguration.EMPTY, Strings.toString(builder))
             ) {
                 xContentParser.nextToken();
                 xContentParser.nextToken();

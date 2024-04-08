@@ -7,13 +7,13 @@
  */
 package org.elasticsearch.search.collapse;
 
-import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -26,7 +26,7 @@ import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitBuilderTests;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.junit.AfterClass;
@@ -41,7 +41,7 @@ import static java.util.Collections.emptyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBuilder> {
+public class CollapseBuilderTests extends AbstractXContentSerializingTestCase<CollapseBuilder> {
     private static NamedWriteableRegistry namedWriteableRegistry;
     private static NamedXContentRegistry xContentRegistry;
 
@@ -152,6 +152,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
                 Collections.emptyMap(),
                 null,
                 false,
+                null,
                 null
             );
             when(searchExecutionContext.getFieldType("field")).thenReturn(numberFieldType);
@@ -169,10 +170,11 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
                 Collections.emptyMap(),
                 null,
                 false,
+                null,
                 null
             );
             when(searchExecutionContext.getFieldType("field")).thenReturn(numberFieldType);
-            builder.setInnerHits(new InnerHitBuilder());
+            builder.setInnerHits(new InnerHitBuilder().setName("field"));
             exc = expectThrows(IllegalArgumentException.class, () -> builder.build(searchExecutionContext));
             assertEquals(
                 exc.getMessage(),
@@ -192,7 +194,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
 
             keywordFieldType = new KeywordFieldMapper.KeywordFieldType("field", false, true, Collections.emptyMap());
             when(searchExecutionContext.getFieldType("field")).thenReturn(keywordFieldType);
-            kbuilder.setInnerHits(new InnerHitBuilder());
+            kbuilder.setInnerHits(new InnerHitBuilder().setName("field"));
             exc = expectThrows(IllegalArgumentException.class, () -> builder.build(searchExecutionContext));
             assertEquals(
                 exc.getMessage(),

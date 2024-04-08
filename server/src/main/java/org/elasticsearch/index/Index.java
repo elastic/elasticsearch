@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.Objects;
 
 /**
@@ -27,6 +28,9 @@ import java.util.Objects;
 public class Index implements Writeable, ToXContentObject {
 
     public static final Index[] EMPTY_ARRAY = new Index[0];
+
+    public static Comparator<Index> COMPARE_BY_NAME = Comparator.comparing(Index::getName);
+
     private static final String INDEX_UUID_KEY = "index_uuid";
     private static final String INDEX_NAME_KEY = "index_name";
     private static final ObjectParser<Builder, Void> INDEX_PARSER = new ObjectParser<>("index", Builder::new);
@@ -99,9 +103,14 @@ public class Index implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
+        toXContentFragment(builder);
+        return builder.endObject();
+    }
+
+    public XContentBuilder toXContentFragment(final XContentBuilder builder) throws IOException {
         builder.field(INDEX_NAME_KEY, name);
         builder.field(INDEX_UUID_KEY, uuid);
-        return builder.endObject();
+        return builder;
     }
 
     public static Index fromXContent(final XContentParser parser) throws IOException {

@@ -11,11 +11,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -24,10 +25,9 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
     private final long count;
 
     public InternalAvg(String name, double sum, long count, DocValueFormat format, Map<String, Object> metadata) {
-        super(name, metadata);
+        super(name, format, metadata);
         this.sum = sum;
         this.count = count;
-        this.format = format;
     }
 
     /**
@@ -35,7 +35,6 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
      */
     public InternalAvg(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         sum = in.readDouble();
         count = in.readVLong();
     }
@@ -45,6 +44,10 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
         out.writeNamedWriteable(format);
         out.writeDouble(sum);
         out.writeVLong(count);
+    }
+
+    public static InternalAvg empty(String name, DocValueFormat format, Map<String, Object> metadata) {
+        return new InternalAvg(name, 0.0, 0L, format, metadata);
     }
 
     @Override
@@ -75,17 +78,30 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public InternalAvg reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        CompensatedSum kahanSummation = new CompensatedSum(0, 0);
-        long count = 0;
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.
-        for (InternalAggregation aggregation : aggregations) {
-            InternalAvg avg = (InternalAvg) aggregation;
-            count += avg.count;
-            kahanSummation.add(avg.sum);
-        }
-        return new InternalAvg(getName(), kahanSummation.value(), count, format, getMetadata());
+        return new AggregatorReducer() {
+            long count = 0;
+            final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                InternalAvg avg = (InternalAvg) aggregation;
+                count += avg.count;
+                kahanSummation.add(avg.sum);
+            }
+
+            @Override
+            public InternalAggregation get() {
+                return new InternalAvg(getName(), kahanSummation.value(), count, format, getMetadata());
+            }
+        };
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return this;
     }
 
     @Override

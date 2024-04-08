@@ -8,23 +8,21 @@
 
 package org.elasticsearch.search.runtime;
 
-import com.carrotsearch.hppc.LongSet;
-import com.carrotsearch.hppc.cursors.LongCursor;
-
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.Script;
 
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.Set;
 
 public class DoubleScriptFieldTermsQuery extends AbstractDoubleScriptFieldQuery {
-    private final LongSet terms;
+    private final Set<Long> terms;
 
     /**
      * Build the query.
      * @param terms The terms converted to a long with {@link Double#doubleToLongBits(double)}.
      */
-    public DoubleScriptFieldTermsQuery(Script script, DoubleFieldScript.LeafFactory leafFactory, String fieldName, LongSet terms) {
+    public DoubleScriptFieldTermsQuery(Script script, DoubleFieldScript.LeafFactory leafFactory, String fieldName, Set<Long> terms) {
         super(script, leafFactory, fieldName);
         this.terms = terms;
     }
@@ -64,11 +62,6 @@ public class DoubleScriptFieldTermsQuery extends AbstractDoubleScriptFieldQuery 
     }
 
     double[] terms() {
-        double[] result = new double[terms.size()];
-        int i = 0;
-        for (LongCursor lc : terms) {
-            result[i++] = Double.longBitsToDouble(lc.value);
-        }
-        return result;
+        return terms.stream().mapToDouble(Double::longBitsToDouble).toArray();
     }
 }

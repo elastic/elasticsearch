@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.vectortile.feature;
 
 import com.wdtinc.mapbox_vector_tile.VectorTile;
 
-import org.apache.lucene.geo.GeoTestUtil;
+import org.apache.lucene.tests.geo.GeoTestUtil;
+import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
@@ -39,7 +40,10 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.zip.GZIPInputStream;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.iterableWithSize;
+import static org.hamcrest.Matchers.lessThan;
 
 public class FeatureFactoryTests extends ESTestCase {
 
@@ -100,13 +104,24 @@ public class FeatureFactoryTests extends ESTestCase {
         });
     }
 
+    public void testNestedGeometryCollection() throws IOException {
+        doTestGeometry(this::buildNestedGeometryCollection, features -> {
+            assertThat(features.size(), Matchers.equalTo(4));
+            assertThat(features.get(0).getType(), Matchers.equalTo(VectorTile.Tile.GeomType.LINESTRING));
+            assertThat(features.get(1).getType(), Matchers.equalTo(VectorTile.Tile.GeomType.POLYGON));
+            assertThat(features.get(2).getType(), Matchers.equalTo(VectorTile.Tile.GeomType.LINESTRING));
+            assertThat(features.get(3).getType(), Matchers.equalTo(VectorTile.Tile.GeomType.POLYGON));
+        });
+    }
+
     private void doTestGeometry(Function<Rectangle, Geometry> provider, Consumer<List<VectorTile.Tile.Feature>> consumer)
         throws IOException {
         final int z = randomIntBetween(3, 10);
         final int x = randomIntBetween(2, (1 << z) - 1);
         final int y = randomIntBetween(2, (1 << z) - 1);
         final int extent = randomIntBetween(1 << 8, 1 << 14);
-        final FeatureFactory builder = new FeatureFactory(z, x, y, extent);
+        final int padPixels = randomIntBetween(0, extent - 1);
+        final FeatureFactory builder = new FeatureFactory(z, x, y, extent, padPixels);
         {
             final Rectangle r = GeoTileUtils.toBoundingBox(x, y, z);
             final List<byte[]> byteFeatures = builder.getFeatures(provider.apply(r));
@@ -162,6 +177,10 @@ public class FeatureFactoryTests extends ESTestCase {
         return new GeometryCollection<>(List.of(buildPolygon(r), buildLine(r)));
     }
 
+    private GeometryCollection<Geometry> buildNestedGeometryCollection(Rectangle r) {
+        return new GeometryCollection<>(List.of(buildPolygon(r), buildLine(r), buildGeometryCollection(r)));
+    }
+
     public void testStackOverflowError() throws IOException, ParseException {
         // The provided polygon contains 49K points and we have observed that for some tiles and some extent values,
         // it makes the library we are using to compute features to fail with a StackOverFlowError. This test just makes
@@ -174,7 +193,8 @@ public class FeatureFactoryTests extends ESTestCase {
             final int x = randomIntBetween(0, (1 << z) - 1);
             final int y = randomIntBetween(0, (1 << z) - 1);
             final int extent = randomIntBetween(128, 8012);
-            final FeatureFactory builder = new FeatureFactory(z, x, y, extent);
+            int padPixels = randomIntBetween(0, extent);
+            final FeatureFactory builder = new FeatureFactory(z, x, y, extent, padPixels);
             try {
                 builder.getFeatures(geometry);
             } catch (StackOverflowError error) {
@@ -188,7 +208,8 @@ public class FeatureFactoryTests extends ESTestCase {
         final int x = randomIntBetween(0, (1 << z) - 1);
         final int y = randomIntBetween(0, (1 << z) - 1);
         final int extent = randomIntBetween(128, 8012);
-        final FeatureFactory builder = new FeatureFactory(z, x, y, extent);
+        int padPixels = randomIntBetween(0, extent);
+        final FeatureFactory builder = new FeatureFactory(z, x, y, extent, padPixels);
         final Rectangle rectangle = GeoTileUtils.toBoundingBox(x, y, z);
         final double minX = Math.max(-180, rectangle.getMinX() - 1);
         final double maxX = Math.min(180, rectangle.getMaxX() + 1);
@@ -208,20 +229,41 @@ public class FeatureFactoryTests extends ESTestCase {
         final int x = randomIntBetween(0, (1 << z) - 1);
         final int y = randomIntBetween(0, (1 << z) - 1);
         final int extent = randomIntBetween(128, 8012);
-        final FeatureFactory builder = new FeatureFactory(z, x, y, extent);
+        int padPixels = randomIntBetween(0, extent);
+        final FeatureFactory builder = new FeatureFactory(z, x, y, extent, padPixels);
         // within geometries
         assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(2 * x, 2 * y, z + 1)), iterableWithSize(1));
         assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y, z + 1)), iterableWithSize(1));
         assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(2 * x, 2 * y + 1, z + 1)), iterableWithSize(1));
         assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y + 1, z + 1)), iterableWithSize(1));
+        final GeometryCollection<Geometry> withinCollection = new GeometryCollection<>(
+            List.of(
+                GeoTileUtils.toBoundingBox(2 * x, 2 * y, z + 1),
+                GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y, z + 1),
+                GeoTileUtils.toBoundingBox(2 * x, 2 * y + 1, z + 1),
+                GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y + 1, z + 1)
+            )
+        );
+        assertThat(builder.getFeatures(withinCollection), iterableWithSize(1));
         // intersecting geometries
         assertThat(builder.getFeatures(expandByHalf(GeoTileUtils.toBoundingBox(2 * x, 2 * y, z + 1))), iterableWithSize(1));
         assertThat(builder.getFeatures(expandByHalf(GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y, z + 1))), iterableWithSize(1));
         assertThat(builder.getFeatures(expandByHalf(GeoTileUtils.toBoundingBox(2 * x, 2 * y + 1, z + 1))), iterableWithSize(1));
         assertThat(builder.getFeatures(expandByHalf(GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y + 1, z + 1))), iterableWithSize(1));
+        final GeometryCollection<Geometry> intersectCollection = new GeometryCollection<>(
+            List.of(
+                expandByHalf(GeoTileUtils.toBoundingBox(2 * x, 2 * y, z + 1)),
+                expandByHalf(GeoTileUtils.toBoundingBox(2 * x + 1, 2 * y, z + 1))
+            )
+        );
+        assertThat(builder.getFeatures(intersectCollection), iterableWithSize(1));
         // contain geometries
         assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(x / 4, y / 4, z - 2)), iterableWithSize(1));
         assertThat(builder.getFeatures(GeoTileUtils.toBoundingBox(x / 4, y / 4, z - 2)), iterableWithSize(1));
+        final GeometryCollection<Geometry> containCollection = new GeometryCollection<>(
+            List.of(GeoTileUtils.toBoundingBox(x / 4, y / 4, z - 2), GeoTileUtils.toBoundingBox(x / 4, y / 4, z - 2))
+        );
+        assertThat(builder.getFeatures(containCollection), iterableWithSize(1));
     }
 
     private Rectangle expandByHalf(Rectangle rectangle) {
@@ -246,7 +288,101 @@ public class FeatureFactoryTests extends ESTestCase {
         // make sure we can parse big polygons
         final BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
         final Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, reader.readLine());
-        final FeatureFactory builder = new FeatureFactory(0, 0, 0, 4096);
+        final FeatureFactory builder = new FeatureFactory(0, 0, 0, 4096, 5);
         assertThat(builder.getFeatures(geometry), iterableWithSize(1));
     }
+
+    public void testPolygonOrientation() throws IOException {
+        Polygon polygon = new Polygon(
+            new LinearRing(new double[] { -10, 10, 10, -10, -10 }, new double[] { -10, -10, 10, 10, -10 }),
+            List.of(new LinearRing(new double[] { -5, -5, 5, 5, -5 }, new double[] { -5, 5, 5, -5, -5 }))
+        );
+        final FeatureFactory builder = new FeatureFactory(0, 0, 0, 4096, 5);
+        List<byte[]> bytes = builder.getFeatures(polygon);
+        assertThat(bytes.size(), equalTo(1));
+        final VectorTile.Tile.Feature feature = VectorTile.Tile.Feature.parseFrom(bytes.get(0));
+        assertThat(feature.getType(), Matchers.equalTo(VectorTile.Tile.GeomType.POLYGON));
+        assertThat(feature.getGeometryCount(), equalTo(22));
+        {
+            // outer ring
+            double[] xs = new double[5];
+            xs[0] = BitUtil.zigZagDecode(feature.getGeometry(1));
+            xs[1] = xs[0] + BitUtil.zigZagDecode(feature.getGeometry(4));
+            xs[2] = xs[1] + BitUtil.zigZagDecode(feature.getGeometry(6));
+            xs[3] = xs[2] + BitUtil.zigZagDecode(feature.getGeometry(8));
+            xs[4] = xs[0];
+            double[] ys = new double[5];
+            ys[0] = BitUtil.zigZagDecode(feature.getGeometry(2));
+            ys[1] = ys[0] + BitUtil.zigZagDecode(feature.getGeometry(5));
+            ys[2] = ys[1] + BitUtil.zigZagDecode(feature.getGeometry(7));
+            ys[3] = ys[2] + BitUtil.zigZagDecode(feature.getGeometry(9));
+            ys[4] = ys[0];
+            assertThat(signedArea(xs, ys), greaterThan(0.0));
+        }
+        {
+            // inner ring
+            double[] xs = new double[5];
+            xs[0] = BitUtil.zigZagDecode(feature.getGeometry(12));
+            xs[1] = xs[0] + BitUtil.zigZagDecode(feature.getGeometry(15));
+            xs[2] = xs[1] + BitUtil.zigZagDecode(feature.getGeometry(17));
+            xs[3] = xs[2] + BitUtil.zigZagDecode(feature.getGeometry(19));
+            xs[4] = xs[0];
+            double[] ys = new double[5];
+            ys[0] = BitUtil.zigZagDecode(feature.getGeometry(13));
+            ys[1] = ys[0] + BitUtil.zigZagDecode(feature.getGeometry(16));
+            ys[2] = ys[1] + BitUtil.zigZagDecode(feature.getGeometry(18));
+            ys[3] = ys[2] + BitUtil.zigZagDecode(feature.getGeometry(20));
+            ys[4] = ys[0];
+            assertThat(signedArea(xs, ys), lessThan(0.0));
+        }
+
+    }
+
+    private double signedArea(double[] xs, double[] ys) {
+        double windingSum = 0d;
+        final int numPts = xs.length - 1;
+        for (int i = 1, j = 0; i < numPts; j = i++) {
+            // compute signed area
+            windingSum += (xs[j] - xs[numPts]) * (ys[i] - ys[numPts]) - (ys[j] - ys[numPts]) * (xs[i] - xs[numPts]);
+        }
+        return windingSum;
+    }
+
+    public void testOverlappingMultiPolygon() {
+        // Overlapping multipolygon are accepted by Elasticsearch but is invalid for JTS (not OGC complaint).
+        // Make sure we handle overlapping multi-polygons properly
+        final Rectangle r1 = new Rectangle(-160, 160, 90, -80);
+        final Rectangle r2 = new Rectangle(-159, 161, 79, -81);
+        MultiPolygon multiPolygon = new MultiPolygon(List.of(toPolygon(r1), toPolygon(r2)));
+        final FeatureFactory builder = new FeatureFactory(0, 0, 0, 4096, 5);
+        assertThat(builder.getFeatures(multiPolygon), iterableWithSize(1));
+    }
+
+    public void testIntersectingMultiLine() {
+        // make sure we handle intersecting multi-lines properly
+        final Line l1 = new Line(new double[] { -180, 180 }, new double[] { 90, -90 });
+        final Line l2 = new Line(new double[] { -180, 180 }, new double[] { -90, 90 });
+        MultiLine multiLine = new MultiLine(List.of(l1, l2));
+        final FeatureFactory builder = new FeatureFactory(0, 0, 0, 4096, 5);
+        assertThat(builder.getFeatures(multiLine), iterableWithSize(1));
+    }
+
+    public void testRepeatedMultiPoint() {
+        final Point p1 = new Point(0, 0);
+        final Point p2 = new Point(10, 10);
+        final Point p3 = new Point(0, 0);
+        MultiPoint multiPoint = new MultiPoint(List.of(p1, p2, p3));
+        final FeatureFactory builder = new FeatureFactory(0, 0, 0, 4096, 5);
+        assertThat(builder.getFeatures(multiPoint), iterableWithSize(1));
+    }
+
+    private Polygon toPolygon(Rectangle r) {
+        return new Polygon(
+            new LinearRing(
+                new double[] { r.getMinX(), r.getMaxX(), r.getMaxX(), r.getMinX(), r.getMinX() },
+                new double[] { r.getMinY(), r.getMinY(), r.getMaxY(), r.getMaxY(), r.getMinY() }
+            )
+        );
+    }
+
 }

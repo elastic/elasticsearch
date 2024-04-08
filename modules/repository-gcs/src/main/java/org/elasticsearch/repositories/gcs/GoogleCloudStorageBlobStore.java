@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories.gcs;
 
 import com.google.api.gax.paging.Page;
+import com.google.cloud.BaseServiceException;
 import com.google.cloud.BatchResult;
 import com.google.cloud.WriteChannel;
 import com.google.cloud.storage.Blob;
@@ -21,24 +22,25 @@ import com.google.cloud.storage.StorageException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
+import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
+import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.ByteArrayInputStream;
 import java.io.FilterOutputStream;
@@ -47,11 +49,13 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +65,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static java.net.HttpURLConnection.HTTP_GONE;
 import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 import static java.net.HttpURLConnection.HTTP_PRECON_FAILED;
+import static org.elasticsearch.core.Strings.format;
 
 class GoogleCloudStorageBlobStore implements BlobStore {
 
@@ -152,7 +157,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      */
     Map<String, BlobMetadata> listBlobsByPrefix(String path, String prefix) throws IOException {
         final String pathPrefix = buildKey(path, prefix);
-        final MapBuilder<String, BlobMetadata> mapBuilder = MapBuilder.newMapBuilder();
+        final Map<String, BlobMetadata> mapBuilder = new HashMap<>();
         SocketAccess.doPrivilegedVoidIOException(
             () -> client().list(bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathPrefix))
                 .iterateAll()
@@ -160,16 +165,16 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     assert blob.getName().startsWith(path);
                     if (blob.isDirectory() == false) {
                         final String suffixName = blob.getName().substring(path.length());
-                        mapBuilder.put(suffixName, new PlainBlobMetadata(suffixName, blob.getSize()));
+                        mapBuilder.put(suffixName, new BlobMetadata(suffixName, blob.getSize()));
                     }
                 })
         );
-        return mapBuilder.immutableMap();
+        return Map.copyOf(mapBuilder);
     }
 
     Map<String, BlobContainer> listChildren(BlobPath path) throws IOException {
         final String pathStr = path.buildAsString();
-        final MapBuilder<String, BlobContainer> mapBuilder = MapBuilder.newMapBuilder();
+        final Map<String, BlobContainer> mapBuilder = new HashMap<>();
         SocketAccess.doPrivilegedVoidIOException(
             () -> client().list(bucketName, BlobListOption.currentDirectory(), BlobListOption.prefix(pathStr))
                 .iterateAll()
@@ -185,7 +190,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     }
                 })
         );
-        return mapBuilder.immutableMap();
+        return Map.copyOf(mapBuilder);
     }
 
     /**
@@ -374,7 +379,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             } catch (final StorageException se) {
                 final int errorCode = se.getCode();
                 if (errorCode == HTTP_GONE) {
-                    logger.warn(() -> new ParameterizedMessage("Retrying broken resumable upload session for blob {}", blobInfo), se);
+                    logger.warn(() -> format("Retrying broken resumable upload session for blob %s", blobInfo), se);
                     storageException = ExceptionsHelper.useOrSuppress(storageException, se);
                     continue;
                 } else if (failIfAlreadyExists && errorCode == HTTP_PRECON_FAILED) {
@@ -421,11 +426,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                  * It is not enough to wrap the call to Streams#copy, we have to wrap the privileged calls too; this is because Streams#copy
                  * is in the stacktrace and is not granted the permissions needed to close and write the channel.
                  */
-                org.elasticsearch.core.internal.io.Streams.copy(
-                    inputStream,
-                    Channels.newOutputStream(new WritableBlobChannel(writeChannel)),
-                    buffer
-                );
+                org.elasticsearch.core.Streams.copy(inputStream, Channels.newOutputStream(new WritableBlobChannel(writeChannel)), buffer);
                 SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
                 // We don't track this operation on the http layer as
                 // we do with the GET/LIST operations since this operations
@@ -436,7 +437,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             } catch (final StorageException se) {
                 final int errorCode = se.getCode();
                 if (errorCode == HTTP_GONE) {
-                    logger.warn(() -> new ParameterizedMessage("Retrying broken resumable upload session for blob {}", blobInfo), se);
+                    logger.warn(() -> format("Retrying broken resumable upload session for blob %s", blobInfo), se);
                     storageException = ExceptionsHelper.useOrSuppress(storageException, se);
                     inputStream.reset();
                     continue;
@@ -488,9 +489,10 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     /**
      * Deletes the given path and all its children.
      *
+     * @param purpose The purpose of the delete operation
      * @param pathStr Name of path to delete
      */
-    DeleteResult deleteDirectory(String pathStr) throws IOException {
+    DeleteResult deleteDirectory(OperationPurpose purpose, String pathStr) throws IOException {
         return SocketAccess.doPrivilegedIOException(() -> {
             DeleteResult deleteResult = DeleteResult.ZERO;
             Page<Blob> page = client().list(bucketName, BlobListOption.prefix(pathStr));
@@ -498,7 +500,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 final AtomicLong blobsDeleted = new AtomicLong(0L);
                 final AtomicLong bytesDeleted = new AtomicLong(0L);
                 final Iterator<Blob> blobs = page.getValues().iterator();
-                deleteBlobsIgnoringIfNotExists(new Iterator<>() {
+                deleteBlobsIgnoringIfNotExists(purpose, new Iterator<>() {
                     @Override
                     public boolean hasNext() {
                         return blobs.hasNext();
@@ -522,9 +524,11 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     /**
      * Deletes multiple blobs from the specific bucket using a batch request
      *
+     * @param purpose the purpose of the delete operation
      * @param blobNames names of the blobs to delete
      */
-    void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
+    @Override
+    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
         if (blobNames.hasNext() == false) {
             return;
         }
@@ -620,4 +624,139 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             // we manually close the channel later to have control over whether or not we want to finalize a blob
         }
     }
+
+    OptionalBytesReference getRegister(String blobName, String container, String key) throws IOException {
+        final var blobId = BlobId.of(bucketName, blobName);
+        try (
+            var readChannel = SocketAccess.doPrivilegedIOException(() -> client().reader(blobId));
+            var stream = new PrivilegedReadChannelStream(readChannel)
+        ) {
+            return OptionalBytesReference.of(BlobContainerUtils.getRegisterUsingConsistentRead(stream, container, key));
+        } catch (Exception e) {
+            final var serviceException = unwrapServiceException(e);
+            if (serviceException != null) {
+                final var statusCode = serviceException.getCode();
+                if (statusCode == RestStatus.NOT_FOUND.getStatus()) {
+                    return OptionalBytesReference.EMPTY;
+                }
+            }
+            throw e;
+        }
+    }
+
+    OptionalBytesReference compareAndExchangeRegister(
+        String blobName,
+        String container,
+        String key,
+        BytesReference expected,
+        BytesReference updated
+    ) throws IOException {
+        BlobContainerUtils.ensureValidRegisterContent(updated);
+
+        final var blobId = BlobId.of(bucketName, blobName);
+        final var blob = SocketAccess.doPrivilegedIOException(() -> client().get(blobId));
+        final long generation;
+
+        if (blob == null || blob.getGeneration() == null) {
+            if (expected.length() != 0) {
+                return OptionalBytesReference.EMPTY;
+            }
+            generation = 0L;
+        } else {
+            generation = blob.getGeneration();
+            try (
+                var stream = new PrivilegedReadChannelStream(
+                    SocketAccess.doPrivilegedIOException(
+                        () -> client().reader(blobId, Storage.BlobSourceOption.generationMatch(generation))
+                    )
+                )
+            ) {
+                final var witness = BlobContainerUtils.getRegisterUsingConsistentRead(stream, container, key);
+                if (witness.equals(expected) == false) {
+                    return OptionalBytesReference.of(witness);
+                }
+            } catch (Exception e) {
+                final var serviceException = unwrapServiceException(e);
+                if (serviceException != null) {
+                    final var statusCode = serviceException.getCode();
+                    if (statusCode == RestStatus.NOT_FOUND.getStatus()) {
+                        return expected.length() == 0 ? OptionalBytesReference.MISSING : OptionalBytesReference.EMPTY;
+                    } else if (statusCode == RestStatus.PRECONDITION_FAILED.getStatus()) {
+                        return OptionalBytesReference.MISSING;
+                    }
+                }
+                throw e;
+            }
+        }
+
+        final var blobInfo = BlobInfo.newBuilder(BlobId.of(bucketName, blobName, generation))
+            .setMd5(Base64.getEncoder().encodeToString(MessageDigests.digest(updated, MessageDigests.md5())))
+            .build();
+        final var bytesRef = updated.toBytesRef();
+        try {
+            SocketAccess.doPrivilegedVoidIOException(
+                () -> client().create(
+                    blobInfo,
+                    bytesRef.bytes,
+                    bytesRef.offset,
+                    bytesRef.length,
+                    Storage.BlobTargetOption.generationMatch()
+                )
+            );
+        } catch (Exception e) {
+            final var serviceException = unwrapServiceException(e);
+            if (serviceException != null) {
+                final var statusCode = serviceException.getCode();
+                if (statusCode == RestStatus.PRECONDITION_FAILED.getStatus() || statusCode == RestStatus.TOO_MANY_REQUESTS.getStatus()) {
+                    return OptionalBytesReference.MISSING;
+                }
+            }
+            throw e;
+        }
+
+        return OptionalBytesReference.of(expected);
+    }
+
+    private static BaseServiceException unwrapServiceException(Throwable t) {
+        for (int i = 0; i < 10; i++) {
+            if (t == null) {
+                break;
+            }
+            if (t instanceof BaseServiceException baseServiceException) {
+                return baseServiceException;
+            }
+            t = t.getCause();
+        }
+        return null;
+    }
+
+    private static final class PrivilegedReadChannelStream extends InputStream {
+
+        private final InputStream stream;
+
+        PrivilegedReadChannelStream(ReadableByteChannel channel) {
+            stream = Channels.newInputStream(channel);
+        }
+
+        @Override
+        public int read(byte[] b) throws IOException {
+            return SocketAccess.doPrivilegedIOException(() -> stream.read(b));
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            return SocketAccess.doPrivilegedIOException(() -> stream.read(b, off, len));
+        }
+
+        @Override
+        public void close() throws IOException {
+            SocketAccess.doPrivilegedVoidIOException(stream::close);
+        }
+
+        @Override
+        public int read() throws IOException {
+            return SocketAccess.doPrivilegedIOException(stream::read);
+        }
+    }
+
 }

@@ -7,17 +7,13 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
-import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -25,66 +21,60 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceCo
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigTestScaffolding.createTokenizationUpdate;
 import static org.hamcrest.Matchers.equalTo;
 
-public class FillMaskConfigUpdateTests extends AbstractBWCSerializationTestCase<FillMaskConfigUpdate> {
+public class FillMaskConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<FillMaskConfigUpdate> {
 
-    public void testFromMap() {
-        FillMaskConfigUpdate expected = new FillMaskConfigUpdate(3, "ml-results", new BertTokenizationUpdate(Tokenization.Truncate.FIRST));
+    public static FillMaskConfigUpdate randomUpdate() {
+        FillMaskConfigUpdate.Builder builder = new FillMaskConfigUpdate.Builder();
+        if (randomBoolean()) {
+            builder.setNumTopClasses(randomIntBetween(1, 4));
+        }
+        if (randomBoolean()) {
+            builder.setResultsField(randomAlphaOfLength(8));
+        }
+        if (randomBoolean()) {
+            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()), null));
+        }
+        return builder.build();
+    }
+
+    public static FillMaskConfigUpdate mutateForVersion(FillMaskConfigUpdate instance, TransportVersion version) {
+        if (version.before(TransportVersions.V_8_1_0)) {
+            return new FillMaskConfigUpdate(instance.getNumTopClasses(), instance.getResultsField(), null);
+        }
+        return instance;
+    }
+
+    @Override
+    Tuple<Map<String, Object>, FillMaskConfigUpdate> fromMapTestInstances(TokenizationUpdate expectedTokenization) {
+        int topClasses = randomIntBetween(1, 10);
+        FillMaskConfigUpdate expected = new FillMaskConfigUpdate(topClasses, "ml-results", expectedTokenization);
         Map<String, Object> config = new HashMap<>() {
             {
                 put(NlpConfig.RESULTS_FIELD.getPreferredName(), "ml-results");
-                put(NlpConfig.NUM_TOP_CLASSES.getPreferredName(), 3);
-                Map<String, Object> truncate = new HashMap<>();
-                truncate.put("truncate", "first");
-                Map<String, Object> bert = new HashMap<>();
-                bert.put("bert", truncate);
-                put("tokenization", bert);
+                put(NlpConfig.NUM_TOP_CLASSES.getPreferredName(), topClasses);
             }
         };
-        var pp = FillMaskConfigUpdate.fromMap(config);
-        assertThat(pp, equalTo(expected));
+        return Tuple.tuple(config, expected);
     }
 
-    public void testFromMapWithUnknownField() {
-        ElasticsearchException ex = expectThrows(
-            ElasticsearchException.class,
-            () -> FillMaskConfigUpdate.fromMap(Collections.singletonMap("some_key", 1))
-        );
-        assertThat(ex.getMessage(), equalTo("Unrecognized fields [some_key]."));
-    }
-
-    public void testIsNoop() {
-        assertTrue(new FillMaskConfigUpdate.Builder().build().isNoop(FillMaskConfigTests.createRandom()));
-
-        assertFalse(
-            new FillMaskConfigUpdate.Builder().setResultsField("foo")
-                .build()
-                .isNoop(new FillMaskConfig.Builder().setResultsField("bar").build())
-        );
-
-        assertFalse(
-            new FillMaskConfigUpdate.Builder().setTokenizationUpdate(new BertTokenizationUpdate(Tokenization.Truncate.SECOND))
-                .build()
-                .isNoop(new FillMaskConfig.Builder().setResultsField("bar").build())
-        );
-
-        assertTrue(
-            new FillMaskConfigUpdate.Builder().setNumTopClasses(3).build().isNoop(new FillMaskConfig.Builder().setNumTopClasses(3).build())
-        );
+    @Override
+    FillMaskConfigUpdate fromMap(Map<String, Object> map) {
+        return FillMaskConfigUpdate.fromMap(map);
     }
 
     public void testApply() {
         FillMaskConfig originalConfig = FillMaskConfigTests.createRandom();
 
-        assertThat(originalConfig, equalTo(new FillMaskConfigUpdate.Builder().build().apply(originalConfig)));
+        assertThat(originalConfig, equalTo(originalConfig.apply(new FillMaskConfigUpdate.Builder().build())));
 
         assertThat(
             new FillMaskConfig.Builder(originalConfig).setResultsField("ml-results").build(),
-            equalTo(new FillMaskConfigUpdate.Builder().setResultsField("ml-results").build().apply(originalConfig))
+            equalTo(originalConfig.apply(new FillMaskConfigUpdate.Builder().setResultsField("ml-results").build()))
         );
         assertThat(
             new FillMaskConfig.Builder(originalConfig).setNumTopClasses(originalConfig.getNumTopClasses() + 1).build(),
             equalTo(
-                new FillMaskConfigUpdate.Builder().setNumTopClasses(originalConfig.getNumTopClasses() + 1).build().apply(originalConfig)
+                originalConfig.apply(new FillMaskConfigUpdate.Builder().setNumTopClasses(originalConfig.getNumTopClasses() + 1).build())
             )
         );
 
@@ -93,9 +83,11 @@ public class FillMaskConfigUpdateTests extends AbstractBWCSerializationTestCase<
         assertThat(
             new FillMaskConfig.Builder(originalConfig).setTokenization(tokenization).build(),
             equalTo(
-                new FillMaskConfigUpdate.Builder().setTokenizationUpdate(
-                    createTokenizationUpdate(originalConfig.getTokenization(), truncate)
-                ).build().apply(originalConfig)
+                originalConfig.apply(
+                    new FillMaskConfigUpdate.Builder().setTokenizationUpdate(
+                        createTokenizationUpdate(originalConfig.getTokenization(), truncate, null)
+                    ).build()
+                )
             )
         );
     }
@@ -112,34 +104,16 @@ public class FillMaskConfigUpdateTests extends AbstractBWCSerializationTestCase<
 
     @Override
     protected FillMaskConfigUpdate createTestInstance() {
-        FillMaskConfigUpdate.Builder builder = new FillMaskConfigUpdate.Builder();
-        if (randomBoolean()) {
-            builder.setNumTopClasses(randomIntBetween(1, 4));
-        }
-        if (randomBoolean()) {
-            builder.setResultsField(randomAlphaOfLength(8));
-        }
-        if (randomBoolean()) {
-            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values())));
-        }
-        return builder.build();
+        return randomUpdate();
     }
 
     @Override
-    protected FillMaskConfigUpdate mutateInstanceForVersion(FillMaskConfigUpdate instance, Version version) {
-        if (version.before(Version.V_8_1_0)) {
-            return new FillMaskConfigUpdate(instance.getNumTopClasses(), instance.getResultsField(), null);
-        }
-        return instance;
+    protected FillMaskConfigUpdate mutateInstance(FillMaskConfigUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new MlInferenceNamedXContentProvider().getNamedWriteables());
+    protected FillMaskConfigUpdate mutateInstanceForVersion(FillMaskConfigUpdate instance, TransportVersion version) {
+        return mutateForVersion(instance, version);
     }
 }

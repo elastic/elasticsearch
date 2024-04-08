@@ -15,16 +15,29 @@ import org.elasticsearch.common.cache.CacheBuilder;
 
 import java.net.InetAddress;
 import java.nio.file.Path;
-import java.util.Objects;
 import java.util.function.Function;
 
 /**
- * The in-memory cache for the geoip data. There should only be 1 instance of this class..
+ * The in-memory cache for the geoip data. There should only be 1 instance of this class.
  * This cache differs from the maxmind's {@link NodeCache} such that this cache stores the deserialized Json objects to avoid the
  * cost of deserialization for each lookup (cached or not). This comes at slight expense of higher memory usage, but significant
  * reduction of CPU usage.
  */
 final class GeoIpCache {
+
+    /**
+     * Internal-only sentinel object for recording that a result from the geoip database was null (i.e. there was no result). By caching
+     * this no-result we can distinguish between something not being in the cache because we haven't searched for that data yet, versus
+     * something not being in the cache because the data doesn't exist in the database.
+     */
+    // visible for testing
+    static final AbstractResponse NO_RESULT = new AbstractResponse() {
+        @Override
+        public String toString() {
+            return "AbstractResponse[NO_RESULT]";
+        }
+    };
+
     private final Cache<CacheKey, AbstractResponse> cache;
 
     // package private for testing
@@ -41,18 +54,27 @@ final class GeoIpCache {
         String databasePath,
         Function<InetAddress, AbstractResponse> retrieveFunction
     ) {
-
         // can't use cache.computeIfAbsent due to the elevated permissions for the jackson (run via the cache loader)
         CacheKey cacheKey = new CacheKey(ip, databasePath);
         // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
         AbstractResponse response = cache.get(cacheKey);
+
+        // populate the cache for this key, if necessary
         if (response == null) {
             response = retrieveFunction.apply(ip);
-            if (response != null) {
-                cache.put(cacheKey, response);
+            // if the response from the database was null, then use the no-result sentinel value
+            if (response == null) {
+                response = NO_RESULT;
             }
+            // store the result or no-result in the cache
+            cache.put(cacheKey, response);
         }
-        return (T) response;
+
+        if (response == NO_RESULT) {
+            return null; // the no-result sentinel is an internal detail, don't expose it
+        } else {
+            return (T) response;
+        }
     }
 
     // only useful for testing
@@ -82,29 +104,5 @@ final class GeoIpCache {
      * path is needed to be included in the cache key. For example, if we only used the IP address as the key the City and ASN the same
      * IP may be in both with different values and we need to cache both.
      */
-    private static class CacheKey {
-
-        private final InetAddress ip;
-        private final String databasePath;
-
-        private CacheKey(InetAddress ip, String databasePath) {
-            this.ip = ip;
-            this.databasePath = databasePath;
-        }
-
-        // generated
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            CacheKey cacheKey = (CacheKey) o;
-            return Objects.equals(ip, cacheKey.ip) && Objects.equals(databasePath, cacheKey.databasePath);
-        }
-
-        // generated
-        @Override
-        public int hashCode() {
-            return Objects.hash(ip, databasePath);
-        }
-    }
+    private record CacheKey(InetAddress ip, String databasePath) {}
 }

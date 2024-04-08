@@ -102,7 +102,7 @@ public abstract class TopBucketBuilder<B extends InternalMultiBucketAggregation.
             if (size >= ArrayUtil.MAX_ARRAY_LENGTH) {
                 throw new IllegalArgumentException("can't reduce more than [" + ArrayUtil.MAX_ARRAY_LENGTH + "] buckets");
             }
-            queue = new PriorityQueue<DelayedBucket<B>>(size) {
+            queue = new PriorityQueue<>(size) {
                 private final Comparator<DelayedBucket<? extends Bucket>> comparator = order.delayedBucketComparator();
 
                 @Override

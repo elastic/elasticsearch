@@ -8,23 +8,21 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene90.Lucene90Codec;
+import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryCachingPolicy;
-import org.apache.lucene.search.suggest.document.Completion90PostingsFormat;
+import org.apache.lucene.search.suggest.document.Completion99PostingsFormat;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -35,9 +33,9 @@ public class CompletionStatsCacheTests extends ESTestCase {
 
     public void testExceptionsAreNotCached() {
         final AtomicInteger openCount = new AtomicInteger();
-        final CompletionStatsCache completionStatsCache = new CompletionStatsCache(
-            () -> { throw new ElasticsearchException("simulated " + openCount.incrementAndGet()); }
-        );
+        final CompletionStatsCache completionStatsCache = new CompletionStatsCache(() -> {
+            throw new ElasticsearchException("simulated " + openCount.incrementAndGet());
+        });
 
         assertThat(expectThrows(ElasticsearchException.class, completionStatsCache::get).getMessage(), equalTo("simulated 1"));
         assertThat(expectThrows(ElasticsearchException.class, completionStatsCache::get).getMessage(), equalTo("simulated 2"));
@@ -45,23 +43,13 @@ public class CompletionStatsCacheTests extends ESTestCase {
 
     public void testCompletionStatsCache() throws IOException, InterruptedException {
         final IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
-        final PostingsFormat postingsFormat = new Completion90PostingsFormat();
-        indexWriterConfig.setCodec(new Lucene90Codec() {
+        final PostingsFormat postingsFormat = new Completion99PostingsFormat();
+        indexWriterConfig.setCodec(new Lucene99Codec() {
             @Override
             public PostingsFormat getPostingsFormatForField(String field) {
                 return postingsFormat; // all fields are suggest fields
             }
         });
-
-        final QueryCachingPolicy queryCachingPolicy = new QueryCachingPolicy() {
-            @Override
-            public void onUse(Query query) {}
-
-            @Override
-            public boolean shouldCache(Query query) {
-                return false;
-            }
-        };
 
         try (Directory directory = newDirectory(); IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
 
@@ -79,7 +67,7 @@ public class CompletionStatsCacheTests extends ESTestCase {
                 openCloseCounter.countOpened();
                 try {
                     final DirectoryReader directoryReader = DirectoryReader.open(indexWriter);
-                    return new Engine.Searcher("test", directoryReader, null, null, queryCachingPolicy, () -> {
+                    return new Engine.Searcher("test", directoryReader, null, null, TrivialQueryCachingPolicy.NEVER, () -> {
                         openCloseCounter.countClosed();
                         IOUtils.close(directoryReader);
                     });
@@ -213,11 +201,7 @@ public class CompletionStatsCacheTests extends ESTestCase {
         }
 
         void start() {
-            try {
-                cyclicBarrier.await();
-            } catch (InterruptedException | BrokenBarrierException e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(cyclicBarrier);
         }
 
         CompletionStats getResult(int index) {

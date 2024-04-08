@@ -1,0 +1,55 @@
+[role="xpack"]
+[[clear-trained-model-deployment-cache]]
+= Clear trained model deployment cache API
+[subs="attributes"]
+++++
+<titleabbrev>Clear trained model deployment cache</titleabbrev>
+++++
+
+Clears the {infer} cache on all nodes where the deployment is assigned.
+
+[[clear-trained-model-deployment-cache-request]]
+== {api-request-title}
+
+`POST _ml/trained_models/<deployment_id>/deployment/cache/_clear`
+
+[[clear-trained-model-deployment-cache-prereq]]
+== {api-prereq-title}
+
+Requires the `manage_ml` cluster privilege. This privilege is included in the
+`machine_learning_admin` built-in role.
+
+[[clear-trained-model-deployment-cache-desc]]
+== {api-description-title}
+
+A trained model deployment may have an inference cache enabled. As requests are 
+handled by each allocated node, their responses may be cached on that individual 
+node. Calling this API clears the caches without restarting the deployment.
+
+[[clear-trained-model-deployment-cache-path-params]]
+== {api-path-parms-title}
+
+`deployment_id`::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
+
+[[clear-trained-model-deployment-cache-example]]
+== {api-examples-title}
+
+The following example clears the cache for the new deployment for the
+`elastic__distilbert-base-uncased-finetuned-conll03-english` trained model:
+
+[source,console]
+--------------------------------------------------
+POST _ml/trained_models/elastic__distilbert-base-uncased-finetuned-conll03-english/deployment/cache/_clear
+--------------------------------------------------
+// TEST[skip:TBD]
+
+The API returns the following results:
+
+[source,console-result]
+----
+{
+   "cleared": true
+}
+----

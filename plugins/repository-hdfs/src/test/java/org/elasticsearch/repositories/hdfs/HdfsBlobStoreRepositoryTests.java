@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.fixtures.hdfs.HdfsClientThreadLeakFilter;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -42,6 +43,11 @@ public class HdfsBlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTest
     public void testSnapshotAndRestore() throws Exception {
         // the HDFS mockup doesn't preserve the repository contents after removing the repository
         testSnapshotAndRestore(false);
+    }
+
+    @Override
+    public void testBlobStoreBulkDeletion() throws Exception {
+        // HDFS does not implement bulk deletion from different BlobContainers
     }
 
     @Override

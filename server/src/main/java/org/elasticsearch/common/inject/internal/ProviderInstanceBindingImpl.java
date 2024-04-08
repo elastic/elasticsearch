@@ -16,13 +16,10 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
-import org.elasticsearch.common.inject.spi.Dependency;
-import org.elasticsearch.common.inject.spi.HasDependencies;
 import org.elasticsearch.common.inject.spi.InjectionPoint;
 import org.elasticsearch.common.inject.spi.ProviderInstanceBinding;
 
@@ -60,8 +57,8 @@ public final class ProviderInstanceBindingImpl<T> extends BindingImpl<T> impleme
     }
 
     @Override
-    public <V> V acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
-        return visitor.visit(this);
+    public <V> void acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
+        visitor.visit(this);
     }
 
     @Override
@@ -75,25 +72,8 @@ public final class ProviderInstanceBindingImpl<T> extends BindingImpl<T> impleme
     }
 
     @Override
-    public Set<Dependency<?>> getDependencies() {
-        return providerInstance instanceof HasDependencies
-            ? Set.copyOf(((HasDependencies) providerInstance).getDependencies())
-            : Dependency.forInjectionPoints(injectionPoints);
-    }
-
-    @Override
-    public BindingImpl<T> withScoping(Scoping scoping) {
-        return new ProviderInstanceBindingImpl<>(getSource(), getKey(), scoping, injectionPoints, providerInstance);
-    }
-
-    @Override
-    public BindingImpl<T> withKey(Key<T> key) {
-        return new ProviderInstanceBindingImpl<>(getSource(), key, getScoping(), injectionPoints, providerInstance);
-    }
-
-    @Override
-    public void applyTo(Binder binder) {
-        getScoping().applyTo(binder.withSource(getSource()).bind(getKey()).toProvider(getProviderInstance()));
+    public BindingImpl<T> withEagerSingletonScoping() {
+        return new ProviderInstanceBindingImpl<>(getSource(), getKey(), Scoping.EAGER_SINGLETON, injectionPoints, providerInstance);
     }
 
     @Override

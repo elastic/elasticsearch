@@ -9,21 +9,41 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
+import org.elasticsearch.xpack.security.metric.InstrumentedSecurityActionListener;
+import org.elasticsearch.xpack.security.metric.SecurityMetricType;
+import org.elasticsearch.xpack.security.metric.SecurityMetrics;
+
+import java.util.Map;
+import java.util.function.LongSupplier;
 
 class OAuth2TokenAuthenticator implements Authenticator {
 
+    public static final String ATTRIBUTE_AUTHC_FAILURE_REASON = "es.security.token_authc_failure_reason";
+
     private static final Logger logger = LogManager.getLogger(OAuth2TokenAuthenticator.class);
+
+    private final SecurityMetrics<BearerToken> authenticationMetrics;
     private final TokenService tokenService;
 
-    OAuth2TokenAuthenticator(TokenService tokenService) {
+    OAuth2TokenAuthenticator(TokenService tokenService, MeterRegistry meterRegistry) {
+        this(tokenService, meterRegistry, System::nanoTime);
+    }
+
+    OAuth2TokenAuthenticator(TokenService tokenService, MeterRegistry meterRegistry, LongSupplier nanoTimeSupplier) {
+        this.authenticationMetrics = new SecurityMetrics<>(
+            SecurityMetricType.AUTHC_OAUTH2_TOKEN,
+            meterRegistry,
+            this::buildMetricAttributes,
+            nanoTimeSupplier
+        );
         this.tokenService = tokenService;
     }
 
@@ -46,6 +66,10 @@ class OAuth2TokenAuthenticator implements Authenticator {
             return;
         }
         final BearerToken bearerToken = (BearerToken) authenticationToken;
+        doAuthenticate(context, bearerToken, InstrumentedSecurityActionListener.wrapForAuthc(authenticationMetrics, bearerToken, listener));
+    }
+
+    private void doAuthenticate(Context context, BearerToken bearerToken, ActionListener<AuthenticationResult<Authentication>> listener) {
         tokenService.tryAuthenticateToken(bearerToken.credentials(), ActionListener.wrap(userToken -> {
             if (userToken != null) {
                 listener.onResponse(AuthenticationResult.success(userToken.getAuthentication()));
@@ -53,14 +77,21 @@ class OAuth2TokenAuthenticator implements Authenticator {
                 listener.onResponse(AuthenticationResult.unsuccessful("invalid token", null));
             }
         }, e -> {
-            logger.debug(new ParameterizedMessage("Failed to validate token authentication for request [{}]", context.getRequest()), e);
+            logger.debug(() -> "Failed to validate token authentication for request [" + context.getRequest() + "]", e);
             if (e instanceof ElasticsearchSecurityException
-                && false == tokenService.isExpiredTokenException((ElasticsearchSecurityException) e)) {
+                && false == TokenService.isExpiredTokenException((ElasticsearchSecurityException) e)) {
                 // intentionally ignore the returned exception; we call this primarily
                 // for the auditing as we already have a purpose built exception
                 context.getRequest().tamperedRequest();
             }
             listener.onFailure(e);
         }));
+    }
+
+    private Map<String, Object> buildMetricAttributes(BearerToken token, String failureReason) {
+        if (failureReason != null) {
+            return Map.of(ATTRIBUTE_AUTHC_FAILURE_REASON, failureReason);
+        }
+        return Map.of();
     }
 }

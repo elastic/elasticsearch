@@ -64,6 +64,21 @@ mode are described separately.
   are `deflate` and `lz4`. If unset, the global `transport.compression_scheme`
   is used as the fallback setting.
 
+
+`cluster.remote.<cluster_alias>.credentials` (<<secure-settings,Secure>>, <<reloadable-secure-settings,Reloadable>>)::
+[[remote-cluster-credentials-setting]]
+
+beta:[]
+  Per cluster setting for configuring <<remote-clusters-api-key,remote clusters with the API Key based model>>.
+  This setting takes the encoded value of a
+  <<security-api-create-cross-cluster-api-key,cross-cluster API key>> and must be set
+  in the <<secure-settings,{es} keystore>> on each node in the cluster.
+  The presence (or not) of this setting determines which model a remote cluster uses.
+  If present, the remote cluster uses the API key based model.
+  Otherwise, it uses the certificate based model.
+  If the setting is added, removed, or updated in the <<secure-settings,{es} keystore>> and reloaded via the
+  <<cluster-nodes-reload-secure-settings>> API, the cluster will automatically rebuild its connection to the remote.
+
 [[remote-cluster-sniff-settings]]
 ==== Sniff mode remote cluster settings
 

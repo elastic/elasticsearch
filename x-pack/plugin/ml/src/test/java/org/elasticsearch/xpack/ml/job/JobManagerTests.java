@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.ml.job;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,6 +34,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
@@ -149,7 +150,7 @@ public class JobManagerTests extends ESTestCase {
             filter,
             Collections.emptySet(),
             Collections.emptySet(),
-            ActionListener.wrap(r -> {}, e -> fail(e.getMessage()))
+            ActionTestUtils.assertNoFailureListener(r -> {})
         );
 
         Mockito.verifyNoMoreInteractions(auditor, updateJobProcessNotifier);
@@ -207,7 +208,7 @@ public class JobManagerTests extends ESTestCase {
             filter,
             new TreeSet<>(Arrays.asList("item 1", "item 2")),
             new TreeSet<>(Collections.singletonList("item 3")),
-            ActionListener.wrap(r -> {}, e -> fail(e.getMessage()))
+            ActionTestUtils.assertNoFailureListener(r -> {})
         );
 
         ArgumentCaptor<UpdateParams> updateParamsCaptor = ArgumentCaptor.forClass(UpdateParams.class);
@@ -265,7 +266,7 @@ public class JobManagerTests extends ESTestCase {
             filter,
             new TreeSet<>(Arrays.asList("a", "b")),
             Collections.emptySet(),
-            ActionListener.wrap(r -> {}, e -> fail(e.getMessage()))
+            ActionTestUtils.assertNoFailureListener(r -> {})
         );
 
         verify(auditor).info(jobReferencingFilter.getId(), "Filter [foo_filter] has been modified; added items: ['a', 'b']");
@@ -302,7 +303,7 @@ public class JobManagerTests extends ESTestCase {
             filter,
             Collections.emptySet(),
             new TreeSet<>(Arrays.asList("a", "b")),
-            ActionListener.wrap(r -> {}, e -> fail(e.getMessage()))
+            ActionTestUtils.assertNoFailureListener(r -> {})
         );
 
         verify(auditor).info(jobReferencingFilter.getId(), "Filter [foo_filter] has been modified; removed items: ['a', 'b']");
@@ -329,7 +330,7 @@ public class JobManagerTests extends ESTestCase {
 
         jobManager.updateProcessOnCalendarChanged(
             Arrays.asList("job-1", "job-3", "job-4"),
-            ActionListener.wrap(r -> {}, e -> fail(e.getMessage()))
+            ActionTestUtils.assertNoFailureListener(r -> {})
         );
 
         ArgumentCaptor<UpdateParams> updateParamsCaptor = ArgumentCaptor.forClass(UpdateParams.class);
@@ -374,10 +375,7 @@ public class JobManagerTests extends ESTestCase {
         mockClientBuilder.prepareSearchFields(MlConfigIndex.indexName(), fieldHits);
         JobManager jobManager = createJobManager(mockClientBuilder.build());
 
-        jobManager.updateProcessOnCalendarChanged(
-            Collections.singletonList("group-1"),
-            ActionListener.wrap(r -> {}, e -> fail(e.getMessage()))
-        );
+        jobManager.updateProcessOnCalendarChanged(Collections.singletonList("group-1"), ActionTestUtils.assertNoFailureListener(r -> {}));
 
         ArgumentCaptor<UpdateParams> updateParamsCaptor = ArgumentCaptor.forClass(UpdateParams.class);
         verify(updateJobProcessNotifier, times(2)).submitJobUpdate(updateParamsCaptor.capture(), any());
@@ -395,7 +393,7 @@ public class JobManagerTests extends ESTestCase {
         List<String> categorizationFilters = randomBoolean() ? Collections.singletonList("query: .*") : null;
         CategorizationAnalyzerConfig c = CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(categorizationFilters);
         Job.Builder jobBuilder = createCategorizationJob(c, null);
-        JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, Version.CURRENT);
+        JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, MlConfigVersion.CURRENT);
 
         Job job = jobBuilder.build(new Date());
         assertThat(
@@ -410,7 +408,7 @@ public class JobManagerTests extends ESTestCase {
         Job.Builder jobBuilder = createCategorizationJob(c, null);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, Version.CURRENT)
+            () -> JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, MlConfigVersion.CURRENT)
         );
 
         assertThat(e.getMessage(), equalTo("Failed to find global analyzer [does_not_exist]"));
@@ -420,7 +418,7 @@ public class JobManagerTests extends ESTestCase {
 
         List<String> categorizationFilters = randomBoolean() ? Collections.singletonList("query: .*") : null;
         Job.Builder jobBuilder = createCategorizationJob(null, categorizationFilters);
-        JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, Version.CURRENT);
+        JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, MlConfigVersion.CURRENT);
 
         Job job = jobBuilder.build(new Date());
         assertThat(
@@ -445,17 +443,6 @@ public class JobManagerTests extends ESTestCase {
         return builder;
     }
 
-    private Job.Builder createJob() {
-        Detector.Builder d = new Detector.Builder("info_content", "domain").setOverFieldName("client");
-        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
-
-        Job.Builder builder = new Job.Builder();
-        builder.setId("foo");
-        builder.setAnalysisConfig(ac);
-        builder.setDataDescription(new DataDescription.Builder());
-        return builder;
-    }
-
     private JobManager createJobManager(Client client) {
         return new JobManager(
             jobResultsProvider,
@@ -469,12 +456,6 @@ public class JobManagerTests extends ESTestCase {
             TestIndexNameExpressionResolver.newInstance(),
             () -> ByteSizeValue.ZERO
         );
-    }
-
-    private ClusterState createClusterState() {
-        ClusterState.Builder builder = ClusterState.builder(new ClusterName("_name"));
-        builder.metadata(Metadata.builder());
-        return builder.build();
     }
 
     private BytesReference toBytesReference(ToXContent content) throws IOException {

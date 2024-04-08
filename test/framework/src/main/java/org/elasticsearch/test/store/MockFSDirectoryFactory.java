@@ -12,12 +12,12 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CheckIndex;
-import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
-import org.apache.lucene.store.MockDirectoryWrapper;
-import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.TestRuleMarkFailure;
+import org.apache.lucene.tests.store.BaseDirectoryWrapper;
+import org.apache.lucene.tests.store.MockDirectoryWrapper;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.tests.util.TestRuleMarkFailure;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -116,7 +116,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
         }
     }
 
-    private Directory wrap(Directory dir, Random random, Settings indexSettings, ShardId shardId) {
+    private static Directory wrap(Directory dir, Random random, Settings indexSettings, ShardId shardId) {
 
         double randomIOExceptionRate = RANDOM_IO_EXCEPTION_RATE_SETTING.get(indexSettings);
         double randomIOExceptionRateOnOpen = RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING.get(indexSettings);
@@ -135,7 +135,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
         return w;
     }
 
-    private Directory randomDirectoryService(Random random, IndexSettings indexSettings, ShardPath path) throws IOException {
+    private static Directory randomDirectoryService(Random random, IndexSettings indexSettings, ShardPath path) throws IOException {
         final IndexMetadata build = IndexMetadata.builder(indexSettings.getIndexMetadata())
             .settings(
                 Settings.builder()

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -18,6 +17,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -25,11 +25,14 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigTests;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigUpdate;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.junit.Before;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -46,14 +49,22 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
     private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(5);
 
     private DataFrameAnalyticsConfigProvider configProvider;
+    private String dummyAuthenticationHeader;
 
     @Before
     public void createComponents() throws Exception {
         configProvider = new DataFrameAnalyticsConfigProvider(
             client(),
             xContentRegistry(),
-            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class))
+            // We can't change the signature of createComponents to e.g. pass differing values of includeNodeInfo to pass to the
+            // DataFrameAnalyticsAuditor constructor. Instead we generate a random boolean value for that purpose.
+            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class), randomBoolean()),
+            getInstanceFromNode(ClusterService.class)
         );
+        dummyAuthenticationHeader = Authentication.newRealmAuthentication(
+            new User("dummy"),
+            new Authentication.RealmRef("name", "type", "node")
+        ).encode();
         waitForMlTemplates();
     }
 
@@ -97,7 +108,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
     public void testPutAndGet_WithSecurityHeaders() throws InterruptedException {
         String configId = "config-id";
         DataFrameAnalyticsConfig config = DataFrameAnalyticsConfigTests.createRandom(configId);
-        Map<String, String> securityHeaders = Collections.singletonMap("_xpack_security_authentication", "dummy");
+        Map<String, String> securityHeaders = Collections.singletonMap("_xpack_security_authentication", dummyAuthenticationHeader);
         {  // Put the config and verify the response
             AtomicReference<DataFrameAnalyticsConfig> configHolder = new AtomicReference<>();
             AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
@@ -275,7 +286,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
             );
         }
         {  // Update that applies security headers
-            Map<String, String> securityHeaders = Collections.singletonMap("_xpack_security_authentication", "dummy");
+            Map<String, String> securityHeaders = Collections.singletonMap("_xpack_security_authentication", dummyAuthenticationHeader);
 
             AtomicReference<DataFrameAnalyticsConfig> updatedConfigHolder = new AtomicReference<>();
             AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
@@ -321,7 +332,6 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
         assertThat(exceptionHolder.get(), is(instanceOf(ResourceNotFoundException.class)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58814")
     public void testUpdate_UpdateCannotBeAppliedWhenTaskIsRunning() throws InterruptedException {
         String configId = "config-id";
         DataFrameAnalyticsConfig initialConfig = DataFrameAnalyticsConfigTests.createRandom(configId);
@@ -343,8 +353,10 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
             AtomicReference<DataFrameAnalyticsConfig> updatedConfigHolder = new AtomicReference<>();
             AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
+            // Important: the new value specified here must be one that it's impossible for DataFrameAnalyticsConfigTests.createRandom
+            // to have used originally. If the update is a no-op then the test fails.
             DataFrameAnalyticsConfigUpdate configUpdate = new DataFrameAnalyticsConfigUpdate.Builder(configId).setModelMemoryLimit(
-                ByteSizeValue.ofMb(2048)
+                ByteSizeValue.ofMb(1234)
             ).build();
 
             ClusterState clusterState = clusterStateWithRunningAnalyticsTask(configId, DataFrameAnalyticsState.ANALYZING);
@@ -368,12 +380,12 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
         builder.addTask(
             MlTasks.dataFrameAnalyticsTaskId(analyticsId),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams(analyticsId, Version.CURRENT, false),
+            new StartDataFrameAnalyticsAction.TaskParams(analyticsId, MlConfigVersion.CURRENT, false),
             new PersistentTasksCustomMetadata.Assignment("node", "test assignment")
         );
         builder.updateTaskState(
             MlTasks.dataFrameAnalyticsTaskId(analyticsId),
-            new DataFrameAnalyticsTaskState(analyticsState, builder.getLastAllocationId(), null)
+            new DataFrameAnalyticsTaskState(analyticsState, builder.getLastAllocationId(), null, Instant.now())
         );
         PersistentTasksCustomMetadata tasks = builder.build();
 

@@ -2,13 +2,9 @@
 [[breaking_80_cluster_node_setting_changes]]
 ==== Cluster and node setting changes
 
-//NOTE: The notable-breaking-changes tagged regions are re-used in the
-//Installation and Upgrade Guide
-
-//tag::notable-breaking-changes[]
 TIP: {ess-setting-change}
 
-.`action.destructive_requires_name` now defaults to `false`. {ess-icon}
+.`action.destructive_requires_name` now defaults to `true`. {ess-icon}
 [%collapsible]
 ====
 *Details* +
@@ -44,7 +40,7 @@ non-frozen node will result in an error on startup.
 ====
 
 [[max_clause_count_change]]
-.The `indices.query.bool.max_clause_count` setting has been deprecated, and no longer has any effect.
+.`indices.query.bool.max_clause_count` is deprecated and has no effect.
 [%collapsible]
 ====
 *Details* +
@@ -66,6 +62,10 @@ In previous versions of Lucene you could get around this limit by nesting
 boolean queries within each other, but the limit is now based on the total
 number of leaf queries within the query as a whole and this workaround will
 no longer help.
+
+Specifying `indices.query.bool.max_clause_count` will have no effect
+but will generate deprecation warnings. To avoid these warnings, remove the
+setting from `elasticsearch.yml` during an upgrade or node restart.
 ====
 
 [[ilm-poll-interval-limit]]
@@ -230,7 +230,7 @@ Remove the `http.content_type.required` setting from `elasticsearch.yml`. Specif
 [%collapsible]
 ====
 *Details* +
-The `http.tcp_no_delay` setting was deprecated in 7.x and has been removed in 8.0. Use`http.tcp.no_delay` instead.
+The `http.tcp_no_delay` setting was deprecated in 7.x and has been removed in 8.0. Use `http.tcp.no_delay` instead.
 
 *Impact* +
 Replace the `http.tcp_no_delay` setting with `http.tcp.no_delay`.
@@ -246,7 +246,7 @@ The `network.tcp.connect_timeout` setting was deprecated in 7.x and has been rem
 was a fallback setting for `transport.connect_timeout`.
 
 *Impact* +
-Remove the`network.tcp.connect_timeout` setting.
+Remove the `network.tcp.connect_timeout` setting.
 Use the `transport.connect_timeout` setting to change the default connection
 timeout for client connections. Specifying
 `network.tcp.connect_timeout` in `elasticsearch.yml` will result in an
@@ -399,7 +399,7 @@ If you do not want to enable SSL and are currently using other
 * Discontinue use of other `xpack.security.http.ssl` settings
 
 If you want to enable SSL, follow the instructions in
-{ref}/configuring-tls.html#tls-http[Encrypting HTTP client communications]. As part
+{ref}/security-basic-setup-https.html#encrypt-http-communication[Encrypting HTTP client communications]. As part
 of this configuration, explicitly specify `xpack.security.http.ssl.enabled`
 as `true`.
 
@@ -875,13 +875,11 @@ previously be used to enable compression for all shared file system repositories
 The `repositories.fs.compress` setting has been removed.
 
 *Impact* +
-Use the repository specific `compress` setting to enable compression. See
-{ref}/snapshots-register-repository.html[Register a snapshot repository] for
-information on the `compress` setting.
-
-Discontinue use of the `repositories.fs.compress` node-level setting.
+Discontinue use of the `repositories.fs.compress` node-level setting. Use the
+repository-specific `compress` setting to enable compression instead. Refer to
+{ref}/snapshots-filesystem-repository.html#filesystem-repository-settings[Shared
+file system repository settings].
 ====
-//end::notable-breaking-changes[]
 
 // This change is not notable because it should not have any impact on upgrades
 // However we document it here out of an abundance of caution
@@ -906,4 +904,28 @@ Any node with an explicitly configured value for the password hashing algorithm
 will continue to use that configured value.
 Any node that did not have an explicitly configured password hashing algorithm in
 {es} 6.x or {es} 7.x would have failed to start.
+====
+
+.The `xpack.monitoring.history.duration` will not delete indices created by metricbeat or elastic agent
+[%collapsible]
+====
+*Details* +
+
+Prior to 8.0, Elasticsearch would internally handle removal of all monitoring indices according to the
+`xpack.monitoring.history.duration` setting.
+
+When using metricbeat or elastic agent >= 8.0 to collect monitoring data, indices are managed via an ILM policy. If the setting is present, the policy will be created using the `xpack.monitoring.history.duration` as an initial retention period.
+
+If you need to customize retention settings for monitoring data collected with metricbeat, please update the `.monitoring-8-ilm-policy` ILM policy directly.
+
+The `xpack.monitoring.history.duration` setting will only apply to monitoring indices written using (legacy) internal
+collection, not indices created by metricbeat or agent.
+
+*Impact* +
+After upgrading, insure that the `.monitoring-8-ilm-policy` ILM policy aligns with your desired retention settings.
+
+If you only use
+metricbeat or agent to collect monitoring data, you can also remove any custom `xpack.monitoring.history.duration`
+settings.
+
 ====

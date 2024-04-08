@@ -327,7 +327,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
                 .endObject()
         );
 
-        client().admin().indices().prepareCreate("foo").setMapping(mapping).get();
+        indicesAdmin().prepareCreate("foo").setMapping(mapping).get();
 
         TimeValue throttlePeriod = new TimeValue(60, TimeUnit.MINUTES);
 

@@ -12,6 +12,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -23,6 +24,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -162,11 +164,11 @@ public class PutUserRequestBuilderTests extends ESTestCase {
     public void testWithValidPasswordHash() throws IOException {
         final Hasher hasher = getFastStoredHashAlgoForTests();
         final char[] hash = hasher.hash(new SecureString("secretpassword".toCharArray()));
-        final String json = """
+        final String json = Strings.format("""
             {
               "password_hash": "%s",
               "roles": []
-            }""".formatted(new String(hash));
+            }""", new String(hash));
 
         PutUserRequestBuilder requestBuilder = new PutUserRequestBuilder(mock(Client.class));
         PutUserRequest request = requestBuilder.source(
@@ -179,49 +181,46 @@ public class PutUserRequestBuilderTests extends ESTestCase {
         assertThat(request.username(), equalTo("hash_user"));
     }
 
-    public void testWithMismatchedPasswordHashingAlgorithm() throws IOException {
+    public void testWithDifferentPasswordHashingAlgorithm() throws IOException {
         final Hasher systemHasher = getFastStoredHashAlgoForTests();
         Hasher userHasher = getFastStoredHashAlgoForTests();
         while (userHasher.name().equals(systemHasher.name())) {
             userHasher = getFastStoredHashAlgoForTests();
         }
         final char[] hash = userHasher.hash(new SecureString("secretpassword".toCharArray()));
-        final String json = """
+        final String json = Strings.format("""
             {
               "password_hash": "%s",
               "roles": []
-            }""".formatted(new String(hash));
+            }""", new String(hash));
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
-        final IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> {
-                builder.source("hash_user", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, systemHasher)
-                    .request();
-            }
-        );
-        assertThat(ex.getMessage(), containsString(userHasher.name()));
-        assertThat(ex.getMessage(), containsString(systemHasher.name()));
+        PutUserRequest request = builder.source(
+            "hash_user",
+            new BytesArray(json.getBytes(StandardCharsets.UTF_8)),
+            XContentType.JSON,
+            systemHasher
+        ).request();
+        assertThat(request.passwordHash(), equalTo(hash));
     }
 
     public void testWithPasswordHashThatsNotReallyAHash() throws IOException {
-        final Hasher systemHasher = Hasher.PBKDF2;
-        final String json = """
+        final Hasher systemHasher = Hasher.valueOf(randomFrom(Hasher.getAvailableAlgoStoredHash()).toUpperCase(Locale.ROOT));
+        final char[] hash = randomAlphaOfLengthBetween(14, 20).toCharArray();
+        final String json = Strings.format("""
             {
-              "password_hash": "not-a-hash",
+              "password_hash": "%s",
               "roles": []
-            }""";
+            }""", new String(hash));
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
-        final IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> {
-                builder.source("hash_user", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, systemHasher)
-                    .request();
-            }
+        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
+            builder.source("hash_user", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON, systemHasher).request();
+        });
+        assertThat(
+            ex.getMessage(),
+            containsString("The provided password hash is not a hash or it could not be resolved to a supported hash algorithm.")
         );
-        assertThat(ex.getMessage(), containsString(Hasher.NOOP.name()));
-        assertThat(ex.getMessage(), containsString(systemHasher.name()));
     }
 
     public void testWithBothPasswordAndHash() throws IOException {
@@ -237,10 +236,9 @@ public class PutUserRequestBuilderTests extends ESTestCase {
         );
 
         PutUserRequestBuilder builder = new PutUserRequestBuilder(mock(Client.class));
-        final IllegalArgumentException ex = expectThrows(
-            ValidationException.class,
-            () -> { builder.source("hash_user", json, XContentType.JSON, hasher).request(); }
-        );
+        final IllegalArgumentException ex = expectThrows(ValidationException.class, () -> {
+            builder.source("hash_user", json, XContentType.JSON, hasher).request();
+        });
         assertThat(ex.getMessage(), containsString("password_hash has already been set"));
     }
 }

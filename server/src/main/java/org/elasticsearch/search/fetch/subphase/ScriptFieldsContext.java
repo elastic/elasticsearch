@@ -39,7 +39,7 @@ public class ScriptFieldsContext {
         }
     }
 
-    private List<ScriptField> fields = new ArrayList<>();
+    private final List<ScriptField> fields = new ArrayList<>();
 
     public ScriptFieldsContext() {}
 

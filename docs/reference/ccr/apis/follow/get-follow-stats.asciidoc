@@ -56,6 +56,12 @@ following tasks associated with each shard for the specified indices.
 `<index>`::
   (Required, string) A comma-delimited list of index patterns.
 
+[[ccr-get-follow-stats-query-params]]
+==== {api-query-parms-title}
+
+`timeout`::
+(Optional, time) Controls the amount of time to wait for results. Defaults to unlimited.
+
 [role="child_attributes"]
 [[ccr-get-follow-stats-response-body]]
 ==== {api-response-body-title}
@@ -74,6 +80,9 @@ task. In this situation, the following task must be resumed manually with the
 
 `index`::
 (string) The name of the follower index.
+
+`total_global_checkpoint_lag`::
+(long) Indication of how much the follower is lagging the leader. This is the sum of the difference between the `leader_global_checkpoint` and the `follower_global_checkpoint` for all shards.
 
 //Begin shards
 `shards`::
@@ -219,6 +228,7 @@ The API returns the following results:
   "indices" : [
     {
       "index" : "follower_index",
+      "total_global_checkpoint_lag" : 256,
       "shards" : [
         {
           "remote_cluster" : "remote_cluster",
@@ -255,6 +265,7 @@ The API returns the following results:
   ]
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"total_global_checkpoint_lag" : 256/"total_global_checkpoint_lag" : 0/]
 // TESTRESPONSE[s/"leader_global_checkpoint" : 1024/"leader_global_checkpoint" : $body.indices.0.shards.0.leader_global_checkpoint/]
 // TESTRESPONSE[s/"leader_max_seq_no" : 1536/"leader_max_seq_no" : $body.indices.0.shards.0.leader_max_seq_no/]
 // TESTRESPONSE[s/"follower_global_checkpoint" : 768/"follower_global_checkpoint" : $body.indices.0.shards.0.follower_global_checkpoint/]

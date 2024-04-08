@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,7 +37,6 @@ import java.util.Objects;
  * can be returned if the members have not been set.
  */
 public class AnomalyRecord implements ToXContentObject, Writeable {
-
     /**
      * Result type
      */
@@ -58,6 +58,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
     public static final ParseField INFLUENCERS = new ParseField("influencers");
     public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
     public static final ParseField GEO_RESULTS = new ParseField("geo_results");
+    public static final ParseField ANOMALY_SCORE_EXPLANATION = new ParseField("anomaly_score_explanation");
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("records");
@@ -134,6 +135,11 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
             ignoreUnknownFields ? GeoResults.LENIENT_PARSER : GeoResults.STRICT_PARSER,
             GEO_RESULTS
         );
+        parser.declareObject(
+            AnomalyRecord::setAnomalyScoreExplanation,
+            ignoreUnknownFields ? AnomalyScoreExplanation.LENIENT_PARSER : AnomalyScoreExplanation.STRICT_PARSER,
+            ANOMALY_SCORE_EXPLANATION
+        );
 
         return parser;
     }
@@ -154,6 +160,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
     private boolean isInterim;
     private GeoResults geoResults;
 
+    private AnomalyScoreExplanation anomalyScoreExplanation;
     private String fieldName;
 
     private String overFieldName;
@@ -180,6 +187,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         jobId = in.readString();
         detectorIndex = in.readInt();
         probability = in.readDouble();
+
         multiBucketImpact = in.readOptionalDouble();
         byFieldName = in.readOptionalString();
         byFieldValue = in.readOptionalString();
@@ -199,16 +207,19 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         }
         isInterim = in.readBoolean();
         if (in.readBoolean()) {
-            causes = in.readList(AnomalyCause::new);
+            causes = in.readCollectionAsList(AnomalyCause::new);
         }
         recordScore = in.readDouble();
         initialRecordScore = in.readDouble();
         timestamp = new Date(in.readLong());
         bucketSpan = in.readLong();
         if (in.readBoolean()) {
-            influences = in.readList(Influence::new);
+            influences = in.readCollectionAsList(Influence::new);
         }
         geoResults = in.readOptionalWriteable(GeoResults::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+            anomalyScoreExplanation = in.readOptionalWriteable(AnomalyScoreExplanation::new);
+        }
     }
 
     @Override
@@ -241,7 +252,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         boolean hasCauses = causes != null;
         out.writeBoolean(hasCauses);
         if (hasCauses) {
-            out.writeList(causes);
+            out.writeCollection(causes);
         }
         out.writeDouble(recordScore);
         out.writeDouble(initialRecordScore);
@@ -250,9 +261,12 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         boolean hasInfluencers = influences != null;
         out.writeBoolean(hasInfluencers);
         if (hasInfluencers) {
-            out.writeList(influences);
+            out.writeCollection(influences);
         }
         out.writeOptionalWriteable(geoResults);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
+            out.writeOptionalWriteable(anomalyScoreExplanation);
+        }
     }
 
     @Override
@@ -315,6 +329,9 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         if (geoResults != null) {
             builder.field(GEO_RESULTS.getPreferredName(), geoResults);
         }
+        if (anomalyScoreExplanation != null) {
+            builder.field(ANOMALY_SCORE_EXPLANATION.getPreferredName(), anomalyScoreExplanation);
+        }
 
         Map<String, LinkedHashSet<String>> inputFields = inputFieldMap();
         for (String inputFieldName : inputFields.keySet()) {
@@ -343,7 +360,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         return result;
     }
 
-    private void addInputFieldsToMap(Map<String, LinkedHashSet<String>> inputFields, String inputFieldName, String fieldValue) {
+    private static void addInputFieldsToMap(Map<String, LinkedHashSet<String>> inputFields, String inputFieldName, String fieldValue) {
         if (Strings.isNullOrEmpty(inputFieldName) == false && fieldValue != null) {
             if (ReservedFieldNames.isValidFieldName(inputFieldName)) {
                 inputFields.computeIfAbsent(inputFieldName, k -> new LinkedHashSet<>()).add(fieldValue);
@@ -568,6 +585,14 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         this.geoResults = geoResults;
     }
 
+    public AnomalyScoreExplanation getAnomalyScoreExplanation() {
+        return anomalyScoreExplanation;
+    }
+
+    public void setAnomalyScoreExplanation(AnomalyScoreExplanation anomalyScoreExplanation) {
+        this.anomalyScoreExplanation = anomalyScoreExplanation;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(
@@ -595,7 +620,8 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
             causes,
             influences,
             jobId,
-            geoResults
+            geoResults,
+            anomalyScoreExplanation
         );
     }
 
@@ -634,6 +660,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
             && Objects.equals(this.isInterim, that.isInterim)
             && Objects.equals(this.causes, that.causes)
             && Objects.equals(this.geoResults, that.geoResults)
+            && Objects.equals(this.anomalyScoreExplanation, that.anomalyScoreExplanation)
             && Objects.equals(this.influences, that.influences);
     }
 

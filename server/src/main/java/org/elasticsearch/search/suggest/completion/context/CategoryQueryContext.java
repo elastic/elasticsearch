@@ -72,7 +72,7 @@ public final class CategoryQueryContext implements ToXContentObject {
 
         if (isPrefix != that.isPrefix) return false;
         if (boost != that.boost) return false;
-        return category != null ? category.equals(that.category) : that.category == null;
+        return Objects.equals(category, that.category);
 
     }
 

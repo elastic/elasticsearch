@@ -1,0 +1,78 @@
+xpack.fleet.packages:
+  - name: system
+    version: latest
+  - name: elastic_agent
+    version: latest
+  - name: apm
+    version: latest
+  - name: fleet_server
+    version: latest
+
+xpack.fleet.agentPolicies:
+  - name: Fleet Server + APM policy
+    id: fleet-server-apm-policy
+    description: Fleet server policy with APM and System logs and metrics enabled
+    namespace: default
+    is_default_fleet_server: true
+    is_managed: false
+    monitoring_enabled:
+      - logs
+      - metrics
+    package_policies:
+      - name: system-1
+        package:
+          name: system
+      - name: apm-1
+        package:
+          name: apm
+        inputs:
+          - type: apm
+            keep_enabled: true
+            vars:
+              - name: host
+                value: 0.0.0.0:8200
+                frozen: true
+              - name: url
+                value: "${ELASTIC_APM_SERVER_URL}"
+                frozen: true
+              - name: enable_rum
+                value: true
+                frozen: true
+              - name: read_timeout
+                value: 1m
+                frozen: true
+              - name: shutdown_timeout
+                value: 2m
+                frozen: true
+              - name: write_timeout
+                value: 1m
+                frozen: true
+              - name: rum_allow_headers
+                value:
+                  - x-custom-header
+                frozen: true
+              - name: secret_token
+                value: "${ELASTIC_APM_SECRET_TOKEN}"
+                frozen: true
+              - name: tls_enabled
+                value: ${ELASTIC_APM_TLS}
+                frozen: true
+              - name: tls_certificate
+                value: /usr/share/apmserver/config/certs/tls.crt
+                frozen: true
+              - name: tls_key
+                value: /usr/share/apmserver/config/certs/tls.key
+                frozen: true
+      - name: Fleet Server
+        package:
+          name: fleet_server
+        inputs:
+          - type: fleet-server
+            keep_enabled: true
+            vars:
+              - name: host
+                value: 0.0.0.0
+                frozen: true
+              - name: port
+                value: 8220
+                frozen: true

@@ -6,8 +6,8 @@
  * Side Public License, v 1.
  */
 
-apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.base-internal-es-plugin'
+apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 esplugin {
   name 'system-indices-qa'
@@ -15,11 +15,6 @@ esplugin {
   classname 'org.elasticsearch.system.indices.SystemIndicesQA'
   licenseFile rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
   noticeFile rootProject.file('NOTICE.txt')
-}
-
-tasks.named("test").configure { enabled = false }
-tasks.named("javaRestTest").configure {
-  dependsOn "buildZip"
 }
 
 testClusters.configureEach {

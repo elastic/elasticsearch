@@ -15,30 +15,55 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.BeforeClass;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_TO_REALM_ASSOC_SETTING;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RestAuthenticateActionTests extends SecurityIntegTestCase {
 
     private static boolean anonymousEnabled;
+    private static boolean operatorUser;
+    private static boolean operatorPrivilegesEnabled;
+    private static String domainName;
 
     @BeforeClass
     public static void maybeEnableAnonymous() {
         anonymousEnabled = randomBoolean();
     }
 
+    @BeforeClass
+    public static void maybeSetDomain() {
+        domainName = randomFrom(randomAlphaOfLengthBetween(3, 5), null);
+    }
+
+    @BeforeClass
+    public static void maybeSetOperator() {
+        operatorUser = randomBoolean();
+        operatorPrivilegesEnabled = randomBoolean();
+    }
+
     @Override
     protected boolean addMockHttpTransport() {
         return false; // enable http
+    }
+
+    @Override
+    protected String configOperatorUsers() {
+        return super.configOperatorUsers()
+            + "operator:\n"
+            + "  - usernames: ['"
+            + (operatorUser ? SecuritySettingsSource.TEST_USER_NAME : "_another_user")
+            + "']\n";
     }
 
     @Override
@@ -50,6 +75,10 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
                 .putList(AnonymousUser.ROLES_SETTING.getKey(), SecuritySettingsSource.TEST_ROLE, "foo")
                 .put(AuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), false);
         }
+        if (domainName != null) {
+            builder.put(DOMAIN_TO_REALM_ASSOC_SETTING.getConcreteSettingForNamespace(domainName).getKey(), "file");
+        }
+        builder.put("xpack.security.operator_privileges.enabled", operatorPrivilegesEnabled);
         return builder.build();
     }
 
@@ -69,8 +98,18 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
         assertThat(objectPath.evaluate("username").toString(), equalTo(SecuritySettingsSource.TEST_USER_NAME));
         assertThat(objectPath.evaluate("authentication_realm.name").toString(), equalTo("file"));
         assertThat(objectPath.evaluate("authentication_realm.type").toString(), equalTo("file"));
+        if (domainName != null) {
+            assertThat(objectPath.evaluate("authentication_realm.domain").toString(), equalTo(domainName));
+        } else {
+            assertThat(objectPath.evaluate("lookup_realm.domain"), nullValue());
+        }
         assertThat(objectPath.evaluate("lookup_realm.name").toString(), equalTo("file"));
         assertThat(objectPath.evaluate("lookup_realm.type").toString(), equalTo("file"));
+        if (domainName != null) {
+            assertThat(objectPath.evaluate("lookup_realm.domain").toString(), equalTo(domainName));
+        } else {
+            assertThat(objectPath.evaluate("lookup_realm.domain"), nullValue());
+        }
         assertThat(objectPath.evaluate("authentication_type").toString(), equalTo("realm"));
         List<String> roles = objectPath.evaluate("roles");
         if (anonymousEnabled) {
@@ -79,6 +118,11 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
         } else {
             assertThat(roles.size(), is(1));
             assertThat(roles, contains(SecuritySettingsSource.TEST_ROLE));
+        }
+        if (operatorUser && operatorPrivilegesEnabled) {
+            assertThat(objectPath.evaluate("operator"), equalTo(true));
+        } else {
+            assertThat(objectPath.evaluate("operator"), equalTo(null));
         }
     }
 

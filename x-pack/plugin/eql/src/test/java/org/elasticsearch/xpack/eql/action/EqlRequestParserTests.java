@@ -11,9 +11,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -25,8 +25,8 @@ import static org.hamcrest.Matchers.containsString;
 
 public class EqlRequestParserTests extends ESTestCase {
 
-    private static final NamedXContentRegistry REGISTRY = new NamedXContentRegistry(
-        new SearchModule(Settings.EMPTY, List.of()).getNamedXContents()
+    private static final XContentParserConfiguration PARSER_CONFIG = XContentParserConfiguration.EMPTY.withRegistry(
+        new NamedXContentRegistry(new SearchModule(Settings.EMPTY, List.of()).getNamedXContents())
     );
 
     public void testUnknownFieldParsingErrors() throws IOException {
@@ -96,8 +96,6 @@ public class EqlRequestParserTests extends ESTestCase {
     }
 
     private XContentParser parser(String content) throws IOException {
-        XContentType xContentType = XContentType.JSON;
-
-        return xContentType.xContent().createParser(REGISTRY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, content);
+        return XContentType.JSON.xContent().createParser(PARSER_CONFIG, content);
     }
 }

@@ -20,9 +20,12 @@ produce a variety of token types, including `<ALPHANUM>`, `<HANGUL>`, and
 <<analysis-lowercase-tokenizer,`lowercase`>> tokenizer, only produce the `word`
 token type.
 
-Certain token filters can also add token types. For example, the 
+Certain token filters can also add token types. For example, the
 <<analysis-synonym-tokenfilter,`synonym`>> filter can add the `<SYNONYM>` token
 type.
+
+Some tokenizers don't support this token filter, for example keyword, simple_pattern, and
+simple_pattern_split tokenizers, as they don't support setting the token type attribute.
 ====
 
 This filter uses Lucene's
@@ -156,7 +159,7 @@ The filter produces the following tokens:
 List of token types to keep or remove.
 
 `mode`::
-(Optional, string) 
+(Optional, string)
 Indicates whether to keep or remove the specified token types.
 Valid values are:
 

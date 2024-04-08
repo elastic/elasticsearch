@@ -8,24 +8,22 @@ package org.elasticsearch.xpack.security.rest.action.user;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -35,7 +33,8 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  * Rest endpoint to add a User to the security index
  */
-public class RestPutUserAction extends SecurityBaseRestHandler implements RestRequestFilter {
+@ServerlessScope(Scope.INTERNAL)
+public class RestPutUserAction extends NativeUserBaseRestHandler implements RestRequestFilter {
 
     private final Hasher passwordHasher;
 
@@ -72,12 +71,12 @@ public class RestPutUserAction extends SecurityBaseRestHandler implements RestRe
             @Override
             public RestResponse buildResponse(PutUserResponse putUserResponse, XContentBuilder builder) throws Exception {
                 putUserResponse.toXContent(builder, request);
-                return new BytesRestResponse(RestStatus.OK, builder);
+                return new RestResponse(RestStatus.OK, builder);
             }
         });
     }
 
-    private static final Set<String> FILTERED_FIELDS = Collections.unmodifiableSet(Sets.newHashSet("password", "password_hash"));
+    private static final Set<String> FILTERED_FIELDS = Set.of("password", "password_hash");
 
     @Override
     public Set<String> getFilteredFields() {

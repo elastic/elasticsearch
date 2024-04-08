@@ -8,9 +8,9 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -18,7 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xcontent.ParseField;
@@ -30,7 +30,6 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashMap;
@@ -41,7 +40,7 @@ import java.util.Objects;
  * {@link StoredScriptSource} represents user-defined parameters for a script
  * saved in the {@link ClusterState}.
  */
-public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> implements Writeable, ToXContentObject {
+public class StoredScriptSource implements SimpleDiffable<StoredScriptSource>, Writeable, ToXContentObject {
     /**
      * Standard {@link ParseField} for outer level of stored script source.
      */
@@ -186,9 +185,11 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      */
     public static StoredScriptSource parse(BytesReference content, XContentType xContentType) {
         try (
-            InputStream stream = content.streamInput();
-            XContentParser parser = xContentType.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                content,
+                xContentType
+            )
         ) {
             Token token = parser.nextToken();
 
@@ -259,7 +260,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * constructor.
      */
     public static Diff<StoredScriptSource> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(StoredScriptSource::new, in);
+        return SimpleDiffable.readDiffFrom(StoredScriptSource::new, in);
     }
 
     private final String lang;
@@ -288,7 +289,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         this.lang = in.readString();
         this.source = in.readString();
         @SuppressWarnings("unchecked")
-        Map<String, String> options = (Map<String, String>) (Map) in.readMap();
+        Map<String, String> options = (Map<String, String>) (Map) in.readGenericMap();
         this.options = options;
     }
 
@@ -302,7 +303,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         out.writeString(source);
         @SuppressWarnings("unchecked")
         Map<String, Object> options = (Map<String, Object>) (Map) this.options;
-        out.writeMap(options);
+        out.writeGenericMap(options);
     }
 
     /**

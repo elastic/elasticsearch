@@ -9,9 +9,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.Orientation;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -19,6 +17,12 @@ import java.util.function.Function;
  * Base class for {@link GeoShapeFieldMapper}
  */
 public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeometryFieldMapper<T> {
+    @Override
+    protected boolean supportsParsingObject() {
+        // ShapeGeometryFieldMapper supports parsing Well-Known Text (WKT) and GeoJSON.
+        // WKT are of type String and GeoJSON for all shapes are of type Array.
+        return false;
+    }
 
     public static Parameter<Explicit<Boolean>> coerceParam(Function<FieldMapper, Explicit<Boolean>> initializer, boolean coerceByDefault) {
         return Parameter.explicitBoolParam("coerce", true, initializer, coerceByDefault);
@@ -51,12 +55,18 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             Orientation orientation,
             Map<String, String> meta
         ) {
-            super(name, isSearchable, isStored, hasDocValues, parser, meta);
+            super(name, isSearchable, isStored, hasDocValues, parser, null, meta);
             this.orientation = orientation;
         }
 
         public Orientation orientation() {
             return this.orientation;
+        }
+
+        @Override
+        protected Object nullValueAsSource(T nullValue) {
+            // we don't support null value fors shapes
+            return nullValue;
         }
     }
 
@@ -66,7 +76,6 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
     protected AbstractShapeGeometryFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        Map<String, NamedAnalyzer> indexAnalyzers,
         Explicit<Boolean> ignoreMalformed,
         Explicit<Boolean> coerce,
         Explicit<Boolean> ignoreZValue,
@@ -75,7 +84,7 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
         CopyTo copyTo,
         Parser<T> parser
     ) {
-        super(simpleName, mappedFieldType, indexAnalyzers, ignoreMalformed, ignoreZValue, multiFields, copyTo, parser);
+        super(simpleName, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo, parser);
         this.coerce = coerce;
         this.orientation = orientation;
     }
@@ -83,26 +92,16 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
     protected AbstractShapeGeometryFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        Explicit<Boolean> ignoreMalformed,
-        Explicit<Boolean> coerce,
-        Explicit<Boolean> ignoreZValue,
-        Explicit<Orientation> orientation,
         MultiFields multiFields,
+        Explicit<Boolean> coerce,
+        Explicit<Orientation> orientation,
         CopyTo copyTo,
-        Parser<T> parser
+        Parser<T> parser,
+        OnScriptError onScriptError
     ) {
-        this(
-            simpleName,
-            mappedFieldType,
-            Collections.emptyMap(),
-            ignoreMalformed,
-            coerce,
-            ignoreZValue,
-            orientation,
-            multiFields,
-            copyTo,
-            parser
-        );
+        super(simpleName, mappedFieldType, multiFields, copyTo, parser, onScriptError);
+        this.coerce = coerce;
+        this.orientation = orientation;
     }
 
     public boolean coerce() {

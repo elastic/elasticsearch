@@ -9,6 +9,7 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -30,10 +31,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
@@ -368,7 +371,7 @@ public class RecoveryTargetTests extends ESTestCase {
     }
 
     public void testStageSequenceEnforcement() {
-        final DiscoveryNode discoveryNode = new DiscoveryNode("1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        final DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("1").roles(emptySet()).build();
         final AssertionError error = expectThrows(AssertionError.class, () -> {
             Stage[] stages = Stage.values();
             int i = randomIntBetween(0, stages.length - 1);
@@ -587,6 +590,37 @@ public class RecoveryTargetTests extends ESTestCase {
             } else if (f.hashCode() != anotherFile.hashCode()) {
                 assertFalse(f.equals(anotherFile));
             }
+        }
+    }
+
+    public void testConcurrentlyAddRecoveredFromSnapshotBytes() {
+        var index = new RecoveryState.Index();
+        int numIndices = randomIntBetween(1, 4);
+        for (int i = 0; i < numIndices; i++) {
+            index.addFileDetail("foo_" + i, randomIntBetween(1, 100), false);
+        }
+
+        var executor = Executors.newFixedThreadPool(randomIntBetween(2, 8));
+        try {
+            int count = randomIntBetween(1000, 10_000);
+            var latch = new CountDownLatch(count);
+            var recoveredBytes = new AtomicLong();
+            for (int i = 0; i < count; i++) {
+                String indexName = "foo_" + (i % numIndices);
+                executor.submit(() -> {
+                    int bytes = randomIntBetween(1, 1000);
+                    // This is safe because the whole addRecoveredFromSnapshotBytesToFile method is synchronized
+                    index.addRecoveredFromSnapshotBytesToFile(indexName, bytes);
+                    // This fails because only getFileDetails is synchronized
+                    // index.getFileDetails(indexName).addRecoveredFromSnapshotBytes(bytes);
+                    recoveredBytes.addAndGet(bytes);
+                    latch.countDown();
+                });
+            }
+            safeAwait(latch);
+            assertEquals(recoveredBytes.get(), index.recoveredFromSnapshotBytes());
+        } finally {
+            executor.shutdownNow();
         }
     }
 }

@@ -17,15 +17,17 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.Set;
-import java.util.stream.Stream;
 
-public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> implements Accountable, RawIndexingDataTransportRequest {
+public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest>
+    implements
+        Accountable,
+        RawIndexingDataTransportRequest {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
@@ -72,7 +74,7 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
         // These alias names have to be exposed by this method because authorization works with
         // aliases too, specifically, the item's target alias can be authorized but the concrete
         // index might not be.
-        Set<String> indices = new HashSet<>(1);
+        Set<String> indices = Sets.newHashSetWithExpectedSize(1);
         for (BulkItemRequest item : items) {
             if (item != null) {
                 indices.add(item.index());
@@ -146,6 +148,10 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + Stream.of(items).mapToLong(Accountable::ramBytesUsed).sum();
+        long sum = SHALLOW_SIZE;
+        for (BulkItemRequest item : items) {
+            sum += item.ramBytesUsed();
+        }
+        return sum;
     }
 }

@@ -9,9 +9,9 @@
 package org.elasticsearch.plugins.cli;
 
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -54,6 +54,6 @@ class ProxyUtils {
      * @return whether the arguments describe a potentially valid proxy.
      */
     static boolean validateProxy(String hostname, String port) {
-        return Strings.isNullOrEmpty(hostname) == false && port != null && port.matches("^\\d+$") != false;
+        return Strings.isNullOrEmpty(hostname) == false && port != null && port.matches("^\\d+$");
     }
 }

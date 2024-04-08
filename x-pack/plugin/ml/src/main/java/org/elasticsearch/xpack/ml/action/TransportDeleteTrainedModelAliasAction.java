@@ -16,13 +16,15 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.rest.RestStatus;
@@ -30,7 +32,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAliasAction;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
 import java.util.HashMap;
@@ -65,7 +67,7 @@ public class TransportDeleteTrainedModelAliasAction extends AcknowledgedTranspor
             actionFilters,
             DeleteTrainedModelAliasAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.auditor = auditor;
         this.ingestService = ingestService;
@@ -78,12 +80,17 @@ public class TransportDeleteTrainedModelAliasAction extends AcknowledgedTranspor
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        clusterService.submitStateUpdateTask("delete-model-alias", new AckedClusterStateUpdateTask(request, listener) {
+        submitUnbatchedTask("delete-model-alias", new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(final ClusterState currentState) {
                 return deleteModelAlias(currentState, ingestService, auditor, request);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     static ClusterState deleteModelAlias(

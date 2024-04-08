@@ -8,8 +8,8 @@
 
 package org.elasticsearch.indices.recovery.plan;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
@@ -66,16 +66,12 @@ public class ShardSnapshot {
         return shardSnapshotInfo.getIndexId();
     }
 
-    public long getStartedAt() {
-        return shardSnapshotInfo.getStartedAt();
-    }
-
     public ShardSnapshotInfo getShardSnapshotInfo() {
         return shardSnapshotInfo;
     }
 
     @Nullable
-    public Version getCommitVersion() {
+    public IndexVersion getCommitVersion() {
         return metadataSnapshot.getCommitVersion();
     }
 
@@ -84,7 +80,7 @@ public class ShardSnapshot {
     }
 
     public List<BlobStoreIndexShardSnapshot.FileInfo> getSnapshotFilesMatching(List<StoreFileMetadata> segmentFiles) {
-        return segmentFiles.stream().map(storeFileMetadata -> snapshotFiles.get(storeFileMetadata.name())).collect(Collectors.toList());
+        return segmentFiles.stream().map(storeFileMetadata -> snapshotFiles.get(storeFileMetadata.name())).toList();
     }
 
     public List<BlobStoreIndexShardSnapshot.FileInfo> getSnapshotFiles() {

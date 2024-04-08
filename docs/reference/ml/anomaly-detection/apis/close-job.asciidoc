@@ -41,7 +41,7 @@ Depending upon the size of the job, it could take several minutes to close and
 the equivalent time to re-open.
 
 After it is closed, the job has a minimal overhead on the cluster except for
-maintaining its meta data. Therefore it is a best practice to close jobs that
+maintaining its metadata. Therefore it is a best practice to close jobs that
 are no longer required to process data.
 
 When a {dfeed} that has a specified end date stops, it automatically closes

@@ -12,7 +12,7 @@
   - do:
       update:
           index:  test_1
-          id:     1
+          id:     "1"
           parent: 5
           fields: [ _routing ]
           body:
@@ -24,7 +24,7 @@
   - do:
       get:
           index:  test_1
-          id:     1
+          id:     "1"
           parent: 5
           stored_fields: [ _routing ]
 

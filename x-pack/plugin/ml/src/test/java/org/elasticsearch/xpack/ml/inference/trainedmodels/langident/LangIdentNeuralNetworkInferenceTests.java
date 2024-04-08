@@ -179,7 +179,7 @@ public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
         TrainedModelProvider trainedModelProvider = new TrainedModelProvider(mock(Client.class), xContentRegistry());
         PlainActionFuture<TrainedModelConfig> future = new PlainActionFuture<>();
         // Should be OK as we don't make any client calls
-        trainedModelProvider.getTrainedModel("lang_ident_model_1", GetTrainedModelsAction.Includes.forModelDefinition(), future);
+        trainedModelProvider.getTrainedModel("lang_ident_model_1", GetTrainedModelsAction.Includes.forModelDefinition(), null, future);
         TrainedModelConfig config = future.actionGet();
 
         config.ensureParsedDefinition(xContentRegistry());

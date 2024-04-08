@@ -6,13 +6,12 @@
  */
 package org.elasticsearch.xpack.core.common.notifications;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
@@ -22,10 +21,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -70,6 +67,8 @@ public class AbstractAuditorTests extends ESTestCase {
     private static final String TEST_ORIGIN = "test_origin";
     private static final String TEST_INDEX = "test_index";
 
+    private static final int TEST_TEMPLATE_VERSION = 23456789;
+
     private Client client;
     private ArgumentCaptor<IndexRequest> indexRequestCaptor;
     private long startMillis;
@@ -99,7 +98,7 @@ public class AbstractAuditorTests extends ESTestCase {
         AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled();
         auditor.info("foo", "Here is my info");
 
-        verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
+        verify(client).execute(eq(TransportIndexAction.TYPE), indexRequestCaptor.capture(), any());
         IndexRequest indexRequest = indexRequestCaptor.getValue();
         assertThat(indexRequest.indices(), arrayContaining(TEST_INDEX));
         assertThat(indexRequest.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
@@ -118,7 +117,7 @@ public class AbstractAuditorTests extends ESTestCase {
         AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled();
         auditor.warning("bar", "Here is my warning");
 
-        verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
+        verify(client).execute(eq(TransportIndexAction.TYPE), indexRequestCaptor.capture(), any());
         IndexRequest indexRequest = indexRequestCaptor.getValue();
         assertThat(indexRequest.indices(), arrayContaining(TEST_INDEX));
         assertThat(indexRequest.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
@@ -137,7 +136,7 @@ public class AbstractAuditorTests extends ESTestCase {
         AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled();
         auditor.error("foobar", "Here is my error");
 
-        verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
+        verify(client).execute(eq(TransportIndexAction.TYPE), indexRequestCaptor.capture(), any());
         IndexRequest indexRequest = indexRequestCaptor.getValue();
         assertThat(indexRequest.indices(), arrayContaining(TEST_INDEX));
         assertThat(indexRequest.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
@@ -145,6 +144,27 @@ public class AbstractAuditorTests extends ESTestCase {
         assertThat(auditMessage.getResourceId(), equalTo("foobar"));
         assertThat(auditMessage.getMessage(), equalTo("Here is my error"));
         assertThat(auditMessage.getLevel(), equalTo(Level.ERROR));
+        assertThat(
+            auditMessage.getTimestamp().getTime(),
+            allOf(greaterThanOrEqualTo(startMillis), lessThanOrEqualTo(System.currentTimeMillis()))
+        );
+        assertThat(auditMessage.getNodeName(), equalTo(TEST_NODE_NAME));
+    }
+
+    public void testAudit() throws IOException {
+        Level level = randomFrom(Level.ERROR, Level.INFO, Level.WARNING);
+
+        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled();
+        auditor.audit(level, "r_id", "Here is my audit");
+
+        verify(client).execute(eq(TransportIndexAction.TYPE), indexRequestCaptor.capture(), any());
+        IndexRequest indexRequest = indexRequestCaptor.getValue();
+        assertThat(indexRequest.indices(), arrayContaining(TEST_INDEX));
+        assertThat(indexRequest.timeout(), equalTo(TimeValue.timeValueSeconds(5)));
+        AbstractAuditMessageTests.TestAuditMessage auditMessage = parseAuditMessage(indexRequest.source());
+        assertThat(auditMessage.getResourceId(), equalTo("r_id"));
+        assertThat(auditMessage.getMessage(), equalTo("Here is my audit"));
+        assertThat(auditMessage.getLevel(), equalTo(level));
         assertThat(
             auditMessage.getTimestamp().getTime(),
             allOf(greaterThanOrEqualTo(startMillis), lessThanOrEqualTo(System.currentTimeMillis()))
@@ -162,19 +182,19 @@ public class AbstractAuditorTests extends ESTestCase {
         auditor.warning("foobar", "Here is my warning to queue");
         auditor.info("foobar", "Here is my info to queue");
 
-        verify(client, never()).execute(eq(IndexAction.INSTANCE), any(), any());
+        verify(client, never()).execute(eq(TransportIndexAction.TYPE), any(), any());
         // fire the put template response
         writeSomeDocsBeforeTemplateLatch.countDown();
 
         // the back log will be written some point later
         ArgumentCaptor<BulkRequest> bulkCaptor = ArgumentCaptor.forClass(BulkRequest.class);
-        assertBusy(() -> verify(client, times(1)).execute(eq(BulkAction.INSTANCE), bulkCaptor.capture(), any()));
+        assertBusy(() -> verify(client, times(1)).execute(eq(TransportBulkAction.TYPE), bulkCaptor.capture(), any()));
 
         BulkRequest bulkRequest = bulkCaptor.getValue();
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
 
         auditor.info("foobar", "Here is another message");
-        verify(client, times(1)).execute(eq(IndexAction.INSTANCE), any(), any());
+        verify(client, times(1)).execute(eq(TransportIndexAction.TYPE), any(), any());
     }
 
     public void testMaxBufferSize() throws Exception {
@@ -206,17 +226,13 @@ public class AbstractAuditorTests extends ESTestCase {
     }
 
     private TestAuditor createTestAuditorWithTemplateInstalled() {
-        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates = ImmutableOpenMap.builder(1);
-        templates.put(TEST_INDEX, mock(IndexTemplateMetadata.class));
+        Map<String, IndexTemplateMetadata> templates = Map.of(TEST_INDEX, mock(IndexTemplateMetadata.class));
         Map<String, ComposableIndexTemplate> templatesV2 = Collections.singletonMap(TEST_INDEX, mock(ComposableIndexTemplate.class));
         Metadata metadata = mock(Metadata.class);
-        when(metadata.getTemplates()).thenReturn(templates.build());
+        when(metadata.getTemplates()).thenReturn(templates);
         when(metadata.templatesV2()).thenReturn(templatesV2);
-        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
-        when(nodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
         ClusterState state = mock(ClusterState.class);
         when(state.getMetadata()).thenReturn(metadata);
-        when(state.nodes()).thenReturn(nodes);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(state);
 
@@ -246,21 +262,17 @@ public class AbstractAuditorTests extends ESTestCase {
             threadPool.generic().submit(onPutTemplate);
 
             return null;
-        }).when(client).execute(eq(PutComposableIndexTemplateAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportPutComposableIndexTemplateAction.TYPE), any(), any());
 
         IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
         AdminClient adminClient = mock(AdminClient.class);
         when(adminClient.indices()).thenReturn(indicesAdminClient);
         when(client.admin()).thenReturn(adminClient);
 
-        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates = ImmutableOpenMap.builder(0);
         Metadata metadata = mock(Metadata.class);
-        when(metadata.getTemplates()).thenReturn(templates.build());
-        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
-        when(nodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
+        when(metadata.getTemplates()).thenReturn(Map.of());
         ClusterState state = mock(ClusterState.class);
         when(state.getMetadata()).thenReturn(metadata);
-        when(state.nodes()).thenReturn(nodes);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(state);
 
@@ -275,12 +287,12 @@ public class AbstractAuditorTests extends ESTestCase {
                 TEST_INDEX,
                 new IndexTemplateConfig(
                     TEST_INDEX,
-                    "/org/elasticsearch/xpack/core/ml/notifications_index_template.json",
-                    Version.CURRENT.id,
+                    "/ml/notifications_index_template.json",
+                    TEST_TEMPLATE_VERSION,
                     "xpack.ml.version",
                     Map.of(
                         "xpack.ml.version.id",
-                        String.valueOf(Version.CURRENT.id),
+                        String.valueOf(TEST_TEMPLATE_VERSION),
                         "xpack.ml.notifications.mappings",
                         NotificationsIndex.mapping()
                     )

@@ -34,7 +34,7 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.core.security.CommandLineHttpClient.createURL;
 import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePassword;
 
-public class ResetPasswordTool extends BaseRunAsSuperuserCommand {
+class ResetPasswordTool extends BaseRunAsSuperuserCommand {
 
     private final Function<Environment, CommandLineHttpClient> clientFunction;
     private final OptionSpecBuilder interactive;
@@ -42,12 +42,8 @@ public class ResetPasswordTool extends BaseRunAsSuperuserCommand {
     private final OptionSpecBuilder batch;
     private final OptionSpec<String> usernameOption;
 
-    public ResetPasswordTool() {
+    ResetPasswordTool() {
         this(CommandLineHttpClient::new, environment -> KeyStoreWrapper.load(environment.configFile()));
-    }
-
-    public static void main(String[] args) throws Exception {
-        exit(new ResetPasswordTool().main(args, Terminal.DEFAULT));
     }
 
     protected ResetPasswordTool(
@@ -132,7 +128,7 @@ public class ResetPasswordTool extends BaseRunAsSuperuserCommand {
         }
     }
 
-    private SecureString promptForPassword(Terminal terminal, String providedUsername) {
+    private static SecureString promptForPassword(Terminal terminal, String providedUsername) {
         while (true) {
             SecureString password1 = new SecureString(terminal.readSecret("Enter password for [" + providedUsername + "]: "));
             Validation.Error err = Validation.Users.validatePassword(password1);
@@ -154,7 +150,7 @@ public class ResetPasswordTool extends BaseRunAsSuperuserCommand {
         }
     }
 
-    private String requestBodySupplier(SecureString pwd) throws Exception {
+    private static String requestBodySupplier(SecureString pwd) throws Exception {
         XContentBuilder xContentBuilder = JsonXContent.contentBuilder();
         xContentBuilder.startObject().field("password", pwd.toString()).endObject();
         return Strings.toString(xContentBuilder);

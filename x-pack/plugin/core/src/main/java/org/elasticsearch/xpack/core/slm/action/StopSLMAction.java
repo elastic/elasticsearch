@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.slm.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -20,7 +19,7 @@ public class StopSLMAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/slm/stop";
 
     protected StopSLMAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -30,11 +29,6 @@ public class StopSLMAction extends ActionType<AcknowledgedResponse> {
         }
 
         public Request() {}
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
 
         @Override
         public int hashCode() {

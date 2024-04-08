@@ -13,6 +13,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.comparators.DoubleComparator;
@@ -65,20 +66,20 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
             final BitSet rootDocs = nested.rootDocs(context);
             final DocIdSetIterator innerDocs = nested.innerDocs(context);
             final int maxChildren = nested.getNestedSort() != null ? nested.getNestedSort().getMaxChildren() : Integer.MAX_VALUE;
-            return sortMode.select(values, missingValue, rootDocs, innerDocs, context.reader().maxDoc(), maxChildren);
+            return sortMode.select(values, missingValue, rootDocs, innerDocs, maxChildren);
         }
     }
 
     protected void setScorer(Scorable scorer) {}
 
     @Override
-    public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) {
+    public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning enableSkipping, boolean reversed) {
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final double dMissingValue = (Double) missingObject(missingValue, reversed);
         // NOTE: it's important to pass null as a missing value in the constructor so that
         // the comparator doesn't check docsWithField since we replace missing values in select()
-        DoubleComparator comparator = new DoubleComparator(numHits, null, null, reversed, sortPos) {
+        return new DoubleComparator(numHits, null, null, reversed, Pruning.NONE) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 return new DoubleLeafComparator(context) {
@@ -94,9 +95,6 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
                 };
             }
         };
-        // TODO: when LUCENE-10154 is available, instead of disableSkipping this comparator should implement `getPointValue`
-        comparator.disableSkipping();
-        return comparator;
     }
 
     @Override

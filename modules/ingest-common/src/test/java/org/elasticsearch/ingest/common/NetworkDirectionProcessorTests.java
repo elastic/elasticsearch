@@ -10,11 +10,12 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,20 +34,10 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
     }
 
     private Map<String, Object> buildEvent(String source, String destination) {
-        return new HashMap<>() {
-            {
-                put("source", new HashMap<String, Object>() {
-                    {
-                        put("ip", source);
-                    }
-                });
-                put("destination", new HashMap<String, Object>() {
-                    {
-                        put("ip", destination);
-                    }
-                });
-            }
-        };
+        Map<String, Object> event = new HashMap<>();
+        event.put("source", Collections.singletonMap("ip", source));
+        event.put("destination", Collections.singletonMap("ip", destination));
+        return event;
     }
 
     public void testNoInternalNetworks() throws Exception {
@@ -149,7 +140,7 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
             null,
             config
         );
-        IngestDocument input = new IngestDocument(source, Map.of());
+        IngestDocument input = TestIngestDocument.withDefaultVersion(source);
         IngestDocument output = processor.execute(input);
         String hash = output.getFieldValue(DEFAULT_TARGET, String.class);
         assertThat(hash, equalTo("external"));
@@ -182,7 +173,7 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
     ) throws Exception {
         List<String> networks = null;
 
-        if (internalNetworks != null) networks = Arrays.asList(internalNetworks);
+        if (internalNetworks != null) networks = List.of(internalNetworks);
 
         String processorTag = randomAlphaOfLength(10);
         Map<String, Object> config = new HashMap<>();
@@ -195,7 +186,7 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
             config
         );
 
-        IngestDocument input = new IngestDocument(source, Map.of());
+        IngestDocument input = TestIngestDocument.withDefaultVersion(source);
         IngestDocument output = processor.execute(input);
 
         String hash = output.getFieldValue(DEFAULT_TARGET, String.class, ignoreMissing);

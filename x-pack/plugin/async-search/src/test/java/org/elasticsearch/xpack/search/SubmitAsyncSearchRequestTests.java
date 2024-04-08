@@ -65,6 +65,11 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
         return searchRequest;
     }
 
+    @Override
+    protected SubmitAsyncSearchRequest mutateInstance(SubmitAsyncSearchRequest instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     protected SearchSourceBuilder randomSearchSourceBuilder() {
         SearchSourceBuilder source = new SearchSourceBuilder();
         if (randomBoolean()) {
@@ -80,9 +85,7 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
         SubmitAsyncSearchRequest req = new SubmitAsyncSearchRequest();
         req.getSearchRequest().setCcsMinimizeRoundtrips(true);
         ActionRequestValidationException exc = req.validate();
-        assertNotNull(exc);
-        assertThat(exc.validationErrors().size(), equalTo(1));
-        assertThat(exc.validationErrors().get(0), containsString("[ccs_minimize_roundtrips]"));
+        assertNull(exc);
     }
 
     public void testValidateScroll() {

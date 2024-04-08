@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -84,6 +85,11 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     }
 
     private final List<String> featureNames;
+
+    public List<TrainedModel> getModels() {
+        return models;
+    }
+
     private final List<TrainedModel> models;
     private final OutputAggregator outputAggregator;
     private final TargetType targetType;
@@ -109,12 +115,12 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     }
 
     public Ensemble(StreamInput in) throws IOException {
-        this.featureNames = Collections.unmodifiableList(in.readStringList());
-        this.models = Collections.unmodifiableList(in.readNamedWriteableList(TrainedModel.class));
+        this.featureNames = in.readCollectionAsImmutableList(StreamInput::readString);
+        this.models = Collections.unmodifiableList(in.readNamedWriteableCollectionAsList(TrainedModel.class));
         this.outputAggregator = in.readNamedWriteable(OutputAggregator.class);
         this.targetType = TargetType.fromStream(in);
         if (in.readBoolean()) {
-            this.classificationLabels = in.readStringList();
+            this.classificationLabels = in.readStringCollectionAsList();
         } else {
             this.classificationLabels = null;
         }
@@ -138,7 +144,7 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(featureNames);
-        out.writeNamedWriteableList(models);
+        out.writeNamedWriteableCollection(models);
         out.writeNamedWriteable(outputAggregator);
         targetType.writeTo(out);
         out.writeBoolean(classificationLabels != null);
@@ -276,8 +282,11 @@ public class Ensemble implements LenientlyParsedTrainedModel, StrictlyParsedTrai
     }
 
     @Override
-    public Version getMinimalCompatibilityVersion() {
-        return models.stream().map(TrainedModel::getMinimalCompatibilityVersion).max(Version::compareTo).orElse(Version.V_7_6_0);
+    public TransportVersion getMinimalCompatibilityVersion() {
+        return models.stream()
+            .map(TrainedModel::getMinimalCompatibilityVersion)
+            .max(TransportVersion::compareTo)
+            .orElse(TransportVersions.V_7_6_0);
     }
 
     public static class Builder {

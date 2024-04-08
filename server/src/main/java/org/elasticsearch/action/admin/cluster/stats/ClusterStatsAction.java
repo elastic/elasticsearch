@@ -16,6 +16,6 @@ public class ClusterStatsAction extends ActionType<ClusterStatsResponse> {
     public static final String NAME = "cluster:monitor/stats";
 
     private ClusterStatsAction() {
-        super(NAME, ClusterStatsResponse::new);
+        super(NAME);
     }
 }

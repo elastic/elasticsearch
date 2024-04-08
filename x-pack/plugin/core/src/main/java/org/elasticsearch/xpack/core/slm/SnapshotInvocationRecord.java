@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.slm;
 
-import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.Diffable;
+import org.elasticsearch.cluster.SimpleDiffable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -26,16 +26,13 @@ import java.util.Objects;
  * Holds information about Snapshots kicked off by Snapshot Lifecycle Management in the cluster state, so that this information can be
  * presented to the user. This class is used for both successes and failures as the structure of the data is very similar.
  */
-public class SnapshotInvocationRecord extends AbstractDiffable<SnapshotInvocationRecord>
-    implements
-        Writeable,
-        ToXContentObject,
-        Diffable<SnapshotInvocationRecord> {
+public class SnapshotInvocationRecord implements SimpleDiffable<SnapshotInvocationRecord>, Writeable, ToXContentObject {
 
     static final ParseField SNAPSHOT_NAME = new ParseField("snapshot_name");
     static final ParseField START_TIMESTAMP = new ParseField("start_time");
     static final ParseField TIMESTAMP = new ParseField("time");
     static final ParseField DETAILS = new ParseField("details");
+    static final int MAX_DETAILS_LENGTH = 1000;
 
     private final String snapshotName;
     private final Long snapshotStartTimestamp;
@@ -59,11 +56,16 @@ public class SnapshotInvocationRecord extends AbstractDiffable<SnapshotInvocatio
         return PARSER.apply(parser, name);
     }
 
-    public SnapshotInvocationRecord(String snapshotName, Long snapshotStartTimestamp, long snapshotFinishTimestamp, String details) {
+    public SnapshotInvocationRecord(
+        String snapshotName,
+        Long snapshotStartTimestamp,
+        long snapshotFinishTimestamp,
+        @Nullable String details
+    ) {
         this.snapshotName = Objects.requireNonNull(snapshotName, "snapshot name must be provided");
         this.snapshotStartTimestamp = snapshotStartTimestamp;
         this.snapshotFinishTimestamp = snapshotFinishTimestamp;
-        this.details = details;
+        this.details = Strings.substring(details, 0, MAX_DETAILS_LENGTH);
     }
 
     public SnapshotInvocationRecord(StreamInput in) throws IOException {

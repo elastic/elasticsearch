@@ -11,8 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -56,6 +56,7 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
     public NativePyTorchProcess createProcess(
         TrainedModelDeploymentTask task,
         ExecutorService executorService,
+        TimeoutRunnable afterInStreamClose,
         Consumer<String> onProcessCrash
     ) {
         ProcessPipes processPipes = new ProcessPipes(
@@ -63,31 +64,32 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
             NAMED_PIPE_HELPER,
             processConnectTimeout,
             PyTorchBuilder.PROCESS_NAME,
-            task.getModelId(),
+            task.getDeploymentId(),
             null,
             false,
             true,
             true,
             true,
-            false
+            false // We do not need a persist pipe. This is also why we use 3 threads per model assignment in the pytorch thread pool.
         );
 
         executeProcess(processPipes, task);
 
         NativePyTorchProcess process = new NativePyTorchProcess(
-            task.getModelId(),
+            task.getDeploymentId(),
             nativeController,
             processPipes,
             0,
             Collections.emptyList(),
+            afterInStreamClose,
             onProcessCrash
         );
 
         try {
             process.start(executorService);
         } catch (IOException | EsRejectedExecutionException e) {
-            String msg = "Failed to connect to pytorch process for job " + task.getModelId();
-            logger.error(msg);
+            String msg = "Failed to connect to pytorch process for job " + task.getDeploymentId();
+            logger.error(msg, e);
             try {
                 IOUtils.close(process);
             } catch (IOException ioe) {
@@ -99,12 +101,7 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
     }
 
     private void executeProcess(ProcessPipes processPipes, TrainedModelDeploymentTask task) {
-        PyTorchBuilder pyTorchBuilder = new PyTorchBuilder(
-            nativeController,
-            processPipes,
-            task.getParams().getInferenceThreads(),
-            task.getParams().getModelThreads()
-        );
+        PyTorchBuilder pyTorchBuilder = new PyTorchBuilder(nativeController, processPipes, task.getParams());
         try {
             pyTorchBuilder.build();
         } catch (InterruptedException e) {

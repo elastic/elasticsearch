@@ -73,7 +73,7 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
     public TotalFeatureImportance(StreamInput in) throws IOException {
         this.featureName = in.readString();
         this.importance = in.readOptionalWriteable(Importance::new);
-        this.classImportances = in.readList(ClassImportance::new);
+        this.classImportances = in.readCollectionAsList(ClassImportance::new);
     }
 
     TotalFeatureImportance(String featureName, @Nullable Importance importance, @Nullable List<ClassImportance> classImportances) {
@@ -86,7 +86,7 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(featureName);
         out.writeOptionalWriteable(importance);
-        out.writeList(classImportances);
+        out.writeCollection(classImportances);
     }
 
     @Override
@@ -224,10 +224,6 @@ public class TotalFeatureImportance implements ToXContentObject, Writeable {
                 IMPORTANCE
             );
             return parser;
-        }
-
-        public static ClassImportance fromXContent(XContentParser parser, boolean lenient) throws IOException {
-            return lenient ? LENIENT_PARSER.parse(parser, null) : STRICT_PARSER.parse(parser, null);
         }
 
         public final Object className;

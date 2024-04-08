@@ -17,11 +17,13 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -36,8 +38,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 public class NetworkModuleTests extends ESTestCase {
@@ -119,7 +123,9 @@ public class NetworkModuleTests extends ESTestCase {
                 NamedXContentRegistry xContentRegistry,
                 NetworkService networkService,
                 HttpServerTransport.Dispatcher requestDispatcher,
-                ClusterSettings clusterSettings
+                BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
+                ClusterSettings clusterSettings,
+                Tracer tracer
             ) {
                 return Collections.singletonMap("custom", custom);
             }
@@ -164,7 +170,9 @@ public class NetworkModuleTests extends ESTestCase {
                 NamedXContentRegistry xContentRegistry,
                 NetworkService networkService,
                 HttpServerTransport.Dispatcher requestDispatcher,
-                ClusterSettings clusterSettings
+                BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
+                ClusterSettings clusterSettings,
+                Tracer tracer
             ) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
@@ -207,7 +215,9 @@ public class NetworkModuleTests extends ESTestCase {
                 NamedXContentRegistry xContentRegistry,
                 NetworkService networkService,
                 HttpServerTransport.Dispatcher requestDispatcher,
-                ClusterSettings clusterSettings
+                BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
+                ClusterSettings clusterSettings,
+                Tracer tracer
             ) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
@@ -228,7 +238,7 @@ public class NetworkModuleTests extends ESTestCase {
             @Override
             public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
                 String action,
-                String executor,
+                Executor executor,
                 boolean forceExecution,
                 TransportRequestHandler<T> actualHandler
             ) {
@@ -289,7 +299,9 @@ public class NetworkModuleTests extends ESTestCase {
             xContentRegistry(),
             null,
             new NullDispatcher(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            (preRequest, threadContext) -> {},
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            Tracer.NOOP
         );
     }
 }

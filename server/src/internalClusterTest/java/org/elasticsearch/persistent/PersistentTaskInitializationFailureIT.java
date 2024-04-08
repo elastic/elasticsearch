@@ -8,7 +8,7 @@
 
 package org.elasticsearch.persistent;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -17,7 +17,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -25,6 +24,8 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -48,22 +49,22 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
             UUIDs.base64UUID(),
             FailingInitializationPersistentTaskExecutor.TASK_NAME,
             new FailingInitializationTaskParams(),
+            null,
             startPersistentTaskFuture
         );
         startPersistentTaskFuture.actionGet();
 
         assertBusy(() -> {
-            final ClusterService clusterService = internalCluster().getMasterNodeInstance(ClusterService.class);
-            final PersistentTasksCustomMetadata persistentTasks = clusterService.state()
-                .metadata()
-                .custom(PersistentTasksCustomMetadata.TYPE);
-            assertThat(persistentTasks.tasks().toString(), persistentTasks.tasks(), empty());
+            final ClusterService clusterService = internalCluster().getAnyMasterNodeInstance(ClusterService.class);
+            List<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = findTasks(
+                clusterService.state(),
+                FailingInitializationPersistentTaskExecutor.TASK_NAME
+            );
+            assertThat(tasks.toString(), tasks, empty());
         });
     }
 
     public static class FailingInitializationPersistentTasksPlugin extends Plugin implements PersistentTaskPlugin {
-        public FailingInitializationPersistentTasksPlugin(Settings settings) {}
-
         @Override
         public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(
             ClusterService clusterService,
@@ -85,6 +86,20 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
                 )
             );
         }
+
+        @Override
+        public List<NamedXContentRegistry.Entry> getNamedXContent() {
+            return List.of(
+                new NamedXContentRegistry.Entry(
+                    PersistentTaskParams.class,
+                    new ParseField(FailingInitializationPersistentTaskExecutor.TASK_NAME),
+                    p -> {
+                        p.skipChildren();
+                        return new FailingInitializationTaskParams();
+                    }
+                )
+            );
+        }
     }
 
     public static class FailingInitializationTaskParams implements PersistentTaskParams {
@@ -98,8 +113,8 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
         }
 
         @Override
@@ -115,10 +130,9 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
 
     static class FailingInitializationPersistentTaskExecutor extends PersistentTasksExecutor<FailingInitializationTaskParams> {
         static final String TASK_NAME = "cluster:admin/persistent/test_init_failure";
-        static final String EXECUTOR_NAME = "failing_executor";
 
         FailingInitializationPersistentTaskExecutor() {
-            super(TASK_NAME, EXECUTOR_NAME);
+            super(TASK_NAME, r -> fail("execution is unexpected"));
         }
 
         @Override

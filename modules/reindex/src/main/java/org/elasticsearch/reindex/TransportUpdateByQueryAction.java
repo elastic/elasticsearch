@@ -18,23 +18,25 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
+import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.UpdateByQueryMetadata;
+import org.elasticsearch.script.UpdateByQueryScript;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.LongSupplier;
 
 public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateByQueryRequest, BulkByScrollResponse> {
 
@@ -52,7 +54,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         ScriptService scriptService,
         ClusterService clusterService
     ) {
-        super(UpdateByQueryAction.NAME, transportService, actionFilters, UpdateByQueryRequest::new);
+        super(UpdateByQueryAction.NAME, transportService, actionFilters, UpdateByQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.client = client;
         this.scriptService = scriptService;
@@ -99,8 +101,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         ) {
             super(
                 task,
-                // use sequence number powered optimistic concurrency control
-                false,
+                // use sequence number powered optimistic concurrency control unless requested
+                request.getSearchRequest().source() != null && Boolean.TRUE.equals(request.getSearchRequest().source().version()),
                 true,
                 logger,
                 client,
@@ -116,7 +118,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         public BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
             Script script = mainRequest.getScript();
             if (script != null) {
-                return new UpdateByQueryScriptApplier(worker, scriptService, script, script.getParams());
+                return new UpdateByQueryScriptApplier(worker, scriptService, script, script.getParams(), threadPool::absoluteTimeInMillis);
             }
             return super.buildScriptApplier();
         }
@@ -133,37 +135,43 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             return wrap(index);
         }
 
-        class UpdateByQueryScriptApplier extends ScriptApplier {
+        static class UpdateByQueryScriptApplier extends ScriptApplier<UpdateByQueryMetadata> {
+            private UpdateByQueryScript.Factory update = null;
 
             UpdateByQueryScriptApplier(
                 WorkerBulkByScrollTaskState taskWorker,
                 ScriptService scriptService,
                 Script script,
-                Map<String, Object> params
+                Map<String, Object> params,
+                LongSupplier nowInMillisSupplier
             ) {
-                super(taskWorker, scriptService, script, params);
+                super(taskWorker, scriptService, script, params, nowInMillisSupplier);
             }
 
             @Override
-            protected void scriptChangedIndex(RequestWrapper<?> request, Object to) {
-                throw new IllegalArgumentException("Modifying [" + IndexFieldMapper.NAME + "] not allowed");
+            protected CtxMap<UpdateByQueryMetadata> execute(ScrollableHitSource.Hit doc, Map<String, Object> source) {
+                if (update == null) {
+                    update = scriptService.compile(script, UpdateByQueryScript.CONTEXT);
+                }
+                CtxMap<UpdateByQueryMetadata> ctxMap = new CtxMap<>(
+                    source,
+                    new UpdateByQueryMetadata(
+                        doc.getIndex(),
+                        doc.getId(),
+                        doc.getVersion(),
+                        doc.getRouting(),
+                        INDEX,
+                        nowInMillisSupplier.getAsLong()
+                    )
+                );
+                update.newInstance(params, ctxMap).execute();
+                return ctxMap;
             }
 
             @Override
-            protected void scriptChangedId(RequestWrapper<?> request, Object to) {
-                throw new IllegalArgumentException("Modifying [" + IdFieldMapper.NAME + "] not allowed");
+            protected void updateRequest(RequestWrapper<?> request, UpdateByQueryMetadata metadata) {
+                // do nothing
             }
-
-            @Override
-            protected void scriptChangedVersion(RequestWrapper<?> request, Object to) {
-                throw new IllegalArgumentException("Modifying [_version] not allowed");
-            }
-
-            @Override
-            protected void scriptChangedRouting(RequestWrapper<?> request, Object to) {
-                throw new IllegalArgumentException("Modifying [" + RoutingFieldMapper.NAME + "] not allowed");
-            }
-
         }
     }
 }

@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -42,7 +41,7 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
         }
 
         @Override
-        protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) {
             throw new UnsupportedOperationException();
         }
 
@@ -90,6 +89,7 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
             Collections.emptyMap(),
             null,
             false,
+            null,
             null
         );
         return ValuesSourceConfig.resolveFieldOnly(ft, context);

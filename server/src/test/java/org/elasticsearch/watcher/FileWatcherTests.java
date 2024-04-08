@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.watcher;
 
-import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.BufferedWriter;
@@ -84,6 +84,7 @@ public class FileWatcherTests extends ESTestCase {
     }
 
     public void testSimpleFileOperations() throws IOException {
+
         Path tempDir = createTempDir();
         RecordingChangeListener changes = new RecordingChangeListener(tempDir);
         Path testFile = tempDir.resolve("test.txt");
@@ -263,6 +264,7 @@ public class FileWatcherTests extends ESTestCase {
     }
 
     public void testSimpleDirectoryOperationsWithContentChecking() throws IOException {
+
         final long startTime = System.currentTimeMillis();
 
         Path tempDir = createTempDir();

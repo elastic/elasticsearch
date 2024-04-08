@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -21,7 +22,13 @@ public class TransportGetScriptLanguageAction extends HandledTransportAction<Get
 
     @Inject
     public TransportGetScriptLanguageAction(TransportService transportService, ActionFilters actionFilters, ScriptService scriptService) {
-        super(GetScriptLanguageAction.NAME, transportService, actionFilters, GetScriptLanguageRequest::new);
+        super(
+            GetScriptLanguageAction.NAME,
+            transportService,
+            actionFilters,
+            GetScriptLanguageRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.scriptService = scriptService;
     }
 

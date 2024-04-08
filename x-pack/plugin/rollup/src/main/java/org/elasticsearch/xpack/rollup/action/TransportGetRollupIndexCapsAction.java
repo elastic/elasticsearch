@@ -7,15 +7,19 @@
 package org.elasticsearch.xpack.rollup.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.RollableIndexCaps;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
@@ -25,6 +29,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 public class TransportGetRollupIndexCapsAction extends HandledTransportAction<
@@ -33,6 +38,7 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<
 
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver resolver;
+    private final Executor managementExecutor;
 
     @Inject
     public TransportGetRollupIndexCapsAction(
@@ -41,8 +47,16 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        super(GetRollupIndexCapsAction.NAME, transportService, actionFilters, GetRollupIndexCapsAction.Request::new);
+        // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
+        super(
+            GetRollupIndexCapsAction.NAME,
+            transportService,
+            actionFilters,
+            GetRollupIndexCapsAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.clusterService = clusterService;
+        this.managementExecutor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
         this.resolver = indexNameExpressionResolver;
     }
 
@@ -52,7 +66,12 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<
         GetRollupIndexCapsAction.Request request,
         ActionListener<GetRollupIndexCapsAction.Response> listener
     ) {
+        // Workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
+        managementExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(request, l)));
+    }
 
+    private void doExecuteForked(IndicesRequest request, ActionListener<GetRollupIndexCapsAction.Response> listener) {
+        Transports.assertNotTransportThread("retrieving rollup job index caps may be expensive");
         String[] indices = resolver.concreteIndexNames(clusterService.state(), request.indicesOptions(), request);
         Map<String, RollableIndexCaps> allCaps = getCapsByRollupIndex(
             Arrays.asList(indices),
@@ -61,13 +80,10 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<
         listener.onResponse(new GetRollupIndexCapsAction.Response(allCaps));
     }
 
-    static Map<String, RollableIndexCaps> getCapsByRollupIndex(
-        List<String> resolvedIndexNames,
-        ImmutableOpenMap<String, IndexMetadata> indices
-    ) {
+    static Map<String, RollableIndexCaps> getCapsByRollupIndex(List<String> resolvedIndexNames, Map<String, IndexMetadata> indices) {
         Map<String, List<RollupJobCaps>> allCaps = new TreeMap<>();
 
-        indices.stream().filter(entry -> resolvedIndexNames.contains(entry.getKey())).forEach(entry -> {
+        indices.entrySet().stream().filter(entry -> resolvedIndexNames.contains(entry.getKey())).forEach(entry -> {
             // Does this index have rollup metadata?
             TransportGetRollupCapsAction.findRollupIndexCaps(entry.getKey(), entry.getValue()).ifPresent(cap -> {
                 cap.getJobCaps().forEach(jobCap -> {

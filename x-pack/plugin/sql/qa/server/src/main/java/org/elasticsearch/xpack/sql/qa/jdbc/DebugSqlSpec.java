@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.ql.SpecReader.Parser;
+
 import java.util.List;
 
 public abstract class DebugSqlSpec extends SqlSpecTestCase {

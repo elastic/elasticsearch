@@ -58,14 +58,14 @@ public class ShardsMonitoringDocTests extends BaseFilteredMonitoringDocTestCase<
         String type,
         String id
     ) {
-        return new ShardMonitoringDoc(cluster, timestamp, interval, node, shardRouting, stateUuid);
+        return new ShardMonitoringDoc(cluster, timestamp, interval, node, shardRouting, stateUuid, shardRouting.primary() ? 0 : 1);
     }
 
     @Override
     protected void assertFilteredMonitoringDoc(final ShardMonitoringDoc document) {
         assertThat(document.getSystem(), is(MonitoredSystem.ES));
         assertThat(document.getType(), is(ShardMonitoringDoc.TYPE));
-        assertThat(document.getId(), equalTo(ShardMonitoringDoc.id(stateUuid, shardRouting)));
+        assertThat(document.getId(), equalTo(ShardMonitoringDoc.id(stateUuid, shardRouting, shardRouting.primary() ? 0 : 1)));
 
         assertThat(document.getShardRouting(), is(shardRouting));
         if (assignedToNode) {
@@ -82,31 +82,31 @@ public class ShardsMonitoringDocTests extends BaseFilteredMonitoringDocTestCase<
     }
 
     public void testConstructorShardRoutingMustNotBeNull() {
-        expectThrows(NullPointerException.class, () -> new ShardMonitoringDoc(cluster, timestamp, interval, node, null, stateUuid));
+        expectThrows(NullPointerException.class, () -> new ShardMonitoringDoc(cluster, timestamp, interval, node, null, stateUuid, 0));
     }
 
     public void testConstructorStateUuidMustNotBeNull() {
-        expectThrows(NullPointerException.class, () -> new ShardMonitoringDoc(cluster, timestamp, interval, node, shardRouting, null));
+        expectThrows(NullPointerException.class, () -> new ShardMonitoringDoc(cluster, timestamp, interval, node, shardRouting, null, 0));
     }
 
     public void testIdWithPrimaryShardAssigned() {
         shardRouting = newShardRouting("_index_0", 123, "_node_0", randomAlphaOfLength(5), true, INITIALIZING);
-        assertEquals("_state_uuid_0:_node_0:_index_0:123:p", ShardMonitoringDoc.id("_state_uuid_0", shardRouting));
+        assertEquals("_state_uuid_0:_node_0:_index_0:s123:p", ShardMonitoringDoc.id("_state_uuid_0", shardRouting, 0));
     }
 
     public void testIdWithReplicaShardAssigned() {
         shardRouting = newShardRouting("_index_1", 456, "_node_1", randomAlphaOfLength(5), false, INITIALIZING);
-        assertEquals("_state_uuid_1:_node_1:_index_1:456:r", ShardMonitoringDoc.id("_state_uuid_1", shardRouting));
+        assertEquals("_state_uuid_1:_node_1:_index_1:s456:r1", ShardMonitoringDoc.id("_state_uuid_1", shardRouting, 1));
     }
 
     public void testIdWithPrimaryShardUnassigned() {
-        shardRouting = newShardRouting("_index_2", 789, null, randomAlphaOfLength(5), true, UNASSIGNED);
-        assertEquals("_state_uuid_2:_na:_index_2:789:p", ShardMonitoringDoc.id("_state_uuid_2", shardRouting));
+        shardRouting = newShardRouting("_index_2", 789, null, true, UNASSIGNED);
+        assertEquals("_state_uuid_2:_na:_index_2:s789:p", ShardMonitoringDoc.id("_state_uuid_2", shardRouting, 0));
     }
 
     public void testIdWithReplicaShardUnassigned() {
-        shardRouting = newShardRouting("_index_3", 159, null, randomAlphaOfLength(5), false, UNASSIGNED);
-        assertEquals("_state_uuid_3:_na:_index_3:159:r", ShardMonitoringDoc.id("_state_uuid_3", shardRouting));
+        shardRouting = newShardRouting("_index_3", 159, null, false, UNASSIGNED);
+        assertEquals("_state_uuid_3:_na:_index_3:s159:r1", ShardMonitoringDoc.id("_state_uuid_3", shardRouting, 1));
     }
 
     @Override
@@ -119,7 +119,8 @@ public class ShardsMonitoringDocTests extends BaseFilteredMonitoringDocTestCase<
             1506593717631L,
             node,
             shardRouting,
-            "_state_uuid"
+            "_state_uuid",
+            0
         );
 
         final BytesReference xContent = XContentHelper.toXContent(doc, XContentType.JSON, randomBoolean());

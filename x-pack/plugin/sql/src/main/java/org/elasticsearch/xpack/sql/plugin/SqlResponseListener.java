@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -18,8 +18,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
+import org.elasticsearch.xpack.sql.session.Cursors;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 import static org.elasticsearch.xpack.sql.action.Protocol.HEADER_NAME_ASYNC_ID;
@@ -34,11 +34,12 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
     private final long startNanos = System.nanoTime();
     private final MediaType mediaType;
     private final RestRequest request;
+    private final BasicFormatter requestFormatter;
 
     SqlResponseListener(RestChannel channel, RestRequest request, SqlQueryRequest sqlRequest) {
         super(channel);
         this.request = request;
-
+        this.requestFormatter = Cursors.decodeFormatter(sqlRequest.cursor());
         this.mediaType = SqlMediaTypeParser.getResponseMediaType(request, sqlRequest);
 
         /*
@@ -60,6 +61,7 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
     SqlResponseListener(RestChannel channel, RestRequest request) {
         super(channel);
         this.request = request;
+        this.requestFormatter = null;
         this.mediaType = SqlMediaTypeParser.getResponseMediaType(request);
     }
 
@@ -71,12 +73,16 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
         if (mediaType instanceof XContentType type) {
             XContentBuilder builder = channel.newBuilder(request.getXContentType(), type, true);
             response.toXContent(builder, request);
-            restResponse = new BytesRestResponse(RestStatus.OK, builder);
+            restResponse = new RestResponse(RestStatus.OK, builder);
         } else { // TextFormat
             TextFormat type = (TextFormat) mediaType;
-            final String data = type.format(request, response);
+            final Tuple<String, BasicFormatter> dataWithNextFormatter = type.format(request, requestFormatter, response);
 
-            restResponse = new BytesRestResponse(RestStatus.OK, type.contentType(request), data.getBytes(StandardCharsets.UTF_8));
+            if (response.hasCursor()) {
+                response.cursor(Cursors.attachFormatter(response.cursor(), dataWithNextFormatter.v2()));
+            }
+
+            restResponse = new RestResponse(RestStatus.OK, type.contentType(request), dataWithNextFormatter.v1());
 
             if (response.hasCursor()) {
                 restResponse.addHeader(HEADER_NAME_CURSOR, response.cursor());
@@ -92,4 +98,5 @@ class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
         restResponse.addHeader(HEADER_NAME_TOOK_NANOS, Long.toString(System.nanoTime() - startNanos));
         return restResponse;
     }
+
 }

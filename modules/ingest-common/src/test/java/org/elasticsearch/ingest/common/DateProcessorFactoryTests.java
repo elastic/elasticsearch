@@ -14,9 +14,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.time.ZoneId;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -36,13 +35,13 @@ public class DateProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         String sourceField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
-        config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
+        config.put("formats", List.of("dd/MM/yyyyy"));
         String processorTag = randomAlphaOfLength(10);
         DateProcessor processor = factory.create(null, processorTag, null, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo(sourceField));
         assertThat(processor.getTargetField(), equalTo(DateProcessor.DEFAULT_TARGET_FIELD));
-        assertThat(processor.getFormats(), equalTo(Collections.singletonList("dd/MM/yyyyy")));
+        assertThat(processor.getFormats(), equalTo(List.of("dd/MM/yyyyy")));
         assertNull(processor.getLocale());
         assertNull(processor.getTimezone());
     }
@@ -51,7 +50,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         String targetField = randomAlphaOfLengthBetween(1, 10);
         config.put("target_field", targetField);
-        config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
+        config.put("formats", List.of("dd/MM/yyyyy"));
 
         try {
             factory.create(null, null, null, config);
@@ -80,34 +79,34 @@ public class DateProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         String sourceField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
-        config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
+        config.put("formats", List.of("dd/MM/yyyyy"));
         Locale locale = randomFrom(Locale.GERMANY, Locale.FRENCH, Locale.ROOT);
         config.put("locale", locale.toLanguageTag());
 
         DateProcessor processor = factory.create(null, null, null, config);
-        assertThat(processor.getLocale().newInstance(Collections.emptyMap()).execute(), equalTo(locale.toLanguageTag()));
+        assertThat(processor.getLocale().newInstance(Map.of()).execute(), equalTo(locale.toLanguageTag()));
     }
 
     public void testParseTimezone() throws Exception {
         Map<String, Object> config = new HashMap<>();
         String sourceField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
-        config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
+        config.put("formats", List.of("dd/MM/yyyyy"));
 
         ZoneId timezone = randomZone();
         config.put("timezone", timezone.getId());
         DateProcessor processor = factory.create(null, null, null, config);
-        assertThat(processor.getTimezone().newInstance(Collections.emptyMap()).execute(), equalTo(timezone.getId()));
+        assertThat(processor.getTimezone().newInstance(Map.of()).execute(), equalTo(timezone.getId()));
     }
 
     public void testParseMatchFormats() throws Exception {
         Map<String, Object> config = new HashMap<>();
         String sourceField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
-        config.put("formats", Arrays.asList("dd/MM/yyyy", "dd-MM-yyyy"));
+        config.put("formats", List.of("dd/MM/yyyy", "dd-MM-yyyy"));
 
         DateProcessor processor = factory.create(null, null, null, config);
-        assertThat(processor.getFormats(), equalTo(Arrays.asList("dd/MM/yyyy", "dd-MM-yyyy")));
+        assertThat(processor.getFormats(), equalTo(List.of("dd/MM/yyyy", "dd-MM-yyyy")));
     }
 
     public void testParseMatchFormatsFailure() throws Exception {
@@ -130,7 +129,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         String targetField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
         config.put("target_field", targetField);
-        config.put("formats", Arrays.asList("dd/MM/yyyy", "dd-MM-yyyy"));
+        config.put("formats", List.of("dd/MM/yyyy", "dd-MM-yyyy"));
 
         DateProcessor processor = factory.create(null, null, null, config);
         assertThat(processor.getTargetField(), equalTo(targetField));
@@ -143,7 +142,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         String targetField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
         config.put("target_field", targetField);
-        config.put("formats", Arrays.asList("dd/MM/yyyy", "dd-MM-yyyy"));
+        config.put("formats", List.of("dd/MM/yyyy", "dd-MM-yyyy"));
         config.put("output_format", outputFormat);
         DateProcessor processor = factory.create(null, null, null, config);
         assertThat(processor.getOutputFormat(), equalTo(outputFormat));
@@ -155,7 +154,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         String targetField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
         config.put("target_field", targetField);
-        config.put("formats", Arrays.asList("dd/MM/yyyy", "dd-MM-yyyy"));
+        config.put("formats", List.of("dd/MM/yyyy", "dd-MM-yyyy"));
         DateProcessor processor = factory.create(null, null, null, config);
         assertThat(processor.getOutputFormat(), equalTo(DateProcessor.DEFAULT_OUTPUT_FORMAT));
     }
@@ -167,7 +166,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         String targetField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
         config.put("target_field", targetField);
-        config.put("formats", Arrays.asList("dd/MM/yyyy", "dd-MM-yyyy"));
+        config.put("formats", List.of("dd/MM/yyyy", "dd-MM-yyyy"));
         config.put("output_format", outputFormat);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> factory.create(null, null, null, config));

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.query.functionscore;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
@@ -53,6 +55,11 @@ public class WeightBuilder extends ScoreFunctionBuilder<WeightBuilder> {
     @Override
     protected int doHashCode() {
         return 0;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 
     @Override

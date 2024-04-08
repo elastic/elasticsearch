@@ -50,7 +50,7 @@ Defaults to `true`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
-Defaults to `all`.
+Defaults to `open`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 

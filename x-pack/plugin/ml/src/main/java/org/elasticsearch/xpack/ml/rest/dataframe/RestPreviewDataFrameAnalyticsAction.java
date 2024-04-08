@@ -11,6 +11,9 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.PreviewDataFrameAnalyticsAction;
@@ -25,6 +28,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestPreviewDataFrameAnalyticsAction extends BaseRestHandler {
 
     @Override
@@ -65,13 +69,14 @@ public class RestPreviewDataFrameAnalyticsAction extends BaseRestHandler {
 
         return channel -> {
             RestToXContentListener<PreviewDataFrameAnalyticsAction.Response> listener = new RestToXContentListener<>(channel);
+            RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, restRequest.getHttpChannel());
 
             if (requestBuilder.getConfig() != null) {
-                client.execute(PreviewDataFrameAnalyticsAction.INSTANCE, requestBuilder.build(), listener);
+                cancellableClient.execute(PreviewDataFrameAnalyticsAction.INSTANCE, requestBuilder.build(), listener);
             } else {
                 GetDataFrameAnalyticsAction.Request getRequest = new GetDataFrameAnalyticsAction.Request(jobId);
                 getRequest.setAllowNoResources(false);
-                client.execute(GetDataFrameAnalyticsAction.INSTANCE, getRequest, ActionListener.wrap(getResponse -> {
+                cancellableClient.execute(GetDataFrameAnalyticsAction.INSTANCE, getRequest, ActionListener.wrap(getResponse -> {
                     List<DataFrameAnalyticsConfig> jobs = getResponse.getResources().results();
                     if (jobs.size() > 1) {
                         listener.onFailure(
@@ -81,7 +86,11 @@ public class RestPreviewDataFrameAnalyticsAction extends BaseRestHandler {
                             )
                         );
                     } else {
-                        client.execute(PreviewDataFrameAnalyticsAction.INSTANCE, requestBuilder.setConfig(jobs.get(0)).build(), listener);
+                        cancellableClient.execute(
+                            PreviewDataFrameAnalyticsAction.INSTANCE,
+                            requestBuilder.setConfig(jobs.get(0)).build(),
+                            listener
+                        );
                     }
                 }, listener::onFailure));
             }

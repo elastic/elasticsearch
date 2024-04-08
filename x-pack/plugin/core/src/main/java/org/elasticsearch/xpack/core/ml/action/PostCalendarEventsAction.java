@@ -35,7 +35,7 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
     public static final ParseField EVENTS = new ParseField("events");
 
     private PostCalendarEventsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {
@@ -68,7 +68,7 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
         public Request(StreamInput in) throws IOException {
             super(in);
             calendarId = in.readString();
-            scheduledEvents = in.readList(ScheduledEvent::new);
+            scheduledEvents = in.readCollectionAsList(ScheduledEvent::new);
         }
 
         public Request(String calendarId, List<ScheduledEvent> scheduledEvents) {
@@ -97,7 +97,7 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(calendarId);
-            out.writeList(scheduledEvents);
+            out.writeCollection(scheduledEvents);
         }
 
         @Override
@@ -124,7 +124,7 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            in.readList(ScheduledEvent::new);
+            in.readCollectionAsList(ScheduledEvent::new);
         }
 
         public Response(List<ScheduledEvent> scheduledEvents) {
@@ -133,7 +133,7 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(scheduledEvents);
+            out.writeCollection(scheduledEvents);
         }
 
         @Override

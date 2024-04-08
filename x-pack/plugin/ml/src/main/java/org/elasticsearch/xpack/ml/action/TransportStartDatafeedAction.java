@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -80,7 +81,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.REMOTE_CLUSTERS_TOO_OLD;
+import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.REMOTE_CLUSTERS_TRANSPORT_TOO_OLD;
 
 /* This class extends from TransportMasterNodeAction for cluster state observing purposes.
  The stop datafeed api also redirect the elected master node.
@@ -92,7 +93,6 @@ import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator
  */
 public class TransportStartDatafeedAction extends TransportMasterNodeAction<StartDatafeedAction.Request, NodeAcknowledgedResponse> {
 
-    private static final Version COMPOSITE_AGG_SUPPORT = Version.V_7_13_0;
     private static final Logger logger = LogManager.getLogger(TransportStartDatafeedAction.class);
 
     private final Client client;
@@ -129,7 +129,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             StartDatafeedAction.Request::new,
             indexNameExpressionResolver,
             NodeAcknowledgedResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
@@ -191,6 +191,13 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             return;
         }
 
+        // The datafeed will run its with the configured headers,
+        // preserve the response headers.
+        var responseHeaderPreservingListener = ContextPreservingActionListener.wrapPreservingContext(
+            listener,
+            threadPool.getThreadContext()
+        );
+
         AtomicReference<DatafeedConfig> datafeedConfigHolder = new AtomicReference<>();
         PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
 
@@ -198,7 +205,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             new ActionListener<>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
-                    waitForDatafeedStarted(persistentTask.getId(), params, listener);
+                    waitForDatafeedStarted(persistentTask.getId(), params, responseHeaderPreservingListener);
                 }
 
                 @Override
@@ -210,7 +217,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                             RestStatus.CONFLICT
                         );
                     }
-                    listener.onFailure(e);
+                    responseHeaderPreservingListener.onFailure(e);
                 }
             };
 
@@ -229,9 +236,9 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     ),
                     ActionListener.wrap(response -> {
                         if (response.isSuccess() == false) {
-                            listener.onFailure(createUnlicensedError(params.getDatafeedId(), response));
+                            responseHeaderPreservingListener.onFailure(createUnlicensedError(params.getDatafeedId(), response));
                         } else if (remoteClusterClient == false) {
-                            listener.onFailure(
+                            responseHeaderPreservingListener.onFailure(
                                 ExceptionsHelper.badRequestException(
                                     Messages.getMessage(
                                         Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
@@ -247,15 +254,15 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                 remoteClusterService.getRegisteredRemoteClusterNames(),
                                 remoteIndices
                             );
-                            checkRemoteClusterVersions(
+                            checkRemoteConfigVersions(
                                 datafeedConfigHolder.get(),
                                 remoteAliases,
-                                (cn) -> remoteClusterService.getConnection(cn).getVersion()
+                                (cn) -> remoteClusterService.getConnection(cn).getTransportVersion()
                             );
                             createDataExtractor(task, job, datafeedConfigHolder.get(), params, waitForTaskListener);
                         }
                     },
-                        e -> listener.onFailure(
+                        e -> responseHeaderPreservingListener.onFailure(
                             createUnknownLicenseError(
                                 params.getDatafeedId(),
                                 RemoteClusterLicenseChecker.remoteIndices(params.getDatafeedIndices()),
@@ -270,63 +277,39 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         };
 
         ActionListener<Job.Builder> jobListener = ActionListener.wrap(jobBuilder -> {
-            try {
-                Job job = jobBuilder.build();
-                validate(job, datafeedConfigHolder.get(), tasks, xContentRegistry);
-                auditDeprecations(datafeedConfigHolder.get(), job, auditor, xContentRegistry);
-                createDataExtractor.accept(job);
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        }, listener::onFailure);
+            Job job = jobBuilder.build();
+            validate(job, datafeedConfigHolder.get(), tasks, xContentRegistry);
+            auditDeprecations(datafeedConfigHolder.get(), job, auditor, xContentRegistry);
+            createDataExtractor.accept(job);
+        }, responseHeaderPreservingListener::onFailure);
 
         ActionListener<DatafeedConfig.Builder> datafeedListener = ActionListener.wrap(datafeedBuilder -> {
-            try {
-                DatafeedConfig datafeedConfig = datafeedBuilder.build();
-                params.setDatafeedIndices(datafeedConfig.getIndices());
-                params.setJobId(datafeedConfig.getJobId());
-                params.setIndicesOptions(datafeedConfig.getIndicesOptions());
-                datafeedConfigHolder.set(datafeedConfig);
-                if (datafeedConfig.hasCompositeAgg(xContentRegistry)) {
-                    if (state.nodes()
-                        .mastersFirstStream()
-                        .filter(MachineLearning::isMlNode)
-                        .map(DiscoveryNode::getVersion)
-                        .anyMatch(COMPOSITE_AGG_SUPPORT::after)) {
-                        listener.onFailure(
-                            ExceptionsHelper.badRequestException(
-                                "cannot start datafeed [{}] as [{}] requires all machine learning nodes to be at least version [{}]",
-                                datafeedConfig.getId(),
-                                "composite aggs",
-                                COMPOSITE_AGG_SUPPORT
-                            )
-                        );
-                        return;
-                    }
-                }
-                jobConfigProvider.getJob(datafeedConfig.getJobId(), jobListener);
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        }, listener::onFailure);
+            DatafeedConfig datafeedConfig = datafeedBuilder.build();
+            params.setDatafeedIndices(datafeedConfig.getIndices());
+            params.setJobId(datafeedConfig.getJobId());
+            params.setIndicesOptions(datafeedConfig.getIndicesOptions());
+            datafeedConfigHolder.set(datafeedConfig);
 
-        datafeedConfigProvider.getDatafeedConfig(params.getDatafeedId(), datafeedListener);
+            jobConfigProvider.getJob(datafeedConfig.getJobId(), null, jobListener);
+        }, responseHeaderPreservingListener::onFailure);
+
+        datafeedConfigProvider.getDatafeedConfig(params.getDatafeedId(), null, datafeedListener);
     }
 
-    static void checkRemoteClusterVersions(
+    static void checkRemoteConfigVersions(
         DatafeedConfig config,
         List<String> remoteClusters,
-        Function<String, Version> clusterVersionSupplier
+        Function<String, TransportVersion> transportVersionSupplier
     ) {
-        Optional<Tuple<Version, String>> minVersionAndReason = config.minRequiredClusterVersion();
+        Optional<Tuple<TransportVersion, String>> minVersionAndReason = config.minRequiredTransportVersion();
         if (minVersionAndReason.isPresent() == false) {
             return;
         }
         final String reason = minVersionAndReason.get().v2();
-        final Version minVersion = minVersionAndReason.get().v1();
+        final TransportVersion minVersion = minVersionAndReason.get().v1();
 
         List<String> clustersTooOld = remoteClusters.stream()
-            .filter(cn -> clusterVersionSupplier.apply(cn).before(minVersion))
+            .filter(cn -> transportVersionSupplier.apply(cn).before(minVersion))
             .collect(Collectors.toList());
         if (clustersTooOld.isEmpty()) {
             return;
@@ -334,7 +317,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
         throw ExceptionsHelper.badRequestException(
             Messages.getMessage(
-                REMOTE_CLUSTERS_TOO_OLD,
+                REMOTE_CLUSTERS_TRANSPORT_TOO_OLD,
                 minVersion.toString(),
                 reason,
                 Strings.collectionToCommaDelimitedString(clustersTooOld)
@@ -356,12 +339,13 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             job,
             xContentRegistry,
             // Fake DatafeedTimingStatsReporter that does not have access to results index
-            new DatafeedTimingStatsReporter(new DatafeedTimingStats(job.getId()), (ts, refreshPolicy) -> {}),
+            new DatafeedTimingStatsReporter(new DatafeedTimingStats(job.getId()), (ts, refreshPolicy, listener1) -> {}),
             ActionListener.wrap(
                 unused -> persistentTasksService.sendStartRequest(
                     MlTasks.datafeedTaskId(params.getDatafeedId()),
                     MlTasks.DATAFEED_TASK_NAME,
                     params,
+                    null,
                     listener
                 ),
                 listener::onFailure
@@ -407,7 +391,12 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     listener.onFailure(
-                        new ElasticsearchException("Starting datafeed [" + params.getDatafeedId() + "] timed out after [" + timeout + "]")
+                        new ElasticsearchStatusException(
+                            "Starting datafeed [{}] timed out after [{}]",
+                            RestStatus.REQUEST_TIMEOUT,
+                            params.getDatafeedId(),
+                            timeout
+                        )
                     );
                 }
             }
@@ -419,7 +408,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         Exception exception,
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
-        persistentTasksService.sendRemoveRequest(persistentTask.getId(), new ActionListener<>() {
+        persistentTasksService.sendRemoveRequest(persistentTask.getId(), null, new ActionListener<>() {
             @Override
             public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
                 // We succeeded in cancelling the persistent task, but the
@@ -443,7 +432,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         });
     }
 
-    private ElasticsearchStatusException createUnlicensedError(
+    private static ElasticsearchStatusException createUnlicensedError(
         final String datafeedId,
         final RemoteClusterLicenseChecker.LicenseCheck licenseCheck
     ) {
@@ -485,8 +474,12 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         private final DatafeedRunner datafeedRunner;
         private final IndexNameExpressionResolver resolver;
 
-        public StartDatafeedPersistentTasksExecutor(DatafeedRunner datafeedRunner, IndexNameExpressionResolver resolver) {
-            super(MlTasks.DATAFEED_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
+        public StartDatafeedPersistentTasksExecutor(
+            DatafeedRunner datafeedRunner,
+            IndexNameExpressionResolver resolver,
+            ThreadPool threadPool
+        ) {
+            super(MlTasks.DATAFEED_TASK_NAME, threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));
             this.datafeedRunner = datafeedRunner;
             this.resolver = resolver;
         }
@@ -563,7 +556,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
     public static class DatafeedTask extends AllocatedPersistentTask implements StartDatafeedAction.DatafeedTaskMatcher {
 
-        public enum StoppedOrIsolatedBeforeRunning {
+        public enum StoppedOrIsolated {
             NEITHER,
             ISOLATED,
             STOPPED
@@ -577,7 +570,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
          * the value of the {@code stoppedOrIsolatedBeforeRunning} flag.
          */
         private DatafeedRunner datafeedRunner;
-        private StoppedOrIsolatedBeforeRunning stoppedOrIsolatedBeforeRunning = StoppedOrIsolatedBeforeRunning.NEITHER;
+        private StoppedOrIsolated stoppedOrIsolated = StoppedOrIsolated.NEITHER;
 
         DatafeedTask(
             long id,
@@ -612,16 +605,27 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
         /**
          * Set the datafeed runner <em>if</em> the task has not already been told to stop or isolate.
-         * @return A {@link StoppedOrIsolatedBeforeRunning} object that indicates whether the
+         * @return A {@link StoppedOrIsolated} object that indicates whether the
          *         datafeed task had previously been told to stop or isolate.  {@code datafeedRunner}
          *         will only be set to the supplied value if the return value of this method is
-         *         {@link StoppedOrIsolatedBeforeRunning#NEITHER}.
+         *         {@link StoppedOrIsolated#NEITHER}.
          */
-        synchronized StoppedOrIsolatedBeforeRunning setDatafeedRunner(DatafeedRunner datafeedRunner) {
-            if (stoppedOrIsolatedBeforeRunning == StoppedOrIsolatedBeforeRunning.NEITHER) {
-                this.datafeedRunner = Objects.requireNonNull(datafeedRunner);
+        StoppedOrIsolated setDatafeedRunner(DatafeedRunner datafeedRunner) {
+            return executeIfNotStoppedOrIsolated(() -> this.datafeedRunner = Objects.requireNonNull(datafeedRunner));
+        }
+
+        /**
+         * Run a command <em>if</em> the task has not already been told to stop or isolate.
+         * @param runnable The command to run.
+         * @return A {@link StoppedOrIsolated} object that indicates whether the datafeed task
+         *         had previously been told to stop or isolate. {@code runnable} will only be
+         *         run if the return value of this method is {@link StoppedOrIsolated#NEITHER}.
+         */
+        public synchronized StoppedOrIsolated executeIfNotStoppedOrIsolated(Runnable runnable) {
+            if (stoppedOrIsolated == StoppedOrIsolated.NEITHER) {
+                runnable.run();
             }
-            return stoppedOrIsolatedBeforeRunning;
+            return stoppedOrIsolated;
         }
 
         @Override
@@ -641,32 +645,32 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
         public void stop(String reason, TimeValue timeout) {
             synchronized (this) {
+                stoppedOrIsolated = StoppedOrIsolated.STOPPED;
                 if (datafeedRunner == null) {
-                    stoppedOrIsolatedBeforeRunning = StoppedOrIsolatedBeforeRunning.STOPPED;
                     return;
                 }
             }
             datafeedRunner.stopDatafeed(this, reason, timeout);
         }
 
-        public synchronized StoppedOrIsolatedBeforeRunning getStoppedOrIsolatedBeforeRunning() {
-            return stoppedOrIsolatedBeforeRunning;
+        public synchronized StoppedOrIsolated getStoppedOrIsolated() {
+            return stoppedOrIsolated;
         }
 
         public void isolate() {
             synchronized (this) {
+                // Stopped takes precedence over isolated for what we report externally,
+                // as stopped needs to cause the persistent task to be marked as completed
+                // (regardless of whether it was isolated) whereas isolated but not stopped
+                // mustn't do this.
+                if (stoppedOrIsolated == StoppedOrIsolated.NEITHER) {
+                    stoppedOrIsolated = StoppedOrIsolated.ISOLATED;
+                }
                 if (datafeedRunner == null) {
-                    // Stopped takes precedence over isolated for what we report externally,
-                    // as stopped needs to cause the persistent task to be marked as completed
-                    // (regardless of whether it was isolated) whereas isolated but not stopped
-                    // mustn't do this.
-                    if (stoppedOrIsolatedBeforeRunning == StoppedOrIsolatedBeforeRunning.NEITHER) {
-                        stoppedOrIsolatedBeforeRunning = StoppedOrIsolatedBeforeRunning.ISOLATED;
-                    }
                     return;
                 }
             }
-            datafeedRunner.isolateDatafeed(getAllocationId());
+            datafeedRunner.isolateDatafeed(this);
         }
 
         void completeOrFailIfRequired(Exception error) {

@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
+import org.elasticsearch.core.UpdateForV9;
 
 public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider {
 
@@ -28,11 +28,13 @@ public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider
      * ongoing is determined by cluster.routing.allocation.enable=primaries. Notice that other values for that setting except "all" mean
      * that no searchable snapshots are allocated anyway.
      */
+    @UpdateForV9 // xpack.searchable.snapshot.allocate_on_rolling_restart was only temporary, remove it in the next major
     public static final Setting<Boolean> SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART = Setting.boolSetting(
         "xpack.searchable.snapshot.allocate_on_rolling_restart",
         false,
         Setting.Property.Dynamic,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
     );
 
     private volatile EnableAllocationDecider.Allocation enableAllocation;
@@ -63,8 +65,12 @@ public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
+        if (allocation.isSimulating()) {
+            return allocation.decision(Decision.YES, NAME, "allocation is always enabled when simulating");
+        }
+
         final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
-        if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexMetadata.getSettings())) {
+        if (indexMetadata.isSearchableSnapshot()) {
             EnableAllocationDecider.Allocation enableAllocationCopy = this.enableAllocation;
             boolean allocateOnRollingRestartCopy = this.allocateOnRollingRestart;
             if (enableAllocationCopy == EnableAllocationDecider.Allocation.PRIMARIES) {

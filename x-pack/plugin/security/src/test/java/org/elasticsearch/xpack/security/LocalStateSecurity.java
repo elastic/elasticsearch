@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -15,6 +16,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
@@ -24,16 +27,20 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
+import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 
-public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
+public class LocalStateSecurity extends LocalStateCompositeXPackPlugin implements ReloadablePlugin {
 
     public static class SecurityTransportXPackUsageAction extends TransportXPackUsageAction {
         @Inject
@@ -49,7 +56,7 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
         }
 
         @Override
-        protected List<XPackUsageFeatureAction> usageActions() {
+        protected List<ActionType<XPackUsageFeatureResponse>> usageActions() {
             return Collections.singletonList(XPackUsageFeatureAction.SECURITY);
         }
     }
@@ -66,14 +73,21 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
         }
 
         @Override
-        protected List<XPackInfoFeatureAction> infoActions() {
+        protected List<ActionType<XPackInfoFeatureResponse>> infoActions() {
             return Collections.singletonList(XPackInfoFeatureAction.SECURITY);
         }
     }
 
+    @SuppressWarnings("this-escape")
     public LocalStateSecurity(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
         LocalStateSecurity thisVar = this;
+        plugins.add(new IndexLifecycle(settings) {
+            @Override
+            protected XPackLicenseState getLicenseState() {
+                return thisVar.getLicenseState();
+            }
+        });
         plugins.add(new Monitoring(settings) {
             @Override
             protected SSLService getSslService() {
@@ -90,7 +104,7 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
                 return thisVar.getLicenseState();
             }
         });
-        plugins.add(new Security(settings, configPath) {
+        plugins.add(new Security(settings, thisVar.securityExtensions()) {
             @Override
             protected SSLService getSslService() {
                 return thisVar.getSslService();
@@ -103,6 +117,10 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
         });
     }
 
+    protected List<SecurityExtension> securityExtensions() {
+        return List.of();
+    }
+
     @Override
     protected Class<? extends TransportAction<XPackUsageRequest, XPackUsageResponse>> getUsageAction() {
         return SecurityTransportXPackUsageAction.class;
@@ -111,5 +129,20 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
     @Override
     protected Class<? extends TransportAction<XPackInfoRequest, XPackInfoResponse>> getInfoAction() {
         return SecurityTransportXPackInfoAction.class;
+    }
+
+    public List<Plugin> plugins() {
+        return plugins;
+    }
+
+    @Override
+    public void reload(Settings settings) throws Exception {
+        plugins.stream().filter(p -> p instanceof ReloadablePlugin).forEach(p -> {
+            try {
+                ((ReloadablePlugin) p).reload(settings);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 }

@@ -27,13 +27,13 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.azure.AzureFixtureHelper.assertValidBlockId;
 
@@ -76,7 +76,7 @@ public class AzureHttpHandler implements HttpHandler {
                 final List<String> blockIds = Arrays.stream(blockList.split("<Latest>"))
                     .filter(line -> line.contains("</Latest>"))
                     .map(line -> line.substring(0, line.indexOf("</Latest>")))
-                    .collect(Collectors.toList());
+                    .toList();
 
                 final ByteArrayOutputStream blob = new ByteArrayOutputStream();
                 for (String blockId : blockIds) {
@@ -129,15 +129,16 @@ public class AzureHttpHandler implements HttpHandler {
                     throw new AssertionError("Range header does not match expected format: " + range);
                 }
 
-                final int start = Integer.parseInt(matcher.group(1));
-                final int length = Integer.parseInt(matcher.group(2)) - start + 1;
+                final long start = Long.parseLong(matcher.group(1));
+                final long end = Long.parseLong(matcher.group(2));
+                var responseBlob = blob.slice(Math.toIntExact(start), Math.toIntExact(Math.min(end - start + 1, blob.length() - start)));
 
                 exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(length));
+                exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(responseBlob.length()));
                 exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
                 exchange.getResponseHeaders().add("ETag", "\"blockblob\"");
-                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
-                exchange.getResponseBody().write(blob.toBytesRef().bytes, start, length);
+                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseBlob.length());
+                responseBlob.writeTo(exchange.getResponseBody());
 
             } else if (Regex.simpleMatch("DELETE /" + account + "/" + container + "/*", request)) {
                 // Delete Blob (https://docs.microsoft.com/en-us/rest/api/storageservices/delete-blob)
@@ -177,14 +178,14 @@ public class AzureHttpHandler implements HttpHandler {
                             continue;
                         }
                     }
-                    list.append("""
+                    list.append(String.format(Locale.ROOT, """
                         <Blob>
                            <Name>%s</Name>
                            <Properties>
                              <Content-Length>%s</Content-Length>
                              <BlobType>BlockBlob</BlobType>
                            </Properties>
-                        </Blob>""".formatted(blobPath, blob.getValue().length()));
+                        </Blob>""", blobPath, blob.getValue().length()));
                 }
                 if (blobPrefixes.isEmpty() == false) {
                     blobPrefixes.forEach(p -> list.append("<BlobPrefix><Name>").append(p).append("</Name></BlobPrefix>"));
@@ -229,12 +230,12 @@ public class AzureHttpHandler implements HttpHandler {
         if ("HEAD".equals(exchange.getRequestMethod())) {
             exchange.sendResponseHeaders(status.getStatus(), -1L);
         } else {
-            final byte[] response = ("""
+            final byte[] response = (String.format(Locale.ROOT, """
                 <?xml version="1.0" encoding="UTF-8"?>
                 <Error>
                     <Code>%s</Code>
                     <Message>%s</Message>
-                </Error>""".formatted(errorCode, status)).getBytes(StandardCharsets.UTF_8);
+                </Error>""", errorCode, status)).getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(status.getStatus(), response.length);
             exchange.getResponseBody().write(response);
         }

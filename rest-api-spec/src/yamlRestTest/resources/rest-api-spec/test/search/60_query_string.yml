@@ -12,7 +12,7 @@
   - do:
       index:
           index:  test
-          id:     1
+          id:     "1"
           body:   { field: foo bar}
 
   - do:

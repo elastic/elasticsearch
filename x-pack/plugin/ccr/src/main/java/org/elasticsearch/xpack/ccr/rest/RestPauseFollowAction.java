@@ -32,6 +32,7 @@ public class RestPauseFollowAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         Request request = new Request(restRequest.param("index"));
+        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -22,6 +22,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.util.Arrays;
 import java.util.Set;
 
 import static org.elasticsearch.core.Tuple.tuple;
@@ -32,6 +33,7 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -54,66 +56,105 @@ public class JobDataDeleterTests extends ESTestCase {
 
     @After
     public void verifyNoMoreInteractionsWithClient() {
-        verify(client).threadPool();
+        verify(client, times(2)).threadPool();
         verifyNoMoreInteractions(client);
     }
 
     public void testDeleteAllAnnotations() {
-        JobDataDeleter jobDataDeleter = new JobDataDeleter(client, JOB_ID);
-        jobDataDeleter.deleteAllAnnotations(ActionListener.wrap(deleteResponse -> {}, e -> fail(e.toString())));
+        Arrays.asList(false, true).forEach(deleteUserAnnotations -> {
+            JobDataDeleter jobDataDeleter = new JobDataDeleter(client, JOB_ID, deleteUserAnnotations);
+            jobDataDeleter.deleteAllAnnotations(ActionTestUtils.assertNoFailureListener(deleteResponse -> {}));
 
-        verify(client).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
+            if (deleteUserAnnotations) {
+                verify(client, times(2)).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
+            } else {
+                verify(client).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
+            }
 
-        DeleteByQueryRequest deleteRequest = deleteRequestCaptor.getValue();
-        assertThat(deleteRequest.indices(), is(arrayContaining(AnnotationIndex.READ_ALIAS_NAME)));
-        String dbqQueryString = Strings.toString(deleteRequest.getSearchRequest().source().query());
-        assertThat(dbqQueryString, not(containsString("timestamp")));
-        assertThat(dbqQueryString, not(containsString("event")));
+            DeleteByQueryRequest deleteRequest = deleteRequestCaptor.getValue();
+            assertThat(deleteRequest.indices(), is(arrayContaining(AnnotationIndex.READ_ALIAS_NAME)));
+            String dbqQueryString = Strings.toString(deleteRequest.getSearchRequest().source().query());
+            assertThat(dbqQueryString, not(containsString("timestamp")));
+            assertThat(dbqQueryString, not(containsString("event")));
+            if (deleteUserAnnotations) {
+                assertThat(dbqQueryString, not(containsString("_xpack")));
+            } else {
+                assertThat(dbqQueryString, containsString("_xpack"));
+            }
+        });
     }
 
     public void testDeleteAnnotations_TimestampFiltering() {
-        JobDataDeleter jobDataDeleter = new JobDataDeleter(client, JOB_ID);
-        Tuple<Long, Long> range = randomFrom(
-            tuple(1_000_000_000L, 2_000_000_000L),
-            tuple(1_000_000_000L, null),
-            tuple(null, 2_000_000_000L)
-        );
-        jobDataDeleter.deleteAnnotations(range.v1(), range.v2(), null, ActionListener.wrap(deleteResponse -> {}, e -> fail(e.toString())));
+        Arrays.asList(false, true).forEach(deleteUserAnnotations -> {
+            JobDataDeleter jobDataDeleter = new JobDataDeleter(client, JOB_ID, deleteUserAnnotations);
+            Tuple<Long, Long> range = randomFrom(
+                tuple(1_000_000_000L, 2_000_000_000L),
+                tuple(1_000_000_000L, null),
+                tuple(null, 2_000_000_000L)
+            );
+            jobDataDeleter.deleteAnnotations(range.v1(), range.v2(), null, ActionTestUtils.assertNoFailureListener(deleteResponse -> {}));
 
-        verify(client).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
+            if (deleteUserAnnotations) {
+                verify(client, times(2)).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
+            } else {
+                verify(client).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
+            }
 
-        DeleteByQueryRequest deleteRequest = deleteRequestCaptor.getValue();
-        assertThat(deleteRequest.indices(), is(arrayContaining(AnnotationIndex.READ_ALIAS_NAME)));
-        String dbqQueryString = Strings.toString(deleteRequest.getSearchRequest().source().query());
-        assertThat(dbqQueryString, containsString("timestamp"));
-        assertThat(dbqQueryString, not(containsString("event")));
+            DeleteByQueryRequest deleteRequest = deleteRequestCaptor.getValue();
+            assertThat(deleteRequest.indices(), is(arrayContaining(AnnotationIndex.READ_ALIAS_NAME)));
+            String dbqQueryString = Strings.toString(deleteRequest.getSearchRequest().source().query());
+            assertThat(dbqQueryString, containsString("timestamp"));
+            assertThat(dbqQueryString, not(containsString("event")));
+            if (deleteUserAnnotations) {
+                assertThat(dbqQueryString, not(containsString("_xpack")));
+            } else {
+                assertThat(dbqQueryString, containsString("_xpack"));
+            }
+        });
     }
 
     public void testDeleteAnnotations_EventFiltering() {
-        JobDataDeleter jobDataDeleter = new JobDataDeleter(client, JOB_ID);
-        jobDataDeleter.deleteAnnotations(
-            null,
-            null,
-            Set.of("dummy_event"),
-            ActionListener.wrap(deleteResponse -> {}, e -> fail(e.toString()))
-        );
+        Arrays.asList(false, true).forEach(deleteUserAnnotations -> {
+            JobDataDeleter jobDataDeleter = new JobDataDeleter(client, JOB_ID, deleteUserAnnotations);
+            jobDataDeleter.deleteAnnotations(
+                null,
+                null,
+                Set.of("dummy_event"),
+                ActionTestUtils.assertNoFailureListener(deleteResponse -> {})
+            );
 
-        verify(client).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
+            if (deleteUserAnnotations) {
+                verify(client, times(2)).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
+            } else {
+                verify(client).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
+            }
 
-        DeleteByQueryRequest deleteRequest = deleteRequestCaptor.getValue();
-        assertThat(deleteRequest.indices(), is(arrayContaining(AnnotationIndex.READ_ALIAS_NAME)));
-        String dbqQueryString = Strings.toString(deleteRequest.getSearchRequest().source().query());
-        assertThat(dbqQueryString, not(containsString("timestamp")));
-        assertThat(dbqQueryString, containsString("event"));
+            DeleteByQueryRequest deleteRequest = deleteRequestCaptor.getValue();
+            assertThat(deleteRequest.indices(), is(arrayContaining(AnnotationIndex.READ_ALIAS_NAME)));
+            String dbqQueryString = Strings.toString(deleteRequest.getSearchRequest().source().query());
+            assertThat(dbqQueryString, not(containsString("timestamp")));
+            assertThat(dbqQueryString, containsString("event"));
+            if (deleteUserAnnotations) {
+                assertThat(dbqQueryString, not(containsString("_xpack")));
+            } else {
+                assertThat(dbqQueryString, containsString("_xpack"));
+            }
+        });
     }
 
     public void testDeleteDatafeedTimingStats() {
-        JobDataDeleter jobDataDeleter = new JobDataDeleter(client, JOB_ID);
-        jobDataDeleter.deleteDatafeedTimingStats(ActionListener.wrap(deleteResponse -> {}, e -> fail(e.toString())));
+        Arrays.asList(false, true).forEach(deleteUserAnnotations -> {
+            JobDataDeleter jobDataDeleter = new JobDataDeleter(client, JOB_ID, deleteUserAnnotations);
+            jobDataDeleter.deleteDatafeedTimingStats(ActionTestUtils.assertNoFailureListener(deleteResponse -> {}));
 
-        verify(client).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
+            if (deleteUserAnnotations) {
+                verify(client, times(2)).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
+            } else {
+                verify(client).execute(eq(DeleteByQueryAction.INSTANCE), deleteRequestCaptor.capture(), any());
+            }
 
-        DeleteByQueryRequest deleteRequest = deleteRequestCaptor.getValue();
-        assertThat(deleteRequest.indices(), is(arrayContaining(AnomalyDetectorsIndex.jobResultsAliasedName(JOB_ID))));
+            DeleteByQueryRequest deleteRequest = deleteRequestCaptor.getValue();
+            assertThat(deleteRequest.indices(), is(arrayContaining(AnomalyDetectorsIndex.jobResultsAliasedName(JOB_ID))));
+        });
     }
 }

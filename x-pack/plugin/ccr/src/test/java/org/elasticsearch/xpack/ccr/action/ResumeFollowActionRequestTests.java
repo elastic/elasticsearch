@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ResumeFollowActionRequestTests extends AbstractSerializingTestCase<ResumeFollowAction.Request> {
+public class ResumeFollowActionRequestTests extends AbstractXContentSerializingTestCase<ResumeFollowAction.Request> {
 
     @Override
     protected Writeable.Reader<ResumeFollowAction.Request> instanceReader() {
@@ -40,6 +40,11 @@ public class ResumeFollowActionRequestTests extends AbstractSerializingTestCase<
     }
 
     @Override
+    protected ResumeFollowAction.Request mutateInstance(ResumeFollowAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected ResumeFollowAction.Request createXContextTestInstance(XContentType type) {
         // follower index parameter is not part of the request body and is provided in the url path.
         // So this field cannot be used for creating a test instance for xcontent testing.
@@ -51,11 +56,6 @@ public class ResumeFollowActionRequestTests extends AbstractSerializingTestCase<
     @Override
     protected ResumeFollowAction.Request doParseInstance(XContentParser parser) throws IOException {
         return ResumeFollowAction.Request.fromXContent(parser, null);
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
     }
 
     static void generateFollowParameters(FollowParameters followParameters) {
@@ -78,10 +78,10 @@ public class ResumeFollowActionRequestTests extends AbstractSerializingTestCase<
             followParameters.setMaxWriteRequestOperationCount(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            followParameters.setMaxWriteRequestSize(new ByteSizeValue(randomNonNegativeLong()));
+            followParameters.setMaxWriteRequestSize(ByteSizeValue.ofBytes(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
-            followParameters.setMaxWriteBufferSize(new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES));
+            followParameters.setMaxWriteBufferSize(ByteSizeValue.ofBytes(randomNonNegativeLong()));
         }
         if (randomBoolean()) {
             followParameters.setMaxRetryDelay(TimeValue.timeValueMillis(500));

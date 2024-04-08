@@ -15,6 +15,7 @@ import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x509.AuthorityKeyIdentifier;
 import org.bouncycastle.asn1.x509.BasicConstraints;
+import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
 import org.bouncycastle.asn1.x509.Extension;
 import org.bouncycastle.asn1.x509.ExtensionsGenerator;
 import org.bouncycastle.asn1.x509.GeneralName;
@@ -167,6 +168,20 @@ public class CertGenUtils {
         int days,
         String signatureAlgorithm
     ) throws NoSuchAlgorithmException, CertificateException, CertIOException, OperatorCreationException {
+        return generateSignedCertificate(principal, subjectAltNames, keyPair, caCert, caPrivKey, isCa, days, signatureAlgorithm, Set.of());
+    }
+
+    public static X509Certificate generateSignedCertificate(
+        X500Principal principal,
+        GeneralNames subjectAltNames,
+        KeyPair keyPair,
+        X509Certificate caCert,
+        PrivateKey caPrivKey,
+        boolean isCa,
+        int days,
+        String signatureAlgorithm,
+        Set<ExtendedKeyUsage> extendedKeyUsages
+    ) throws NoSuchAlgorithmException, CertificateException, CertIOException, OperatorCreationException {
         Objects.requireNonNull(keyPair, "Key-Pair must not be null");
         final ZonedDateTime notBefore = ZonedDateTime.now(ZoneOffset.UTC);
         if (days < 1) {
@@ -182,7 +197,8 @@ public class CertGenUtils {
             isCa,
             notBefore,
             notAfter,
-            signatureAlgorithm
+            signatureAlgorithm,
+            extendedKeyUsages
         );
     }
 
@@ -196,6 +212,32 @@ public class CertGenUtils {
         ZonedDateTime notBefore,
         ZonedDateTime notAfter,
         String signatureAlgorithm
+    ) throws NoSuchAlgorithmException, CertIOException, OperatorCreationException, CertificateException {
+        return generateSignedCertificate(
+            principal,
+            subjectAltNames,
+            keyPair,
+            caCert,
+            caPrivKey,
+            isCa,
+            notBefore,
+            notAfter,
+            signatureAlgorithm,
+            Set.of()
+        );
+    }
+
+    public static X509Certificate generateSignedCertificate(
+        X500Principal principal,
+        GeneralNames subjectAltNames,
+        KeyPair keyPair,
+        X509Certificate caCert,
+        PrivateKey caPrivKey,
+        boolean isCa,
+        ZonedDateTime notBefore,
+        ZonedDateTime notAfter,
+        String signatureAlgorithm,
+        Set<ExtendedKeyUsage> extendedKeyUsages
     ) throws NoSuchAlgorithmException, CertIOException, OperatorCreationException, CertificateException {
         final BigInteger serial = CertGenUtils.getSerial();
         JcaX509ExtensionUtils extUtils = new JcaX509ExtensionUtils();
@@ -229,6 +271,12 @@ public class CertGenUtils {
             builder.addExtension(Extension.subjectAlternativeName, false, subjectAltNames);
         }
         builder.addExtension(Extension.basicConstraints, isCa, new BasicConstraints(isCa));
+
+        if (extendedKeyUsages != null) {
+            for (ExtendedKeyUsage extendedKeyUsage : extendedKeyUsages) {
+                builder.addExtension(Extension.extendedKeyUsage, false, extendedKeyUsage);
+            }
+        }
 
         PrivateKey signingKey = caPrivKey != null ? caPrivKey : keyPair.getPrivate();
         ContentSigner signer = new JcaContentSignerBuilder(
@@ -270,13 +318,41 @@ public class CertGenUtils {
      */
     static PKCS10CertificationRequest generateCSR(KeyPair keyPair, X500Principal principal, GeneralNames sanList) throws IOException,
         OperatorCreationException {
+        return generateCSR(keyPair, principal, sanList, Set.of());
+    }
+
+    /**
+     * Generates a certificate signing request
+     *
+     * @param keyPair   the key pair that will be associated by the certificate generated from the certificate signing request
+     * @param principal the principal of the certificate; commonly referred to as the distinguished name (DN)
+     * @param sanList   the subject alternative names that should be added to the certificate as an X509v3 extension. May be
+     *                  {@code null}
+     * @param extendedKeyUsages the extended key usages that should be added to the certificate as an X509v3 extension. May be empty.
+     * @return a certificate signing request
+     */
+    static PKCS10CertificationRequest generateCSR(
+        KeyPair keyPair,
+        X500Principal principal,
+        GeneralNames sanList,
+        Set<ExtendedKeyUsage> extendedKeyUsages
+    ) throws IOException, OperatorCreationException {
         Objects.requireNonNull(keyPair, "Key-Pair must not be null");
         Objects.requireNonNull(keyPair.getPublic(), "Public-Key must not be null");
         Objects.requireNonNull(principal, "Principal must not be null");
+        Objects.requireNonNull(extendedKeyUsages, "extendedKeyUsages must not be null");
         JcaPKCS10CertificationRequestBuilder builder = new JcaPKCS10CertificationRequestBuilder(principal, keyPair.getPublic());
+
+        ExtensionsGenerator extGen = new ExtensionsGenerator();
         if (sanList != null) {
-            ExtensionsGenerator extGen = new ExtensionsGenerator();
             extGen.addExtension(Extension.subjectAlternativeName, false, sanList);
+        }
+
+        for (ExtendedKeyUsage extendedKeyUsage : extendedKeyUsages) {
+            extGen.addExtension(Extension.extendedKeyUsage, false, extendedKeyUsage);
+        }
+
+        if (extGen.isEmpty() == false) {
             builder.addAttribute(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest, extGen.generate());
         }
 

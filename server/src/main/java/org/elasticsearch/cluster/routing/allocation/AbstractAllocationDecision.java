@@ -9,25 +9,29 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * An abstract class for representing various types of allocation decisions.
  */
-public abstract class AbstractAllocationDecision implements ToXContentFragment, Writeable {
+public abstract class AbstractAllocationDecision implements ChunkedToXContentObject, Writeable {
 
     @Nullable
     protected final DiscoveryNode targetNode;
@@ -41,7 +45,7 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
 
     protected AbstractAllocationDecision(StreamInput in) throws IOException {
         targetNode = in.readOptionalWriteable(DiscoveryNode::new);
-        nodeDecisions = in.readBoolean() ? Collections.unmodifiableList(in.readList(NodeAllocationResult::new)) : null;
+        nodeDecisions = in.readBoolean() ? in.readCollectionAsImmutableList(NodeAllocationResult::new) : null;
     }
 
     /**
@@ -84,7 +88,7 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
         out.writeOptionalWriteable(targetNode);
         if (nodeDecisions != null) {
             out.writeBoolean(true);
-            out.writeList(nodeDecisions);
+            out.writeCollection(nodeDecisions);
         } else {
             out.writeBoolean(false);
         }
@@ -112,33 +116,35 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
             }
             builder.endObject();
         }
+        builder.startArray("roles");
+        for (DiscoveryNodeRole role : node.getRoles()) {
+            builder.value(role.roleName());
+        }
+        builder.endArray();
         return builder;
     }
 
     /**
      * Sorts a list of node level decisions by the decision type, then by weight ranking, and finally by node id.
      */
-    public List<NodeAllocationResult> sortNodeDecisions(List<NodeAllocationResult> nodeDecisions) {
-        return Collections.unmodifiableList(nodeDecisions.stream().sorted().collect(Collectors.toList()));
+    public static List<NodeAllocationResult> sortNodeDecisions(List<NodeAllocationResult> nodeDecisions) {
+        return nodeDecisions.stream().sorted().toList();
     }
 
     /**
-     * Generates X-Content for the node-level decisions, creating the outer "node_decisions" object
+     * Generates X-Content chunks for the node-level decisions, creating the outer "node_allocation_decisions" object
      * in which they are serialized.
      */
-    public XContentBuilder nodeDecisionsToXContent(List<NodeAllocationResult> nodeDecisions, XContentBuilder builder, Params params)
-        throws IOException {
-
-        if (nodeDecisions != null && nodeDecisions.isEmpty() == false) {
-            builder.startArray("node_allocation_decisions");
-            {
-                for (NodeAllocationResult explanation : nodeDecisions) {
-                    explanation.toXContent(builder, params);
-                }
-            }
-            builder.endArray();
+    public static Iterator<ToXContent> nodeDecisionsToXContentChunked(List<NodeAllocationResult> nodeDecisions) {
+        if (nodeDecisions == null || nodeDecisions.isEmpty()) {
+            return Collections.emptyIterator();
         }
-        return builder;
+
+        return Iterators.concat(
+            ChunkedToXContentHelper.startArray("node_allocation_decisions"),
+            nodeDecisions.iterator(),
+            ChunkedToXContentHelper.endArray()
+        );
     }
 
     /**

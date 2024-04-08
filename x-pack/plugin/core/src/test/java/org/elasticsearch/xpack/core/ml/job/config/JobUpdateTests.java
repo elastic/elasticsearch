@@ -7,16 +7,15 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.core.ml.utils.MlConfigVersionUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,18 +32,21 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
-public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
-
-    private boolean useInternalParser = randomBoolean();
+public class JobUpdateTests extends AbstractXContentSerializingTestCase<JobUpdate> {
 
     @Override
     protected JobUpdate createTestInstance() {
         return createRandom(randomAlphaOfLength(4), null);
     }
 
+    @Override
+    protected JobUpdate mutateInstance(JobUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     /**
      * Creates a completely random update when the job is null
-     * or a random update that is is valid for the given job
+     * or a random update that is valid for the given job
      */
     public JobUpdate createRandom(String jobId, @Nullable Job job) {
         JobUpdate.Builder update = new JobUpdate.Builder(jobId);
@@ -121,23 +123,8 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         if (randomBoolean()) {
             update.setCustomSettings(Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         }
-        if (useInternalParser && randomBoolean()) {
-            update.setModelSnapshotId(randomAlphaOfLength(10));
-        }
-        if (useInternalParser && randomBoolean()) {
-            update.setModelSnapshotMinVersion(Version.CURRENT);
-        }
-        if (useInternalParser && randomBoolean()) {
-            update.setJobVersion(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
-        }
-        if (useInternalParser) {
-            update.setClearFinishTime(randomBoolean());
-        }
         if (randomBoolean()) {
             update.setAllowLazyOpen(randomBoolean());
-        }
-        if (useInternalParser && randomBoolean() && (job == null || job.isDeleting() == false)) {
-            update.setBlocked(BlockedTests.createRandom());
         }
         if (randomBoolean() && job != null) {
             update.setModelPruneWindow(
@@ -246,11 +233,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
 
     @Override
     protected JobUpdate doParseInstance(XContentParser parser) {
-        if (useInternalParser) {
-            return JobUpdate.INTERNAL_PARSER.apply(parser, null).build();
-        } else {
-            return JobUpdate.EXTERNAL_PARSER.apply(parser, null).build();
-        }
+        return JobUpdate.PARSER.apply(parser, null).build();
     }
 
     public void testMergeWithJob() {
@@ -286,7 +269,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         updateBuilder.setPerPartitionCategorizationConfig(new PerPartitionCategorizationConfig(true, randomBoolean()));
         updateBuilder.setCustomSettings(customSettings);
         updateBuilder.setModelSnapshotId(randomAlphaOfLength(10));
-        updateBuilder.setJobVersion(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
+        updateBuilder.setJobVersion(MlConfigVersionUtils.randomCompatibleVersion(random()));
         updateBuilder.setModelPruneWindow(TimeValue.timeValueDays(randomIntBetween(1, 100)));
         JobUpdate update = updateBuilder.build();
 
@@ -305,7 +288,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         jobBuilder.setCreateTime(new Date());
         Job job = jobBuilder.build();
 
-        Job updatedJob = update.mergeWithJob(job, new ByteSizeValue(0L));
+        Job updatedJob = update.mergeWithJob(job, ByteSizeValue.ZERO);
 
         assertEquals(update.getGroups(), updatedJob.getGroups());
         assertEquals(update.getDescription(), updatedJob.getDescription());
@@ -342,7 +325,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
                 update = createRandom(job.getId(), job);
             } while (update.isNoop(job));
 
-            Job updatedJob = update.mergeWithJob(job, new ByteSizeValue(0L));
+            Job updatedJob = update.mergeWithJob(job, ByteSizeValue.ZERO);
             assertThat(job, not(equalTo(updatedJob)));
         }
     }
@@ -395,7 +378,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         jobBuilder.validateAnalysisLimitsAndSetDefaults(null);
 
         JobUpdate update = new JobUpdate.Builder("foo").setAnalysisLimits(new AnalysisLimits(2048L, 5L)).build();
-        Job updated = update.mergeWithJob(jobBuilder.build(), new ByteSizeValue(0L));
+        Job updated = update.mergeWithJob(jobBuilder.build(), ByteSizeValue.ZERO);
         assertThat(updated.getAnalysisLimits().getModelMemoryLimit(), equalTo(2048L));
         assertThat(updated.getAnalysisLimits().getCategorizationExamplesLimit(), equalTo(5L));
 

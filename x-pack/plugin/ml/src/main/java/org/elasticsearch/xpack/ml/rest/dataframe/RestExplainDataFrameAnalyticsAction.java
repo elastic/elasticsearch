@@ -11,10 +11,12 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
-import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -26,6 +28,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestExplainDataFrameAnalyticsAction extends BaseRestHandler {
 
     @Override
@@ -62,19 +65,20 @@ public class RestExplainDataFrameAnalyticsAction extends BaseRestHandler {
         }
 
         // We need to consume the body before returning
-        PutDataFrameAnalyticsAction.Request explainRequestFromBody = Strings.isNullOrEmpty(jobId)
-            ? PutDataFrameAnalyticsAction.Request.parseRequestForExplain(restRequest.contentOrSourceParamParser())
+        ExplainDataFrameAnalyticsAction.Request explainRequestFromBody = Strings.isNullOrEmpty(jobId)
+            ? ExplainDataFrameAnalyticsAction.Request.parseRequest(restRequest.contentOrSourceParamParser())
             : null;
 
         return channel -> {
             RestToXContentListener<ExplainDataFrameAnalyticsAction.Response> listener = new RestToXContentListener<>(channel);
+            RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, restRequest.getHttpChannel());
 
             if (explainRequestFromBody != null) {
-                client.execute(ExplainDataFrameAnalyticsAction.INSTANCE, explainRequestFromBody, listener);
+                cancellableClient.execute(ExplainDataFrameAnalyticsAction.INSTANCE, explainRequestFromBody, listener);
             } else {
                 GetDataFrameAnalyticsAction.Request getRequest = new GetDataFrameAnalyticsAction.Request(jobId);
                 getRequest.setAllowNoResources(false);
-                client.execute(GetDataFrameAnalyticsAction.INSTANCE, getRequest, ActionListener.wrap(getResponse -> {
+                cancellableClient.execute(GetDataFrameAnalyticsAction.INSTANCE, getRequest, ActionListener.wrap(getResponse -> {
                     List<DataFrameAnalyticsConfig> jobs = getResponse.getResources().results();
                     if (jobs.size() > 1) {
                         listener.onFailure(
@@ -84,8 +88,8 @@ public class RestExplainDataFrameAnalyticsAction extends BaseRestHandler {
                             )
                         );
                     } else {
-                        PutDataFrameAnalyticsAction.Request explainRequest = new PutDataFrameAnalyticsAction.Request(jobs.get(0));
-                        client.execute(ExplainDataFrameAnalyticsAction.INSTANCE, explainRequest, listener);
+                        ExplainDataFrameAnalyticsAction.Request explainRequest = new ExplainDataFrameAnalyticsAction.Request(jobs.get(0));
+                        cancellableClient.execute(ExplainDataFrameAnalyticsAction.INSTANCE, explainRequest, listener);
                     }
                 }, listener::onFailure));
             }

@@ -10,6 +10,8 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -237,20 +239,28 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
         if (analyzer != null) {
             builder.field(MatchQueryBuilder.ANALYZER_FIELD.getPreferredName(), analyzer);
         }
-        builder.field(OPERATOR_FIELD.getPreferredName(), operator.toString());
+        if (operator != DEFAULT_OPERATOR) {
+            builder.field(OPERATOR_FIELD.getPreferredName(), operator.toString());
+        }
         if (minimumShouldMatch != null) {
             builder.field(MatchQueryBuilder.MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), minimumShouldMatch);
         }
         if (fuzziness != null) {
             fuzziness.toXContent(builder, params);
         }
-        builder.field(PREFIX_LENGTH_FIELD.getPreferredName(), prefixLength);
-        builder.field(MAX_EXPANSIONS_FIELD.getPreferredName(), maxExpansions);
-        builder.field(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), fuzzyTranspositions);
+        if (prefixLength != FuzzyQuery.defaultPrefixLength) {
+            builder.field(PREFIX_LENGTH_FIELD.getPreferredName(), prefixLength);
+        }
+        if (maxExpansions != FuzzyQuery.defaultMaxExpansions) {
+            builder.field(MAX_EXPANSIONS_FIELD.getPreferredName(), maxExpansions);
+        }
+        if (fuzzyTranspositions != FuzzyQuery.defaultTranspositions) {
+            builder.field(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), fuzzyTranspositions);
+        }
         if (fuzzyRewrite != null) {
             builder.field(FUZZY_REWRITE_FIELD.getPreferredName(), fuzzyRewrite);
         }
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
         builder.endObject();
     }
@@ -392,5 +402,10 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_7_2_0;
     }
 }

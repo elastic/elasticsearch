@@ -8,11 +8,14 @@
 
 package org.elasticsearch.indices.store;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -45,11 +48,12 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+
+import static java.util.Collections.emptyList;
 
 public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
     TransportNodesListShardStoreMetadata.Request,
@@ -57,8 +61,10 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
     TransportNodesListShardStoreMetadata.NodeRequest,
     TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> {
 
+    private static final Logger logger = LogManager.getLogger(TransportNodesListShardStoreMetadata.class);
+
     public static final String ACTION_NAME = "internal:cluster/nodes/indices/shard/store";
-    public static final ActionType<NodesStoreFilesMetadata> TYPE = new ActionType<>(ACTION_NAME, NodesStoreFilesMetadata::new);
+    public static final ActionType<NodesStoreFilesMetadata> TYPE = new ActionType<>(ACTION_NAME);
 
     private final Settings settings;
     private final IndicesService indicesService;
@@ -76,14 +82,11 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
     ) {
         super(
             ACTION_NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            Request::new,
             NodeRequest::new,
-            ThreadPool.Names.FETCH_SHARD_STORE,
-            NodeStoreFilesMetadata.class
+            threadPool.executor(ThreadPool.Names.FETCH_SHARD_STORE)
         );
         this.settings = settings;
         this.indicesService = indicesService;
@@ -132,18 +135,17 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                 if (indexShard != null) {
                     try {
                         final StoreFilesMetadata storeFilesMetadata = new StoreFilesMetadata(
-                            shardId,
                             indexShard.snapshotStoreMetadata(),
                             indexShard.getPeerRecoveryRetentionLeases()
                         );
                         exists = true;
                         return storeFilesMetadata;
                     } catch (org.apache.lucene.index.IndexNotFoundException e) {
-                        logger.trace(new ParameterizedMessage("[{}] node is missing index, responding with empty", shardId), e);
-                        return new StoreFilesMetadata(shardId, Store.MetadataSnapshot.EMPTY, Collections.emptyList());
+                        logger.trace(() -> "[" + shardId + "] node is missing index, responding with empty", e);
+                        return StoreFilesMetadata.EMPTY;
                     } catch (IOException e) {
-                        logger.warn(new ParameterizedMessage("[{}] can't read metadata from store, responding with empty", shardId), e);
-                        return new StoreFilesMetadata(shardId, Store.MetadataSnapshot.EMPTY, Collections.emptyList());
+                        logger.warn(() -> "[" + shardId + "] can't read metadata from store, responding with empty", e);
+                        return StoreFilesMetadata.EMPTY;
                     }
                 }
             }
@@ -166,7 +168,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
             }
             final ShardPath shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, customDataPath);
             if (shardPath == null) {
-                return new StoreFilesMetadata(shardId, Store.MetadataSnapshot.EMPTY, Collections.emptyList());
+                return StoreFilesMetadata.EMPTY;
             }
             // note that this may fail if it can't get access to the shard lock. Since we check above there is an active shard, this means:
             // 1) a shard is being constructed, which means the master will not use a copy of this replica
@@ -180,7 +182,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
             );
             // We use peer recovery retention leases from the primary for allocating replicas. We should always have retention leases when
             // we refresh shard info after the primary has started. Hence, we can ignore retention leases if there is no active shard.
-            return new StoreFilesMetadata(shardId, metadataSnapshot, Collections.emptyList());
+            return new StoreFilesMetadata(metadataSnapshot, emptyList());
         } finally {
             TimeValue took = new TimeValue(System.nanoTime() - startTimeNS, TimeUnit.NANOSECONDS);
             if (exists) {
@@ -191,36 +193,38 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         }
     }
 
-    public static class StoreFilesMetadata implements Iterable<StoreFileMetadata>, Writeable {
-        private final ShardId shardId;
-        private final Store.MetadataSnapshot metadataSnapshot;
-        private final List<RetentionLease> peerRecoveryRetentionLeases;
+    public record StoreFilesMetadata(Store.MetadataSnapshot metadataSnapshot, List<RetentionLease> peerRecoveryRetentionLeases)
+        implements
+            Iterable<StoreFileMetadata>,
+            Writeable {
 
-        public StoreFilesMetadata(
-            ShardId shardId,
-            Store.MetadataSnapshot metadataSnapshot,
-            List<RetentionLease> peerRecoveryRetentionLeases
-        ) {
-            this.shardId = shardId;
-            this.metadataSnapshot = metadataSnapshot;
-            this.peerRecoveryRetentionLeases = peerRecoveryRetentionLeases;
-        }
+        private static final ShardId FAKE_SHARD_ID = new ShardId("_na_", "_na_", 0);
+        public static final StoreFilesMetadata EMPTY = new StoreFilesMetadata(Store.MetadataSnapshot.EMPTY, emptyList());
 
-        public StoreFilesMetadata(StreamInput in) throws IOException {
-            this.shardId = new ShardId(in);
-            this.metadataSnapshot = new Store.MetadataSnapshot(in);
-            this.peerRecoveryRetentionLeases = in.readList(RetentionLease::new);
+        public static StoreFilesMetadata readFrom(StreamInput in) throws IOException {
+            if (in.getTransportVersion().before(TransportVersions.V_8_2_0)) {
+                new ShardId(in);
+            }
+            final var metadataSnapshot = Store.MetadataSnapshot.readFrom(in);
+            final var peerRecoveryRetentionLeases = in.readCollectionAsImmutableList(RetentionLease::new);
+            if (metadataSnapshot == Store.MetadataSnapshot.EMPTY && peerRecoveryRetentionLeases.isEmpty()) {
+                return EMPTY;
+            } else {
+                return new StoreFilesMetadata(metadataSnapshot, peerRecoveryRetentionLeases);
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            shardId.writeTo(out);
-            metadataSnapshot.writeTo(out);
-            out.writeList(peerRecoveryRetentionLeases);
-        }
+            if (out.getTransportVersion().before(TransportVersions.V_8_2_0)) {
+                // no compatible version cares about the shard ID, we can just make one up
+                FAKE_SHARD_ID.writeTo(out);
 
-        public ShardId shardId() {
-            return this.shardId;
+                // NB only checked this for versions back to 7.17.0, we are assuming that we don't use this with earlier versions:
+                assert out.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0) : out.getTransportVersion();
+            }
+            metadataSnapshot.writeTo(out);
+            out.writeCollection(peerRecoveryRetentionLeases);
         }
 
         public boolean isEmpty() {
@@ -233,11 +237,11 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         }
 
         public boolean fileExists(String name) {
-            return metadataSnapshot.asMap().containsKey(name);
+            return metadataSnapshot.fileMetadataMap().containsKey(name);
         }
 
         public StoreFileMetadata file(String name) {
-            return metadataSnapshot.asMap().get(name);
+            return metadataSnapshot.fileMetadataMap().get(name);
         }
 
         /**
@@ -253,10 +257,6 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                 .orElse(-1L);
         }
 
-        public List<RetentionLease> peerRecoveryRetentionLeases() {
-            return peerRecoveryRetentionLeases;
-        }
-
         /**
          * @return commit sync id if exists, else null
          */
@@ -267,8 +267,6 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         @Override
         public String toString() {
             return "StoreFilesMetadata{"
-                + ", shardId="
-                + shardId
                 + ", metadataSnapshot{size="
                 + metadataSnapshot.size()
                 + ", syncId="
@@ -283,12 +281,6 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         private final ShardId shardId;
         @Nullable
         private final String customDataPath;
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            shardId = new ShardId(in);
-            customDataPath = in.readString();
-        }
 
         public Request(ShardId shardId, String customDataPath, DiscoveryNode[] nodes) {
             super(nodes);
@@ -312,17 +304,11 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            shardId.writeTo(out);
-            out.writeString(customDataPath);
+            TransportAction.localOnly();
         }
     }
 
     public static class NodesStoreFilesMetadata extends BaseNodesResponse<NodeStoreFilesMetadata> {
-
-        public NodesStoreFilesMetadata(StreamInput in) throws IOException {
-            super(in);
-        }
 
         public NodesStoreFilesMetadata(ClusterName clusterName, List<NodeStoreFilesMetadata> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);
@@ -330,12 +316,12 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
 
         @Override
         protected List<NodeStoreFilesMetadata> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeStoreFilesMetadata::readListShardStoreNodeOperationResponse);
+            return TransportAction.localOnly();
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeStoreFilesMetadata> nodes) throws IOException {
-            out.writeList(nodes);
+            TransportAction.localOnly();
         }
     }
 
@@ -385,7 +371,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
 
         public NodeStoreFilesMetadata(StreamInput in, DiscoveryNode node) throws IOException {
             super(in, node);
-            storeFilesMetadata = new StoreFilesMetadata(in);
+            storeFilesMetadata = StoreFilesMetadata.readFrom(in);
         }
 
         public NodeStoreFilesMetadata(DiscoveryNode node, StoreFilesMetadata storeFilesMetadata) {

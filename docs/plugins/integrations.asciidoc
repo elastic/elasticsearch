@@ -23,13 +23,6 @@ Integrations are not plugins, but are external tools or modules that make it eas
   XWiki has an Elasticsearch and Kibana macro allowing to run Elasticsearch queries and display the results in XWiki pages using XWiki's scripting language as well as include Kibana Widgets in XWiki pages
 
 [discrete]
-[[data-integrations]]
-=== Data import/export and validation
-
-NOTE: Rivers were used to import data from external systems into Elasticsearch prior to the 2.0 release. Elasticsearch
-releases 2.0 and later do not support rivers.
-
-[discrete]
 ==== Supported by Elastic:
 
 * {logstash-ref}/plugins-outputs-elasticsearch.html[Logstash output to Elasticsearch]:

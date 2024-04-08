@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.monitoring.exporter;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 
@@ -18,11 +17,8 @@ public final class MonitoringTemplateUtils {
      * The last version of X-Pack that updated the templates and pipelines.
      * <p>
      * It may be possible for this to diverge between templates and pipelines, but for now they're the same.
-     *
-     * Note that the templates were last updated in 7.11.0, but the versions were not updated, meaning that upgrades
-     * to 7.11.0 would not have updated the templates. See https://github.com/elastic/elasticsearch/pull/69317.
      */
-    public static final int LAST_UPDATED_VERSION = Version.V_7_14_0.id;
+    public static final int LAST_UPDATED_VERSION = 8_12_00_99;
 
     /**
      * Current version of templates used in their name to differentiate from breaking changes (separate from product version).

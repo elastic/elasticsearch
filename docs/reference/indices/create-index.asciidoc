@@ -78,7 +78,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 =======
 `<alias>`::
 (Required, object) The key is the alias name. Index alias names support
-<<date-math-index-names,date math>>.
+<<api-date-math-index-names,date math>>.
 +
 The object body contains options for the alias. Supports an empty object.
 +
@@ -94,7 +94,7 @@ alias can access.
 If specified, this overwrites the `routing` value for indexing operations.
 
 `is_hidden`::
-(Optional, Boolean) If `true`, the alias is <<hidden,hidden>>. Defaults to
+(Optional, Boolean) If `true`, the alias is <<multi-hidden,hidden>>. Defaults to
 `false`. All indices for the alias must have the same `is_hidden` value.
 
 `is_write_index`::
@@ -204,7 +204,7 @@ PUT /test
 }
 --------------------------------------------------
 
-Index alias names also support <<date-math-index-names,date math>>.
+Index alias names also support <<api-date-math-index-names,date math>>.
 
 [source,console]
 ----

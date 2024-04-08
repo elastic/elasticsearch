@@ -5,8 +5,8 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -18,4 +18,8 @@ restResources {
   restApi {
     include '_common', 'bulk', 'cluster', 'nodes', 'indices', 'index', 'search'
   }
+}
+
+tasks.named("yamlRestTestV7CompatTransform").configure { task ->
+  task.skipTest("/30_inner_hits/profile fetch", "profile output has changed")
 }

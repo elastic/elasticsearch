@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
+import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -38,14 +38,14 @@ public class ReadOnlyStep extends AsyncActionStep {
         getClient().admin()
             .indices()
             .execute(
-                AddIndexBlockAction.INSTANCE,
+                TransportAddIndexBlockAction.TYPE,
                 new AddIndexBlockRequest(WRITE, indexMetadata.getIndex().getName()).masterNodeTimeout(TimeValue.MAX_VALUE),
-                ActionListener.wrap(response -> {
+                listener.delegateFailureAndWrap((l, response) -> {
                     if (response.isAcknowledged() == false) {
                         throw new ElasticsearchException("read only add block index request failed to be acknowledged");
                     }
-                    listener.onResponse(null);
-                }, listener::onFailure)
+                    l.onResponse(null);
+                })
             );
     }
 

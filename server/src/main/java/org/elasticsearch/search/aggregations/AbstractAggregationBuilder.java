@@ -48,14 +48,14 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
     protected AbstractAggregationBuilder(StreamInput in) throws IOException {
         super(in.readString());
         factoriesBuilder = new AggregatorFactories.Builder(in);
-        metadata = in.readMap();
+        metadata = in.readGenericMap();
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         factoriesBuilder.writeTo(out);
-        out.writeMap(metadata);
+        out.writeGenericMap(metadata);
         doWriteTo(out);
     }
 
@@ -115,7 +115,7 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
 
     @Override
     public Map<String, Object> getMetadata() {
-        return metadata == null ? Collections.emptyMap() : Collections.unmodifiableMap(metadata);
+        return metadata == null ? null : Collections.unmodifiableMap(metadata);
     }
 
     @Override

@@ -13,6 +13,8 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,7 +28,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Constructs a query that only match on documents that the field has a value in them.
@@ -66,14 +67,12 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
-        if (context != null) {
-            if (getMappedFields(context, fieldName).isEmpty()) {
-                return new MatchNoneQueryBuilder();
-            }
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
+        if (getMappedFields(context, fieldName).isEmpty()) {
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
+        } else {
+            return this;
         }
-        return super.doRewrite(queryRewriteContext);
     }
 
     @Override
@@ -131,9 +130,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     public static Query newFilter(SearchExecutionContext context, String fieldPattern, boolean checkRewrite) {
-        Collection<MappedFieldType> fields = getMappedFields(context, fieldPattern).stream()
-            .map(context::getFieldType)
-            .collect(Collectors.toList());
+        Collection<MappedFieldType> fields = getMappedFields(context, fieldPattern).stream().map(context::getFieldType).toList();
 
         if (fields.isEmpty()) {
             if (checkRewrite) {
@@ -155,7 +152,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         return new ConstantScoreQuery(boolFilterBuilder.build());
     }
 
-    private static Collection<String> getMappedFields(SearchExecutionContext context, String fieldPattern) {
+    private static Collection<String> getMappedFields(QueryRewriteContext context, String fieldPattern) {
         Set<String> matchingFieldNames = context.getMatchingFieldNames(fieldPattern);
         if (matchingFieldNames.isEmpty()) {
             // might be an object field, so try matching it as an object prefix pattern
@@ -177,5 +174,10 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

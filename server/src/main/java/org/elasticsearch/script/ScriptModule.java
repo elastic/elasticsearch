@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.IntervalFilterScript;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -35,6 +34,7 @@ public class ScriptModule {
         LongFieldScript.CONTEXT,
         StringFieldScript.CONTEXT,
         GeoPointFieldScript.CONTEXT,
+        GeometryFieldScript.CONTEXT,
         IpFieldScript.CONTEXT,
         CompositeFieldScript.CONTEXT
     );
@@ -48,8 +48,11 @@ public class ScriptModule {
                 ScoreScript.CONTEXT,
                 NumberSortScript.CONTEXT,
                 StringSortScript.CONTEXT,
+                BytesRefSortScript.CONTEXT,
                 TermsSetQueryScript.CONTEXT,
                 UpdateScript.CONTEXT,
+                ReindexScript.CONTEXT,
+                UpdateByQueryScript.CONTEXT,
                 BucketAggregationScript.CONTEXT,
                 BucketAggregationSelectorScript.CONTEXT,
                 SignificantTermsHeuristicScoreScript.CONTEXT,
@@ -60,12 +63,12 @@ public class ScriptModule {
                 SimilarityWeightScript.CONTEXT,
                 TemplateScript.CONTEXT,
                 TemplateScript.INGEST_CONTEXT,
-                MovingFunctionScript.CONTEXT,
                 ScriptedMetricAggContexts.InitScript.CONTEXT,
                 ScriptedMetricAggContexts.MapScript.CONTEXT,
                 ScriptedMetricAggContexts.CombineScript.CONTEXT,
                 ScriptedMetricAggContexts.ReduceScript.CONTEXT,
-                IntervalFilterScript.CONTEXT
+                IntervalFilterScript.CONTEXT,
+                DoubleValuesScript.CONTEXT
             ),
             RUNTIME_FIELDS_CONTEXTS.stream()
         ).collect(Collectors.toMap(c -> c.name, Function.identity()));
@@ -108,7 +111,7 @@ public class ScriptModule {
     /**
      * Allow the script service to register any settings update handlers on the cluster settings
      */
-    public void registerClusterSettingsListeners(ScriptService scriptService, ClusterSettings clusterSettings) {
+    public static void registerClusterSettingsListeners(ScriptService scriptService, ClusterSettings clusterSettings) {
         scriptService.registerClusterSettingsListeners(clusterSettings);
     }
 }

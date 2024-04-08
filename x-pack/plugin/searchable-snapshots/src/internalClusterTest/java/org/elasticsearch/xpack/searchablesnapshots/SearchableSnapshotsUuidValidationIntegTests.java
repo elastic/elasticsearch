@@ -112,7 +112,7 @@ public class SearchableSnapshotsUuidValidationIntegTests extends BaseFrozenSearc
         final RestoreBlockingActionFilter restoreBlockingActionFilter = getBlockingActionFilter();
         restoreBlockingActionFilter.awaitExecution();
 
-        assertAcked(client().admin().cluster().prepareDeleteSnapshot(fsRepoName, snapshotName).get());
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(fsRepoName, snapshotName).get());
         createFullSnapshot(fsRepoName, snapshotName);
 
         assertFalse(responseFuture.isDone());
@@ -123,7 +123,7 @@ public class SearchableSnapshotsUuidValidationIntegTests extends BaseFrozenSearc
             containsString("snapshot UUID mismatch")
         );
 
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
     }
 
     private static RestoreBlockingActionFilter getBlockingActionFilter() {

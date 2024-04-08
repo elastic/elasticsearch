@@ -32,7 +32,7 @@ public class PluginsConfigTests extends ESTestCase {
      */
     public void test_validate_rejectsNullDescriptor() {
         PluginsConfig config = new PluginsConfig();
-        List<PluginDescriptor> descriptors = new ArrayList<>();
+        List<InstallablePlugin> descriptors = new ArrayList<>();
         descriptors.add(null);
         config.setPlugins(descriptors);
         final Exception e = expectThrows(RuntimeException.class, () -> config.validate(Set.of(), Set.of()));
@@ -44,7 +44,7 @@ public class PluginsConfigTests extends ESTestCase {
      */
     public void test_validate_rejectsDescriptorWithNullId() {
         PluginsConfig config = new PluginsConfig();
-        config.setPlugins(List.of(new PluginDescriptor()));
+        config.setPlugins(List.of(new InstallablePlugin()));
         final Exception e = expectThrows(RuntimeException.class, () -> config.validate(Set.of(), Set.of()));
         assertThat(e.getMessage(), equalTo("Cannot have null or empty IDs in [elasticsearch-plugins.yml]"));
     }
@@ -54,7 +54,7 @@ public class PluginsConfigTests extends ESTestCase {
      */
     public void test_validate_rejectsDuplicatePluginId() {
         PluginsConfig config = new PluginsConfig();
-        config.setPlugins(List.of(new PluginDescriptor("foo"), new PluginDescriptor("foo")));
+        config.setPlugins(List.of(new InstallablePlugin("foo"), new InstallablePlugin("foo")));
         final Exception e = expectThrows(PluginSyncException.class, () -> config.validate(Set.of(), Set.of()));
         assertThat(e.getMessage(), equalTo("Duplicate plugin ID [foo] found in [elasticsearch-plugins.yml]"));
     }
@@ -64,7 +64,7 @@ public class PluginsConfigTests extends ESTestCase {
      */
     public void test_validate_rejectsUnofficialPluginWithoutLocation() {
         PluginsConfig config = new PluginsConfig();
-        config.setPlugins(List.of(new PluginDescriptor("foo")));
+        config.setPlugins(List.of(new InstallablePlugin("foo")));
         final Exception e = expectThrows(PluginSyncException.class, () -> config.validate(Set.of(), Set.of()));
         assertThat(e.getMessage(), equalTo("Must specify location for non-official plugin [foo] in [elasticsearch-plugins.yml]"));
     }
@@ -74,7 +74,7 @@ public class PluginsConfigTests extends ESTestCase {
      */
     public void test_validate_rejectsUnofficialPluginWithBlankLocation() {
         PluginsConfig config = new PluginsConfig();
-        config.setPlugins(List.of(new PluginDescriptor("foo", "   ")));
+        config.setPlugins(List.of(new InstallablePlugin("foo", "   ")));
         final Exception e = expectThrows(PluginSyncException.class, () -> config.validate(Set.of(), Set.of()));
         assertThat(e.getMessage(), equalTo("Empty location for plugin [foo]"));
     }
@@ -98,7 +98,7 @@ public class PluginsConfigTests extends ESTestCase {
      */
     public void test_validate_allowsOfficialPlugin() throws PluginSyncException {
         PluginsConfig config = new PluginsConfig();
-        config.setPlugins(List.of(new PluginDescriptor("analysis-icu")));
+        config.setPlugins(List.of(new InstallablePlugin("analysis-icu")));
         config.validate(Set.of("analysis-icu"), Set.of());
     }
 
@@ -107,8 +107,8 @@ public class PluginsConfigTests extends ESTestCase {
      * no longer being plugins.
      */
     public void test_validate_allowsMigratedPlugin() throws PluginSyncException {
-        final List<PluginDescriptor> descriptors = Stream.of("azure", "gcs", "s3")
-            .map(each -> new PluginDescriptor("repository-" + each))
+        final List<InstallablePlugin> descriptors = Stream.of("azure", "gcs", "s3")
+            .map(each -> new InstallablePlugin("repository-" + each))
             .toList();
         PluginsConfig config = new PluginsConfig();
         config.setPlugins(descriptors);

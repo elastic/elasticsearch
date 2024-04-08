@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -38,13 +37,13 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         final String indexName = indexMetadata.getIndex().getName();
 
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
-        final String repositoryName = lifecycleState.getSnapshotRepository();
+        final String repositoryName = lifecycleState.snapshotRepository();
         // if the snapshot information is missing from the ILM execution state there is nothing to delete so we move on
         if (Strings.hasText(repositoryName) == false) {
             listener.onResponse(null);
             return;
         }
-        final String snapshotName = lifecycleState.getSnapshotName();
+        final String snapshotName = lifecycleState.snapshotName();
         if (Strings.hasText(snapshotName) == false) {
             listener.onResponse(null);
             return;
@@ -57,21 +56,7 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
 
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                    if (acknowledgedResponse.isAcknowledged() == false) {
-                        String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
-                        throw new ElasticsearchException(
-                            "cleanup snapshot step request for repository ["
-                                + repositoryName
-                                + "] and snapshot "
-                                + "["
-                                + snapshotName
-                                + "] policy ["
-                                + policyName
-                                + "] and index ["
-                                + indexName
-                                + "] failed to be acknowledged"
-                        );
-                    }
+                    assert acknowledgedResponse.isAcknowledged();
                     listener.onResponse(null);
                 }
 
@@ -82,7 +67,7 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
                         listener.onResponse(null);
                     } else {
                         if (e instanceof RepositoryMissingException) {
-                            String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+                            String policyName = indexMetadata.getLifecyclePolicyName();
                             listener.onFailure(
                                 new IllegalStateException(
                                     "repository ["

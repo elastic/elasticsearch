@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.analytics.stringstats;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -114,11 +116,6 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
         return NAME;
     }
 
-    @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
     /**
      * Return whether to include the probability distribution of each character in the results.
      * {@code showDistribution} is true, distribution will be included.
@@ -153,5 +150,10 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
         if (super.equals(obj) == false) return false;
         StringStatsAggregationBuilder other = (StringStatsAggregationBuilder) obj;
         return showDistribution == other.showDistribution;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_7_6_0;
     }
 }

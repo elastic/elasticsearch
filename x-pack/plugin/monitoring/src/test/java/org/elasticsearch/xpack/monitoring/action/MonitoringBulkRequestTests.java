@@ -237,7 +237,7 @@ public class MonitoringBulkRequestTests extends ESTestCase {
         originalRequest.writeTo(out);
 
         final StreamInput in = out.bytes().streamInput();
-        in.setVersion(out.getVersion());
+        in.setTransportVersion(out.getTransportVersion());
 
         final MonitoringBulkRequest deserializedRequest = new MonitoringBulkRequest(in);
 

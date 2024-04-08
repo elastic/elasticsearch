@@ -29,11 +29,16 @@ public class RestPutShutdownNodeAction extends BaseRestHandler {
     }
 
     @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String nodeId = request.param("nodeId");
         try (XContentParser parser = request.contentParser()) {
             PutShutdownNodeAction.Request parsedRequest = PutShutdownNodeAction.Request.parseRequest(nodeId, parser);
-
+            parsedRequest.masterNodeTimeout(request.paramAsTime("master_timeout", parsedRequest.masterNodeTimeout()));
             return channel -> client.execute(PutShutdownNodeAction.INSTANCE, parsedRequest, new RestToXContentListener<>(channel));
         }
     }

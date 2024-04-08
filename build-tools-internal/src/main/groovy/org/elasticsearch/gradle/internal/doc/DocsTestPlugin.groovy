@@ -10,27 +10,41 @@ package org.elasticsearch.gradle.internal.doc
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask
+import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask
+import org.gradle.api.Action
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.file.Directory
+import org.gradle.api.file.ProjectLayout
+import org.gradle.api.internal.file.FileOperations
 import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.TaskProvider
+
+import javax.inject.Inject
 
 /**
  * Sets up tests for documentation.
  */
 class DocsTestPlugin implements Plugin<Project> {
 
+    private FileOperations fileOperations
+    private ProjectLayout projectLayout
+
+    @Inject
+    DocsTestPlugin(FileOperations fileOperations, ProjectLayout projectLayout) {
+        this.projectLayout = projectLayout
+        this.fileOperations = fileOperations
+    }
+
     @Override
     void apply(Project project) {
-        project.pluginManager.apply('elasticsearch.internal-testclusters')
-        project.pluginManager.apply('elasticsearch.standalone-rest-test')
-        project.pluginManager.apply('elasticsearch.rest-test')
+        project.pluginManager.apply('elasticsearch.legacy-yaml-rest-test')
 
         String distribution = System.getProperty('tests.distribution', 'default')
         // The distribution can be configured with -Dtests.distribution on the command line
-        project.testClusters.matching { it.name.equals("integTest") }.configureEach { testDistribution = distribution.toUpperCase() }
-        project.testClusters.matching { it.name.equals("integTest") }.configureEach { nameCustomization = { it.replace("integTest", "node") } }
+        project.testClusters.matching { it.name.equals("yamlRestTest") }.configureEach { testDistribution = distribution.toUpperCase() }
+        project.testClusters.matching { it.name.equals("yamlRestTest") }.configureEach { nameCustomization = { it.replace("yamlRestTest", "node") } }
         // Docs are published separately so no need to assemble
         project.tasks.named("assemble").configure {enabled = false }
         Map<String, String> commonDefaultSubstitutions = [
@@ -48,30 +62,38 @@ class DocsTestPlugin implements Plugin<Project> {
             group 'Docs'
             description 'List each snippet'
             defaultSubstitutions = commonDefaultSubstitutions
-            perSnippet { println(it.toString()) }
+            perSnippet = new Action<SnippetsTask.Snippet>() {
+                @Override
+                void execute(SnippetsTask.Snippet snippet) {
+                    println(snippet.toString())
+                }
+            }
         }
         project.tasks.register('listConsoleCandidates', SnippetsTask) {
             group 'Docs'
             description
             'List snippets that probably should be marked // CONSOLE'
             defaultSubstitutions = commonDefaultSubstitutions
-            perSnippet {
-                if (RestTestsFromSnippetsTask.isConsoleCandidate(it)) {
-                    println(it.toString())
+            perSnippet = new Action<SnippetsTask.Snippet>() {
+                @Override
+                void execute(SnippetsTask.Snippet snippet) {
+                    if (RestTestsFromSnippetsTask.isConsoleCandidate(it)) {
+                        println(it.toString())
+                    }
                 }
             }
         }
 
-        Provider<Directory> restRootDir = project.getLayout().buildDirectory.dir("rest")
+        Provider<Directory> restRootDir = projectLayout.buildDirectory.dir("rest")
         TaskProvider<RestTestsFromSnippetsTask> buildRestTests = project.tasks.register('buildRestTests', RestTestsFromSnippetsTask) {
             defaultSubstitutions = commonDefaultSubstitutions
             testRoot.convention(restRootDir)
             doFirst {
-                project.delete(restRootDir)
+                getFileOperations().delete(testRoot.get())
             }
         }
 
         // TODO: This effectively makes testRoot not customizable, which we don't do anyway atm
-        project.sourceSets.test.output.dir(restRootDir, builtBy: buildRestTests)
+        project.sourceSets.yamlRestTest.output.dir(restRootDir, builtBy: buildRestTests)
     }
 }

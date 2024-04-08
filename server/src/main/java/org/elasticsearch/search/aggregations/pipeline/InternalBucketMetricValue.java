@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -31,10 +31,9 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
     private String[] keys;
 
     public InternalBucketMetricValue(String name, String[] keys, double value, DocValueFormat formatter, Map<String, Object> metadata) {
-        super(name, metadata);
+        super(name, formatter, metadata);
         this.keys = keys;
         this.value = value;
-        this.format = formatter;
     }
 
     /**
@@ -42,7 +41,6 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
      */
     public InternalBucketMetricValue(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         value = in.readDouble();
         keys = in.readStringArray();
     }
@@ -74,7 +72,7 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         throw new UnsupportedOperationException("Not supported");
     }
 
@@ -98,11 +96,7 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
         if (hasValue && format != DocValueFormat.RAW) {
             builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(value).toString());
         }
-        builder.startArray(KEYS_FIELD.getPreferredName());
-        for (String key : keys) {
-            builder.value(key);
-        }
-        builder.endArray();
+        builder.array(KEYS_FIELD.getPreferredName(), keys);
         return builder;
     }
 

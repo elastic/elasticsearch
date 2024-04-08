@@ -8,8 +8,6 @@
 
 package org.elasticsearch.xcontent;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -216,7 +214,7 @@ public class XContentParserTests extends ESTestCase {
             if (token.equals(XContentParser.Token.VALUE_STRING)) {
                 expectThrows(IllegalArgumentException.class, parser::booleanValue);
             } else {
-                expectThrows(JsonParseException.class, parser::booleanValue);
+                expectThrows(XContentParseException.class, parser::booleanValue);
             }
 
             token = parser.nextToken();
@@ -228,7 +226,7 @@ public class XContentParserTests extends ESTestCase {
             if (token.equals(XContentParser.Token.VALUE_STRING)) {
                 expectThrows(IllegalArgumentException.class, parser::booleanValue);
             } else {
-                expectThrows(JsonParseException.class, parser::booleanValue);
+                expectThrows(XContentParseException.class, parser::booleanValue);
             }
         }
     }
@@ -475,6 +473,41 @@ public class XContentParserTests extends ESTestCase {
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
         }
+    }
+
+    public void testFlatteningParserObject() throws IOException {
+        String content = """
+            {
+              "parent": {
+                "child1" : 1,
+                "child2": {
+                  "grandChild" : 1
+                },
+                "child3" : 1
+              }
+            }
+            """;
+        XContentParser parser = createParser(JsonXContent.jsonXContent, content);
+        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals("parent", parser.currentName());
+        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+        XContentParser subParser = new FlatteningXContentParser(parser, parser.currentName());
+        assertEquals(XContentParser.Token.FIELD_NAME, subParser.nextToken());
+        assertEquals("parent.child1", subParser.currentName());
+        assertEquals(XContentParser.Token.VALUE_NUMBER, subParser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, subParser.nextToken());
+        String secondChildName = subParser.currentName();
+        assertEquals("parent.child2", secondChildName);
+        assertEquals(XContentParser.Token.START_OBJECT, subParser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, subParser.nextToken());
+        assertEquals("grandChild", subParser.currentName());
+        assertEquals(XContentParser.Token.VALUE_NUMBER, subParser.nextToken());
+        assertEquals(XContentParser.Token.END_OBJECT, subParser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, subParser.nextToken());
+        assertEquals("parent.child3", subParser.currentName());
+        assertEquals(XContentParser.Token.VALUE_NUMBER, subParser.nextToken());
+
     }
 
     public void testSubParserArray() throws IOException {

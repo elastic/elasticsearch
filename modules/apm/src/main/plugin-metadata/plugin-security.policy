@@ -1,0 +1,32 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+grant {
+    permission java.lang.RuntimePermission "accessSystemModules";
+    permission java.lang.RuntimePermission "createClassLoader";
+    permission java.lang.RuntimePermission "getClassLoader";
+    permission java.util.PropertyPermission "elastic.apm.*", "write";
+    permission java.util.PropertyPermission "*", "read,write";
+    permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+};
+
+grant codeBase "${codebase.elastic-apm-agent}" {
+    permission java.lang.RuntimePermission "accessDeclaredMembers";
+    permission java.lang.RuntimePermission "setContextClassLoader";
+    permission java.lang.RuntimePermission "setFactory";
+    permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+    permission java.net.SocketPermission "*", "connect,resolve";
+    // profiling function in APM agent
+    permission java.util.PropertyPermission "AsyncProfiler.safemode", "write";
+    permission java.lang.RuntimePermission "accessUserInformation";
+    permission java.lang.RuntimePermission "loadLibrary.*";
+    permission java.lang.RuntimePermission "getClassLoader";
+    permission java.io.FilePermission "<<ALL FILES>>", "read,write";
+    permission org.elasticsearch.secure_sm.ThreadPermission "modifyArbitraryThreadGroup";
+    permission java.net.NetPermission "getProxySelector";
+};

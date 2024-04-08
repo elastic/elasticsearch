@@ -86,25 +86,38 @@ The API returns the following results:
     {
       "datafeed_id" : "datafeed-high_sum_total_sales",
       "job_id" : "high_sum_total_sales",
+      "authorization" : {
+        "roles" : [
+          "superuser"
+        ]
+      },
       "query_delay" : "93169ms",
-      "indices" : [
-        "kibana_sample_data_ecommerce"
-      ],
+      "chunking_config" : {
+        "mode" : "auto"
+      },
+      "indices_options" : {
+        "expand_wildcards" : [
+          "open"
+        ],
+        "ignore_unavailable" : false,
+        "allow_no_indices" : true,
+        "ignore_throttled" : true
+      },
       "query" : {
         "bool" : {
           "filter" : [
             {
               "term" : {
-                "_index" : "kibana_sample_data_ecommerce"
+                "event.dataset" : "sample_ecommerce"
               }
             }
           ]
         }
       },
+      "indices" : [
+        "kibana_sample_data_ecommerce"
+      ],
       "scroll_size" : 1000,
-      "chunking_config" : {
-        "mode" : "auto"
-      },
       "delayed_data_check_config" : {
         "enabled" : true
       }
@@ -112,4 +125,3 @@ The API returns the following results:
   ]
 }
 ----
-// TESTRESPONSE[s/"query.boost": "93169ms"/"query.boost": $body.query.boost/]

@@ -8,8 +8,6 @@
 
 package org.elasticsearch;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.commons.codec.DecoderException;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -24,6 +22,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xcontent.XContentParseException;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -85,7 +84,7 @@ public class ExceptionsHelperTests extends ESTestCase {
 
     public void testStatus() {
         assertThat(ExceptionsHelper.status(new IllegalArgumentException("illegal")), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(ExceptionsHelper.status(new JsonParseException(null, "illegal")), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(ExceptionsHelper.status(new XContentParseException(null, "illegal")), equalTo(RestStatus.BAD_REQUEST));
         assertThat(ExceptionsHelper.status(new EsRejectedExecutionException("rejected")), equalTo(RestStatus.TOO_MANY_REQUESTS));
     }
 

@@ -139,11 +139,7 @@ public class CloneSnapshotRequest extends MasterNodeRequest<CloneSnapshotRequest
         builder.field("source", source);
         builder.field("target", target);
         if (indices != null) {
-            builder.startArray("indices");
-            for (String index : indices) {
-                builder.value(index);
-            }
-            builder.endArray();
+            builder.array("indices", indices);
         }
         if (indicesOptions != null) {
             indicesOptions.toXContent(builder, params);

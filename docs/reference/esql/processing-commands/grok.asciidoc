@@ -1,0 +1,67 @@
+[discrete]
+[[esql-grok]]
+=== `GROK`
+
+**Syntax**
+
+[source,esql]
+----
+GROK input "pattern"
+----
+
+*Parameters*
+
+`input`::
+The column that contains the string you want to structure. If the column has
+multiple values, `GROK` will process each value.
+
+`pattern`::
+A grok pattern.
+
+*Description*
+
+`GROK` enables you to <<esql-process-data-with-dissect-and-grok,extract
+structured data out of a string>>. `GROK` matches the string against patterns,
+based on regular expressions, and extracts the specified patterns as columns.
+
+Refer to <<esql-process-data-with-grok>> for the syntax of grok patterns.
+
+*Examples*
+
+// tag::examples[]
+The following example parses a string that contains a timestamp, an IP address,
+an email address, and a number:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=basicGrok]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=basicGrok-result]
+|===
+
+By default, `GROK` outputs keyword string columns. `int` and `float` types can
+be converted by appending `:type` to the semantics in the pattern. For example
+`{NUMBER:num:int}`:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=grokWithConversionSuffix]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=grokWithConversionSuffix-result]
+|===
+
+For other type conversions, use <<esql-type-conversion-functions>>:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=grokWithToDatetime]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=grokWithToDatetime-result]
+|===
+// end::examples[]

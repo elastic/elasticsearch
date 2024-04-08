@@ -9,11 +9,8 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
@@ -29,16 +26,13 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_NAME;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.ANONYMOUS_REALM_TYPE;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
+import static org.elasticsearch.core.Strings.format;
 
 class AuthenticatorChain {
 
@@ -73,17 +67,18 @@ class AuthenticatorChain {
         this.allAuthenticators = List.of(serviceAccountAuthenticator, oAuth2TokenAuthenticator, apiKeyAuthenticator, realmsAuthenticator);
     }
 
-    void authenticateAsync(Authenticator.Context context, ActionListener<Authentication> originalListener) {
+    void authenticate(Authenticator.Context context, ActionListener<Authentication> originalListener) {
         assert false == context.getDefaultOrderedRealmList().isEmpty() : "realm list must not be empty";
         // Check whether authentication is an operator user and mark the threadContext if necessary
         // before returning the authentication object
         final ActionListener<Authentication> listener = originalListener.map(authentication -> {
+            assert authentication != null;
             operatorPrivilegesService.maybeMarkOperatorUser(authentication, context.getThreadContext());
             return authentication;
         });
         // If a token is directly provided in the context, authenticate with it
         if (context.getMostRecentAuthenticationToken() != null) {
-            authenticateAsyncWithExistingAuthenticationToken(context, listener);
+            doAuthenticate(context, listener);
             return;
         }
         final Authentication authentication;
@@ -97,42 +92,31 @@ class AuthenticatorChain {
             logger.trace("Found existing authentication [{}] in request [{}]", authentication, context.getRequest());
             listener.onResponse(authentication);
         } else {
-            doAuthenticate(context, true, ActionListener.runBefore(listener, context::close));
+            doAuthenticate(context, ActionListener.runBefore(listener, context::close));
         }
     }
 
-    /**
-     * Similar to {@link #authenticateAsync} but without extracting credentials. The credentials should
-     * be prepared by the called and made available in the context before calling this method.
-     * This method currently uses a shorter chain to match existing behaviour. But there is no reason
-     * why this could not use the same chain.
-     */
-    private void authenticateAsyncWithExistingAuthenticationToken(Authenticator.Context context, ActionListener<Authentication> listener) {
-        assert context.getMostRecentAuthenticationToken() != null : "existing authentication token must not be null";
-        context.setHandleNullToken(false);  // already has a token, should not try null token
-        doAuthenticate(context, false, listener);
-    }
-
-    private void doAuthenticate(Authenticator.Context context, boolean shouldExtractCredentials, ActionListener<Authentication> listener) {
+    private void doAuthenticate(Authenticator.Context context, ActionListener<Authentication> listener) {
         // The iterating listener walks through the list of Authenticators and attempts to authenticate using
         // each Authenticator (and optionally asks it to extract the authenticationToken).
         // Depending on the authentication result from each Authenticator, the iteration may stop earlier
         // because of either a successful authentication or a not-continuable failure.
         final IteratingActionListener<AuthenticationResult<Authentication>, Authenticator> iterListener = new IteratingActionListener<>(
-            ActionListener.wrap(result -> {
+            listener.delegateFailureAndWrap((l, result) -> {
                 assert result.getStatus() != AuthenticationResult.Status.TERMINATE
                     : "terminate should already be handled by each individual authenticator";
                 if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
-                    maybeLookupRunAsUser(context, result.getValue(), listener);
+                    maybeLookupRunAsUser(context, result.getValue(), l);
                 } else {
+                    assert result.getStatus() == AuthenticationResult.Status.CONTINUE;
                     if (context.shouldHandleNullToken()) {
-                        handleNullToken(context, listener);
+                        handleNullToken(context, l);
                     } else {
-                        listener.onFailure(Exceptions.authenticationError("failed to authenticate", result.getException()));
+                        l.onFailure(Exceptions.authenticationError("failed to authenticate", result.getException()));
                     }
                 }
-            }, listener::onFailure),
-            getAuthenticatorConsumer(context, shouldExtractCredentials),
+            }),
+            getAuthenticatorConsumer(context),
             allAuthenticators,
             context.getThreadContext(),
             Function.identity(),
@@ -141,12 +125,11 @@ class AuthenticatorChain {
         iterListener.run();
     }
 
-    private BiConsumer<Authenticator, ActionListener<AuthenticationResult<Authentication>>> getAuthenticatorConsumer(
-        Authenticator.Context context,
-        boolean shouldExtractCredentials
+    private static BiConsumer<Authenticator, ActionListener<AuthenticationResult<Authentication>>> getAuthenticatorConsumer(
+        Authenticator.Context context
     ) {
         return (authenticator, listener) -> {
-            if (shouldExtractCredentials) {
+            if (context.shouldExtractCredentials()) {
                 final AuthenticationToken authenticationToken;
                 try {
                     authenticationToken = authenticator.extractCredentials(context);
@@ -165,7 +148,6 @@ class AuthenticatorChain {
                 }
                 context.addAuthenticationToken(authenticationToken);
             }
-            context.setHandleNullToken(context.shouldHandleNullToken() && authenticator.canBeFollowedByNullTokenHandler());
 
             final Consumer<Exception> onFailure = (e) -> {
                 assert e != null : "exception cannot be null";
@@ -195,11 +177,8 @@ class AuthenticatorChain {
         };
     }
 
-    private void maybeLookupRunAsUser(
-        Authenticator.Context context,
-        Authentication authentication,
-        ActionListener<Authentication> listener
-    ) {
+    // Package private for test
+    void maybeLookupRunAsUser(Authenticator.Context context, Authentication authentication, ActionListener<Authentication> listener) {
         if (false == runAsEnabled) {
             finishAuthentication(context, authentication, listener);
             return;
@@ -211,45 +190,28 @@ class AuthenticatorChain {
             return;
         }
 
-        final User user = authentication.getUser();
-        if (runAsUsername.isEmpty()) {
-            logger.debug("user [{}] attempted to runAs with an empty username", user.principal());
-            listener.onFailure(
-                context.getRequest()
-                    .runAsDenied(
-                        new Authentication(new User(runAsUsername, null, user), authentication.getAuthenticatedBy(), null),
-                        context.getMostRecentAuthenticationToken()
-                    )
-            );
+        if (false == authentication.supportsRunAs(anonymousUser)) {
+            logger.info("ignore run-as header since it is currently not supported for authentication [{}]", authentication);
+            finishAuthentication(context, authentication, listener);
             return;
         }
 
         // Now we have a valid runAsUsername
-        realmsAuthenticator.lookupRunAsUser(context, authentication, ActionListener.wrap(tuple -> {
+        realmsAuthenticator.lookupRunAsUser(context, authentication, listener.delegateFailureAndWrap((l, tuple) -> {
             final Authentication finalAuth;
             if (tuple == null) {
-                logger.debug("Cannot find run-as user [{}] for authenticated user [{}]", runAsUsername, user.principal());
+                logger.debug(
+                    "Cannot find run-as user [{}] for authenticated user [{}]",
+                    runAsUsername,
+                    authentication.getAuthenticatingSubject().getUser().principal()
+                );
                 // the user does not exist, but we still create a User object, which will later be rejected by authz
-                finalAuth = new Authentication(
-                    new User(runAsUsername, null, user),
-                    authentication.getAuthenticatedBy(),
-                    null,
-                    authentication.getVersion(),
-                    authentication.getAuthenticationType(),
-                    authentication.getMetadata()
-                );
+                finalAuth = authentication.runAs(new User(runAsUsername, null, null, null, Map.of(), true), null);
             } else {
-                finalAuth = new Authentication(
-                    new User(tuple.v1(), user),
-                    authentication.getAuthenticatedBy(),
-                    tuple.v2(),
-                    authentication.getVersion(),
-                    authentication.getAuthenticationType(),
-                    authentication.getMetadata()
-                );
+                finalAuth = authentication.runAs(tuple.v1(), tuple.v2().realmRef());
             }
-            finishAuthentication(context, finalAuth, listener);
-        }, listener::onFailure));
+            finishAuthentication(context, finalAuth, l);
+        }));
     }
 
     /**
@@ -262,16 +224,10 @@ class AuthenticatorChain {
         try {
             authentication = authenticationSerializer.readFromContext(context.getThreadContext());
         } catch (Exception e) {
-            logger.error(
-                () -> new ParameterizedMessage(
-                    "caught exception while trying to read authentication from request [{}]",
-                    context.getRequest()
-                ),
-                e
-            );
+            logger.error(() -> format("caught exception while trying to read authentication from request [%s]", context.getRequest()), e);
             throw context.getRequest().tamperedRequest();
         }
-        if (authentication != null && context.getRequest() instanceof AuthenticationService.AuditableRestRequest) {
+        if (authentication != null && context.getRequest() instanceof AuthenticationService.AuditableHttpRequest) {
             throw context.getRequest().tamperedRequest();
         }
         return authentication;
@@ -302,30 +258,14 @@ class AuthenticatorChain {
                 context.getRequest(),
                 context.getFallbackUser().principal()
             );
-            Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(FALLBACK_REALM_NAME, FALLBACK_REALM_TYPE, nodeName);
-            authentication = new Authentication(
-                context.getFallbackUser(),
-                authenticatedBy,
-                null,
-                Version.CURRENT,
-                Authentication.AuthenticationType.INTERNAL,
-                Collections.emptyMap()
-            );
+            authentication = Authentication.newInternalFallbackAuthentication(context.getFallbackUser(), nodeName);
         } else if (shouldFallbackToAnonymous(context)) {
             logger.trace(
                 "No valid credentials found in request [{}], using anonymous [{}]",
                 context.getRequest(),
                 anonymousUser.principal()
             );
-            Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(ANONYMOUS_REALM_NAME, ANONYMOUS_REALM_TYPE, nodeName);
-            authentication = new Authentication(
-                anonymousUser,
-                authenticatedBy,
-                null,
-                Version.CURRENT,
-                Authentication.AuthenticationType.ANONYMOUS,
-                Collections.emptyMap()
-            );
+            authentication = Authentication.newAnonymousAuthentication(anonymousUser, nodeName);
         } else {
             authentication = null;
         }
@@ -363,9 +303,10 @@ class AuthenticatorChain {
      * one. If authentication is successful, this method also ensures that the authentication is written to the ThreadContext
      */
     void finishAuthentication(Authenticator.Context context, Authentication authentication, ActionListener<Authentication> listener) {
-        if (authentication.getUser().enabled() == false || authentication.getUser().authenticatedUser().enabled() == false) {
+        if (authentication.getEffectiveSubject().getUser().enabled() == false
+            || authentication.getAuthenticatingSubject().getUser().enabled() == false) {
             // TODO: these should be different log messages if the runas vs auth user is disabled?
-            logger.debug("user [{}] is disabled. failing authentication", authentication.getUser());
+            logger.debug("user [{}] is disabled. failing authentication", authentication.getEffectiveSubject().getUser());
             listener.onFailure(context.getRequest().authenticationFailed(context.getMostRecentAuthenticationToken()));
         } else {
             writeAuthToContext(context, authentication, listener);
@@ -381,10 +322,7 @@ class AuthenticatorChain {
             authenticationSerializer.writeToContext(authentication, context.getThreadContext());
             context.getRequest().authenticationSuccess(authentication);
         } catch (Exception e) {
-            logger.debug(
-                new ParameterizedMessage("Failed to store authentication [{}] for request [{}]", authentication, context.getRequest()),
-                e
-            );
+            logger.debug(() -> format("Failed to store authentication [%s] for request [%s]", authentication, context.getRequest()), e);
             final ElasticsearchSecurityException ese = context.getRequest()
                 .exceptionProcessingRequest(e, context.getMostRecentAuthenticationToken());
             addMetadata(context, ese);
@@ -395,7 +333,7 @@ class AuthenticatorChain {
         listener.onResponse(authentication);
     }
 
-    private void addMetadata(Authenticator.Context context, ElasticsearchSecurityException ese) {
+    private static void addMetadata(Authenticator.Context context, ElasticsearchSecurityException ese) {
         if (false == context.getUnsuccessfulMessages().isEmpty()) {
             ese.addMetadata("es.additional_unsuccessful_credentials", context.getUnsuccessfulMessages());
         }
@@ -406,8 +344,8 @@ class AuthenticatorChain {
      * <ul>
      *     <li>The service has anonymous authentication enabled (see {@link #isAnonymousUserEnabled})</li>
      *     <li>Anonymous access is accepted for this request ({@code allowAnonymousOnThisRequest} parameter)
-     *     <li>The {@link ThreadContext} does not provide API Key or Bearer Token credentials. If these are present, we
-     *     treat the request as though it attempted to authenticate (even if that failed), and will not fall back to anonymous.</li>
+     *     <li>The request does NOT provide API Key or Bearer Token credentials. If any of these are present,
+     *     we consider the request as failed to authenticate, and will not fall back to anonymous.</li>
      * </ul>
      */
     private boolean shouldFallbackToAnonymous(Authenticator.Context context) {
@@ -417,10 +355,7 @@ class AuthenticatorChain {
         if (context.isAllowAnonymous() == false) {
             return false;
         }
-        String header = context.getThreadContext().getHeader("Authorization");
-        if (Strings.hasText(header)
-            && ((header.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length()) && header.length() > "Bearer ".length())
-                || (header.regionMatches(true, 0, "ApiKey ", 0, "ApiKey ".length()) && header.length() > "ApiKey ".length()))) {
+        if (context.getBearerString() != null || context.getApiKeyString() != null) {
             return false;
         }
         return true;

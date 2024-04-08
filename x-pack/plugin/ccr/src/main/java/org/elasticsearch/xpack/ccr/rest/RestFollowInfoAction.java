@@ -11,7 +11,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
 
 import java.util.List;
@@ -33,8 +33,9 @@ public class RestFollowInfoAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) {
         final FollowInfoAction.Request request = new FollowInfoAction.Request();
+        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         request.setFollowerIndices(Strings.splitStringByCommaToArray(restRequest.param("index")));
-        return channel -> client.execute(FollowInfoAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(FollowInfoAction.INSTANCE, request, new RestRefCountedChunkedToXContentListener<>(channel));
     }
 
 }

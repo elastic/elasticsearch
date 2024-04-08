@@ -9,10 +9,8 @@ package org.elasticsearch.xpack.security.authc.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -29,6 +27,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Objects;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * A decoded credential that may be used to authenticate a {@link ServiceAccount}.
@@ -90,13 +90,12 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
 
     public static ServiceAccountToken fromBearerString(SecureString bearerString) throws IOException {
         final byte[] bytes = CharArrays.toUtf8Bytes(bearerString.getChars());
-        logger.trace("parsing token bytes {}", MessageDigests.toHexString(bytes));
         try (InputStream in = Base64.getDecoder().wrap(new ByteArrayInputStream(bytes))) {
             final byte[] prefixBytes = in.readNBytes(4);
             if (prefixBytes.length != 4 || false == Arrays.equals(prefixBytes, PREFIX)) {
                 logger.trace(
-                    () -> new ParameterizedMessage(
-                        "service account token expects the 4 leading bytes to be {}, got {}.",
+                    () -> format(
+                        "service account token expects the 4 leading bytes to be %s, got %s.",
                         Arrays.toString(PREFIX),
                         Arrays.toString(prefixBytes)
                     )

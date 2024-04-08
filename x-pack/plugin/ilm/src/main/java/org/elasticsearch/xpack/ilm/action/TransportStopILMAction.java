@@ -12,19 +12,21 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.OperationModeUpdateTask;
 import org.elasticsearch.xpack.core.ilm.StopILMRequest;
-import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
-import org.elasticsearch.xpack.ilm.OperationModeUpdateTask;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 
 public class TransportStopILMAction extends AcknowledgedTransportMasterNodeAction<StopILMRequest> {
 
@@ -37,24 +39,28 @@ public class TransportStopILMAction extends AcknowledgedTransportMasterNodeActio
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            StopILMAction.NAME,
+            ILMActions.STOP.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
             StopILMRequest::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }
 
     @Override
     protected void masterOperation(Task task, StopILMRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             "ilm_operation_mode_update[stopping]",
-            OperationModeUpdateTask.wrap(OperationModeUpdateTask.ilmMode(OperationMode.STOPPING), request, listener),
-            ClusterStateTaskExecutor.unbatched()
+            OperationModeUpdateTask.wrap(OperationModeUpdateTask.ilmMode(OperationMode.STOPPING), request, listener)
         );
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     @Override

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -41,7 +42,13 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
         IndexNameExpressionResolver indexNameExpressionResolver,
         NodeClient client
     ) {
-        super(GetFieldMappingsAction.NAME, transportService, actionFilters, GetFieldMappingsRequest::new);
+        super(
+            GetFieldMappingsAction.NAME,
+            transportService,
+            actionFilters,
+            GetFieldMappingsRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
@@ -83,7 +90,7 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
         }
     }
 
-    private GetFieldMappingsResponse merge(AtomicReferenceArray<Object> indexResponses) {
+    private static GetFieldMappingsResponse merge(AtomicReferenceArray<Object> indexResponses) {
         Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mergedResponses = new HashMap<>();
         for (int i = 0; i < indexResponses.length(); i++) {
             Object element = indexResponses.get(i);

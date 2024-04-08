@@ -9,31 +9,34 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
-import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -43,9 +46,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
@@ -53,9 +58,11 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.transform.TransformExtension;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
+import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
 import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
@@ -66,12 +73,17 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.core.Strings.format;
+
 class ClientTransformIndexer extends TransformIndexer {
 
     private static final TimeValue PIT_KEEP_ALIVE = TimeValue.timeValueSeconds(30);
     private static final Logger logger = LogManager.getLogger(ClientTransformIndexer.class);
 
-    private final Client client;
+    private final ParentTaskAssigningClient client;
+    private final ClusterService clusterService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final Settings destIndexSettings;
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
 
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndexHolder;
@@ -81,11 +93,14 @@ class ClientTransformIndexer extends TransformIndexer {
 
     ClientTransformIndexer(
         ThreadPool threadPool,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        TransformExtension transformExtension,
         TransformServices transformServices,
         CheckpointProvider checkpointProvider,
         AtomicReference<IndexerState> initialState,
         TransformIndexerPosition initialPosition,
-        Client client,
+        ParentTaskAssigningClient client,
         TransformIndexerStats initialStats,
         TransformConfig transformConfig,
         TransformProgress transformProgress,
@@ -109,22 +124,20 @@ class ClientTransformIndexer extends TransformIndexer {
             context
         );
         this.client = ExceptionsHelper.requireNonNull(client, "client");
+        this.clusterService = clusterService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.destIndexSettings = transformExtension.getTransformDestinationIndexSettings();
         this.seqNoPrimaryTermAndIndexHolder = new AtomicReference<>(seqNoPrimaryTermAndIndex);
 
         // TODO: move into context constructor
         context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
 
-        if (transformConfig.getSettings().getUsePit() != null) {
-            disablePit = transformConfig.getSettings().getUsePit() == false;
-        }
+        disablePit = TransformEffectiveSettings.isPitDisabled(transformConfig.getSettings());
     }
 
     @Override
     public void applyNewSettings(SettingsConfig newSettings) {
-        if (newSettings.getUsePit() != null) {
-            disablePit = newSettings.getUsePit() == false;
-        }
-
+        disablePit = TransformEffectiveSettings.isPitDisabled(newSettings);
         super.applyNewSettings(newSettings);
     }
 
@@ -142,7 +155,7 @@ class ClientTransformIndexer extends TransformIndexer {
 
         injectPointInTimeIfNeeded(
             buildSearchRequest(),
-            ActionListener.wrap(pitSearchRequest -> doSearch(pitSearchRequest, nextPhase), nextPhase::onFailure)
+            ActionListener.wrap(searchRequest -> doSearch(searchRequest, nextPhase), nextPhase::onFailure)
         );
     }
 
@@ -157,7 +170,7 @@ class ClientTransformIndexer extends TransformIndexer {
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            BulkAction.INSTANCE,
+            TransportBulkAction.TYPE,
             request,
             ActionListener.wrap(bulkResponse -> handleBulkResponse(bulkResponse, nextPhase), nextPhase::onFailure)
         );
@@ -240,7 +253,7 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     @Override
-    protected void refreshDestinationIndex(ActionListener<RefreshResponse> responseListener) {
+    protected void refreshDestinationIndex(ActionListener<Void> responseListener) {
         // note: this gets executed _without_ the headers of the user as the user might not have the rights to call
         // _refresh for performance reasons. However this refresh is an internal detail of transform and this is only
         // called for the transform destination index
@@ -249,7 +262,22 @@ class ClientTransformIndexer extends TransformIndexer {
             ClientHelper.TRANSFORM_ORIGIN,
             RefreshAction.INSTANCE,
             new RefreshRequest(transformConfig.getDestination().getIndex()),
-            responseListener
+            ActionListener.wrap(refreshResponse -> {
+                if (refreshResponse.getFailedShards() > 0) {
+                    logger.warn(
+                        "[{}] failed to refresh transform destination index, not all data might be available after checkpoint.",
+                        getJobId()
+                    );
+                }
+                responseListener.onResponse(null);
+            }, e -> {
+                if (e instanceof IndexNotFoundException) {
+                    // We ignore IndexNotFound error. A non-existent index does not need refreshing.
+                    responseListener.onResponse(null);
+                    return;
+                }
+                responseListener.onFailure(e);
+            })
         );
     }
 
@@ -259,7 +287,7 @@ class ClientTransformIndexer extends TransformIndexer {
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             request,
             responseListener
         );
@@ -268,6 +296,30 @@ class ClientTransformIndexer extends TransformIndexer {
     @Override
     void doGetFieldMappings(ActionListener<Map<String, String>> fieldMappingsListener) {
         SchemaUtil.getDestinationFieldMappings(client, getConfig().getDestination().getIndex(), fieldMappingsListener);
+    }
+
+    @Override
+    void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener) {
+        TransformIndex.createDestinationIndex(
+            client,
+            auditor,
+            indexNameExpressionResolver,
+            clusterService.state(),
+            transformConfig,
+            destIndexSettings,
+            deducedDestIndexMappings,
+            listener
+        );
+    }
+
+    void validate(ActionListener<ValidateTransformAction.Response> listener) {
+        ClientHelper.executeAsyncWithOrigin(
+            client,
+            ClientHelper.TRANSFORM_ORIGIN,
+            ValidateTransformAction.INSTANCE,
+            new ValidateTransformAction.Request(transformConfig, false, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT),
+            listener
+        );
     }
 
     /**
@@ -286,6 +338,7 @@ class ClientTransformIndexer extends TransformIndexer {
             seqNoPrimaryTermAndIndex,
             ActionListener.wrap(r -> {
                 updateSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex, r);
+                context.resetStatePersistenceFailureCount();
 
                 // Only do this clean up once, if it succeeded, no reason to do the query again.
                 if (oldStatsCleanedUp.compareAndSet(false, true)) {
@@ -310,12 +363,14 @@ class ClientTransformIndexer extends TransformIndexer {
                 if (org.elasticsearch.ExceptionsHelper.unwrapCause(statsExc) instanceof VersionConflictEngineException) {
                     // this should never happen, but indicates a race condition in state persistence:
                     // - there should be only 1 save persistence at a time
-                    // - this is not a catastrophic failure, if 2 state persistence calls run at the same time, 1 should succeed and update
-                    // seqNoPrimaryTermAndIndex
-                    // - for tests fail(assert), so we can debug the problem
-                    logger.error(
-                        new ParameterizedMessage(
-                            "[{}] updating stats of transform failed, unexpected version conflict of internal state, resetting to recover.",
+                    // - there are reasons the seq_id, primary_term changes without user intervention, e.g. an internal
+                    // retry (seq_id) or an unexpected node failure (primary_term), these are rare
+                    // - in case re-get the versions and retry on the next persistence
+                    // - the transform can (extremely unlikely) fail if state persistence fails in a row
+                    // - for tests the number of allowed retries is set to 0 and therefore causes the transform to fail
+                    logger.warn(
+                        () -> format(
+                            "[%s] updating stats of transform failed, unexpected version conflict of internal state, resetting to recover.",
                             transformConfig.getId()
                         ),
                         statsExc
@@ -325,10 +380,24 @@ class ClientTransformIndexer extends TransformIndexer {
                         "Failure updating stats of transform, unexpected version conflict of internal state, resetting to recover: "
                             + statsExc.getMessage()
                     );
-                    assert false : "[" + getJobId() + "] updating stats of transform failed, unexpected version conflict of internal state";
+
+                    if (failureHandler.handleStatePersistenceFailure(statsExc, getConfig().getSettings())) {
+                        // get the current seqNo and primary term, however ignore the stored state
+                        transformsConfigManager.getTransformStoredDoc(
+                            transformConfig.getId(),
+                            false,
+                            ActionListener.wrap(storedDocAndSeqNoPrimaryTerm -> {
+                                updateSeqNoPrimaryTermAndIndex(seqNoPrimaryTermAndIndex, storedDocAndSeqNoPrimaryTerm.v2());
+                                listener.onFailure(statsExc);
+                            }, e2 -> listener.onFailure(statsExc))
+                        );
+                        // wrapped listener gets called
+                        return;
+                    }
                 } else {
-                    logger.error(new ParameterizedMessage("[{}] updating stats of transform failed.", transformConfig.getId()), statsExc);
+                    logger.warn(() -> "[" + transformConfig.getId() + "] updating stats of transform failed.", statsExc);
                     auditor.warning(getJobId(), "Failure updating stats of transform: " + statsExc.getMessage());
+                    failureHandler.handleStatePersistenceFailure(statsExc, getConfig().getSettings());
                 }
                 listener.onFailure(statsExc);
             })
@@ -336,14 +405,7 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     void updateSeqNoPrimaryTermAndIndex(SeqNoPrimaryTermAndIndex expectedValue, SeqNoPrimaryTermAndIndex newValue) {
-        logger.debug(
-            () -> new ParameterizedMessage(
-                "[{}] Updated state document from [{}] to [{}]",
-                transformConfig.getId(),
-                expectedValue,
-                newValue
-            )
-        );
+        logger.debug(() -> format("[%s] Updated state document from [%s] to [%s]", transformConfig.getId(), expectedValue, newValue));
         boolean updated = seqNoPrimaryTermAndIndexHolder.compareAndSet(expectedValue, newValue);
         // This should never happen. We ONLY ever update this value if at initialization or we just finished updating the document
         // famous last words...
@@ -395,11 +457,13 @@ class ClientTransformIndexer extends TransformIndexer {
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            ClosePointInTimeAction.INSTANCE,
+            TransportClosePointInTimeAction.TYPE,
             closePitRequest,
-            ActionListener.wrap(response -> { logger.trace("[{}] closed pit search context [{}]", getJobId(), oldPit); }, e -> {
+            ActionListener.wrap(response -> {
+                logger.trace("[{}] closed pit search context [{}]", getJobId(), oldPit);
+            }, e -> {
                 // note: closing the pit should never throw, even if the pit is invalid
-                logger.error(new ParameterizedMessage("[{}] Failed to close point in time reader", getJobId()), e);
+                logger.error(() -> "[" + getJobId() + "] Failed to close point in time reader", e);
             })
         );
     }
@@ -423,12 +487,14 @@ class ClientTransformIndexer extends TransformIndexer {
 
         // no pit, create a new one
         OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(searchRequest.indices()).keepAlive(PIT_KEEP_ALIVE);
+        // use index filter for better performance
+        pitRequest.indexFilter(transformConfig.getSource().getQueryConfig().getQuery());
 
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            OpenPointInTimeAction.INSTANCE,
+            TransportOpenPointInTimeAction.TYPE,
             pitRequest,
             ActionListener.wrap(response -> {
                 PointInTimeBuilder newPit = new PointInTimeBuilder(response.getPointInTimeId()).setKeepAlive(PIT_KEEP_ALIVE);
@@ -444,6 +510,13 @@ class ClientTransformIndexer extends TransformIndexer {
                 listener.onResponse(namedSearchRequest);
             }, e -> {
                 Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(e);
+
+                // in case of a 404 forward the error, this isn't due to pit usage
+                if (unwrappedException instanceof ResourceNotFoundException) {
+                    listener.onFailure(e);
+                    return;
+                }
+
                 // if point in time is not supported, disable it but do not remember forever (stopping and starting will give it another
                 // try)
                 if (unwrappedException instanceof ActionNotFoundTransportException) {
@@ -458,10 +531,7 @@ class ClientTransformIndexer extends TransformIndexer {
                     disablePit = true;
                 } else {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "[{}] Failed to create a point in time reader, falling back to normal search.",
-                            getJobId()
-                        ),
+                        () -> format("[%s] Failed to create a point in time reader, falling back to normal search.", getJobId()),
                         e
                     );
                 }
@@ -472,22 +542,29 @@ class ClientTransformIndexer extends TransformIndexer {
 
     void doSearch(Tuple<String, SearchRequest> namedSearchRequest, ActionListener<SearchResponse> listener) {
         String name = namedSearchRequest.v1();
-        SearchRequest searchRequest = namedSearchRequest.v2();
+        SearchRequest originalRequest = namedSearchRequest.v2();
         // We want to treat a request to search 0 indices as a request to do nothing, not a request to search all indices
-        if (searchRequest.indices().length == 0) {
-            logger.debug("[{}] Search request [{}] optimized to noop; searchRequest [{}]", getJobId(), name, searchRequest);
+        if (originalRequest.indices().length == 0) {
+            logger.debug("[{}] Search request [{}] optimized to noop; searchRequest [{}]", getJobId(), name, originalRequest);
             listener.onResponse(null);
             return;
         }
-        logger.trace("searchRequest: [{}]", searchRequest);
 
-        PointInTimeBuilder pit = searchRequest.pointInTimeBuilder();
+        final SearchRequest searchRequest;
+        PointInTimeBuilder pit = originalRequest.pointInTimeBuilder();
+        if (pit != null) {
+            // remove the indices from the request, they will be derived from the provided pit
+            searchRequest = new SearchRequest(originalRequest).indices(new String[0]).indicesOptions(SearchRequest.DEFAULT_INDICES_OPTIONS);
+        } else {
+            searchRequest = originalRequest;
+        }
+        logger.trace("searchRequest: [{}]", searchRequest);
 
         ClientHelper.executeWithHeadersAsync(
             transformConfig.getHeaders(),
             ClientHelper.TRANSFORM_ORIGIN,
             client,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             searchRequest,
             ActionListener.wrap(response -> {
                 // did the pit change?
@@ -504,21 +581,17 @@ class ClientTransformIndexer extends TransformIndexer {
                 Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(e);
                 if (unwrappedException instanceof SearchContextMissingException) {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "[{}] Search context missing, falling back to normal search; request [{}]",
-                            getJobId(),
-                            name
-                        ),
+                        () -> format("[%s] Search context missing, falling back to normal search; request [%s]", getJobId(), name),
                         e
                     );
                     namedPits.remove(name);
-                    searchRequest.source().pointInTimeBuilder(null);
+                    originalRequest.source().pointInTimeBuilder(null);
                     ClientHelper.executeWithHeadersAsync(
                         transformConfig.getHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
                         client,
-                        SearchAction.INSTANCE,
-                        searchRequest,
+                        TransportSearchAction.TYPE,
+                        originalRequest,
                         listener
                     );
                     return;
@@ -531,13 +604,13 @@ class ClientTransformIndexer extends TransformIndexer {
                      * Note: Due to BWC this needs to be kept until CCS support for < 8.1 is dropped
                      */
                     namedPits.remove(name);
-                    searchRequest.source().pointInTimeBuilder(null);
+                    originalRequest.source().pointInTimeBuilder(null);
                     ClientHelper.executeWithHeadersAsync(
                         transformConfig.getHeaders(),
                         ClientHelper.TRANSFORM_ORIGIN,
                         client,
-                        SearchAction.INSTANCE,
-                        searchRequest,
+                        TransportSearchAction.TYPE,
+                        originalRequest,
                         listener
                     );
                     return;
@@ -566,7 +639,7 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     private static Throwable decorateBulkIndexException(Throwable irrecoverableException) {
-        if (irrecoverableException instanceof MapperParsingException) {
+        if (irrecoverableException instanceof DocumentParsingException) {
             return new TransformException(
                 "Destination index mappings are incompatible with the transform configuration.",
                 irrecoverableException

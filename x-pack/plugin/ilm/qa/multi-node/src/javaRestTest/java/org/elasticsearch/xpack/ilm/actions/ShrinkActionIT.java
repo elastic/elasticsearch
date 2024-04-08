@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -51,7 +52,9 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.index;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.waitAndGetShrinkIndexName;
+import static org.elasticsearch.xpack.TimeSeriesRestDriver.waitAndGetShrinkIndexNameWithExtraClusterStateChange;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ShrinkActionIT extends ESRestTestCase {
@@ -98,7 +101,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         expectThrows(ResponseException.class, () -> indexDocument(client(), index));
     }
 
-    public void testShrinkSameShards() throws Exception {
+    public void testSkipShrinkSameShardsWithNumberOfShards() throws Exception {
         int numberOfShards = randomFrom(1, 2);
         createIndexWithSettings(
             client(),
@@ -116,7 +119,27 @@ public class ShrinkActionIT extends ESRestTestCase {
             assertNull(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()));
             assertThat(settings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());
             // the shrink action was effectively skipped so there must not be any `shrink_index_name` in the ILM state
-            assertThat(explainIndex(client(), index).get("shrink_index_name"), nullValue());
+            assertThat(explainIndex(client(), index).get(SHRINK_INDEX_NAME), nullValue());
+        });
+    }
+
+    public void testSkipShrinkSameShardsWithMaxShardSize() throws Exception {
+        createIndexWithSettings(
+            client(),
+            index,
+            alias,
+            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+        );
+        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(null, ByteSizeValue.ofGb(50)));
+        updatePolicy(client(), index, policy);
+        assertBusy(() -> {
+            assertTrue(indexExists(index));
+            Map<String, Object> settings = getOnlyIndexSettings(client(), index);
+            assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
+            assertNull(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()));
+            assertThat(settings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());
+            // the shrink action was effectively skipped so there must not be any `shrink_index_name` in the ILM state
+            assertThat(explainIndex(client(), index).get(SHRINK_INDEX_NAME), nullValue());
         });
     }
 
@@ -184,7 +207,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         // add a policy
         Map<String, LifecycleAction> hotActions = Map.of(
             RolloverAction.NAME,
-            new RolloverAction(null, null, null, 1L),
+            new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
             ShrinkAction.NAME,
             new ShrinkAction(expectedFinalShards, null)
         );
@@ -196,7 +219,7 @@ public class ShrinkActionIT extends ESRestTestCase {
 
         // and a template
         Request createTemplateRequest = new Request("PUT", "_template/" + index);
-        createTemplateRequest.setJsonEntity("""
+        createTemplateRequest.setJsonEntity(Strings.format("""
             {
               "index_patterns": ["%s-*"],
               "settings": {
@@ -205,7 +228,7 @@ public class ShrinkActionIT extends ESRestTestCase {
                 "index.lifecycle.name": "%s",
                 "index.lifecycle.rollover_alias": "%s"
               }
-            }""".formatted(index, numShards, policy, alias));
+            }""", index, numShards, policy, alias));
         createTemplateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(createTemplateRequest);
 
@@ -299,7 +322,6 @@ public class ShrinkActionIT extends ESRestTestCase {
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/78460")
     public void testAutomaticRetryFailedShrinkAction() throws Exception {
         int numShards = 4;
         int divisor = randomFrom(2, 4);
@@ -326,7 +348,8 @@ public class ShrinkActionIT extends ESRestTestCase {
         updatePolicy(client(), index, policy);
 
         // assert corrected policy is picked up and index is shrunken
-        String shrunkenIndex = waitAndGetShrinkIndexName(client(), index);
+        String shrunkenIndex = waitAndGetShrinkIndexNameWithExtraClusterStateChange(client(), index);
+        assertThat(shrunkenIndex, notNullValue());
         assertBusy(() -> assertTrue(indexExists(shrunkenIndex)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertTrue(aliasExists(shrunkenIndex, index)));
         assertBusy(() -> assertThat(getStepKeyForIndex(client(), shrunkenIndex), equalTo(PhaseCompleteStep.finalStep("warm").getKey())));

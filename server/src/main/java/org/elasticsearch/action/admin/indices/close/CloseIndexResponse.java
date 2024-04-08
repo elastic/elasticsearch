@@ -24,20 +24,20 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static java.util.Collections.unmodifiableList;
-
 public class CloseIndexResponse extends ShardsAcknowledgedResponse {
+
+    public static final CloseIndexResponse EMPTY = new CloseIndexResponse(true, false, List.of());
 
     private final List<IndexResult> indices;
 
     CloseIndexResponse(StreamInput in) throws IOException {
         super(in, true);
-        indices = unmodifiableList(in.readList(IndexResult::new));
+        indices = in.readCollectionAsImmutableList(IndexResult::new);
     }
 
     public CloseIndexResponse(final boolean acknowledged, final boolean shardsAcknowledged, final List<IndexResult> indices) {
         super(acknowledged, shardsAcknowledged);
-        this.indices = unmodifiableList(Objects.requireNonNull(indices));
+        this.indices = List.copyOf(indices);
     }
 
     public List<IndexResult> getIndices() {
@@ -48,7 +48,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeShardsAcknowledged(out);
-        out.writeList(indices);
+        out.writeCollection(indices);
     }
 
     @Override

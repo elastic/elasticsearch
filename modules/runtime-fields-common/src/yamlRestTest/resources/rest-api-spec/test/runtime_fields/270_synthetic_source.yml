@@ -1,0 +1,134 @@
+---
+keywords:
+  - skip:
+      version: " - 7.11.99"
+      reason: Runtime mappings support was added in 7.12
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              field1:
+                type: keyword
+              field2:
+                type: keyword
+
+  - do:
+      search:
+        body:
+          size: 0
+          runtime_mappings:
+            field3:
+              type: keyword
+              script:
+                source: "emit(params._source.field1 + params._source.field2)"
+          aggs:
+            field3:
+              terms:
+                field: field3
+
+  - length: { aggregations.field3.buckets: 0 }
+
+  - do:
+      bulk:
+        index: index1
+        refresh: true
+        body: |
+          {"index":{}}
+          { "field1": "A", "field2": "B" }
+          {"index":{}}
+          { "field1": "A", "field2": "B" }
+          {"index":{}}
+          { "field1": "C", "field2": "D" }
+
+  - do:
+      search:
+        body:
+          size: 0
+          runtime_mappings:
+            field3:
+              type: keyword
+              script:
+                source: "emit(params._source.field1 + params._source.field2)"
+          aggs:
+            field3:
+              terms:
+                field: field3
+
+  - length: { aggregations.field3.buckets: 2 }
+  - match: { aggregations.field3.buckets.0.key: AB }
+  - match: { aggregations.field3.buckets.0.doc_count: 2 }
+  - match: { aggregations.field3.buckets.1.key: CD }
+  - match: { aggregations.field3.buckets.1.doc_count: 1 }
+
+
+---
+doubles:
+  - skip:
+      version: " - 7.11.99"
+      reason: Runtime mappings support was added in 7.12
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              field1:
+                type: double
+              field2:
+                type: double
+
+  - do:
+      search:
+        body:
+          size: 0
+          runtime_mappings:
+            field3:
+              type: double
+              script:
+                source: "emit(params._source.field1 + params._source.field2)"
+          aggs:
+            field3:
+              terms:
+                field: field3
+
+  - length: { aggregations.field3.buckets: 0 }
+
+  - do:
+      bulk:
+        index: index1
+        refresh: true
+        body: |
+          {"index":{}}
+          { "field1": "1", "field2": "2" }
+          {"index":{}}
+          { "field1": "1", "field2": "2" }
+          {"index":{}}
+          { "field1": "3", "field2": "4" }
+
+  - do:
+      search:
+        body:
+          size: 0
+          runtime_mappings:
+            field3:
+              type: double
+              script:
+                source: "emit(params._source.field1 + params._source.field2)"
+          aggs:
+            field3:
+              terms:
+                field: field3
+
+  - length: { aggregations.field3.buckets: 2 }
+  - match: { aggregations.field3.buckets.0.key: 3.0 }
+  - match: { aggregations.field3.buckets.0.doc_count: 2 }
+  - match: { aggregations.field3.buckets.1.key: 7.0 }
+  - match: { aggregations.field3.buckets.1.doc_count: 1 }

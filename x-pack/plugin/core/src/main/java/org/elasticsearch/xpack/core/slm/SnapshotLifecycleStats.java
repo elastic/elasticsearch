@@ -98,7 +98,7 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
     }
 
     public SnapshotLifecycleStats(StreamInput in) throws IOException {
-        this.policyStats = new ConcurrentHashMap<>(in.readMap(StreamInput::readString, SnapshotPolicyStats::new));
+        this.policyStats = new ConcurrentHashMap<>(in.readMap(SnapshotPolicyStats::new));
         this.retentionRunCount.inc(in.readVLong());
         this.retentionFailedCount.inc(in.readVLong());
         this.retentionTimedOut.inc(in.readVLong());
@@ -210,7 +210,7 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(policyStats, StreamOutput::writeString, (v, o) -> o.writeTo(v));
+        out.writeMap(policyStats, StreamOutput::writeWriteable);
         out.writeVLong(retentionRunCount.count());
         out.writeVLong(retentionFailedCount.count());
         out.writeVLong(retentionTimedOut.count());
@@ -230,7 +230,7 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
         List<SnapshotPolicyStats> metrics = getMetrics().values()
             .stream()
             .sorted(Comparator.comparing(SnapshotPolicyStats::getPolicyId)) // maintain a consistent order when serializing
-            .collect(Collectors.toList());
+            .toList();
         long totalTaken = metrics.stream().mapToLong(s -> s.snapshotsTaken.count()).sum();
         long totalFailed = metrics.stream().mapToLong(s -> s.snapshotsFailed.count()).sum();
         long totalDeleted = metrics.stream().mapToLong(s -> s.snapshotsDeleted.count()).sum();
@@ -335,10 +335,6 @@ public class SnapshotLifecycleStats implements Writeable, ToXContentObject {
             this.snapshotsFailed.inc(in.readVLong());
             this.snapshotsDeleted.inc(in.readVLong());
             this.snapshotDeleteFailures.inc(in.readVLong());
-        }
-
-        public static SnapshotPolicyStats parse(XContentParser parser) {
-            return PARSER.apply(parser, null);
         }
 
         public SnapshotPolicyStats merge(SnapshotPolicyStats other) {

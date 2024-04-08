@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
@@ -18,6 +17,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -59,6 +59,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
     private final boolean keyed;
 
     private final long minDocCount;
+    private final boolean downsampledResultsOffset;
     private final LongBounds extendedBounds;
     private final LongBounds hardBounds;
 
@@ -71,6 +72,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
         BucketOrder order,
         boolean keyed,
         long minDocCount,
+        boolean downsampledResultsOffset,
         @Nullable LongBounds extendedBounds,
         @Nullable LongBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
@@ -82,11 +84,12 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
 
         super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
         this.rounding = rounding;
-        this.preparedRounding = valuesSourceConfig.roundingPreparer().apply(rounding);
+        this.preparedRounding = valuesSourceConfig.roundingPreparer(context).apply(rounding);
         this.order = order;
         order.validate(this);
         this.keyed = keyed;
         this.minDocCount = minDocCount;
+        this.downsampledResultsOffset = downsampledResultsOffset;
         this.extendedBounds = extendedBounds;
         this.hardBounds = hardBounds;
         // TODO: Stop using null here
@@ -110,11 +113,11 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+        SortedBinaryDocValues values = valuesSource.bytesValues(aggCtx.getLeafReaderContext());
         RangeType rangeType = valuesSource.rangeType();
         return new LeafBucketCollectorBase(sub, values) {
             @Override
@@ -197,6 +200,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                     emptyBucketInfo,
                     formatter,
                     keyed,
+                    downsampledResultsOffset,
                     metadata()
                 );
             }
@@ -217,6 +221,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
             emptyBucketInfo,
             formatter,
             keyed,
+            downsampledResultsOffset,
             metadata()
         );
     }

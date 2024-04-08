@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.nested;
 
-import com.carrotsearch.hppc.LongArrayList;
-
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
@@ -23,6 +21,7 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -35,6 +34,8 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 public class NestedAggregator extends BucketsAggregator implements SingleBucketAggregator {
@@ -59,21 +60,24 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
     ) throws IOException {
         super(name, factories, context, parent, cardinality, metadata);
 
-        Query parentFilter = parentObjectMapper != null ? parentObjectMapper.nestedTypeFilter() : Queries.newNonNestedFilter();
+        Query parentFilter = parentObjectMapper != null
+            ? parentObjectMapper.nestedTypeFilter()
+            : Queries.newNonNestedFilter(context.getIndexSettings().getIndexVersionCreated());
         this.parentFilter = context.bitsetFilterCache().getBitSetProducer(parentFilter);
         this.childFilter = childObjectMapper.nestedTypeFilter();
         this.collectsFromSingleBucket = cardinality.map(estimate -> estimate < 2);
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(final LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(ctx);
+    public LeafBucketCollector getLeafCollector(final AggregationExecutionContext aggCtx, final LeafBucketCollector sub)
+        throws IOException {
+        IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(aggCtx.getLeafReaderContext());
         IndexSearcher searcher = new IndexSearcher(topLevelContext);
         searcher.setQueryCache(null);
         Weight weight = searcher.createWeight(searcher.rewrite(childFilter), ScoreMode.COMPLETE_NO_SCORES, 1f);
-        Scorer childDocsScorer = weight.scorer(ctx);
+        Scorer childDocsScorer = weight.scorer(aggCtx.getLeafReaderContext());
 
-        final BitSet parentDocs = parentFilter.getBitSet(ctx);
+        final BitSet parentDocs = parentFilter.getBitSet(aggCtx.getLeafReaderContext());
         final DocIdSetIterator childDocs = childDocsScorer != null ? childDocsScorer.iterator() : null;
         if (collectsFromSingleBucket) {
             return new LeafBucketCollectorBase(sub, null) {
@@ -141,7 +145,7 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
         final BitSet parentDocs;
         final LeafBucketCollector sub;
         final DocIdSetIterator childDocs;
-        final LongArrayList bucketBuffer = new LongArrayList();
+        final List<Long> bucketBuffer = new ArrayList<>();
 
         Scorable scorer;
         int currentParentDoc = -1;
@@ -193,10 +197,8 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
 
             for (; childDocId < currentParentDoc; childDocId = childDocs.nextDoc()) {
                 cachedScorer.doc = childDocId;
-                final long[] buffer = bucketBuffer.buffer;
-                final int size = bucketBuffer.size();
-                for (int i = 0; i < size; i++) {
-                    collectBucket(sub, childDocId, buffer[i]);
+                for (var bucket : bucketBuffer) {
+                    collectBucket(sub, childDocId, bucket);
                 }
             }
             bucketBuffer.clear();

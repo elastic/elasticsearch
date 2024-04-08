@@ -16,15 +16,11 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.lucene.index.FreqTermsEnum;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
-import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.CandidateSet;
 
 import java.io.IOException;
 
 //TODO public for tests
 public abstract class WordScorer {
-    protected final IndexReader reader;
-    protected final String field;
-    protected final Terms terms;
     protected final long vocabluarySize;
     protected final double realWordLikelihood;
     protected final BytesRefBuilder spare = new BytesRefBuilder();
@@ -38,11 +34,9 @@ public abstract class WordScorer {
     }
 
     public WordScorer(IndexReader reader, Terms terms, String field, double realWordLikelihood, BytesRef separator) throws IOException {
-        this.field = field;
         if (terms == null) {
             throw new IllegalArgumentException("Field: [" + field + "] does not exist");
         }
-        this.terms = terms;
         final long vocSize = terms.getSumTotalTermFreq();
         this.vocabluarySize = vocSize == -1 ? reader.maxDoc() : vocSize;
         this.useTotalTermFreq = vocSize != -1;
@@ -60,7 +54,6 @@ public abstract class WordScorer {
             null,
             BigArrays.NON_RECYCLING_INSTANCE
         );
-        this.reader = reader;
         this.realWordLikelihood = realWordLikelihood;
         this.separator = separator;
     }
@@ -72,20 +65,20 @@ public abstract class WordScorer {
         return 0;
     }
 
-    protected double channelScore(Candidate candidate, Candidate original) throws IOException {
+    protected double channelScore(Candidate candidate) {
         if (candidate.stringDistance == 1.0d) {
             return realWordLikelihood;
         }
         return candidate.stringDistance;
     }
 
-    public double score(Candidate[] path, CandidateSet[] candidateSet, int at, int gramSize) throws IOException {
+    public double score(Candidate[] path, int at, int gramSize) throws IOException {
         if (at == 0 || gramSize == 1) {
-            return Math.log10(channelScore(path[at], candidateSet[at].originalTerm) * scoreUnigram(path[at]));
+            return Math.log10(channelScore(path[at]) * scoreUnigram(path[at]));
         } else if (at == 1 || gramSize == 2) {
-            return Math.log10(channelScore(path[at], candidateSet[at].originalTerm) * scoreBigram(path[at], path[at - 1]));
+            return Math.log10(channelScore(path[at]) * scoreBigram(path[at], path[at - 1]));
         } else {
-            return Math.log10(channelScore(path[at], candidateSet[at].originalTerm) * scoreTrigram(path[at], path[at - 1], path[at - 2]));
+            return Math.log10(channelScore(path[at]) * scoreTrigram(path[at], path[at - 1], path[at - 2]));
         }
     }
 

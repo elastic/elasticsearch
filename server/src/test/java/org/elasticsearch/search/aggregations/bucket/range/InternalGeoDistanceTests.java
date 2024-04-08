@@ -12,7 +12,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -63,24 +62,14 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
             int docCount = randomIntBetween(0, 1000);
             double from = range.v1();
             double to = range.v2();
-            buckets.add(new InternalGeoDistance.Bucket("range_" + i, from, from, to, to, docCount, aggregations, keyed));
+            buckets.add(new InternalGeoDistance.Bucket("range_" + i, from, to, docCount, aggregations, keyed));
         }
         return new InternalGeoDistance(name, buckets, keyed, metadata);
     }
 
     @Override
-    protected Class<ParsedGeoDistance> implementationClass() {
-        return ParsedGeoDistance.class;
-    }
-
-    @Override
     protected Class<? extends InternalMultiBucketAggregation.InternalBucket> internalRangeBucketClass() {
         return InternalGeoDistance.Bucket.class;
-    }
-
-    @Override
-    protected Class<? extends ParsedMultiBucketAggregation.ParsedBucket> parsedRangeBucketClass() {
-        return ParsedGeoDistance.ParsedBucket.class;
     }
 
     @Override
@@ -97,16 +86,7 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
                 double from = randomDouble();
                 double to = from + randomDouble();
                 buckets.add(
-                    new InternalGeoDistance.Bucket(
-                        "range_a",
-                        from,
-                        from,
-                        to,
-                        to,
-                        randomNonNegativeLong(),
-                        InternalAggregations.EMPTY,
-                        false
-                    )
+                    new InternalGeoDistance.Bucket("range_a", from, to, randomNonNegativeLong(), InternalAggregations.EMPTY, false)
                 );
             }
             case 3 -> {

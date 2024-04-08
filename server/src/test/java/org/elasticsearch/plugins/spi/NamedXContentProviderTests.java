@@ -9,10 +9,8 @@
 package org.elasticsearch.plugins.spi;
 
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.pipeline.ParsedSimpleValue;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.search.suggest.term.TermSuggestion;
+import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -47,7 +45,7 @@ public class NamedXContentProviderTests extends ESTestCase {
         assertEquals(2, namedXContents.size());
 
         List<Predicate<NamedXContentRegistry.Entry>> predicates = new ArrayList<>(2);
-        predicates.add(e -> Aggregation.class.equals(e.categoryClass) && "test_aggregation".equals(e.name.getPreferredName()));
+        predicates.add(e -> Suggest.Suggestion.class.equals(e.categoryClass) && "phrase_aggregation".equals(e.name.getPreferredName()));
         predicates.add(e -> Suggest.Suggestion.class.equals(e.categoryClass) && "test_suggestion".equals(e.name.getPreferredName()));
         predicates.forEach(predicate -> assertEquals(1, namedXContents.stream().filter(predicate).count()));
     }
@@ -60,14 +58,14 @@ public class NamedXContentProviderTests extends ESTestCase {
         public List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
             return Arrays.asList(
                 new NamedXContentRegistry.Entry(
-                    Aggregation.class,
-                    new ParseField("test_aggregation"),
-                    (parser, context) -> ParsedSimpleValue.fromXContent(parser, (String) context)
+                    Suggest.Suggestion.class,
+                    new ParseField("phrase_aggregation"),
+                    (parser, context) -> SuggestTests.parsePhraseSuggestion(parser, (String) context)
                 ),
                 new NamedXContentRegistry.Entry(
                     Suggest.Suggestion.class,
                     new ParseField("test_suggestion"),
-                    (parser, context) -> TermSuggestion.fromXContent(parser, (String) context)
+                    (parser, context) -> SuggestTests.parseTermSuggestion(parser, (String) context)
                 )
             );
         }

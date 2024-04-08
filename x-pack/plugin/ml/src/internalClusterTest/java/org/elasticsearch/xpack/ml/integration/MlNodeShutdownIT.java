@@ -91,9 +91,12 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         // Call the shutdown API for the chosen node.
         final SingleNodeShutdownMetadata.Type type = randomFrom(SingleNodeShutdownMetadata.Type.values());
         final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
+        final TimeValue grace = type == SingleNodeShutdownMetadata.Type.SIGTERM
+            ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
+            : null;
         client().execute(
             PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(nodeIdToShutdown.get(), type, "just testing", null, targetNodeName)
+            new PutShutdownNodeAction.Request(nodeIdToShutdown.get(), type, "just testing", null, targetNodeName, grace)
         ).actionGet();
 
         // Wait for the desired end state of all 6 jobs running on nodes that are not shutting down.
@@ -184,9 +187,12 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         // Call the shutdown API for the chosen node.
         final SingleNodeShutdownMetadata.Type type = randomFrom(SingleNodeShutdownMetadata.Type.values());
         final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
+        final TimeValue grace = type == SingleNodeShutdownMetadata.Type.SIGTERM
+            ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
+            : null;
         client().execute(
             PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(nodeIdToShutdown.get(), type, "just testing", null, targetNodeName)
+            new PutShutdownNodeAction.Request(nodeIdToShutdown.get(), type, "just testing", null, targetNodeName, grace)
         ).actionGet();
 
         if (randomBoolean()) {
@@ -253,10 +259,6 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
 
         StartDatafeedAction.Request startDatafeedRequest = new StartDatafeedAction.Request(config.getId(), 0L);
         client().execute(StartDatafeedAction.INSTANCE, startDatafeedRequest).get();
-    }
-
-    private void ensureStableCluster() {
-        ensureStableCluster(internalCluster().getNodeNames().length, TimeValue.timeValueSeconds(60));
     }
 
     private void createSourceData() {

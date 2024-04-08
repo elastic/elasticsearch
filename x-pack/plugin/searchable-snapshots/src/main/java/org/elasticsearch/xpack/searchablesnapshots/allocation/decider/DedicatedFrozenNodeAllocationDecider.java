@@ -15,8 +15,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE;
 
@@ -33,7 +31,7 @@ public class DedicatedFrozenNodeAllocationDecider extends AllocationDecider {
     private static final Decision YES_IS_PARTIAL_SEARCHABLE_SNAPSHOT = Decision.single(
         Decision.Type.YES,
         NAME,
-        "this index is a frozen searchable snapshot so it can be assigned to this dedicated frozen node"
+        "this index is a partially mounted index so it can be assigned to this dedicated frozen node"
     );
 
     private static final Decision NO = Decision.single(
@@ -41,7 +39,7 @@ public class DedicatedFrozenNodeAllocationDecider extends AllocationDecider {
         NAME,
         "this node's data roles are exactly ["
             + DATA_FROZEN_NODE_ROLE.roleName()
-            + "] so it may only hold shards from frozen searchable snapshots, but this index is not a frozen searchable snapshot"
+            + "] so it may only hold shards from partially mounted indices, but this index is not a partially mounted index"
     );
 
     @Override
@@ -50,8 +48,8 @@ public class DedicatedFrozenNodeAllocationDecider extends AllocationDecider {
     }
 
     @Override
-    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return canAllocateToNode(allocation.metadata().getIndexSafe(shardRouting.index()), node.node());
+    public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return canAllocateToNode(indexMetadata, node.node());
     }
 
     @Override
@@ -64,7 +62,7 @@ public class DedicatedFrozenNodeAllocationDecider extends AllocationDecider {
         return canAllocateToNode(indexMetadata, node);
     }
 
-    private Decision canAllocateToNode(IndexMetadata indexMetadata, DiscoveryNode discoveryNode) {
+    private static Decision canAllocateToNode(IndexMetadata indexMetadata, DiscoveryNode discoveryNode) {
 
         boolean hasDataFrozenRole = false;
         boolean hasOtherDataRole = false;
@@ -81,8 +79,7 @@ public class DedicatedFrozenNodeAllocationDecider extends AllocationDecider {
             return YES_NOT_DEDICATED_FROZEN_NODE;
         }
 
-        final Settings indexSettings = indexMetadata.getSettings();
-        if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(indexSettings)) {
+        if (indexMetadata.isPartialSearchableSnapshot()) {
             return YES_IS_PARTIAL_SEARCHABLE_SNAPSHOT;
         }
 

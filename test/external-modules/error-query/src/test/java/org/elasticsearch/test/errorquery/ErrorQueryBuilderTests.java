@@ -13,7 +13,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,7 +23,7 @@ import java.util.List;
 public class ErrorQueryBuilderTests extends AbstractQueryTestCase<ErrorQueryBuilder> {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(ErrorQueryPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(ErrorQueryPlugin.class);
     }
 
     @Override
@@ -38,9 +37,8 @@ public class ErrorQueryBuilderTests extends AbstractQueryTestCase<ErrorQueryBuil
             for (int j = 0; j < numShards; j++) {
                 shardIds[j] = j;
             }
-            indices.add(
-                new IndexError(indexName, shardIds, randomFrom(IndexError.ERROR_TYPE.values()), randomAlphaOfLengthBetween(5, 100))
-            );
+            String message = randomBoolean() ? "" : randomAlphaOfLengthBetween(5, 100);
+            indices.add(new IndexError(indexName, shardIds, randomFrom(IndexError.ERROR_TYPE.values()), message, 0));
         }
 
         return new ErrorQueryBuilder(indices);

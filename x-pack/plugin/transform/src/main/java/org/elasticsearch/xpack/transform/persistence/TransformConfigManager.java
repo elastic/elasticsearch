@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.persistence;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -146,11 +147,13 @@ public interface TransformConfigManager {
      *
      * @param transformIdsExpression The id expression. Can be _all, *, or comma delimited list of simple regex strings
      * @param pageParams             The paging params
+     * @param timeout                The timeout applied to all the spawned requests
      * @param foundConfigsListener   The listener on signal on success or failure
      */
     void expandTransformIds(
         String transformIdsExpression,
         PageParams pageParams,
+        TimeValue timeout,
         boolean allowNoMatch,
         ActionListener<Tuple<Long, Tuple<List<String>, List<TransformConfig>>>> foundConfigsListener
     );
@@ -158,16 +161,18 @@ public interface TransformConfigManager {
     /**
      * Get all transform ids
      *
+     * @param timeout  The timeout applied to all the spawned requests
      * @param listener The listener to call with the collected ids
      */
-    void getAllTransformIds(ActionListener<Set<String>> listener);
+    void getAllTransformIds(TimeValue timeout, ActionListener<Set<String>> listener);
 
     /**
      * Get all transform ids that aren't using the latest index.
      *
+     * @param timeout  The timeout applied to all the spawned requests
      * @param listener The listener to call with total number of transforms and the list of transform ids.
      */
-    void getAllOutdatedTransformIds(ActionListener<Tuple<Long, Set<String>>> listener);
+    void getAllOutdatedTransformIds(TimeValue timeout, ActionListener<Tuple<Long, Set<String>>> listener);
 
     /**
      * This deletes documents corresponding to the transform id (e.g. checkpoints).
@@ -198,7 +203,7 @@ public interface TransformConfigManager {
         ActionListener<Tuple<TransformStoredDoc, SeqNoPrimaryTermAndIndex>> resultListener
     );
 
-    void getTransformStoredDocs(Collection<String> transformIds, ActionListener<List<TransformStoredDoc>> listener);
+    void getTransformStoredDocs(Collection<String> transformIds, TimeValue timeout, ActionListener<List<TransformStoredDoc>> listener);
 
     void refresh(ActionListener<Boolean> listener);
 }

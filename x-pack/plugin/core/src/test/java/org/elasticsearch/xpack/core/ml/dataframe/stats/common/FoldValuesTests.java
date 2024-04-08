@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats.common;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
@@ -43,6 +43,11 @@ public class FoldValuesTests extends AbstractBWCSerializationTestCase<FoldValues
         return createRandom();
     }
 
+    @Override
+    protected FoldValues mutateInstance(FoldValues instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static FoldValues createRandom() {
         int valuesSize = randomIntBetween(0, 10);
         double[] values = new double[valuesSize];
@@ -53,7 +58,7 @@ public class FoldValuesTests extends AbstractBWCSerializationTestCase<FoldValues
     }
 
     @Override
-    protected FoldValues mutateInstanceForVersion(FoldValues instance, Version version) {
+    protected FoldValues mutateInstanceForVersion(FoldValues instance, TransportVersion version) {
         return instance;
     }
 }

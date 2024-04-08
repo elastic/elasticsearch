@@ -50,7 +50,7 @@ public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
     private static final String ENABLE_POS_INC_KEY = "enable_position_increments";
 
     KeepWordFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
 
         final List<String> arrayKeepWords = settings.getAsList(KEEP_WORDS_KEY, null);
         final String keepWordsPath = settings.get(KEEP_WORDS_PATH_KEY, null);

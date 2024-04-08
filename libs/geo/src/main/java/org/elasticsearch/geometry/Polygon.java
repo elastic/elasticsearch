@@ -58,7 +58,7 @@ public final class Polygon implements Geometry {
         return ShapeType.POLYGON;
     }
 
-    private void checkRing(LinearRing ring) {
+    private static void checkRing(LinearRing ring) {
         if (ring.length() < 4) {
             throw new IllegalArgumentException("at least 4 polygon points required");
         }

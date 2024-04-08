@@ -10,12 +10,10 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -115,7 +113,7 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
         );
         assertThat(
             e.getMessage(),
-            equalTo("buckets_path must reference a cardinality aggregation, " + "got: [InternalSum] at aggregation [the_sum]")
+            equalTo("buckets_path must reference a cardinality aggregation, " + "got: [Sum] at aggregation [the_sum]")
         );
     }
 
@@ -150,14 +148,12 @@ public class CumulativeCardinalityAggregatorTests extends AggregatorTestCase {
                 setup.accept(indexWriter);
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(HISTO_FIELD);
                 MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
 
                 InternalAggregation histogram;
-                histogram = searchAndReduce(indexSearcher, query, aggBuilder, fieldType, valueFieldType);
+                histogram = searchAndReduce(indexReader, new AggTestConfig(aggBuilder, fieldType, valueFieldType).withQuery(query));
                 verify.accept(histogram);
             }
         }

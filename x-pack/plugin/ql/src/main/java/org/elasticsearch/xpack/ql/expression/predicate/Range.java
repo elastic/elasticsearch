@@ -21,7 +21,9 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.type.DateUtils;
 
+import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
@@ -108,10 +110,28 @@ public class Range extends ScalarFunction {
 
     /**
      * Check whether the boundaries are invalid ( upper &lt; lower) or not.
-     * If they do, the value does not have to be evaluate.
+     * If they are, the value does not have to be evaluated.
      */
-    private boolean areBoundariesInvalid() {
-        Integer compare = BinaryComparison.compare(lower.fold(), upper.fold());
+    protected boolean areBoundariesInvalid() {
+        Object lowerValue = lower.fold();
+        Object upperValue = upper.fold();
+        if (DataTypes.isDateTime(value.dataType()) || DataTypes.isDateTime(lower.dataType()) || DataTypes.isDateTime(upper.dataType())) {
+            try {
+                if (upperValue instanceof String upperString) {
+                    upperValue = DateUtils.asDateTime(upperString);
+                }
+                if (lowerValue instanceof String lowerString) {
+                    lowerValue = DateUtils.asDateTime(lowerString);
+                }
+            } catch (DateTimeException e) {
+                // one of the patterns is not a normal date, it could be a date math expression
+                // that has to be evaluated at lower level.
+                return false;
+            }
+            // for all the other cases, normal BinaryComparison logic is sufficient
+        }
+
+        Integer compare = BinaryComparison.compare(lowerValue, upperValue);
         // upper < lower OR upper == lower and the range doesn't contain any equals
         return compare != null && (compare > 0 || (compare == 0 && (includeLower == false || includeUpper == false)));
     }

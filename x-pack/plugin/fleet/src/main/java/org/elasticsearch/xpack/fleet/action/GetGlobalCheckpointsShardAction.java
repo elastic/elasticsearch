@@ -44,7 +44,7 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
     public static final String NAME = "indices:monitor/fleet/global_checkpoints[s]";
 
     private GetGlobalCheckpointsShardAction() {
-        super(NAME, GetGlobalCheckpointsShardAction.Response::new);
+        super(NAME);
     }
 
     public static class Response extends ActionResponse {
@@ -153,7 +153,7 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
                 actionFilters,
                 indexNameExpressionResolver,
                 Request::new,
-                ThreadPool.Names.GENERIC
+                threadPool.executor(ThreadPool.Names.GENERIC)
             );
             this.indicesService = indicesService;
         }
@@ -206,7 +206,7 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
             }
         }
 
-        private void globalCheckpointAdvancementFailure(
+        private static void globalCheckpointAdvancementFailure(
             final IndexShard indexShard,
             final Request request,
             final Exception e,

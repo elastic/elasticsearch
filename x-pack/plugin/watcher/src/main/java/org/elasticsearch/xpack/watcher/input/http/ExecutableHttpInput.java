@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -24,11 +23,11 @@ import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.support.Variables;
 import org.elasticsearch.xpack.watcher.support.XContentFilterKeysUtils;
 
-import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.watcher.input.http.HttpInput.TYPE;
 
 public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Result> {
@@ -50,7 +49,7 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
             request = input.getRequest().render(templateEngine, model);
             return doExecute(ctx, request);
         } catch (Exception e) {
-            logger.error("failed to execute [{}] input for watch [{}], reason [{}]", TYPE, ctx.watch().id(), e.getMessage());
+            logger.error(() -> format("failed to execute [%s] input for watch [%s]", TYPE, ctx.watch().id()), e);
             return new HttpInput.Result(request, e);
         }
     }
@@ -89,9 +88,11 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
         if (contentType != null) {
             // EMPTY is safe here because we never use namedObject
             try (
-                InputStream stream = response.body().streamInput();
-                XContentParser parser = contentType.xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                    response.body(),
+                    contentType
+                )
             ) {
                 if (input.getExtractKeys() != null) {
                     payloadMap.putAll(XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser));

@@ -6,16 +6,16 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
 import java.util.List;
 
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -33,8 +33,8 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
         Step.StepKey nextKey = instance.getNextStepKey();
 
         switch (between(0, 1)) {
-            case 0 -> key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 0 -> key = new Step.StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new Step.StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new CheckNotDataStreamWriteIndexStep(key, nextKey);
@@ -49,7 +49,7 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -68,23 +68,20 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         String policyName = "test-ilm-policy";
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
             .metadata(
-                Metadata.builder()
-                    .put(indexMetadata, true)
-                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), List.of(indexMetadata.getIndex())))
-                    .build()
+                Metadata.builder().put(indexMetadata, true).put(newInstance(dataStreamName, List.of(indexMetadata.getIndex()))).build()
             )
             .build();
 
         ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(indexMetadata.getIndex(), clusterState);
         assertThat(result.isComplete(), is(false));
-        CheckNotDataStreamWriteIndexStep.Info info = (CheckNotDataStreamWriteIndexStep.Info) result.getInfomationContext();
+        SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.getInfomationContext();
         assertThat(
             info.getMessage(),
             is(
@@ -106,14 +103,14 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         String policyName = "test-ilm-policy";
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
         String writeIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
         IndexMetadata writeIndexMetadata = IndexMetadata.builder(writeIndexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -124,7 +121,7 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
                 Metadata.builder()
                     .put(indexMetadata, true)
                     .put(writeIndexMetadata, true)
-                    .put(newInstance(dataStreamName, createTimestampField("@timestamp"), backingIndices))
+                    .put(newInstance(dataStreamName, backingIndices))
                     .build()
             )
             .build();

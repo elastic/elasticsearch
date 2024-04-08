@@ -18,6 +18,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -61,7 +62,7 @@ import static org.elasticsearch.xpack.sql.plugin.Transports.clusterName;
 import static org.elasticsearch.xpack.sql.plugin.Transports.username;
 import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
 
-public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequest, SqlQueryResponse>
+public final class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequest, SqlQueryResponse>
     implements
         AsyncTaskManagementService.AsyncOperation<SqlQueryRequest, SqlQueryResponse, SqlQueryTask> {
 
@@ -84,7 +85,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         SqlLicenseChecker sqlLicenseChecker,
         BigArrays bigArrays
     ) {
-        super(SqlQueryAction.NAME, transportService, actionFilters, SqlQueryRequest::new);
+        super(SqlQueryAction.NAME, transportService, actionFilters, SqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
@@ -155,7 +156,8 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
             request.fieldMultiValueLeniency(),
             request.indexIncludeFrozen(),
             new TaskId(clusterService.localNode().getId(), task.getId()),
-            task
+            task,
+            request.allowPartialSearchResults()
         );
 
         if (Strings.hasText(request.cursor()) == false) {
@@ -172,16 +174,16 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
                     node,
                     SqlQueryAction.NAME,
                     request,
-                    new ActionListenerResponseHandler<>(listener, SqlQueryResponse::new, ThreadPool.Names.SAME)
+                    new ActionListenerResponseHandler<>(listener, SqlQueryResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
                 ),
                 log
             );
         } else {
-            Tuple<Cursor, ZoneId> decoded = Cursors.decodeFromStringWithZone(request.cursor());
+            Tuple<Cursor, ZoneId> decoded = Cursors.decodeFromStringWithZone(request.cursor(), planExecutor.writeableRegistry());
             planExecutor.nextPage(
                 cfg,
                 decoded.v1(),
-                wrap(p -> listener.onResponse(createResponse(request, decoded.v2(), null, p, task)), listener::onFailure)
+                listener.delegateFailureAndWrap((l, p) -> l.onResponse(createResponse(request, decoded.v2(), null, p, task)))
             );
         }
     }

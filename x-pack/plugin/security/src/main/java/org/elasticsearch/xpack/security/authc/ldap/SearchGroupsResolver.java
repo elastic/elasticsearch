@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsRes
 
 import java.util.Collection;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.isNullOrEmpty;
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING;
@@ -79,9 +78,7 @@ class SearchGroupsResolver implements GroupsResolver {
                         Math.toIntExact(timeout.seconds()),
                         ignoreReferralErrors,
                         ActionListener.wrap(
-                            (results) -> listener.onResponse(
-                                results.stream().map((r) -> r.getDN()).collect(Collectors.toUnmodifiableList())
-                            ),
+                            (results) -> listener.onResponse(results.stream().map((r) -> r.getDN()).toList()),
                             listener::onFailure
                         ),
                         SearchRequest.NO_ATTRIBUTES

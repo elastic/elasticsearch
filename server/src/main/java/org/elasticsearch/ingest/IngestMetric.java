@@ -8,6 +8,8 @@
 
 package org.elasticsearch.ingest;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.metrics.CounterMetric;
 
 import java.util.concurrent.TimeUnit;
@@ -21,6 +23,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * This class does not make assumptions about it's given scope.
  */
 class IngestMetric {
+
+    private static final Logger logger = LogManager.getLogger(IngestMetric.class);
 
     /**
      * The time it takes to complete the measured item.
@@ -53,7 +57,19 @@ class IngestMetric {
      */
     void postIngest(long ingestTimeInNanos) {
         long current = ingestCurrent.decrementAndGet();
-        assert current >= 0 : "ingest metric current count double-decremented";
+        if (current < 0) {
+            /*
+             * This ought to never happen. However if it does, it's incredibly bad because ingestCurrent being negative causes a
+             * serialization error that prevents the nodes stats API from working. So we're doing 3 things here:
+             * (1) Log a stack trace at warn level so that the Elasticsearch engineering team can track down and fix the source of the
+             * bug if it still exists
+             * (2) Throw an AssertionError if assertions are enabled so that we are aware of the bug
+             * (3) Increment the counter back up so that we don't hit serialization failures
+             */
+            logger.warn("Current ingest counter decremented below 0", new RuntimeException());
+            assert false : "ingest metric current count double-decremented";
+            ingestCurrent.incrementAndGet();
+        }
         this.ingestTimeInNanos.inc(ingestTimeInNanos);
         ingestCount.inc();
     }
@@ -84,6 +100,8 @@ class IngestMetric {
     IngestStats.Stats createStats() {
         // we track ingestTime at nanosecond resolution, but IngestStats uses millisecond resolution for reporting
         long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(ingestTimeInNanos.count());
-        return new IngestStats.Stats(ingestCount.count(), ingestTimeInMillis, ingestCurrent.get(), ingestFailed.count());
+        // It is possible for the current count to briefly drop below 0, causing serialization problems. See #90319
+        long currentCount = Math.max(0, ingestCurrent.get());
+        return new IngestStats.Stats(ingestCount.count(), ingestTimeInMillis, currentCount, ingestFailed.count());
     }
 }

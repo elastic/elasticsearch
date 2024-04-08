@@ -11,7 +11,6 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestDocument.Metadata;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestTemplateService;
@@ -28,11 +27,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.CoreMatchers.not;
-import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class AppendProcessorTests extends ESTestCase {
 
@@ -118,39 +117,6 @@ public class AppendProcessorTests extends ESTestCase {
         assertThat(fieldValue.get(0), equalTo(initialValue));
         for (int i = 1; i < values.size() + 1; i++) {
             assertThat(fieldValue.get(i), equalTo(values.get(i - 1)));
-        }
-    }
-
-    public void testAppendMetadataExceptVersion() throws Exception {
-        // here any metadata field value becomes a list, which won't make sense in most of the cases,
-        // but support for append is streamlined like for set so we test it
-        Metadata randomMetadata = randomFrom(Metadata.INDEX, Metadata.ID, Metadata.ROUTING);
-        List<String> values = new ArrayList<>();
-        Processor appendProcessor;
-        if (randomBoolean()) {
-            String value = randomAlphaOfLengthBetween(1, 10);
-            values.add(value);
-            appendProcessor = createAppendProcessor(randomMetadata.getFieldName(), value, true);
-        } else {
-            int valuesSize = randomIntBetween(0, 10);
-            for (int i = 0; i < valuesSize; i++) {
-                values.add(randomAlphaOfLengthBetween(1, 10));
-            }
-            appendProcessor = createAppendProcessor(randomMetadata.getFieldName(), values, true);
-        }
-
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        Object initialValue = ingestDocument.getSourceAndMetadata().get(randomMetadata.getFieldName());
-        appendProcessor.execute(ingestDocument);
-        List<?> list = ingestDocument.getFieldValue(randomMetadata.getFieldName(), List.class);
-        if (initialValue == null) {
-            assertThat(list, equalTo(values));
-        } else {
-            assertThat(list.size(), equalTo(values.size() + 1));
-            assertThat(list.get(0), equalTo(initialValue));
-            for (int i = 1; i < list.size(); i++) {
-                assertThat(list.get(i), equalTo(values.get(i - 1)));
-            }
         }
     }
 

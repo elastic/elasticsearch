@@ -13,6 +13,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -38,12 +39,12 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     protected Map<String, WildcardQueryBuilder> getAlternateVersions() {
         Map<String, WildcardQueryBuilder> alternateVersions = new HashMap<>();
         WildcardQueryBuilder wildcardQuery = randomWildcardQuery();
-        String contentString = """
+        String contentString = Strings.format("""
             {
                 "wildcard" : {
                     "%s" : "%s"
                 }
-            }""".formatted(wildcardQuery.fieldName(), wildcardQuery.value());
+            }""", wildcardQuery.fieldName(), wildcardQuery.value());
         alternateVersions.put(contentString, wildcardQuery);
         return alternateVersions;
     }
@@ -140,18 +141,20 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
 
     public void testRewriteIndexQueryToMatchNone() throws IOException {
         WildcardQueryBuilder query = new WildcardQueryBuilder("_index", "does_not_exist");
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        QueryBuilder rewritten = query.rewrite(searchExecutionContext);
-        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+        for (QueryRewriteContext context : new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() }) {
+            QueryBuilder rewritten = query.rewrite(context);
+            assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+        }
     }
 
     public void testRewriteIndexQueryNotMatchNone() throws IOException {
         String fullIndexName = getIndex().getName();
         String firstHalfOfIndexName = fullIndexName.substring(0, fullIndexName.length() / 2);
         WildcardQueryBuilder query = new WildcardQueryBuilder("_index", firstHalfOfIndexName + "*");
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        QueryBuilder rewritten = query.rewrite(searchExecutionContext);
-        assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
+        for (QueryRewriteContext context : new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() }) {
+            QueryBuilder rewritten = query.rewrite(context);
+            assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
+        }
     }
 
     @Override

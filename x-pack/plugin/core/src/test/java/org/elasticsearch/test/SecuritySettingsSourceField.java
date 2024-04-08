@@ -7,6 +7,9 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+
+import java.util.Map;
 
 public final class SecuritySettingsSourceField {
     public static final SecureString TEST_PASSWORD_SECURE_STRING = new SecureString("x-pack-test-password".toCharArray());
@@ -22,9 +25,24 @@ public final class SecuritySettingsSourceField {
               allow_restricted_indices: true
               privileges: [ "ALL" ]
           run_as: [ "*" ]
-          # The _es_test_root role doesn't have any application privileges because that would require loading data (Application Privileges)
-          # from the security index, which can causes problems if the index is not available
+          applications:
+            - application: "*"
+              privileges: [ "*" ]
+              resources: [ "*" ]
         """;
+
+    public static final RoleDescriptor ES_TEST_ROOT_ROLE_DESCRIPTOR = new RoleDescriptor(
+        "_es_test_root",
+        new String[] { "ALL" },
+        new RoleDescriptor.IndicesPrivileges[] {
+            RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("ALL").allowRestrictedIndices(true).build() },
+        new RoleDescriptor.ApplicationResourcePrivileges[] {
+            RoleDescriptor.ApplicationResourcePrivileges.builder().application("*").privileges("*").resources("*").build() },
+        null,
+        new String[] { "*" },
+        Map.of(),
+        Map.of("enabled", true)
+    );
 
     private SecuritySettingsSourceField() {}
 }

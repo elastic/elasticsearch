@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -17,6 +16,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocati
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 /**
@@ -60,7 +61,7 @@ public class TransportPutTrainedModelDefinitionPartAction extends HandledTranspo
         Client client,
         TrainedModelProvider trainedModelProvider
     ) {
-        super(PutTrainedModelDefinitionPartAction.NAME, transportService, actionFilters, Request::new);
+        super(PutTrainedModelDefinitionPartAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.licenseState = licenseState;
         this.trainedModelProvider = trainedModelProvider;
         this.client = new OriginSettingClient(client, ML_ORIGIN);
@@ -104,19 +105,17 @@ public class TransportPutTrainedModelDefinitionPartAction extends HandledTranspo
                             .indices()
                             .prepareRefresh(indexName)
                             .execute(ActionListener.wrap(refreshed -> listener.onResponse(AcknowledgedResponse.TRUE), failure -> {
-                                logger.warn(
-                                    () -> new ParameterizedMessage("[{}] failed to refresh index [{}]", request.getModelId(), indexName),
-                                    failure
-                                );
+                                logger.warn(() -> format("[%s] failed to refresh index [%s]", request.getModelId(), indexName), failure);
                                 listener.onResponse(AcknowledgedResponse.TRUE);
                             }));
                         return;
                     }
                     listener.onResponse(AcknowledgedResponse.TRUE);
-                }, listener::onFailure)
+                }, listener::onFailure),
+                request.isOverwritingAllowed()
             );
         }, listener::onFailure);
 
-        trainedModelProvider.getTrainedModel(request.getModelId(), GetTrainedModelsAction.Includes.empty(), configActionListener);
+        trainedModelProvider.getTrainedModel(request.getModelId(), GetTrainedModelsAction.Includes.empty(), null, configActionListener);
     }
 }

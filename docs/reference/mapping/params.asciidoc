@@ -14,7 +14,7 @@ The following mapping parameters are common to some or all field data types:
 * <<dynamic,`dynamic`>>
 * <<eager-global-ordinals,`eager_global_ordinals`>>
 * <<enabled,`enabled`>>
-* <<fielddata,`fielddata`>>
+* <<fielddata-mapping-param,`fielddata`>>
 * <<multi-fields,`fields`>>
 * <<mapping-date-format,`format`>>
 * <<ignore-above,`ignore_above`>>
@@ -31,6 +31,7 @@ The following mapping parameters are common to some or all field data types:
 * <<properties,`properties`>>
 * <<search-analyzer,`search_analyzer`>>
 * <<similarity,`similarity`>>
+* <<subobjects,`subobjects`>>
 * <<mapping-store,`store`>>
 * <<term-vector,`term_vector`>>
 
@@ -82,5 +83,7 @@ include::params/search-analyzer.asciidoc[]
 include::params/similarity.asciidoc[]
 
 include::params/store.asciidoc[]
+
+include::params/subobjects.asciidoc[]
 
 include::params/term-vector.asciidoc[]

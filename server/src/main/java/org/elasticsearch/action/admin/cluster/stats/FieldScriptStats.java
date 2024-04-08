@@ -68,14 +68,14 @@ public final class FieldScriptStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
-    void update(int chars, long lines, int sourceUsages, int docUsages) {
+    void update(int chars, long lines, int sourceUsages, int docUsages, int count) {
         this.maxChars = Math.max(this.maxChars, chars);
-        this.totalChars += chars;
+        this.totalChars += (long) chars * count;
         this.maxLines = Math.max(this.maxLines, lines);
-        this.totalLines += lines;
-        this.totalSourceUsages += sourceUsages;
+        this.totalLines += lines * count;
+        this.totalSourceUsages += (long) sourceUsages * count;
         this.maxSourceUsages = Math.max(this.maxSourceUsages, sourceUsages);
-        this.totalDocUsages += docUsages;
+        this.totalDocUsages += (long) docUsages * count;
         this.maxDocUsages = Math.max(this.maxDocUsages, docUsages);
     }
 

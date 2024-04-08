@@ -34,6 +34,18 @@
         }
       ]
     },
+    "params":{
+      "start":{
+        "type":"string",
+        "required":false,
+        "description":"The start time from where the datafeed preview should begin"
+      },
+      "end":{
+        "type":"string",
+        "required":false,
+        "description":"The end time when the datafeed preview should stop"
+      }
+    },
     "body":{
       "description":"The datafeed config and job config with which to execute the preview",
       "required":false

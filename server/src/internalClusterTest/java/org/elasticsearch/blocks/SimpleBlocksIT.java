@@ -10,12 +10,10 @@ package org.elasticsearch.blocks;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequestBuilder;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,11 +26,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
@@ -102,25 +98,15 @@ public class SimpleBlocksIT extends ESIntegTestCase {
     public void testIndexReadWriteMetadataBlocks() {
         canCreateIndex("test1");
         canIndexDocument("test1");
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test1")
-            .setSettings(Settings.builder().put(SETTING_BLOCKS_WRITE, true))
-            .execute()
-            .actionGet();
+        updateIndexSettings(Settings.builder().put(SETTING_BLOCKS_WRITE, true), "test1");
         canNotIndexDocument("test1");
-        client().admin()
-            .indices()
-            .prepareUpdateSettings("test1")
-            .setSettings(Settings.builder().put(SETTING_BLOCKS_WRITE, false))
-            .execute()
-            .actionGet();
+        updateIndexSettings(Settings.builder().put(SETTING_BLOCKS_WRITE, false), "test1");
         canIndexDocument("test1");
     }
 
     private void canCreateIndex(String index) {
         try {
-            CreateIndexResponse r = client().admin().indices().prepareCreate(index).execute().actionGet();
+            CreateIndexResponse r = indicesAdmin().prepareCreate(index).get();
             assertThat(r, notNullValue());
         } catch (ClusterBlockException e) {
             fail();
@@ -129,7 +115,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
     private void canNotCreateIndex(String index) {
         try {
-            client().admin().indices().prepareCreate(index).execute().actionGet();
+            indicesAdmin().prepareCreate(index).get();
             fail();
         } catch (ClusterBlockException e) {
             // all is well
@@ -138,9 +124,9 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
     private void canIndexDocument(String index) {
         try {
-            IndexRequestBuilder builder = client().prepareIndex(index);
+            IndexRequestBuilder builder = prepareIndex(index);
             builder.setSource("foo", "bar");
-            IndexResponse r = builder.execute().actionGet();
+            DocWriteResponse r = builder.get();
             assertThat(r, notNullValue());
         } catch (ClusterBlockException e) {
             fail();
@@ -149,23 +135,17 @@ public class SimpleBlocksIT extends ESIntegTestCase {
 
     private void canNotIndexDocument(String index) {
         try {
-            IndexRequestBuilder builder = client().prepareIndex(index);
+            IndexRequestBuilder builder = prepareIndex(index);
             builder.setSource("foo", "bar");
-            builder.execute().actionGet();
+            builder.get();
             fail();
         } catch (ClusterBlockException e) {
             // all is well
         }
     }
 
-    private void setIndexReadOnly(String index, Object value) {
-        HashMap<String, Object> newSettings = new HashMap<>();
-        newSettings.put(SETTING_READ_ONLY, value);
-
-        UpdateSettingsRequestBuilder settingsRequest = client().admin().indices().prepareUpdateSettings(index);
-        settingsRequest.setSettings(newSettings);
-        AcknowledgedResponse settingsResponse = settingsRequest.execute().actionGet();
-        assertThat(settingsResponse, notNullValue());
+    private void setIndexReadOnly(String index, String value) {
+        updateIndexSettings(Settings.builder().put(SETTING_READ_ONLY, value), index);
     }
 
     public void testAddBlocksWhileExistingBlocks() {
@@ -182,7 +162,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
                     enableIndexBlock("test", block.settingName());
 
                     // Adding a block is not blocked
-                    AcknowledgedResponse addBlockResponse = client().admin().indices().prepareAddBlock(otherBlock, "test").get();
+                    AcknowledgedResponse addBlockResponse = indicesAdmin().prepareAddBlock(otherBlock, "test").get();
                     assertAcked(addBlockResponse);
                 } finally {
                     disableIndexBlock("test", otherBlock.settingName());
@@ -197,9 +177,9 @@ public class SimpleBlocksIT extends ESIntegTestCase {
                     // Adding a block is blocked when there is a metadata block and the new block to be added is not a metadata block
                     if (block.getBlock().contains(ClusterBlockLevel.METADATA_WRITE)
                         && otherBlock.getBlock().contains(ClusterBlockLevel.METADATA_WRITE) == false) {
-                        assertBlocked(client().admin().indices().prepareAddBlock(otherBlock, "test"));
+                        assertBlocked(indicesAdmin().prepareAddBlock(otherBlock, "test"));
                     } else {
-                        assertAcked(client().admin().indices().prepareAddBlock(otherBlock, "test"));
+                        assertAcked(indicesAdmin().prepareAddBlock(otherBlock, "test"));
                         success = true;
                     }
                 } finally {
@@ -213,10 +193,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
     }
 
     public void testAddBlockToMissingIndex() {
-        IndexNotFoundException e = expectThrows(
-            IndexNotFoundException.class,
-            () -> client().admin().indices().prepareAddBlock(randomAddableBlock(), "test").get()
-        );
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, indicesAdmin().prepareAddBlock(randomAddableBlock(), "test"));
         assertThat(e.getMessage(), is("no such index [test]"));
     }
 
@@ -224,7 +201,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         createIndex("test1");
         final IndexNotFoundException e = expectThrows(
             IndexNotFoundException.class,
-            () -> client().admin().indices().prepareAddBlock(randomAddableBlock(), "test1", "test2").get()
+            indicesAdmin().prepareAddBlock(randomAddableBlock(), "test1", "test2")
         );
         assertThat(e.getMessage(), is("no such index [test2]"));
     }
@@ -233,11 +210,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         createIndex("test1");
         final APIBlock block = randomAddableBlock();
         try {
-            assertBusy(
-                () -> assertAcked(
-                    client().admin().indices().prepareAddBlock(block, "test1", "test2").setIndicesOptions(lenientExpandOpen())
-                )
-            );
+            assertBusy(() -> assertAcked(indicesAdmin().prepareAddBlock(block, "test1", "test2").setIndicesOptions(lenientExpandOpen())));
             assertIndexHasBlock(block, "test1");
         } finally {
             disableIndexBlock("test1", block);
@@ -247,46 +220,48 @@ public class SimpleBlocksIT extends ESIntegTestCase {
     public void testAddBlockNoIndex() {
         final ActionRequestValidationException e = expectThrows(
             ActionRequestValidationException.class,
-            () -> client().admin().indices().prepareAddBlock(randomAddableBlock()).get()
+            indicesAdmin().prepareAddBlock(randomAddableBlock())
         );
         assertThat(e.getMessage(), containsString("index is missing"));
     }
 
     public void testAddBlockNullIndex() {
-        expectThrows(NullPointerException.class, () -> client().admin().indices().prepareAddBlock(randomAddableBlock(), (String[]) null));
+        expectThrows(NullPointerException.class, () -> indicesAdmin().prepareAddBlock(randomAddableBlock(), (String[]) null));
     }
 
     public void testCannotAddReadOnlyAllowDeleteBlock() {
         createIndex("test1");
-        final AddIndexBlockRequestBuilder request = client().admin().indices().prepareAddBlock(APIBlock.READ_ONLY_ALLOW_DELETE, "test1");
-        final ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class, request::get);
+        final ActionRequestValidationException e = expectThrows(
+            ActionRequestValidationException.class,
+            indicesAdmin().prepareAddBlock(APIBlock.READ_ONLY_ALLOW_DELETE, "test1")
+        );
         assertThat(e.getMessage(), containsString("read_only_allow_delete block is for internal use only"));
     }
 
     public void testAddIndexBlock() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
+        ensureGreen(indexName);
 
         final int nbDocs = randomIntBetween(0, 50);
         indexRandom(
             randomBoolean(),
             false,
             randomBoolean(),
-            IntStream.range(0, nbDocs)
-                .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i))
-                .collect(toList())
+            IntStream.range(0, nbDocs).mapToObj(i -> prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i)).collect(toList())
         );
 
         final APIBlock block = randomAddableBlock();
         try {
-            assertAcked(client().admin().indices().prepareAddBlock(block, indexName));
+            AddIndexBlockResponse response = indicesAdmin().prepareAddBlock(block, indexName).get();
+            assertTrue("Add block [" + block + "] to index [" + indexName + "] not acknowledged: " + response, response.isAcknowledged());
             assertIndexHasBlock(block, indexName);
         } finally {
             disableIndexBlock(indexName, block);
         }
 
-        client().admin().indices().prepareRefresh(indexName).get();
-        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), nbDocs);
+        indicesAdmin().prepareRefresh(indexName).get();
+        assertHitCount(prepareSearch(indexName).setSize(0), nbDocs);
     }
 
     public void testSameBlockTwice() throws Exception {
@@ -299,16 +274,16 @@ public class SimpleBlocksIT extends ESIntegTestCase {
                 false,
                 randomBoolean(),
                 IntStream.range(0, randomIntBetween(1, 10))
-                    .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i))
+                    .mapToObj(i -> prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i))
                     .collect(toList())
             );
         }
         final APIBlock block = randomAddableBlock();
         try {
-            assertAcked(client().admin().indices().prepareAddBlock(block, indexName));
+            assertAcked(indicesAdmin().prepareAddBlock(block, indexName));
             assertIndexHasBlock(block, indexName);
             // Second add block should be acked too, even if it was a METADATA block
-            assertAcked(client().admin().indices().prepareAddBlock(block, indexName));
+            assertAcked(indicesAdmin().prepareAddBlock(block, indexName));
             assertIndexHasBlock(block, indexName);
         } finally {
             disableIndexBlock(indexName, block);
@@ -322,13 +297,13 @@ public class SimpleBlocksIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put("index.routing.allocation.include._name", "nothing").build())
         );
 
-        final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         assertThat(clusterState.metadata().indices().get(indexName).getState(), is(IndexMetadata.State.OPEN));
-        assertThat(clusterState.routingTable().allShards().stream().allMatch(ShardRouting::unassigned), is(true));
+        assertThat(clusterState.routingTable().allShards().allMatch(ShardRouting::unassigned), is(true));
 
         final APIBlock block = randomAddableBlock();
         try {
-            assertAcked(client().admin().indices().prepareAddBlock(block, indexName));
+            assertAcked(indicesAdmin().prepareAddBlock(block, indexName));
             assertIndexHasBlock(block, indexName);
         } finally {
             disableIndexBlock(indexName, block);
@@ -344,9 +319,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
             randomBoolean(),
             false,
             randomBoolean(),
-            IntStream.range(0, nbDocs)
-                .mapToObj(i -> client().prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i))
-                .collect(toList())
+            IntStream.range(0, nbDocs).mapToObj(i -> prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i)).collect(toList())
         );
         ensureYellowAndNoInitializingShards(indexName);
 
@@ -358,13 +331,9 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         try {
             for (int i = 0; i < threads.length; i++) {
                 threads[i] = new Thread(() -> {
+                    safeAwait(startClosing);
                     try {
-                        startClosing.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
-                    try {
-                        client().admin().indices().prepareAddBlock(block, indexName).get();
+                        indicesAdmin().prepareAddBlock(block, indexName).get();
                         assertIndexHasBlock(block, indexName);
                     } catch (final ClusterBlockException e) {
                         assertThat(e.blocks(), hasSize(1));
@@ -384,16 +353,13 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         }
     }
 
-    @TestLogging(
-        reason = "https://github.com/elastic/elasticsearch/issues/74345",
-        value = "org.elasticsearch.action.admin.indices.readonly:DEBUG,org.elasticsearch.cluster.metadata:DEBUG"
-    )
     public void testAddBlockWhileIndexingDocuments() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
+        ensureGreen(indexName);
 
         final APIBlock block = randomAddableBlock();
-        int nbDocs = 0;
+        long nbDocs = 0;
         try {
             try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, client(), 1000)) {
                 indexer.setFailureAssertion(t -> {
@@ -405,8 +371,11 @@ public class SimpleBlocksIT extends ESIntegTestCase {
                 });
 
                 waitForDocs(randomIntBetween(10, 50), indexer);
-                final AddIndexBlockResponse response = client().admin().indices().prepareAddBlock(block, indexName).get();
-                assertTrue("Add Index Block request was not acknowledged: " + response, response.isAcknowledged());
+                final AddIndexBlockResponse response = indicesAdmin().prepareAddBlock(block, indexName).get();
+                assertTrue(
+                    "Add block [" + block + "] to index [" + indexName + "] not acknowledged: " + response,
+                    response.isAcknowledged()
+                );
                 indexer.stopAndAwaitStopped();
                 nbDocs += indexer.totalIndexedDocs();
             }
@@ -415,7 +384,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
             disableIndexBlock(indexName, block);
         }
         refresh(indexName);
-        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE).get(), nbDocs);
+        assertHitCount(prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE), nbDocs);
     }
 
     public void testAddBlockWhileDeletingIndices() throws Exception {
@@ -429,13 +398,13 @@ public class SimpleBlocksIT extends ESIntegTestCase {
                     false,
                     randomBoolean(),
                     IntStream.range(0, 10)
-                        .mapToObj(n -> client().prepareIndex(indexName).setId(String.valueOf(n)).setSource("num", n))
+                        .mapToObj(n -> prepareIndex(indexName).setId(String.valueOf(n)).setSource("num", n))
                         .collect(toList())
                 );
             }
             indices[i] = indexName;
         }
-        assertThat(client().admin().cluster().prepareState().get().getState().metadata().indices().size(), equalTo(indices.length));
+        assertThat(clusterAdmin().prepareState().get().getState().metadata().indices().size(), equalTo(indices.length));
 
         final List<Thread> threads = new ArrayList<>();
         final CountDownLatch latch = new CountDownLatch(1);
@@ -455,13 +424,9 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         try {
             for (final String indexToDelete : indices) {
                 threads.add(new Thread(() -> {
+                    safeAwait(latch);
                     try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
-                    try {
-                        assertAcked(client().admin().indices().prepareDelete(indexToDelete));
+                        assertAcked(indicesAdmin().prepareDelete(indexToDelete));
                     } catch (final Exception e) {
                         exceptionConsumer.accept(e);
                     }
@@ -469,13 +434,9 @@ public class SimpleBlocksIT extends ESIntegTestCase {
             }
             for (final String indexToBlock : indices) {
                 threads.add(new Thread(() -> {
+                    safeAwait(latch);
                     try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
-                    try {
-                        client().admin().indices().prepareAddBlock(block, indexToBlock).get();
+                        indicesAdmin().prepareAddBlock(block, indexToBlock).get();
                     } catch (final Exception e) {
                         exceptionConsumer.accept(e);
                     }
@@ -501,7 +462,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
     }
 
     static void assertIndexHasBlock(APIBlock block, final String... indices) {
-        final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         for (String index : indices) {
             final IndexMetadata indexMetadata = clusterState.metadata().indices().get(index);
             final Settings indexSettings = indexMetadata.getSettings();

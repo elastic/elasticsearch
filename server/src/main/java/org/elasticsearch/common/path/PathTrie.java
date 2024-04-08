@@ -8,6 +8,8 @@
 
 package org.elasticsearch.common.path;
 
+import org.elasticsearch.common.collect.Iterators;
+
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -170,7 +172,7 @@ public class PathTrie<T> {
             node.insertOrUpdate(path, index + 1, value, updater);
         }
 
-        private boolean isNamedWildcard(String key) {
+        private static boolean isNamedWildcard(String key) {
             return key.indexOf('{') != -1 && key.indexOf('}') != -1;
         }
 
@@ -264,6 +266,15 @@ public class PathTrie<T> {
         private void put(Map<String, String> params, TrieNode node, String value) {
             if (params != null && node.isNamedWildcard()) {
                 params.put(node.namedWildcard(), decoder.decode(value));
+            }
+        }
+
+        Iterator<T> allNodeValues() {
+            final Iterator<T> childrenIterator = Iterators.flatMap(children.values().iterator(), TrieNode::allNodeValues);
+            if (value == null) {
+                return childrenIterator;
+            } else {
+                return Iterators.concat(Iterators.single(value), childrenIterator);
             }
         }
 
@@ -365,5 +376,9 @@ public class PathTrie<T> {
                 return retrieve(path, paramSupplier.get(), TrieMatchingMode.values()[mode++]);
             }
         };
+    }
+
+    public Iterator<T> allNodeValues() {
+        return Iterators.concat(Iterators.single(rootValue), root.allNodeValues());
     }
 }

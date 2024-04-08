@@ -12,7 +12,6 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
@@ -27,6 +26,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopTermsRewrite;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -163,6 +165,11 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         public String fieldName() {
             return "foo";
         }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.ZERO;
+        }
     }
 
     /**
@@ -228,8 +235,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
                       "boost" : 1.08
                     }
                   }
-                },
-                "boost" : 1.0
+                }
               }
             }""";
 
@@ -262,8 +268,9 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
                     BooleanQuery.setMaxClauseCount(1);
                     try {
                         QueryBuilder queryBuilder = new SpanMultiTermQueryBuilder(QueryBuilders.prefixQuery("body", "bar"));
-                        Query query = queryBuilder.toQuery(createSearchExecutionContext(new IndexSearcher(reader)));
-                        RuntimeException exc = expectThrows(RuntimeException.class, () -> query.rewrite(reader));
+                        IndexSearcher searcher = newSearcher(reader);
+                        Query query = queryBuilder.toQuery(createSearchExecutionContext(searcher));
+                        RuntimeException exc = expectThrows(RuntimeException.class, () -> query.rewrite(searcher));
                         assertThat(exc.getMessage(), containsString("maxClauseCount"));
                     } finally {
                         BooleanQuery.setMaxClauseCount(origBoolMaxClauseCount);

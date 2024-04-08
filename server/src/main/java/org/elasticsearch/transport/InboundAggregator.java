@@ -40,7 +40,7 @@ public class InboundAggregator implements Releasable {
         Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction,
         boolean ignoreDeserializationErrors
     ) {
-        this(circuitBreaker, (Predicate<String>) actionName -> {
+        this(circuitBreaker, actionName -> {
             final RequestHandlerRegistry<TransportRequest> reg = registryFunction.apply(actionName);
             if (reg == null) {
                 assert ignoreDeserializationErrors : actionName;
@@ -119,7 +119,7 @@ public class InboundAggregator implements Releasable {
                 checkBreaker(aggregated.getHeader(), aggregated.getContentLength(), breakerControl);
             }
             if (isShortCircuited()) {
-                aggregated.close();
+                aggregated.decRef();
                 success = true;
                 return new InboundMessage(aggregated.getHeader(), aggregationException);
             } else {
@@ -130,7 +130,7 @@ public class InboundAggregator implements Releasable {
         } finally {
             resetCurrentAggregation();
             if (success == false) {
-                aggregated.close();
+                aggregated.decRef();
             }
         }
     }

@@ -8,11 +8,11 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.xcontent.ToXContent;
@@ -206,9 +206,9 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         private final String restoreUUID;
         private final Snapshot snapshot;
         private final IndexId index;
-        private final Version version;
+        private final IndexVersion version;
 
-        public SnapshotRecoverySource(String restoreUUID, Snapshot snapshot, Version version, IndexId indexId) {
+        public SnapshotRecoverySource(String restoreUUID, Snapshot snapshot, IndexVersion version, IndexId indexId) {
             this.restoreUUID = restoreUUID;
             this.snapshot = Objects.requireNonNull(snapshot);
             this.version = Objects.requireNonNull(version);
@@ -218,7 +218,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         SnapshotRecoverySource(StreamInput in) throws IOException {
             restoreUUID = in.readString();
             snapshot = new Snapshot(in);
-            version = Version.readVersion(in);
+            version = IndexVersion.readVersion(in);
             index = new IndexId(in);
         }
 
@@ -240,7 +240,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             return index;
         }
 
-        public Version version() {
+        public IndexVersion version() {
             return version;
         }
 
@@ -248,7 +248,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         protected void writeAdditionalFields(StreamOutput out) throws IOException {
             out.writeString(restoreUUID);
             snapshot.writeTo(out);
-            Version.writeVersion(version, out);
+            IndexVersion.writeVersion(version, out);
             index.writeTo(out);
         }
 

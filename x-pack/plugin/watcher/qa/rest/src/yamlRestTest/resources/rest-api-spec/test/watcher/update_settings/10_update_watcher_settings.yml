@@ -1,0 +1,66 @@
+---
+setup:
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+---
+"Test update and get watch settings api":
+  - do:
+      watcher.put_watch:
+        id: "my_watch"
+        body:  >
+          {
+            "trigger": {
+              "schedule": {
+                "hourly": {
+                  "minute": [ 0, 5 ]
+                  }
+                }
+            },
+            "input": {
+              "simple": {
+                "payload": {
+                  "send": "yes"
+                }
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "test_index": {
+                "index": {
+                  "index": "test"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch" }
+
+  - do:
+      watcher.get_settings: {}
+
+  -  match: { index.auto_expand_replicas: "0-1" }
+  -  match: { index.number_of_replicas: "0" }
+
+  - do:
+      watcher.update_settings:
+        body:
+          index.auto_expand_replicas: "0-all"
+
+  - do:
+      watcher.get_settings: {}
+
+  -  match: { index.auto_expand_replicas: "0-all" }
+
+  - do:
+      watcher.update_settings:
+        body:
+          index.auto_expand_replicas: null
+          index.number_of_replicas: 1
+
+  - do:
+      watcher.get_settings: {}
+
+  -  match: { index.number_of_replicas: "1" }

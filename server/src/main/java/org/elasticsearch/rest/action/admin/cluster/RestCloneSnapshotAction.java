@@ -14,6 +14,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -26,6 +28,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  * Clones indices from one snapshot into another snapshot in the same repository
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestCloneSnapshotAction extends BaseRestHandler {
 
     @Override
@@ -40,15 +43,17 @@ public class RestCloneSnapshotAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final Map<String, Object> source = request.contentParser().map();
-        final CloneSnapshotRequest cloneSnapshotRequest = new CloneSnapshotRequest(
-            request.param("repository"),
-            request.param("snapshot"),
-            request.param("target_snapshot"),
-            XContentMapValues.nodeStringArrayValue(source.getOrDefault("indices", Collections.emptyList()))
-        );
-        cloneSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", cloneSnapshotRequest.masterNodeTimeout()));
-        cloneSnapshotRequest.indicesOptions(IndicesOptions.fromMap(source, cloneSnapshotRequest.indicesOptions()));
-        return channel -> client.admin().cluster().cloneSnapshot(cloneSnapshotRequest, new RestToXContentListener<>(channel));
+        try (var parser = request.contentParser()) {
+            final Map<String, Object> source = parser.map();
+            final CloneSnapshotRequest cloneSnapshotRequest = new CloneSnapshotRequest(
+                request.param("repository"),
+                request.param("snapshot"),
+                request.param("target_snapshot"),
+                XContentMapValues.nodeStringArrayValue(source.getOrDefault("indices", Collections.emptyList()))
+            );
+            cloneSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", cloneSnapshotRequest.masterNodeTimeout()));
+            cloneSnapshotRequest.indicesOptions(IndicesOptions.fromMap(source, cloneSnapshotRequest.indicesOptions()));
+            return channel -> client.admin().cluster().cloneSnapshot(cloneSnapshotRequest, new RestToXContentListener<>(channel));
+        }
     }
 }

@@ -10,7 +10,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -103,10 +103,13 @@ public final class SqlTestUtils {
             objectGenerator.accept(generator);
             generator.close();
             // System.out.println(out.toString(StandardCharsets.UTF_8));
-            XContentParser parser = builder.contentType()
-                .xContent()
-                .createParser(XContentParserConfiguration.EMPTY, new ByteArrayInputStream(out.toByteArray()));
-            builder.copyCurrentStructure(parser);
+            try (
+                XContentParser parser = builder.contentType()
+                    .xContent()
+                    .createParser(XContentParserConfiguration.EMPTY, new ByteArrayInputStream(out.toByteArray()))
+            ) {
+                builder.copyCurrentStructure(parser);
+            }
             builder.flush();
             ByteArrayOutputStream stream = (ByteArrayOutputStream) builder.getOutputStream();
             assertEquals("serialized objects differ", out.toString(StandardCharsets.UTF_8), stream.toString(StandardCharsets.UTF_8));

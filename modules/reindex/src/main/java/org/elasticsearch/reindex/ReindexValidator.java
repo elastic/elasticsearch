@@ -30,7 +30,9 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.transport.RemoteClusterAware;
 
+import java.util.Arrays;
 import java.util.List;
 
 public class ReindexValidator {
@@ -138,12 +140,34 @@ public class ReindexValidator {
              */
             target = indexNameExpressionResolver.concreteWriteIndex(clusterState, destination).getName();
         }
-        for (String sourceIndex : indexNameExpressionResolver.concreteIndexNames(clusterState, source)) {
+        SearchRequest filteredSource = skipRemoteIndexNames(source);
+        if (filteredSource.indices().length == 0) {
+            return;
+        }
+        String[] sourceIndexNames = indexNameExpressionResolver.concreteIndexNames(clusterState, filteredSource);
+        for (String sourceIndex : sourceIndexNames) {
             if (sourceIndex.equals(target)) {
                 ActionRequestValidationException e = new ActionRequestValidationException();
                 e.addValidationError("reindex cannot write into an index its reading from [" + target + ']');
                 throw e;
             }
         }
+    }
+
+    private static SearchRequest skipRemoteIndexNames(SearchRequest source) {
+        return new SearchRequest(source).indices(
+            Arrays.stream(source.indices()).filter(name -> isRemoteExpression(name) == false).toArray(String[]::new)
+        );
+    }
+
+    private static boolean isRemoteExpression(String expression) {
+        // An index expression that references a remote cluster uses ":" to separate the cluster-alias from the index portion of the
+        // expression, e.g., cluster0:index-name
+        // in the same time date-math `expression` can also contain ':' symbol inside its name
+        // to distinguish between those two, given `expression` is pre-evaluated using date-math resolver
+        // after evaluation date-math `expression` should not contain ':' symbol
+        // otherwise if `expression` is legit remote name, ':' symbol remains
+        return IndexNameExpressionResolver.resolveDateMathExpression(expression)
+            .contains(String.valueOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR));
     }
 }

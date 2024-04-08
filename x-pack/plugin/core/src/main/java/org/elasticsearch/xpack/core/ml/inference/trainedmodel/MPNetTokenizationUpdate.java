@@ -8,42 +8,38 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.Objects;
+import java.util.Optional;
 
-public class MPNetTokenizationUpdate implements TokenizationUpdate {
+public class MPNetTokenizationUpdate extends AbstractTokenizationUpdate {
 
     public static final ParseField NAME = MPNetTokenization.NAME;
 
     public static ConstructingObjectParser<MPNetTokenizationUpdate, Void> PARSER = new ConstructingObjectParser<>(
         "mpnet_tokenization_update",
-        a -> new MPNetTokenizationUpdate(a[0] == null ? null : Tokenization.Truncate.fromString((String) a[0]))
+        a -> new MPNetTokenizationUpdate(a[0] == null ? null : Tokenization.Truncate.fromString((String) a[0]), (Integer) a[1])
     );
 
     static {
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), Tokenization.TRUNCATE);
+        declareCommonParserFields(PARSER);
     }
 
     public static MPNetTokenizationUpdate fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    private final Tokenization.Truncate truncate;
-
-    public MPNetTokenizationUpdate(@Nullable Tokenization.Truncate truncate) {
-        this.truncate = truncate;
+    public MPNetTokenizationUpdate(@Nullable Tokenization.Truncate truncate, @Nullable Integer span) {
+        super(truncate, span);
     }
 
     public MPNetTokenizationUpdate(StreamInput in) throws IOException {
-        this.truncate = in.readOptionalEnum(Tokenization.Truncate.class);
+        super(in);
     }
 
     @Override
@@ -60,25 +56,26 @@ public class MPNetTokenizationUpdate implements TokenizationUpdate {
             return originalConfig;
         }
 
+        if (getTruncate() != null && getTruncate().isInCompatibleWithSpan() == false) {
+            // When truncate value is incompatible with span wipe out
+            // the existing span setting to avoid an invalid combination of settings.
+            // This avoids the user have to set span to the special unset value
+            return new MPNetTokenization(
+                originalConfig.doLowerCase(),
+                originalConfig.withSpecialTokens(),
+                originalConfig.maxSequenceLength(),
+                getTruncate(),
+                null
+            );
+        }
+
         return new MPNetTokenization(
             originalConfig.doLowerCase(),
             originalConfig.withSpecialTokens(),
             originalConfig.maxSequenceLength(),
-            this.truncate
+            Optional.ofNullable(this.getTruncate()).orElse(originalConfig.getTruncate()),
+            Optional.ofNullable(this.getSpan()).orElse(originalConfig.getSpan())
         );
-    }
-
-    @Override
-    public boolean isNoop() {
-        return truncate == null;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(Tokenization.TRUNCATE.getPreferredName(), truncate.toString());
-        builder.endObject();
-        return builder;
     }
 
     @Override
@@ -87,25 +84,7 @@ public class MPNetTokenizationUpdate implements TokenizationUpdate {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalEnum(truncate);
-    }
-
-    @Override
     public String getName() {
         return MPNetTokenization.NAME.getPreferredName();
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        MPNetTokenizationUpdate that = (MPNetTokenizationUpdate) o;
-        return truncate == that.truncate;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(truncate);
     }
 }

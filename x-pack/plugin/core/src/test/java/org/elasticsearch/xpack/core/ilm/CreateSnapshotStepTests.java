@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -18,7 +17,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.HashMap;
@@ -49,13 +51,15 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
     @Override
     public CreateSnapshotStep mutateInstance(CreateSnapshotStep instance) {
         StepKey key = instance.getKey();
+        StepKey nextKeyOnCompleteResponse = instance.getNextKeyOnComplete();
         StepKey nextKeyOnIncompleteResponse = instance.getNextKeyOnIncomplete();
-        switch (between(0, 1)) {
-            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKeyOnIncompleteResponse = randomStepKey();
+        switch (between(0, 2)) {
+            case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKeyOnCompleteResponse = randomStepKey();
+            case 2 -> nextKeyOnIncompleteResponse = randomStepKey();
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new CreateSnapshotStep(key, randomStepKey(), nextKeyOnIncompleteResponse, instance.getClient());
+        return new CreateSnapshotStep(key, nextKeyOnCompleteResponse, nextKeyOnIncompleteResponse, instance.getClient());
     }
 
     public void testPerformActionFailure() {
@@ -64,7 +68,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
 
         {
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, 5));
             Map<String, String> ilmCustom = new HashMap<>();
@@ -88,7 +92,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
 
         {
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-                .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, 5));
             IndexMetadata indexMetadata = indexMetadataBuilder.build();
@@ -119,7 +123,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
         ilmCustom.put("snapshot_repository", repository);
 
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5));
@@ -129,15 +133,10 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
             .metadata(Metadata.builder().put(indexMetadata, true).build())
             .build();
 
-        try (NoOpClient client = getCreateSnapshotRequestAssertingClient(repository, snapshotName, indexName)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = getCreateSnapshotRequestAssertingClient(threadPool, repository, snapshotName, indexName);
             CreateSnapshotStep step = new CreateSnapshotStep(randomStepKey(), randomStepKey(), randomStepKey(), client);
-            step.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
-                @Override
-                public void onResponse(Void complete) {}
-
-                @Override
-                public void onFailure(Exception e) {}
-            });
+            step.performAction(indexMetadata, clusterState, null, ActionListener.noop());
         }
     }
 
@@ -151,7 +150,7 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
         ilmCustom.put("snapshot_repository", repository);
 
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5));
@@ -161,7 +160,8 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
             .metadata(Metadata.builder().put(indexMetadata, true).build())
             .build();
         {
-            try (NoOpClient client = new NoOpClient(getTestName())) {
+            try (var threadPool = createThreadPool()) {
+                final var client = new NoOpClient(threadPool);
                 StepKey nextKeyOnComplete = randomStepKey();
                 StepKey nextKeyOnIncomplete = randomStepKey();
                 CreateSnapshotStep completeStep = new CreateSnapshotStep(randomStepKey(), nextKeyOnComplete, nextKeyOnIncomplete, client) {
@@ -170,23 +170,14 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
                         listener.onResponse(true);
                     }
                 };
-                completeStep.performAction(indexMetadata, clusterState, null, new ActionListener<Void>() {
-                    @Override
-                    public void onResponse(Void unused) {
-
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-
-                    }
-                });
+                completeStep.performAction(indexMetadata, clusterState, null, ActionListener.noop());
                 assertThat(completeStep.getNextStepKey(), is(nextKeyOnComplete));
             }
         }
 
         {
-            try (NoOpClient client = new NoOpClient(getTestName())) {
+            try (var threadPool = createThreadPool()) {
+                final var client = new NoOpClient(threadPool);
                 StepKey nextKeyOnComplete = randomStepKey();
                 StepKey nextKeyOnIncomplete = randomStepKey();
                 CreateSnapshotStep incompleteStep = new CreateSnapshotStep(
@@ -200,24 +191,40 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
                         listener.onResponse(false);
                     }
                 };
-                incompleteStep.performAction(indexMetadata, clusterState, null, new ActionListener<Void>() {
-                    @Override
-                    public void onResponse(Void unused) {
-
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-
-                    }
-                });
+                incompleteStep.performAction(indexMetadata, clusterState, null, ActionListener.noop());
                 assertThat(incompleteStep.getNextStepKey(), is(nextKeyOnIncomplete));
+            }
+        }
+
+        {
+            try (var threadPool = createThreadPool()) {
+                final var client = new NoOpClient(threadPool);
+                StepKey nextKeyOnComplete = randomStepKey();
+                StepKey nextKeyOnIncomplete = randomStepKey();
+                CreateSnapshotStep doubleInvocationStep = new CreateSnapshotStep(
+                    randomStepKey(),
+                    nextKeyOnComplete,
+                    nextKeyOnIncomplete,
+                    client
+                ) {
+                    @Override
+                    void createSnapshot(IndexMetadata indexMetadata, ActionListener<Boolean> listener) {
+                        listener.onFailure(new SnapshotNameAlreadyInUseException(repository, snapshotName, "simulated"));
+                    }
+                };
+                doubleInvocationStep.performAction(indexMetadata, clusterState, null, ActionListener.noop());
+                assertThat(doubleInvocationStep.getNextStepKey(), is(nextKeyOnIncomplete));
             }
         }
     }
 
-    private NoOpClient getCreateSnapshotRequestAssertingClient(String expectedRepoName, String expectedSnapshotName, String indexName) {
-        return new NoOpClient(getTestName()) {
+    private NoOpClient getCreateSnapshotRequestAssertingClient(
+        ThreadPool threadPool,
+        String expectedRepoName,
+        String expectedSnapshotName,
+        String indexName
+    ) {
+        return new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,

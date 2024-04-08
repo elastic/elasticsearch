@@ -7,16 +7,14 @@
  */
 package org.elasticsearch.gradle.internal.precommit;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
-
-import org.apache.tools.ant.taskdefs.condition.Os;
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
+import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.testfixtures.ProjectBuilder;
 import org.junit.Assert;
+import org.junit.Test;
 
 import java.io.File;
 import java.nio.charset.Charset;
@@ -24,10 +22,15 @@ import java.nio.file.Files;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class FilePermissionsTaskTests extends GradleUnitTestCase {
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeFalse;
 
+public class FilePermissionsTaskTests {
+
+    @Test
     public void testCheckPermissionsWhenAnExecutableFileExists() throws Exception {
-        RandomizedTest.assumeFalse("Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
+        assumeFalse("Functionality is Unix specific", OS.current() == OS.WINDOWS);
 
         Project project = createProject();
 
@@ -46,8 +49,9 @@ public class FilePermissionsTaskTests extends GradleUnitTestCase {
         file.delete();
     }
 
+    @Test
     public void testCheckPermissionsWhenNoFileExists() throws Exception {
-        RandomizedTest.assumeFalse("Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
+        assumeFalse("Functionality is Unix specific", OS.current() == OS.WINDOWS);
 
         Project project = createProject();
 
@@ -60,8 +64,9 @@ public class FilePermissionsTaskTests extends GradleUnitTestCase {
         assertEquals("done", result.get(0));
     }
 
+    @Test
     public void testCheckPermissionsWhenNoExecutableFileExists() throws Exception {
-        RandomizedTest.assumeFalse("Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
+        assumeFalse("Functionality is Unix specific", OS.current() == OS.WINDOWS);
 
         Project project = createProject();
 

@@ -22,7 +22,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class InferenceTestCase extends ESRestTestCase {
+public abstract class InferenceTestCase extends ESRestTestCase {
 
     protected final Set<String> createdPipelines = new HashSet<>();
 

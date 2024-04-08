@@ -1,5 +1,0 @@
-pr: 82111
-summary: Upgrade to log4j 2.17.1
-area: Infra/Logging
-type: upgrade
-issues: []

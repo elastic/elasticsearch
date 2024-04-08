@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -47,7 +48,7 @@ class PkiRealmBootstrapCheck implements BootstrapCheck {
         if (pkiRealmEnabledWithoutDelegation) {
             for (String contextName : getSslContextNames(settings)) {
                 final SslConfiguration configuration = sslService.getSSLConfiguration(contextName);
-                if (sslService.isSSLClientAuthEnabled(configuration)) {
+                if (SSLService.isSSLClientAuthEnabled(configuration)) {
                     return BootstrapCheckResult.success();
                 }
             }
@@ -77,5 +78,10 @@ class PkiRealmBootstrapCheck implements BootstrapCheck {
     @Override
     public boolean alwaysEnforce() {
         return true;
+    }
+
+    @Override
+    public ReferenceDocs referenceDocs() {
+        return ReferenceDocs.BOOTSTRAP_CHECK_PKI_REALM;
     }
 }

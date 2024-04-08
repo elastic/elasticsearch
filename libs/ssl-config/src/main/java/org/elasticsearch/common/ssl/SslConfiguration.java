@@ -10,7 +10,6 @@ package org.elasticsearch.common.ssl;
 
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -33,6 +32,7 @@ import javax.net.ssl.X509ExtendedTrustManager;
  * from files (see {@link #getDependentFiles()}, and the content of those files may change.
  */
 public record SslConfiguration(
+    String settingPrefix,
     boolean explicitlyConfigured,
     SslTrustConfig trustConfig,
     SslKeyConfig keyConfig,
@@ -52,12 +52,7 @@ public record SslConfiguration(
 
     static {
         LinkedHashMap<String, String> protocolAlgorithmMap = new LinkedHashMap<>();
-        try {
-            SSLContext.getInstance("TLSv1.3");
-            protocolAlgorithmMap.put("TLSv1.3", "TLSv1.3");
-        } catch (NoSuchAlgorithmException e) {
-            // ignore since we support JVMs using BCJSSE in FIPS mode which doesn't support TLSv1.3
-        }
+        protocolAlgorithmMap.put("TLSv1.3", "TLSv1.3");
         protocolAlgorithmMap.put("TLSv1.2", "TLSv1.2");
         protocolAlgorithmMap.put("TLSv1.1", "TLSv1.1");
         protocolAlgorithmMap.put("TLSv1", "TLSv1");
@@ -68,6 +63,7 @@ public record SslConfiguration(
     }
 
     public SslConfiguration(
+        String settingPrefix,
         boolean explicitlyConfigured,
         SslTrustConfig trustConfig,
         SslKeyConfig keyConfig,
@@ -76,6 +72,7 @@ public record SslConfiguration(
         List<String> ciphers,
         List<String> supportedProtocols
     ) {
+        this.settingPrefix = settingPrefix;
         this.explicitlyConfigured = explicitlyConfigured;
         if (ciphers == null || ciphers.isEmpty()) {
             throw new SslConfigException("cannot configure SSL/TLS without any supported cipher suites");
@@ -160,7 +157,8 @@ public record SslConfiguration(
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final SslConfiguration that = (SslConfiguration) o;
-        return Objects.equals(this.trustConfig, that.trustConfig)
+        return Objects.equals(this.settingPrefix, that.settingPrefix)
+            && Objects.equals(this.trustConfig, that.trustConfig)
             && Objects.equals(this.keyConfig, that.keyConfig)
             && this.verificationMode == that.verificationMode
             && this.clientAuth == that.clientAuth
@@ -170,7 +168,6 @@ public record SslConfiguration(
 
     @Override
     public int hashCode() {
-        return Objects.hash(trustConfig, keyConfig, verificationMode, clientAuth, ciphers, supportedProtocols);
+        return Objects.hash(settingPrefix, trustConfig, keyConfig, verificationMode, clientAuth, ciphers, supportedProtocols);
     }
-
 }

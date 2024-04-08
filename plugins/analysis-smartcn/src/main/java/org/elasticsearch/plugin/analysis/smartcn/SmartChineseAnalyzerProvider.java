@@ -19,7 +19,7 @@ public class SmartChineseAnalyzerProvider extends AbstractIndexAnalyzerProvider<
     private final SmartChineseAnalyzer analyzer;
 
     public SmartChineseAnalyzerProvider(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
 
         analyzer = new SmartChineseAnalyzer(SmartChineseAnalyzer.getDefaultStopSet());
     }

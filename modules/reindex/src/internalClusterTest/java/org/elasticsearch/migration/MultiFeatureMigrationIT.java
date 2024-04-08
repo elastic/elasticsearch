@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -37,6 +38,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -52,7 +55,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MultiFeatureMigrationIT extends FeatureMigrationIT {
+public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -68,7 +71,7 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(FeatureMigrationIT.TestPlugin.class);
+        plugins.add(TestPlugin.class);
         plugins.add(SecondPlugin.class);
         plugins.add(ReindexPlugin.class);
         return plugins;
@@ -91,12 +94,14 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
 
         ensureGreen();
 
+        CountDownLatch hooksCalled = new CountDownLatch(4);
+
         SetOnce<Boolean> preMigrationHookCalled = new SetOnce<>();
         SetOnce<Boolean> postMigrationHookCalled = new SetOnce<>();
         SetOnce<Boolean> secondPluginPreMigrationHookCalled = new SetOnce<>();
         SetOnce<Boolean> secondPluginPostMigrationHookCalled = new SetOnce<>();
 
-        TestPlugin.preMigrationHook.set(clusterState -> {
+        getPlugin(TestPlugin.class).preMigrationHook.set(clusterState -> {
             // None of the other hooks should have been called yet.
             assertThat(postMigrationHookCalled.get(), nullValue());
             assertThat(secondPluginPreMigrationHookCalled.get(), nullValue());
@@ -109,10 +114,11 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
             assertThat(currentResults, nullValue());
 
             preMigrationHookCalled.set(true);
+            hooksCalled.countDown();
             return metadata;
         });
 
-        TestPlugin.postMigrationHook.set((clusterState, metadata) -> {
+        getPlugin(TestPlugin.class).postMigrationHook.set((clusterState, metadata) -> {
             // Check that the hooks have been called or not as expected.
             assertThat(preMigrationHookCalled.get(), is(true));
             assertThat(secondPluginPreMigrationHookCalled.get(), nullValue());
@@ -125,9 +131,10 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
             assertThat(currentResults, nullValue());
 
             postMigrationHookCalled.set(true);
+            hooksCalled.countDown();
         });
 
-        SecondPlugin.preMigrationHook.set(clusterState -> {
+        getPlugin(SecondPlugin.class).preMigrationHook.set(clusterState -> {
             // Check that the hooks have been called or not as expected.
             assertThat(preMigrationHookCalled.get(), is(true));
             assertThat(postMigrationHookCalled.get(), is(true));
@@ -145,10 +152,11 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
             assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getException(), nullValue());
 
             secondPluginPreMigrationHookCalled.set(true);
+            hooksCalled.countDown();
             return metadata;
         });
 
-        SecondPlugin.postMigrationHook.set((clusterState, metadata) -> {
+        getPlugin(SecondPlugin.class).postMigrationHook.set((clusterState, metadata) -> {
             // Check that the hooks have been called or not as expected.
             assertThat(preMigrationHookCalled.get(), is(true));
             assertThat(postMigrationHookCalled.get(), is(true));
@@ -165,6 +173,7 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
             assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).getException(), nullValue());
 
             secondPluginPostMigrationHookCalled.set(true);
+            hooksCalled.countDown();
         });
 
         PostFeatureUpgradeRequest migrationRequest = new PostFeatureUpgradeRequest();
@@ -176,6 +185,9 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
             .map(PostFeatureUpgradeResponse.Feature::getFeatureName)
             .collect(Collectors.toSet());
         assertThat(migratingFeatures, hasItems(FEATURE_NAME, SECOND_FEATURE_NAME));
+
+        // wait for all the plugin methods to have been called before assertBusy since that will exponentially backoff
+        assertThat(hooksCalled.await(30, TimeUnit.SECONDS), is(true));
 
         GetFeatureUpgradeStatusRequest getStatusRequest = new GetFeatureUpgradeStatusRequest();
         assertBusy(() -> {
@@ -191,7 +203,7 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
         assertTrue("the second plugin's pre-migration hook wasn't actually called", secondPluginPreMigrationHookCalled.get());
         assertTrue("the second plugin's post-migration hook wasn't actually called", secondPluginPostMigrationHookCalled.get());
 
-        Metadata finalMetadata = client().admin().cluster().prepareState().get().getState().metadata();
+        Metadata finalMetadata = clusterAdmin().prepareState().get().getState().metadata();
         // Check that the results metadata is what we expect
         FeatureMigrationResults currentResults = finalMetadata.custom(FeatureMigrationResults.TYPE);
         assertThat(currentResults, notNullValue());
@@ -252,8 +264,8 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
         .setAliasName(".second-internal-managed-alias")
         .setPrimaryIndex(".second-int-man-old")
         .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-        .setSettings(createSimpleSettings(Version.V_7_0_0, 0))
-        .setMappings(createSimpleMapping(true, true))
+        .setSettings(createSettings(IndexVersions.V_7_0_0, 0))
+        .setMappings(createMapping(true, true))
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.emptyList())
@@ -263,12 +275,10 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
 
     public static class SecondPlugin extends Plugin implements SystemIndexPlugin {
 
-        private static final AtomicReference<Function<ClusterState, Map<String, Object>>> preMigrationHook = new AtomicReference<>();
-        private static final AtomicReference<BiConsumer<ClusterState, Map<String, Object>>> postMigrationHook = new AtomicReference<>();
+        private final AtomicReference<Function<ClusterState, Map<String, Object>>> preMigrationHook = new AtomicReference<>();
+        private final AtomicReference<BiConsumer<ClusterState, Map<String, Object>>> postMigrationHook = new AtomicReference<>();
 
-        public SecondPlugin() {
-
-        }
+        public SecondPlugin() {}
 
         @Override
         public String getFeatureName() {

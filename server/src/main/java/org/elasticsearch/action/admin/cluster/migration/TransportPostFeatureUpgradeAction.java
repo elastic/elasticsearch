@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
@@ -28,8 +29,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.upgrades.SystemIndexMigrationTaskParams;
 
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 import static org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction.getFeatureUpgradeStatus;
 import static org.elasticsearch.upgrades.SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME;
@@ -62,7 +64,7 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
             PostFeatureUpgradeRequest::new,
             indexNameExpressionResolver,
             PostFeatureUpgradeResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.systemIndices = systemIndices;
         this.persistentTasksService = persistentTasksService;
@@ -75,29 +77,32 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
         ClusterState state,
         ActionListener<PostFeatureUpgradeResponse> listener
     ) throws Exception {
+        final Set<GetFeatureUpgradeStatusResponse.UpgradeStatus> upgradableStatuses = EnumSet.of(
+            GetFeatureUpgradeStatusResponse.UpgradeStatus.MIGRATION_NEEDED,
+            GetFeatureUpgradeStatusResponse.UpgradeStatus.ERROR
+        );
         List<PostFeatureUpgradeResponse.Feature> featuresToMigrate = systemIndices.getFeatures()
-            .values()
             .stream()
             .map(feature -> getFeatureUpgradeStatus(state, feature))
-            .filter(status -> status.getUpgradeStatus().equals(GetFeatureUpgradeStatusResponse.UpgradeStatus.MIGRATION_NEEDED))
+            .filter(status -> upgradableStatuses.contains(status.getUpgradeStatus()))
             .map(GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus::getFeatureName)
             .map(PostFeatureUpgradeResponse.Feature::new)
             .sorted(Comparator.comparing(PostFeatureUpgradeResponse.Feature::getFeatureName)) // consistent ordering to simplify testing
-            .collect(Collectors.toList());
+            .toList();
 
         if (featuresToMigrate.isEmpty() == false) {
             persistentTasksService.sendStartRequest(
                 SYSTEM_INDEX_UPGRADE_TASK_NAME,
                 SYSTEM_INDEX_UPGRADE_TASK_NAME,
                 new SystemIndexMigrationTaskParams(),
-                ActionListener.wrap(
-                    startedTask -> { listener.onResponse(new PostFeatureUpgradeResponse(true, featuresToMigrate, null, null)); },
-                    ex -> {
-                        logger.error("failed to start system index upgrade task", ex);
+                null,
+                ActionListener.wrap(startedTask -> {
+                    listener.onResponse(new PostFeatureUpgradeResponse(true, featuresToMigrate, null, null));
+                }, ex -> {
+                    logger.error("failed to start system index upgrade task", ex);
 
-                        listener.onResponse(new PostFeatureUpgradeResponse(false, null, null, new ElasticsearchException(ex)));
-                    }
-                )
+                    listener.onResponse(new PostFeatureUpgradeResponse(false, null, null, new ElasticsearchException(ex)));
+                })
             );
         } else {
             listener.onResponse(new PostFeatureUpgradeResponse(false, null, "No system indices require migration", null));

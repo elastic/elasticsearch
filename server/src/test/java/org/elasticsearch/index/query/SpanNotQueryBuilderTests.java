@@ -44,6 +44,14 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
     }
 
     @Override
+    protected SpanNotQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        if (queryBuilder instanceof SpanNotQueryBuilder) {
+            return new SpanNotQueryBuilder((SpanNotQueryBuilder) queryBuilder, (SpanNotQueryBuilder) queryBuilder);
+        }
+        return new SpanNotQueryBuilder(new SpanTermQueryBuilder("field", "value"), new SpanTermQueryBuilder("field", "value"));
+    }
+
+    @Override
     protected void doAssertLuceneQuery(SpanNotQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         assertThat(query, instanceOf(SpanNotQuery.class));
         SpanNotQuery spanNotQuery = (SpanNotQuery) query;
@@ -168,8 +176,7 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
                 "include" : {
                   "span_term" : {
                     "field1" : {
-                      "value" : "hoya",
-                      "boost" : 1.0
+                      "value" : "hoya"
                     }
                   }
                 },
@@ -178,25 +185,20 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
                     "clauses" : [ {
                       "span_term" : {
                         "field1" : {
-                          "value" : "la",
-                          "boost" : 1.0
+                          "value" : "la"
                         }
                       }
                     }, {
                       "span_term" : {
                         "field1" : {
-                          "value" : "hoya",
-                          "boost" : 1.0
+                          "value" : "hoya"
                         }
                       }
                     } ],
                     "slop" : 0,
-                    "in_order" : true,
-                    "boost" : 1.0
+                    "in_order" : true
                   }
                 },
-                "pre" : 0,
-                "post" : 0,
                 "boost" : 2.0
               }
             }""";

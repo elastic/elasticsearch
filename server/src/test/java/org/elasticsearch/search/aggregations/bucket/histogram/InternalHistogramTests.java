@@ -8,16 +8,16 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +60,11 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
     }
 
     @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected InternalHistogram createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
         final double base = round(randomInt(50) - 30);
         final int numBuckets = randomNumberOfBuckets();
@@ -92,27 +97,23 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
         InternalHistogram.Bucket b = buckets.get(buckets.size() - 1);
         newBuckets.add(new InternalHistogram.Bucket(Double.NaN, b.docCount, keyed, b.format, b.aggregations));
 
-        InternalHistogram newHistogram = histogram.create(newBuckets);
-        newHistogram.reduce(
-            Arrays.asList(newHistogram, histogram2),
-            InternalAggregationTestCase.emptyReduceContextBuilder().forPartialReduction()
-        );
+        List<InternalAggregation> reduceMe = List.of(histogram, histogram2);
+        InternalAggregationTestCase.reduce(reduceMe, mockReduceContext(mockBuilder(reduceMe)).forPartialReduction());
     }
 
     public void testLargeReduce() {
-        expectReduceUsesTooManyBuckets(
-            new InternalHistogram(
-                "h",
-                List.of(),
-                BucketOrder.key(true),
-                0,
-                new InternalHistogram.EmptyBucketInfo(5e-10, 0, 0, 100, InternalAggregations.EMPTY),
-                DocValueFormat.RAW,
-                false,
-                null
-            ),
-            100000
+        InternalHistogram largeHisto = new InternalHistogram(
+            "h",
+            List.of(),
+            BucketOrder.key(true),
+            0,
+            new InternalHistogram.EmptyBucketInfo(5e-8, 0, 0, 100, InternalAggregations.EMPTY),
+            DocValueFormat.RAW,
+            false,
+            null
         );
+        expectReduceUsesTooManyBuckets(largeHisto, 100000);
+        expectReduceThrowsRealMemoryBreaker(largeHisto);
     }
 
     @Override
@@ -154,11 +155,6 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
             actualCounts.compute((Double) bucket.getKey(), (key, oldValue) -> (oldValue == null ? 0 : oldValue) + bucket.getDocCount());
         }
         assertEquals(expectedCounts, actualCounts);
-    }
-
-    @Override
-    protected Class<ParsedHistogram> implementationClass() {
-        return ParsedHistogram.class;
     }
 
     @Override

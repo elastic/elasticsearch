@@ -32,6 +32,12 @@
         "type": "boolean",
         "description": "If set to `true` and a `compressed_definition` is provided, the request defers definition decompression and skips relevant validations.",
         "default": false
+      },
+      "wait_for_completion": {
+        "required": false,
+        "type": "boolean",
+        "description": "Whether to wait for all child operations(e.g. model download) to complete, before returning or not. Default to false",
+        "default": false
       }
     },
     "body":{

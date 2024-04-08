@@ -17,24 +17,28 @@ import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
 import org.apache.lucene.search.suggest.document.PrefixCompletionQuery;
 import org.apache.lucene.search.suggest.document.RegexCompletionQuery;
 import org.apache.lucene.search.suggest.document.SuggestField;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.suggest.completion.CompletionSuggester;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
+import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.FilterXContentParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.NumberType;
 import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
@@ -82,14 +86,15 @@ public class CompletionFieldMapper extends FieldMapper {
     }
 
     public static class Defaults {
-        public static final FieldType FIELD_TYPE = new FieldType();
+        public static final FieldType FIELD_TYPE;
         static {
-            FIELD_TYPE.setTokenized(true);
-            FIELD_TYPE.setStored(false);
-            FIELD_TYPE.setStoreTermVectors(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
-            FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.freeze();
+            final FieldType ft = new FieldType();
+            ft.setTokenized(true);
+            ft.setStored(false);
+            ft.setStoreTermVectors(false);
+            ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+            ft.setOmitNorms(true);
+            FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
         }
         public static final boolean DEFAULT_PRESERVE_SEPARATORS = true;
         public static final boolean DEFAULT_POSITION_INCREMENTS = true;
@@ -151,14 +156,14 @@ public class CompletionFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final NamedAnalyzer defaultAnalyzer;
-        private final Version indexVersionCreated;
+        private final IndexVersion indexVersionCreated;
 
         private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Builder.class);
 
         /**
          * @param name of the completion field to build
          */
-        public Builder(String name, NamedAnalyzer defaultAnalyzer, Version indexVersionCreated) {
+        public Builder(String name, NamedAnalyzer defaultAnalyzer, IndexVersion indexVersionCreated) {
             super(name);
             this.defaultAnalyzer = defaultAnalyzer;
             this.indexVersionCreated = indexVersionCreated;
@@ -179,8 +184,8 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(analyzer, searchAnalyzer, preserveSeparators, preservePosInc, maxInputLength, contexts, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { analyzer, searchAnalyzer, preserveSeparators, preservePosInc, maxInputLength, contexts, meta };
         }
 
         NamedAnalyzer buildAnalyzer() {
@@ -200,14 +205,14 @@ public class CompletionFieldMapper extends FieldMapper {
                 new CompletionAnalyzer(this.searchAnalyzer.getValue(), preserveSeparators.getValue(), preservePosInc.getValue())
             );
 
-            CompletionFieldType ft = new CompletionFieldType(context.buildFullName(name), completionAnalyzer, meta.getValue());
+            CompletionFieldType ft = new CompletionFieldType(context.buildFullName(name()), completionAnalyzer, meta.getValue());
             ft.setContextMappings(contexts.getValue());
-            return new CompletionFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new CompletionFieldMapper(name(), ft, multiFieldsBuilder.build(this, context), copyTo, this);
         }
 
         private void checkCompletionContextsLimit() {
             if (this.contexts.getValue() != null && this.contexts.getValue().size() > COMPLETION_CONTEXTS_LIMIT) {
-                if (indexVersionCreated.onOrAfter(Version.V_8_0_0)) {
+                if (indexVersionCreated.onOrAfter(IndexVersions.V_8_0_0)) {
                     throw new IllegalArgumentException(
                         "Limit of completion field contexts [" + COMPLETION_CONTEXTS_LIMIT + "] has been exceeded"
                     );
@@ -232,7 +237,7 @@ public class CompletionFieldMapper extends FieldMapper {
 
     }
 
-    public static final Set<String> ALLOWED_CONTENT_FIELD_NAMES = Sets.newHashSet(
+    public static final Set<String> ALLOWED_CONTENT_FIELD_NAMES = Set.of(
         Fields.CONTENT_FIELD_NAME_INPUT,
         Fields.CONTENT_FIELD_NAME_WEIGHT,
         Fields.CONTENT_FIELD_NAME_CONTEXTS
@@ -274,7 +279,7 @@ public class CompletionFieldMapper extends FieldMapper {
          */
         public CompletionQuery prefixQuery(Object value) {
             return new PrefixCompletionQuery(
-                getTextSearchInfo().getSearchAnalyzer().analyzer(),
+                getTextSearchInfo().searchAnalyzer().analyzer(),
                 new Term(name(), indexedValueForSearch(value))
             );
         }
@@ -299,7 +304,7 @@ public class CompletionFieldMapper extends FieldMapper {
             boolean unicodeAware
         ) {
             return new FuzzyCompletionQuery(
-                getTextSearchInfo().getSearchAnalyzer().analyzer(),
+                getTextSearchInfo().searchAnalyzer().analyzer(),
                 new Term(name(), indexedValueForSearch(value)),
                 null,
                 fuzziness.asDistance(),
@@ -339,6 +344,8 @@ public class CompletionFieldMapper extends FieldMapper {
     private final int maxInputLength;
     private final Builder builder;
 
+    private final NamedAnalyzer indexAnalyzer;
+
     public CompletionFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
@@ -346,9 +353,15 @@ public class CompletionFieldMapper extends FieldMapper {
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, builder.buildAnalyzer(), multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo);
         this.builder = builder;
         this.maxInputLength = builder.maxInputLength.getValue();
+        this.indexAnalyzer = builder.buildAnalyzer();
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return Map.of(mappedFieldType.name(), indexAnalyzer);
     }
 
     @Override
@@ -357,11 +370,16 @@ public class CompletionFieldMapper extends FieldMapper {
     }
 
     static PostingsFormat postingsFormat() {
-        return PostingsFormat.forName("Completion90");
+        return PostingsFormat.forName("Completion99");
     }
 
     @Override
     public boolean parsesArrayValue() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsParsingObject() {
         return true;
     }
 
@@ -425,8 +443,11 @@ public class CompletionFieldMapper extends FieldMapper {
 
         context.addToFieldNames(fieldType().name());
         for (CompletionInputMetadata metadata : inputMap.values()) {
-            DocumentParserContext externalValueContext = context.switchParser(new CompletionParser(metadata));
-            multiFields.parse(this, externalValueContext);
+            multiFields.parse(
+                this,
+                context,
+                () -> context.switchParser(new MultiFieldParser(metadata, fieldType().name(), context.parser().getTokenLocation()))
+            );
         }
     }
 
@@ -586,19 +607,66 @@ public class CompletionFieldMapper extends FieldMapper {
         }
     }
 
-    private static class CompletionParser extends FilterXContentParser {
+    /**
+     * Parser that exposes the expected format depending on the type of multi-field that is consuming content.
+     * Completion fields can hold multi-fields, which can either parse a simple string value or an object in case of another completion
+     * field. This parser detects which of the two is parsing content and exposes the full object when needed (including input, weight
+     * and context if available), otherwise the input value only.
+     *
+     * A few assumptions are made that make this work:
+     * 1) only string values are supported for a completion field, hence only sub-fields that parse strings are supported
+     * 2) sub-fields that parse simple values only ever call {@link #textOrNull()} to do so. They may call {@link #currentToken()} only to
+     * check if there's a null value, which is irrelevant in the multi-fields scenario as null values are ignored in the parent field and
+     * don't lead to any field creation.
+     * 3) completion is the only sub-field type that may be parsing the object structure.
+     *
+     * The parser is set to expose by default simple value, unless {@link #nextToken()} is called which is what signals that the
+     * consumer supports the object structure.
+     */
+    // This parser changes behaviour depending on which methods are called by consumers, which is extremely delicate. This kind of works for
+    // our internal mappers, but what about mappers from plugins?
+    static class MultiFieldParser extends FilterXContentParser {
+        private final String textValue;
+        private final String fieldName;
+        private final XContentLocation locationOffset;
+        private final XContentParser fullObjectParser;
+        // we assume that the consumer is parsing values, we will switch to exposing the object format if nextToken is called
+        private boolean parsingObject = false;
 
-        boolean advanced = false;
-        final String textValue;
-
-        private CompletionParser(CompletionInputMetadata metadata) throws IOException {
-            super(MapXContentParser.wrapObject(metadata.toMap()));
+        MultiFieldParser(CompletionInputMetadata metadata, String fieldName, XContentLocation locationOffset) {
+            this.fullObjectParser = new MapXContentParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.IGNORE_DEPRECATIONS,
+                metadata.toMap(),
+                XContentType.JSON
+            );
+            this.fieldName = fieldName;
+            this.locationOffset = locationOffset;
             this.textValue = metadata.input;
         }
 
         @Override
+        protected XContentParser delegate() {
+            // if consumers are only reading values, they should never go through delegate and rather call the
+            // overridden currentToken and textOrNull below that don't call super
+            assert parsingObject;
+            return fullObjectParser;
+        }
+
+        @Override
+        public Token currentToken() {
+            if (parsingObject == false) {
+                // nextToken has not been called, it may or may not be called at a later time.
+                // What we return does not really matter for mappers that support simple values, as they only check for VALUE_NULL.
+                // For mappers that do support objects, START_OBJECT is a good choice.
+                return Token.START_OBJECT;
+            }
+            return super.currentToken();
+        }
+
+        @Override
         public String textOrNull() throws IOException {
-            if (advanced == false) {
+            if (parsingObject == false) {
                 return textValue;
             }
             return super.textOrNull();
@@ -606,8 +674,32 @@ public class CompletionFieldMapper extends FieldMapper {
 
         @Override
         public Token nextToken() throws IOException {
-            advanced = true;
+            if (parsingObject == false) {
+                // a completion sub-field is parsing
+                parsingObject = true;
+                // move to START_OBJECT, currentToken has already returned START_OBJECT and we will advance one token further just below
+                this.fullObjectParser.nextToken();
+            }
             return super.nextToken();
+        }
+
+        @Override
+        public String currentName() throws IOException {
+            if (parsingObject == false) {
+                return fieldName;
+            }
+            String currentName = super.currentName();
+            if (currentName == null && currentToken() == Token.END_OBJECT) {
+                return fieldName;
+            }
+            return currentName;
+        }
+
+        @Override
+        public XContentLocation getTokenLocation() {
+            // return fixed token location: it's not possible to match the token location while parsing through the object structure,
+            // because completion metadata have been rewritten hence they won't match the incoming document
+            return locationOffset;
         }
     }
 }

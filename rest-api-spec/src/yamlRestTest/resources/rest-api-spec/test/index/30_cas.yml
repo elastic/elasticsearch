@@ -3,7 +3,7 @@
  - do:
       index:
           index:  test_1
-          id:     1
+          id:     "1"
           body:   { foo: bar }
  - match:   { _version: 1}
  - set: { _seq_no: seqno }
@@ -12,7 +12,7 @@
  - do:
       get:
           index:  test_1
-          id:     1
+          id:     "1"
  - match: { _seq_no: $seqno }
  - match: { _primary_term: $primary_term }
 
@@ -20,7 +20,7 @@
       catch:        conflict
       index:
           index:            test_1
-          id:               1
+          id:               "1"
           if_seq_no:       10000
           if_primary_term: $primary_term
           body:   { foo: bar2 }
@@ -29,7 +29,7 @@
       catch:       conflict
       index:
           index:            test_1
-          id:               1
+          id:               "1"
           if_seq_no:       $seqno
           if_primary_term: 1000
           body:   { foo: bar2 }
@@ -37,7 +37,7 @@
  - do:
       index:
           index:            test_1
-          id:               1
+          id:               "1"
           if_seq_no:       $seqno
           if_primary_term: $primary_term
           body:   { foo: bar2 }

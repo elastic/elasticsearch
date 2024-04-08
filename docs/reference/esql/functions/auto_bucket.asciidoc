@@ -1,0 +1,120 @@
+[discrete]
+[[esql-auto_bucket]]
+=== `AUTO_BUCKET`
+
+experimental::[]
+
+*Syntax*
+
+[source,esql]
+----
+AUTO_BUCKET(expression, buckets, from, to)
+----
+
+*Parameters*
+
+`field`::
+Numeric or date expression from which to derive buckets.
+
+`buckets`::
+Target number of buckets.
+
+`from`::
+Start of the range. Can be a number or a date expressed as a string.
+
+`to`::
+End of the range. Can be a number or a date expressed as a string.
+
+*Description*
+
+Creates human-friendly buckets and returns a value for each row that corresponds
+to the resulting bucket the row falls into. 
+
+Using a target number of buckets, a start of a range, and an end of a range,
+`AUTO_BUCKET` picks an appropriate bucket size to generate the target number of
+buckets or fewer. For example, asking for at most 20 buckets over a year results
+in monthly buckets:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/date.csv-spec[tag=docsAutoBucketMonth]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/date.csv-spec[tag=docsAutoBucketMonth-result]
+|===
+
+The goal isn't to provide *exactly* the target number of buckets, it's to pick a
+range that people are comfortable with that provides at most the target number
+of buckets.
+
+Combine `AUTO_BUCKET` with
+<<esql-stats-by>> to create a histogram:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/date.csv-spec[tag=docsAutoBucketMonthlyHistogram]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/date.csv-spec[tag=docsAutoBucketMonthlyHistogram-result]
+|===
+
+NOTE: `AUTO_BUCKET` does not create buckets that don't match any documents.
+That's why this example is missing `1985-03-01` and other dates.
+
+Asking for more buckets can result in a smaller range. For example, asking for
+at most 100 buckets in a year results in weekly buckets:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/date.csv-spec[tag=docsAutoBucketWeeklyHistogram]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/date.csv-spec[tag=docsAutoBucketWeeklyHistogram-result]
+|===
+
+NOTE: `AUTO_BUCKET` does not filter any rows. It only uses the provided range to
+pick a good bucket size. For rows with a value outside of the range, it returns
+a bucket value that corresponds to a bucket outside the range. Combine
+`AUTO_BUCKET` with <<esql-where>> to filter rows.
+
+`AUTO_BUCKET` can also operate on numeric fields. For example, to create a
+salary histogram:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/ints.csv-spec[tag=docsAutoBucketNumeric]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/ints.csv-spec[tag=docsAutoBucketNumeric-result]
+|===
+
+Unlike the earlier example that intentionally filters on a date range, you
+rarely want to filter on a numeric range. You have to find the `min` and `max`
+separately. {esql} doesn't yet have an easy way to do that automatically.
+
+*Examples*
+
+Create hourly buckets for the last 24 hours, and calculate the number of events
+per hour:
+
+
+[source.styled,esql]
+----
+include::{esql-specs}/date.csv-spec[tag=docsAutoBucketLast24hr]
+----
+
+Create monthly buckets for the year 1985, and calculate the average salary by
+hiring month:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/date.csv-spec[tag=auto_bucket_in_agg]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/date.csv-spec[tag=auto_bucket_in_agg-result]
+|===

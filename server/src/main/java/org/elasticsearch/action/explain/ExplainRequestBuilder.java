@@ -20,12 +20,8 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
  */
 public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<ExplainRequest, ExplainResponse, ExplainRequestBuilder> {
 
-    ExplainRequestBuilder(ElasticsearchClient client, ExplainAction action) {
-        super(client, action, new ExplainRequest());
-    }
-
-    public ExplainRequestBuilder(ElasticsearchClient client, ExplainAction action, String index, String id) {
-        super(client, action, new ExplainRequest().index(index).id(id));
+    public ExplainRequestBuilder(ElasticsearchClient client, String index, String id) {
+        super(client, TransportExplainAction.TYPE, new ExplainRequest().index(index).id(id));
     }
 
     /**
@@ -83,7 +79,7 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
         FetchSourceContext fetchSourceContext = request.fetchSourceContext() != null
             ? request.fetchSourceContext()
             : FetchSourceContext.FETCH_SOURCE;
-        request.fetchSourceContext(new FetchSourceContext(fetch, fetchSourceContext.includes(), fetchSourceContext.excludes()));
+        request.fetchSourceContext(FetchSourceContext.of(fetch, fetchSourceContext.includes(), fetchSourceContext.excludes()));
         return this;
     }
 
@@ -112,7 +108,7 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
         FetchSourceContext fetchSourceContext = request.fetchSourceContext() != null
             ? request.fetchSourceContext()
             : FetchSourceContext.FETCH_SOURCE;
-        request.fetchSourceContext(new FetchSourceContext(fetchSourceContext.fetchSource(), includes, excludes));
+        request.fetchSourceContext(FetchSourceContext.of(fetchSourceContext.fetchSource(), includes, excludes));
         return this;
     }
 }

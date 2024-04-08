@@ -39,7 +39,8 @@ public class TestSqlQueryRequest extends SqlQueryRequest implements ToXContentOb
         boolean indexIncludeFrozen,
         TimeValue waitForCompletionTimeout,
         boolean keepOnCompletion,
-        TimeValue keepAlive
+        TimeValue keepAlive,
+        boolean allowPartialSearchResults
     ) {
         super(
             query,
@@ -58,7 +59,8 @@ public class TestSqlQueryRequest extends SqlQueryRequest implements ToXContentOb
             indexIncludeFrozen,
             waitForCompletionTimeout,
             keepOnCompletion,
-            keepAlive
+            keepAlive,
+            allowPartialSearchResults
         );
     }
 
@@ -84,7 +86,8 @@ public class TestSqlQueryRequest extends SqlQueryRequest implements ToXContentOb
             this.binaryCommunication(),
             ProtoShim.toProto(this.waitForCompletionTimeout()),
             this.keepOnCompletion(),
-            ProtoShim.toProto(this.keepAlive())
+            ProtoShim.toProto(this.keepAlive()),
+            this.allowPartialSearchResults()
         );
         return SqlTestUtils.toXContentBuilder(builder, this, protoInstance);
     }

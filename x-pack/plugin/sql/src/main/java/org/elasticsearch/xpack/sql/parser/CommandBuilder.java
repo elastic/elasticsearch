@@ -120,13 +120,17 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
     public Object visitShowTables(ShowTablesContext ctx) {
         TableIdentifier ti = visitTableIdentifier(ctx.tableIdent);
         String index = ti != null ? ti.qualifiedIndex() : null;
+
+        boolean includeFrozen = ctx.FROZEN() != null;
+        maybeWarnDeprecatedFrozenSyntax(includeFrozen, "INCLUDE FROZEN");
+
         return new ShowTables(
             source(ctx),
             visitLikePattern(ctx.clusterLike),
             visitString(ctx.cluster),
             index,
             visitLikePattern(ctx.tableLike),
-            ctx.FROZEN() != null
+            includeFrozen
         );
     }
 
@@ -139,7 +143,11 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
     public Object visitShowColumns(ShowColumnsContext ctx) {
         TableIdentifier ti = visitTableIdentifier(ctx.tableIdent);
         String index = ti != null ? ti.qualifiedIndex() : null;
-        return new ShowColumns(source(ctx), string(ctx.cluster), index, visitLikePattern(ctx.tableLike), ctx.FROZEN() != null);
+
+        boolean includeFrozen = ctx.FROZEN() != null;
+        maybeWarnDeprecatedFrozenSyntax(includeFrozen, "INCLUDE FROZEN");
+
+        return new ShowColumns(source(ctx), string(ctx.cluster), index, visitLikePattern(ctx.tableLike), includeFrozen);
     }
 
     @Override

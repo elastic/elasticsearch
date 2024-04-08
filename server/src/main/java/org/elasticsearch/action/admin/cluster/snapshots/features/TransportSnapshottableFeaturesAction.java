@@ -17,12 +17,11 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.stream.Collectors;
 
 public class TransportSnapshottableFeaturesAction extends TransportMasterNodeAction<
     GetSnapshottableFeaturesRequest,
@@ -48,7 +47,7 @@ public class TransportSnapshottableFeaturesAction extends TransportMasterNodeAct
             GetSnapshottableFeaturesRequest::new,
             indexNameExpressionResolver,
             GetSnapshottableFeaturesResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.systemIndices = systemIndices;
     }
@@ -63,15 +62,9 @@ public class TransportSnapshottableFeaturesAction extends TransportMasterNodeAct
         listener.onResponse(
             new GetSnapshottableFeaturesResponse(
                 systemIndices.getFeatures()
-                    .entrySet()
                     .stream()
-                    .map(
-                        featureEntry -> new GetSnapshottableFeaturesResponse.SnapshottableFeature(
-                            featureEntry.getKey(),
-                            featureEntry.getValue().getDescription()
-                        )
-                    )
-                    .collect(Collectors.toList())
+                    .map(feature -> new GetSnapshottableFeaturesResponse.SnapshottableFeature(feature.getName(), feature.getDescription()))
+                    .toList()
             )
         );
     }

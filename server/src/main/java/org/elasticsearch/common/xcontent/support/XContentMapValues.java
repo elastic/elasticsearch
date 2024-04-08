@@ -195,7 +195,18 @@ public class XContentMapValues {
             for (Object o : valueList) {
                 Object listValue = extractValue(pathElements, index, o, nullValue);
                 if (listValue != null) {
-                    newList.add(listValue);
+                    // we add arrays as list elements only if we are already at leaf,
+                    // otherwise append individual elements to the new list so we don't
+                    // accumulate intermediate array structures
+                    if (listValue instanceof List<?> list) {
+                        if (index == pathElements.length) {
+                            newList.add(list);
+                        } else {
+                            newList.addAll(list);
+                        }
+                    } else {
+                        newList.add(listValue);
+                    }
                 }
             }
             return newList;
@@ -252,7 +263,7 @@ public class XContentMapValues {
      * document contains {@code a.b} as a property and {@code a} is an include,
      * then {@code a.b} will be kept in the filtered map.
      */
-    public static Map<String, Object> filter(Map<String, ?> map, String[] includes, String[] excludes) {
+    public static Map<String, Object> filter(Map<String, Object> map, String[] includes, String[] excludes) {
         return filter(includes, excludes).apply(map);
     }
 
@@ -260,7 +271,7 @@ public class XContentMapValues {
      * Returns a function that filters a document map based on the given include and exclude rules.
      * @see #filter(Map, String[], String[]) for details
      */
-    public static Function<Map<String, ?>, Map<String, Object>> filter(String[] includes, String[] excludes) {
+    public static Function<Map<String, Object>, Map<String, Object>> filter(String[] includes, String[] excludes) {
         CharacterRunAutomaton matchAllAutomaton = new CharacterRunAutomaton(Automata.makeAnyString());
 
         CharacterRunAutomaton include;
@@ -448,10 +459,6 @@ public class XContentMapValues {
         return filtered;
     }
 
-    public static boolean isObject(Object node) {
-        return node instanceof Map;
-    }
-
     public static boolean isArray(Object node) {
         return node instanceof List;
     }
@@ -471,20 +478,6 @@ public class XContentMapValues {
             return null;
         }
         return node.toString();
-    }
-
-    public static float nodeFloatValue(Object node, float defaultValue) {
-        if (node == null) {
-            return defaultValue;
-        }
-        return nodeFloatValue(node);
-    }
-
-    public static float nodeFloatValue(Object node) {
-        if (node instanceof Number) {
-            return ((Number) node).floatValue();
-        }
-        return Float.parseFloat(node.toString());
     }
 
     public static double nodeDoubleValue(Object node, double defaultValue) {
@@ -513,48 +506,6 @@ public class XContentMapValues {
             return defaultValue;
         }
         return nodeIntegerValue(node);
-    }
-
-    public static short nodeShortValue(Object node, short defaultValue) {
-        if (node == null) {
-            return defaultValue;
-        }
-        return nodeShortValue(node);
-    }
-
-    public static short nodeShortValue(Object node) {
-        if (node instanceof Number) {
-            return Numbers.toShortExact((Number) node);
-        }
-        return Short.parseShort(node.toString());
-    }
-
-    public static byte nodeByteValue(Object node, byte defaultValue) {
-        if (node == null) {
-            return defaultValue;
-        }
-        return nodeByteValue(node);
-    }
-
-    public static byte nodeByteValue(Object node) {
-        if (node instanceof Number) {
-            return Numbers.toByteExact((Number) node);
-        }
-        return Byte.parseByte(node.toString());
-    }
-
-    public static long nodeLongValue(Object node, long defaultValue) {
-        if (node == null) {
-            return defaultValue;
-        }
-        return nodeLongValue(node);
-    }
-
-    public static long nodeLongValue(Object node) {
-        if (node instanceof Number) {
-            return Numbers.toLongExact((Number) node);
-        }
-        return Long.parseLong(node.toString());
     }
 
     public static boolean nodeBooleanValue(Object node, String name, boolean defaultValue) {

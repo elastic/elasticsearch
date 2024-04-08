@@ -10,21 +10,18 @@ package org.elasticsearch.cluster.health;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 
-public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, Writeable {
+public final class ClusterStateHealth implements Writeable {
 
     private final int numberOfNodes;
     private final int numberOfDataNodes;
@@ -56,6 +53,14 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         numberOfNodes = clusterState.nodes().getSize();
         numberOfDataNodes = clusterState.nodes().getDataNodes().size();
         indices = new HashMap<>();
+        ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
+        int computeActivePrimaryShards = 0;
+        int computeActiveShards = 0;
+        int computeRelocatingShards = 0;
+        int computeInitializingShards = 0;
+        int computeUnassignedShards = 0;
+        int totalShardCount = 0;
+
         for (String index : concreteIndices) {
             IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
             IndexMetadata indexMetadata = clusterState.metadata().index(index);
@@ -64,18 +69,9 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
             }
 
             ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetadata, indexRoutingTable);
-
             indices.put(indexHealth.getIndex(), indexHealth);
-        }
 
-        ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
-        int computeActivePrimaryShards = 0;
-        int computeActiveShards = 0;
-        int computeRelocatingShards = 0;
-        int computeInitializingShards = 0;
-        int computeUnassignedShards = 0;
-
-        for (ClusterIndexHealth indexHealth : indices.values()) {
+            totalShardCount += indexMetadata.getTotalNumberOfShards();
             computeActivePrimaryShards += indexHealth.getActivePrimaryShards();
             computeActiveShards += indexHealth.getActiveShards();
             computeRelocatingShards += indexHealth.getRelocatingShards();
@@ -103,10 +99,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         if (computeStatus.equals(ClusterHealthStatus.GREEN)) {
             this.activeShardsPercent = 100;
         } else {
-            RoutingNodes routingNodes = clusterState.getRoutingNodes();
-            int activeShardCount = routingNodes.getActiveShardCount();
-            int totalShardCount = routingNodes.getTotalShardCount();
-            this.activeShardsPercent = (((double) activeShardCount) / totalShardCount) * 100;
+            this.activeShardsPercent = (((double) this.activeShards) / totalShardCount) * 100;
         }
     }
 
@@ -119,12 +112,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         numberOfNodes = in.readVInt();
         numberOfDataNodes = in.readVInt();
         status = ClusterHealthStatus.readFrom(in);
-        int size = in.readVInt();
-        indices = Maps.newMapWithExpectedSize(size);
-        for (int i = 0; i < size; i++) {
-            ClusterIndexHealth indexHealth = new ClusterIndexHealth(in);
-            indices.put(indexHealth.getIndex(), indexHealth);
-        }
+        indices = in.readMapValues(ClusterIndexHealth::new, ClusterIndexHealth::getIndex);
         activeShardsPercent = in.readDouble();
     }
 
@@ -196,11 +184,6 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
     }
 
     @Override
-    public Iterator<ClusterIndexHealth> iterator() {
-        return indices.values().iterator();
-    }
-
-    @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeVInt(activePrimaryShards);
         out.writeVInt(activeShards);
@@ -210,10 +193,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         out.writeVInt(numberOfNodes);
         out.writeVInt(numberOfDataNodes);
         out.writeByte(status.value());
-        out.writeVInt(indices.size());
-        for (ClusterIndexHealth indexHealth : this) {
-            indexHealth.writeTo(out);
-        }
+        out.writeMapValues(indices);
         out.writeDouble(activeShardsPercent);
     }
 

@@ -14,8 +14,6 @@ import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDeta
 import com.microsoft.windowsazure.management.compute.models.InstanceEndpoint;
 import com.microsoft.windowsazure.management.compute.models.RoleInstance;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cloud.azure.classic.AzureServiceDisableException;
 import org.elasticsearch.cloud.azure.classic.AzureServiceRemoteException;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
@@ -28,6 +26,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.SeedHostsProvider;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;

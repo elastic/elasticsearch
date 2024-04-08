@@ -9,26 +9,27 @@ package org.elasticsearch.xpack.ql.session;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.Collection;
-import java.util.function.Function;
+import java.util.Objects;
 
 public class Configuration {
 
-    private final String clusterName;
-    private final String username;
-    private final ZonedDateTime now;
-    private final ZoneId zoneId;
-    private final Function<String, Collection<String>> versionIncompatibleClusters;
+    protected final String clusterName;
+    protected final String username;
+    protected final ZonedDateTime now;
+    protected final ZoneId zoneId;
 
-    public Configuration(ZoneId zi, String username, String clusterName, Function<String, Collection<String>> versionIncompatibleClusters) {
+    public Configuration(ZoneId zi, String username, String clusterName) {
+        this(zi, null, username, clusterName);
+    }
+
+    protected Configuration(ZoneId zi, Instant now, String username, String clusterName) {
         this.zoneId = zi.normalized();
-        Clock clock = Clock.system(zoneId);
-        this.now = ZonedDateTime.now(Clock.tick(clock, Duration.ofNanos(1)));
+        this.now = now != null ? now.atZone(zi) : ZonedDateTime.now(Clock.tick(Clock.system(zoneId), Duration.ofNanos(1)));
         this.username = username;
         this.clusterName = clusterName;
-        this.versionIncompatibleClusters = versionIncompatibleClusters;
     }
 
     public ZoneId zoneId() {
@@ -47,7 +48,19 @@ public class Configuration {
         return username;
     }
 
-    public Function<String, Collection<String>> versionIncompatibleClusters() {
-        return versionIncompatibleClusters;
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Configuration that = (Configuration) o;
+        return Objects.equals(zoneId, that.zoneId)
+            && Objects.equals(now, that.now)
+            && Objects.equals(username, that.username)
+            && Objects.equals(clusterName, that.clusterName);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(zoneId, now, username, clusterName);
     }
 }

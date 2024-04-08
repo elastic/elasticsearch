@@ -14,6 +14,6 @@ public class OpenIdConnectLogoutAction extends ActionType<OpenIdConnectLogoutRes
     public static final String NAME = "cluster:admin/xpack/security/oidc/logout";
 
     private OpenIdConnectLogoutAction() {
-        super(NAME, OpenIdConnectLogoutResponse::new);
+        super(NAME);
     }
 }

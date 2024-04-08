@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContext;
 import org.elasticsearch.xpack.core.ml.utils.ExponentialAverageCalculationContextTests;
@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DatafeedTimingStatsTests extends AbstractSerializingTestCase<DatafeedTimingStats> {
+public class DatafeedTimingStatsTests extends AbstractXContentSerializingTestCase<DatafeedTimingStats> {
 
     private static final String JOB_ID = "my-job-id";
 
@@ -60,7 +60,7 @@ public class DatafeedTimingStatsTests extends AbstractSerializingTestCase<Datafe
     }
 
     @Override
-    protected DatafeedTimingStats mutateInstance(DatafeedTimingStats instance) throws IOException {
+    protected DatafeedTimingStats mutateInstance(DatafeedTimingStats instance) {
         String jobId = instance.getJobId();
         long searchCount = instance.getSearchCount();
         long bucketCount = instance.getBucketCount();
@@ -79,7 +79,7 @@ public class DatafeedTimingStatsTests extends AbstractSerializingTestCase<Datafe
         String json = "{\"job_id\": \"my-job-id\"}";
         try (
             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json)
+                .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), json)
         ) {
             DatafeedTimingStats stats = DatafeedTimingStats.PARSER.apply(parser, null);
             assertThat(stats.getJobId(), equalTo(JOB_ID));

@@ -7,10 +7,15 @@
  */
 package org.elasticsearch.gradle.internal.doc;
 
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
+import org.junit.Test;
 
-public class SnippetsTaskTests extends GradleUnitTestCase {
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
+public class SnippetsTaskTests {
+
+    @Test
     public void testMatchSource() {
         SnippetsTask.Source source = SnippetsTask.matchSource("[source,console]");
         assertTrue(source.getMatches());
@@ -46,5 +51,13 @@ public class SnippetsTaskTests extends GradleUnitTestCase {
         assertTrue(source.getMatches());
         assertEquals("console", source.getLanguage());
         assertEquals("snippet-name-1", source.getName());
+
+        source = SnippetsTask.matchSource("[source.merge.styled,esql]");
+        assertTrue(source.getMatches());
+        assertEquals("esql", source.getLanguage());
+
+        source = SnippetsTask.matchSource("[source.merge.styled,foo-bar]");
+        assertTrue(source.getMatches());
+        assertEquals("foo-bar", source.getLanguage());
     }
 }

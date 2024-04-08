@@ -1,0 +1,135 @@
+[[create-connector-api]]
+=== Create connector API
+++++
+<titleabbrev>Create connector</titleabbrev>
+++++
+
+preview::[]
+
+Creates an Elastic connector.
+Connectors are third-party {es} integrations which can be deployed on {ecloud} or hosted on your own infrastructure:
+
+* *Native connectors* are a managed service on {ecloud}
+* *Connector clients* are self-managed on your infrastructure
+
+Find a list of all supported service types in the {enterprise-search-ref}/connectors.html[connectors documentation^].
+
+[source,console]
+--------------------------------------------------
+PUT _connector/my-connector
+{
+  "index_name": "search-google-drive",
+  "name": "My Connector",
+  "service_type": "google_drive"
+}
+--------------------------------------------------
+////
+[source,console]
+----
+DELETE _connector/my-connector
+----
+// TEST[continued]
+////
+
+[[create-connector-api-request]]
+==== {api-request-title}
+`POST _connector`
+
+`PUT _connector/<connector_id>`
+
+
+[[create-connector-api-prereqs]]
+==== {api-prereq-title}
+
+* To sync data using connectors, it's essential to have the Elastic connectors service running.
+* The `service_type` parameter should reference an existing connector service type.
+
+
+[[create-connector-api-desc]]
+==== {api-description-title}
+
+Creates a connector document in the internal index and initializes its configuration, filtering, and scheduling with default values. These values can be updated later as needed.
+
+[[create-connector-api-path-params]]
+==== {api-path-parms-title}
+
+`<connector_id>`::
+(Required, string) Unique identifier of a connector.
+
+
+[role="child_attributes"]
+[[create-connector-api-request-body]]
+==== {api-request-body-title}
+
+`description`::
+(Optional, string) The description of the connector.
+
+`index_name`::
+(Required, string) The target index for syncing data by the connector.
+
+`name`::
+(Optional, string) The name of the connector.
+
+`is_native`::
+(Optional, boolean) Indicates if it's a native connector. Defaults to `false`.
+
+`language`::
+(Optional, string) Language analyzer for the data. Limited to supported languages.
+
+`service_type`::
+(Optional, string) Connector service type. Can reference Elastic-supported connector types or a custom connector type.
+
+
+[role="child_attributes"]
+[[create-connector-api-response-body]]
+==== {api-response-body-title}
+
+`id`::
+  (string) The ID associated with the connector document. Returned when using a POST request.
+
+`result`::
+  (string) The result of the indexing operation, `created` or `updated`. Returned when using a PUT request.
+
+[[create-connector-api-response-codes]]
+==== {api-response-codes-title}
+
+`200`::
+Indicates that an existing connector was updated successfully.
+
+`201`::
+Indicates that the connector was created successfully.
+
+`400`::
+Indicates that the request was malformed.
+
+[[create-connector-api-example]]
+==== {api-examples-title}
+
+[source,console]
+----
+PUT _connector/my-connector
+{
+  "index_name": "search-google-drive",
+  "name": "My Connector",
+  "description": "My Connector to sync data to Elastic index from Google Drive",
+  "service_type": "google_drive",
+  "language": "english"
+}
+----
+
+
+The API returns the following result:
+
+[source,console-result]
+----
+{
+  "result": "created"
+}
+----
+////
+[source,console]
+----
+DELETE _connector/my-connector
+----
+// TEST[continued]
+////

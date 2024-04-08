@@ -7,18 +7,19 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -73,6 +74,11 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
     }
 
     @Override
+    protected DeprecationInfoAction.Response mutateInstance(DeprecationInfoAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<DeprecationInfoAction.Response> instanceReader() {
         return DeprecationInfoAction.Response::new;
     }
@@ -86,17 +92,13 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             .put(
                 IndexMetadata.builder("test")
                     .putMapping(Strings.toString(mapping))
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
             )
             .build();
 
-        DiscoveryNode discoveryNode = DiscoveryNode.createLocal(
-            Settings.EMPTY,
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            "test"
-        );
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("test", new TransportAddress(TransportAddress.META_ADDRESS, 9300));
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
         boolean clusterIssueFound = randomBoolean();
@@ -156,9 +158,82 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         }
     }
 
+    public void testFromWithMergeableNodeIssues() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_all");
+        mapping.field("enabled", false);
+        mapping.endObject().endObject();
+
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("test")
+                    .putMapping(Strings.toString(mapping))
+                    .settings(settings(IndexVersion.current()))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+            )
+            .build();
+
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("nodeId1")
+            .name("node1")
+            .ephemeralId("ephemeralId1")
+            .address("hostName1", "hostAddress1", new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .roles(Collections.emptySet())
+            .build();
+        DiscoveryNode node2 = DiscoveryNodeUtils.builder("nodeId2")
+            .name("node2")
+            .ephemeralId("ephemeralId2")
+            .address("hostName2", "hostAddress2", new TransportAddress(TransportAddress.META_ADDRESS, 9500))
+            .roles(Collections.emptySet())
+            .build();
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
+        IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
+        Map<String, Object> metaMap1 = DeprecationIssue.createMetaMapForRemovableSettings(
+            Collections.unmodifiableList(Arrays.asList("setting.1", "setting.2", "setting.3"))
+        );
+        Map<String, Object> metaMap2 = DeprecationIssue.createMetaMapForRemovableSettings(
+            Collections.unmodifiableList(Arrays.asList("setting.2", "setting.3"))
+        );
+        DeprecationIssue foundIssue1 = createTestDeprecationIssue(metaMap1);
+        DeprecationIssue foundIssue2 = createTestDeprecationIssue(foundIssue1, metaMap2);
+        List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks = Collections.emptyList();
+        List<Function<IndexMetadata, DeprecationIssue>> indexSettingsChecks = List.of((idx) -> null);
+
+        NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
+            new ClusterName(randomAlphaOfLength(5)),
+            Arrays.asList(
+                new NodesDeprecationCheckAction.NodeResponse(node1, Collections.singletonList(foundIssue1)),
+                new NodesDeprecationCheckAction.NodeResponse(node2, Collections.singletonList(foundIssue2))
+            ),
+            emptyList()
+        );
+
+        DeprecationInfoAction.Request request = new DeprecationInfoAction.Request(Strings.EMPTY_ARRAY);
+        DeprecationInfoAction.Response response = DeprecationInfoAction.Response.from(
+            state,
+            resolver,
+            request,
+            nodeDeprecationIssues,
+            indexSettingsChecks,
+            clusterSettingsChecks,
+            Collections.emptyMap(),
+            Collections.emptyList()
+        );
+
+        String details = foundIssue1.getDetails() != null ? foundIssue1.getDetails() + " " : "";
+        DeprecationIssue mergedFoundIssue = new DeprecationIssue(
+            foundIssue1.getLevel(),
+            foundIssue1.getMessage(),
+            foundIssue1.getUrl(),
+            details + "(nodes impacted: [" + node1.getName() + ", " + node2.getName() + "])",
+            foundIssue1.isResolveDuringRollingUpgrade(),
+            foundIssue2.getMeta()
+        );
+        assertThat(response.getNodeSettingsIssues(), equalTo(Collections.singletonList(mergedFoundIssue)));
+    }
+
     public void testRemoveSkippedSettings() throws IOException {
 
-        Settings.Builder settingsBuilder = settings(Version.CURRENT);
+        Settings.Builder settingsBuilder = settings(IndexVersion.current());
         settingsBuilder.put("some.deprecated.property", "someValue1");
         settingsBuilder.put("some.other.bad.deprecated.property", "someValue2");
         settingsBuilder.put("some.undeprecated.property", "someValue3");
@@ -200,7 +275,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             List.of("some.deprecated.property", "some.other.*.deprecated.property")
         );
 
-        settingsBuilder = settings(Version.CURRENT);
+        settingsBuilder = settings(IndexVersion.current());
         settingsBuilder.put("some.undeprecated.property", "someValue3");
         settingsBuilder.putList("some.undeprecated.list.property", List.of("someValue4", "someValue5"));
         Settings expectedSettings = settingsBuilder.build();
@@ -231,6 +306,10 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
     }
 
     private static DeprecationIssue createTestDeprecationIssue() {
+        return createTestDeprecationIssue(randomMap(1, 5, () -> Tuple.tuple(randomAlphaOfLength(4), randomAlphaOfLength(4))));
+    }
+
+    private static DeprecationIssue createTestDeprecationIssue(Map<String, Object> metaMap) {
         String details = randomBoolean() ? randomAlphaOfLength(10) : null;
         return new DeprecationIssue(
             randomFrom(Level.values()),
@@ -238,7 +317,18 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             randomAlphaOfLength(10),
             details,
             randomBoolean(),
-            randomMap(1, 5, () -> Tuple.tuple(randomAlphaOfLength(4), randomAlphaOfLength(4)))
+            metaMap
+        );
+    }
+
+    private static DeprecationIssue createTestDeprecationIssue(DeprecationIssue seedIssue, Map<String, Object> metaMap) {
+        return new DeprecationIssue(
+            seedIssue.getLevel(),
+            seedIssue.getMessage(),
+            seedIssue.getUrl(),
+            seedIssue.getDetails(),
+            seedIssue.isResolveDuringRollingUpgrade(),
+            metaMap
         );
     }
 }

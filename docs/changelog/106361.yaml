@@ -1,0 +1,5 @@
+pr: 106361
+summary: Add a `PriorityQueue` backed by `BigArrays`
+area: Aggregations
+type: enhancement
+issues: []

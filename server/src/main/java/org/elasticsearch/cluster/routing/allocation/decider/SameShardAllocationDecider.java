@@ -16,9 +16,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-
-import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING;
 
 /**
  * An allocation decider that prevents multiple instances of the same shard to
@@ -48,9 +45,8 @@ public class SameShardAllocationDecider extends AllocationDecider {
 
     private volatile boolean sameHost;
 
-    public SameShardAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        this.sameHost = CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING, this::setSameHost);
+    public SameShardAllocationDecider(ClusterSettings clusterSettings) {
+        clusterSettings.initializeAndWatch(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING, this::setSameHost);
     }
 
     /**
@@ -82,8 +78,7 @@ public class SameShardAllocationDecider extends AllocationDecider {
             // if its already a NO decision looking at the node, or we aren't configured to look at the host, return the decision
             return decision;
         }
-        if (INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(allocation.metadata().getIndexSafe(shardRouting.index()).getSettings())
-            .expandToAllNodes()) {
+        if (allocation.metadata().getIndexSafe(shardRouting.index()).getAutoExpandReplicas().expandToAllNodes()) {
             return YES_AUTO_EXPAND_ALL;
         }
         if (node.node() != null) {
@@ -94,7 +89,7 @@ public class SameShardAllocationDecider extends AllocationDecider {
                 // check if its on the same host as the one we want to allocate to
                 assert Strings.hasLength(checkNode.getHostAddress()) : checkNode;
                 if (checkNode.getHostAddress().equals(node.node().getHostAddress())) {
-                    return allocation.debugDecision() ? debugNoAlreadyAllocatedToHost(node, allocation) : Decision.NO;
+                    return allocation.debugDecision() ? debugNoAlreadyAllocatedToHost(node, checkNode, allocation) : Decision.NO;
                 }
             }
         }
@@ -106,15 +101,16 @@ public class SameShardAllocationDecider extends AllocationDecider {
         return canAllocate(shardRouting, node, allocation);
     }
 
-    private static Decision debugNoAlreadyAllocatedToHost(RoutingNode node, RoutingAllocation allocation) {
+    private static Decision debugNoAlreadyAllocatedToHost(RoutingNode newNode, DiscoveryNode existingNode, RoutingAllocation allocation) {
         return allocation.decision(
             Decision.NO,
             NAME,
-            "can not allocate to this node [%s], a copy of this shard is already allocated to another node "
-                + "at the same host address [%s], and [%s] is [true] which "
-                + "forbids more than one node on this host from holding a copy of this shard",
-            node.nodeId(),
-            node.node().getHostAddress(),
+            """
+                cannot allocate to node [%s] because a copy of this shard is already allocated to node [%s] with the same host \
+                address [%s] and [%s] is [true] which forbids more than one node on each host from holding a copy of this shard""",
+            newNode.nodeId(),
+            existingNode.getId(),
+            newNode.node().getHostAddress(),
             CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey()
         );
     }
@@ -128,7 +124,7 @@ public class SameShardAllocationDecider extends AllocationDecider {
 
     private static final Decision YES_NO_COPY = Decision.single(Decision.Type.YES, NAME, "this node does not hold a copy of this shard");
 
-    private Decision decideSameNode(
+    private static Decision decideSameNode(
         ShardRouting shardRouting,
         RoutingNode node,
         RoutingAllocation allocation,

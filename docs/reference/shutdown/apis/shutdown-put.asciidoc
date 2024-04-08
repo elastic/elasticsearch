@@ -63,7 +63,7 @@ Use `restart` when you need to temporarily shut down a node to perform an upgrad
 make configuration changes, or perform other maintenance.
 Because the node is expected to rejoin the cluster, data is not migrated off of the node.
 Use `remove` when you need to permanently remove a node from the cluster.
-The node is not marked ready for shutdown until data is migrated off of the node
+The node is not marked ready for shutdown until data is migrated off of the node.
 Use `replace` to do a 1:1 replacement of a node with another node. Certain allocation decisions will
 be ignored (such as disk watermarks) in the interest of true replacement of the source node with the
 target node. During a replace-type shutdown, rollover and index creation may result in unassigned

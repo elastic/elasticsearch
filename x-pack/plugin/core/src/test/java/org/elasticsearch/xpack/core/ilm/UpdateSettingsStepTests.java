@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 
@@ -36,8 +36,8 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
         Settings settings = instance.getSettings();
 
         switch (between(0, 2)) {
-            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             case 2 -> settings = Settings.builder().put(settings).put(randomAlphaOfLength(10), randomInt()).build();
             default -> throw new AssertionError("Illegal randomisation branch");
         }
@@ -52,7 +52,7 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
 
     private static IndexMetadata getIndexMetadata() {
         return IndexMetadata.builder(randomAlphaOfLength(10))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();

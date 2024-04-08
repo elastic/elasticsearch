@@ -8,9 +8,10 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.admin.indices.shrink.ResizeNumberOfShardsCalculator;
+import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,6 +25,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -90,7 +92,7 @@ public class ShrinkAction implements LifecycleAction {
             this.maxPrimaryShardSize = null;
         } else {
             this.numberOfShards = null;
-            this.maxPrimaryShardSize = new ByteSizeValue(in);
+            this.maxPrimaryShardSize = ByteSizeValue.readFrom(in);
         }
     }
 
@@ -141,6 +143,7 @@ public class ShrinkAction implements LifecycleAction {
         StepKey preShrinkBranchingKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_SHRINK_STEP);
         StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey waitForNoFollowerStepKey = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
+        StepKey waitTimeSeriesEndTimePassesKey = new StepKey(phase, NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyAction.NAME);
         StepKey checkTargetShardsCountKey = new StepKey(phase, NAME, CheckTargetShardsCountStep.NAME);
         StepKey cleanupShrinkIndexKey = new StepKey(phase, NAME, CleanupShrinkIndexStep.NAME);
@@ -156,41 +159,65 @@ public class ShrinkAction implements LifecycleAction {
         StepKey replaceDataStreamIndexKey = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
         StepKey deleteIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
 
-        BranchingStep conditionalSkipShrinkStep = new BranchingStep(
+        AsyncBranchingStep conditionalSkipShrinkStep = new AsyncBranchingStep(
             preShrinkBranchingKey,
             checkNotWriteIndex,
             nextStepKey,
-            (index, clusterState) -> {
-                IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
-                if (numberOfShards != null && indexMetadata.getNumberOfShards() == numberOfShards) {
-                    return true;
-                }
+            (indexMetadata, clusterState, listener) -> {
                 if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
                     logger.warn(
                         "[{}] action is configured for index [{}] in policy [{}] which is mounted as searchable snapshot. "
                             + "Skipping this action",
                         ShrinkAction.NAME,
                         indexMetadata.getIndex().getName(),
-                        LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings())
+                        indexMetadata.getLifecyclePolicyName()
                     );
-                    return true;
+                    listener.onResponse(true);
+                    return;
                 }
-                return false;
-            }
+                String indexName = indexMetadata.getIndex().getName();
+                client.admin()
+                    .indices()
+                    .prepareStats(indexName)
+                    .clear()
+                    .setDocs(true)
+                    .setStore(true)
+                    .execute(listener.delegateFailure((delegateListener, indicesStatsResponse) -> {
+                        int targetNumberOfShards = new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
+                            indicesStatsResponse.getPrimaries().store,
+                            i -> {
+                                IndexShardStats shard = indicesStatsResponse.getIndex(indexName).getIndexShards().get(i);
+                                return shard == null ? null : shard.getPrimary().getDocs();
+                            }
+                        ).calculate(numberOfShards, maxPrimaryShardSize, indexMetadata);
+                        delegateListener.onResponse(indexMetadata.getNumberOfShards() == targetNumberOfShards);
+                    }));
+            },
+            client
         );
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(
             checkNotWriteIndex,
             waitForNoFollowerStepKey
         );
-        WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, readOnlyKey, client);
+        WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(
+            waitForNoFollowerStepKey,
+            waitTimeSeriesEndTimePassesKey,
+            client
+        );
+        WaitUntilTimeSeriesEndTimePassesStep waitUntilTimeSeriesEndTimeStep = new WaitUntilTimeSeriesEndTimePassesStep(
+            waitTimeSeriesEndTimePassesKey,
+            readOnlyKey,
+            Instant::now,
+            client
+        );
         ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, checkTargetShardsCountKey, client);
         CheckTargetShardsCountStep checkTargetShardsCountStep = new CheckTargetShardsCountStep(
             checkTargetShardsCountKey,
             cleanupShrinkIndexKey,
             numberOfShards
         );
-        // we generate a unique shrink index name but we also retry if the allocation of the shrunk index is not possible, so we want to
-        // delete the "previously generated" shrink index (this is a no-op if it's the first run of the action and he haven't generated a
+        // We generate a unique shrink index name but we also retry if the allocation of the shrunk index is not possible, so we want to
+        // delete the "previously generated" shrink index (this is a no-op if it's the first run of the action and we haven't generated a
         // shrink index name)
         CleanupShrinkIndexStep cleanupShrinkIndexStep = new CleanupShrinkIndexStep(
             cleanupShrinkIndexKey,
@@ -256,6 +283,7 @@ public class ShrinkAction implements LifecycleAction {
             conditionalSkipShrinkStep,
             checkNotWriteIndexStep,
             waitForNoFollowersStep,
+            waitUntilTimeSeriesEndTimeStep,
             readOnlyStep,
             checkTargetShardsCountStep,
             cleanupShrinkIndexStep,

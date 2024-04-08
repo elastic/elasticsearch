@@ -10,15 +10,14 @@ package org.elasticsearch.common.util;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTestCase<SetBackedScalingCuckooFilter> {
@@ -41,7 +40,7 @@ public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTe
     }
 
     @Override
-    protected SetBackedScalingCuckooFilter mutateInstance(SetBackedScalingCuckooFilter instance) throws IOException {
+    protected SetBackedScalingCuckooFilter mutateInstance(SetBackedScalingCuckooFilter instance) {
         SetBackedScalingCuckooFilter newInstance = new SetBackedScalingCuckooFilter(
             instance.getThreshold(),
             instance.getRng(),
@@ -61,7 +60,7 @@ public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTe
 
         int size = 0;
         Set<Long> values = new HashSet<>();
-        Set<Long> hashed = new HashSet<>(values.size());
+        Set<Long> hashed = Sets.newHashSetWithExpectedSize(values.size());
         while (size < threshold - 100) {
             long value = randomLong();
             filter.add(value);

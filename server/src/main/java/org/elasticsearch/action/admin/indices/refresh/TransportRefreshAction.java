@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.refresh;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.replication.BasicReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportBroadcastReplicationAction;
@@ -19,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
@@ -28,7 +30,7 @@ import java.util.List;
  */
 public class TransportRefreshAction extends TransportBroadcastReplicationAction<
     RefreshRequest,
-    RefreshResponse,
+    BroadcastResponse,
     BasicReplicationRequest,
     ReplicationResponse> {
 
@@ -48,13 +50,9 @@ public class TransportRefreshAction extends TransportBroadcastReplicationAction<
             client,
             actionFilters,
             indexNameExpressionResolver,
-            TransportShardRefreshAction.TYPE
+            TransportShardRefreshAction.TYPE,
+            transportService.getThreadPool().executor(ThreadPool.Names.REFRESH)
         );
-    }
-
-    @Override
-    protected ReplicationResponse newShardResponse() {
-        return new ReplicationResponse();
     }
 
     @Override
@@ -65,12 +63,12 @@ public class TransportRefreshAction extends TransportBroadcastReplicationAction<
     }
 
     @Override
-    protected RefreshResponse newResponse(
+    protected BroadcastResponse newResponse(
         int successfulShards,
         int failedShards,
         int totalNumCopies,
         List<DefaultShardOperationFailedException> shardFailures
     ) {
-        return new RefreshResponse(totalNumCopies, successfulShards, failedShards, shardFailures);
+        return new BroadcastResponse(totalNumCopies, successfulShards, failedShards, shardFailures);
     }
 }

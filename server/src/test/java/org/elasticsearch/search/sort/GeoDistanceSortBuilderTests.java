@@ -27,7 +27,6 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
@@ -87,8 +86,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.validation(randomValueOtherThan(result.validation(), () -> randomFrom(GeoValidationMethod.values())));
         }
         if (randomBoolean()) {
-            // don't fully randomize here, GeoDistanceSort is picky about the filters that are allowed
-            NestedSortBuilder nestedSort = new NestedSortBuilder(randomAlphaOfLengthBetween(3, 10));
+            NestedSortBuilder nestedSort = new NestedSortBuilder("path");
             nestedSort.setFilter(new MatchAllQueryBuilder());
             result.setNestedSort(nestedSort);
         }
@@ -386,7 +384,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         assertEquals(SortField.class, sort.field.getClass()); // descending means the max value should be considered rather than min
 
         builder = new GeoDistanceSortBuilder("random_field_name", new GeoPoint(3.5, 2.1));
-        builder.setNestedSort(new NestedSortBuilder("some_nested_path"));
+        builder.setNestedSort(new NestedSortBuilder("path"));
         sort = builder.build(context);
         assertEquals(SortField.class, sort.field.getClass()); // can't use LatLon optimized sorting with nested fields
 
@@ -541,7 +539,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         GeoDistanceSortBuilder sortBuilder = new GeoDistanceSortBuilder("fieldName", 0.0, 0.0);
         RangeQueryBuilder rangeQuery = new RangeQueryBuilder("fieldName") {
             @Override
-            public QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+            public QueryBuilder doSearchRewrite(SearchExecutionContext context) {
                 return new MatchNoneQueryBuilder();
             }
         };
@@ -557,7 +555,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         GeoDistanceSortBuilder sortBuilder = new GeoDistanceSortBuilder("fieldName", 0.0, 0.0);
         RangeQueryBuilder rangeQuery = new RangeQueryBuilder("fieldName") {
             @Override
-            public QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+            public QueryBuilder doSearchRewrite(SearchExecutionContext context) {
                 return new MatchNoneQueryBuilder();
             }
         };

@@ -9,30 +9,37 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
+import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterByFilterAggregator;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -145,11 +152,6 @@ public abstract class AggregationContext implements Releasable {
     public abstract Set<String> getMatchingFieldNames(String pattern);
 
     /**
-     * Returns true if the field identified by the provided name is mapped, false otherwise
-     */
-    public abstract boolean isFieldMapped(String field);
-
-    /**
      * Compile a script.
      */
     public abstract <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context);
@@ -200,14 +202,19 @@ public abstract class AggregationContext implements Releasable {
     public abstract IndexSettings getIndexSettings();
 
     /**
+     * The settings for the cluster against which this search is running.
+     */
+    public abstract ClusterSettings getClusterSettings();
+
+    /**
      * Compile a sort.
      */
     public abstract Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders) throws IOException;
 
     /**
-     * Find an {@link ObjectMapper}.
+     * Get the {@link NestedLookup} of this index
      */
-    public abstract ObjectMapper getObjectMapper(String path);
+    public abstract NestedLookup nestedLookup();
 
     /**
      * Access the nested scope. Stay away from this unless you are dealing with nested.
@@ -225,7 +232,15 @@ public abstract class AggregationContext implements Releasable {
      */
     public abstract void addReleasable(Aggregator aggregator);
 
-    public abstract MultiBucketConsumer multiBucketConsumer();
+    /**
+     * Cause this aggregation to be released when the search is finished.
+     */
+    public abstract void removeReleasable(Aggregator aggregator);
+
+    /**
+     * Max buckets provided by the search.max_buckets setting
+     */
+    public abstract int maxBuckets();
 
     /**
      * Get the filter cache.
@@ -283,6 +298,44 @@ public abstract class AggregationContext implements Releasable {
     public abstract boolean enableRewriteToFilterByFilter();
 
     /**
+     * Return true if any of the aggregations in this context is a time-series aggregation that requires an in-sort order execution.
+     *
+     * A side-effect of such execution is that all leaves are walked simultaneously and therefore we can no longer rely on
+     * {@link BucketCollector#getLeafCollector(AggregationExecutionContext)} to be called only after the
+     * previous leaf was fully collected.
+     */
+    public abstract boolean isInSortOrderExecutionRequired();
+
+    public abstract Set<String> sourcePath(String fullName);
+
+    /**
+     * Returns the MappingLookup for the index, if one is initialized.
+     */
+    @Nullable
+    public MappingLookup getMappingLookup() {
+        return null;
+    }
+
+    /**
+     * Does this index have a {@code _doc_count} field in any segment?
+     */
+    public final boolean hasDocCountField() throws IOException {
+        /*
+         * When we add the second filter we check if there are any _doc_count
+         * fields and bail out of filter-by filter mode if there are. _doc_count
+         * fields are expensive to decode and the overhead of iterating per
+         * filter causes us to decode doc counts over and over again.
+         */
+        Term term = new Term(DocCountFieldMapper.NAME, DocCountFieldMapper.NAME);
+        for (LeafReaderContext c : searcher().getLeafContexts()) {
+            if (c.reader().docFreq(term) > 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Implementation of {@linkplain AggregationContext} for production usage
      * that wraps our ubiquitous {@link SearchExecutionContext} and anything else
      * specific to aggregations. Unit tests should generally avoid using this
@@ -293,9 +346,12 @@ public abstract class AggregationContext implements Releasable {
         private final SearchExecutionContext context;
         private final PreallocatedCircuitBreakerService preallocatedBreakerService;
         private final BigArrays bigArrays;
+
+        private final ClusterSettings clusterSettings;
+
         private final Supplier<Query> topLevelQuery;
         private final AggregationProfiler profiler;
-        private final MultiBucketConsumer multiBucketConsumer;
+        private final int maxBuckets;
         private final Supplier<SubSearchContext> subSearchContextBuilder;
         private final BitsetFilterCache bitsetFilterCache;
         private final int randomSeed;
@@ -303,6 +359,7 @@ public abstract class AggregationContext implements Releasable {
         private final Supplier<Boolean> isCancelled;
         private final Function<Query, Query> filterQuery;
         private final boolean enableRewriteToFilterByFilter;
+        private final boolean inSortOrderExecutionRequired;
         private final AnalysisRegistry analysisRegistry;
 
         private final List<Aggregator> releaseMe = new ArrayList<>();
@@ -311,20 +368,23 @@ public abstract class AggregationContext implements Releasable {
             AnalysisRegistry analysisRegistry,
             SearchExecutionContext context,
             BigArrays bigArrays,
+            ClusterSettings clusterSettings,
             long bytesToPreallocate,
             Supplier<Query> topLevelQuery,
             @Nullable AggregationProfiler profiler,
-            MultiBucketConsumer multiBucketConsumer,
+            int maxBuckets,
             Supplier<SubSearchContext> subSearchContextBuilder,
             BitsetFilterCache bitsetFilterCache,
             int randomSeed,
             LongSupplier relativeTimeInMillis,
             Supplier<Boolean> isCancelled,
             Function<Query, Query> filterQuery,
-            boolean enableRewriteToFilterByFilter
+            boolean enableRewriteToFilterByFilter,
+            boolean inSortOrderExecutionRequired
         ) {
             this.analysisRegistry = analysisRegistry;
             this.context = context;
+            this.clusterSettings = clusterSettings;
             if (bytesToPreallocate == 0) {
                 /*
                  * Its possible if a bit strange for the aggregations to ask
@@ -346,7 +406,7 @@ public abstract class AggregationContext implements Releasable {
             }
             this.topLevelQuery = topLevelQuery;
             this.profiler = profiler;
-            this.multiBucketConsumer = multiBucketConsumer;
+            this.maxBuckets = maxBuckets;
             this.subSearchContextBuilder = subSearchContextBuilder;
             this.bitsetFilterCache = bitsetFilterCache;
             this.randomSeed = randomSeed;
@@ -354,6 +414,7 @@ public abstract class AggregationContext implements Releasable {
             this.isCancelled = isCancelled;
             this.filterQuery = filterQuery;
             this.enableRewriteToFilterByFilter = enableRewriteToFilterByFilter;
+            this.inSortOrderExecutionRequired = inSortOrderExecutionRequired;
         }
 
         @Override
@@ -362,7 +423,7 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
-        public Aggregator profileIfEnabled(Aggregator agg) throws IOException {
+        public Aggregator profileIfEnabled(Aggregator agg) {
             if (profiler == null) {
                 return agg;
             }
@@ -392,12 +453,19 @@ public abstract class AggregationContext implements Releasable {
             List<NameOrDefinition> charFilters,
             List<NameOrDefinition> tokenFilters
         ) throws IOException {
-            return analysisRegistry.buildCustomAnalyzer(indexSettings, normalizer, tokenizer, charFilters, tokenFilters);
+            return analysisRegistry.buildCustomAnalyzer(
+                IndexService.IndexCreationContext.RELOAD_ANALYZERS,
+                indexSettings,
+                normalizer,
+                tokenizer,
+                charFilters,
+                tokenFilters
+            );
         }
 
         @Override
         protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
-            return context.getForField(ft);
+            return context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH);
         }
 
         @Override
@@ -408,11 +476,6 @@ public abstract class AggregationContext implements Releasable {
         @Override
         public Set<String> getMatchingFieldNames(String pattern) {
             return context.getMatchingFieldNames(pattern);
-        }
-
-        @Override
-        public boolean isFieldMapped(String field) {
-            return context.isFieldMapped(field);
         }
 
         @Override
@@ -456,13 +519,18 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
+        public ClusterSettings getClusterSettings() {
+            return clusterSettings;
+        }
+
+        @Override
         public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders) throws IOException {
             return SortBuilder.buildSort(sortBuilders, context);
         }
 
         @Override
-        public ObjectMapper getObjectMapper(String path) {
-            return context.getObjectMapper(path);
+        public NestedLookup nestedLookup() {
+            return context.nestedLookup();
         }
 
         @Override
@@ -477,12 +545,23 @@ public abstract class AggregationContext implements Releasable {
 
         @Override
         public void addReleasable(Aggregator aggregator) {
+            assert releaseMe.contains(aggregator) == false
+                : "adding aggregator [" + aggregator.name() + "] twice in the aggregation context";
             releaseMe.add(aggregator);
         }
 
         @Override
-        public MultiBucketConsumer multiBucketConsumer() {
-            return multiBucketConsumer;
+        public synchronized void removeReleasable(Aggregator aggregator) {
+            // Removing an aggregator is done after calling Aggregator#buildTopLevel which happens on an executor thread.
+            // We need to synchronize the removal because he AggregatorContext it is shared between executor threads.
+            assert releaseMe.contains(aggregator)
+                : "removing non-existing aggregator [" + aggregator.name() + "] from the the aggregation context";
+            releaseMe.remove(aggregator);
+        }
+
+        @Override
+        public int maxBuckets() {
+            return maxBuckets;
         }
 
         @Override
@@ -529,6 +608,21 @@ public abstract class AggregationContext implements Releasable {
         @Override
         public boolean enableRewriteToFilterByFilter() {
             return enableRewriteToFilterByFilter;
+        }
+
+        @Override
+        public boolean isInSortOrderExecutionRequired() {
+            return inSortOrderExecutionRequired;
+        }
+
+        @Override
+        public Set<String> sourcePath(String fullName) {
+            return context.sourcePath(fullName);
+        }
+
+        @Override
+        public MappingLookup getMappingLookup() {
+            return context.getMappingLookup();
         }
 
         @Override

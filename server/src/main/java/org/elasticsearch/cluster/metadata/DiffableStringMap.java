@@ -34,7 +34,7 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
 
     @SuppressWarnings("unchecked")
     public static DiffableStringMap readFrom(StreamInput in) throws IOException {
-        final Map<String, String> map = (Map) in.readMap();
+        final Map<String, String> map = (Map) in.readGenericMap();
         return map.isEmpty() ? EMPTY : new DiffableStringMap(map);
     }
 
@@ -60,7 +60,7 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
     @Override
     @SuppressWarnings("unchecked")
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap((Map<String, Object>) (Map) innerMap);
+        out.writeGenericMap((Map<String, Object>) (Map) innerMap);
     }
 
     @Override
@@ -88,8 +88,8 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
     }
 
     public static Diff<DiffableStringMap> readDiffFrom(StreamInput in) throws IOException {
-        final List<String> deletes = in.readStringList();
-        final Map<String, String> upserts = in.readMap(StreamInput::readString, StreamInput::readString);
+        final List<String> deletes = in.readStringCollectionAsList();
+        final Map<String, String> upserts = in.readMap(StreamInput::readString);
         return getDiff(deletes, upserts);
     }
 
@@ -124,7 +124,7 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
             return deletes;
         }
 
-        public Map<String, Diff<String>> getDiffs() {
+        public static Map<String, Diff<String>> getDiffs() {
             return Collections.emptyMap();
         }
 
@@ -135,7 +135,7 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeStringCollection(deletes);
-            out.writeMap(upserts, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(upserts, StreamOutput::writeString);
         }
 
         @Override

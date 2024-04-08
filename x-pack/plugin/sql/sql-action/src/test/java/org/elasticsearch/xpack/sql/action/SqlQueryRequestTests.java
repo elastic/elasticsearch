@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilter;
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilterOrNull;
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;
 
-public class SqlQueryRequestTests extends AbstractSerializingTestCase<TestSqlQueryRequest> {
+public class SqlQueryRequestTests extends AbstractXContentSerializingTestCase<TestSqlQueryRequest> {
 
     public RequestInfo requestInfo;
 
@@ -76,10 +76,11 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<TestSqlQue
             randomAlphaOfLength(10),
             requestInfo,
             randomBoolean(),
-            randomBoolean(),
+            false, // deprecated
             randomTV(),
             randomBoolean(),
-            randomTVGreaterThan(MIN_KEEP_ALIVE)
+            randomTVGreaterThan(MIN_KEEP_ALIVE),
+            randomBoolean()
         );
     }
 
@@ -114,7 +115,10 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<TestSqlQue
             request -> request.cursor(randomValueOtherThan(request.cursor(), SqlQueryResponseTests::randomStringCursor)),
             request -> request.waitForCompletionTimeout(randomValueOtherThan(request.waitForCompletionTimeout(), this::randomTV)),
             request -> request.keepOnCompletion(randomValueOtherThan(request.keepOnCompletion(), ESTestCase::randomBoolean)),
-            request -> request.keepAlive(randomValueOtherThan(request.keepAlive(), () -> randomTVGreaterThan(MIN_KEEP_ALIVE)))
+            request -> request.keepAlive(randomValueOtherThan(request.keepAlive(), () -> randomTVGreaterThan(MIN_KEEP_ALIVE))),
+            request -> request.allowPartialSearchResults(
+                randomValueOtherThan(request.allowPartialSearchResults(), ESTestCase::randomBoolean)
+            )
         );
         TestSqlQueryRequest newRequest = new TestSqlQueryRequest(
             instance.query(),
@@ -133,7 +137,8 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<TestSqlQue
             instance.indexIncludeFrozen(),
             instance.waitForCompletionTimeout(),
             instance.keepOnCompletion(),
-            instance.keepAlive()
+            instance.keepAlive(),
+            instance.allowPartialSearchResults()
         );
         mutator.accept(newRequest);
         return newRequest;

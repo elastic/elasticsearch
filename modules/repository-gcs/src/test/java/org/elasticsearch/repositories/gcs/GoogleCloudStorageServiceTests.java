@@ -8,10 +8,15 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import com.google.auth.Credentials;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 
+import org.apache.http.HttpRequest;
+import org.apache.http.HttpResponse;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.protocol.HttpContext;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -21,6 +26,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.util.Base64;
@@ -58,8 +66,17 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             )
             .put(GoogleCloudStorageClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), endpoint)
             .put(GoogleCloudStorageClientSettings.PROJECT_ID_SETTING.getConcreteSettingForNamespace(clientName).getKey(), projectIdName)
+            .put(GoogleCloudStorageClientSettings.PROXY_TYPE_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "HTTP")
+            .put(GoogleCloudStorageClientSettings.PROXY_HOST_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "192.168.52.15")
+            .put(GoogleCloudStorageClientSettings.PROXY_PORT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), 8080)
             .build();
-        final GoogleCloudStorageService service = new GoogleCloudStorageService();
+        SetOnce<Proxy> proxy = new SetOnce<>();
+        final GoogleCloudStorageService service = new GoogleCloudStorageService() {
+            @Override
+            void notifyProxyIsSet(Proxy p) {
+                proxy.set(p);
+            }
+        };
         service.refreshAndClearCache(GoogleCloudStorageClientSettings.load(settings));
         GoogleCloudStorageOperationsStats statsCollector = new GoogleCloudStorageOperationsStats("bucket");
         final IllegalArgumentException e = expectThrows(
@@ -83,7 +100,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             ((HttpTransportOptions) storage.getOptions().getTransportOptions()).getReadTimeout(),
             Matchers.is((int) readTimeValue.millis())
         );
-        assertThat(storage.getOptions().getCredentials(), Matchers.nullValue(Credentials.class));
+        assertThat(proxy.get().toString(), equalTo("HTTP @ /192.168.52.15:8080"));
     }
 
     public void testReinitClientSettings() throws Exception {
@@ -169,5 +186,23 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         assertEquals(-1, GoogleCloudStorageService.toTimeout(null).intValue());
         assertEquals(-1, GoogleCloudStorageService.toTimeout(TimeValue.ZERO).intValue());
         assertEquals(0, GoogleCloudStorageService.toTimeout(TimeValue.MINUS_ONE).intValue());
+    }
+
+    public void testGetDefaultProjectIdViaProxy() throws Exception {
+        String proxyProjectId = randomAlphaOfLength(16);
+        var proxyServer = new MockHttpProxyServer() {
+            @Override
+            public void handle(HttpRequest request, HttpResponse response, HttpContext context) {
+                assertEquals(
+                    "GET http://metadata.google.internal/computeMetadata/v1/project/project-id HTTP/1.1",
+                    request.getRequestLine().toString()
+                );
+                response.setEntity(new StringEntity(proxyProjectId, ContentType.TEXT_PLAIN));
+            }
+        };
+        try (proxyServer) {
+            var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServer.getPort()));
+            assertEquals(proxyProjectId, SocketAccess.doPrivilegedIOException(() -> GoogleCloudStorageService.getDefaultProjectId(proxy)));
+        }
     }
 }

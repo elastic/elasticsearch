@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.query.functionscore;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -77,6 +79,11 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
     @Override
     protected int doHashCode() {
         return Objects.hash(this.script);
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 
     @Override

@@ -5,6 +5,10 @@
       "description":"Performs a kNN search."
     },
     "stability":"experimental",
+    "deprecated" : {
+      "version" : "8.4.0",
+      "description" : "The kNN search API has been replaced by the `knn` option in the search API."
+    },
     "visibility":"public",
     "headers":{
       "accept": [ "application/json"],

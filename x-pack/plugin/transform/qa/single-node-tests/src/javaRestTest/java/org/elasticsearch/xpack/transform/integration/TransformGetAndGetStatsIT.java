@@ -11,33 +11,9 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.WarningsHandler;
-import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.client.core.PageParams;
-import org.elasticsearch.client.transform.DeleteTransformRequest;
-import org.elasticsearch.client.transform.GetTransformRequest;
-import org.elasticsearch.client.transform.GetTransformResponse;
-import org.elasticsearch.client.transform.GetTransformStatsRequest;
-import org.elasticsearch.client.transform.GetTransformStatsResponse;
-import org.elasticsearch.client.transform.PutTransformRequest;
-import org.elasticsearch.client.transform.transforms.DestConfig;
-import org.elasticsearch.client.transform.transforms.QueryConfig;
-import org.elasticsearch.client.transform.transforms.SourceConfig;
-import org.elasticsearch.client.transform.transforms.TransformConfig;
-import org.elasticsearch.client.transform.transforms.TransformStats;
-import org.elasticsearch.client.transform.transforms.pivot.AggregationConfig;
-import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
-import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
-import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.junit.After;
@@ -46,12 +22,11 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.core.transform.TransformField.BASIC_STATS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
@@ -61,7 +36,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
-@SuppressWarnings("removal")
 public class TransformGetAndGetStatsIT extends TransformRestTestCase {
 
     private static final String TEST_USER_NAME = "transform_user";
@@ -115,19 +89,19 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         String authHeader = randomFrom(BASIC_AUTH_VALUE_TRANSFORM_USER, BASIC_AUTH_VALUE_TRANSFORM_ADMIN);
 
         // Check all the different ways to retrieve transform stats
-        Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "_stats", authHeader);
+        Request getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "_stats", authHeader, randomTimeout());
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(3, XContentMapValues.extractValue("count", stats));
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "_all/_stats", authHeader);
+        getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "_all/_stats", authHeader, randomTimeout());
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(3, XContentMapValues.extractValue("count", stats));
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "*/_stats", authHeader);
+        getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "*/_stats", authHeader, randomTimeout());
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(3, XContentMapValues.extractValue("count", stats));
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "pivot_1,pivot_2/_stats", authHeader);
+        getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "pivot_1,pivot_2/_stats", authHeader, randomTimeout());
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(2, XContentMapValues.extractValue("count", stats));
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "pivot_*/_stats", authHeader);
+        getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "pivot_*/_stats", authHeader, randomTimeout());
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(3, XContentMapValues.extractValue("count", stats));
 
@@ -148,7 +122,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         }
 
         // only pivot_1
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "pivot_1/_stats", authHeader);
+        getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "pivot_1/_stats", authHeader, randomTimeout());
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(1, XContentMapValues.extractValue("count", stats));
 
@@ -159,7 +133,12 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         assertEquals(1, XContentMapValues.extractValue("checkpointing.last.checkpoint", transformsStats.get(0)));
 
         // only continuous
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "pivot_continuous/_stats", authHeader);
+        getRequest = createRequestWithAuthAndTimeout(
+            "GET",
+            getTransformEndpoint() + "pivot_continuous/_stats",
+            authHeader,
+            randomTimeout()
+        );
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(1, XContentMapValues.extractValue("count", stats));
 
@@ -176,6 +155,83 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         verifyGetResponse(getTransformEndpoint() + "pivot_1,pivot_2", 2, null);
         verifyGetResponse(getTransformEndpoint() + "pivot_1", 1, null);
         verifyGetResponse(getTransformEndpoint() + "pivot_2", 1, null);
+
+        stopTransform("pivot_continuous", false);
+    }
+
+    /**
+     * Verify the basic stats API, which includes state, health, and optionally progress (if it exists).
+     * These are required for Kibana 8.13+.
+     */
+    @SuppressWarnings("unchecked")
+    public void testGetAndGetBasicStats() throws Exception {
+        createPivotReviewsTransform("pivot_1", "pivot_reviews_1", null);
+        createContinuousPivotReviewsTransform("pivot_continuous", "pivot_reviews_continuous", null);
+
+        startAndWaitForTransform("pivot_1", "pivot_reviews_1");
+        startAndWaitForContinuousTransform("pivot_continuous", "pivot_reviews_continuous", null);
+
+        stopTransform("pivot_1", false);
+        // Alternate testing between admin and lowly user, as both should be able to get the configs and stats
+        var authHeader = randomFrom(BASIC_AUTH_VALUE_TRANSFORM_USER, BASIC_AUTH_VALUE_TRANSFORM_ADMIN);
+
+        // Check all the different ways to retrieve transform stats
+        var basicStats = "_stats?" + BASIC_STATS.getPreferredName() + "=true";
+        var getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + basicStats, authHeader, randomTimeout());
+        var stats = entityAsMap(client().performRequest(getRequest));
+        assertEquals(2, XContentMapValues.extractValue("count", stats));
+        getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "_all/" + basicStats, authHeader, randomTimeout());
+        stats = entityAsMap(client().performRequest(getRequest));
+        assertEquals(2, XContentMapValues.extractValue("count", stats));
+        getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "*/" + basicStats, authHeader, randomTimeout());
+        stats = entityAsMap(client().performRequest(getRequest));
+        assertEquals(2, XContentMapValues.extractValue("count", stats));
+        getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "pivot_1/" + basicStats, authHeader, randomTimeout());
+        stats = entityAsMap(client().performRequest(getRequest));
+        assertEquals(1, XContentMapValues.extractValue("count", stats));
+        getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "pivot_*/" + basicStats, authHeader, randomTimeout());
+        stats = entityAsMap(client().performRequest(getRequest));
+        assertEquals(2, XContentMapValues.extractValue("count", stats));
+
+        // verify pivot_1 has basic stats
+        getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "pivot_1/" + basicStats, authHeader, randomTimeout());
+        stats = entityAsMap(client().performRequest(getRequest));
+        assertEquals(1, XContentMapValues.extractValue("count", stats));
+        var transform = ((List<Map<String, Object>>) XContentMapValues.extractValue("transforms", stats)).get(0);
+
+        // verify state exists
+        assertEquals("stopped", XContentMapValues.extractValue("state", transform));
+
+        // verify health exists
+        assertEquals("green", XContentMapValues.extractValue("health.status", transform));
+
+        // verify checkpointing exists
+        assertThat(
+            "percent_complete is not 100.0",
+            XContentMapValues.extractValue("checkpointing.next.checkpoint_progress.percent_complete", transform),
+            equalTo(100.0)
+        );
+
+        // verify pivot_continuous has basic stats
+        getRequest = createRequestWithAuthAndTimeout(
+            "GET",
+            getTransformEndpoint() + "pivot_continuous/" + basicStats,
+            authHeader,
+            randomTimeout()
+        );
+        stats = entityAsMap(client().performRequest(getRequest));
+        assertEquals(1, XContentMapValues.extractValue("count", stats));
+        transform = ((List<Map<String, Object>>) XContentMapValues.extractValue("transforms", stats)).get(0);
+
+        // verify state exists
+        assertEquals("started", XContentMapValues.extractValue("state", transform));
+
+        // verify health exists
+        assertEquals("green", XContentMapValues.extractValue("health.status", transform));
+
+        // We aren't testing for 'checkpointing.next.checkpoint_progress.percent_complete'.
+        // It's difficult to get the integration test to reliably call the stats API while that data is available, since continuous
+        // transforms start and finish the next checkpoint quickly (<1ms).
 
         stopTransform("pivot_continuous", false);
     }
@@ -240,7 +296,6 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         stopTransform("pivot_continuous", true);
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetAndGetStatsWhenTransformInternalIndexDisappears() throws Exception {
         createPivotReviewsTransform("pivot_1", "pivot_reviews_1", null);
         createPivotReviewsTransform("pivot_2", "pivot_reviews_2", null);
@@ -326,7 +381,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         // Alternate testing between admin and lowly user, as both should be able to get the configs and stats
         String authHeader = randomFrom(BASIC_AUTH_VALUE_TRANSFORM_USER, BASIC_AUTH_VALUE_TRANSFORM_ADMIN);
 
-        Request request = createRequestWithAuth("GET", path, authHeader);
+        Request request = createRequestWithAuthAndTimeout("GET", path, authHeader, randomTimeout());
         request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         Response response = client().performRequest(request);
         Map<String, Object> stats = entityAsMap(response);
@@ -348,7 +403,6 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         return transformsStats;
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetPersistedStatsWithoutTask() throws Exception {
         createPivotReviewsTransform("pivot_stats_1", "pivot_reviews_stats_1", null);
         startAndWaitForTransform("pivot_stats_1", "pivot_reviews_stats_1");
@@ -380,7 +434,12 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         // Alternate testing between admin and lowly user, as both should be able to get the configs and stats
         String authHeader = randomFrom(BASIC_AUTH_VALUE_TRANSFORM_USER, BASIC_AUTH_VALUE_TRANSFORM_ADMIN);
 
-        Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + transformId + "/_stats", authHeader);
+        Request getRequest = createRequestWithAuthAndTimeout(
+            "GET",
+            getTransformEndpoint() + transformId + "/_stats",
+            authHeader,
+            randomTimeout()
+        );
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(1, XContentMapValues.extractValue("count", stats));
         List<Map<String, Object>> transformsStats = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", stats);
@@ -407,7 +466,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         String transformSrc = "reviews_cont_pivot_test";
         createReviewsIndex(transformSrc);
         final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, null);
-        String config = """
+        String config = Strings.format("""
             {
               "dest": {
                 "index": "%s"
@@ -438,7 +497,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
                   }
                 }
               }
-            }""".formatted(transformDest, transformSrc);
+            }""", transformDest, transformSrc);
 
         createTransformRequest.setJsonEntity(config);
 
@@ -446,7 +505,12 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
         startAndWaitForContinuousTransform(transformId, transformDest, null);
 
-        Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + transformId + "/_stats", null);
+        Request getRequest = createRequestWithAuthAndTimeout(
+            "GET",
+            getTransformEndpoint() + transformId + "/_stats",
+            null,
+            randomTimeout()
+        );
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
         List<Map<String, Object>> transformsStats = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", stats);
         assertEquals(1, transformsStats.size());
@@ -477,10 +541,10 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         long now = Instant.now().toEpochMilli() - 1_000;
         for (int i = 0; i < numDocs; i++) {
             // Doing only new users so that there is a deterministic number of docs for progress
-            bulk.append("""
+            bulk.append(Strings.format("""
                 {"index":{"_index":"%s"}}
                 {"user_id":"user_%s","business_id":"business_%s","stars":%s,"timestamp":%s}
-                """.formatted(transformSrc, randomFrom(42, 47, 113), 10, 5, now));
+                """, transformSrc, randomFrom(42, 47, 113), 10, 5, now));
         }
         bulk.append("\r\n");
         final Request bulkRequest = new Request("POST", "/_bulk");
@@ -518,83 +582,96 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         }, 120, TimeUnit.SECONDS);
     }
 
-    public void testManyTranformsUsingHlrc() throws IOException {
-        AggregatorFactories.Builder aggs = AggregatorFactories.builder()
-            .addAggregator(AggregationBuilders.avg("review_score.avg").field("stars"))
-            .addAggregator(AggregationBuilders.max("timestamp.max").field("timestamp"));
+    @SuppressWarnings("unchecked")
+    public void testManyTransforms() throws IOException {
+        String config = transformConfig();
 
-        TransformConfig.Builder configBuilder = TransformConfig.builder()
-            .setSource(
-                SourceConfig.builder().setIndex(REVIEWS_INDEX_NAME).setQueryConfig(new QueryConfig(QueryBuilders.matchAllQuery())).build()
-            )
-            .setDest(DestConfig.builder().setIndex("dest").build())
-            .setFrequency(TimeValue.timeValueSeconds(10))
-            .setDescription("Test 10000 transform configs")
-            .setPivotConfig(
-                PivotConfig.builder()
-                    .setGroups(GroupConfig.builder().groupBy("by-user", TermsGroupSource.builder().setField("user_id").build()).build())
-                    .setAggregationConfig(new AggregationConfig(aggs))
-                    .build()
-            );
+        int numberOfTransforms = randomIntBetween(1_500, 4_000);
+        for (int i = 0; i < numberOfTransforms; ++i) {
+            String transformId = Strings.format("t-%05d", i);
+            final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, null);
+            createTransformRequest.setJsonEntity(config);
+            assertOK(client().performRequest(createTransformRequest));
+        }
 
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            int numberOfTransforms = randomIntBetween(1_500, 4_000);
-            for (int i = 0; i < numberOfTransforms; ++i) {
-                AcknowledgedResponse response = restClient.transform()
-                    .putTransform(
-                        new PutTransformRequest(configBuilder.setId(String.format(Locale.ROOT, "t-%05d", i)).build()),
-                        RequestOptions.DEFAULT
-                    );
-                assertTrue(response.isAcknowledged());
+        for (int i = 0; i < 3; ++i) {
+            int from = randomIntBetween(0, numberOfTransforms - 1_000);
+            int size = randomIntBetween(1, 1000);
+
+            var transforms = getTransforms(from, size);
+            var statsResponse = getTransformsStateAndStats(from, size);
+
+            assertEquals(numberOfTransforms, transforms.get("count"));
+            assertEquals(numberOfTransforms, statsResponse.get("count"));
+
+            var configs = (List<Map<String, Object>>) transforms.get("transforms");
+            var stats = (List<Map<String, Object>>) statsResponse.get("transforms");
+
+            assertEquals(size, configs.size());
+            assertEquals(size, stats.size());
+
+            assertThat(configs.get(0).get("id"), equalTo(Strings.format("t-%05d", from)));
+            assertThat(configs.get(configs.size() - 1).get("id"), equalTo(Strings.format("t-%05d", from + size - 1)));
+            assertThat(stats.get(0).get("id"), equalTo(Strings.format("t-%05d", from)));
+            assertThat(stats.get(stats.size() - 1).get("id"), equalTo(Strings.format("t-%05d", from + size - 1)));
+
+            if (size > 2) {
+                int randomElement = randomIntBetween(1, size - 1);
+                assertThat(configs.get(randomElement).get("id"), equalTo(Strings.format("t-%05d", from + randomElement)));
+                assertThat(stats.get(randomElement).get("id"), equalTo(Strings.format("t-%05d", from + randomElement)));
             }
+        }
 
-            for (int i = 0; i < 3; ++i) {
-                int from = randomIntBetween(0, numberOfTransforms - 1_000);
-                int size = randomIntBetween(1, 1000);
-
-                GetTransformRequest request = new GetTransformRequest("*");
-                request.setPageParams(new PageParams(from, size));
-                GetTransformStatsRequest statsRequest = new GetTransformStatsRequest("*");
-                statsRequest.setPageParams(new PageParams(from, size));
-
-                GetTransformResponse response = restClient.transform().getTransform(request, RequestOptions.DEFAULT);
-                GetTransformStatsResponse statsResponse = restClient.transform().getTransformStats(statsRequest, RequestOptions.DEFAULT);
-
-                assertEquals(numberOfTransforms, response.getCount());
-                assertEquals(numberOfTransforms, statsResponse.getCount());
-
-                List<TransformConfig> configs = response.getTransformConfigurations();
-                List<TransformStats> stats = statsResponse.getTransformsStats();
-
-                assertEquals(size, configs.size());
-                assertEquals(size, stats.size());
-
-                assertThat(configs.get(0).getId(), equalTo(String.format(Locale.ROOT, "t-%05d", from)));
-                assertThat(configs.get(configs.size() - 1).getId(), equalTo(String.format(Locale.ROOT, "t-%05d", from + size - 1)));
-                assertThat(stats.get(0).getId(), equalTo(String.format(Locale.ROOT, "t-%05d", from)));
-                assertThat(stats.get(stats.size() - 1).getId(), equalTo(String.format(Locale.ROOT, "t-%05d", from + size - 1)));
-
-                if (size > 2) {
-                    int randomElement = randomIntBetween(1, size - 1);
-                    assertThat(configs.get(randomElement).getId(), equalTo(String.format(Locale.ROOT, "t-%05d", from + randomElement)));
-                    assertThat(stats.get(randomElement).getId(), equalTo(String.format(Locale.ROOT, "t-%05d", from + randomElement)));
-                }
-            }
-
-            for (int i = 0; i < numberOfTransforms; ++i) {
-                AcknowledgedResponse response = restClient.transform()
-                    .deleteTransform(new DeleteTransformRequest(String.format(Locale.ROOT, "t-%05d", i)), RequestOptions.DEFAULT);
-                assertTrue(response.isAcknowledged());
-            }
+        for (int i = 0; i < numberOfTransforms; ++i) {
+            deleteTransform(Strings.format("t-%05d", i));
         }
     }
 
-    protected static class TestRestHighLevelClient extends RestHighLevelClient {
-        private static final List<NamedXContentRegistry.Entry> X_CONTENT_ENTRIES = new SearchModule(Settings.EMPTY, emptyList())
-            .getNamedXContents();
+    private static String transformConfig() {
+        return """
+            {
+              "description": "Test 10000 transform configs",
+              "source": {
+                "index":""" + "\"" + REVIEWS_INDEX_NAME + "\"" + """
+                  },
+                  "pivot": {
+                    "group_by": {
+                      "by-user": {
+                        "terms": {
+                          "field": "user_id"
+                        }
+                      }
+                    },
+                    "aggregations": {
+                      "review_score.avg": {
+                        "avg": {
+                          "field": "stars"
+                        }
+                      },
+                      "timestamp.max": {
+                        "max": {
+                          "field": "timestamp"
+                        }
+                      }
+                    }
+                  },
+                  "dest": {
+                    "index":"dest"
+                  },
+                  "frequency": "10s"
+                }
+            """;
+    }
 
-        TestRestHighLevelClient() {
-            super(client(), restClient -> {}, X_CONTENT_ENTRIES);
+    private Request createRequestWithAuthAndTimeout(String method, String endpoint, String authHeader, String timeout) {
+        Request request = createRequestWithAuth(method, endpoint, authHeader);
+        if (timeout != null) {
+            request.addParameter("timeout", timeout);
         }
+        return request;
+    }
+
+    private static String randomTimeout() {
+        return randomFrom((String) null, "5s", "30s", "1m");
     }
 }

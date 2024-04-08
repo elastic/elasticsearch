@@ -17,6 +17,11 @@ public class DeleteEnrichPolicyActionRequestTests extends AbstractWireSerializin
     }
 
     @Override
+    protected DeleteEnrichPolicyAction.Request mutateInstance(DeleteEnrichPolicyAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<DeleteEnrichPolicyAction.Request> instanceReader() {
         return DeleteEnrichPolicyAction.Request::new;
     }

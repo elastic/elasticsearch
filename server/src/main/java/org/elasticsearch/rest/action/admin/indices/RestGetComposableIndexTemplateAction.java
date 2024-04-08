@@ -13,7 +13,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -25,6 +26,7 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestGetComposableIndexTemplateAction extends BaseRestHandler {
 
     @Override
@@ -47,16 +49,13 @@ public class RestGetComposableIndexTemplateAction extends BaseRestHandler {
 
         getRequest.local(request.paramAsBoolean("local", getRequest.local()));
         getRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRequest.masterNodeTimeout()));
-
+        getRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         final boolean implicitAll = getRequest.name() == null;
 
-        return channel -> client.execute(GetComposableIndexTemplateAction.INSTANCE, getRequest, new RestToXContentListener<>(channel) {
-            @Override
-            protected RestStatus getStatus(final GetComposableIndexTemplateAction.Response response) {
-                final boolean templateExists = response.indexTemplates().isEmpty() == false;
-                return (templateExists || implicitAll) ? OK : NOT_FOUND;
-            }
-        });
+        return channel -> client.execute(GetComposableIndexTemplateAction.INSTANCE, getRequest, new RestToXContentListener<>(channel, r -> {
+            final boolean templateExists = r.indexTemplates().isEmpty() == false;
+            return (templateExists || implicitAll) ? OK : NOT_FOUND;
+        }));
     }
 
     @Override

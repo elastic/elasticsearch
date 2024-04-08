@@ -6,20 +6,12 @@
  * Side Public License, v 1.
  */
 
-import org.apache.tools.ant.filters.ReplaceTokens
-import org.apache.tools.ant.taskdefs.condition.Os
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.internal.info.BuildParams
 
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.Paths
-
-import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
-
-apply plugin: 'elasticsearch.test.fixtures'
-apply plugin: 'elasticsearch.rest-resources'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
   description 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'
@@ -27,16 +19,12 @@ esplugin {
 }
 
 versions << [
-  'hadoop': '3.3.1'
+  'hadoop': '3.3.3'
 ]
 
-final int minTestedHadoopVersion = 2;
-final int maxTestedHadoopVersion = 3;
-
-testFixtures.useFixture ":test:fixtures:krb5kdc-fixture", "hdfs"
-
-for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoopVersion; hadoopVersion++) {
-  configurations.create("hdfs" + hadoopVersion + "Fixture")
+configurations {
+  hdfsFixture2
+  hdfsFixture3
 }
 
 dependencies {
@@ -50,30 +38,37 @@ dependencies {
   }
   runtimeOnly "org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}"
   implementation "org.apache.hadoop:hadoop-hdfs:${versions.hadoop}"
-  api 'org.apache.htrace:htrace-core4:4.0.1-incubating'
-  runtimeOnly 'com.google.guava:guava:27.1-jre'
-  api 'com.google.protobuf:protobuf-java:2.5.0'
-  api 'commons-logging:commons-logging:1.1.3'
+  api "com.google.protobuf:protobuf-java:${versions.protobuf}"
+  api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api 'commons-cli:commons-cli:1.2'
   api "commons-codec:commons-codec:${versions.commonscodec}"
-  api 'commons-collections:commons-collections:3.2.2'
-  api 'org.apache.commons:commons-configuration2:2.7'
-  api 'commons-io:commons-io:2.4'
-  api 'commons-lang:commons-lang:2.6'
-  api 'javax.servlet:servlet-api:2.5'
+  api 'commons-io:commons-io:2.8.0'
+  api 'org.apache.commons:commons-lang3:3.11'
+  api 'javax.servlet:javax.servlet-api:3.1.0'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
-  api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
-  // Set the keytab files in the classpath so that we can access them from test code without the security manager
-  // freaking out.
-  if (isEclipse == false) {
-    testRuntimeOnly files(project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab").parent) {
-      builtBy ":test:fixtures:krb5kdc-fixture:preProcessFixture"
-    }
-  }
-}
-for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoopVersion; hadoopVersion++) {
-  dependencies.add("hdfs" + hadoopVersion + "Fixture", project(':test:fixtures:hdfs' + hadoopVersion + '-fixture'))
+  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
+  //  https://github.com/elastic/elasticsearch/issues/93714
+  //  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}")
+
+  testImplementation(project(':test:fixtures:hdfs-fixture'))
+  javaRestTestCompileOnly(project(':test:fixtures:hdfs-fixture'))
+
+  javaRestTestImplementation project(':test:fixtures:krb5kdc-fixture')
+  javaRestTestImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  javaRestTestRuntimeOnly "com.google.guava:guava:16.0.1"
+  javaRestTestRuntimeOnly "commons-cli:commons-cli:1.2"
+  javaRestTestRuntimeOnly "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+
+  yamlRestTestCompileOnly(project(':test:fixtures:hdfs-fixture'))
+  yamlRestTestImplementation project(':test:fixtures:krb5kdc-fixture')
+  yamlRestTestImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  yamlRestTestRuntimeOnly "com.google.guava:guava:16.0.1"
+  yamlRestTestRuntimeOnly "commons-cli:commons-cli:1.2"
+  yamlRestTestRuntimeOnly "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+
+  hdfsFixture2 project(path: ':test:fixtures:hdfs-fixture', configuration: 'shadowedHdfs2')
+  hdfsFixture3 project(path: ':test:fixtures:hdfs-fixture', configuration: 'shadow')
 }
 
 restResources {
@@ -82,288 +77,57 @@ restResources {
   }
 }
 
-normalization {
-  runtimeClasspath {
-    // ignore generated keytab files for the purposes of build avoidance
-    ignore '*.keytab'
-    // ignore fixture ports file which is on the classpath primarily to pacify the security manager
-    ignore 'ports'
-  }
-}
-
 tasks.named("dependencyLicenses").configure {
   mapping from: /hadoop-.*/, to: 'hadoop'
 }
 
-tasks.named("integTest").configure {
-  dependsOn(project.tasks.named("bundlePlugin"))
-  enabled = false
+tasks.withType(RestIntegTestTask).configureEach {
+  usesDefaultDistribution()
+  BuildParams.withFipsEnabledOnly(it)
+  jvmArgs '--add-exports', 'java.security.jgss/sun.security.krb5=ALL-UNNAMED'
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
-  plugin(project.tasks.bundlePlugin.archiveFile)
+tasks.named('javaRestTest').configure {
+  classpath = sourceSets.javaRestTest.runtimeClasspath + configurations.hdfsFixture3
 }
 
-String realm = "BUILD.ELASTIC.CO"
-String krb5conf = project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("hdfs")
+tasks.register("javaRestTestHdfs2", RestIntegTestTask) {
+  description = "Runs rest tests against an elasticsearch cluster with HDFS version 2"
+  testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+  classpath = sourceSets.javaRestTest.runtimeClasspath + configurations.hdfsFixture2
+}
 
-// Create HDFS File System Testing Fixtures for HA/Secure combinations
-for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoopVersion; hadoopVersion++) {
-  for (String fixtureName : ['hdfs' + hadoopVersion + 'Fixture', 'haHdfs' + hadoopVersion + 'Fixture', 'secureHdfs' + hadoopVersion + 'Fixture', 'secureHaHdfs' + hadoopVersion + 'Fixture']) {
-    final int hadoopVer = hadoopVersion
-    project.tasks.register(fixtureName, org.elasticsearch.gradle.internal.test.AntFixture) {
-      executable = "${BuildParams.runtimeJavaHome}/bin/java"
-      dependsOn project.configurations.getByName("hdfs" + hadoopVer + "Fixture"), project(':test:fixtures:krb5kdc-fixture').tasks.postProcessFixture
-      env 'CLASSPATH', "${-> project.configurations.getByName("hdfs" + hadoopVer + "Fixture").asPath}"
+tasks.named('yamlRestTest').configure {
+  classpath = sourceSets.yamlRestTest.runtimeClasspath + configurations.hdfsFixture2
+}
 
-      maxWaitInSeconds 60
-      onlyIf { BuildParams.inFipsJvm == false }
-      waitCondition = { fixture, ant ->
-        // the hdfs.MiniHDFS fixture writes the ports file when
-        // it's ready, so we can just wait for the file to exist
-        return fixture.portsFile.exists()
-      }
-      final List<String> miniHDFSArgs = []
+tasks.register("yamlRestTestHdfs2", RestIntegTestTask) {
+  description = "Runs yaml rest tests against an elasticsearch cluster with HDFS version 2"
+  testClassesDirs = sourceSets.yamlRestTest.output.classesDirs
+  classpath = sourceSets.yamlRestTest.runtimeClasspath + configurations.hdfsFixture2
+}
 
-      // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
-      if (name.startsWith('secure')) {
-        miniHDFSArgs.addAll(["--add-exports", "java.security.jgss/sun.security.krb5=ALL-UNNAMED"])
-        miniHDFSArgs.add("-Djava.security.krb5.conf=${krb5conf}")
-        miniHDFSArgs.add("-Dhdfs.config.port=" + getSecureNamenodePortForVersion(hadoopVer))
-      } else {
-        miniHDFSArgs.add("-Dhdfs.config.port=" + getNonSecureNamenodePortForVersion(hadoopVer))
-      }
-      // If it's an HA fixture, set a nameservice to use in the JVM options
-      if (name.startsWith('haHdfs') || name.startsWith('secureHaHdfs')) {
-        miniHDFSArgs.add("-Dha-nameservice=ha-hdfs")
-      }
-
-      // Common options
-      miniHDFSArgs.add('hdfs.MiniHDFS')
-      miniHDFSArgs.add(baseDir)
-
-      // If it's a secure fixture, then set the principal name and keytab locations to use for auth.
-      if (name.startsWith('secure')) {
-        miniHDFSArgs.add("hdfs/hdfs.build.elastic.co@${realm}")
-        miniHDFSArgs.add(
-          project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab")
-        )
-      }
-
-      args miniHDFSArgs.toArray()
-    }
+tasks.named("test").configure {
+  onlyIf("Not running on windows") {
+    OS.current().equals(OS.WINDOWS) == false
   }
 }
 
-def getSecureNamenodePortForVersion(hadoopVersion) {
-  return 10002 - (2 * hadoopVersion)
-}
-
-def getNonSecureNamenodePortForVersion(hadoopVersion) {
-  return 10003 - (2 * hadoopVersion)
-}
-
-Set disabledIntegTestTaskNames = []
-
-for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoopVersion; hadoopVersion++) {
-  final int hadoopVer = hadoopVersion
-  for (String integTestTaskName : ['integTest' + hadoopVersion, 'integTestHa' + hadoopVersion, 'integTestSecure' + hadoopVersion,
-                                   'integTestSecureHa' + hadoopVersion]) {
-    def testTask = tasks.register(integTestTaskName, RestIntegTestTask) {
-      description = "Runs rest tests against an elasticsearch cluster with HDFS" + hadoopVer
-      dependsOn("bundlePlugin")
-
-      if (disabledIntegTestTaskNames.contains(name)) {
-        enabled = false;
-      }
-
-      if (name.contains("Secure")) {
-        if (name.contains("Ha")) {
-          dependsOn "secureHaHdfs" + hadoopVer + "Fixture"
-        } else {
-          dependsOn "secureHdfs" + hadoopVer + "Fixture"
-        }
-      }
-
-      onlyIf { BuildParams.inFipsJvm == false }
-      if (name.contains("Ha")) {
-        Path portsFile
-        File portsFileDir = file("${workingDir}/hdfs" + hadoopVer + "Fixture")
-        if (name.contains("Secure")) {
-          portsFile = buildDir.toPath()
-            .resolve("fixtures")
-            .resolve("secureHaHdfs" + hadoopVer + "Fixture")
-            .resolve("ports")
-        } else {
-          portsFile = buildDir.toPath()
-            .resolve("fixtures")
-            .resolve("haHdfs" + hadoopVer + "Fixture")
-            .resolve("ports")
-        }
-        nonInputProperties.systemProperty "test.hdfs-fixture.ports", file("$portsFileDir/ports")
-        classpath += files(portsFileDir)
-        // Copy ports file to separate location which is placed on the test classpath
-        doFirst {
-          mkdir(portsFileDir)
-          copy {
-            from portsFile
-            into portsFileDir
-          }
-        }
-      }
-
-      if (name.contains("Secure")) {
-        if (disabledIntegTestTaskNames.contains(name) == false) {
-          nonInputProperties.systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"
-          nonInputProperties.systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.elastic.co@${realm}"
-          jvmArgs "-Djava.security.krb5.conf=${krb5conf}"
-          nonInputProperties.systemProperty(
-            "test.krb5.keytab.hdfs",
-            project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab")
-          )
-        }
-      }
-    }
-
-    testClusters.matching { it.name == testTask.name }.configureEach {
-      plugin(bundlePlugin.archiveFile)
-      if (integTestTaskName.contains("Secure")) {
-        systemProperty "java.security.krb5.conf", krb5conf
-        extraConfigFile(
-          "repository-hdfs/krb5.keytab",
-          file("${project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "elasticsearch.keytab")}"), IGNORE_VALUE
-        )
-      }
-    }
-  }
-
-  def processHadoopTestResources = tasks.register("processHadoop" + hadoopVer + "TestResources", Copy)
-  processHadoopTestResources.configure {
-    Map<String, Object> expansions = [
-      'hdfs_port': getNonSecureNamenodePortForVersion(hadoopVer),
-      'secure_hdfs_port': getSecureNamenodePortForVersion(hadoopVer),
-    ]
-    inputs.properties(expansions)
-    filter("tokens" : expansions.collectEntries {k, v -> [k, v
-      .toString()]} /* must be a map of strings */, ReplaceTokens.class)
-    it.into("build/resources/test/rest-api-spec/test")
-    it.into("hdfs_repository_" + hadoopVer) {
-      from "src/test/resources/rest-api-spec/test/hdfs_repository"
-    }
-    it.into("secure_hdfs_repository_" + hadoopVer) {
-      from "src/test/resources/rest-api-spec/test/secure_hdfs_repository"
-    }
-  }
-  tasks.named("processTestResources").configure {
-    dependsOn (processHadoopTestResources)
-  }
-}
-
-// Determine HDFS Fixture compatibility for the current build environment.
-boolean fixtureSupported = false
-if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-  // hdfs fixture will not start without hadoop native libraries on windows
-  String nativePath = System.getenv("HADOOP_HOME")
-  if (nativePath != null) {
-    Path path = Paths.get(nativePath);
-    if (Files.isDirectory(path) &&
-      Files.exists(path.resolve("bin").resolve("winutils.exe")) &&
-      Files.exists(path.resolve("bin").resolve("hadoop.dll")) &&
-      Files.exists(path.resolve("bin").resolve("hdfs.dll"))) {
-      fixtureSupported = true
-    } else {
-      throw new IllegalStateException("HADOOP_HOME: ${path} is invalid, does not contain hadoop native libraries in \$HADOOP_HOME/bin");
-    }
-  }
-} else {
-  fixtureSupported = true
-}
-
-boolean legalPath = rootProject.rootDir.toString().contains(" ") == false
-if (legalPath == false) {
-  fixtureSupported = false
-}
-
-for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoopVersion; hadoopVersion++) {
-  final int hadoopVer = hadoopVersion
-  // Always ignore HA integration tests in the normal integration test runner, they are included below as
-  // part of their own HA-specific integration test tasks.
-  tasks.named("integTest" + hadoopVer).configure {
-    onlyIf { BuildParams.inFipsJvm == false }
-    exclude('**/Ha*TestSuiteIT.class')
-  }
-
-  if (fixtureSupported) {
-    // Check depends on the HA test. Already depends on the standard test.
-    tasks.named("check").configure {
-      dependsOn("integTestHa" + hadoopVer)
-    }
-
-    // Both standard and HA tests depend on their respective HDFS fixtures
-    tasks.named("integTest" + hadoopVer).configure {
-      dependsOn "hdfs" + hadoopVer + "Fixture"
-
-      // The normal test runner only runs the standard hdfs rest tests
-      systemProperty 'tests.rest.suite', 'hdfs_repository_' + hadoopVer
-    }
-    tasks.named("integTestHa" + hadoopVer).configure {
-      dependsOn "haHdfs" + hadoopVer + "Fixture"
-      // Only include the HA integration tests for the HA test task
-      setIncludes(['**/Ha*TestSuiteIT.class'])
-
-    }
-
-  } else {
-    if (legalPath) {
-      logger.warn("hdfs" + hadoopVer + "Fixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
-    } else {
-      logger.warn("hdfs" + hadoopVer + "Fixture unsupported since there are spaces in the path: '" + rootProject.rootDir.toString() + "'")
-    }
-
-    // The normal integration test runner will just test that the plugin loads
-    tasks.named("integTest" + hadoopVer).configure {
-      systemProperty 'tests.rest.suite', 'hdfs_repository_' + hadoopVer + '/10_basic'
-    }
-    // HA fixture is unsupported. Don't run them.
-    tasks.named("integTestHa" + hadoopVer).configure {
-      setEnabled(false)
-    }
-  }
-
-  tasks.named("check").configure {
-    dependsOn("integTest" + hadoopVer, "integTestSecure" + hadoopVer, "integTestSecureHa" + hadoopVer)
-  }
-
-// Run just the secure hdfs rest test suite.
-  tasks.named("integTestSecure" + hadoopVer).configure {
-    systemProperty 'tests.rest.suite', 'secure_hdfs_repository_' + hadoopVer
-    // Ignore HA integration Tests. They are included below as part of integTestSecureHa test runner.
-    exclude('**/Ha*TestSuiteIT.class')
-  }
-// Only include the HA integration tests for the HA test task
-  tasks.named("integTestSecureHa" + hadoopVer).configure {
-    setIncludes(['**/Ha*TestSuiteIT.class'])
-  }
+tasks.named("check").configure {
+  dependsOn(tasks.withType(RestIntegTestTask))
 }
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses()
   ignoreViolations(
     // internal java api: sun.misc.Unsafe
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-    'com.google.common.cache.Striped64',
-    'com.google.common.cache.Striped64$1',
-    'com.google.common.cache.Striped64$Cell',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
-    'com.google.common.hash.Striped64',
-    'com.google.common.hash.Striped64$1',
-    'com.google.common.hash.Striped64$Cell',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'com.google.protobuf.MessageSchema',
+    'com.google.protobuf.UnsafeUtil',
+    'com.google.protobuf.UnsafeUtil$1',
+    'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$MemoryAccessor',
     'org.apache.hadoop.hdfs.server.datanode.checker.AbstractFuture$UnsafeAtomicHelper',
     'org.apache.hadoop.hdfs.server.datanode.checker.AbstractFuture$UnsafeAtomicHelper$1',
     'org.apache.hadoop.shaded.com.google.common.cache.Striped64',
@@ -407,10 +171,6 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
     'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
     'org.apache.hadoop.shaded.org.xbill.DNS.spi.DNSJavaNameServiceDescriptor',
-    'org.apache.hadoop.shaded.org.xerial.snappy.pure.PureJavaSnappy',
-    'org.apache.hadoop.shaded.org.xerial.snappy.pure.SnappyRawCompressor',
-    'org.apache.hadoop.shaded.org.xerial.snappy.pure.SnappyRawDecompressor',
-    'org.apache.hadoop.shaded.org.xerial.snappy.pure.UnsafeUtil',
     'org.apache.hadoop.thirdparty.com.google.common.cache.Striped64',
     'org.apache.hadoop.thirdparty.com.google.common.cache.Striped64$1',
     'org.apache.hadoop.thirdparty.com.google.common.cache.Striped64$Cell',

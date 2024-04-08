@@ -10,6 +10,8 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -225,5 +227,10 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
         InnerHitContextBuilder.extractInnerHits(positiveQuery, innerHits);
         InnerHitContextBuilder.extractInnerHits(negativeQuery, innerHits);
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

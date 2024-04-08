@@ -42,6 +42,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
+import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
 import org.elasticsearch.rest.RestStatus;
@@ -58,7 +59,9 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.Queue;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -101,7 +104,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             }
 
             @Override
-            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String name) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor name) {
                 command.run();
                 return null;
             }
@@ -594,15 +597,25 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
                 responseQueue::add,
                 failureQueue::add,
                 client,
-                new BytesArray("{}"),
+                new RemoteInfo(
+                    "http",
+                    randomAlphaOfLength(8),
+                    randomIntBetween(4000, 9000),
+                    null,
+                    new BytesArray("{}"),
+                    null,
+                    null,
+                    Map.of(),
+                    TimeValue.timeValueSeconds(randomIntBetween(5, 30)),
+                    TimeValue.timeValueSeconds(randomIntBetween(5, 30))
+                ),
                 RemoteScrollableHitSourceTests.this.searchRequest
             );
         }
     }
 
     private <T> RejectAwareActionListener<T> wrapAsListener(Consumer<T> consumer) {
-        Consumer<Exception> throwing = e -> { throw new AssertionError(e); };
-        return RejectAwareActionListener.wrap(consumer::accept, throwing, throwing);
+        return RejectAwareActionListener.wrap(consumer::accept, ESTestCase::fail, ESTestCase::fail);
     }
 
     @SuppressWarnings("unchecked")

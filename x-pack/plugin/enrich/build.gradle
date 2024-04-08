@@ -6,7 +6,9 @@ esplugin {
   classname 'org.elasticsearch.xpack.enrich.EnrichPlugin'
   extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-enrich'
+base {
+  archivesName = 'x-pack-enrich'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
@@ -14,8 +16,9 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: ':modules:ingest-common')
   testImplementation project(path: ':modules:lang-mustache')
+  testImplementation project(path: ':modules:legacy-geo')
   testImplementation project(xpackModule('spatial'))
   testImplementation(testArtifact(project(xpackModule('monitoring'))))
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)

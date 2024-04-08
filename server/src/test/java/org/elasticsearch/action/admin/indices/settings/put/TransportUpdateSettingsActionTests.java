@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.settings.put;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -21,16 +20,18 @@ import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -43,28 +44,19 @@ public class TransportUpdateSettingsActionTests extends ESTestCase {
     private static final ClusterState CLUSTER_STATE = ClusterState.builder(new ClusterName("test"))
         .metadata(
             Metadata.builder()
-                .put(
-                    IndexMetadata.builder(".my-system")
-                        .system(true)
-                        .settings(
-                            Settings.builder()
-                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                                .build()
-                        )
-                        .build(),
-                    true
-                )
+                .put(IndexMetadata.builder(".my-system").system(true).settings(indexSettings(IndexVersion.current(), 1, 0)).build(), true)
                 .build()
         )
         .build();
 
     private static final String SYSTEM_INDEX_NAME = ".my-system";
     private static final SystemIndices SYSTEM_INDICES = new SystemIndices(
-        Map.of(
-            "test-feature",
-            new SystemIndices.Feature("test-feature", "a test feature", List.of(new SystemIndexDescriptor(SYSTEM_INDEX_NAME + "*", "test")))
+        List.of(
+            new SystemIndices.Feature(
+                "test-feature",
+                "a test feature",
+                List.of(SystemIndexDescriptorUtils.createUnmanaged(SYSTEM_INDEX_NAME + "*", "test"))
+            )
         )
     );
 
@@ -77,10 +69,13 @@ public class TransportUpdateSettingsActionTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, SYSTEM_INDICES);
         MetadataUpdateSettingsService metadataUpdateSettingsService = mock(MetadataUpdateSettingsService.class);
+
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         this.action = new TransportUpdateSettingsAction(
-            mock(TransportService.class),
+            transportService,
             mock(ClusterService.class),
-            null,
+            threadPool,
             metadataUpdateSettingsService,
             mock(ActionFilters.class),
             indexNameExpressionResolver,

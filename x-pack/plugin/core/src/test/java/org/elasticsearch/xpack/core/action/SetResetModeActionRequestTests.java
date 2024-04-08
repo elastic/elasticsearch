@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
-public class SetResetModeActionRequestTests extends AbstractSerializingTestCase<SetResetModeActionRequest> {
+public class SetResetModeActionRequestTests extends AbstractXContentSerializingTestCase<SetResetModeActionRequest> {
 
     @Override
     protected SetResetModeActionRequest createTestInstance() {
@@ -19,8 +19,8 @@ public class SetResetModeActionRequestTests extends AbstractSerializingTestCase<
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected SetResetModeActionRequest mutateInstance(SetResetModeActionRequest instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

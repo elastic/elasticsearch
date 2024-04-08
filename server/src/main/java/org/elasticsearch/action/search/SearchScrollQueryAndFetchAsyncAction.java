@@ -29,13 +29,12 @@ final class SearchScrollQueryAndFetchAsyncAction extends SearchScrollAsyncAction
         Logger logger,
         ClusterService clusterService,
         SearchTransportService searchTransportService,
-        SearchPhaseController searchPhaseController,
         SearchScrollRequest request,
         SearchTask task,
         ParsedScrollId scrollId,
         ActionListener<SearchResponse> listener
     ) {
-        super(scrollId, logger, clusterService.state().nodes(), listener, searchPhaseController, request, searchTransportService);
+        super(scrollId, logger, clusterService.state().nodes(), listener, request, searchTransportService);
         this.task = task;
         this.queryFetchResults = new AtomicArray<>(scrollId.getContext().length);
     }
@@ -51,7 +50,7 @@ final class SearchScrollQueryAndFetchAsyncAction extends SearchScrollAsyncAction
 
     @Override
     protected SearchPhase moveToNextPhase(BiFunction<String, String, DiscoveryNode> clusterNodeLookup) {
-        return sendResponsePhase(searchPhaseController.reducedScrollQueryPhase(queryFetchResults.asList()), queryFetchResults);
+        return sendResponsePhase(SearchPhaseController.reducedScrollQueryPhase(queryFetchResults.asList()), queryFetchResults);
     }
 
     @Override

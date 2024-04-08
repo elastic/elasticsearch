@@ -8,23 +8,23 @@
 
 package org.elasticsearch.search.slice;
 
-import com.carrotsearch.hppc.BitMixer;
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.QueryUtils;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.search.QueryUtils;
 import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.hppc.BitMixer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.test.ESTestCase;
 
@@ -81,13 +81,14 @@ public class DocValuesSliceQueryTests extends ESTestCase {
             searcher.search(query1, new Collector() {
                 @Override
                 public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+                    StoredFields storedFields = context.reader().storedFields();
                     return new LeafCollector() {
                         @Override
                         public void setScorer(Scorable scorer) throws IOException {}
 
                         @Override
                         public void collect(int doc) throws IOException {
-                            Document d = context.reader().document(doc, Collections.singleton("uuid"));
+                            Document d = storedFields.document(doc, Collections.singleton("uuid"));
                             String uuid = d.get("uuid");
                             assertThat(keys.contains(uuid), equalTo(true));
                             keys.remove(uuid);

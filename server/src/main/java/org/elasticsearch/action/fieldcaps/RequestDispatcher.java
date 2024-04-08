@@ -174,10 +174,13 @@ final class RequestDispatcher {
         final FieldCapabilitiesNodeRequest nodeRequest = new FieldCapabilitiesNodeRequest(
             shardIds,
             fieldCapsRequest.fields(),
+            fieldCapsRequest.filters(),
+            fieldCapsRequest.types(),
             originalIndices,
             fieldCapsRequest.indexFilter(),
             nowInMillis,
-            fieldCapsRequest.runtimeFields()
+            fieldCapsRequest.runtimeFields(),
+            fieldCapsRequest.includeEmptyFields()
         );
         transportService.sendChildRequest(
             node,
@@ -185,7 +188,7 @@ final class RequestDispatcher {
             nodeRequest,
             parentTask,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener, FieldCapabilitiesNodeResponse::new)
+            new ActionListenerResponseHandler<>(listener, FieldCapabilitiesNodeResponse::new, executor)
         );
     }
 
@@ -201,7 +204,10 @@ final class RequestDispatcher {
     private void onRequestResponse(List<ShardId> shardIds, FieldCapabilitiesNodeResponse nodeResponse) {
         for (FieldCapabilitiesIndexResponse indexResponse : nodeResponse.getIndexResponses()) {
             if (indexResponse.canMatch()) {
-                if (indexSelectors.remove(indexResponse.getIndexName()) != null) {
+                if (fieldCapsRequest.includeEmptyFields() == false) {
+                    // we accept all the responses because they may vary from node to node if we exclude empty fields
+                    onIndexResponse.accept(indexResponse);
+                } else if (indexSelectors.remove(indexResponse.getIndexName()) != null) {
                     onIndexResponse.accept(indexResponse);
                 }
             }

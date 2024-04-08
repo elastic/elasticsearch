@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.junit.After;
@@ -24,7 +23,7 @@ import java.util.concurrent.Future;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class SqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
 
@@ -40,11 +39,7 @@ public class SqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
 
     public void testCancellation() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date")
-                .get()
+            indicesAdmin().prepareCreate("test").setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date")
         );
         createIndex("idx_unmapped");
 
@@ -55,23 +50,20 @@ public class SqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             int fieldValue = randomIntBetween(0, 10);
             builders.add(
-                client().prepareIndex("test")
-                    .setSource(
-                        jsonBuilder().startObject()
-                            .field("val", fieldValue)
-                            .field("event_type", "my_event")
-                            .field("@timestamp", "2020-04-09T12:35:48Z")
-                            .endObject()
-                    )
+                prepareIndex("test").setSource(
+                    jsonBuilder().startObject()
+                        .field("val", fieldValue)
+                        .field("event_type", "my_event")
+                        .field("@timestamp", "2020-04-09T12:35:48Z")
+                        .endObject()
+                )
             );
         }
 
         indexRandom(true, builders);
         boolean cancelDuringSearch = randomBoolean();
         List<SearchBlockPlugin> plugins = initBlockFactory(cancelDuringSearch, cancelDuringSearch == false);
-        SqlQueryRequest request = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(
-            "SELECT event_type FROM test WHERE val=1"
-        ).request();
+        SqlQueryRequest request = new SqlQueryRequestBuilder(client()).query("SELECT event_type FROM test WHERE val=1").request();
         String id = randomAlphaOfLength(10);
         logger.trace("Preparing search");
         // We might perform field caps on the same thread if it is local client, so we cannot use the standard mechanism
@@ -91,18 +83,13 @@ public class SqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
 
         disableBlocks(plugins);
         Exception exception = expectThrows(Exception.class, future::get);
-        Throwable inner = ExceptionsHelper.unwrap(exception, SearchPhaseExecutionException.class);
+        assertNotNull(ExceptionsHelper.unwrap(exception, TaskCancelledException.class));
         if (cancelDuringSearch) {
             // Make sure we cancelled inside search
-            assertNotNull(inner);
-            assertThat(inner, instanceOf(SearchPhaseExecutionException.class));
-            assertThat(inner.getCause(), instanceOf(TaskCancelledException.class));
+            assertThat(getNumberOfContexts(plugins), greaterThan(0));
         } else {
             // Make sure we were not cancelled inside search
-            assertNull(inner);
             assertThat(getNumberOfContexts(plugins), equalTo(0));
-            Throwable cancellationException = ExceptionsHelper.unwrap(exception, TaskCancelledException.class);
-            assertNotNull(cancellationException);
         }
     }
 }

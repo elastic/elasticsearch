@@ -8,11 +8,11 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -47,31 +47,26 @@ final class GeoBoundsAggregator extends MetricsAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
-        // TODO: stop expecting nulls here
-        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.GeoPoint) valuesSourceConfig.getValuesSource() : null;
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = (ValuesSource.GeoPoint) valuesSourceConfig.getValuesSource();
         this.wrapLongitude = wrapLongitude;
-        if (valuesSource != null) {
-            tops = bigArrays().newDoubleArray(1, false);
-            tops.fill(0, tops.size(), Double.NEGATIVE_INFINITY);
-            bottoms = bigArrays().newDoubleArray(1, false);
-            bottoms.fill(0, bottoms.size(), Double.POSITIVE_INFINITY);
-            posLefts = bigArrays().newDoubleArray(1, false);
-            posLefts.fill(0, posLefts.size(), Double.POSITIVE_INFINITY);
-            posRights = bigArrays().newDoubleArray(1, false);
-            posRights.fill(0, posRights.size(), Double.NEGATIVE_INFINITY);
-            negLefts = bigArrays().newDoubleArray(1, false);
-            negLefts.fill(0, negLefts.size(), Double.POSITIVE_INFINITY);
-            negRights = bigArrays().newDoubleArray(1, false);
-            negRights.fill(0, negRights.size(), Double.NEGATIVE_INFINITY);
-        }
+        tops = bigArrays().newDoubleArray(1, false);
+        tops.fill(0, tops.size(), Double.NEGATIVE_INFINITY);
+        bottoms = bigArrays().newDoubleArray(1, false);
+        bottoms.fill(0, bottoms.size(), Double.POSITIVE_INFINITY);
+        posLefts = bigArrays().newDoubleArray(1, false);
+        posLefts.fill(0, posLefts.size(), Double.POSITIVE_INFINITY);
+        posRights = bigArrays().newDoubleArray(1, false);
+        posRights.fill(0, posRights.size(), Double.NEGATIVE_INFINITY);
+        negLefts = bigArrays().newDoubleArray(1, false);
+        negLefts.fill(0, negLefts.size(), Double.POSITIVE_INFINITY);
+        negRights = bigArrays().newDoubleArray(1, false);
+        negRights.fill(0, negRights.size(), Double.NEGATIVE_INFINITY);
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
-        final MultiGeoPointValues values = valuesSource.geoPointValues(ctx);
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) {
+        final MultiGeoPointValues values = valuesSource.geoPointValues(aggCtx.getLeafReaderContext());
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -134,7 +129,7 @@ final class GeoBoundsAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        if (valuesSource == null) {
+        if (owningBucketOrdinal >= tops.size()) {
             return buildEmptyAggregation();
         }
         double top = tops.get(owningBucketOrdinal);
@@ -148,17 +143,7 @@ final class GeoBoundsAggregator extends MetricsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalGeoBounds(
-            name,
-            Double.NEGATIVE_INFINITY,
-            Double.POSITIVE_INFINITY,
-            Double.POSITIVE_INFINITY,
-            Double.NEGATIVE_INFINITY,
-            Double.POSITIVE_INFINITY,
-            Double.NEGATIVE_INFINITY,
-            wrapLongitude,
-            metadata()
-        );
+        return InternalGeoBounds.empty(name, wrapLongitude, metadata());
     }
 
     @Override

@@ -9,7 +9,7 @@ package org.elasticsearch.discovery;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 
-import org.apache.lucene.mockfile.FilterFileSystemProvider;
+import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -111,7 +111,7 @@ public class DiskDisruptionIT extends AbstractDisruptionTestCase {
         final Thread globalCheckpointSampler = new Thread(() -> {
             while (stopGlobalCheckpointFetcher.get() == false) {
                 try {
-                    for (ShardStats shardStats : client().admin().indices().prepareStats("test").clear().get().getShards()) {
+                    for (ShardStats shardStats : indicesAdmin().prepareStats("test").clear().get().getShards()) {
                         final int shardId = shardStats.getShardRouting().id();
                         final long globalCheckpoint = shardStats.getSeqNoStats().getGlobalCheckpoint();
                         shardToGcp.compute(shardId, (i, v) -> Math.max(v, globalCheckpoint));
@@ -166,7 +166,7 @@ public class DiskDisruptionIT extends AbstractDisruptionTestCase {
         logger.info("waiting for green");
         ensureGreen("test");
 
-        for (ShardStats shardStats : client().admin().indices().prepareStats("test").clear().get().getShards()) {
+        for (ShardStats shardStats : indicesAdmin().prepareStats("test").clear().get().getShards()) {
             final int shardId = shardStats.getShardRouting().id();
             final long maxSeqNo = shardStats.getSeqNoStats().getMaxSeqNo();
             if (shardStats.getShardRouting().active()) {

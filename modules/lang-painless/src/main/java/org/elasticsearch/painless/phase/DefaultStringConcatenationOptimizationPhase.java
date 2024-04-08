@@ -20,9 +20,9 @@ public class DefaultStringConcatenationOptimizationPhase extends IRTreeBaseVisit
         while (i < irStringConcatenationNode.getArgumentNodes().size()) {
             ExpressionNode irArgumentNode = irStringConcatenationNode.getArgumentNodes().get(i);
 
-            if (irArgumentNode instanceof StringConcatenationNode) {
+            if (irArgumentNode instanceof StringConcatenationNode scn) {
                 irStringConcatenationNode.getArgumentNodes().remove(i);
-                irStringConcatenationNode.getArgumentNodes().addAll(i, ((StringConcatenationNode) irArgumentNode).getArgumentNodes());
+                irStringConcatenationNode.getArgumentNodes().addAll(i, scn.getArgumentNodes());
             } else {
                 i++;
             }

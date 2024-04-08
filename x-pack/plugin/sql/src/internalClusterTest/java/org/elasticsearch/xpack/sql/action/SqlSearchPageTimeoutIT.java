@@ -32,9 +32,17 @@ public class SqlSearchPageTimeoutIT extends AbstractSqlIntegTestCase {
     }
 
     public void testSearchContextIsCleanedUpAfterPageTimeoutForHitsQueries() throws Exception {
+        testSearchContextIsCleanedUpAfterPageTimeout("SELECT field FROM test");
+    }
+
+    public void testSearchContextIsCleanedUpAfterPageTimeoutForAggregationQueries() throws Exception {
+        testSearchContextIsCleanedUpAfterPageTimeout("SELECT field FROM test GROUP BY field");
+    }
+
+    public void testSearchContextIsCleanedUpAfterPageTimeout(String query) throws Exception {
         setupTestIndex();
 
-        SqlQueryResponse response = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query("SELECT field FROM test")
+        SqlQueryResponse response = new SqlQueryRequestBuilder(client()).query(query)
             .fetchSize(1)
             .pageTimeout(TimeValue.timeValueMillis(500))
             .get();
@@ -46,33 +54,14 @@ public class SqlSearchPageTimeoutIT extends AbstractSqlIntegTestCase {
 
         SearchPhaseExecutionException exception = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).cursor(response.cursor()).get()
+            () -> new SqlQueryRequestBuilder(client()).cursor(response.cursor()).get()
         );
 
         assertThat(Arrays.asList(exception.guessRootCauses()), contains(instanceOf(SearchContextMissingException.class)));
     }
 
-    public void testNoSearchContextForAggregationQueries() throws InterruptedException {
-        setupTestIndex();
-
-        SqlQueryResponse response = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(
-            "SELECT COUNT(*) FROM test GROUP BY field"
-        ).fetchSize(1).pageTimeout(TimeValue.timeValueMillis(500)).get();
-
-        assertEquals(1, response.size());
-        assertTrue(response.hasCursor());
-        assertEquals(0, getNumberOfSearchContexts());
-
-        Thread.sleep(1000);
-
-        // since aggregation queries do not have a stateful search context, scrolling is still possible after page_timeout
-        response = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).cursor(response.cursor()).get();
-
-        assertEquals(1, response.size());
-    }
-
     private void setupTestIndex() {
-        assertAcked(client().admin().indices().prepareCreate("test").get());
+        assertAcked(indicesAdmin().prepareCreate("test").get());
         client().prepareBulk()
             .add(new IndexRequest("test").id("1").source("field", "bar"))
             .add(new IndexRequest("test").id("2").source("field", "baz"))
@@ -82,15 +71,6 @@ public class SqlSearchPageTimeoutIT extends AbstractSqlIntegTestCase {
     }
 
     private long getNumberOfSearchContexts() {
-        return client().admin()
-            .indices()
-            .prepareStats("test")
-            .clear()
-            .setSearch(true)
-            .get()
-            .getIndex("test")
-            .getTotal()
-            .getSearch()
-            .getOpenContexts();
+        return indicesAdmin().prepareStats("test").clear().setSearch(true).get().getIndex("test").getTotal().getSearch().getOpenContexts();
     }
 }

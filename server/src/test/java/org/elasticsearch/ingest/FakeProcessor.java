@@ -10,13 +10,13 @@ package org.elasticsearch.ingest;
 
 import java.util.function.Consumer;
 
-class FakeProcessor implements Processor {
+public class FakeProcessor implements Processor {
     private String type;
     private String tag;
     private String description;
     private Consumer<IngestDocument> executor;
 
-    FakeProcessor(String type, String tag, String description, Consumer<IngestDocument> executor) {
+    public FakeProcessor(String type, String tag, String description, Consumer<IngestDocument> executor) {
         this.type = type;
         this.tag = tag;
         this.description = description;

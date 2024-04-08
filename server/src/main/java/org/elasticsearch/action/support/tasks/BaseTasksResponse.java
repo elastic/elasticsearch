@@ -32,8 +32,8 @@ import static org.elasticsearch.ExceptionsHelper.rethrowAndSuppress;
  * Base class for responses of task-related operations
  */
 public class BaseTasksResponse extends ActionResponse {
-    protected static final String TASK_FAILURES = "task_failures";
-    protected static final String NODE_FAILURES = "node_failures";
+    public static final String TASK_FAILURES = "task_failures";
+    public static final String NODE_FAILURES = "node_failures";
 
     private List<TaskOperationFailure> taskFailures;
     private List<ElasticsearchException> nodeFailures;
@@ -61,14 +61,8 @@ public class BaseTasksResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(taskFailures.size());
-        for (TaskOperationFailure exp : taskFailures) {
-            exp.writeTo(out);
-        }
-        out.writeVInt(nodeFailures.size());
-        for (ElasticsearchException exp : nodeFailures) {
-            exp.writeTo(out);
-        }
+        out.writeCollection(taskFailures);
+        out.writeCollection(nodeFailures);
     }
 
     /**

@@ -128,8 +128,13 @@ public class PolygonTests extends BaseGeometryTestCase<Polygon> {
             )
         );
         assertEquals(
-            "first and last points of the linear ring must be the same (it must close itself): " + "x[0]=0.5 x[2]=2.0 y[0]=1.5 y[2]=1.0",
+            "first and last points of the linear ring must be the same (it must close itself): x[0]=0.5 x[2]=2.0 y[0]=1.5 y[2]=1.0",
             ex.getMessage()
         );
+    }
+
+    @Override
+    protected Polygon mutateInstance(Polygon instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

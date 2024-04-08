@@ -14,14 +14,17 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.indices.IndicesService;
@@ -37,6 +40,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStreamsLifecycleOnlyMode;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV1Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findConflictingV2Templates;
 
@@ -51,9 +55,10 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
     private final MetadataIndexTemplateService indexTemplateService;
     private final NamedXContentRegistry xContentRegistry;
     private final IndicesService indicesService;
-    private final AliasValidator aliasValidator;
     private final SystemIndices systemIndices;
     private final Set<IndexSettingProvider> indexSettingProviders;
+    private final ClusterSettings clusterSettings;
+    private final boolean isDslOnlyMode;
 
     @Inject
     public TransportSimulateTemplateAction(
@@ -77,14 +82,15 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
             SimulateTemplateAction.Request::new,
             indexNameExpressionResolver,
             SimulateIndexTemplateResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexTemplateService = indexTemplateService;
         this.xContentRegistry = xContentRegistry;
         this.indicesService = indicesService;
-        this.aliasValidator = new AliasValidator();
         this.systemIndices = systemIndices;
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
+        this.clusterSettings = clusterService.getClusterSettings();
+        this.isDslOnlyMode = isDataStreamsLifecycleOnlyMode(clusterService.getSettings());
     }
 
     @Override
@@ -94,6 +100,7 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
         ClusterState state,
         ActionListener<SimulateIndexTemplateResponse> listener
     ) throws Exception {
+        final DataStreamGlobalRetention globalRetention = DataStreamGlobalRetention.getFromClusterState(state);
         String uuid = UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
         final String temporaryIndexName = "simulate_template_index_" + uuid;
         final ClusterState stateWithTemplate;
@@ -160,13 +167,24 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
             matchingTemplate,
             temporaryIndexName,
             stateWithTemplate,
+            isDslOnlyMode,
             xContentRegistry,
             indicesService,
-            aliasValidator,
             systemIndices,
             indexSettingProviders
         );
-        listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
+        if (request.includeDefaults()) {
+            listener.onResponse(
+                new SimulateIndexTemplateResponse(
+                    template,
+                    overlapping,
+                    clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING),
+                    globalRetention
+                )
+            );
+        } else {
+            listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping, globalRetention));
+        }
     }
 
     @Override

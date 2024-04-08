@@ -18,7 +18,6 @@ import java.util.Locale;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static java.lang.String.format;
 
@@ -49,7 +48,7 @@ final class GoogleCloudStorageHttpStatsCollector implements HttpResponseIntercep
         this.gcsOperationStats = gcsOperationStats;
         this.trackers = trackerFactories.stream()
             .map(trackerFactory -> trackerFactory.apply(gcsOperationStats.getTrackedBucket()))
-            .collect(Collectors.toList());
+            .toList();
     }
 
     @Override

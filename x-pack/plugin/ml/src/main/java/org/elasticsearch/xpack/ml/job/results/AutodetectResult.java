@@ -139,12 +139,12 @@ public class AutodetectResult implements ToXContentObject, Writeable {
             this.bucket = null;
         }
         if (in.readBoolean()) {
-            this.records = in.readList(AnomalyRecord::new);
+            this.records = in.readCollectionAsList(AnomalyRecord::new);
         } else {
             this.records = null;
         }
         if (in.readBoolean()) {
-            this.influencers = in.readList(Influencer::new);
+            this.influencers = in.readCollectionAsList(Influencer::new);
         } else {
             this.influencers = null;
         }
@@ -225,7 +225,7 @@ public class AutodetectResult implements ToXContentObject, Writeable {
         boolean isPresent = writeables != null;
         out.writeBoolean(isPresent);
         if (isPresent) {
-            out.writeList(writeables);
+            out.writeCollection(writeables);
         }
     }
 

@@ -9,9 +9,10 @@
 package org.elasticsearch.search.profile.query;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.ProfileResultTests;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -21,7 +22,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
-public class QueryProfileShardResultTests extends AbstractSerializingTestCase<QueryProfileShardResult> {
+public class QueryProfileShardResultTests extends AbstractXContentSerializingTestCase<QueryProfileShardResult> {
     public static QueryProfileShardResult createTestItem() {
         int size = randomIntBetween(0, 5);
         List<ProfileResult> queryProfileResults = new ArrayList<>(size);
@@ -33,7 +34,9 @@ public class QueryProfileShardResultTests extends AbstractSerializingTestCase<Qu
         if (randomBoolean()) {
             rewriteTime = rewriteTime % 1000; // make sure to often test this with small values too
         }
-        return new QueryProfileShardResult(queryProfileResults, rewriteTime, profileCollector);
+
+        Long vectorOperationsCount = randomBoolean() ? null : randomNonNegativeLong();
+        return new QueryProfileShardResult(queryProfileResults, rewriteTime, profileCollector, vectorOperationsCount);
     }
 
     @Override
@@ -42,9 +45,14 @@ public class QueryProfileShardResultTests extends AbstractSerializingTestCase<Qu
     }
 
     @Override
+    protected QueryProfileShardResult mutateInstance(QueryProfileShardResult instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected QueryProfileShardResult doParseInstance(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-        QueryProfileShardResult result = QueryProfileShardResult.fromXContent(parser);
+        QueryProfileShardResult result = SearchResponseUtils.parseQueryProfileShardResult(parser);
         ensureExpectedToken(null, parser.nextToken(), parser);
         return result;
     }

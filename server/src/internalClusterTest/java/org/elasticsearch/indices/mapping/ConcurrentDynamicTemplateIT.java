@@ -9,7 +9,8 @@
 package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -28,7 +29,7 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
     // see #3544
     public void testConcurrentDynamicMapping() throws Exception {
         final String fieldName = "field";
-        final String mapping = """
+        final String mapping = Strings.format("""
             {
               "dynamic_templates": [
                 {
@@ -42,7 +43,7 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
                   }
                 }
               ]
-            }""".formatted(fieldName);
+            }""", fieldName);
         // The 'fieldNames' array is used to help with retrieval of index terms
         // after testing
 
@@ -57,27 +58,24 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
             for (int j = 0; j < numDocs; j++) {
                 Map<String, Object> source = new HashMap<>();
                 source.put(fieldName, "test-user");
-                client().prepareIndex("test")
-                    .setId(Integer.toString(currentID++))
-                    .setSource(source)
-                    .execute(new ActionListener<IndexResponse>() {
-                        @Override
-                        public void onResponse(IndexResponse response) {
-                            latch.countDown();
-                        }
+                prepareIndex("test").setId(Integer.toString(currentID++)).setSource(source).execute(new ActionListener<DocWriteResponse>() {
+                    @Override
+                    public void onResponse(DocWriteResponse response) {
+                        latch.countDown();
+                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            throwable.add(e);
-                            latch.countDown();
-                        }
-                    });
+                    @Override
+                    public void onFailure(Exception e) {
+                        throwable.add(e);
+                        latch.countDown();
+                    }
+                });
             }
             latch.await();
             assertThat(throwable, emptyIterable());
             refresh();
-            assertHitCount(client().prepareSearch("test").setQuery(QueryBuilders.matchQuery(fieldName, "test-user")).get(), numDocs);
-            assertHitCount(client().prepareSearch("test").setQuery(QueryBuilders.matchQuery(fieldName, "test user")).get(), 0);
+            assertHitCount(prepareSearch("test").setQuery(QueryBuilders.matchQuery(fieldName, "test-user")), numDocs);
+            assertHitCount(prepareSearch("test").setQuery(QueryBuilders.matchQuery(fieldName, "test user")), 0);
 
         }
     }

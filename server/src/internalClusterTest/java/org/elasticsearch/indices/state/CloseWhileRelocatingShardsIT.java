@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.indices.state;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -32,7 +31,6 @@ import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
-import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -45,10 +43,12 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.indices.state.CloseIndexIT.assertException;
 import static org.elasticsearch.indices.state.CloseIndexIT.assertIndexIsClosed;
 import static org.elasticsearch.indices.state.CloseIndexIT.assertIndexIsOpened;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -95,9 +95,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                     createIndex(indexName);
                     indexRandom(
                         randomBoolean(),
-                        IntStream.range(0, nbDocs)
-                            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
-                            .collect(Collectors.toList())
+                        IntStream.range(0, nbDocs).mapToObj(n -> prepareIndex(indexName).setSource("num", n)).toList()
                     );
                 }
                 default -> {
@@ -113,14 +111,8 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
         }
 
         ensureGreen(TimeValue.timeValueSeconds(60L), indices);
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), Rebalance.NONE.toString())
-                )
+        updateClusterSettings(
+            Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), Rebalance.NONE.toString())
         );
 
         final String targetNode = internalCluster().startDataOnlyNode();
@@ -175,13 +167,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                             release.await();
                             logger.debug("releasing recovery of shard {}", startRecoveryRequest.shardId());
                         } catch (final InterruptedException e) {
-                            logger.warn(
-                                () -> new ParameterizedMessage(
-                                    "exception when releasing recovery of shard {}",
-                                    startRecoveryRequest.shardId()
-                                ),
-                                e
-                            );
+                            logger.warn(() -> format("exception when releasing recovery of shard %s", startRecoveryRequest.shardId()), e);
                             interruptedRecoveries.add(startRecoveryRequest.shardId().getIndexName());
                             Thread.currentThread().interrupt();
                             return;
@@ -191,35 +177,29 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                 connection.sendRequest(requestId, action, request, options);
             };
 
-            final MockTransportService targetTransportService = (MockTransportService) internalCluster().getInstance(
-                TransportService.class,
-                targetNode
-            );
+            final var targetTransportService = MockTransportService.getInstance(targetNode);
 
             for (DiscoveryNode node : state.getNodes()) {
                 if (node.canContainData() && node.getName().equals(targetNode) == false) {
-                    final TransportService sourceTransportService = internalCluster().getInstance(TransportService.class, node.getName());
-                    targetTransportService.addSendBehavior(sourceTransportService, sendBehavior);
+                    targetTransportService.addSendBehavior(MockTransportService.getInstance(node.getName()), sendBehavior);
                 }
             }
 
-            assertAcked(client().admin().cluster().reroute(new ClusterRerouteRequest().commands(commands)).get());
+            assertAcked(clusterAdmin().reroute(new ClusterRerouteRequest().commands(commands)).get());
 
             // start index closing threads
             final List<Thread> threads = new ArrayList<>();
             for (final String indexToClose : indices) {
                 final Thread thread = new Thread(() -> {
                     try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
+                        safeAwait(latch);
                     } finally {
                         release.countDown();
                     }
                     // Closing is not always acknowledged when shards are relocating: this is the case when the target shard is initializing
                     // or is catching up operations. In these cases the TransportVerifyShardBeforeCloseAction will detect that the global
                     // and max sequence number don't match and will not ack the close.
-                    AcknowledgedResponse closeResponse = client().admin().indices().prepareClose(indexToClose).get();
+                    AcknowledgedResponse closeResponse = indicesAdmin().prepareClose(indexToClose).get();
                     if (closeResponse.isAcknowledged()) {
                         assertTrue("Index closing should not be acknowledged twice", acknowledgedCloses.add(indexToClose));
                     }
@@ -258,34 +238,29 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             interruptedRecoveries.forEach(CloseIndexIT::assertIndexIsClosed);
 
             assertThat("Consider that the test failed if no indices were successfully closed", acknowledgedCloses.size(), greaterThan(0));
-            assertAcked(client().admin().indices().prepareOpen("index-*"));
+            assertAcked(indicesAdmin().prepareOpen("index-*"));
             ensureGreen(indices);
 
             for (String index : acknowledgedCloses) {
-                long docsCount = client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get().getHits().getTotalHits().value;
-                assertEquals(
-                    "Expected "
-                        + docsPerIndex.get(index)
-                        + " docs in index "
-                        + index
-                        + " but got "
-                        + docsCount
-                        + " (close acknowledged="
-                        + acknowledgedCloses.contains(index)
-                        + ")",
-                    (long) docsPerIndex.get(index),
-                    docsCount
-                );
+                assertResponse(prepareSearch(index).setSize(0).setTrackTotalHits(true), response -> {
+                    long docsCount = response.getHits().getTotalHits().value;
+                    assertEquals(
+                        "Expected "
+                            + docsPerIndex.get(index)
+                            + " docs in index "
+                            + index
+                            + " but got "
+                            + docsCount
+                            + " (close acknowledged="
+                            + acknowledgedCloses.contains(index)
+                            + ")",
+                        (long) docsPerIndex.get(index),
+                        docsCount
+                    );
+                });
             }
         } finally {
-            assertAcked(
-                client().admin()
-                    .cluster()
-                    .prepareUpdateSettings()
-                    .setPersistentSettings(
-                        Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey())
-                    )
-            );
+            updateClusterSettings(Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey()));
         }
     }
 }

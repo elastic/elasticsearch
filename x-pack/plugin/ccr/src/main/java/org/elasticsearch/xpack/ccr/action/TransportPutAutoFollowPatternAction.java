@@ -15,7 +15,7 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -25,10 +25,14 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -41,12 +45,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMasterNodeAction<PutAutoFollowPatternAction.Request> {
     private final Client client;
     private final CcrLicenseChecker ccrLicenseChecker;
+    private final Executor remoteClientResponseExecutor;
 
     @Inject
     public TransportPutAutoFollowPatternAction(
@@ -66,9 +72,10 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             actionFilters,
             PutAutoFollowPatternAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
+        this.remoteClientResponseExecutor = threadPool.executor(Ccr.CCR_THREAD_POOL_NAME);
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker, "ccrLicenseChecker");
     }
 
@@ -94,22 +101,28 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             listener.onFailure(new IllegalArgumentException(message));
             return;
         }
-        final Client remoteClient = client.getRemoteClusterClient(request.getRemoteCluster());
-        final Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
+        final var remoteClient = client.getRemoteClusterClient(
+            request.getRemoteCluster(),
+            remoteClientResponseExecutor,
+            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+        );
+        final Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
+            threadPool.getThreadContext(),
+            clusterService.state()
+        );
 
         Consumer<ClusterStateResponse> consumer = remoteClusterState -> {
             String[] indices = request.getLeaderIndexPatterns().toArray(new String[0]);
-            ccrLicenseChecker.hasPrivilegesToFollowIndices(remoteClient, indices, e -> {
+            ccrLicenseChecker.hasPrivilegesToFollowIndices(client.threadPool().getThreadContext(), remoteClient, indices, e -> {
                 if (e == null) {
-                    clusterService.submitStateUpdateTask(
+                    submitUnbatchedTask(
                         "put-auto-follow-pattern-" + request.getRemoteCluster(),
                         new AckedClusterStateUpdateTask(request, listener) {
                             @Override
                             public ClusterState execute(ClusterState currentState) {
                                 return innerPut(request, filteredHeaders, currentState, remoteClusterState.getState());
                             }
-                        },
-                        ClusterStateTaskExecutor.unbatched()
+                        }
                     );
                 } else {
                     listener.onFailure(e);
@@ -117,18 +130,19 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             });
         };
 
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.clear();
-        clusterStateRequest.metadata(true);
-
-        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
+        CcrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
             client,
             request.getRemoteCluster(),
-            clusterStateRequest,
+            new ClusterStateRequest().clear().metadata(true),
             listener::onFailure,
             consumer
         );
 
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     static ClusterState innerPut(

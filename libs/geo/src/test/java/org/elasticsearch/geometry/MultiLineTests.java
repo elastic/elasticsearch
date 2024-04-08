@@ -62,4 +62,9 @@ public class MultiLineTests extends BaseGeometryTestCase<MultiLine> {
                 new MultiLine(Collections.singletonList(new Line(new double[] { 3, 4 }, new double[] { 1, 2 }, new double[] { 6, 5 })))
             );
     }
+
+    @Override
+    protected MultiLine mutateInstance(MultiLine instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

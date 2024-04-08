@@ -17,7 +17,7 @@ import java.io.IOException;
 /**
  * Exception used when the in-memory lock for a shard cannot be obtained
  */
-public class ShardLockObtainFailedException extends ElasticsearchException {
+public final class ShardLockObtainFailedException extends ElasticsearchException {
 
     public ShardLockObtainFailedException(ShardId shardId, String message) {
         super(buildMessage(shardId, message));
@@ -34,10 +34,6 @@ public class ShardLockObtainFailedException extends ElasticsearchException {
     }
 
     private static String buildMessage(ShardId shardId, String message) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(shardId.toString());
-        sb.append(": ");
-        sb.append(message);
-        return sb.toString();
+        return shardId.toString() + ": " + message;
     }
 }

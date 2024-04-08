@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -228,14 +229,14 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         searchRequest.source().fetchSource(new String[] { "in1", "in2" }, new String[] { "out" });
         entity = initialSearch(searchRequest, new BytesArray(query), remoteVersion).getEntity();
         assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
-        assertEquals(XContentHelper.stripWhitespace("""
+        assertEquals(XContentHelper.stripWhitespace(Strings.format("""
             {
               "query": %s,
               "_source": {
                 "includes": [ "in1", "in2" ],
                 "excludes": [ "out" ]
               }
-            }""".formatted(query)), Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+            }""", query)), Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
 
         // Invalid XContent fails
         RuntimeException e = expectThrows(

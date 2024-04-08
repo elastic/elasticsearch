@@ -8,24 +8,14 @@ package org.elasticsearch.xpack.analytics;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.analytics.action.AnalyticsInfoTransportAction;
 import org.elasticsearch.xpack.analytics.action.AnalyticsUsageTransportAction;
 import org.elasticsearch.xpack.analytics.action.TransportAnalyticsStatsAction;
@@ -40,6 +30,7 @@ import org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms;
 import org.elasticsearch.xpack.analytics.multiterms.MultiTermsAggregationBuilder;
 import org.elasticsearch.xpack.analytics.normalize.NormalizePipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.rate.InternalRate;
+import org.elasticsearch.xpack.analytics.rate.InternalResetTrackingRate;
 import org.elasticsearch.xpack.analytics.rate.RateAggregationBuilder;
 import org.elasticsearch.xpack.analytics.stringstats.InternalStringStats;
 import org.elasticsearch.xpack.analytics.stringstats.StringStatsAggregationBuilder;
@@ -56,15 +47,10 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
-
-import static java.util.Collections.singletonList;
 
 public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugin, MapperPlugin {
     private final AnalyticsUsage usage = new AnalyticsUsage();
@@ -100,7 +86,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public List<AggregationSpec> getAggregations() {
-        return Arrays.asList(
+        return List.of(
             new AggregationSpec(
                 StringStatsAggregationBuilder.NAME,
                 StringStatsAggregationBuilder::new,
@@ -122,21 +108,27 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
                 usage.track(AnalyticsStatsAction.Item.T_TEST, TTestAggregationBuilder.PARSER)
             ).addResultReader(InternalTTest::new).setAggregatorRegistrar(TTestAggregationBuilder::registerUsage),
             new AggregationSpec(
-                RateAggregationBuilder.NAME,
-                RateAggregationBuilder::new,
-                usage.track(AnalyticsStatsAction.Item.RATE, RateAggregationBuilder.PARSER)
-            ).addResultReader(InternalRate::new).setAggregatorRegistrar(RateAggregationBuilder::registerAggregators),
-            new AggregationSpec(
                 MultiTermsAggregationBuilder.NAME,
                 MultiTermsAggregationBuilder::new,
                 usage.track(AnalyticsStatsAction.Item.MULTI_TERMS, MultiTermsAggregationBuilder.PARSER)
-            ).addResultReader(InternalMultiTerms::new).setAggregatorRegistrar(MultiTermsAggregationBuilder::registerAggregators)
+            ).addResultReader(InternalMultiTerms::new).setAggregatorRegistrar(MultiTermsAggregationBuilder::registerAggregators),
+            rateAggregation()
         );
+    }
+
+    private AggregationSpec rateAggregation() {
+        AggregationSpec rate = new AggregationSpec(
+            RateAggregationBuilder.NAME,
+            RateAggregationBuilder::new,
+            usage.track(AnalyticsStatsAction.Item.RATE, RateAggregationBuilder.PARSER)
+        ).addResultReader(InternalRate::new).setAggregatorRegistrar(RateAggregationBuilder::registerAggregators);
+        rate.addResultReader(InternalResetTrackingRate.NAME, InternalResetTrackingRate::new);
+        return rate;
     }
 
     @Override
     public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(
+        return List.of(
             new ActionHandler<>(XPackUsageFeatureAction.ANALYTICS, AnalyticsUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.ANALYTICS, AnalyticsInfoTransportAction.class),
             new ActionHandler<>(AnalyticsStatsAction.INSTANCE, TransportAnalyticsStatsAction.class)
@@ -145,12 +137,12 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public List<Setting<?>> getSettings() {
-        return singletonList(TopMetricsAggregatorFactory.MAX_BUCKET_SIZE);
+        return List.of(TopMetricsAggregatorFactory.MAX_BUCKET_SIZE);
     }
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Collections.singletonMap(HistogramFieldMapper.CONTENT_TYPE, HistogramFieldMapper.PARSER);
+        return Map.of(HistogramFieldMapper.CONTENT_TYPE, HistogramFieldMapper.PARSER);
     }
 
     @Override
@@ -169,25 +161,13 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
-    ) {
-        return singletonList(usage);
+    public Collection<?> createComponents(PluginServices services) {
+        return List.of(usage);
     }
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return Arrays.asList(
+        return List.of(
             new NamedWriteableRegistry.Entry(TTestState.class, PairedTTestState.NAME, PairedTTestState::new),
             new NamedWriteableRegistry.Entry(TTestState.class, UnpairedTTestState.NAME, UnpairedTTestState::new)
         );

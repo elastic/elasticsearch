@@ -11,19 +11,42 @@ import org.apache.tools.ant.filters.FixCrLfFilter
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.ConcatFilesTask
-import org.elasticsearch.gradle.internal.DependenciesInfoTask
+import org.elasticsearch.gradle.internal.DependenciesInfoPlugin
 import org.elasticsearch.gradle.internal.NoticeTask
 import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.HistoricalFeaturesMetadataPlugin
 
 import java.nio.file.Files
 import java.nio.file.Path
 
 plugins {
   id 'base'
+  id 'elasticsearch.distro'
 }
 
 configurations {
   log4jConfig
+  dependencyInfos {
+    attributes {
+      attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.DOCUMENTATION))
+    }
+  }
+  featuresMetadata {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, HistoricalFeaturesMetadataPlugin.FEATURES_METADATA_TYPE)
+    }
+  }
+}
+
+dependencies {
+  featuresMetadata project(':server')
+}
+
+def thisProj = project
+rootProject.allprojects { proj ->
+    proj.plugins.withType(DependenciesInfoPlugin) {
+      thisProj.dependencies.add("dependencyInfos", project.dependencies.project(path: proj.path))
+    }
 }
 
 /*****************************************************************************
@@ -32,12 +55,10 @@ configurations {
 
 // Concatenates the dependencies CSV files into a single file
 tasks.register("generateDependenciesReport", ConcatFilesTask) {
-  dependsOn rootProject.allprojects.collect { it.tasks.withType(DependenciesInfoTask) }
-  files = fileTree(dir: project.rootDir, include: '**/dependencies.csv')
+  files = configurations.dependencyInfos
   headerLine = "name,version,url,license,sourceURL"
   target = new File(providers.systemProperty('csv')
                       .orElse("${project.buildDir}/reports/dependencies/es-dependencies.csv")
-                      .forUseAtConfigurationTime()
                       .get()
   )
   // explicitly add our dependency on the JDK
@@ -105,6 +126,14 @@ def processIntegTestOutputsTaskProvider = tasks.register("processIntegTestOutput
   into integTestOutputs
 }
 
+def integTestConfigFiles = fileTree("${integTestOutputs}/config") {
+  builtBy processIntegTestOutputsTaskProvider
+}
+
+def integTestBinFiles = fileTree("${integTestOutputs}/bin") {
+  builtBy processIntegTestOutputsTaskProvider
+}
+
 def defaultModulesFiles = fileTree("${defaultOutputs}/modules") {
   builtBy processDefaultOutputsTaskProvider
 }
@@ -128,40 +157,6 @@ def buildIntegTestModulesTaskProvider = tasks.register("buildIntegTestModules") 
 def buildExternalTestModulesTaskProvider = tasks.register("buildExternalTestModules") {
   dependsOn "processExternalTestOutputs"
   outputs.dir "${externalTestOutputs}/modules"
-}
-
-Configuration moduleZip(Project module) {
-  Dependency dep = project.dependencies.project(path: module.path, configuration: 'zip')
-  Configuration config = project.configurations.detachedConfiguration(dep)
-  return config
-}
-
-void copyModule(TaskProvider<Sync> copyTask, Project module) {
-  copyTask.configure {
-    Configuration moduleConfig = moduleZip(module)
-
-    dependsOn moduleConfig
-    from({ zipTree(moduleConfig.singleFile) }) {
-      includeEmptyDirs false
-
-      // these are handled separately in the log4j config tasks below
-      exclude '*/config/log4j2.properties'
-      exclude 'config/log4j2.properties'
-
-      eachFile { details ->
-        String name = module.plugins.hasPlugin('elasticsearch.internal-es-plugin') ? module.esplugin.name : module.es_meta_plugin.name
-        // Copy all non config/bin files
-        // Note these might be unde a subdirectory in the case of a meta plugin
-        if ((details.relativePath.pathString ==~ /([^\/]+\/)?(config|bin)\/.*/) == false) {
-          details.relativePath = details.relativePath.prepend('modules', name)
-        } else if ((details.relativePath.pathString ==~ /([^\/]+\/)(config|bin)\/.*/)) {
-          // this is the meta plugin case, in which we need to remove the intermediate dir
-          String[] segments = details.relativePath.segments
-          details.relativePath = new RelativePath(true, segments.takeRight(segments.length - 1))
-        }
-      }
-    }
-  }
 }
 
 def buildDefaultLog4jConfigTaskProvider = tasks.register("buildDefaultLog4jConfig") {
@@ -210,9 +205,10 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
     }
   }
 
-  copyModule(processDefaultOutputsTaskProvider, module)
-  if (module.name.startsWith('transport-')) {
-    copyModule(processIntegTestOutputsTaskProvider, module)
+  distro.copyModule(processDefaultOutputsTaskProvider, module)
+  dependencies.add('featuresMetadata', module)
+  if (module.name.startsWith('transport-') || (BuildParams.snapshotBuild == false && module.name == 'apm')) {
+    distro.copyModule(processIntegTestOutputsTaskProvider, module)
   }
 
   restTestExpansions['expected.modules.count'] += 1
@@ -228,16 +224,17 @@ xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
       source xpackModule.file('src/main/java')
     }
   }
-  copyModule(processDefaultOutputsTaskProvider, xpackModule)
+  distro.copyModule(processDefaultOutputsTaskProvider, xpackModule)
+  dependencies.add('featuresMetadata', xpackModule)
   if (xpackModule.name.equals('core') || xpackModule.name.equals('security')) {
-    copyModule(processIntegTestOutputsTaskProvider, xpackModule)
+    distro.copyModule(processIntegTestOutputsTaskProvider, xpackModule)
   }
 }
 
-copyModule(processSystemdOutputsTaskProvider, project(':modules:systemd'))
+distro.copyModule(processSystemdOutputsTaskProvider, project(':modules:systemd'))
 
 project(':test:external-modules').subprojects.each { Project testModule ->
-  copyModule(processExternalTestOutputsTaskProvider, testModule)
+  distro.copyModule(processExternalTestOutputsTaskProvider, testModule)
 }
 
 configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
@@ -264,7 +261,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole'].each {
+    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -283,14 +280,19 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
   dependencies {
     libs project(':server')
-    libs project(':distribution:tools:java-version-checker')
-    libs project(':distribution:tools:launchers')
+    // this is a special circumstance of a jar that is not a dependency of server, but needs to be in the module path
+    libs project(':libs:elasticsearch-preallocate')
 
+    libsVersionChecker project(':distribution:tools:java-version-checker')
+    libsCliLauncher project(':distribution:tools:cli-launcher')
+    libsServerCli project(':distribution:tools:server-cli')
+    libsWindowsServiceCli project(':distribution:tools:windows-service-cli')
     libsAnsiConsole project(':distribution:tools:ansi-console')
     libsPluginCli project(':distribution:tools:plugin-cli')
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
     libsSecurityCli project(':x-pack:plugin:security:cli')
     libsGeoIpCli project(':distribution:tools:geoip-cli')
+    libsNative project(':libs:elasticsearch-native:elasticsearch-native-libraries')
   }
 
   project.ext {
@@ -298,10 +300,22 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     /*****************************************************************************
      *                   Common files in all distributions                       *
      *****************************************************************************/
-    libFiles =
+    libFiles = { os, architecture ->
       copySpec {
         // Delay by using closures, since they have not yet been configured, so no jar task exists yet.
         from(configurations.libs)
+        into('java-version-checker') {
+          from(configurations.libsVersionChecker)
+        }
+        into('cli-launcher') {
+          from(configurations.libsCliLauncher)
+        }
+        into('tools/server-cli') {
+          from(configurations.libsServerCli)
+        }
+        into('tools/windows-service-cli') {
+          from(configurations.libsWindowsServiceCli)
+        }
         into('tools/geoip-cli') {
           from(configurations.libsGeoIpCli)
         }
@@ -317,13 +331,19 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         into('tools/ansi-console') {
           from(configurations.libsAnsiConsole)
         }
+        into('platform') {
+          from(configurations.libsNative)
+          if (os != null) {
+            include (os + '-' + architecture + '/*')
+          }
+        }
       }
+    }
 
-
-    modulesFiles = { platform ->
+    modulesFiles = { os, architecture ->
       copySpec {
         eachFile {
-          if (it.relativePath.segments[-2] == 'bin' || ((platform == 'darwin-x86_64' || platform == 'darwin-aarch64') && it.relativePath.segments[-2] == 'MacOS')) {
+          if (it.relativePath.segments[-2] == 'bin' || (os == 'darwin' && it.relativePath.segments[-2] == 'MacOS')) {
             // bin files, wherever they are within modules (eg platform specific) should be executable
             // and MacOS is an alternative to bin on macOS
             it.mode = 0755
@@ -332,7 +352,12 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           }
         }
         List excludePlatforms = ['linux-x86_64', 'linux-aarch64', 'windows-x86_64', 'darwin-x86_64', 'darwin-aarch64']
-        if (platform != null) {
+        if (os != null) {
+          String platform = os + '-' + architecture
+          if (architecture == 'x64') {
+            // ML platform dir uses the x86_64 nomenclature
+            platform = os + '-x86_64'
+          }
           excludePlatforms.remove(excludePlatforms.indexOf(platform))
         } else {
           excludePlatforms = []
@@ -368,7 +393,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           filter("tokens" : expansionsForDistribution(distributionType, isTestDistro), ReplaceTokens.class)
         }
         from buildDefaultLog4jConfigTaskProvider
-        from defaultConfigFiles
+        from isTestDistro ? integTestConfigFiles : defaultConfigFiles
       }
     }
 
@@ -398,12 +423,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         // module provided bin files
         with copySpec {
           eachFile { it.setMode(0755) }
-          if (testDistro == false) {
-            from(defaultBinFiles)
-          } else {
-            from(defaultBinFiles)
-              include 'x-pack-env', 'x-pack-security-env'
-          }
+          from(testDistro ? integTestBinFiles : defaultBinFiles)
           if (distributionType != 'zip') {
             exclude '*.bat'
           }
@@ -416,20 +436,22 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         if (testDistro) {
           from buildServerNoticeTaskProvider
         } else {
-          from buildDefaultNoticeTaskProvider
+          from (buildDefaultNoticeTaskProvider) {
+            fileMode = 0644
+          }
         }
       }
     }
 
-    jdkFiles = { Project project, String platform, String architecture ->
+    jdkFiles = { Project project, String os, String architecture ->
       return copySpec {
-        from project.jdks."bundled_${platform}_${architecture}"
+        from project.jdks."bundled_${os}_${architecture}"
         exclude "demo/**"
         /*
          * The Contents/MacOS directory interferes with notarization, and is unused by our distribution, so we exclude
          * it from the build.
          */
-        if ("darwin".equals(platform)) {
+        if ("darwin".equals(os)) {
           exclude "Contents/MacOS"
         }
         eachFile { FileCopyDetails details ->
@@ -544,19 +566,11 @@ subprojects {
         'def': footer
       ],
 
-      'es.distribution.flavor': [
-        'def': 'default'
-      ],
-
       'es.distribution.type': [
         'deb': 'deb',
         'rpm': 'rpm',
         'tar': 'tar',
         'zip': 'zip'
-      ],
-
-      'es.bundled_jdk': [
-        'def': 'true'
       ],
 
       'license.name': [
@@ -618,4 +632,9 @@ artifacts.add('log4jConfig', file("${defaultOutputs}/log4j2.properties")) {
   type 'file'
   name 'log4j2.properties'
   builtBy 'buildDefaultLog4jConfig'
+}
+
+tasks.named('resolveAllDependencies') {
+  // We don't want to build all our distribution artifacts when priming our dependency cache
+  configs = []
 }

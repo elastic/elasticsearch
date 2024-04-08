@@ -21,13 +21,13 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RandomApproximationQuery;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.search.RandomApproximationQuery;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
@@ -49,7 +49,7 @@ import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -91,7 +91,7 @@ public class FunctionScoreTests extends ESTestCase {
             return new LeafFieldData() {
 
                 @Override
-                public DocValuesField<?> getScriptField(String name) {
+                public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
                     throw new UnsupportedOperationException(UNSUPPORTED);
                 }
 
@@ -209,7 +209,7 @@ public class FunctionScoreTests extends ESTestCase {
                 }
 
                 @Override
-                public DocValuesField<?> getScriptField(String name) {
+                public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
                     throw new UnsupportedOperationException(UNSUPPORTED);
                 }
 
@@ -439,7 +439,7 @@ public class FunctionScoreTests extends ESTestCase {
         checkFiltersFunctionScoreExplanation(functionExplanation, "Function for field test:", 3);
         assertThat(
             functionExplanation.getDetails()[0].getDetails()[3].getDetails()[1].getDetails()[0].toString(),
-            equalTo("0.1 = exp(- " + "MAX[Math.max(Math.abs(1.0(=doc value) - 0.0(=origin))) - 0.0(=offset), 0)] * 2.3025850929940455)\n")
+            equalTo("0.1 = exp(- MAX[Math.max(Math.abs(1.0(=doc value) - 0.0(=origin))) - 0.0(=offset), 0)] * 2.3025850929940455)\n")
         );
         assertThat(functionExplanation.getDetails()[0].getDetails()[3].getDetails()[1].getDetails()[0].getDetails().length, equalTo(0));
 
@@ -697,7 +697,7 @@ public class FunctionScoreTests extends ESTestCase {
         FunctionScoreQuery fsq = new FunctionScoreQuery(query, null, Float.POSITIVE_INFINITY);
         for (org.apache.lucene.search.ScoreMode scoreMode : org.apache.lucene.search.ScoreMode.values()) {
             Weight weight = searcher.createWeight(fsq, scoreMode, 1f);
-            Scorer scorer = weight.scorer(reader.leaves().get(0));
+            Scorer scorer = weight.scorer(searcher.getIndexReader().leaves().get(0));
             assertNotNull(scorer.twoPhaseIterator());
         }
     }
@@ -934,7 +934,7 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public void testWithInvalidScores() {
-        IndexSearcher localSearcher = new IndexSearcher(reader);
+        IndexSearcher localSearcher = newSearcher(reader);
         FunctionScoreQuery query1 = new FunctionScoreQuery(
             new TermQuery(new Term(FIELD, "out")),
             new ConstantScoreFunction(Float.NaN),
@@ -956,7 +956,7 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public void testExceptionOnNegativeScores() {
-        IndexSearcher localSearcher = new IndexSearcher(reader);
+        IndexSearcher localSearcher = newSearcher(reader);
         TermQuery termQuery = new TermQuery(new Term(FIELD, "out"));
 
         // test that field_value_factor function throws an exception on negative scores
@@ -976,7 +976,7 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public void testExceptionOnLnNegativeScores() {
-        IndexSearcher localSearcher = new IndexSearcher(reader);
+        IndexSearcher localSearcher = newSearcher(reader);
         TermQuery termQuery = new TermQuery(new Term(FIELD, "out"));
 
         // test that field_value_factor function using modifier ln throws an exception on negative scores
@@ -994,7 +994,7 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public void testExceptionOnLogNegativeScores() {
-        IndexSearcher localSearcher = new IndexSearcher(reader);
+        IndexSearcher localSearcher = newSearcher(reader);
         TermQuery termQuery = new TermQuery(new Term(FIELD, "out"));
 
         // test that field_value_factor function using modifier log throws an exception on negative scores

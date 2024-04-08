@@ -21,13 +21,13 @@ abstract class AbstractGeoPointScriptFieldQuery extends AbstractScriptFieldQuery
     }
 
     @Override
-    protected boolean matches(GeoPointFieldScript scriptContext, int docId) {
+    protected final boolean matches(GeoPointFieldScript scriptContext, int docId) {
         scriptContext.runForDoc(docId);
-        return matches(scriptContext.values(), scriptContext.count());
+        return matches(scriptContext.lats(), scriptContext.lons(), scriptContext.count());
     }
 
     /**
      * Does the value match this query?
      */
-    protected abstract boolean matches(long[] values, int count);
+    protected abstract boolean matches(double[] lats, double[] lons, int count);
 }

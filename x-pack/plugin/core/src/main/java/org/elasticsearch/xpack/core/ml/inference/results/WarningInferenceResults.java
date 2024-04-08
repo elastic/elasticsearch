@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -72,6 +73,12 @@ public class WarningInferenceResults implements InferenceResults {
         Map<String, Object> asMap = new LinkedHashMap<>();
         asMap.put(NAME, warning);
         return asMap;
+    }
+
+    @Override
+    public Map<String, Object> asMap(String outputField) {
+        // warnings do not have a result
+        return asMap();
     }
 
     @Override

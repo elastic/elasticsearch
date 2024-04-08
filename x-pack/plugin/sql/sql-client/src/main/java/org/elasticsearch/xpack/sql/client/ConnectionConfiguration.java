@@ -69,6 +69,10 @@ public class ConnectionConfiguration {
 
     private static final String CATALOG = "catalog";
 
+    // Allow shard failures
+    public static final String ALLOW_PARTIAL_SEARCH_RESULTS = "allow.partial.search.results";
+    public static final String ALLOW_PARTIAL_SEARCH_RESULTS_DEFAULT = "false";
+
     protected static final Set<String> OPTION_NAMES = new LinkedHashSet<>(
         Arrays.asList(
             PROPERTIES_VALIDATION,
@@ -80,7 +84,8 @@ public class ConnectionConfiguration {
             PAGE_SIZE,
             AUTH_USER,
             AUTH_PASS,
-            CATALOG
+            CATALOG,
+            ALLOW_PARTIAL_SEARCH_RESULTS
         )
     );
 
@@ -109,6 +114,9 @@ public class ConnectionConfiguration {
     private final SslConfig sslConfig;
     private final ProxyConfig proxyConfig;
 
+    private final boolean allowPartialSearchResults;
+
+    @SuppressWarnings("this-escape")
     public ConnectionConfiguration(URI baseURI, String connectionString, Properties props) throws ClientException {
         this.connectionString = connectionString;
         Properties settings = props != null ? props : new Properties();
@@ -143,6 +151,12 @@ public class ConnectionConfiguration {
         proxyConfig = new ProxyConfig(settings);
 
         this.baseURI = normalizeSchema(baseURI, connectionString, sslConfig.isEnabled());
+
+        allowPartialSearchResults = parseValue(
+            ALLOW_PARTIAL_SEARCH_RESULTS,
+            settings.getProperty(ALLOW_PARTIAL_SEARCH_RESULTS, ALLOW_PARTIAL_SEARCH_RESULTS_DEFAULT),
+            Boolean::parseBoolean
+        );
     }
 
     public ConnectionConfiguration(
@@ -158,7 +172,8 @@ public class ConnectionConfiguration {
         String user,
         String pass,
         SslConfig sslConfig,
-        ProxyConfig proxyConfig
+        ProxyConfig proxyConfig,
+        boolean allowPartialSearchResults
     ) throws ClientException {
         this.validateProperties = validateProperties;
         this.binaryCommunication = binaryCommunication;
@@ -177,6 +192,8 @@ public class ConnectionConfiguration {
         this.sslConfig = sslConfig;
         this.proxyConfig = proxyConfig;
         this.baseURI = baseURI;
+
+        this.allowPartialSearchResults = allowPartialSearchResults;
     }
 
     private static URI normalizeSchema(URI uri, String connectionString, boolean isSSLEnabled) {
@@ -291,4 +308,7 @@ public class ConnectionConfiguration {
         return connectionString;
     }
 
+    public boolean allowPartialSearchResults() {
+        return allowPartialSearchResults;
+    }
 }

@@ -10,13 +10,13 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
@@ -45,6 +45,12 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
             queryBuilder.setMinScore(randomFloat());
         }
         return queryBuilder;
+    }
+
+    @Override
+    protected ScriptScoreQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap());
+        return new ScriptScoreQueryBuilder(queryBuilder, script);
     }
 
     @Override
@@ -93,7 +99,7 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
         Directory directory = newDirectory();
         RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
         iw.addDocument(new Document());
-        final IndexSearcher searcher = new IndexSearcher(iw.getReader());
+        final IndexSearcher searcher = newSearcher(iw.getReader());
         iw.close();
         assertThat(searcher.getIndexReader().leaves().size(), greaterThan(0));
 

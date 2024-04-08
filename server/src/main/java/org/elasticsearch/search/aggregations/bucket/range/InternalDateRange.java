@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -28,29 +27,25 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
         public Bucket(
             String key,
             double from,
-            double originalFrom,
             double to,
-            double originalTo,
             long docCount,
             List<InternalAggregation> aggregations,
             boolean keyed,
             DocValueFormat formatter
         ) {
-            super(key, from, originalFrom, to, originalTo, docCount, InternalAggregations.from(aggregations), keyed, formatter);
+            super(key, from, to, docCount, InternalAggregations.from(aggregations), keyed, formatter);
         }
 
         public Bucket(
             String key,
             double from,
-            double originalFrom,
             double to,
-            double originalTo,
             long docCount,
             InternalAggregations aggregations,
             boolean keyed,
             DocValueFormat formatter
         ) {
-            super(key, from, originalFrom, to, originalTo, docCount, aggregations, keyed, formatter);
+            super(key, from, to, docCount, aggregations, keyed, formatter);
         }
 
         @Override
@@ -75,33 +70,9 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
             return to;
         }
 
-        private Double internalGetOriginalFrom() {
-            return originalFrom;
-        }
-
-        private Double internalGetOriginalTo() {
-            return originalTo;
-        }
-
-        @Override
-        protected InternalRange.Factory<Bucket, ?> getFactory() {
-            return FACTORY;
-        }
-
-        boolean keyed() {
-            return keyed;
-        }
-
-        DocValueFormat format() {
-            return format;
-        }
     }
 
     public static class Factory extends InternalRange.Factory<InternalDateRange.Bucket, InternalDateRange> {
-        @Override
-        public ValueType getValueType() {
-            return ValueType.DATE;
-        }
 
         @Override
         public InternalDateRange create(
@@ -124,15 +95,13 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
         public Bucket createBucket(
             String key,
             double from,
-            double originalFrom,
             double to,
-            double originalTo,
             long docCount,
             InternalAggregations aggregations,
             boolean keyed,
             DocValueFormat formatter
         ) {
-            return new Bucket(key, from, originalFrom, to, originalTo, docCount, aggregations, keyed, formatter);
+            return new Bucket(key, from, to, docCount, aggregations, keyed, formatter);
         }
 
         @Override
@@ -140,9 +109,7 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
             return new Bucket(
                 prototype.getKey(),
                 prototype.internalGetFrom(),
-                prototype.internalGetOriginalFrom(),
                 prototype.internalGetTo(),
-                prototype.internalGetOriginalTo(),
                 prototype.getDocCount(),
                 aggregations,
                 prototype.getKeyed(),

@@ -8,19 +8,23 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-/** Base class for for spatial fields that only support indexing points */
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
+
+/** Base class for spatial fields that only support indexing points */
 public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeometryFieldMapper<T> {
 
     public static <T> Parameter<T> nullValueParam(
@@ -54,7 +58,7 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
         MultiFields multiFields,
         CopyTo copyTo,
         Parser<T> parser,
-        String onScriptError
+        OnScriptError onScriptError
     ) {
         super(simpleName, mappedFieldType, multiFields, copyTo, parser, onScriptError);
         this.nullValue = null;
@@ -67,38 +71,37 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
     /** A base parser implementation for point formats */
     protected abstract static class PointParser<T> extends Parser<T> {
         protected final String field;
-        private final Supplier<T> pointSupplier;
-        private final CheckedBiFunction<XContentParser, T, T, IOException> objectParser;
+        private final CheckedFunction<XContentParser, T, IOException> objectParser;
         private final T nullValue;
         private final boolean ignoreZValue;
         protected final boolean ignoreMalformed;
+        private final boolean allowMultipleValues;
 
         protected PointParser(
             String field,
-            Supplier<T> pointSupplier,
-            CheckedBiFunction<XContentParser, T, T, IOException> objectParser,
+            CheckedFunction<XContentParser, T, IOException> objectParser,
             T nullValue,
             boolean ignoreZValue,
-            boolean ignoreMalformed
+            boolean ignoreMalformed,
+            boolean allowMultipleValues
         ) {
             this.field = field;
-            this.pointSupplier = pointSupplier;
             this.objectParser = objectParser;
             this.nullValue = nullValue == null ? null : validate(nullValue);
             this.ignoreZValue = ignoreZValue;
             this.ignoreMalformed = ignoreMalformed;
+            this.allowMultipleValues = allowMultipleValues;
         }
 
         protected abstract T validate(T in);
 
-        protected abstract void reset(T in, double x, double y);
+        protected abstract T createPoint(double x, double y);
 
         @Override
         public void parse(XContentParser parser, CheckedConsumer<T, IOException> consumer, Consumer<Exception> onMalformed)
             throws IOException {
             if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                 XContentParser.Token token = parser.nextToken();
-                T point = pointSupplier.get();
                 if (token == XContentParser.Token.VALUE_NUMBER) {
                     double x = parser.doubleValue();
                     parser.nextToken();
@@ -116,12 +119,21 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
                         throw new ElasticsearchParseException("field type does not accept > 3 dimensions");
                     }
 
-                    reset(point, x, y);
+                    T point = createPoint(x, y);
                     consumer.accept(validate(point));
                 } else {
+                    int count = 0;
                     while (token != XContentParser.Token.END_ARRAY) {
-                        parseAndConsumeFromObject(parser, point, consumer, onMalformed);
-                        point = pointSupplier.get();
+                        if (allowMultipleValues == false && ++count > 1) {
+                            throw new ElasticsearchParseException("field type for [{}] does not accept more than single value", field);
+                        }
+                        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                            if (nullValue != null) {
+                                consumer.accept(nullValue);
+                            }
+                        } else {
+                            parseAndConsumeFromObject(parser, consumer, onMalformed);
+                        }
                         token = parser.nextToken();
                     }
                 }
@@ -130,22 +142,49 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
                     consumer.accept(nullValue);
                 }
             } else {
-                parseAndConsumeFromObject(parser, pointSupplier.get(), consumer, onMalformed);
+                parseAndConsumeFromObject(parser, consumer, onMalformed);
             }
         }
 
         private void parseAndConsumeFromObject(
             XContentParser parser,
-            T point,
             CheckedConsumer<T, IOException> consumer,
             Consumer<Exception> onMalformed
         ) {
             try {
-                point = objectParser.apply(parser, point);
+                T point = objectParser.apply(parser);
                 consumer.accept(validate(point));
             } catch (Exception e) {
                 onMalformed.accept(e);
             }
+        }
+    }
+
+    public abstract static class AbstractPointFieldType<T extends SpatialPoint> extends AbstractGeometryFieldType<T> {
+
+        protected AbstractPointFieldType(
+            String name,
+            boolean indexed,
+            boolean stored,
+            boolean hasDocValues,
+            Parser<T> geometryParser,
+            T nullValue,
+            Map<String, String> meta
+        ) {
+            super(name, indexed, stored, hasDocValues, geometryParser, nullValue, meta);
+        }
+
+        @Override
+        protected Object nullValueAsSource(T nullValue) {
+            return nullValue == null ? null : nullValue.toWKT();
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (blContext.fieldExtractPreference() == DOC_VALUES && hasDocValues()) {
+                return new BlockDocValuesReader.LongsBlockLoader(name());
+            }
+            return blockLoaderFromSource(blContext);
         }
     }
 }

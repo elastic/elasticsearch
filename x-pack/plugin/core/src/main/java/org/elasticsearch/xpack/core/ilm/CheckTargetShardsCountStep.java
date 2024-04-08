@@ -45,14 +45,14 @@ public class CheckTargetShardsCountStep extends ClusterStateWaitStep {
         IndexMetadata indexMetadata = clusterState.metadata().index(index);
         if (indexMetadata == null) {
             // Index must have been since deleted, ignore it
-            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             return new Result(false, null);
         }
         String indexName = indexMetadata.getIndex().getName();
         if (numberOfShards != null) {
             int sourceNumberOfShards = indexMetadata.getNumberOfShards();
             if (sourceNumberOfShards % numberOfShards != 0) {
-                String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+                String policyName = indexMetadata.getLifecyclePolicyName();
                 String errorMessage = String.format(
                     Locale.ROOT,
                     "lifecycle action of policy [%s] for index [%s] cannot make progress "

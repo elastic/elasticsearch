@@ -13,13 +13,13 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -56,7 +56,7 @@ public class FollowingEngine extends InternalEngine {
         return engineConfig;
     }
 
-    private void preFlight(final Operation operation) {
+    private static void preFlight(final Operation operation) {
         assert FollowingEngineAssertions.preFlight(operation);
         if (operation.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
             throw new ElasticsearchStatusException(
@@ -83,7 +83,7 @@ public class FollowingEngine extends InternalEngine {
                 index.seqNo(),
                 lookupPrimaryTerm(index.seqNo())
             );
-            return IndexingStrategy.skipDueToVersionConflict(error, false, index.version());
+            return IndexingStrategy.skipDueToVersionConflict(error, false, index.version(), index.id());
         } else {
             return planIndexingAsNonPrimary(index);
         }
@@ -99,7 +99,7 @@ public class FollowingEngine extends InternalEngine {
                 delete.seqNo(),
                 lookupPrimaryTerm(delete.seqNo())
             );
-            return DeletionStrategy.skipDueToVersionConflict(error, delete.version(), false);
+            return DeletionStrategy.skipDueToVersionConflict(error, delete.version(), false, delete.id());
         } else {
             return planDeletionAsNonPrimary(delete);
         }
@@ -154,14 +154,14 @@ public class FollowingEngine extends InternalEngine {
     }
 
     @Override
-    public int fillSeqNoGaps(long primaryTerm) throws IOException {
+    public int fillSeqNoGaps(long primaryTerm) {
         // a noop implementation, because follow shard does not own the history but the leader shard does.
         return 0;
     }
 
     @Override
     protected boolean assertPrimaryIncomingSequenceNumber(final Operation.Origin origin, final long seqNo) {
-        assert FollowingEngineAssertions.assertPrimaryIncomingSequenceNumber(origin, seqNo);
+        assert FollowingEngineAssertions.assertPrimaryIncomingSequenceNumber(seqNo);
         return true;
     }
 
@@ -192,7 +192,7 @@ public class FollowingEngine extends InternalEngine {
                 BooleanClause.Occur.FILTER
             )
                 // excludes the non-root nested documents which don't have primary_term.
-                .add(new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME), BooleanClause.Occur.FILTER)
+                .add(new FieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME), BooleanClause.Occur.FILTER)
                 .build();
             final TopDocs topDocs = searcher.search(query, 1);
             if (topDocs.scoreDocs.length == 1) {

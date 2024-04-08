@@ -25,8 +25,8 @@ public class BulkItemRequest implements Writeable, Accountable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class);
 
-    private int id;
-    private DocWriteRequest<?> request;
+    private final int id;
+    private final DocWriteRequest<?> request;
     private volatile BulkItemResponse primaryResponse;
 
     BulkItemRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
@@ -60,7 +60,8 @@ public class BulkItemRequest implements Writeable, Accountable {
         return request.indices()[0];
     }
 
-    BulkItemResponse getPrimaryResponse() {
+    // public for tests
+    public BulkItemResponse getPrimaryResponse() {
         return primaryResponse;
     }
 

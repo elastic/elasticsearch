@@ -1,5 +1,7 @@
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
@@ -24,7 +26,7 @@ def middleCluster = testClusters.register('middle-cluster') {
     setting 'xpack.security.enabled', 'true'
     user username: 'admin', password: 'admin-password', role: 'superuser'
     setting 'cluster.remote.leader_cluster.seeds',
-            { "\"${leaderCluster.get().getAllTransportPortURI().join(",")}\"" }
+            { "\"${leaderCluster.get().getAllTransportPortURI().join(",")}\"" }, IGNORE_VALUE
 }
 
 tasks.register("leader-cluster", RestIntegTestTask) {
@@ -59,16 +61,14 @@ testClusters.matching {it.name == "follow-cluster" }.configureEach {
   setting 'xpack.security.enabled', 'true'
   user username: 'admin', password: 'admin-password', role: 'superuser'
   setting 'cluster.remote.leader_cluster.seeds',
-    { "\"${leaderCluster.get().getAllTransportPortURI().join(",")}\"" }
+    { "\"${leaderCluster.get().getAllTransportPortURI().join(",")}\"" }, IGNORE_VALUE
   setting 'cluster.remote.middle_cluster.seeds',
-    { "\"${middleCluster.get().getAllTransportPortURI().join(",")}\"" }
+    { "\"${middleCluster.get().getAllTransportPortURI().join(",")}\"" }, IGNORE_VALUE
 }
 
 
 testClusters.configureEach {
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.index_mode_feature_flag_registered', 'true'
-  }
+  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
 }
 
 tasks.named("check").configure { dependsOn "follow-cluster" }

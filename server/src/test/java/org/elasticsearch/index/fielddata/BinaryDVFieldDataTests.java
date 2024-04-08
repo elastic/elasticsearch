@@ -18,6 +18,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.script.field.BinaryDocValuesField;
+import org.elasticsearch.script.field.ScriptFieldFactory;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -118,7 +119,8 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
 
         // Test whether BinaryDocValuesField makes a deepcopy
         fieldData = indexFieldData.load(reader);
-        BinaryDocValuesField binaryDocValuesField = (BinaryDocValuesField) fieldData.getScriptField("test");
+        ScriptFieldFactory factory = fieldData.getScriptFieldFactory("test");
+        BinaryDocValuesField binaryDocValuesField = (BinaryDocValuesField) factory.toScriptField();
         ByteBuffer[][] retValues = new ByteBuffer[4][];
         for (int i = 0; i < 4; i++) {
             binaryDocValuesField.setNextDocId(i);

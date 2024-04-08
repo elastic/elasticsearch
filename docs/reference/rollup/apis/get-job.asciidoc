@@ -5,9 +5,9 @@
 <titleabbrev>Get job</titleabbrev>
 ++++
 
-Retrieves the configuration, stats, and status of {rollup-jobs}.
+deprecated::[8.11.0,"Rollups will be removed in a future version. Use <<downsampling,downsampling>> instead."]
 
-experimental[]
+Retrieves the configuration, stats, and status of {rollup-jobs}.
 
 [[rollup-get-job-request]]
 ==== {api-request-title}
@@ -45,7 +45,7 @@ For details about a historical {rollup-job}, the
 ==== {api-response-body-title}
 
 `jobs`::
-(array) An array of {rollup-job} resources. 
+(array) An array of {rollup-job} resources.
 +
 .Properties of {rollup-job} resources
 [%collapsible%open]

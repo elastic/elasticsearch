@@ -20,13 +20,16 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Predicates;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
@@ -85,7 +88,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
             actionFilters,
             SetUpgradeModeAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.persistentTasksClusterService = persistentTasksClusterService;
         this.clusterService = clusterService;
@@ -237,7 +240,7 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
         }, wrappedListener::onFailure);
 
         // <1> Change MlMetadata to indicate that upgrade_mode is now enabled
-        clusterService.submitStateUpdateTask("ml-set-upgrade-mode", new AckedClusterStateUpdateTask(request, clusterStateUpdateListener) {
+        submitUnbatchedTask("ml-set-upgrade-mode", new AckedClusterStateUpdateTask(request, clusterStateUpdateListener) {
 
             @Override
             protected AcknowledgedResponse newResponse(boolean acknowledged) {
@@ -254,7 +257,12 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
                 newState.metadata(Metadata.builder(currentState.getMetadata()).putCustom(MlMetadata.TYPE, builder.build()).build());
                 return newState.build();
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     @Override
@@ -285,15 +293,15 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
             // We want to always have the same ordering of which tasks we un-allocate first.
             // However, the order in which the distributed tasks handle the un-allocation event is not guaranteed.
             .sorted(Comparator.comparing(PersistentTask::getTaskName))
-            .collect(Collectors.toList());
+            .toList();
 
         logger.info(
             "Un-assigning persistent tasks : " + mlTasks.stream().map(PersistentTask::getId).collect(Collectors.joining(", ", "[ ", " ]"))
         );
 
         TypedChainTaskExecutor<PersistentTask<?>> chainTaskExecutor = new TypedChainTaskExecutor<>(
-            client.threadPool().executor(executor),
-            r -> true,
+            executor,
+            Predicates.always(),
             // Another process could modify tasks and thus we cannot find them via the allocation_id and name
             // If the task was removed from the node, all is well
             // We handle the case of allocation_id changing later in this transport class by timing out waiting for task completion
@@ -322,9 +330,9 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
 
         logger.info("Isolating datafeeds: " + datafeedsToIsolate.toString());
         TypedChainTaskExecutor<IsolateDatafeedAction.Response> isolateDatafeedsExecutor = new TypedChainTaskExecutor<>(
-            client.threadPool().executor(executor),
-            r -> true,
-            ex -> true
+            executor,
+            Predicates.always(),
+            Predicates.always()
         );
 
         datafeedsToIsolate.forEach(datafeedId -> {

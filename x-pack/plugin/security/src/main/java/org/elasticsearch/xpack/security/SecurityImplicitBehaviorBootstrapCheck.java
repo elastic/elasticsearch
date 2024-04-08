@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.security;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.env.NodeMetadata;
+import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -18,9 +20,11 @@ import org.elasticsearch.xpack.core.XPackSettings;
 public class SecurityImplicitBehaviorBootstrapCheck implements BootstrapCheck {
 
     private final NodeMetadata nodeMetadata;
+    private final LicenseService licenseService;
 
-    public SecurityImplicitBehaviorBootstrapCheck(NodeMetadata nodeMetadata) {
+    public SecurityImplicitBehaviorBootstrapCheck(NodeMetadata nodeMetadata, LicenseService licenseService) {
         this.nodeMetadata = nodeMetadata;
+        this.licenseService = licenseService;
     }
 
     @Override
@@ -28,31 +32,36 @@ public class SecurityImplicitBehaviorBootstrapCheck implements BootstrapCheck {
         if (nodeMetadata == null) {
             return BootstrapCheckResult.success();
         }
-        final License license = LicenseService.getLicense(context.metadata());
-        final Version lastKnownVersion = nodeMetadata.previousNodeVersion();
-        // pre v7.2.0 nodes have Version.EMPTY and its id is 0, so Version#before handles this successfully
-        if (lastKnownVersion.before(Version.V_8_0_0)
-            && XPackSettings.SECURITY_ENABLED.exists(context.settings()) == false
-            && (license.operationMode() == License.OperationMode.BASIC || license.operationMode() == License.OperationMode.TRIAL)) {
-            return BootstrapCheckResult.failure(
-                "The default value for ["
-                    + XPackSettings.SECURITY_ENABLED.getKey()
-                    + "] has changed in the current version. "
-                    + " Security features were implicitly disabled for this node but they would now be enabled, possibly"
-                    + " preventing access to the node. "
-                    + "See https://www.elastic.co/guide/en/elasticsearch/reference/"
-                    + Version.CURRENT.major
-                    + "."
-                    + Version.CURRENT.minor
-                    + "/security-minimal-setup.html to configure security, or explicitly disable security by "
-                    + "setting [xpack.security.enabled] to \"false\" in elasticsearch.yml before restarting the node."
-            );
-        } else {
-            return BootstrapCheckResult.success();
+        if (licenseService instanceof ClusterStateLicenseService clusterStateLicenseService) {
+            final License license = clusterStateLicenseService.getLicense(context.metadata());
+            // TODO[wrb]: Add an "isCurrentMajor" method to BuildVersion?
+            final Version lastKnownVersion = nodeMetadata.previousNodeVersion().toVersion();
+            // pre v7.2.0 nodes have Version.EMPTY and its id is 0, so Version#before handles this successfully
+            if (lastKnownVersion.before(Version.V_8_0_0)
+                && XPackSettings.SECURITY_ENABLED.exists(context.settings()) == false
+                && (license.operationMode() == License.OperationMode.BASIC || license.operationMode() == License.OperationMode.TRIAL)) {
+                return BootstrapCheckResult.failure(
+                    "The default value for ["
+                        + XPackSettings.SECURITY_ENABLED.getKey()
+                        + "] has changed in the current version. "
+                        + " Security features were implicitly disabled for this node but they would now be enabled, possibly"
+                        + " preventing access to the node. "
+                        + "See "
+                        + this.referenceDocs()
+                        + " to configure security, or explicitly disable security by "
+                        + "setting [xpack.security.enabled] to \"false\" in elasticsearch.yml before restarting the node."
+                );
+            }
         }
+        return BootstrapCheckResult.success();
     }
 
     public boolean alwaysEnforce() {
         return true;
+    }
+
+    @Override
+    public ReferenceDocs referenceDocs() {
+        return ReferenceDocs.BOOTSTRAP_CHECK_SECURITY_MINIMAL_SETUP;
     }
 }

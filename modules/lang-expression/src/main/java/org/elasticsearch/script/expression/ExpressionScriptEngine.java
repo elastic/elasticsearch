@@ -24,6 +24,7 @@ import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.BucketAggregationScript;
 import org.elasticsearch.script.BucketAggregationSelectorScript;
 import org.elasticsearch.script.ClassPermission;
+import org.elasticsearch.script.DoubleValuesScript;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.NumberSortScript;
@@ -132,6 +133,14 @@ public class ExpressionScriptEngine implements ScriptEngine {
                 return newFieldScript(expr, lookup, params);
             }
 
+            @Override
+            public boolean isResultDeterministic() {
+                return true;
+            }
+        },
+
+        DoubleValuesScript.CONTEXT,
+        (Expression expr) -> new ExpressionDoubleValuesScript(expr) {
             @Override
             public boolean isResultDeterministic() {
                 return true;
@@ -362,7 +371,6 @@ public class ExpressionScriptEngine implements ScriptEngine {
         // NOTE: if we need to do anything complicated with bindings in the future, we can just extend Bindings,
         // instead of complicating SimpleBindings (which should stay simple)
         SimpleBindings bindings = new SimpleBindings();
-        ReplaceableConstDoubleValueSource specialValue = null;
         boolean needsScores = false;
         for (String variable : expr.variables) {
             try {
@@ -370,8 +378,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
                     bindings.add("_score", DoubleValuesSource.SCORES);
                     needsScores = true;
                 } else if (variable.equals("_value")) {
-                    specialValue = new ReplaceableConstDoubleValueSource();
-                    bindings.add("_value", specialValue);
+                    bindings.add("_value", DoubleValuesSource.constant(0));
                     // noop: _value is special for aggregations, and is handled in ExpressionScriptBindings
                     // TODO: if some uses it in a scoring expression, they will get a nasty failure when evaluating...need a
                     // way to know this is for aggregations and so _value is ok to have...
@@ -460,7 +467,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
             throw new ParseException("Field [" + fieldname + "] does not exist in mappings", 5);
         }
 
-        IndexFieldData<?> fieldData = lookup.getForField(fieldType);
+        IndexFieldData<?> fieldData = lookup.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
         final DoubleValuesSource valueSource;
         if (fieldType instanceof GeoPointFieldType) {
             // geo

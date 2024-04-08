@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.security.action.saml;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataAction;
@@ -46,7 +46,7 @@ public class TransportSamlSpMetadataAction extends HandledTransportAction<SamlSp
 
     @Inject
     public TransportSamlSpMetadataAction(TransportService transportService, ActionFilters actionFilters, Realms realms) {
-        super(SamlSpMetadataAction.NAME, transportService, actionFilters, SamlSpMetadataRequest::new);
+        super(SamlSpMetadataAction.NAME, transportService, actionFilters, SamlSpMetadataRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.realms = realms;
     }
 
@@ -79,7 +79,7 @@ public class TransportSamlSpMetadataAction extends HandledTransportAction<SamlSp
             serializer.transform(new DOMSource(element), new StreamResult(writer));
             listener.onResponse(new SamlSpMetadataResponse(writer.toString()));
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("Error during SAML SP metadata generation for realm [{}]", realm.name()), e);
+            logger.error(() -> "Error during SAML SP metadata generation for realm [" + realm.name() + "]", e);
             listener.onFailure(e);
         }
     }

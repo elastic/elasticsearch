@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ccr.action;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -59,6 +58,8 @@ import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * The node task that fetch the write operations from a leader shard and
@@ -586,10 +587,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             if (isStopped() == false) {
                 // Only retry is the shard follow task is not stopped.
                 int currentRetry = retryCounter.incrementAndGet();
-                LOGGER.debug(
-                    new ParameterizedMessage("{} error during follow shard task, retrying [{}]", params.getFollowShardId(), currentRetry),
-                    e
-                );
+                LOGGER.debug(() -> format("%s error during follow shard task, retrying [%s]", params.getFollowShardId(), currentRetry), e);
                 long delay = computeDelay(currentRetry, params.getReadPollTimeout().getMillis());
                 scheduler.accept(TimeValue.timeValueMillis(delay), task);
             }

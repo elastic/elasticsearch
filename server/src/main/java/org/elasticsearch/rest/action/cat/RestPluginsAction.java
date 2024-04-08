@@ -9,6 +9,7 @@
 package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
@@ -18,18 +19,20 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.plugins.PluginType;
+import org.elasticsearch.plugins.PluginDescriptor;
+import org.elasticsearch.plugins.PluginRuntimeInfo;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.List;
-import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestPluginsAction extends AbstractCatAction {
 
     @Override
@@ -59,14 +62,11 @@ public class RestPluginsAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) throws Exception {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-                nodesInfoRequest.clear().addMetric(NodesInfoRequest.Metric.PLUGINS.metricName());
+                nodesInfoRequest.clear().addMetric(NodesInfoMetrics.Metric.PLUGINS.metricName());
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestResponseListener<NodesInfoResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(final NodesInfoResponse nodesInfoResponse) throws Exception {
-                        return RestTable.buildResponse(
-                            buildTable(request, clusterStateResponse, nodesInfoResponse, includeBootstrapPlugins),
-                            channel
-                        );
+                        return RestTable.buildResponse(buildTable(request, clusterStateResponse, nodesInfoResponse), channel);
                     }
                 });
             }
@@ -82,12 +82,11 @@ public class RestPluginsAction extends AbstractCatAction {
         table.addCell("component", "alias:c;desc:component");
         table.addCell("version", "alias:v;desc:component version");
         table.addCell("description", "alias:d;default:false;desc:plugin details");
-        table.addCell("type", "alias:t;default:false;desc:plugin type");
         table.endHeaders();
         return table;
     }
 
-    Table buildTable(RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo, boolean includeBootstrapPlugins) {
+    Table buildTable(RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo) {
         DiscoveryNodes nodes = state.getState().nodes();
         Table table = getTableWithHeader(req);
 
@@ -100,17 +99,14 @@ public class RestPluginsAction extends AbstractCatAction {
             if (plugins == null) {
                 continue;
             }
-            for (PluginInfo pluginInfo : plugins.getPluginInfos()) {
-                if (pluginInfo.getType() == PluginType.BOOTSTRAP && includeBootstrapPlugins == false) {
-                    continue;
-                }
+            for (PluginRuntimeInfo pluginInfo : plugins.getPluginInfos()) {
+                PluginDescriptor pluginDescriptor = pluginInfo.descriptor();
                 table.startRow();
                 table.addCell(node.getId());
                 table.addCell(node.getName());
-                table.addCell(pluginInfo.getName());
-                table.addCell(pluginInfo.getVersion());
-                table.addCell(pluginInfo.getDescription());
-                table.addCell(pluginInfo.getType().toString().toLowerCase(Locale.ROOT));
+                table.addCell(pluginDescriptor.getName());
+                table.addCell(pluginDescriptor.getVersion());
+                table.addCell(pluginDescriptor.getDescription());
                 table.endRow();
             }
         }

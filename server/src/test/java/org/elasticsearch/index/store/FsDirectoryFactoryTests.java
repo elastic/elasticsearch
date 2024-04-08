@@ -15,12 +15,12 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NoLockFactory;
 import org.apache.lucene.store.SleepingLockWrapper;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.test.ESTestCase;
@@ -46,16 +46,17 @@ public class FsDirectoryFactoryTests extends ESTestCase {
         try (Directory directory = newDirectory(build)) {
             assertTrue(FsDirectoryFactory.isHybridFs(directory));
             FsDirectoryFactory.HybridDirectory hybridDirectory = (FsDirectoryFactory.HybridDirectory) directory;
-            assertTrue(hybridDirectory.useDelegate("foo.dvd", newIOContext(random())));
-            assertTrue(hybridDirectory.useDelegate("foo.nvd", newIOContext(random())));
-            assertTrue(hybridDirectory.useDelegate("foo.tim", newIOContext(random())));
-            assertTrue(hybridDirectory.useDelegate("foo.tip", newIOContext(random())));
-            assertTrue(hybridDirectory.useDelegate("foo.cfs", newIOContext(random())));
-            assertTrue(hybridDirectory.useDelegate("foo.dim", newIOContext(random())));
-            assertTrue(hybridDirectory.useDelegate("foo.kdd", newIOContext(random())));
-            assertTrue(hybridDirectory.useDelegate("foo.kdi", newIOContext(random())));
-            assertFalse(hybridDirectory.useDelegate("foo.kdi", Store.READONCE_CHECKSUM));
-            assertFalse(hybridDirectory.useDelegate("foo.tmp", newIOContext(random())));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.dvd", newIOContext(random())));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.nvd", newIOContext(random())));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.tim", newIOContext(random())));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.tip", newIOContext(random())));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.cfs", newIOContext(random())));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.dim", newIOContext(random())));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.kdd", newIOContext(random())));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.kdi", newIOContext(random())));
+            assertFalse(FsDirectoryFactory.HybridDirectory.useDelegate("foo.kdi", Store.READONCE_CHECKSUM));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.tmp", newIOContext(random())));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.fdt__0.tmp", newIOContext(random())));
             MMapDirectory delegate = hybridDirectory.getDelegate();
             assertThat(delegate, Matchers.instanceOf(FsDirectoryFactory.PreLoadMMapDirectory.class));
             FsDirectoryFactory.PreLoadMMapDirectory preLoadMMapDirectory = (FsDirectoryFactory.PreLoadMMapDirectory) delegate;
@@ -121,7 +122,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
     }
 
     private void doTestStoreDirectory(Path tempDir, String typeSettingValue, IndexModule.Type type) throws IOException {
-        Settings.Builder settingsBuilder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+        Settings.Builder settingsBuilder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current());
         if (typeSettingValue != null) {
             settingsBuilder.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), typeSettingValue);
         }

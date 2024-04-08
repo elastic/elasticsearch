@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.idp.saml.rest.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -69,15 +68,9 @@ public class RestSamlInitiateSingleSignOnAction extends IdpBaseRestHandler {
                     @Override
                     public RestResponse buildResponse(SamlInitiateSingleSignOnResponse response, XContentBuilder builder) throws Exception {
                         builder.startObject();
-                        builder.field("post_url", response.getPostUrl());
-                        builder.field("saml_response", response.getSamlResponse());
-                        builder.field("saml_status", response.getSamlStatus());
-                        builder.field("error", response.getError());
-                        builder.startObject("service_provider");
-                        builder.field("entity_id", response.getEntityId());
+                        response.toXContent(builder);
                         builder.endObject();
-                        builder.endObject();
-                        return new BytesRestResponse(RestStatus.OK, builder);
+                        return new RestResponse(RestStatus.OK, builder);
                     }
                 }
             );

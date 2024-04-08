@@ -12,6 +12,8 @@ import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.elasticsearch.gradle.internal.precommit.DependencyLicensesTask;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.attributes.Category;
 import org.gradle.api.plugins.JavaPlugin;
 
 public class DependenciesInfoPlugin implements Plugin<Project> {
@@ -19,6 +21,7 @@ public class DependenciesInfoPlugin implements Plugin<Project> {
     public void apply(final Project project) {
         project.getPlugins().apply(CompileOnlyResolvePlugin.class);
         var depsInfo = project.getTasks().register("dependenciesInfo", DependenciesInfoTask.class);
+
         depsInfo.configure(t -> {
             t.setRuntimeConfiguration(project.getConfigurations().getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME));
             t.setCompileOnlyConfiguration(
@@ -29,6 +32,18 @@ public class DependenciesInfoPlugin implements Plugin<Project> {
                 return depLic.get().getMappings();
             });
         });
+        Configuration dependenciesInfoFilesConfiguration = project.getConfigurations().create("dependenciesInfoFiles");
+        dependenciesInfoFilesConfiguration.setCanBeResolved(false);
+        dependenciesInfoFilesConfiguration.setCanBeConsumed(true);
+        dependenciesInfoFilesConfiguration.attributes(
+            attributes -> attributes.attribute(
+                Category.CATEGORY_ATTRIBUTE,
+                project.getObjects().named(Category.class, Category.DOCUMENTATION)
+            )
+        );
+
+        project.getArtifacts().add("dependenciesInfoFiles", depsInfo);
+
     }
 
 }

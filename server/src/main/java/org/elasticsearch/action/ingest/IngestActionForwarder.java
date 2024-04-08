@@ -12,10 +12,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -37,12 +39,12 @@ public final class IngestActionForwarder implements ClusterStateApplier {
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    public void forwardIngestRequest(ActionType<?> action, ActionRequest request, ActionListener<?> listener) {
+    public void forwardIngestRequest(ActionType<BulkResponse> action, ActionRequest request, ActionListener<?> listener) {
         transportService.sendRequest(
             randomIngestNode(),
             action.name(),
             request,
-            new ActionListenerResponseHandler(listener, action.getResponseReader())
+            new ActionListenerResponseHandler(listener, BulkResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
         );
     }
 

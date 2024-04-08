@@ -21,11 +21,8 @@ import java.util.Properties;
 public class VersionPropertiesLoader {
     static Properties loadBuildSrcVersion(File input, ProviderFactory providerFactory) throws IOException {
         Properties props = new Properties();
-        InputStream is = new FileInputStream(input);
-        try {
+        try (InputStream is = new FileInputStream(input)) {
             props.load(is);
-        } finally {
-            is.close();
         }
         loadBuildSrcVersion(props, providerFactory);
         return props;
@@ -43,7 +40,6 @@ public class VersionPropertiesLoader {
             );
         }
         String qualifier = providers.systemProperty("build.version_qualifier")
-                .forUseAtConfigurationTime()
                 .getOrElse("");
         if (qualifier.isEmpty() == false) {
             if (qualifier.matches("(alpha|beta|rc)\\d+") == false) {
@@ -52,7 +48,6 @@ public class VersionPropertiesLoader {
             elasticsearch += "-" + qualifier;
         }
         final String buildSnapshotSystemProperty = providers.systemProperty("build.snapshot")
-                .forUseAtConfigurationTime()
                 .getOrElse("true");
         switch (buildSnapshotSystemProperty) {
             case "true":

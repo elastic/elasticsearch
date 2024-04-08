@@ -45,7 +45,7 @@ public class EvilSecurityTests extends ESTestCase {
         try {
             System.setProperty("java.io.tmpdir", fakeTmpDir.toString());
             Environment environment = TestEnvironment.newEnvironment(settings);
-            permissions = Security.createPermissions(environment);
+            permissions = Security.createPermissions(environment, null);
         } finally {
             System.setProperty("java.io.tmpdir", realTmpDir);
         }
@@ -61,7 +61,6 @@ public class EvilSecurityTests extends ESTestCase {
     }
 
     /** test generated permissions for all configured paths */
-    @SuppressWarnings("deprecation") // needs to check settings for deprecated path
     @SuppressForbidden(reason = "to create FilePermission object")
     public void testEnvironmentPaths() throws Exception {
         Path path = createTempDir();
@@ -77,7 +76,6 @@ public class EvilSecurityTests extends ESTestCase {
         );
         settingsBuilder.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), esHome.resolve("custom").toString());
         settingsBuilder.put(Environment.PATH_LOGS_SETTING.getKey(), esHome.resolve("logs").toString());
-        settingsBuilder.put(Environment.NODE_PIDFILE_SETTING.getKey(), esHome.resolve("test.pid").toString());
         Settings settings = settingsBuilder.build();
 
         Path fakeTmpDir = createTempDir();
@@ -87,7 +85,7 @@ public class EvilSecurityTests extends ESTestCase {
         try {
             System.setProperty("java.io.tmpdir", fakeTmpDir.toString());
             environment = new Environment(settings, esHome.resolve("conf"));
-            permissions = Security.createPermissions(environment);
+            permissions = Security.createPermissions(environment, null);
         } finally {
             System.setProperty("java.io.tmpdir", realTmpDir);
         }
@@ -123,8 +121,6 @@ public class EvilSecurityTests extends ESTestCase {
         assertExactPermissions(new FilePermission(environment.logsFile().toString(), "read,readlink,write,delete"), permissions);
         // temp dir: r/w
         assertExactPermissions(new FilePermission(fakeTmpDir.toString(), "read,readlink,write,delete"), permissions);
-        // PID file: delete only (for the shutdown hook)
-        assertExactPermissions(new FilePermission(environment.pidFile().toString(), "delete"), permissions);
     }
 
     public void testDuplicateDataPaths() throws IOException {
@@ -146,7 +142,7 @@ public class EvilSecurityTests extends ESTestCase {
             .build();
 
         final Environment environment = TestEnvironment.newEnvironment(settings);
-        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> Security.createPermissions(environment));
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> Security.createPermissions(environment, null));
         assertThat(e, hasToString(containsString("path [" + duplicate.toRealPath() + "] is duplicated by [" + duplicate + "]")));
     }
 

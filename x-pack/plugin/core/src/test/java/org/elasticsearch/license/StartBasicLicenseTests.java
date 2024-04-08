@@ -28,7 +28,7 @@ public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase 
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(addRoles(super.nodeSettings(nodeOrdinal, otherSettings), Set.of(DiscoveryNodeRole.DATA_ROLE)))
-            .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "basic")
+            .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "basic")
             .build();
     }
 
@@ -60,7 +60,7 @@ public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase 
         });
 
         long expirationMillis = licensingClient.prepareGetLicense().get().license().expiryDate();
-        assertEquals(LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS, expirationMillis);
+        assertEquals(LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS, expirationMillis);
 
         GetLicenseResponse licenseResponse = licensingClient.prepareGetLicense().get();
         assertEquals("basic", licenseResponse.license().type());

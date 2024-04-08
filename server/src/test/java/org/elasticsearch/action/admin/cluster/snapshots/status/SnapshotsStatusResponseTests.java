@@ -8,7 +8,10 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -16,11 +19,26 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
-public class SnapshotsStatusResponseTests extends AbstractXContentTestCase<SnapshotsStatusResponse> {
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+
+public class SnapshotsStatusResponseTests extends AbstractChunkedSerializingTestCase<SnapshotsStatusResponse> {
+
+    private static final ConstructingObjectParser<SnapshotsStatusResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "snapshots_status_response",
+        true,
+        (Object[] parsedObjects) -> {
+            @SuppressWarnings("unchecked")
+            List<SnapshotStatus> snapshots = (List<SnapshotStatus>) parsedObjects[0];
+            return new SnapshotsStatusResponse(snapshots);
+        }
+    );
+    static {
+        PARSER.declareObjectArray(constructorArg(), SnapshotStatusTests.PARSER, new ParseField("snapshots"));
+    }
 
     @Override
     protected SnapshotsStatusResponse doParseInstance(XContentParser parser) throws IOException {
-        return SnapshotsStatusResponse.fromXContent(parser);
+        return PARSER.parse(parser, null);
     }
 
     @Override
@@ -42,5 +60,22 @@ public class SnapshotsStatusResponseTests extends AbstractXContentTestCase<Snaps
             snapshotStatuses.add(statusBuilder.createTestInstance());
         }
         return new SnapshotsStatusResponse(snapshotStatuses);
+    }
+
+    @Override
+    protected SnapshotsStatusResponse mutateInstance(SnapshotsStatusResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected Writeable.Reader<SnapshotsStatusResponse> instanceReader() {
+        return SnapshotsStatusResponse::new;
+    }
+
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            createTestInstance(),
+            instance -> 2 + instance.getSnapshots().stream().mapToInt(i -> 2 + i.getIndices().size()).sum()
+        );
     }
 }

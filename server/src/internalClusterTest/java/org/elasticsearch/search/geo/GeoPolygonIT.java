@@ -8,14 +8,13 @@
 
 package org.elasticsearch.search.geo;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +23,7 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoPolygonQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -38,7 +38,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
 
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
-        Version version = VersionUtils.randomIndexCompatibleVersion(random());
+        IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
 
         assertAcked(
@@ -48,8 +48,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex("test")
-                .setId("1")
+            prepareIndex("test").setId("1")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("name", "New York")
@@ -60,8 +59,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
                         .endObject()
                 ),
             // to NY: 5.286 km
-            client().prepareIndex("test")
-                .setId("2")
+            prepareIndex("test").setId("2")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("name", "Times Square")
@@ -72,8 +70,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
                         .endObject()
                 ),
             // to NY: 0.4621 km
-            client().prepareIndex("test")
-                .setId("3")
+            prepareIndex("test").setId("3")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("name", "Tribeca")
@@ -84,8 +81,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
                         .endObject()
                 ),
             // to NY: 1.055 km
-            client().prepareIndex("test")
-                .setId("4")
+            prepareIndex("test").setId("4")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("name", "Wall Street")
@@ -96,8 +92,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
                         .endObject()
                 ),
             // to NY: 1.258 km
-            client().prepareIndex("test")
-                .setId("5")
+            prepareIndex("test").setId("5")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("name", "Soho")
@@ -108,8 +103,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
                         .endObject()
                 ),
             // to NY: 2.029 km
-            client().prepareIndex("test")
-                .setId("6")
+            prepareIndex("test").setId("6")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("name", "Greenwich Village")
@@ -120,8 +114,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
                         .endObject()
                 ),
             // to NY: 8.572 km
-            client().prepareIndex("test")
-                .setId("7")
+            prepareIndex("test").setId("7")
                 .setSource(
                     jsonBuilder().startObject()
                         .field("name", "Brooklyn")
@@ -142,14 +135,17 @@ public class GeoPolygonIT extends ESIntegTestCase {
         points.add(new GeoPoint(40.8, -74.1));
         points.add(new GeoPoint(40.8, -74.0));
         points.add(new GeoPoint(40.7, -74.0));
-        SearchResponse searchResponse = client().prepareSearch("test") // from NY
-            .setQuery(boolQuery().must(geoPolygonQuery("location", points)))
-            .get();
-        assertHitCount(searchResponse, 4);
-        assertThat(searchResponse.getHits().getHits().length, equalTo(4));
-        for (SearchHit hit : searchResponse.getHits()) {
-            assertThat(hit.getId(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
-        }
+        assertResponse(
+            prepareSearch("test") // from NY
+                .setQuery(boolQuery().must(geoPolygonQuery("location", points))),
+            response -> {
+                assertHitCount(response, 4);
+                assertThat(response.getHits().getHits().length, equalTo(4));
+                for (SearchHit hit : response.getHits()) {
+                    assertThat(hit.getId(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
+                }
+            }
+        );
     }
 
     public void testSimpleUnclosedPolygon() throws Exception {
@@ -158,14 +154,17 @@ public class GeoPolygonIT extends ESIntegTestCase {
         points.add(new GeoPoint(40.7, -74.1));
         points.add(new GeoPoint(40.8, -74.1));
         points.add(new GeoPoint(40.8, -74.0));
-        SearchResponse searchResponse = client().prepareSearch("test") // from NY
-            .setQuery(boolQuery().must(geoPolygonQuery("location", points)))
-            .get();
-        assertHitCount(searchResponse, 4);
-        assertThat(searchResponse.getHits().getHits().length, equalTo(4));
-        for (SearchHit hit : searchResponse.getHits()) {
-            assertThat(hit.getId(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
-        }
+        assertResponse(
+            prepareSearch("test") // from NY
+                .setQuery(boolQuery().must(geoPolygonQuery("location", points))),
+            response -> {
+                assertHitCount(response, 4);
+                assertThat(response.getHits().getHits().length, equalTo(4));
+                for (SearchHit hit : response.getHits()) {
+                    assertThat(hit.getId(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
+                }
+            }
+        );
     }
 
     public void testFieldAlias() {
@@ -175,9 +174,10 @@ public class GeoPolygonIT extends ESIntegTestCase {
         points.add(new GeoPoint(40.8, -74.1));
         points.add(new GeoPoint(40.8, -74.0));
         points.add(new GeoPoint(40.7, -74.0));
-        SearchResponse searchResponse = client().prepareSearch("test") // from NY
-            .setQuery(boolQuery().must(geoPolygonQuery("alias", points)))
-            .get();
-        assertHitCount(searchResponse, 4);
+        assertHitCount(
+            prepareSearch("test") // from NY
+                .setQuery(boolQuery().must(geoPolygonQuery("alias", points))),
+            4L
+        );
     }
 }

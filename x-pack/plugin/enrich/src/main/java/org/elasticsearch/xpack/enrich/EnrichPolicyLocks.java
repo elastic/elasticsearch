@@ -7,12 +7,12 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Releasable;
 
+import java.util.Collections;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * A coordination object that allows multiple distinct polices to be executed concurrently, but also makes sure that a single
@@ -23,28 +23,36 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 public class EnrichPolicyLocks {
 
     /**
-     * A snapshot in time detailing if any policy executions are in flight and total number of local executions that
-     * have been kicked off since the node has started
+     * An instance of a specific lock on a single policy object. Ensures that when unlocking a policy, the policy is only unlocked if this
+     * object is the owner of the held lock. Additionally, this manages the lock lifecycle for any other resources tracked by the policy
+     * coordination logic, such as a policy execution's target index.
      */
-    public static class EnrichPolicyExecutionState {
-        final boolean anyPolicyInFlight;
-        final long executions;
+    public class EnrichPolicyLock implements Releasable {
+        private final String policyName;
+        private final String enrichIndexName;
+        private final Semaphore executionLease;
 
-        EnrichPolicyExecutionState(boolean anyPolicyInFlight, long executions) {
-            this.anyPolicyInFlight = anyPolicyInFlight;
-            this.executions = executions;
+        private EnrichPolicyLock(String policyName, String enrichIndexName, Semaphore executionLease) {
+            this.policyName = policyName;
+            this.enrichIndexName = enrichIndexName;
+            this.executionLease = executionLease;
         }
 
-        public boolean isAnyPolicyInFlight() {
-            return anyPolicyInFlight;
+        /**
+         * Unlocks this policy for execution and maintenance IFF this lock represents the currently held semaphore for a policy name. If
+         * this lock was created for an execution, the target index for the policy execution is also cleared from the locked state.
+         */
+        @Override
+        public void close() {
+            if (enrichIndexName != null) {
+                boolean wasRemoved = workingIndices.remove(enrichIndexName, executionLease);
+                assert wasRemoved
+                    : "Target index [" + enrichIndexName + "] for policy [" + policyName + "] was removed prior to policy unlock";
+            }
+            boolean wasRemoved = policyLocks.remove(policyName, executionLease);
+            assert wasRemoved : "Second attempt was made to unlock policy [" + policyName + "]";
         }
     }
-
-    /**
-     * A read-write lock that allows for policies to be executed concurrently with minimal overhead, but allows for blocking
-     * policy locking operations while capturing the state of policy executions.
-     */
-    private final ReadWriteLock currentStateLock = new ReentrantReadWriteLock(true);
 
     /**
      * A mapping of policy name to a semaphore used for ensuring that a single policy can only have one execution in flight
@@ -53,73 +61,60 @@ public class EnrichPolicyLocks {
     private final ConcurrentHashMap<String, Semaphore> policyLocks = new ConcurrentHashMap<>();
 
     /**
-     * A counter that is used as a sort of policy execution sequence id / dirty bit. This is incremented every time a policy
-     * successfully acquires an execution lock.
+     * When a policy is locked for execution the new index that is created is added to this set to keep it from being accidentally
+     * cleaned up by the maintenance task.
      */
-    private final AtomicLong policyRunCounter = new AtomicLong(0L);
+    private final ConcurrentHashMap<String, Semaphore> workingIndices = new ConcurrentHashMap<>();
 
     /**
      * Locks a policy to prevent concurrent execution. If the policy is currently executing, this method will immediately
      * throw without waiting. This method only blocks if another thread is currently capturing the current policy execution state.
+     * <br/><br/>
+     * If a policy is being executed, use {@link EnrichPolicyLocks#lockPolicy(String, String)} instead in order to properly track the
+     * new enrich index that will be created.
      * @param policyName The policy name to lock for execution
      * @throws EsRejectedExecutionException if the policy is locked already or if the maximum number of concurrent policy executions
      *                                      has been reached
      */
-    public void lockPolicy(String policyName) {
-        currentStateLock.readLock().lock();
-        try {
-            Semaphore runLock = policyLocks.computeIfAbsent(policyName, (name) -> new Semaphore(1));
-            boolean acquired = runLock.tryAcquire();
-            if (acquired == false) {
-                throw new EsRejectedExecutionException(
-                    "Could not obtain lock because policy execution for [" + policyName + "] is already in progress."
-                );
-            }
-            policyRunCounter.incrementAndGet();
-        } finally {
-            currentStateLock.readLock().unlock();
-        }
+    public EnrichPolicyLock lockPolicy(String policyName) {
+        return lockPolicy(policyName, null);
     }
 
     /**
-     * Captures a snapshot of the current policy execution state. This method never blocks, instead assuming that a policy is
-     * currently starting its execution and returns an appropriate state.
-     * @return The current state of in-flight policy executions
+     * Locks a policy to prevent concurrent execution. If the policy is currently executing, this method will immediately
+     * throw without waiting. This method only blocks if another thread is currently capturing the current policy execution state.
+     * <br/><br/>
+     * If a policy needs to be locked just to ensure it is not executing, use {@link EnrichPolicyLocks#lockPolicy(String)} instead since
+     * no new enrich indices need to be maintained.
+     * @param policyName The policy name to lock for execution
+     * @param enrichIndexName If the policy is being executed, this parameter denotes the index that should be protected from maintenance
+     *                  operations.
+     * @throws EsRejectedExecutionException if the policy is locked already or if the maximum number of concurrent policy executions
+     *                                      has been reached
      */
-    public EnrichPolicyExecutionState captureExecutionState() {
-        if (currentStateLock.writeLock().tryLock()) {
-            try {
-                long revision = policyRunCounter.get();
-                long currentPolicyExecutions = policyLocks.mappingCount();
-                return new EnrichPolicyExecutionState(currentPolicyExecutions > 0L, revision);
-            } finally {
-                currentStateLock.writeLock().unlock();
-            }
+    public EnrichPolicyLock lockPolicy(String policyName, String enrichIndexName) {
+        Semaphore runLock = policyLocks.computeIfAbsent(policyName, (name) -> new Semaphore(1));
+        boolean acquired = runLock.tryAcquire();
+        if (acquired == false) {
+            throw new EsRejectedExecutionException(
+                "Could not obtain lock because policy execution for [" + policyName + "] is already in progress."
+            );
         }
-        return new EnrichPolicyExecutionState(true, policyRunCounter.get());
+        if (enrichIndexName != null) {
+            Semaphore previous = workingIndices.putIfAbsent(enrichIndexName, runLock);
+            assert previous == null : "Target index [" + enrichIndexName + "] is already claimed by an execution, or was not cleaned up.";
+        }
+        return new EnrichPolicyLock(policyName, enrichIndexName, runLock);
     }
 
-    /**
-     * Checks if the current execution state matches that of the given execution state. Used to ensure that over a period of time
-     * no changes to the policy execution state have occurred.
-     * @param previousState The previous state to check the current state against
-     * @return true if the current state matches the given previous state, false if policy executions have changed over time.
-     */
-    boolean isSameState(EnrichPolicyExecutionState previousState) {
-        EnrichPolicyExecutionState currentState = captureExecutionState();
-        return currentState.anyPolicyInFlight == previousState.anyPolicyInFlight && currentState.executions == previousState.executions;
+    public Set<String> lockedPolices() {
+        // Wrap as unmodifiable instead of copying
+        return Collections.unmodifiableSet(policyLocks.keySet());
     }
 
-    /**
-     * Releases the lock for a given policy name, allowing it to be executed.
-     * @param policyName The policy to release.
-     */
-    public void releasePolicy(String policyName) {
-        currentStateLock.readLock().lock();
-        try {
-            policyLocks.remove(policyName);
-        } finally {
-            currentStateLock.readLock().unlock();
-        }
+    public Set<String> inflightPolicyIndices() {
+        // Wrap as unmodifiable instead of copying
+        return Collections.unmodifiableSet(workingIndices.keySet());
     }
+
 }

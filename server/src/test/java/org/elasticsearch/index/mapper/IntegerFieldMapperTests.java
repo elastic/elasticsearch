@@ -9,8 +9,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.List;
@@ -23,12 +23,12 @@ public class IntegerFieldMapperTests extends WholeNumberFieldMapperTests {
     }
 
     @Override
-    protected List<OutOfRangeSpec> outOfRangeSpecs() {
+    protected List<NumberTypeOutOfRangeSpec> outOfRangeSpecs() {
         return List.of(
-            OutOfRangeSpec.of(NumberType.INTEGER, "2147483648", "is out of range for an integer"),
-            OutOfRangeSpec.of(NumberType.INTEGER, "-2147483649", "is out of range for an integer"),
-            OutOfRangeSpec.of(NumberType.INTEGER, 2147483648L, " out of range of int"),
-            OutOfRangeSpec.of(NumberType.INTEGER, -2147483649L, " out of range of int")
+            NumberTypeOutOfRangeSpec.of(NumberType.INTEGER, "2147483648", "is out of range for an integer"),
+            NumberTypeOutOfRangeSpec.of(NumberType.INTEGER, "-2147483649", "is out of range for an integer"),
+            NumberTypeOutOfRangeSpec.of(NumberType.INTEGER, 2147483648L, " out of range of int"),
+            NumberTypeOutOfRangeSpec.of(NumberType.INTEGER, -2147483649L, " out of range of int")
         );
     }
 
@@ -46,5 +46,10 @@ public class IntegerFieldMapperTests extends WholeNumberFieldMapperTests {
             return randomDouble();
         }
         return randomDoubleBetween(Integer.MIN_VALUE, Integer.MAX_VALUE, true);
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

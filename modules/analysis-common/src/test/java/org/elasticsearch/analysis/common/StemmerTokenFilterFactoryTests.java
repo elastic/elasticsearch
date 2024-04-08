@@ -12,16 +12,16 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.en.PorterStemFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTokenStreamTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -37,7 +37,7 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
     public void testEnglishFilterFactory() throws IOException {
         int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
-            Version v = VersionUtils.randomVersion(random());
+            IndexVersion v = IndexVersionUtils.randomVersion(random());
             Settings settings = Settings.builder()
                 .put("index.analysis.filter.my_english.type", "stemmer")
                 .put("index.analysis.filter.my_english.language", "english")
@@ -64,7 +64,7 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
         int iters = scaledRandomIntBetween(20, 100);
         for (int i = 0; i < iters; i++) {
 
-            Version v = VersionUtils.randomVersion(random());
+            IndexVersion v = IndexVersionUtils.randomVersion(random());
             Settings settings = Settings.builder()
                 .put("index.analysis.filter.my_porter2.type", "stemmer")
                 .put("index.analysis.filter.my_porter2.language", "porter2")
@@ -88,7 +88,7 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
     }
 
     public void testMultipleLanguagesThrowsException() throws IOException {
-        Version v = VersionUtils.randomVersion(random());
+        IndexVersion v = IndexVersionUtils.randomVersion(random());
         Settings settings = Settings.builder()
             .put("index.analysis.filter.my_english.type", "stemmer")
             .putList("index.analysis.filter.my_english.language", "english", "light_english")

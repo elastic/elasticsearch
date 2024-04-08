@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.client.internal.Client;
@@ -32,8 +31,10 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
 
 /**
  * Responsible for cleaning the invalidated and expired tokens from the security indices (`main` and `tokens`).
@@ -68,10 +69,10 @@ final class ExpiredTokenRemover extends AbstractRunnable {
     @Override
     public void doRun() {
         final List<String> indicesWithTokens = new ArrayList<>();
-        if (securityTokensIndex.isAvailable()) {
+        if (securityTokensIndex.isAvailable(PRIMARY_SHARDS)) {
             indicesWithTokens.add(securityTokensIndex.aliasName());
         }
-        if (securityMainIndex.isAvailable() && checkMainIndexForExpiredTokens) {
+        if (securityMainIndex.isAvailable(PRIMARY_SHARDS) && checkMainIndexForExpiredTokens) {
             indicesWithTokens.add(securityMainIndex.aliasName());
         }
         if (indicesWithTokens.isEmpty()) {
@@ -91,7 +92,7 @@ final class ExpiredTokenRemover extends AbstractRunnable {
                     QueryBuilders.rangeQuery("creation_time").lte(now.minus(MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS).toEpochMilli())
                 )
         );
-        logger.trace(() -> new ParameterizedMessage("Removing old tokens: [{}]", Strings.toString(expiredDbq)));
+        logger.trace(() -> "Removing old tokens: [" + Strings.toString(expiredDbq) + "]");
         executeAsyncWithOrigin(client, SECURITY_ORIGIN, DeleteByQueryAction.INSTANCE, expiredDbq, ActionListener.wrap(bulkResponse -> {
             debugDbqResponse(bulkResponse);
             // tokens can still linger on the main index for their maximum lifetime after the tokens index has been created, because
@@ -113,7 +114,7 @@ final class ExpiredTokenRemover extends AbstractRunnable {
         }
     }
 
-    private void debugDbqResponse(BulkByScrollResponse response) {
+    private static void debugDbqResponse(BulkByScrollResponse response) {
         if (logger.isDebugEnabled()) {
             logger.debug(
                 "delete by query of tokens finished with [{}] deletions, [{}] bulk failures, [{}] search failures",
@@ -123,14 +124,14 @@ final class ExpiredTokenRemover extends AbstractRunnable {
             );
             for (BulkItemResponse.Failure failure : response.getBulkFailures()) {
                 logger.debug(
-                    new ParameterizedMessage("deletion failed for index [{}], id [{}]", failure.getIndex(), failure.getId()),
+                    () -> format("deletion failed for index [%s], id [%s]", failure.getIndex(), failure.getId()),
                     failure.getCause()
                 );
             }
             for (ScrollableHitSource.SearchFailure failure : response.getSearchFailures()) {
                 logger.debug(
-                    new ParameterizedMessage(
-                        "search failed for index [{}], shard [{}] on node [{}]",
+                    () -> format(
+                        "search failed for index [%s], shard [%s] on node [%s]",
                         failure.getIndex(),
                         failure.getShardId(),
                         failure.getNodeId()

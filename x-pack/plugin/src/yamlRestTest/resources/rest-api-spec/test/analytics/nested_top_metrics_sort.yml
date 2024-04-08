@@ -1,0 +1,1097 @@
+setup:
+  - skip:
+      version: " - 8.1.99"
+      reason: bug fixed in 8.2.0
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              timestamp:
+                type: date
+              uuid:
+                type: keyword
+              name:
+                type: keyword
+              metric:
+                type: long
+              version:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: test_order_by_top_metrics
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              birth_date:
+                type: date
+              null_date:
+                type: date
+              order_date:
+                type: date
+              score:
+                type: integer
+              version:
+                type: integer
+              price:
+                type: double
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": {} }'
+          - '{ "timestamp": "2021-10-01", "metric": 1, "name": "first", "uuid": "0002", "version": "v1" }'
+          - '{ "index": {} }'
+          - '{ "timestamp": "2021-10-02", "metric": 2, "name": "first", "uuid": "0002", "version": "v1" }'
+          - '{ "index": {} }'
+          - '{ "timestamp": "2021-10-01", "metric": 1, "name": "second", "uuid": "0001", "version": "v1" }'
+          - '{ "index": {} }'
+          - '{ "timestamp": "2021-10-02", "metric": 3, "name": "second", "uuid": "0001", "version": "v1" }'
+          - '{ "index": {} }'
+          - '{ "timestamp": "2021-10-01", "metric": 1, "name": "third", "uuid": "0003", "version": "v1" }'
+          - '{ "index": {} }'
+          - '{ "timestamp": "2021-10-02", "metric": 1, "name": "third", "uuid": "0003", "version": "v1" }'
+
+  - do:
+      bulk:
+        index: test_order_by_top_metrics
+        refresh: true
+        body:
+          - { "index": {} }
+          - { "name": "alice", "order_date": "2021-09-09T17:50:00.000Z", birth_date: "1990-12-10", score: 7, version: 1, price: 12.90 }
+          - { "index": {} }
+          - { "name": "bob", "order_date": "2021-10-12T18:39:00.000Z", birth_date: "1989-11-04", score: 9, version: 1, price: 34.20 }
+          - { "index": {} }
+          - { "name": "charlie", "order_date": "2021-12-10T19:33:00.000Z", birth_date: "1990-08-22", score: 6, version: 1, price: 22.50 }
+          - { "index": {} }
+          - { "name": "daniel", "order_date": "2021-08-09T17:22:00.000Z", birth_date: "1991-09-11", score: 3, version: 1, price: 18.49 }
+          - { "index": {} }
+          - { "name": "sophia", "order_date": "2021-09-02T16:44:00.000Z", birth_date: "1989-04-05", score: 6, version: 1, price: 90.00 }
+          - { "index": {} }
+          - { "name": "mike", "order_date": "2021-11-11T15:22:00.000Z", birth_date: "1990-06-18", score: 5, version: 1, price: 77.80 }
+          - { "index": {} }
+          - { "name": "thomas", "order_date": "2021-08-11T18:11:00.000Z", birth_date: "1991-10-27", score: 4, version: 1, price: 7.99 }
+          - { "index": {} }
+          - { "name": "bruce", "order_date": "2021-08-29T18:47:00.000Z", birth_date: "1990-01-17", score: 4, version: 1, price: 9.49 }
+          - { "index": {} }
+          - { "name": "alice", "order_date": "2021-08-11T17:22:00.000Z", birth_date: "1990-12-10", score: 5, version: 1, price: 14.99 }
+          - { "index": {} }
+          - { "name": "charlie", "order_date": "2021-11-22T18:47:00.000Z", birth_date: "1990-08-22", score: 8, version: 1, price: 24.90 }
+          - { "index": {} }
+          - { "name": "charlie", "order_date": "2021-08-10T18:31:00.000Z", birth_date: "1990-08-22", score: 7, version: 1, price: 49.19 }
+          - { "index": {} }
+          - { "name": "daniel", "order_date": "2021-11-09T17:29:00.000Z", birth_date: "1991-09-11", score: 5, version: 1, price: 59.19 }
+          - { "index": {} }
+          - { "name": "sophia", "order_date": "2021-12-11T12:13:00.000Z", birth_date: "1989-04-05", score: 3, version: 1, price: 99.89 }
+          - { "index": {} }
+          - { "name": "daniel", "order_date": "2021-08-09T17:21:00.000Z", birth_date: "1990-09-11", score: 4, version: 1, price: 119.00 }
+          - { "index": {} }
+          - { "name": "thomas", "order_date": "2021-09-27T18:29:00.000Z", birth_date: "1991-10-27", score: 8, version: 1, price: 79.90 }
+          - { "index": {} }
+          - { "name": "sophia", "order_date": "2021-10-24T18:37:00.000Z", birth_date: "1989-04-05", score: 9, version: 1, price: 19.99 }
+
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.aggs.rewrite_to_filter_by_filter: null
+
+---
+"sort on top metrics keyword same version":
+  - skip:
+      version: " - 8.1.99"
+      reason: bug fixed in 8.2.0
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.aggs.rewrite_to_filter_by_filter: true
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            hits:
+              terms:
+                field: uuid
+                order:
+                  hit.version: desc
+              aggs:
+                hit:
+                  top_metrics:
+                    sort:
+                      timestamp: desc
+                    metrics:
+                      - { field: metric }
+                      - { field: name }
+                      - { field: version }
+
+  - match: { hits.total.value: 6 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.hits.buckets: 3 }
+  - match: { aggregations.hits.buckets.2.doc_count: 2 }
+  - match: { aggregations.hits.buckets.2.key: "0003" }
+  - length: { aggregations.hits.buckets.2.hit.top: 1 }
+  - match: { aggregations.hits.buckets.2.hit.top.0.metrics.metric: 1 }
+  - match: { aggregations.hits.buckets.2.hit.top.0.metrics.name: "third" }
+  - match: { aggregations.hits.buckets.0.doc_count: 2 }
+  - match: { aggregations.hits.buckets.0.key: "0001" }
+  - length: { aggregations.hits.buckets.0.hit.top: 1 }
+  - match: { aggregations.hits.buckets.0.hit.top.0.metrics.metric: 3 }
+  - match: { aggregations.hits.buckets.0.hit.top.0.metrics.name: "second" }
+  - match: { aggregations.hits.buckets.1.doc_count: 2 }
+  - match: { aggregations.hits.buckets.1.key: "0002" }
+  - length: { aggregations.hits.buckets.1.hit.top: 1 }
+  - match: { aggregations.hits.buckets.1.hit.top.0.metrics.metric: 2 }
+  - match: { aggregations.hits.buckets.1.hit.top.0.metrics.name: "first" }
+
+---
+"sort on top metrics keyword desc":
+  - skip:
+      version: " - 8.1.99"
+      reason: bug fixed in 8.2.0
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.aggs.rewrite_to_filter_by_filter: true
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            hits:
+              terms:
+                field: uuid
+                order:
+                  hit.name: desc
+              aggs:
+                hit:
+                  top_metrics:
+                    sort:
+                      timestamp: desc
+                    metrics:
+                      - { field: metric }
+                      - { field: name }
+
+  - match: { hits.total.value: 6 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.hits.buckets: 3 }
+  - match: { aggregations.hits.buckets.0.doc_count: 2 }
+  - match: { aggregations.hits.buckets.0.key: "0003" }
+  - length: { aggregations.hits.buckets.0.hit.top: 1 }
+  - match: { aggregations.hits.buckets.0.hit.top.0.metrics.metric: 1 }
+  - match: { aggregations.hits.buckets.0.hit.top.0.metrics.name: "third" }
+  - match: { aggregations.hits.buckets.1.doc_count: 2 }
+  - match: { aggregations.hits.buckets.1.key: "0001" }
+  - length: { aggregations.hits.buckets.1.hit.top: 1 }
+  - match: { aggregations.hits.buckets.1.hit.top.0.metrics.metric: 3 }
+  - match: { aggregations.hits.buckets.1.hit.top.0.metrics.name: "second" }
+  - match: { aggregations.hits.buckets.2.doc_count: 2 }
+  - match: { aggregations.hits.buckets.2.key: "0002" }
+  - length: { aggregations.hits.buckets.2.hit.top: 1 }
+  - match: { aggregations.hits.buckets.2.hit.top.0.metrics.metric: 2 }
+  - match: { aggregations.hits.buckets.2.hit.top.0.metrics.name: "first" }
+
+---
+"sort on top metrics keyword asc":
+  - skip:
+      version: " - 8.1.99"
+      reason: bug fixed in 8.2.0
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.aggs.rewrite_to_filter_by_filter: true
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            hits:
+              terms:
+                field: uuid
+                order:
+                  hit.name: asc
+              aggs:
+                hit:
+                  top_metrics:
+                    sort:
+                      timestamp: desc
+                    metrics:
+                      - { field: metric }
+                      - { field: name }
+
+  - match: { hits.total.value: 6 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.hits.buckets: 3 }
+  - match: { aggregations.hits.buckets.2.doc_count: 2 }
+  - match: { aggregations.hits.buckets.2.key: "0003" }
+  - length: { aggregations.hits.buckets.2.hit.top: 1 }
+  - match: { aggregations.hits.buckets.2.hit.top.0.metrics.metric: 1 }
+  - match: { aggregations.hits.buckets.2.hit.top.0.metrics.name: "third" }
+  - match: { aggregations.hits.buckets.1.doc_count: 2 }
+  - match: { aggregations.hits.buckets.1.key: "0001" }
+  - length: { aggregations.hits.buckets.1.hit.top: 1 }
+  - match: { aggregations.hits.buckets.1.hit.top.0.metrics.metric: 3 }
+  - match: { aggregations.hits.buckets.1.hit.top.0.metrics.name: "second" }
+  - match: { aggregations.hits.buckets.0.doc_count: 2 }
+  - match: { aggregations.hits.buckets.0.key: "0002" }
+  - length: { aggregations.hits.buckets.0.hit.top: 1 }
+  - match: { aggregations.hits.buckets.0.hit.top.0.metrics.metric: 2 }
+  - match: { aggregations.hits.buckets.0.hit.top.0.metrics.name: "first" }
+
+---
+"sort on top metrics numeric desc":
+  - skip:
+      version: " - 8.1.99"
+      reason: bug fixed in 8.2.0
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.aggs.rewrite_to_filter_by_filter: true
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            hits:
+              terms:
+                field: uuid
+                order:
+                  hit.metric: desc
+              aggs:
+                hit:
+                  top_metrics:
+                    sort:
+                      timestamp: desc
+                    metrics:
+                      - { field: metric }
+                      - { field: name }
+
+  - match: { hits.total.value: 6 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.hits.buckets: 3 }
+  - match: { aggregations.hits.buckets.2.doc_count: 2 }
+  - match: { aggregations.hits.buckets.2.key: "0003" }
+  - length: { aggregations.hits.buckets.2.hit.top: 1 }
+  - match: { aggregations.hits.buckets.2.hit.top.0.metrics.metric: 1 }
+  - match: { aggregations.hits.buckets.2.hit.top.0.metrics.name: "third" }
+  - match: { aggregations.hits.buckets.0.doc_count: 2 }
+  - match: { aggregations.hits.buckets.0.key: "0001" }
+  - length: { aggregations.hits.buckets.0.hit.top: 1 }
+  - match: { aggregations.hits.buckets.0.hit.top.0.metrics.metric: 3 }
+  - match: { aggregations.hits.buckets.0.hit.top.0.metrics.name: "second" }
+  - match: { aggregations.hits.buckets.1.doc_count: 2 }
+  - match: { aggregations.hits.buckets.1.key: "0002" }
+  - length: { aggregations.hits.buckets.1.hit.top: 1 }
+  - match: { aggregations.hits.buckets.1.hit.top.0.metrics.metric: 2 }
+  - match: { aggregations.hits.buckets.1.hit.top.0.metrics.name: "first" }
+
+---
+"sort on top metrics numeric asc":
+  - skip:
+      version: " - 8.1.99"
+      reason: bug fixed in 8.2.0
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.aggs.rewrite_to_filter_by_filter: true
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            hits:
+              terms:
+                field: uuid
+                order:
+                  hit.metric: asc
+              aggs:
+                hit:
+                  top_metrics:
+                    sort:
+                      timestamp: desc
+                    metrics:
+                      - { field: metric }
+                      - { field: name }
+
+  - match: { hits.total.value: 6 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.hits.buckets: 3 }
+  - match: { aggregations.hits.buckets.0.doc_count: 2 }
+  - match: { aggregations.hits.buckets.0.key: "0003" }
+  - length: { aggregations.hits.buckets.0.hit.top: 1 }
+  - match: { aggregations.hits.buckets.0.hit.top.0.metrics.metric: 1 }
+  - match: { aggregations.hits.buckets.0.hit.top.0.metrics.name: "third" }
+  - match: { aggregations.hits.buckets.2.doc_count: 2 }
+  - match: { aggregations.hits.buckets.2.key: "0001" }
+  - length: { aggregations.hits.buckets.2.hit.top: 1 }
+  - match: { aggregations.hits.buckets.2.hit.top.0.metrics.metric: 3 }
+  - match: { aggregations.hits.buckets.2.hit.top.0.metrics.name: "second" }
+  - match: { aggregations.hits.buckets.1.doc_count: 2 }
+  - match: { aggregations.hits.buckets.1.key: "0002" }
+  - length: { aggregations.hits.buckets.1.hit.top: 1 }
+  - match: { aggregations.hits.buckets.1.hit.top.0.metrics.metric: 2 }
+  - match: { aggregations.hits.buckets.1.hit.top.0.metrics.name: "first" }
+
+---
+"sort on top metrics non-existing field":
+  - skip:
+      version: " - 8.1.99"
+      reason: bug fixed in 8.2.0
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.aggs.rewrite_to_filter_by_filter: true
+
+  - do:
+      catch: /unknown metric \[unknown\]/
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            hits:
+              terms:
+                field: uuid
+                order:
+                  hit.unknown: desc
+              aggs:
+                hit:
+                  top_metrics:
+                    sort:
+                      timestamp: desc
+                    metrics:
+                      - { field: metric }
+                      - { field: name }
+
+---
+"terms order by top metrics null values":
+  - skip:
+      version: " - 8.1.99"
+      reason: Bug fixed in 8.2.0
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.aggs.rewrite_to_filter_by_filter: true
+  - do:
+      search:
+        index: test_order_by_top_metrics
+        body:
+          size: 0
+          aggs:
+            name:
+              terms:
+                field: name
+                order:
+                  "field_exists>top_metrics[null_date]": desc
+                size: 5
+              aggs:
+                field_exists:
+                  filter:
+                    bool:
+                      filter:
+                        - bool:
+                            should:
+                              - exists:
+                                  field: null_date
+                            minimum_should_match: 1
+                  aggs:
+                    top_metrics:
+                      top_metrics:
+                        metrics:
+                          field: null_date
+                        size: 1
+                        sort:
+                          order_date: desc
+
+  - match: { hits.total.value: 16 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.name.buckets: 5 }
+  - match: { aggregations.name.buckets.0.key: "alice" }
+  - match: { aggregations.name.buckets.0.doc_count: 2 }
+  - match: { aggregations.name.buckets.0.field_exists.doc_count: 0 }
+  - length: { aggregations.name.buckets.0.field_exists.top_metrics.top: 0 }
+  - match: { aggregations.name.buckets.1.key: "bob" }
+  - match: { aggregations.name.buckets.1.doc_count: 1 }
+  - match: { aggregations.name.buckets.1.field_exists.doc_count: 0 }
+  - length: { aggregations.name.buckets.1.field_exists.top_metrics.top: 0 }
+  - match: { aggregations.name.buckets.2.key: "bruce" }
+  - match: { aggregations.name.buckets.2.doc_count: 1 }
+  - match: { aggregations.name.buckets.2.field_exists.doc_count: 0 }
+  - length: { aggregations.name.buckets.2.field_exists.top_metrics.top: 0 }
+  - match: { aggregations.name.buckets.3.key: "charlie" }
+  - match: { aggregations.name.buckets.3.doc_count: 3 }
+  - match: { aggregations.name.buckets.3.field_exists.doc_count: 0 }
+  - length: { aggregations.name.buckets.3.field_exists.top_metrics.top: 0 }
+  - match: { aggregations.name.buckets.4.key: "daniel" }
+  - match: { aggregations.name.buckets.4.doc_count: 3 }
+  - match: { aggregations.name.buckets.4.field_exists.doc_count: 0 }
+  - length: { aggregations.name.buckets.4.field_exists.top_metrics.top: 0 }
+
+---
+"terms order by top metrics date not null values":
+  - skip:
+      version: " - 8.1.99"
+      reason: Bug fixed in 8.2.0
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.aggs.rewrite_to_filter_by_filter: true
+
+  - do:
+      search:
+        index: test_order_by_top_metrics
+        body:
+          size: 0
+          aggs:
+            name:
+              terms:
+                field: name
+                order:
+                  "field_exists>top_metrics[birth_date]": desc
+                size: 5
+              aggs:
+                field_exists:
+                  filter:
+                    bool:
+                      filter:
+                        - bool:
+                            should:
+                              - exists:
+                                  field: birth_date
+                            minimum_should_match: 1
+                  aggs:
+                    top_metrics:
+                      top_metrics:
+                        metrics:
+                          field: birth_date
+                        size: 1
+                        sort:
+                          order_date: desc
+
+  - match: { hits.total.value: 16 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.name.buckets: 5 }
+
+  - match: { aggregations.name.buckets.0.key: "thomas" }
+  - match: { aggregations.name.buckets.0.doc_count: 2 }
+  - match: { aggregations.name.buckets.0.field_exists.doc_count: 2 }
+  - length: { aggregations.name.buckets.0.field_exists.top_metrics.top: 1 }
+  - length: { aggregations.name.buckets.0.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.0.field_exists.top_metrics.top.0.sort.0: "2021-09-27T18:29:00.000Z" }
+  - match: { aggregations.name.buckets.0.field_exists.top_metrics.top.0.metrics.birth_date: "1991-10-27T00:00:00.000Z" }
+
+  - match: { aggregations.name.buckets.1.key: "daniel" }
+  - match: { aggregations.name.buckets.1.doc_count: 3 }
+  - match: { aggregations.name.buckets.1.field_exists.doc_count: 3 }
+  - length: { aggregations.name.buckets.1.field_exists.top_metrics.top: 1 }
+  - length: { aggregations.name.buckets.1.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.1.field_exists.top_metrics.top.0.sort.0: "2021-11-09T17:29:00.000Z" }
+  - match: { aggregations.name.buckets.1.field_exists.top_metrics.top.0.metrics.birth_date: "1991-09-11T00:00:00.000Z" }
+
+  - match: { aggregations.name.buckets.2.key: "alice" }
+  - match: { aggregations.name.buckets.2.doc_count: 2 }
+  - match: { aggregations.name.buckets.2.field_exists.doc_count: 2 }
+  - length: { aggregations.name.buckets.2.field_exists.top_metrics.top: 1 }
+  - length: { aggregations.name.buckets.2.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.2.field_exists.top_metrics.top.0.sort.0: "2021-09-09T17:50:00.000Z" }
+  - match: { aggregations.name.buckets.2.field_exists.top_metrics.top.0.metrics.birth_date: "1990-12-10T00:00:00.000Z" }
+
+  - match: { aggregations.name.buckets.3.key: "charlie" }
+  - match: { aggregations.name.buckets.3.doc_count: 3 }
+  - match: { aggregations.name.buckets.3.field_exists.doc_count: 3 }
+  - length: { aggregations.name.buckets.3.field_exists.top_metrics.top: 1 }
+  - length: { aggregations.name.buckets.3.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.3.field_exists.top_metrics.top.0.sort.0: "2021-12-10T19:33:00.000Z" }
+  - match: { aggregations.name.buckets.3.field_exists.top_metrics.top.0.metrics.birth_date: "1990-08-22T00:00:00.000Z" }
+
+  - match: { aggregations.name.buckets.4.key: "mike" }
+  - match: { aggregations.name.buckets.4.doc_count: 1 }
+  - match: { aggregations.name.buckets.4.field_exists.doc_count: 1 }
+  - length: { aggregations.name.buckets.4.field_exists.top_metrics.top: 1 }
+  - length: { aggregations.name.buckets.4.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.4.field_exists.top_metrics.top.0.sort.0: "2021-11-11T15:22:00.000Z" }
+  - match: { aggregations.name.buckets.4.field_exists.top_metrics.top.0.metrics.birth_date: "1990-06-18T00:00:00.000Z" }
+
+---
+"terms order by top metrics numeric not null integer values":
+  - skip:
+      version: " - 8.1.99"
+      reason: Bug fixed in 8.2.0
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.aggs.rewrite_to_filter_by_filter: true
+
+  - do:
+      search:
+        index: test_order_by_top_metrics
+        body:
+          size: 0
+          aggs:
+            name:
+              terms:
+                field: name
+                order:
+                  "field_exists>top_metrics[score]": asc
+                size: 5
+              aggs:
+                field_exists:
+                  filter:
+                    bool:
+                      filter:
+                        - bool:
+                            should:
+                              - exists:
+                                  field: score
+                            minimum_should_match: 1
+                  aggs:
+                    top_metrics:
+                      top_metrics:
+                        metrics:
+                          field: score
+                        size: 1
+                        sort:
+                          order_date: desc
+
+  - match: { hits.total.value: 16 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.name.buckets: 5 }
+
+  - match: { aggregations.name.buckets.0.key: "sophia" }
+  - match: { aggregations.name.buckets.0.doc_count: 3 }
+  - match: { aggregations.name.buckets.0.field_exists.doc_count: 3 }
+  - length: { aggregations.name.buckets.0.field_exists.top_metrics.top: 1 }
+  - length: { aggregations.name.buckets.0.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.0.field_exists.top_metrics.top.0.sort.0: "2021-12-11T12:13:00.000Z" }
+  - match: { aggregations.name.buckets.0.field_exists.top_metrics.top.0.metrics.score: 3 }
+
+  - match: { aggregations.name.buckets.1.key: "bruce" }
+  - match: { aggregations.name.buckets.1.doc_count: 1 }
+  - match: { aggregations.name.buckets.1.field_exists.doc_count: 1 }
+  - length: { aggregations.name.buckets.1.field_exists.top_metrics.top: 1 }
+  - length: { aggregations.name.buckets.1.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.1.field_exists.top_metrics.top.0.sort.0: "2021-08-29T18:47:00.000Z" }
+  - match: { aggregations.name.buckets.1.field_exists.top_metrics.top.0.metrics.score: 4 }
+
+  - match: { aggregations.name.buckets.2.key: "daniel" }
+  - match: { aggregations.name.buckets.2.doc_count: 3 }
+  - match: { aggregations.name.buckets.2.field_exists.doc_count: 3 }
+  - length: { aggregations.name.buckets.2.field_exists.top_metrics.top: 1 }
+  - length: { aggregations.name.buckets.2.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.2.field_exists.top_metrics.top.0.sort.0: "2021-11-09T17:29:00.000Z" }
+  - match: { aggregations.name.buckets.2.field_exists.top_metrics.top.0.metrics.score: 5 }
+
+  - match: { aggregations.name.buckets.3.key: "mike" }
+  - match: { aggregations.name.buckets.3.doc_count: 1 }
+  - match: { aggregations.name.buckets.3.field_exists.doc_count: 1 }
+  - length: { aggregations.name.buckets.3.field_exists.top_metrics.top: 1 }
+  - length: { aggregations.name.buckets.3.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.3.field_exists.top_metrics.top.0.sort.0: "2021-11-11T15:22:00.000Z" }
+  - match: { aggregations.name.buckets.3.field_exists.top_metrics.top.0.metrics.score: 5 }
+
+  - match: { aggregations.name.buckets.4.key: "charlie" }
+  - match: { aggregations.name.buckets.4.doc_count: 3 }
+  - match: { aggregations.name.buckets.4.field_exists.doc_count: 3 }
+  - length: { aggregations.name.buckets.4.field_exists.top_metrics.top: 1 }
+  - length: { aggregations.name.buckets.4.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.4.field_exists.top_metrics.top.0.sort.0: "2021-12-10T19:33:00.000Z" }
+  - match: { aggregations.name.buckets.4.field_exists.top_metrics.top.0.metrics.score: 6 }
+
+---
+"terms order by top metrics numeric not null double values":
+  - skip:
+      version: " - 8.1.99"
+      reason: Bug fixed in 8.2.0
+
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.aggs.rewrite_to_filter_by_filter: true
+
+  - do:
+      search:
+        index: test_order_by_top_metrics
+        body:
+          size: 0
+          aggs:
+            name:
+              terms:
+                field: name
+                order:
+                  "field_exists>top_metrics[price]": asc
+                size: 5
+              aggs:
+                field_exists:
+                  filter:
+                    bool:
+                      filter:
+                        - bool:
+                            should:
+                              - exists:
+                                  field: price
+                            minimum_should_match: 1
+                  aggs:
+                    top_metrics:
+                      top_metrics:
+                        metrics:
+                          field: price
+                        size: 1
+                        sort:
+                          order_date: desc
+
+  - match: { hits.total.value: 16 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.name.buckets: 5 }
+
+  - match: { aggregations.name.buckets.0.key: "bruce" }
+  - match: { aggregations.name.buckets.0.doc_count: 1 }
+  - match: { aggregations.name.buckets.0.field_exists.doc_count: 1 }
+  - length: { aggregations.name.buckets.0.field_exists.top_metrics.top: 1 }
+  - length: { aggregations.name.buckets.0.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.0.field_exists.top_metrics.top.0.sort.0: "2021-08-29T18:47:00.000Z" }
+  - match: { aggregations.name.buckets.0.field_exists.top_metrics.top.0.metrics.price: 9.49 }
+
+  - match: { aggregations.name.buckets.1.key: "alice" }
+  - match: { aggregations.name.buckets.1.doc_count: 2 }
+  - match: { aggregations.name.buckets.1.field_exists.doc_count: 2 }
+  - length: { aggregations.name.buckets.1.field_exists.top_metrics.top: 1 }
+  - length: { aggregations.name.buckets.1.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.1.field_exists.top_metrics.top.0.sort.0: "2021-09-09T17:50:00.000Z" }
+  - match: { aggregations.name.buckets.1.field_exists.top_metrics.top.0.metrics.price: 12.90 }
+
+  - match: { aggregations.name.buckets.2.key: "charlie" }
+  - match: { aggregations.name.buckets.2.doc_count: 3 }
+  - match: { aggregations.name.buckets.2.field_exists.doc_count: 3 }
+  - length: { aggregations.name.buckets.2.field_exists.top_metrics.top: 1 }
+  - length: { aggregations.name.buckets.2.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.2.field_exists.top_metrics.top.0.sort.0: "2021-12-10T19:33:00.000Z" }
+  - match: { aggregations.name.buckets.2.field_exists.top_metrics.top.0.metrics.price: 22.50 }
+
+  - match: { aggregations.name.buckets.3.key: "bob" }
+  - match: { aggregations.name.buckets.3.doc_count: 1 }
+  - match: { aggregations.name.buckets.3.field_exists.doc_count: 1 }
+  - length: { aggregations.name.buckets.3.field_exists.top_metrics.top: 1 }
+  - length: { aggregations.name.buckets.3.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.3.field_exists.top_metrics.top.0.sort.0: "2021-10-12T18:39:00.000Z" }
+  - match: { aggregations.name.buckets.3.field_exists.top_metrics.top.0.metrics.price: 34.20 }
+
+  - match: { aggregations.name.buckets.4.key: "daniel" }
+  - match: { aggregations.name.buckets.4.doc_count: 3 }
+  - match: { aggregations.name.buckets.4.field_exists.doc_count: 3 }
+  - length: { aggregations.name.buckets.4.field_exists.top_metrics.top: 1 }
+  - length: { aggregations.name.buckets.4.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.4.field_exists.top_metrics.top.0.sort.0: "2021-11-09T17:29:00.000Z" }
+  - match: { aggregations.name.buckets.4.field_exists.top_metrics.top.0.metrics.price: 59.19 }
+
+---
+"terms order by top metrics size greater than 1 rewrite_to_filter_by_filter true":
+  - skip:
+      version: " - 8.1.99"
+      reason: Bug fixed in 8.2.0
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.aggs.rewrite_to_filter_by_filter: true
+
+  - do:
+      search:
+        index: test_order_by_top_metrics
+        body:
+          query:
+            match_all: {}
+          size: 0
+          aggs:
+            name:
+              terms:
+                field: name
+                order:
+                  "field_exists>top_metrics[score]": asc
+                size: 5
+              aggs:
+                field_exists:
+                  filter:
+                    bool:
+                      filter:
+                        - bool:
+                            should:
+                              - exists:
+                                  field: score
+                            minimum_should_match: 1
+                  aggs:
+                    top_metrics:
+                      top_metrics:
+                        metrics:
+                          field: score
+                        size: 2
+                        sort:
+                          order_date: desc
+
+  - match: { hits.total.value: 16 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.name.buckets: 5 }
+
+  - match: { aggregations.name.buckets.0.key: "sophia" }
+  - match: { aggregations.name.buckets.0.doc_count: 3 }
+  - match: { aggregations.name.buckets.0.field_exists.doc_count: 3 }
+  - length: { aggregations.name.buckets.0.field_exists.top_metrics.top: 2 }
+  - length: { aggregations.name.buckets.0.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.0.field_exists.top_metrics.top.0.sort.0: "2021-12-11T12:13:00.000Z" }
+  - match: { aggregations.name.buckets.0.field_exists.top_metrics.top.0.metrics.score: 3 }
+  - length: { aggregations.name.buckets.0.field_exists.top_metrics.top.1.sort: 1 }
+  - match: { aggregations.name.buckets.0.field_exists.top_metrics.top.1.sort.0: "2021-10-24T18:37:00.000Z" }
+  - match: { aggregations.name.buckets.0.field_exists.top_metrics.top.1.metrics.score: 9 }
+
+  - match: { aggregations.name.buckets.1.key: "bruce" }
+  - match: { aggregations.name.buckets.1.doc_count: 1 }
+  - match: { aggregations.name.buckets.1.field_exists.doc_count: 1 }
+  - length: { aggregations.name.buckets.1.field_exists.top_metrics.top: 1 }
+  - length: { aggregations.name.buckets.1.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.1.field_exists.top_metrics.top.0.sort.0: "2021-08-29T18:47:00.000Z" }
+  - match: { aggregations.name.buckets.1.field_exists.top_metrics.top.0.metrics.score: 4 }
+
+  - match: { aggregations.name.buckets.2.key: "daniel" }
+  - match: { aggregations.name.buckets.2.doc_count: 3 }
+  - match: { aggregations.name.buckets.2.field_exists.doc_count: 3 }
+  - length: { aggregations.name.buckets.2.field_exists.top_metrics.top: 2 }
+  - length: { aggregations.name.buckets.2.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.2.field_exists.top_metrics.top.0.sort.0: "2021-11-09T17:29:00.000Z" }
+  - match: { aggregations.name.buckets.2.field_exists.top_metrics.top.0.metrics.score: 5 }
+  - length: { aggregations.name.buckets.2.field_exists.top_metrics.top.1.sort: 1 }
+  - match: { aggregations.name.buckets.2.field_exists.top_metrics.top.1.sort.0: "2021-08-09T17:22:00.000Z" }
+  - match: { aggregations.name.buckets.2.field_exists.top_metrics.top.1.metrics.score: 3 }
+
+  - match: { aggregations.name.buckets.3.key: "mike" }
+  - match: { aggregations.name.buckets.3.doc_count: 1 }
+  - match: { aggregations.name.buckets.3.field_exists.doc_count: 1 }
+  - length: { aggregations.name.buckets.3.field_exists.top_metrics.top: 1 }
+  - length: { aggregations.name.buckets.3.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.3.field_exists.top_metrics.top.0.sort.0: "2021-11-11T15:22:00.000Z" }
+  - match: { aggregations.name.buckets.3.field_exists.top_metrics.top.0.metrics.score: 5 }
+
+  - match: { aggregations.name.buckets.4.key: "charlie" }
+  - match: { aggregations.name.buckets.4.doc_count: 3 }
+  - match: { aggregations.name.buckets.4.field_exists.doc_count: 3 }
+  - length: { aggregations.name.buckets.4.field_exists.top_metrics.top: 2 }
+  - length: { aggregations.name.buckets.4.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.4.field_exists.top_metrics.top.0.sort.0: "2021-12-10T19:33:00.000Z" }
+  - match: { aggregations.name.buckets.4.field_exists.top_metrics.top.0.metrics.score: 6 }
+  - length: { aggregations.name.buckets.4.field_exists.top_metrics.top.1.sort: 1 }
+  - match: { aggregations.name.buckets.4.field_exists.top_metrics.top.1.sort.0: "2021-11-22T18:47:00.000Z" }
+  - match: { aggregations.name.buckets.4.field_exists.top_metrics.top.1.metrics.score: 8 }
+
+---
+"terms order by top metrics missing metric rewrite_to_filter_by_filter true":
+  - skip:
+      version: " - 8.1.99"
+      reason: Bug fixed in 8.2.0
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.aggs.rewrite_to_filter_by_filter: true
+
+  - do:
+      catch: /Invalid aggregation order path \[field_exists>top_metrics\[score\]\]. unknown metric \[score\]/
+      search:
+        index: test_order_by_top_metrics
+        body:
+          query:
+            match_all: {}
+          size: 0
+          aggs:
+            name:
+              terms:
+                field: name
+                order:
+                  "field_exists>top_metrics[score]": asc
+                size: 5
+              aggs:
+                field_exists:
+                  filter:
+                    bool:
+                      filter:
+                        - bool:
+                            should:
+                              - exists:
+                                  field: score
+                            minimum_should_match: 1
+                  aggs:
+                    top_metrics:
+                      top_metrics:
+                        metrics:
+                          field: price
+                        size: 1
+                        sort:
+                          order_date: desc
+
+---
+"terms order by top metrics equal values sorted on term":
+  - skip:
+      version: " - 8.1.99"
+      reason: Bug fixed in 8.2.0
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.aggs.rewrite_to_filter_by_filter: true
+
+  - do:
+      search:
+        index: test_order_by_top_metrics
+        body:
+          size: 0
+          aggs:
+            name:
+              terms:
+                field: name
+                order:
+                  "field_exists>top_metrics[version]": asc
+                size: 5
+              aggs:
+                field_exists:
+                  filter:
+                    bool:
+                      filter:
+                        - bool:
+                            should:
+                              - exists:
+                                  field: version
+                            minimum_should_match: 1
+                  aggs:
+                    top_metrics:
+                      top_metrics:
+                        metrics:
+                          field: version
+                        size: 1
+                        sort:
+                          order_date: desc
+
+  - match: { hits.total.value: 16 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.name.buckets: 5 }
+
+  - match: { aggregations.name.buckets.0.key: "alice" }
+  - match: { aggregations.name.buckets.0.doc_count: 2 }
+  - match: { aggregations.name.buckets.0.field_exists.doc_count: 2 }
+  - length: { aggregations.name.buckets.0.field_exists.top_metrics.top: 1 }
+  - length: { aggregations.name.buckets.0.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.0.field_exists.top_metrics.top.0.sort.0: "2021-09-09T17:50:00.000Z" }
+  - match: { aggregations.name.buckets.0.field_exists.top_metrics.top.0.metrics.version: 1 }
+
+  - match: { aggregations.name.buckets.1.key: "bob" }
+  - match: { aggregations.name.buckets.1.doc_count: 1 }
+  - match: { aggregations.name.buckets.1.field_exists.doc_count: 1 }
+  - length: { aggregations.name.buckets.1.field_exists.top_metrics.top: 1 }
+  - length: { aggregations.name.buckets.1.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.1.field_exists.top_metrics.top.0.sort.0: "2021-10-12T18:39:00.000Z" }
+  - match: { aggregations.name.buckets.1.field_exists.top_metrics.top.0.metrics.version: 1 }
+
+  - match: { aggregations.name.buckets.2.key: "bruce" }
+  - match: { aggregations.name.buckets.2.doc_count: 1 }
+  - match: { aggregations.name.buckets.2.field_exists.doc_count: 1 }
+  - length: { aggregations.name.buckets.2.field_exists.top_metrics.top: 1 }
+  - length: { aggregations.name.buckets.2.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.2.field_exists.top_metrics.top.0.sort.0: "2021-08-29T18:47:00.000Z" }
+  - match: { aggregations.name.buckets.2.field_exists.top_metrics.top.0.metrics.version: 1 }
+
+  - match: { aggregations.name.buckets.3.key: "charlie" }
+  - match: { aggregations.name.buckets.3.doc_count: 3 }
+  - match: { aggregations.name.buckets.3.field_exists.doc_count: 3 }
+  - length: { aggregations.name.buckets.3.field_exists.top_metrics.top: 1 }
+  - length: { aggregations.name.buckets.3.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.3.field_exists.top_metrics.top.0.sort.0: "2021-12-10T19:33:00.000Z" }
+  - match: { aggregations.name.buckets.3.field_exists.top_metrics.top.0.metrics.version: 1 }
+
+  - match: { aggregations.name.buckets.4.key: "daniel" }
+  - match: { aggregations.name.buckets.4.doc_count: 3 }
+  - match: { aggregations.name.buckets.4.field_exists.doc_count: 3 }
+  - length: { aggregations.name.buckets.4.field_exists.top_metrics.top: 1 }
+  - length: { aggregations.name.buckets.4.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.4.field_exists.top_metrics.top.0.sort.0: "2021-11-09T17:29:00.000Z" }
+  - match: { aggregations.name.buckets.4.field_exists.top_metrics.top.0.metrics.version: 1 }
+
+---
+"terms order by top metrics size greater than 1 rewrite_to_filter_by_filter false":
+  - skip:
+      version: " - 8.1.99"
+      reason: Bug fixed in 8.2.0
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.aggs.rewrite_to_filter_by_filter: false
+
+  - do:
+      search:
+        index: test_order_by_top_metrics
+        body:
+          query:
+            match_all: {}
+          size: 0
+          aggs:
+            name:
+              terms:
+                field: name
+                order:
+                  "field_exists>top_metrics[score]": asc
+                size: 5
+              aggs:
+                field_exists:
+                  filter:
+                    bool:
+                      filter:
+                        - bool:
+                            should:
+                              - exists:
+                                  field: score
+                            minimum_should_match: 1
+                  aggs:
+                    top_metrics:
+                      top_metrics:
+                        metrics:
+                          field: score
+                        size: 2
+                        sort:
+                          order_date: desc
+
+  - match: { hits.total.value: 16 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.name.buckets: 5 }
+
+  - match: { aggregations.name.buckets.0.key: "sophia" }
+  - match: { aggregations.name.buckets.0.doc_count: 3 }
+  - match: { aggregations.name.buckets.0.field_exists.doc_count: 3 }
+  - length: { aggregations.name.buckets.0.field_exists.top_metrics.top: 2 }
+  - length: { aggregations.name.buckets.0.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.0.field_exists.top_metrics.top.0.sort.0: "2021-12-11T12:13:00.000Z" }
+  - match: { aggregations.name.buckets.0.field_exists.top_metrics.top.0.metrics.score: 3 }
+  - length: { aggregations.name.buckets.0.field_exists.top_metrics.top.1.sort: 1 }
+  - match: { aggregations.name.buckets.0.field_exists.top_metrics.top.1.sort.0: "2021-10-24T18:37:00.000Z" }
+  - match: { aggregations.name.buckets.0.field_exists.top_metrics.top.1.metrics.score: 9 }
+
+  - match: { aggregations.name.buckets.1.key: "bruce" }
+  - match: { aggregations.name.buckets.1.doc_count: 1 }
+  - match: { aggregations.name.buckets.1.field_exists.doc_count: 1 }
+  - length: { aggregations.name.buckets.1.field_exists.top_metrics.top: 1 }
+  - length: { aggregations.name.buckets.1.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.1.field_exists.top_metrics.top.0.sort.0: "2021-08-29T18:47:00.000Z" }
+  - match: { aggregations.name.buckets.1.field_exists.top_metrics.top.0.metrics.score: 4 }
+
+  - match: { aggregations.name.buckets.2.key: "daniel" }
+  - match: { aggregations.name.buckets.2.doc_count: 3 }
+  - match: { aggregations.name.buckets.2.field_exists.doc_count: 3 }
+  - length: { aggregations.name.buckets.2.field_exists.top_metrics.top: 2 }
+  - length: { aggregations.name.buckets.2.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.2.field_exists.top_metrics.top.0.sort.0: "2021-11-09T17:29:00.000Z" }
+  - match: { aggregations.name.buckets.2.field_exists.top_metrics.top.0.metrics.score: 5 }
+  - length: { aggregations.name.buckets.2.field_exists.top_metrics.top.1.sort: 1 }
+  - match: { aggregations.name.buckets.2.field_exists.top_metrics.top.1.sort.0: "2021-08-09T17:22:00.000Z" }
+  - match: { aggregations.name.buckets.2.field_exists.top_metrics.top.1.metrics.score: 3 }
+
+  - match: { aggregations.name.buckets.3.key: "mike" }
+  - match: { aggregations.name.buckets.3.doc_count: 1 }
+  - match: { aggregations.name.buckets.3.field_exists.doc_count: 1 }
+  - length: { aggregations.name.buckets.3.field_exists.top_metrics.top: 1 }
+  - length: { aggregations.name.buckets.3.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.3.field_exists.top_metrics.top.0.sort.0: "2021-11-11T15:22:00.000Z" }
+  - match: { aggregations.name.buckets.3.field_exists.top_metrics.top.0.metrics.score: 5 }
+
+  - match: { aggregations.name.buckets.4.key: "charlie" }
+  - match: { aggregations.name.buckets.4.doc_count: 3 }
+  - match: { aggregations.name.buckets.4.field_exists.doc_count: 3 }
+  - length: { aggregations.name.buckets.4.field_exists.top_metrics.top: 2 }
+  - length: { aggregations.name.buckets.4.field_exists.top_metrics.top.0.sort: 1 }
+  - match: { aggregations.name.buckets.4.field_exists.top_metrics.top.0.sort.0: "2021-12-10T19:33:00.000Z" }
+  - match: { aggregations.name.buckets.4.field_exists.top_metrics.top.0.metrics.score: 6 }
+  - length: { aggregations.name.buckets.4.field_exists.top_metrics.top.1.sort: 1 }
+  - match: { aggregations.name.buckets.4.field_exists.top_metrics.top.1.sort.0: "2021-11-22T18:47:00.000Z" }
+  - match: { aggregations.name.buckets.4.field_exists.top_metrics.top.1.metrics.score: 8 }
+
+---
+"terms order by top metrics missing metric rewrite_to_filter_by_filter false":
+  - skip:
+      version: " - 8.1.99"
+      reason: Bug fixed in 8.2.0
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.aggs.rewrite_to_filter_by_filter: false
+
+  - do:
+      catch: /Invalid aggregation order path \[field_exists>top_metrics\[score\]\]. Unknown metric name \[score\] on multi-value metrics aggregation \[top_metrics\]/
+      search:
+        index: test_order_by_top_metrics
+        body:
+          query:
+            match_all: {}
+          size: 0
+          aggs:
+            name:
+              terms:
+                field: name
+                order:
+                  "field_exists>top_metrics[score]": asc
+                size: 5
+              aggs:
+                field_exists:
+                  filter:
+                    bool:
+                      filter:
+                        - bool:
+                            should:
+                              - exists:
+                                  field: score
+                            minimum_should_match: 1
+                  aggs:
+                    top_metrics:
+                      top_metrics:
+                        metrics:
+                          field: price
+                        size: 1
+                        sort:
+                          order_date: desc

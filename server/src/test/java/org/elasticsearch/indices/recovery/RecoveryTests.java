@@ -311,7 +311,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
         }
         IndexShard replicaShard = newShard(primaryShard.shardId(), false);
         updateMappings(replicaShard, primaryShard.indexSettings().getIndexMetadata());
-        recoverReplica(replicaShard, primaryShard, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, null, null, recoveryListener) {
+        recoverReplica(replicaShard, primaryShard, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, 0L, null, null, recoveryListener) {
             @Override
             public void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener) {
                 super.prepareForTranslogOperations(totalTranslogOps, listener);
@@ -432,14 +432,14 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
             allowShardFailures();
             IndexShard replica = group.addReplica();
             expectThrows(Exception.class, () -> group.recoverReplica(replica, (shard, sourceNode) -> {
-                return new RecoveryTarget(shard, sourceNode, null, null, new PeerRecoveryTargetService.RecoveryListener() {
+                return new RecoveryTarget(shard, sourceNode, 0L, null, null, new PeerRecoveryTargetService.RecoveryListener() {
                     @Override
                     public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
                         throw new AssertionError("recovery must fail");
                     }
 
                     @Override
-                    public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
+                    public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
                         assertThat(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), equalTo("simulated"));
                     }
                 });

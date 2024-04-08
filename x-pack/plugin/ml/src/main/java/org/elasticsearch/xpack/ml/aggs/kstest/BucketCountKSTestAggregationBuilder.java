@@ -7,10 +7,11 @@
 
 package org.elasticsearch.xpack.ml.aggs.kstest;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.BucketMetricsPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -123,14 +124,6 @@ public class BucketCountKSTestAggregationBuilder extends BucketMetricsPipelineAg
         this.samplingMethod = SamplingMethod.fromStream(in);
     }
 
-    public static SearchPlugin.PipelineAggregationSpec buildSpec() {
-        return new SearchPlugin.PipelineAggregationSpec(
-            NAME,
-            BucketCountKSTestAggregationBuilder::new,
-            BucketCountKSTestAggregationBuilder.PARSER
-        ).addResultReader(InternalKSTestAggregation::new);
-    }
-
     @Override
     public String getWriteableName() {
         return NAME.getPreferredName();
@@ -189,5 +182,10 @@ public class BucketCountKSTestAggregationBuilder extends BucketMetricsPipelineAg
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), Arrays.hashCode(fractions), alternative, samplingMethod);
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_7_14_0;
     }
 }

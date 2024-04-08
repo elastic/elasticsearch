@@ -10,13 +10,10 @@ setlocal enableextensions
 
 call "%~dp0elasticsearch-env.bat" || exit /b 1
 
-call "%ES_HOME%/bin/x-pack-env.bat" || exit /b 1
-
-set CLI_JAR=%ES_HOME%/bin/*
+for %%a in (!ES_HOME!\bin\elasticsearch-sql-cli-*.jar) do set CLI_JAR=%%a
 
 %JAVA% ^
   -cp "%CLI_JAR%" ^
-  -Des.distribution.flavor="%ES_DISTRIBUTION_FLAVOR%" ^
   -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^
   org.elasticsearch.xpack.sql.cli.Cli ^
   %*

@@ -14,17 +14,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * Verify repository response
@@ -35,12 +31,6 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
     static final String NAME = "name";
 
     public static class NodeView implements Writeable, ToXContentObject {
-        private static final ObjectParser.NamedObjectParser<NodeView, Void> PARSER;
-        static {
-            ObjectParser<NodeView, Void> internalParser = new ObjectParser<>(NODES, true, null);
-            internalParser.declareString(NodeView::setName, new ParseField(NAME));
-            PARSER = (p, v, name) -> internalParser.parse(p, new NodeView(name), null);
-        }
 
         final String nodeId;
         String name;
@@ -105,24 +95,15 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
 
     private List<NodeView> nodes;
 
-    private static final ObjectParser<VerifyRepositoryResponse, Void> PARSER = new ObjectParser<>(
-        VerifyRepositoryResponse.class.getName(),
-        true,
-        VerifyRepositoryResponse::new
-    );
-    static {
-        PARSER.declareNamedObjects(VerifyRepositoryResponse::setNodes, NodeView.PARSER, new ParseField("nodes"));
-    }
-
     public VerifyRepositoryResponse() {}
 
     public VerifyRepositoryResponse(StreamInput in) throws IOException {
         super(in);
-        this.nodes = in.readList(NodeView::new);
+        this.nodes = in.readCollectionAsList(NodeView::new);
     }
 
     public VerifyRepositoryResponse(DiscoveryNode[] nodes) {
-        this.nodes = Arrays.stream(nodes).map(dn -> new NodeView(dn.getId(), dn.getName())).collect(Collectors.toList());
+        this.nodes = Arrays.stream(nodes).map(dn -> new NodeView(dn.getId(), dn.getName())).toList();
     }
 
     public VerifyRepositoryResponse(List<NodeView> nodes) {
@@ -131,7 +112,7 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     public List<NodeView> getNodes() {
@@ -156,10 +137,6 @@ public class VerifyRepositoryResponse extends ActionResponse implements ToXConte
         }
         builder.endObject();
         return builder;
-    }
-
-    public static VerifyRepositoryResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
     }
 
     @Override

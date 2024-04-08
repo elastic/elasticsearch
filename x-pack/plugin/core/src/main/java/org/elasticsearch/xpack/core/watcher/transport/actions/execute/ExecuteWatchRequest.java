@@ -60,10 +60,10 @@ public class ExecuteWatchRequest extends ActionRequest {
         ignoreCondition = in.readBoolean();
         recordExecution = in.readBoolean();
         if (in.readBoolean()) {
-            alternativeInput = in.readMap();
+            alternativeInput = in.readGenericMap();
         }
         if (in.readBoolean()) {
-            triggerData = in.readMap();
+            triggerData = in.readGenericMap();
         }
         long actionModesCount = in.readLong();
         actionModes = new HashMap<>();
@@ -85,11 +85,11 @@ public class ExecuteWatchRequest extends ActionRequest {
         out.writeBoolean(recordExecution);
         out.writeBoolean(alternativeInput != null);
         if (alternativeInput != null) {
-            out.writeMap(alternativeInput);
+            out.writeGenericMap(alternativeInput);
         }
         out.writeBoolean(triggerData != null);
         if (triggerData != null) {
-            out.writeMap(triggerData);
+            out.writeGenericMap(triggerData);
         }
         out.writeLong(actionModes.size());
         for (Map.Entry<String, ActionExecutionMode> entry : actionModes.entrySet()) {

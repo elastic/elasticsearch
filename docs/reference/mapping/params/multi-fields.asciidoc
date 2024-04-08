@@ -61,6 +61,11 @@ GET my-index-000001/_search
 You can add multi-fields to an existing field using the
 <<indices-put-mapping,update mapping API>>.
 
+WARNING: If an index (or data stream) contains documents when you add a
+multi-field, those documents will not have values for the new multi-field. You
+can populate the new multi-field with the <<picking-up-a-new-property,update by
+query API>>.
+
 A multi-field mapping is completely separate from the parent field's mapping. A
 multi-field doesn't inherit any mapping options from its parent field.
 Multi-fields don't change the original `_source` field.

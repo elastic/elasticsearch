@@ -30,9 +30,9 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -87,7 +87,6 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * Unit tests for the tool used to simplify SSL certificate generation
  */
-// TODO baz - fix this to work in intellij+java9, its complaining about java.sql.Date not being on the classpath
 public class CertificateGenerateToolTests extends ESTestCase {
 
     private FileSystem jimfs;
@@ -116,7 +115,7 @@ public class CertificateGenerateToolTests extends ESTestCase {
     public void testOutputDirectory() throws Exception {
         Path outputDir = createTempDir();
         Path outputFile = outputDir.resolve("certs.zip");
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
 
         // test with a user provided dir
         Path resolvedOutputFile = CertificateGenerateTool.getOutputFile(terminal, outputFile.toString(), null);
@@ -160,7 +159,7 @@ public class CertificateGenerateToolTests extends ESTestCase {
         }
 
         int count = 0;
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
         for (Entry<String, Map<String, String>> entry : instanceInput.entrySet()) {
             terminal.addTextInput(entry.getKey());
             terminal.addTextInput("");
@@ -371,7 +370,7 @@ public class CertificateGenerateToolTests extends ESTestCase {
         Path testNodeCertPath = getDataPath("/org/elasticsearch/xpack/security/cli/testnode.crt");
         Path testNodeKeyPath = getDataPath("/org/elasticsearch/xpack/security/cli/testnode.pem");
         final boolean passwordPrompt = randomBoolean();
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
         if (passwordPrompt) {
             terminal.addSecretInput("testnode");
         }
@@ -515,8 +514,8 @@ public class CertificateGenerateToolTests extends ESTestCase {
                 assertThat(seq.getObjectAt(1), instanceOf(DLTaggedObject.class));
                 DLTaggedObject taggedName = (DLTaggedObject) seq.getObjectAt(1);
                 assertThat(taggedName.getTagNo(), equalTo(0));
-                assertThat(taggedName.getObject(), instanceOf(ASN1String.class));
-                assertThat(taggedName.getObject().toString(), is(in(certInfo.commonNames)));
+                assertThat(taggedName.getBaseObject(), instanceOf(ASN1String.class));
+                assertThat(taggedName.getBaseObject().toString(), is(in(certInfo.commonNames)));
             } else {
                 fail("unknown general name with tag " + generalName.getTagNo());
             }

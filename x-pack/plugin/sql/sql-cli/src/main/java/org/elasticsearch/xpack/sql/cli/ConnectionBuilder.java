@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.sql.cli;
 
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.sql.client.ConnectionConfiguration;
 
 import java.net.URI;
@@ -101,7 +101,7 @@ public class ConnectionBuilder {
     }
 
     @SuppressForbidden(reason = "cli application shouldn't depend on ES")
-    private Path getKeystorePath(String keystoreLocation) {
+    private static Path getKeystorePath(String keystoreLocation) {
         return Paths.get(keystoreLocation);
     }
 

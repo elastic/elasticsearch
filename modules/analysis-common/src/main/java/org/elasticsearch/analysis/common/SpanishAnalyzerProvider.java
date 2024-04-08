@@ -21,7 +21,7 @@ public class SpanishAnalyzerProvider extends AbstractIndexAnalyzerProvider<Spani
     private final SpanishAnalyzer analyzer;
 
     SpanishAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         analyzer = new SpanishAnalyzer(
             Analysis.parseStopWords(env, settings, SpanishAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)

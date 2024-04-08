@@ -20,4 +20,9 @@ public class GetDeploymentStatsActionRequestTests extends AbstractWireSerializin
     protected GetDeploymentStatsAction.Request createTestInstance() {
         return new GetDeploymentStatsAction.Request(randomAlphaOfLength(5));
     }
+
+    @Override
+    protected GetDeploymentStatsAction.Request mutateInstance(GetDeploymentStatsAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

@@ -18,8 +18,8 @@ import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -37,10 +37,10 @@ public class DataCountsReporterTests extends ESTestCase {
 
     @Before
     public void setUpMocks() {
-        AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "field").build()));
+        AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(List.of(new Detector.Builder("metric", "field").build()));
         acBuilder.setBucketSpan(bucketSpan);
         acBuilder.setLatency(TimeValue.ZERO);
-        acBuilder.setDetectors(Arrays.asList(new Detector.Builder("metric", "field").build()));
+        acBuilder.setDetectors(List.of(new Detector.Builder("metric", "field").build()));
 
         Job.Builder builder = new Job.Builder("sr");
         builder.setAnalysisConfig(acBuilder);
@@ -153,7 +153,7 @@ public class DataCountsReporterTests extends ESTestCase {
         assertEquals(5001L, dataCountsReporter.incrementalStats().getLatestRecordTimeStamp().getTime());
     }
 
-    public void testReportRecordsWritten() {
+    public void testReportRecordsWritten() throws InterruptedException {
         DataCountsReporter dataCountsReporter = new DataCountsReporter(job, new DataCounts(job.getId()), jobDataCountsPersister);
         dataCountsReporter.setAnalysedFieldsPerRecord(3);
 
@@ -174,7 +174,7 @@ public class DataCountsReporterTests extends ESTestCase {
 
         assertEquals(dataCountsReporter.incrementalStats(), dataCountsReporter.runningTotalStats());
 
-        verify(jobDataCountsPersister, never()).persistDataCounts(anyString(), any(DataCounts.class));
+        verify(jobDataCountsPersister, never()).persistDataCounts(anyString(), any(DataCounts.class), eq(false));
     }
 
     public void testReportRecordsWritten_Given9999Records() {
@@ -262,7 +262,7 @@ public class DataCountsReporterTests extends ESTestCase {
         assertEquals(20, dataCountsReporter.getLogStatusCallCount());
     }
 
-    public void testFinishReporting() {
+    public void testFinishReporting() throws InterruptedException {
         DataCountsReporter dataCountsReporter = new DataCountsReporter(job, new DataCounts(job.getId()), jobDataCountsPersister);
 
         dataCountsReporter.setAnalysedFieldsPerRecord(3);
@@ -300,7 +300,7 @@ public class DataCountsReporterTests extends ESTestCase {
         );
 
         dc.setLastDataTimeStamp(dataCountsReporter.incrementalStats().getLastDataTimeStamp());
-        verify(jobDataCountsPersister, times(1)).persistDataCounts(eq("sr"), eq(dc));
+        verify(jobDataCountsPersister, times(1)).persistDataCounts(eq("sr"), eq(dc), eq(false));
         assertEquals(dc, dataCountsReporter.incrementalStats());
     }
 

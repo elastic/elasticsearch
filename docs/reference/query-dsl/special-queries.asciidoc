@@ -17,6 +17,10 @@ or collection of documents.
 This query finds queries that are stored as documents that match with
 the specified document.
 
+<<query-dsl-knn-query,`knn` query>>::
+A query that finds the _k_ nearest vectors to a query
+vector, as measured by a similarity metric.
+
 <<query-dsl-rank-feature-query,`rank_feature` query>>::
 A query that computes scores based on the values of numeric features and is
 able to efficiently skip non-competitive hits.
@@ -34,11 +38,16 @@ A query that accepts other queries as json or yaml string.
 <<query-dsl-pinned-query,`pinned` query>>::
 A query that promotes selected documents over others matching a given query.
 
+<<query-dsl-rule-query,`rule` query>>::
+A query that supports applying query-based contextual rules, defined using the <<query-rules-apis,Query Rules API>>, to a given query.
+
 include::distance-feature-query.asciidoc[]
 
 include::mlt-query.asciidoc[]
 
 include::percolate-query.asciidoc[]
+
+include::knn-query.asciidoc[]
 
 include::rank-feature-query.asciidoc[]
 
@@ -49,3 +58,7 @@ include::script-score-query.asciidoc[]
 include::wrapper-query.asciidoc[]
 
 include::pinned-query.asciidoc[]
+
+include::rule-query.asciidoc[]
+
+include::weighted-tokens-query.asciidoc[]

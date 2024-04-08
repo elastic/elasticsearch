@@ -198,3 +198,31 @@
   - length: {template.aliases: 1}
   - is_true: template.aliases.test_alias
   - length: {overlapping: 0}
+
+---
+"Simulate template with lifecycle and include defaults":
+  - skip:
+      version: " - 8.13.99"
+      reason: "Data stream lifecycle with effective retention was released in 8.14"
+      features: ["default_shards"]
+
+  - do:
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: other
+          template:
+            lifecycle:
+              data_retention:   "7d"
+          data_stream: {}
+
+  - do:
+      indices.simulate_template:
+        name: my-template
+        include_defaults: true
+
+  - match: {template.lifecycle.enabled: true}
+  - match: {template.lifecycle.data_retention: "7d"}
+  - match: {template.lifecycle.effective_retention: "7d"}
+  - match: {template.lifecycle.retention_determined_by: "data_stream_configuration"}
+  - is_true: template.lifecycle.rollover

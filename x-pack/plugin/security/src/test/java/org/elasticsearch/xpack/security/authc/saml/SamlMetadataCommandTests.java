@@ -102,7 +102,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final Settings settings = settingsBuilder.build();
         final Environment env = TestEnvironment.newEnvironment(settings);
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
 
         if (usedKeyStore.hasPassword()) {
             terminal.addSecretInput("keystore-password");
@@ -683,7 +683,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
                 encryptionCertificatesToMatch.add(certEncKeyPair1.v1());
                 encryptionCertificatesToMatch.add(certEncKeyPair2.v1());
             }
-            spDescriptor.getKeyDescriptors().stream().forEach((keyDesc) -> {
+            spDescriptor.getKeyDescriptors().forEach((keyDesc) -> {
                 UsageType usageType = keyDesc.getUse();
                 final List<X509Data> x509 = keyDesc.getKeyInfo().getX509Datas();
                 assertThat(x509, iterableWithSize(1));
@@ -725,7 +725,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         final Environment env = TestEnvironment.newEnvironment(settings);
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
         terminal.addSecretInput("wrong-password");
 
         UserException e = expectThrows(UserException.class, () -> { command.buildEntityDescriptor(terminal, options, env); });
@@ -755,7 +755,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
     }
 
     private MockTerminal getTerminalPossiblyWithPassword(KeyStoreWrapper keyStore) {
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
         if (keyStore.hasPassword()) {
             terminal.addSecretInput("keystore-password");
         }

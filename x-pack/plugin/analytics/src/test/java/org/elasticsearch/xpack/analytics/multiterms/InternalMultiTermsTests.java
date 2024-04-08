@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.analytics.multiterms;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
@@ -18,19 +17,19 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -43,6 +42,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.mock;
 
 public class InternalMultiTermsTests extends InternalAggregationTestCase<InternalMultiTerms> {
 
@@ -150,6 +150,29 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
     }
 
     @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalMultiTerms sampled, InternalMultiTerms reduced, SamplingContext samplingContext) {
+        assertBucketCountsScaled(sampled.getBuckets(), reduced.getBuckets(), samplingContext);
+    }
+
+    protected void assertBucketCountsScaled(
+        List<InternalMultiTerms.Bucket> sampled,
+        List<InternalMultiTerms.Bucket> reduced,
+        SamplingContext samplingContext
+    ) {
+        assertEquals(sampled.size(), reduced.size());
+        Iterator<InternalMultiTerms.Bucket> sampledIt = sampled.iterator();
+        for (InternalMultiTerms.Bucket reducedBucket : reduced) {
+            InternalMultiTerms.Bucket sampledBucket = sampledIt.next();
+            assertEquals(sampledBucket.getDocCount(), samplingContext.scaleUp(reducedBucket.getDocCount()));
+        }
+    }
+
+    @Override
     protected InternalMultiTerms createTestInstance(String name, Map<String, Object> metadata) {
         int shardSize = randomIntBetween(1, 1000);
         int fieldCount = randomIntBetween(1, 10);
@@ -174,7 +197,7 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
     }
 
     @Override
-    protected List<InternalMultiTerms> randomResultsToReduce(String name, int size) {
+    protected BuilderAndToReduce<InternalMultiTerms> randomResultsToReduce(String name, int size) {
         List<InternalMultiTerms> terms = new ArrayList<>();
         BucketOrder reduceOrder = BucketOrder.key(true);
         BucketOrder order = BucketOrder.key(true);
@@ -216,7 +239,7 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
                 )
             );
         }
-        return terms;
+        return new BuilderAndToReduce<>(mock(AggregationBuilder.class), terms);
     }
 
     @Override
@@ -236,11 +259,6 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
             assertThat(bucketCounts.keySet(), hasItem(equalTo(key)));
             assertThat(bucketCounts.get(key), equalTo(bucket.docCount));
         }
-    }
-
-    @Override
-    protected void assertFromXContent(InternalMultiTerms min, ParsedAggregation parsedAggregation) {
-        // There is no ParsedMultiTerms yet so we cannot test it here
     }
 
     @Override
@@ -275,17 +293,6 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
             instance.formats,
             instance.keyConverters,
             metadata
-        );
-    }
-
-    @Override
-    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        return CollectionUtils.appendToCopy(
-            super.getNamedXContents(),
-            new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(MultiTermsAggregationBuilder.NAME), (p, c) -> {
-                assumeTrue("There is no ParsedMultiTerms yet", false);
-                return null;
-            })
         );
     }
 
@@ -352,13 +359,20 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
             keyConverters2,
             null
         );
-        AggregationReduceContext context = new AggregationReduceContext.ForPartial(bigArrays, mockScriptService, () -> false);
+        AggregationReduceContext context = new AggregationReduceContext.ForFinal(
+            bigArrays,
+            mockScriptService,
+            () -> false,
+            mock(AggregationBuilder.class),
+            i -> {},
+            PipelineAggregator.PipelineTree.EMPTY
+        );
 
-        InternalMultiTerms result = (InternalMultiTerms) terms1.reduce(List.of(terms1, terms2), context);
+        InternalMultiTerms result = (InternalMultiTerms) InternalAggregationTestCase.reduce(List.of(terms1, terms2), context);
         assertThat(result.buckets, hasSize(3));
-        assertThat(result.buckets.get(0).getKeyAsString(), equalTo("4|9.223372036854776E18|4.0"));
+        assertThat(result.buckets.get(0).getKeyAsString(), equalTo("4|9.223372036854776E18|1.0"));
         assertThat(result.buckets.get(0).getDocCount(), equalTo(3L));
-        assertThat(result.buckets.get(1).getKeyAsString(), equalTo("4|9.223372036854776E18|1.0"));
+        assertThat(result.buckets.get(1).getKeyAsString(), equalTo("4|9.223372036854776E18|4.0"));
         assertThat(result.buckets.get(1).getDocCount(), equalTo(3L));
         assertThat(result.buckets.get(2).getKeyAsString(), equalTo("3|9.223372036854776E18|3.0"));
         assertThat(result.buckets.get(2).getDocCount(), equalTo(2L));

@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.clone;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -28,6 +30,7 @@ import org.elasticsearch.transport.TransportService;
  */
 public final class TransportCloneSnapshotAction extends AcknowledgedTransportMasterNodeAction<CloneSnapshotRequest> {
 
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/snapshot/clone");
     private final SnapshotsService snapshotsService;
 
     @Inject
@@ -40,14 +43,14 @@ public final class TransportCloneSnapshotAction extends AcknowledgedTransportMas
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            CloneSnapshotAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
             CloneSnapshotRequest::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.snapshotsService = snapshotsService;
     }

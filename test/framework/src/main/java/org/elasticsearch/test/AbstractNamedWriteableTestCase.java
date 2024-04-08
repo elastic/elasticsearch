@@ -8,7 +8,7 @@
 
 package org.elasticsearch.test;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -32,7 +32,7 @@ public abstract class AbstractNamedWriteableTestCase<T extends NamedWriteable> e
     protected abstract Class<T> categoryClass();
 
     @Override
-    protected T copyInstance(T instance, Version version) throws IOException {
+    protected T copyInstance(T instance, TransportVersion version) throws IOException {
         return copyNamedWriteable(instance, getNamedWriteableRegistry(), categoryClass(), version);
     }
 

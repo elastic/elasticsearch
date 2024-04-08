@@ -9,10 +9,11 @@ package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 
@@ -26,6 +27,8 @@ public final class QueryApiKeyRequest extends ActionRequest {
     @Nullable
     private final QueryBuilder queryBuilder;
     @Nullable
+    private final AggregatorFactories.Builder aggsBuilder;
+    @Nullable
     private final Integer from;
     @Nullable
     private final Integer size;
@@ -33,45 +36,44 @@ public final class QueryApiKeyRequest extends ActionRequest {
     private final List<FieldSortBuilder> fieldSortBuilders;
     @Nullable
     private final SearchAfterBuilder searchAfterBuilder;
+    private final boolean withLimitedBy;
     private boolean filterForCurrentUser;
+    private final boolean withProfileUid;
 
     public QueryApiKeyRequest() {
         this((QueryBuilder) null);
     }
 
     public QueryApiKeyRequest(QueryBuilder queryBuilder) {
-        this(queryBuilder, null, null, null, null);
+        this(queryBuilder, null, null, null, null, null, false, false);
     }
 
     public QueryApiKeyRequest(
         @Nullable QueryBuilder queryBuilder,
+        @Nullable AggregatorFactories.Builder aggsBuilder,
         @Nullable Integer from,
         @Nullable Integer size,
         @Nullable List<FieldSortBuilder> fieldSortBuilders,
-        @Nullable SearchAfterBuilder searchAfterBuilder
+        @Nullable SearchAfterBuilder searchAfterBuilder,
+        boolean withLimitedBy,
+        boolean withProfileUid
     ) {
         this.queryBuilder = queryBuilder;
+        this.aggsBuilder = aggsBuilder;
         this.from = from;
         this.size = size;
         this.fieldSortBuilders = fieldSortBuilders;
         this.searchAfterBuilder = searchAfterBuilder;
-    }
-
-    public QueryApiKeyRequest(StreamInput in) throws IOException {
-        super(in);
-        this.queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-        this.from = in.readOptionalVInt();
-        this.size = in.readOptionalVInt();
-        if (in.readBoolean()) {
-            this.fieldSortBuilders = in.readList(FieldSortBuilder::new);
-        } else {
-            this.fieldSortBuilders = null;
-        }
-        this.searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
+        this.withLimitedBy = withLimitedBy;
+        this.withProfileUid = withProfileUid;
     }
 
     public QueryBuilder getQueryBuilder() {
         return queryBuilder;
+    }
+
+    public AggregatorFactories.Builder getAggsBuilder() {
+        return aggsBuilder;
     }
 
     public Integer getFrom() {
@@ -98,6 +100,14 @@ public final class QueryApiKeyRequest extends ActionRequest {
         filterForCurrentUser = true;
     }
 
+    public boolean withLimitedBy() {
+        return withLimitedBy;
+    }
+
+    public boolean withProfileUid() {
+        return withProfileUid;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -112,16 +122,6 @@ public final class QueryApiKeyRequest extends ActionRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeOptionalNamedWriteable(queryBuilder);
-        out.writeOptionalVInt(from);
-        out.writeOptionalVInt(size);
-        if (fieldSortBuilders == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeList(fieldSortBuilders);
-        }
-        out.writeOptionalWriteable(searchAfterBuilder);
+        TransportAction.localOnly();
     }
 }

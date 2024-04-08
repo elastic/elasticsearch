@@ -31,7 +31,7 @@ POST /my-index-000001/_shrink/shrunk-my-index-000001
 * Before you can shrink an index:
 
 ** The index must be read-only.
-** All primary shards for the index must reside on the same node.
+** A copy of every shard in the index must reside on the same node.
 ** The index must have a `green` <<cluster-health,health status>>.
 
 To make shard allocation easier, we recommend you also remove the index's
@@ -39,8 +39,8 @@ replica shards. You can later re-add replica shards as part of the shrink
 operation.
 
 You can use the following <<indices-update-settings,update index settings API>>
-request to remove an index's replica shards, relocates the index's remaining
-shards to the same node, and make the index read-only.
+request to remove an index's replica shards, and relocate the index's remaining
+shards to the same node.
 
 [source,console]
 --------------------------------------------------
@@ -48,8 +48,7 @@ PUT /my_source_index/_settings
 {
   "settings": {
     "index.number_of_replicas": 0,                                <1>
-    "index.routing.allocation.require._name": "shrink_node_name", <2>
-    "index.blocks.write": true                                    <3>
+    "index.routing.allocation.require._name": "shrink_node_name"  <2>
   }
 }
 --------------------------------------------------
@@ -58,15 +57,20 @@ PUT /my_source_index/_settings
 <1> Removes replica shards for the index.
 <2> Relocates the index's shards to the `shrink_node_name` node.
     See <<shard-allocation-filtering>>.
-<3> Prevents write operations to this index. Metadata changes, such as deleting
-    the index, are still allowed.
-
 
 It can take a while to relocate the source index. Progress can be tracked
 with the <<cat-recovery,`_cat recovery` API>>, or the <<cluster-health,
 `cluster health` API>> can be used to wait until all shards have relocated
 with the `wait_for_no_relocating_shards` parameter.
 
+You can then make the index read-only with the following request using the
+<<add-index-block,add index block>> API:
+
+[source,console]
+--------------------------------------------------
+PUT /my_source_index/_block/write
+--------------------------------------------------
+// TEST[continued]
 
 [[shrink-index-api-desc]]
 ==== {api-description-title}
@@ -101,7 +105,8 @@ A shrink operation:
   disks)
 
 . Recovers the target index as though it were a closed index which
-  had just been re-opened.
+  had just been re-opened. Recovers shards to <<indices-get-settings,Index Setting>> 
+  `.routing.allocation.initial_recovery._id`.
 
 
 [[_shrinking_an_index]]
@@ -171,7 +176,7 @@ POST /my_source_index/_shrink/my_target_index
 
 <1> The number of shards in the target index. This must be a factor of the
     number of shards in the source index.
-<2> Best compression will only take affect when new writes are made to the
+<2> Best compression will only take effect when new writes are made to the
     index, such as when <<indices-forcemerge,force-merging>> the shard to a single
     segment.
 

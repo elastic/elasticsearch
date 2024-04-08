@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -22,9 +22,9 @@ public class TransportSearchHelperTests extends ESTestCase {
 
     public static AtomicArray<SearchPhaseResult> generateQueryResults() {
         AtomicArray<SearchPhaseResult> array = new AtomicArray<>(3);
-        DiscoveryNode node1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode node3 = new DiscoveryNode("node_3", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node1 = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode node2 = DiscoveryNodeUtils.create("node_2");
+        DiscoveryNode node3 = DiscoveryNodeUtils.create("node_3");
         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult1 = new SearchAsyncActionTests.TestSearchPhaseResult(
             new ShardSearchContextId("a", 1),
             node1

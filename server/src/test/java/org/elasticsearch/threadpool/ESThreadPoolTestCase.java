@@ -11,7 +11,6 @@ package org.elasticsearch.threadpool;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public abstract class ESThreadPoolTestCase extends ESTestCase {
 
@@ -27,7 +26,7 @@ public abstract class ESThreadPoolTestCase extends ESTestCase {
 
     protected final ThreadPoolStats.Stats stats(final ThreadPool threadPool, final String name) {
         for (final ThreadPoolStats.Stats stats : threadPool.stats()) {
-            if (name.equals(stats.getName())) {
+            if (name.equals(stats.name())) {
                 return stats;
             }
         }
@@ -42,11 +41,7 @@ public abstract class ESThreadPoolTestCase extends ESTestCase {
 
     static String randomThreadPool(final ThreadPool.ThreadPoolType type) {
         return randomFrom(
-            ThreadPool.THREAD_POOL_TYPES.entrySet()
-                .stream()
-                .filter(t -> t.getValue().equals(type))
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toList())
+            ThreadPool.THREAD_POOL_TYPES.entrySet().stream().filter(t -> t.getValue().equals(type)).map(Map.Entry::getKey).sorted().toList()
         );
     }
 

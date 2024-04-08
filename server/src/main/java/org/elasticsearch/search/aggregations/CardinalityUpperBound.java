@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 
 import java.util.function.IntFunction;
@@ -40,7 +39,7 @@ public abstract class CardinalityUpperBound {
      * {@link Aggregator}s with this cardinality will collect be collected
      * once or zero times. This will only be true for top level {@linkplain Aggregator}s
      * and for sub-aggregator's who's ancestors are all single-bucket
-     * aggregations like {@link FilterAggregator} or a {@link RangeAggregator}
+     * aggregations like a {@link RangeAggregator}
      * configured to collect only a single range.
      */
     public static final CardinalityUpperBound ONE = new KnownCardinalityUpperBound(1);

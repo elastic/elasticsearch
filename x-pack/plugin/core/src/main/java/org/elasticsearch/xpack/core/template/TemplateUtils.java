@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.template;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -15,20 +14,18 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.template.resources.TemplateResources;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Predicate;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 
@@ -52,8 +49,7 @@ public class TemplateUtils {
     ) {
         final String template = loadTemplate(resource, version, versionProperty);
         try (
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, template)
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, template)
         ) {
             map.put(templateName, IndexTemplateMetadata.Builder.fromXContent(parser, templateName));
         } catch (IOException e) {
@@ -74,20 +70,13 @@ public class TemplateUtils {
      */
     public static String loadTemplate(String resource, String version, String versionProperty, Map<String, String> variables) {
         try {
-            String source = load(resource);
+            String source = TemplateResources.load(resource);
             source = replaceVariables(source, version, versionProperty, variables);
             validate(source);
             return source;
         } catch (Exception e) {
             throw new IllegalArgumentException("Unable to load template [" + resource + "]", e);
         }
-    }
-
-    /**
-     * Loads a resource from the classpath and returns it as a {@link String}
-     */
-    public static String load(String name) throws IOException {
-        return Streams.readFully(TemplateUtils.class.getResourceAsStream(name)).utf8ToString();
     }
 
     /**
@@ -108,7 +97,7 @@ public class TemplateUtils {
         }
     }
 
-    private static String replaceVariables(String input, String version, String versionProperty, Map<String, String> variables) {
+    public static String replaceVariables(String input, String version, String versionProperty, Map<String, String> variables) {
         String template = replaceVariable(input, versionProperty, version);
         for (Map.Entry<String, String> variable : variables.entrySet()) {
             template = replaceVariable(template, variable.getKey(), variable.getValue());
@@ -120,21 +109,22 @@ public class TemplateUtils {
      * Replaces all occurrences of given variable with the value
      */
     public static String replaceVariable(String input, String variable, String value) {
-        return Pattern.compile("${" + variable + "}", Pattern.LITERAL).matcher(input).replaceAll(value);
+        return input.replace("${" + variable + "}", value);
     }
 
     /**
      * Checks if a versioned template exists, and if it exists checks if the version is greater than or equal to the current version.
      * @param templateName Name of the index template
      * @param state Cluster state
+     * @param currentVersion The current version to check against
      */
-    public static boolean checkTemplateExistsAndVersionIsGTECurrentVersion(String templateName, ClusterState state) {
+    public static boolean checkTemplateExistsAndVersionIsGTECurrentVersion(String templateName, ClusterState state, long currentVersion) {
         ComposableIndexTemplate templateMetadata = state.metadata().templatesV2().get(templateName);
         if (templateMetadata == null) {
             return false;
         }
 
-        return templateMetadata.version() != null && templateMetadata.version() >= Version.CURRENT.id;
+        return templateMetadata.version() != null && templateMetadata.version() >= currentVersion;
     }
 
     /**
@@ -143,25 +133,10 @@ public class TemplateUtils {
      * @param templateName Name of the index template
      * @param state Cluster state
      * @param logger Logger
-     * @param versionComposableTemplateExpected In which version of Elasticsearch did this template switch to being a composable template?
-     *                                          <code>null</code> means the template hasn't been switched yet.
      */
-    public static boolean checkTemplateExistsAndIsUpToDate(
-        String templateName,
-        String versionKey,
-        ClusterState state,
-        Logger logger,
-        Version versionComposableTemplateExpected
-    ) {
+    public static boolean checkTemplateExistsAndIsUpToDate(String templateName, String versionKey, ClusterState state, Logger logger) {
 
-        return checkTemplateExistsAndVersionMatches(
-            templateName,
-            versionKey,
-            state,
-            logger,
-            Version.CURRENT::equals,
-            versionComposableTemplateExpected
-        );
+        return checkTemplateExistsAndVersionMatches(templateName, versionKey, state, logger, Version.CURRENT::equals);
     }
 
     /**
@@ -171,32 +146,20 @@ public class TemplateUtils {
      * @param state Cluster state
      * @param logger Logger
      * @param predicate Predicate to execute on version check
-     * @param versionComposableTemplateExpected In which version of Elasticsearch did this template switch to being a composable template?
-     *                                          <code>null</code> means the template hasn't been switched yet.
      */
     public static boolean checkTemplateExistsAndVersionMatches(
         String templateName,
         String versionKey,
         ClusterState state,
         Logger logger,
-        Predicate<Version> predicate,
-        Version versionComposableTemplateExpected
+        Predicate<Version> predicate
     ) {
 
-        CompressedXContent mappings;
-        if (versionComposableTemplateExpected != null && state.nodes().getMinNodeVersion().onOrAfter(versionComposableTemplateExpected)) {
-            ComposableIndexTemplate templateMeta = state.metadata().templatesV2().get(templateName);
-            if (templateMeta == null) {
-                return false;
-            }
-            mappings = templateMeta.template().mappings();
-        } else {
-            IndexTemplateMetadata templateMeta = state.metadata().templates().get(templateName);
-            if (templateMeta == null) {
-                return false;
-            }
-            mappings = templateMeta.getMappings();
+        IndexTemplateMetadata templateMeta = state.metadata().templates().get(templateName);
+        if (templateMeta == null) {
+            return false;
         }
+        CompressedXContent mappings = templateMeta.getMappings();
 
         // check all mappings contain correct version in _meta
         // we have to parse the source here which is annoying
@@ -213,7 +176,7 @@ public class TemplateUtils {
                     return false;
                 }
             } catch (ElasticsearchParseException e) {
-                logger.error(new ParameterizedMessage("Cannot parse the template [{}]", templateName), e);
+                logger.error(() -> "Cannot parse the template [" + templateName + "]", e);
                 throw new IllegalStateException("Cannot parse the template " + templateName, e);
             }
         }

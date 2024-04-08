@@ -9,12 +9,11 @@ package org.elasticsearch.xpack.security.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
@@ -31,6 +30,8 @@ import org.elasticsearch.xpack.security.authc.pki.X509AuthenticationToken;
 
 import java.security.cert.X509Certificate;
 import java.util.Map;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Implements the exchange of an {@code X509Certificate} chain into an access token. The certificate chain is represented as an array where
@@ -65,7 +66,13 @@ public final class TransportDelegatePkiAuthenticationAction extends HandledTrans
         TokenService tokenService,
         SecurityContext securityContext
     ) {
-        super(DelegatePkiAuthenticationAction.NAME, transportService, actionFilters, DelegatePkiAuthenticationRequest::new);
+        super(
+            DelegatePkiAuthenticationAction.NAME,
+            transportService,
+            actionFilters,
+            DelegatePkiAuthenticationRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.threadPool = threadPool;
         this.authenticationService = authenticationService;
         this.tokenService = tokenService;
@@ -109,13 +116,7 @@ public final class TransportDelegatePkiAuthenticationAction extends HandledTrans
                         }, listener::onFailure)
                     );
                 }, e -> {
-                    logger.debug(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "Delegated x509Token [{}] could not be authenticated",
-                            x509DelegatedToken
-                        ),
-                        e
-                    );
+                    logger.debug(() -> format("Delegated x509Token [%s] could not be authenticated", x509DelegatedToken), e);
                     listener.onFailure(e);
                 })
             );

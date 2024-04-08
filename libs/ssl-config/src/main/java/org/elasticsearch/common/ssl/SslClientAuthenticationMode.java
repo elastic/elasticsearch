@@ -11,7 +11,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import javax.net.ssl.SSLParameters;
 
@@ -82,7 +81,7 @@ public enum SslClientAuthenticationMode {
     public static SslClientAuthenticationMode parse(String value) {
         final SslClientAuthenticationMode mode = LOOKUP.get(value.toLowerCase(Locale.ROOT));
         if (mode == null) {
-            final String allowedValues = LOOKUP.keySet().stream().collect(Collectors.joining(","));
+            final String allowedValues = String.join(",", LOOKUP.keySet());
             throw new SslConfigException(
                 "could not resolve ssl client authentication, unknown value [" + value + "], recognised values are [" + allowedValues + "]"
             );

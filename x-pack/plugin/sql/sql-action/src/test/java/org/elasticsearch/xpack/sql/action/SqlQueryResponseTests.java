@@ -10,7 +10,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -36,7 +36,7 @@ import static org.elasticsearch.xpack.sql.action.Protocol.IS_RUNNING_NAME;
 import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
 import static org.hamcrest.Matchers.hasSize;
 
-public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryResponse> {
+public class SqlQueryResponseTests extends AbstractXContentSerializingTestCase<SqlQueryResponse> {
 
     static String randomStringCursor() {
         return randomBoolean() ? "" : randomAlphaOfLength(10);
@@ -58,6 +58,11 @@ public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryR
             randomBoolean(),
             randomBoolean()
         );
+    }
+
+    @Override
+    protected SqlQueryResponse mutateInstance(SqlQueryResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

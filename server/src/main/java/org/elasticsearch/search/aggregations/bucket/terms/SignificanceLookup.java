@@ -15,6 +15,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
@@ -32,6 +33,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.io.IOException;
 
@@ -60,19 +62,42 @@ class SignificanceLookup {
     private final int supersetNumDocs;
     private TermsEnum termsEnum;
 
-    SignificanceLookup(AggregationContext context, MappedFieldType fieldType, DocValueFormat format, QueryBuilder backgroundFilter)
-        throws IOException {
+    SignificanceLookup(
+        AggregationContext context,
+        SamplingContext samplingContext,
+        MappedFieldType fieldType,
+        DocValueFormat format,
+        QueryBuilder backgroundFilter
+    ) throws IOException {
         this.context = context;
         this.fieldType = fieldType;
         this.format = format;
-        this.backgroundFilter = backgroundFilter == null ? null : context.buildQuery(backgroundFilter);
+        // If there is no provided background filter, but we are within a sampling context, our background docs need to take the sampling
+        // context into account.
+        // If there is a filter, that filter needs to take the sampling into account (if we are within a sampling context)
+        Query backgroundQuery = backgroundFilter == null
+            ? samplingContext.buildSamplingQueryIfNecessary(context).orElse(null)
+            : samplingContext.buildQueryWithSampler(backgroundFilter, context);
+        // Refilter to account for alias filters, if there are any.
+        if (backgroundQuery == null) {
+            Query matchAllDocsQuery = new MatchAllDocsQuery();
+            Query contextFiltered = context.filterQuery(matchAllDocsQuery);
+            if (contextFiltered != matchAllDocsQuery) {
+                this.backgroundFilter = contextFiltered;
+            } else {
+                this.backgroundFilter = null;
+            }
+        } else {
+            Query contextFiltered = context.filterQuery(backgroundQuery);
+            this.backgroundFilter = contextFiltered;
+        }
         /*
          * We need to use a superset size that includes deleted docs or we
          * could end up blowing up with bad statistics that cause us to blow
          * up later on.
          */
         IndexSearcher searcher = context.searcher();
-        supersetNumDocs = backgroundFilter == null ? searcher.getIndexReader().maxDoc() : searcher.count(this.backgroundFilter);
+        supersetNumDocs = this.backgroundFilter == null ? searcher.getIndexReader().maxDoc() : searcher.count(this.backgroundFilter);
     }
 
     /**
@@ -193,11 +218,12 @@ class SignificanceLookup {
     }
 
     private long getBackgroundFrequency(Query query) throws IOException {
+        // Note that `getTermsEnum` takes into account the backgroundFilter, with already has the sampling query applied
         if (query instanceof TermQuery) {
             // for types that use the inverted index, we prefer using a terms
             // enum that will do a better job at reusing index inputs
             Term term = ((TermQuery) query).getTerm();
-            TermsEnum termsEnum = getTermsEnum(term.field());
+            TermsEnum termsEnum = getTermsEnum();
             if (termsEnum.seekExact(term.bytes())) {
                 return termsEnum.docFreq();
             }
@@ -207,10 +233,11 @@ class SignificanceLookup {
         if (backgroundFilter != null) {
             query = new BooleanQuery.Builder().add(query, Occur.FILTER).add(backgroundFilter, Occur.FILTER).build();
         }
-        return context.searcher().count(query);
+        // use a brand new index searcher as we want to run this query on the current thread
+        return new IndexSearcher(context.searcher().getIndexReader()).count(query);
     }
 
-    private TermsEnum getTermsEnum(String field) throws IOException {
+    private TermsEnum getTermsEnum() throws IOException {
         // TODO this method helps because of asMultiBucketAggregator. Once we remove it we can move this logic into the aggregators.
         if (termsEnum != null) {
             return termsEnum;

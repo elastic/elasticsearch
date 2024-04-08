@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -25,7 +27,7 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportDeleteStoredScriptAction extends AcknowledgedTransportMasterNodeAction<DeleteStoredScriptRequest> {
 
-    private final ScriptService scriptService;
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/script/delete");
 
     @Inject
     public TransportDeleteStoredScriptAction(
@@ -33,20 +35,18 @@ public class TransportDeleteStoredScriptAction extends AcknowledgedTransportMast
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        ScriptService scriptService
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            DeleteStoredScriptAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
             DeleteStoredScriptRequest::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.scriptService = scriptService;
     }
 
     @Override
@@ -56,7 +56,7 @@ public class TransportDeleteStoredScriptAction extends AcknowledgedTransportMast
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        scriptService.deleteStoredScript(clusterService, request, listener);
+        ScriptService.deleteStoredScript(clusterService, request, listener);
     }
 
     @Override

@@ -7,18 +7,24 @@
  */
 package org.elasticsearch.node;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.shard.IndexShard;
@@ -28,14 +34,18 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
+import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsServiceTests;
 import org.elasticsearch.plugins.RecoveryPlannerPlugin;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
@@ -48,20 +58,24 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -71,7 +85,17 @@ import static org.mockito.Mockito.mock;
 public class NodeTests extends ESTestCase {
 
     public static class CheckPlugin extends Plugin {
-        public static final BootstrapCheck CHECK = context -> BootstrapCheck.BootstrapCheckResult.success();
+        public static final BootstrapCheck CHECK = new BootstrapCheck() {
+            @Override
+            public BootstrapCheckResult check(BootstrapContext context) {
+                return BootstrapCheck.BootstrapCheckResult.success();
+            }
+
+            @Override
+            public ReferenceDocs referenceDocs() {
+                return ReferenceDocs.BOOTSTRAP_CHECKS;
+            }
+        };
 
         @Override
         public List<BootstrapCheck> getBootstrapChecks() {
@@ -165,6 +189,10 @@ public class NodeTests extends ESTestCase {
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
             .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
+            // default the watermarks low values to prevent tests from failing on nodes without enough disk space
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "1b")
             .put(dataNode());
     }
 
@@ -283,13 +311,7 @@ public class NodeTests extends ESTestCase {
         Node node = new MockNode(baseSettings().build(), basePlugins());
         node.start();
         IndicesService indicesService = node.injector().getInstance(IndicesService.class);
-        assertAcked(
-            node.client()
-                .admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-        );
+        assertAcked(node.client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)));
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
         Searcher searcher = shard.acquireSearcher("test");
@@ -304,13 +326,7 @@ public class NodeTests extends ESTestCase {
         Node node = new MockNode(baseSettings().build(), basePlugins());
         node.start();
         IndicesService indicesService = node.injector().getInstance(IndicesService.class);
-        assertAcked(
-            node.client()
-                .admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-        );
+        assertAcked(node.client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)));
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
         shard.store().incRef();
@@ -321,6 +337,13 @@ public class NodeTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("Something is leaking index readers or store references"));
     }
 
+    public void testStartOnClosedTransport() throws IOException {
+        try (Node node = new MockNode(baseSettings().build(), basePlugins())) {
+            node.prepareForClose();
+            expectThrows(AssertionError.class, node::start);    // this would be IllegalStateException in a real Node with assertions off
+        }
+    }
+
     public void testCreateWithCircuitBreakerPlugins() throws IOException {
         Settings.Builder settings = baseSettings().put("breaker.test_breaker.limit", "50b");
         List<Class<? extends Plugin>> plugins = basePlugins();
@@ -329,7 +352,7 @@ public class NodeTests extends ESTestCase {
             CircuitBreakerService service = node.injector().getInstance(CircuitBreakerService.class);
             assertThat(service.getBreaker("test_breaker"), is(not(nullValue())));
             assertThat(service.getBreaker("test_breaker").getLimit(), equalTo(50L));
-            CircuitBreakerPlugin breakerPlugin = node.getPluginsService().filterPlugins(CircuitBreakerPlugin.class).get(0);
+            CircuitBreakerPlugin breakerPlugin = node.getPluginsService().filterPlugins(CircuitBreakerPlugin.class).findFirst().get();
             assertTrue(breakerPlugin instanceof MockCircuitBreakerPlugin);
             assertSame(
                 "plugin circuit breaker instance is not the same as breaker service's instance",
@@ -339,20 +362,106 @@ public class NodeTests extends ESTestCase {
         }
     }
 
+    /**
+     * TODO: Remove this test once classpath plugins are fully moved to MockNode.
+     * In production, plugin name clashes are checked in a completely different way.
+     * See {@link PluginsServiceTests#testPluginNameClash()}
+     */
     public void testNodeFailsToStartWhenThereAreMultipleRecoveryPlannerPluginsLoaded() {
         List<Class<? extends Plugin>> plugins = basePlugins();
         plugins.add(MockRecoveryPlannerPlugin.class);
         plugins.add(MockRecoveryPlannerPlugin.class);
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> new MockNode(baseSettings().build(), plugins));
-        assertThat(exception.getMessage(), containsString("A single RecoveryPlannerPlugin was expected but got:"));
+        assertThat(exception.getMessage(), containsString("Duplicate key org.elasticsearch.node.NodeTests$MockRecoveryPlannerPlugin"));
+    }
+
+    public void testHeadersToCopyInTaskManagerAreTheSameAsDeclaredInTask() throws IOException {
+        Settings.Builder settings = baseSettings();
+        try (Node node = new MockNode(settings.build(), basePlugins())) {
+            final TransportService transportService = node.injector().getInstance(TransportService.class);
+            final Set<String> taskHeaders = transportService.getTaskManager().getTaskHeaders();
+            assertThat(taskHeaders, containsInAnyOrder(Task.HEADERS_TO_COPY.toArray()));
+        }
+    }
+
+    public static class MockPluginWithAltImpl extends Plugin {
+        private final boolean randomBool;
+        private static boolean startCalled = false;
+        private static boolean stopCalled = false;
+        private static boolean closeCalled = false;
+
+        public MockPluginWithAltImpl() {
+            this.randomBool = randomBoolean();
+        }
+
+        interface MyInterface extends LifecycleComponent {
+            String get();
+
+        }
+
+        static class Foo extends AbstractLifecycleComponent implements MyInterface {
+            @Override
+            public String get() {
+                return "foo";
+            }
+
+            @Override
+            protected void doStart() {
+                startCalled = true;
+            }
+
+            @Override
+            protected void doStop() {
+                stopCalled = true;
+            }
+
+            @Override
+            protected void doClose() throws IOException {
+                closeCalled = true;
+            }
+        }
+
+        static class Bar extends AbstractLifecycleComponent implements MyInterface {
+            @Override
+            public String get() {
+                return "bar";
+            }
+
+            @Override
+            protected void doStart() {
+                startCalled = true;
+            }
+
+            @Override
+            protected void doStop() {
+                stopCalled = true;
+            }
+
+            @Override
+            protected void doClose() throws IOException {
+                closeCalled = true;
+            }
+        }
+
+        @Override
+        public Collection<?> createComponents(PluginServices services) {
+            List<Object> components = new ArrayList<>();
+            components.add(new PluginComponentBinding<>(MyInterface.class, getRandomBool() ? new Foo() : new Bar()));
+            return components;
+        }
+
+        public boolean getRandomBool() {
+            return this.randomBool;
+        }
+
     }
 
     public static class MockRecoveryPlannerPlugin extends Plugin implements RecoveryPlannerPlugin {
         public MockRecoveryPlannerPlugin() {}
 
         @Override
-        public RecoveryPlannerService createRecoveryPlannerService(ShardSnapshotsService shardSnapshotsService) {
-            return mock(RecoveryPlannerService.class);
+        public Optional<RecoveryPlannerService> createRecoveryPlannerService(ShardSnapshotsService shardSnapshotsService) {
+            return Optional.of(mock(RecoveryPlannerService.class));
         }
     }
 
@@ -435,6 +544,75 @@ public class NodeTests extends ESTestCase {
         }
     }
 
+    static class AdditionalSettingsPlugin1 extends Plugin {
+        @Override
+        public Settings additionalSettings() {
+            return Settings.builder()
+                .put("foo.bar", "1")
+                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.MMAPFS.getSettingsKey())
+                .build();
+        }
+    }
+
+    static class AdditionalSettingsPlugin2 extends Plugin {
+        @Override
+        public Settings additionalSettings() {
+            return Settings.builder().put("foo.bar", "2").build();
+        }
+    }
+
+    public void testAdditionalSettings() {
+        Map<String, Plugin> pluginMap = Map.of(AdditionalSettingsPlugin1.class.getName(), new AdditionalSettingsPlugin1());
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put("my.setting", "test")
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.NIOFS.getSettingsKey())
+            .build();
+
+        Settings newSettings = Node.mergePluginSettings(pluginMap, settings);
+        assertEquals("test", newSettings.get("my.setting")); // previous settings still exist
+        assertEquals("1", newSettings.get("foo.bar")); // added setting exists
+        // does not override pre existing settings
+        assertEquals(IndexModule.Type.NIOFS.getSettingsKey(), newSettings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey()));
+    }
+
+    public void testAdditionalSettingsClash() {
+        Map<String, Plugin> pluginMap = Map.of(
+            AdditionalSettingsPlugin1.class.getName(),
+            new AdditionalSettingsPlugin1(),
+            AdditionalSettingsPlugin2.class.getName(),
+            new AdditionalSettingsPlugin2()
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> Node.mergePluginSettings(pluginMap, Settings.EMPTY)
+        );
+        String msg = e.getMessage();
+        assertTrue(msg, msg.contains("Cannot have additional setting [foo.bar]"));
+        assertTrue(msg, msg.contains("plugin [" + AdditionalSettingsPlugin1.class.getName()));
+        assertTrue(msg, msg.contains("plugin [" + AdditionalSettingsPlugin2.class.getName()));
+    }
+
+    public void testPluginComponentInterfaceBinding() throws IOException, NodeValidationException {
+        List<Class<? extends Plugin>> plugins = basePlugins();
+        plugins.add(MockPluginWithAltImpl.class);
+        try (Node node = new MockNode(baseSettings().build(), plugins)) {
+            MockPluginWithAltImpl.MyInterface myInterface = node.injector().getInstance(MockPluginWithAltImpl.MyInterface.class);
+            MockPluginWithAltImpl plugin = node.getPluginsService().filterPlugins(MockPluginWithAltImpl.class).findFirst().get();
+            if (plugin.getRandomBool()) {
+                assertThat(myInterface, instanceOf(MockPluginWithAltImpl.Foo.class));
+                assertThat(myInterface.get(), equalTo("foo"));
+            } else {
+                assertThat(myInterface, instanceOf(MockPluginWithAltImpl.Bar.class));
+                assertThat(myInterface.get(), equalTo("bar"));
+            }
+            node.start();
+            assertTrue(MockPluginWithAltImpl.startCalled);
+        }
+        assertTrue(MockPluginWithAltImpl.stopCalled);
+        assertTrue(MockPluginWithAltImpl.closeCalled);
+    }
+
     private RestRequest request(NamedXContentRegistry namedXContentRegistry, RestApiVersion restApiVersion) throws IOException {
         String mediaType = XContentType.VND_JSON.toParsedMediaType()
             .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(restApiVersion.major)));
@@ -447,4 +625,52 @@ public class NodeTests extends ESTestCase {
         ).withPath("/foo").withHeaders(Map.of("Content-Type", mediaTypeList, "Accept", mediaTypeList)).build();
     }
 
+    private static class BaseTestClusterCoordinationPlugin extends Plugin implements ClusterCoordinationPlugin {
+
+        public PersistedClusterStateService persistedClusterStateService;
+
+        @Override
+        public Optional<PersistedClusterStateServiceFactory> getPersistedClusterStateServiceFactory() {
+            return Optional.of(
+                (
+                    nodeEnvironment,
+                    namedXContentRegistry,
+                    clusterSettings,
+                    threadPool,
+                    compatibilityVersions) -> persistedClusterStateService = new PersistedClusterStateService(
+                        nodeEnvironment,
+                        namedXContentRegistry,
+                        clusterSettings,
+                        threadPool::relativeTimeInMillis
+                    )
+            );
+        }
+    }
+
+    public static class TestClusterCoordinationPlugin1 extends BaseTestClusterCoordinationPlugin {}
+
+    public static class TestClusterCoordinationPlugin2 extends BaseTestClusterCoordinationPlugin {}
+
+    public void testPluggablePersistedClusterStateServiceValidation() throws IOException {
+        assertThat(
+            expectThrows(
+                IllegalStateException.class,
+                () -> new MockNode(
+                    baseSettings().build(),
+                    List.of(TestClusterCoordinationPlugin1.class, TestClusterCoordinationPlugin2.class, getTestTransportPlugin())
+                )
+            ).getMessage(),
+            containsString("A single " + ClusterCoordinationPlugin.PersistedClusterStateServiceFactory.class.getName() + " was expected")
+        );
+
+        try (Node node = new MockNode(baseSettings().build(), List.of(TestClusterCoordinationPlugin1.class, getTestTransportPlugin()))) {
+
+            for (final var plugin : node.getPluginsService().filterPlugins(BaseTestClusterCoordinationPlugin.class).toList()) {
+                assertSame(
+                    Objects.requireNonNull(plugin.persistedClusterStateService),
+                    node.injector().getInstance(PersistedClusterStateService.class)
+                );
+            }
+        }
+    }
 }

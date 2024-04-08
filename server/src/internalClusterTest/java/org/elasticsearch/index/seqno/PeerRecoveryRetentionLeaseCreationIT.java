@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -16,7 +15,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -48,18 +47,13 @@ public class PeerRecoveryRetentionLeaseCreationIT extends ESIntegTestCase {
                 Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                    .put(
-                        IndexMetadata.SETTING_VERSION_CREATED,
-                        VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT)
-                    )
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomCompatibleVersion(random()))
             )
         );
         ensureGreen(INDEX_NAME);
 
         IndicesService service = internalCluster().getInstance(IndicesService.class, dataNode);
-        String uuid = client().admin()
-            .indices()
-            .getIndex(new GetIndexRequest().indices(INDEX_NAME))
+        String uuid = indicesAdmin().getIndex(new GetIndexRequest().indices(INDEX_NAME))
             .actionGet()
             .getSetting(INDEX_NAME, IndexMetadata.SETTING_INDEX_UUID);
         Path path = service.indexService(new Index(INDEX_NAME, uuid)).getShard(0).shardPath().getShardStatePath();
@@ -75,7 +69,7 @@ public class PeerRecoveryRetentionLeaseCreationIT extends ESIntegTestCase {
 
         ensureGreen(INDEX_NAME);
         final RetentionLeases retentionLeases = getRetentionLeases();
-        final String nodeId = client().admin().cluster().prepareNodesInfo(dataNode).clear().get().getNodes().get(0).getNode().getId();
+        final String nodeId = clusterAdmin().prepareNodesInfo(dataNode).clear().get().getNodes().get(0).getNode().getId();
         assertTrue(
             "expected lease for [" + nodeId + "] in " + retentionLeases,
             retentionLeases.contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(nodeId))
@@ -85,7 +79,7 @@ public class PeerRecoveryRetentionLeaseCreationIT extends ESIntegTestCase {
     }
 
     public RetentionLeases getRetentionLeases() {
-        return client().admin().indices().prepareStats(INDEX_NAME).get().getShards()[0].getRetentionLeaseStats().retentionLeases();
+        return indicesAdmin().prepareStats(INDEX_NAME).get().getShards()[0].getRetentionLeaseStats().retentionLeases();
     }
 
 }

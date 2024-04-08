@@ -7,8 +7,11 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermRangeQuery;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -33,12 +36,33 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
         MappedFieldType ft = new BooleanFieldMapper.BooleanFieldType("field");
-        assertEquals(new TermQuery(new Term("field", "T")), ft.termQuery("true", null));
-        assertEquals(new TermQuery(new Term("field", "F")), ft.termQuery("false", null));
+        assertEquals(new TermQuery(new Term("field", "T")), ft.termQuery("true", MOCK_CONTEXT));
+        assertEquals(new TermQuery(new Term("field", "F")), ft.termQuery("false", MOCK_CONTEXT));
 
-        MappedFieldType unsearchable = new BooleanFieldMapper.BooleanFieldType("field", false);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("true", null));
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        MappedFieldType ft2 = new BooleanFieldMapper.BooleanFieldType("field", false);
+        assertEquals(SortedNumericDocValuesField.newSlowExactQuery("field", 1), ft2.termQuery("true", MOCK_CONTEXT));
+        assertEquals(SortedNumericDocValuesField.newSlowExactQuery("field", 0), ft2.termQuery("false", MOCK_CONTEXT));
+
+        MappedFieldType unsearchable = new BooleanFieldMapper.BooleanFieldType("field", false, false);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("true", MOCK_CONTEXT));
+        assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
+    }
+
+    public void testRangeQuery() {
+        MappedFieldType ft = new BooleanFieldMapper.BooleanFieldType("field");
+        Query expected = new TermRangeQuery("field", BooleanFieldMapper.Values.FALSE, BooleanFieldMapper.Values.TRUE, true, true);
+        assertEquals(expected, ft.rangeQuery("false", "true", true, true, null, null, null, MOCK_CONTEXT));
+
+        ft = new BooleanFieldMapper.BooleanFieldType("field", false);
+        expected = SortedNumericDocValuesField.newSlowRangeQuery("field", 0, 1);
+        assertEquals(expected, ft.rangeQuery("false", "true", true, true, null, null, null, MOCK_CONTEXT));
+
+        MappedFieldType unsearchable = new BooleanFieldMapper.BooleanFieldType("field", false, false);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> unsearchable.rangeQuery("false", "true", true, true, null, null, null, MOCK_CONTEXT)
+        );
+        assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
     }
 
     public void testFetchSourceValue() throws IOException {

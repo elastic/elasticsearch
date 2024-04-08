@@ -1,0 +1,28 @@
+[discrete]
+[[esql-now]]
+=== `NOW`
+
+*Syntax*
+
+[source,esql]
+----
+NOW()
+----
+
+*Description*
+
+Returns current date and time.
+
+*Example*
+
+[source,esql]
+----
+include::{esql-specs}/date.csv-spec[tag=docsNow]
+----
+
+To retrieve logs from the last hour:
+
+[source,esql]
+----
+include::{esql-specs}/date.csv-spec[tag=docsNowWhere]
+----

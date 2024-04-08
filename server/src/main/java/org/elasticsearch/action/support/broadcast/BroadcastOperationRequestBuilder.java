@@ -16,7 +16,7 @@ import org.elasticsearch.core.TimeValue;
 
 public abstract class BroadcastOperationRequestBuilder<
     Request extends BroadcastRequest<Request>,
-    Response extends BroadcastResponse,
+    Response extends BaseBroadcastResponse,
     RequestBuilder extends BroadcastOperationRequestBuilder<Request, Response, RequestBuilder>> extends ActionRequestBuilder<
         Request,
         Response> {

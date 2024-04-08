@@ -8,28 +8,33 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest.OpType;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.action.index.TransportIndexAction;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.persistent.PersistentTaskState;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -43,19 +48,22 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.ingest.geoip.DatabaseNodeServiceTests.createClusterState;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.ENDPOINT_SETTING;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.MAX_CHUNK_SIZE;
 import static org.elasticsearch.tasks.TaskId.EMPTY_TASK_ID;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class GeoIpDownloaderTests extends ESTestCase {
@@ -70,14 +78,19 @@ public class GeoIpDownloaderTests extends ESTestCase {
     public void setup() {
         httpClient = mock(HttpClient.class);
         clusterService = mock(ClusterService.class);
-        threadPool = new ThreadPool(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build());
+        threadPool = new ThreadPool(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(), MeterRegistry.NOOP);
         when(clusterService.getClusterSettings()).thenReturn(
             new ClusterSettings(
                 Settings.EMPTY,
-                Set.of(GeoIpDownloader.ENDPOINT_SETTING, GeoIpDownloader.POLL_INTERVAL_SETTING, GeoIpDownloaderTaskExecutor.ENABLED_SETTING)
+                Set.of(
+                    GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING,
+                    GeoIpDownloader.ENDPOINT_SETTING,
+                    GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING,
+                    GeoIpDownloaderTaskExecutor.ENABLED_SETTING
+                )
             )
         );
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
+        ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()));
         when(clusterService.state()).thenReturn(state);
         client = new MockClient(threadPool);
         geoIpDownloader = new GeoIpDownloader(
@@ -91,7 +104,10 @@ public class GeoIpDownloaderTests extends ESTestCase {
             "",
             "",
             EMPTY_TASK_ID,
-            Collections.emptyMap()
+            Map.of(),
+            () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
+            () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
+            () -> true
         );
     }
 
@@ -102,22 +118,22 @@ public class GeoIpDownloaderTests extends ESTestCase {
     }
 
     public void testGetChunkEndOfStream() throws IOException {
-        byte[] chunk = geoIpDownloader.getChunk(new InputStream() {
+        byte[] chunk = GeoIpDownloader.getChunk(new InputStream() {
             @Override
             public int read() {
                 return -1;
             }
         });
         assertArrayEquals(new byte[0], chunk);
-        chunk = geoIpDownloader.getChunk(new ByteArrayInputStream(new byte[0]));
+        chunk = GeoIpDownloader.getChunk(new ByteArrayInputStream(new byte[0]));
         assertArrayEquals(new byte[0], chunk);
     }
 
     public void testGetChunkLessThanChunkSize() throws IOException {
         ByteArrayInputStream is = new ByteArrayInputStream(new byte[] { 1, 2, 3, 4 });
-        byte[] chunk = geoIpDownloader.getChunk(is);
+        byte[] chunk = GeoIpDownloader.getChunk(is);
         assertArrayEquals(new byte[] { 1, 2, 3, 4 }, chunk);
-        chunk = geoIpDownloader.getChunk(is);
+        chunk = GeoIpDownloader.getChunk(is);
         assertArrayEquals(new byte[0], chunk);
 
     }
@@ -128,9 +144,9 @@ public class GeoIpDownloaderTests extends ESTestCase {
             bigArray[i] = (byte) i;
         }
         ByteArrayInputStream is = new ByteArrayInputStream(bigArray);
-        byte[] chunk = geoIpDownloader.getChunk(is);
+        byte[] chunk = GeoIpDownloader.getChunk(is);
         assertArrayEquals(bigArray, chunk);
-        chunk = geoIpDownloader.getChunk(is);
+        chunk = GeoIpDownloader.getChunk(is);
         assertArrayEquals(new byte[0], chunk);
     }
 
@@ -142,17 +158,17 @@ public class GeoIpDownloaderTests extends ESTestCase {
         byte[] smallArray = new byte[MAX_CHUNK_SIZE];
         System.arraycopy(bigArray, 0, smallArray, 0, MAX_CHUNK_SIZE);
         ByteArrayInputStream is = new ByteArrayInputStream(bigArray);
-        byte[] chunk = geoIpDownloader.getChunk(is);
+        byte[] chunk = GeoIpDownloader.getChunk(is);
         assertArrayEquals(smallArray, chunk);
         System.arraycopy(bigArray, MAX_CHUNK_SIZE, smallArray, 0, MAX_CHUNK_SIZE);
-        chunk = geoIpDownloader.getChunk(is);
+        chunk = GeoIpDownloader.getChunk(is);
         assertArrayEquals(smallArray, chunk);
-        chunk = geoIpDownloader.getChunk(is);
+        chunk = GeoIpDownloader.getChunk(is);
         assertArrayEquals(new byte[0], chunk);
     }
 
     public void testGetChunkRethrowsIOException() {
-        expectThrows(IOException.class, () -> geoIpDownloader.getChunk(new InputStream() {
+        expectThrows(IOException.class, () -> GeoIpDownloader.getChunk(new InputStream() {
             @Override
             public int read() throws IOException {
                 throw new IOException();
@@ -161,28 +177,34 @@ public class GeoIpDownloaderTests extends ESTestCase {
     }
 
     public void testIndexChunksNoData() throws IOException {
-        client.addHandler(FlushAction.INSTANCE, (FlushRequest request, ActionListener<FlushResponse> flushResponseActionListener) -> {
+        client.addHandler(FlushAction.INSTANCE, (FlushRequest request, ActionListener<BroadcastResponse> flushResponseActionListener) -> {
             assertArrayEquals(new String[] { GeoIpDownloader.DATABASES_INDEX }, request.indices());
-            flushResponseActionListener.onResponse(mock(FlushResponse.class));
+            flushResponseActionListener.onResponse(mock(BroadcastResponse.class));
         });
-        client.addHandler(RefreshAction.INSTANCE, (RefreshRequest request, ActionListener<RefreshResponse> flushResponseActionListener) -> {
-            assertArrayEquals(new String[] { GeoIpDownloader.DATABASES_INDEX }, request.indices());
-            flushResponseActionListener.onResponse(mock(RefreshResponse.class));
-        });
+        client.addHandler(
+            RefreshAction.INSTANCE,
+            (RefreshRequest request, ActionListener<BroadcastResponse> flushResponseActionListener) -> {
+                assertArrayEquals(new String[] { GeoIpDownloader.DATABASES_INDEX }, request.indices());
+                flushResponseActionListener.onResponse(mock(BroadcastResponse.class));
+            }
+        );
 
         InputStream empty = new ByteArrayInputStream(new byte[0]);
         assertEquals(0, geoIpDownloader.indexChunks("test", empty, 0, "d41d8cd98f00b204e9800998ecf8427e", 0));
     }
 
     public void testIndexChunksMd5Mismatch() {
-        client.addHandler(FlushAction.INSTANCE, (FlushRequest request, ActionListener<FlushResponse> flushResponseActionListener) -> {
+        client.addHandler(FlushAction.INSTANCE, (FlushRequest request, ActionListener<BroadcastResponse> flushResponseActionListener) -> {
             assertArrayEquals(new String[] { GeoIpDownloader.DATABASES_INDEX }, request.indices());
-            flushResponseActionListener.onResponse(mock(FlushResponse.class));
+            flushResponseActionListener.onResponse(mock(BroadcastResponse.class));
         });
-        client.addHandler(RefreshAction.INSTANCE, (RefreshRequest request, ActionListener<RefreshResponse> flushResponseActionListener) -> {
-            assertArrayEquals(new String[] { GeoIpDownloader.DATABASES_INDEX }, request.indices());
-            flushResponseActionListener.onResponse(mock(RefreshResponse.class));
-        });
+        client.addHandler(
+            RefreshAction.INSTANCE,
+            (RefreshRequest request, ActionListener<BroadcastResponse> flushResponseActionListener) -> {
+                assertArrayEquals(new String[] { GeoIpDownloader.DATABASES_INDEX }, request.indices());
+                flushResponseActionListener.onResponse(mock(BroadcastResponse.class));
+            }
+        );
 
         IOException exception = expectThrows(
             IOException.class,
@@ -204,7 +226,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
 
         AtomicInteger chunkIndex = new AtomicInteger();
 
-        client.addHandler(IndexAction.INSTANCE, (IndexRequest request, ActionListener<IndexResponse> listener) -> {
+        client.addHandler(TransportIndexAction.TYPE, (IndexRequest request, ActionListener<DocWriteResponse> listener) -> {
             int chunk = chunkIndex.getAndIncrement();
             assertEquals(OpType.CREATE, request.opType());
             assertThat(request.id(), Matchers.startsWith("test_" + (chunk + 15) + "_"));
@@ -215,14 +237,17 @@ public class GeoIpDownloaderTests extends ESTestCase {
             assertEquals(chunk + 15, source.get("chunk"));
             listener.onResponse(mock(IndexResponse.class));
         });
-        client.addHandler(FlushAction.INSTANCE, (FlushRequest request, ActionListener<FlushResponse> flushResponseActionListener) -> {
+        client.addHandler(FlushAction.INSTANCE, (FlushRequest request, ActionListener<BroadcastResponse> flushResponseActionListener) -> {
             assertArrayEquals(new String[] { GeoIpDownloader.DATABASES_INDEX }, request.indices());
-            flushResponseActionListener.onResponse(mock(FlushResponse.class));
+            flushResponseActionListener.onResponse(mock(BroadcastResponse.class));
         });
-        client.addHandler(RefreshAction.INSTANCE, (RefreshRequest request, ActionListener<RefreshResponse> flushResponseActionListener) -> {
-            assertArrayEquals(new String[] { GeoIpDownloader.DATABASES_INDEX }, request.indices());
-            flushResponseActionListener.onResponse(mock(RefreshResponse.class));
-        });
+        client.addHandler(
+            RefreshAction.INSTANCE,
+            (RefreshRequest request, ActionListener<BroadcastResponse> flushResponseActionListener) -> {
+                assertArrayEquals(new String[] { GeoIpDownloader.DATABASES_INDEX }, request.indices());
+                flushResponseActionListener.onResponse(mock(BroadcastResponse.class));
+            }
+        );
 
         InputStream big = new ByteArrayInputStream(bigArray);
         assertEquals(17, geoIpDownloader.indexChunks("test", big, 15, "a67563dfa8f3cba8b8cff61eb989a749", 0));
@@ -245,7 +270,10 @@ public class GeoIpDownloaderTests extends ESTestCase {
             "",
             "",
             EMPTY_TASK_ID,
-            Collections.emptyMap()
+            Map.of(),
+            () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
+            () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
+            () -> true
         ) {
             @Override
             void updateTaskState() {
@@ -291,7 +319,10 @@ public class GeoIpDownloaderTests extends ESTestCase {
             "",
             "",
             EMPTY_TASK_ID,
-            Collections.emptyMap()
+            Map.of(),
+            () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
+            () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
+            () -> true
         ) {
             @Override
             void updateTaskState() {
@@ -339,7 +370,10 @@ public class GeoIpDownloaderTests extends ESTestCase {
             "",
             "",
             EMPTY_TASK_ID,
-            Collections.emptyMap()
+            Map.of(),
+            () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
+            () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
+            () -> true
         ) {
             @Override
             void updateTaskState() {
@@ -380,7 +414,10 @@ public class GeoIpDownloaderTests extends ESTestCase {
             "",
             "",
             EMPTY_TASK_ID,
-            Collections.emptyMap()
+            Map.of(),
+            () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
+            () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
+            () -> true
         ) {
             @Override
             public void updatePersistentTaskState(PersistentTaskState state, ActionListener<PersistentTask<?>> listener) {
@@ -407,7 +444,10 @@ public class GeoIpDownloaderTests extends ESTestCase {
             "",
             "",
             EMPTY_TASK_ID,
-            Collections.emptyMap()
+            Map.of(),
+            () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
+            () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
+            () -> true
         ) {
             @Override
             public void updatePersistentTaskState(PersistentTaskState state, ActionListener<PersistentTask<?>> listener) {
@@ -433,6 +473,7 @@ public class GeoIpDownloaderTests extends ESTestCase {
         builder.close();
         when(httpClient.getBytes("a.b?elastic_geoip_service_tos=agree")).thenReturn(baos.toByteArray());
         Iterator<Map<String, Object>> it = maps.iterator();
+        final AtomicBoolean atLeastOneGeoipProcessor = new AtomicBoolean(false);
         geoIpDownloader = new GeoIpDownloader(
             client,
             httpClient,
@@ -444,7 +485,10 @@ public class GeoIpDownloaderTests extends ESTestCase {
             "",
             "",
             EMPTY_TASK_ID,
-            Collections.emptyMap()
+            Map.of(),
+            () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
+            () -> GeoIpDownloaderTaskExecutor.EAGER_DOWNLOAD_SETTING.getDefault(Settings.EMPTY),
+            atLeastOneGeoipProcessor::get
         ) {
             @Override
             void processDatabase(Map<String, Object> databaseInfo) {
@@ -452,7 +496,42 @@ public class GeoIpDownloaderTests extends ESTestCase {
             }
         };
         geoIpDownloader.updateDatabases();
+        assertTrue(it.hasNext());
+        atLeastOneGeoipProcessor.set(true);
+        geoIpDownloader.updateDatabases();
         assertFalse(it.hasNext());
+    }
+
+    public void testUpdateDatabasesWriteBlock() {
+        ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()));
+        var geoIpIndex = state.getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX).getWriteIndex().getName();
+        state = ClusterState.builder(state)
+            .blocks(new ClusterBlocks.Builder().addIndexBlock(geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+            .build();
+        when(clusterService.state()).thenReturn(state);
+        var e = expectThrows(ClusterBlockException.class, () -> geoIpDownloader.updateDatabases());
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "index ["
+                    + geoIpIndex
+                    + "] blocked by: [TOO_MANY_REQUESTS/12/disk usage exceeded flood-stage watermark, "
+                    + "index has read-only-allow-delete block];"
+            )
+        );
+        verifyNoInteractions(httpClient);
+    }
+
+    public void testUpdateDatabasesIndexNotReady() {
+        ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()), true);
+        var geoIpIndex = state.getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX).getWriteIndex().getName();
+        state = ClusterState.builder(state)
+            .blocks(new ClusterBlocks.Builder().addIndexBlock(geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+            .build();
+        when(clusterService.state()).thenReturn(state);
+        var e = expectThrows(ElasticsearchException.class, () -> geoIpDownloader.updateDatabases());
+        assertThat(e.getMessage(), equalTo("not all primary shards of [.geoip_databases] index are active"));
+        verifyNoInteractions(httpClient);
     }
 
     private static class MockClient extends NoOpClient {

@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -24,16 +25,13 @@ import org.elasticsearch.transport.TransportService;
 
 public class TransportGetStoredScriptAction extends TransportMasterNodeReadAction<GetStoredScriptRequest, GetStoredScriptResponse> {
 
-    private final ScriptService scriptService;
-
     @Inject
     public TransportGetStoredScriptAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        ScriptService scriptService
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
             GetStoredScriptAction.NAME,
@@ -44,9 +42,8 @@ public class TransportGetStoredScriptAction extends TransportMasterNodeReadActio
             GetStoredScriptRequest::new,
             indexNameExpressionResolver,
             GetStoredScriptResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.scriptService = scriptService;
     }
 
     @Override
@@ -56,7 +53,7 @@ public class TransportGetStoredScriptAction extends TransportMasterNodeReadActio
         ClusterState state,
         ActionListener<GetStoredScriptResponse> listener
     ) throws Exception {
-        listener.onResponse(new GetStoredScriptResponse(request.id(), scriptService.getStoredScript(state, request)));
+        listener.onResponse(new GetStoredScriptResponse(request.id(), ScriptService.getStoredScript(state, request)));
     }
 
     @Override

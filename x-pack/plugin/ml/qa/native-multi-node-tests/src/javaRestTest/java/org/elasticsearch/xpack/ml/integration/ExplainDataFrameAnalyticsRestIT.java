@@ -12,6 +12,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -56,9 +57,9 @@ public class ExplainDataFrameAnalyticsRestIT extends ESRestTestCase {
         String password = new String(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING.getChars());
 
         Request request = new Request("PUT", "/_security/user/" + user);
-        request.setJsonEntity("""
+        request.setJsonEntity(Strings.format("""
             { "password" : "%s",  "roles" : [ %s ] }
-            """.formatted(password, roles.stream().map(unquoted -> "\"" + unquoted + "\"").collect(Collectors.joining(", "))));
+            """, password, roles.stream().map(unquoted -> "\"" + unquoted + "\"").collect(Collectors.joining(", "))));
         client().performRequest(request);
     }
 

@@ -15,7 +15,7 @@
     - do:
         index:
             index:  test
-            id:     1
+            id:     "1"
             body:   { "text": "我购买了道具和服装" }
     - do:
         indices.refresh: {}

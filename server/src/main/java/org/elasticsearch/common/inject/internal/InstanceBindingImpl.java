@@ -16,13 +16,10 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
-import org.elasticsearch.common.inject.spi.Dependency;
-import org.elasticsearch.common.inject.spi.HasDependencies;
 import org.elasticsearch.common.inject.spi.InjectionPoint;
 import org.elasticsearch.common.inject.spi.InstanceBinding;
 import org.elasticsearch.common.inject.util.Providers;
@@ -62,8 +59,8 @@ public class InstanceBindingImpl<T> extends BindingImpl<T> implements InstanceBi
     }
 
     @Override
-    public <V> V acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
-        return visitor.visit(this);
+    public <V> void acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
+        visitor.visit(this);
     }
 
     @Override
@@ -77,26 +74,8 @@ public class InstanceBindingImpl<T> extends BindingImpl<T> implements InstanceBi
     }
 
     @Override
-    public Set<Dependency<?>> getDependencies() {
-        return instance instanceof HasDependencies
-            ? Set.copyOf(((HasDependencies) instance).getDependencies())
-            : Dependency.forInjectionPoints(injectionPoints);
-    }
-
-    @Override
-    public BindingImpl<T> withScoping(Scoping scoping) {
-        return new InstanceBindingImpl<>(getSource(), getKey(), scoping, injectionPoints, instance);
-    }
-
-    @Override
-    public BindingImpl<T> withKey(Key<T> key) {
-        return new InstanceBindingImpl<>(getSource(), key, getScoping(), injectionPoints, instance);
-    }
-
-    @Override
-    public void applyTo(Binder binder) {
-        // instance bindings aren't scoped
-        binder.withSource(getSource()).bind(getKey()).toInstance(instance);
+    public BindingImpl<T> withEagerSingletonScoping() {
+        return new InstanceBindingImpl<>(getSource(), getKey(), Scoping.EAGER_SINGLETON, injectionPoints, instance);
     }
 
     @Override

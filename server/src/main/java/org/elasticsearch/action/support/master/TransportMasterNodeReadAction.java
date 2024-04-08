@@ -16,6 +16,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.concurrent.Executor;
+
 /**
  * A base class for read operations that needs to be performed on the master node.
  * Can also be executed on the local node if needed.
@@ -32,7 +34,7 @@ public abstract class TransportMasterNodeReadAction<Request extends MasterNodeRe
         Writeable.Reader<Request> request,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Response> response,
-        String executor
+        Executor executor
     ) {
         this(
             actionName,
@@ -50,7 +52,7 @@ public abstract class TransportMasterNodeReadAction<Request extends MasterNodeRe
 
     protected TransportMasterNodeReadAction(
         String actionName,
-        boolean checkSizeLimit,
+        boolean canTripCircuitBreaker,
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -58,11 +60,11 @@ public abstract class TransportMasterNodeReadAction<Request extends MasterNodeRe
         Writeable.Reader<Request> request,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Response> response,
-        String executor
+        Executor executor
     ) {
         super(
             actionName,
-            checkSizeLimit,
+            canTripCircuitBreaker,
             transportService,
             clusterService,
             threadPool,

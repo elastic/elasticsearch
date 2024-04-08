@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * Class used to encapsulate a number of {@link RerouteExplanation}
@@ -49,7 +48,7 @@ public class RoutingExplanations implements ToXContentFragment {
             .map(explanation -> explanation.command().getMessage())
             .filter(Optional::isPresent)
             .map(Optional::get)
-            .collect(Collectors.toList());
+            .toList();
     }
 
     /**
@@ -69,10 +68,7 @@ public class RoutingExplanations implements ToXContentFragment {
      * Write the RoutingExplanations object
      */
     public static void writeTo(RoutingExplanations explanations, StreamOutput out) throws IOException {
-        out.writeVInt(explanations.explanations.size());
-        for (RerouteExplanation explanation : explanations.explanations) {
-            RerouteExplanation.writeTo(explanation, out);
-        }
+        out.writeCollection(explanations.explanations, (o, v) -> RerouteExplanation.writeTo(v, o));
     }
 
     @Override

@@ -24,7 +24,6 @@ import org.apache.lucene.util.BytesRef;
 /**
  * Legacy methods for manipulating strings.
  *
- * @lucene.internal
  * @deprecated This is only used for backwards compatibility codecs (they
  * don't work with the Java9-based replacement methods).
  */
@@ -45,8 +44,9 @@ abstract class LegacyStringHelper {
         final int offLeft = left.offset;
         byte[] bytesRight = right.bytes;
         final int offRight = right.offset;
-        for (int i = 0; i < len; i++)
+        for (int i = 0; i < len; i++) {
             if (bytesLeft[i + offLeft] != bytesRight[i + offRight]) return i;
+        }
         return len;
     }
 

@@ -30,22 +30,25 @@
 ///////////////
 TermEqualityAnalyzer
 SELECT some.string FROM test WHERE some.string = 'value';
-"term":{"some.string.typical":{"value":"value",
+"term":{"some.string.typical":{"value":"value"
 ;
 
 TermEqualityNotAnalyzed
 SELECT some.string FROM test WHERE int = 5;
-CONTAINS "term":{"int":{"value":5,
+CONTAINS "term":{"int":{"value":5
+CONTAINS "track_total_hits":-1
 ;
 
 TermEqualityForDate
 SELECT some.string FROM test WHERE date = 5;
-"term":{"date":{"value":5,
+"term":{"date":{"value":5
+CONTAINS "track_total_hits":-1
 ;
 
 EqualsAndInOnTheSameField
 SELECT int FROM test WHERE int in (1, 2) OR int = 3 OR int = 2;
 "terms":{"int":[1,2,3]
+CONTAINS "track_total_hits":-1
 ;
 
 
@@ -102,6 +105,20 @@ SELECT date + 1 * INTERVAL '1' DAY FROM test GROUP BY 1;
 "missing_bucket":true,"value_type":"long","order":"asc"}}}]}}}
 ;
 
+GroupByVersion
+SELECT version, count(*) FROM test GROUP BY version;
+{"terms":{"field":"version"
+;
+
+GroupByVersionScript
+SELECT CONCAT('1.', version::string)::version v, count(*) FROM test GROUP BY v;
+{"terms":{"script":{"source":"InternalSqlScriptUtils.cast(InternalSqlScriptUtils.concat(params.v0,InternalSqlScriptUtils.cast(InternalQlScriptUtils.docValue(doc,params.v1),params.v2)),params.v3)","lang":"painless","params":{"v0":"1.","v1":"version","v2":"KEYWORD","v3":"VERSION"}}
+;
+
+OrderByVersionScript
+SELECT CONCAT('1.', version::string)::version v FROM test ORDER BY v;
+{"script":{"source":"InternalQlScriptUtils.nullSafeSortString(InternalSqlScriptUtils.cast(InternalSqlScriptUtils.concat(params.v0,InternalSqlScriptUtils.cast(InternalQlScriptUtils.docValue(doc,params.v1),params.v2)),params.v3))","lang":"painless","params":{"v0":"1.","v1":"version","v2":"KEYWORD","v3":"VERSION"}}
+;
 
 // Having
 /////////
@@ -136,31 +153,31 @@ REGEX ^\{"size":0,.*"track_total_hits":\d+.*$
 
 GlobalCountInSpecificGroupByDoesNotForceTrackHits
 SELECT COUNT(*) FROM test GROUP BY int;
-REGEX ^((?!"track_total_hits":).)*$
+CONTAINS "track_total_hits":-1
 CONTAINS {"terms":{"field":"int","missing_bucket":true,"order":"asc"}}
 ;
 
 FieldAllCountDoesNotTrackHits
 SELECT COUNT(ALL int) FROM test;
-REGEX ^((?!"track_total_hits":).)*$
+CONTAINS "track_total_hits":-1
 REGEX "aggregations":\{"[a-zA-Z0-9]+":\{"filter":\{"exists":\{"field":"int","boost":1.0\}\}\}\}
 ;
 
 FieldCountDoesNotTrackHits
 SELECT COUNT(int) FROM test;
-REGEX ^((?!"track_total_hits":).)*$
+CONTAINS "track_total_hits":-1
 REGEX "aggregations":\{"[a-zA-Z0-9]+":\{"filter":\{"exists":\{"field":"int","boost":1.0\}\}\}\}\}\}\}$
 ;
 
 DistinctCountDoesNotTrackHits
 SELECT COUNT(DISTINCT int) FROM test;
-REGEX ^((?!"track_total_hits":).)*$
+CONTAINS "track_total_hits":-1
 REGEX "aggregations":\{"[a-zA-Z0-9]+":\{"cardinality":\{"field":"int"\}\}\}
 ;
 
 NoCountDoesNotTrackHits
 SELECT int FROM test;
-REGEX ^((?!"track_total_hits":).)*$
+CONTAINS "track_total_hits":-1
 ;
 
 // Aggregate Functions
@@ -323,7 +340,7 @@ OrderByYear
 SELECT YEAR(date) FROM test ORDER BY 1;
 "sort":[{"_script":{"script":{"source":"InternalQlScriptUtils.nullSafeSortNumeric(InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2))"
 "params":{"v0":"date","v1":"Z","v2":"YEAR"}},
-"type":"number","order":"asc"}}]}
+"type":"number","order":"asc"}}],"track_total_hits":-1}
 ;
 
 // LIKE/RLIKE
@@ -331,6 +348,21 @@ SELECT YEAR(date) FROM test ORDER BY 1;
 LikeOnInexact
 SELECT * FROM test WHERE some.string LIKE '%a%';
 "query":{"wildcard":{"some.string.typical":{"wildcard":"*a*",
+;
+
+LikeOnInexactWithOR
+SELECT * FROM test WHERE some.string LIKE '%a%' OR some.string LIKE '%b%' OR some.string LIKE '%c%';
+{"should":[{"wildcard":{"some.string.typical":{"wildcard":"*a*","boost":1.0}}},{"wildcard":{"some.string.typical":{"wildcard":"*b*","boost":1.0}}},{"wildcard":{"some.string.typical":{"wildcard":"*c*","boost":1.0}}}],"boost":1.0}}
+;
+
+LikeOnInexactWithORandAND
+SELECT * FROM test WHERE some.string LIKE '%a%' OR some.string LIKE '%b%' AND some.string LIKE '%c%' OR some.string LIKE '%d%' OR some.string LIKE '%e%';
+{"bool":{"should":[{"wildcard":{"some.string.typical":{"wildcard":"*a*","boost":1.0}}},{"bool":{"must":[{"wildcard":{"some.string.typical":{"wildcard":"*b*","boost":1.0}}},{"wildcard":{"some.string.typical":{"wildcard":"*c*","boost":1.0}}}],"boost":1.0}},{"wildcard":{"some.string.typical":{"wildcard":"*d*","boost":1.0}}},{"wildcard":{"some.string.typical":{"wildcard":"*e*","boost":1.0}}}],"boost":1.0}}
+;
+
+LikeOnInexactWithANDandGroupedOR
+SELECT * FROM test WHERE (some.string LIKE '%a%' OR some.string LIKE '%b%') AND (some.string LIKE '%c%' OR some.string LIKE '%d%' OR some.string LIKE '%e%');
+{"bool":{"must":[{"bool":{"should":[{"wildcard":{"some.string.typical":{"wildcard":"*a*","boost":1.0}}},{"wildcard":{"some.string.typical":{"wildcard":"*b*","boost":1.0}}}],"boost":1.0}},{"bool":{"should":[{"wildcard":{"some.string.typical":{"wildcard":"*c*","boost":1.0}}},{"wildcard":{"some.string.typical":{"wildcard":"*d*","boost":1.0}}},{"wildcard":{"some.string.typical":{"wildcard":"*e*","boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
 ;
 
 RLikeOnInexact
@@ -399,7 +431,7 @@ SELECT keyword FROM test ORDER BY date::TIME, int LIMIT 5;
 "sort":[{"_script":{"script":{"source":"InternalQlScriptUtils.nullSafeSortString(InternalSqlScriptUtils.cast(InternalQlScriptUtils.docValue(doc,params.v0),params.v1))
 "params":{"v0":"date","v1":"TIME"}
 "type":"string",
-"order":"asc"}},{"int":{"order":"asc","missing":"_last","unmapped_type":"integer"}}]}
+"order":"asc"}},{"int":{"order":"asc","missing":"_last","unmapped_type":"integer"}}],"track_total_hits":-1}
 ;
 
 

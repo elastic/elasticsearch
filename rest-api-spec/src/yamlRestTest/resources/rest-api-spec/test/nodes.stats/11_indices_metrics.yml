@@ -110,6 +110,7 @@
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
   - is_false:  nodes.$node_id.indices.shard_stats
+  - is_false:  nodes.$node_id.indices.mappings
 
 ---
 "Metric - multi":
@@ -138,7 +139,8 @@
   - is_false:  nodes.$node_id.indices.segments
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
-
+  - is_false:  nodes.$node_id.indices.shard_stats
+  - is_false:  nodes.$node_id.indices.mappings
 
 ---
 "Metric - recovery":
@@ -168,6 +170,7 @@
   - is_false:  nodes.$node_id.indices.translog
   - is_true:   nodes.$node_id.indices.recovery
   - is_false:  nodes.$node_id.indices.shard_stats
+  - is_false:  nodes.$node_id.indices.mappings
 
 ---
 "Metric - _all include_segment_file_sizes":
@@ -226,6 +229,7 @@
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
   - is_false:  nodes.$node_id.indices.shard_stats
+  - is_false:  nodes.$node_id.indices.mappings
   - is_true:   nodes.$node_id.indices.segments.file_sizes
 
 ---
@@ -258,6 +262,7 @@
   - is_false:  nodes.$node_id.indices.translog
   - is_false:  nodes.$node_id.indices.recovery
   - is_false:  nodes.$node_id.indices.shard_stats
+  - is_false:  nodes.$node_id.indices.mappings
 
 ---
 "Metric - _all include_unloaded_segments":
@@ -388,3 +393,151 @@
       nodes.stats: { metric: _all }
 
   - gte: { nodes.$node_id.indices.shard_stats.total_count: 1 }
+
+---
+"Metric - blank for indices mappings":
+  - skip:
+      features: [arbitrary_key]
+      version: " - 8.4.99"
+      reason:  "mappings added in version 8.5.0"
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: {}
+
+  - is_true:  nodes.$node_id.indices.mappings
+  - match: { nodes.$node_id.indices.mappings.total_count: 0 }
+  - match: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 0 }
+
+---
+"indices mappings exact count test for indices level":
+
+  - skip:
+      features: [arbitrary_key]
+      version: " - 8.4.99"
+      reason:  "mappings added in version 8.5.0"
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: 4
+            number_of_replicas: 0
+          mappings:
+            runtime:
+              a_source_field:
+                type: keyword
+            properties:
+              "@timestamp":
+                type: date
+              authors:
+                properties:
+                  age:
+                    type: long
+                  company:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                        ignore_above: 256
+                  name:
+                    properties:
+                      first_name:
+                        type: keyword
+                      full_name:
+                        type: text
+                      last_name:
+                        type: keyword
+              link:
+                type: alias
+                path: url
+              title:
+                type: text
+              url:
+                type: keyword
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: { metric: _all, level: "indices", human: true }
+
+  # In the below assertions, we expect a field count of 26 because the above mapping expects the following:
+  # Field mappers (incl. alias fields and object mappers' flattened leaves):
+  # 1.  _data_stream_timestamp
+  # 2.  _doc_count
+  # 3.  _feature
+  # 4. _field_names
+  # 5. _id
+  # 6. _ignored
+  # 7. _index
+  # 8. _nested_path
+  # 9. _routing
+  # 10. _seq_no
+  # 11. _source
+  # 12. _tier
+  # 13. _version
+  # 14. @timestamp
+  # 15. authors.age
+  # 16. authors.company
+  # 17. authors.company.keyword
+  # 18. authors.name.last_name
+  # 19. authors.name.first_name
+  # 20. authors.name.full_name
+  # 21. link
+  # 22. title
+  # 23. url
+  # Object mappers:
+  # 24. authors
+  # 25. authors.name
+  # Runtime field mappers:
+  # 26. a_source_field
+
+  - gte: { nodes.$node_id.indices.mappings.total_count: 26 }
+  - is_true: nodes.$node_id.indices.mappings.total_estimated_overhead
+  - gte: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 26624 }
+  - match: { nodes.$node_id.indices.indices.index1.mappings.total_count: 26 }
+  - is_true: nodes.$node_id.indices.indices.index1.mappings.total_estimated_overhead
+  - match: { nodes.$node_id.indices.indices.index1.mappings.total_estimated_overhead_in_bytes: 26624 }
+
+---
+"indices mappings does not exist in shards level":
+
+  - skip:
+      features: [arbitrary_key]
+      version: " - 8.4.99"
+      reason:  "mappings added in version 8.5.0"
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: 4
+            number_of_replicas: 0
+          mappings:
+            properties:
+              prop1:
+                type: "keyword"
+              prop2:
+                type: "keyword"
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats: { metric: _all, level: "shards", human: true }
+
+  # We assert that there are at least two fields (for the mapping above), and that each accounts for at least 1 byte estimated overhead
+  - gte: { nodes.$node_id.indices.mappings.total_count: 2 }
+  - is_true: nodes.$node_id.indices.mappings.total_estimated_overhead
+  - gte: { nodes.$node_id.indices.mappings.total_estimated_overhead_in_bytes: 2 }
+  - is_false: nodes.$node_id.indices.shards.index1.0.mappings

@@ -14,8 +14,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -30,12 +31,12 @@ public class TemplateUtilsTests extends ESTestCase {
 
     public void testLoadTemplate() throws IOException {
         final int version = randomIntBetween(0, 10_000);
-        String resource = String.format(Locale.ROOT, SIMPLE_TEST_TEMPLATE, "test");
+        String resource = Strings.format(SIMPLE_TEST_TEMPLATE, "test");
         String source = TemplateUtils.loadTemplate(resource, String.valueOf(version), "monitoring.template.version");
 
         assertThat(source, notNullValue());
         assertThat(source.length(), greaterThan(0));
-        assertTemplate(XContentHelper.stripWhitespace(source), equalTo(XContentHelper.stripWhitespace("""
+        assertTemplate(XContentHelper.stripWhitespace(source), equalTo(XContentHelper.stripWhitespace(Strings.format("""
             {
               "index_patterns": ".monitoring-data-%s",
               "mappings": {
@@ -45,7 +46,7 @@ public class TemplateUtilsTests extends ESTestCase {
                   }
                 }
               }
-            }""".formatted(version, version))));
+            }""", version, version))));
     }
 
     public void testLoadTemplate_GivenTemplateWithVariables() throws IOException {
@@ -64,7 +65,7 @@ public class TemplateUtilsTests extends ESTestCase {
 
         assertThat(source, notNullValue());
         assertThat(source.length(), greaterThan(0));
-        assertTemplate(XContentHelper.stripWhitespace(source), equalTo(XContentHelper.stripWhitespace("""
+        assertTemplate(XContentHelper.stripWhitespace(source), equalTo(XContentHelper.stripWhitespace(Strings.format("""
             {
               "index_patterns": ".test-%s",
               "mappings": {
@@ -82,14 +83,7 @@ public class TemplateUtilsTests extends ESTestCase {
                   }
                 }
               }
-            }""".formatted(version, version))));
-    }
-
-    public void testLoad() throws IOException {
-        String resource = String.format(Locale.ROOT, SIMPLE_TEST_TEMPLATE, "test");
-        String source = TemplateUtils.load(resource);
-        assertThat(source, notNullValue());
-        assertThat(source.length(), greaterThan(0));
+            }""", version, version))));
     }
 
     public void testValidateNullSource() {
@@ -111,8 +105,11 @@ public class TemplateUtilsTests extends ESTestCase {
     }
 
     public void testValidate() throws IOException {
-        String resource = String.format(Locale.ROOT, SIMPLE_TEST_TEMPLATE, "test");
-        TemplateUtils.validate(TemplateUtils.load(resource));
+        String resource = Strings.format(SIMPLE_TEST_TEMPLATE, "test");
+        try (InputStream is = TemplateUtilsTests.class.getResourceAsStream(resource)) {
+            assert is != null;
+            TemplateUtils.validate(new String(is.readAllBytes(), StandardCharsets.UTF_8));
+        }
     }
 
     public void testReplaceVariable() {
@@ -134,9 +131,9 @@ public class TemplateUtilsTests extends ESTestCase {
         final int version = randomIntBetween(0, 100);
         assertTemplate(TemplateUtils.replaceVariable("""
             {"foo-${monitoring.template.version}": "bar-${monitoring.template.version}"}
-            """, "monitoring.template.version", String.valueOf(version)), equalTo("""
+            """, "monitoring.template.version", String.valueOf(version)), equalTo(Strings.format("""
             {"foo-%s": "bar-%s"}
-            """.formatted(version, version)));
+            """, version, version)));
     }
 
     public static void assertTemplate(String actual, Matcher<? super String> matcher) {

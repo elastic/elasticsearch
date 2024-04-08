@@ -21,6 +21,8 @@ import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -48,7 +50,7 @@ import java.util.TreeMap;
  * A query that matches on multiple text fields, as if the field contents had been indexed
  * into a single combined field.
  */
-public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFieldsQueryBuilder> {
+public final class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFieldsQueryBuilder> {
     public static final String NAME = "combined_fields";
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
@@ -58,12 +60,16 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
     private static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY = new ParseField("auto_generate_synonyms_phrase_query");
     private static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
 
+    private static final Operator DEFAULT_OPERATOR = Operator.OR;
+    private static final ZeroTermsQueryOption DEFAULT_ZERO_TERMS_QUERY = ZeroTermsQueryOption.NONE;
+    private static final boolean DEFAULT_GENERATE_SYNONYMS_PHRASE = true;
+
     private final Object value;
     private final Map<String, Float> fieldsAndBoosts;
-    private Operator operator = Operator.OR;
+    private Operator operator = DEFAULT_OPERATOR;
     private String minimumShouldMatch;
-    private ZeroTermsQueryOption zeroTermsQuery = ZeroTermsQueryOption.NONE;
-    private boolean autoGenerateSynonymsPhraseQuery = true;
+    private ZeroTermsQueryOption zeroTermsQuery = DEFAULT_ZERO_TERMS_QUERY;
+    private boolean autoGenerateSynonymsPhraseQuery = DEFAULT_GENERATE_SYNONYMS_PHRASE;
 
     private static final ConstructingObjectParser<CombinedFieldsQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
@@ -241,7 +247,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         return autoGenerateSynonymsPhraseQuery;
     }
 
-    private void validateFieldBoost(float boost) {
+    private static void validateFieldBoost(float boost) {
         if (boost < 1.0f) {
             throw new IllegalArgumentException("[" + NAME + "] requires field boosts to be >= 1.0");
         }
@@ -256,13 +262,19 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
             builder.value(fieldEntry.getKey() + "^" + fieldEntry.getValue());
         }
         builder.endArray();
-        builder.field(OPERATOR_FIELD.getPreferredName(), operator.toString());
+        if (operator != DEFAULT_OPERATOR) {
+            builder.field(OPERATOR_FIELD.getPreferredName(), operator.toString());
+        }
         if (minimumShouldMatch != null) {
             builder.field(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), minimumShouldMatch);
         }
-        builder.field(ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
-        builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateSynonymsPhraseQuery);
-        printBoostAndQueryName(builder);
+        if (zeroTermsQuery != DEFAULT_ZERO_TERMS_QUERY) {
+            builder.field(ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
+        }
+        if (autoGenerateSynonymsPhraseQuery != DEFAULT_GENERATE_SYNONYMS_PHRASE) {
+            builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateSynonymsPhraseQuery);
+        }
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 
@@ -308,7 +320,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
             float boost = entry.getValue() == null ? 1.0f : entry.getValue();
             fieldsAndBoosts.add(new FieldAndBoost(fieldType, boost));
 
-            Analyzer analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
+            Analyzer analyzer = fieldType.getTextSearchInfo().searchAnalyzer();
             if (sharedAnalyzer != null && analyzer.equals(sharedAnalyzer) == false) {
                 throw new IllegalArgumentException("All fields in [" + NAME + "] query must have the same search analyzer");
             }
@@ -333,11 +345,11 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         return query;
     }
 
-    private void validateSimilarity(SearchExecutionContext context, Map<String, Float> fields) {
+    private static void validateSimilarity(SearchExecutionContext context, Map<String, Float> fields) {
         for (Map.Entry<String, Float> entry : fields.entrySet()) {
             String name = entry.getKey();
             MappedFieldType fieldType = context.getFieldType(name);
-            if (fieldType != null && fieldType.getTextSearchInfo().getSimilarity() != null) {
+            if (fieldType != null && fieldType.getTextSearchInfo().similarity() != null) {
                 throw new IllegalArgumentException("[" + NAME + "] queries cannot be used with per-field similarities");
             }
         }
@@ -396,11 +408,11 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         }
 
         @Override
-        protected Query newSynonymQuery(TermAndBoost[] terms) {
+        protected Query newSynonymQuery(String field, TermAndBoost[] terms) {
             CombinedFieldQuery.Builder query = new CombinedFieldQuery.Builder();
             for (TermAndBoost termAndBoost : terms) {
                 assert termAndBoost.boost == BoostAttribute.DEFAULT_BOOST;
-                BytesRef bytes = termAndBoost.term.bytes();
+                BytesRef bytes = termAndBoost.term;
                 query.addTerm(bytes);
             }
             for (FieldAndBoost fieldAndBoost : fields) {
@@ -413,8 +425,8 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
 
         @Override
         protected Query newTermQuery(Term term, float boost) {
-            TermAndBoost termAndBoost = new TermAndBoost(term, boost);
-            return newSynonymQuery(new TermAndBoost[] { termAndBoost });
+            TermAndBoost termAndBoost = new TermAndBoost(term.bytes(), boost);
+            return newSynonymQuery(term.field(), new TermAndBoost[] { termAndBoost });
         }
 
         @Override
@@ -444,5 +456,10 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
             && Objects.equals(minimumShouldMatch, other.minimumShouldMatch)
             && Objects.equals(zeroTermsQuery, other.zeroTermsQuery)
             && Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery);
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_7_13_0;
     }
 }

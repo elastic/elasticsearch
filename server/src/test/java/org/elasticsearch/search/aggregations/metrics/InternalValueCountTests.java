@@ -9,12 +9,14 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class InternalValueCountTests extends InternalAggregationTestCase<InternalValueCount> {
 
@@ -29,9 +31,13 @@ public class InternalValueCountTests extends InternalAggregationTestCase<Interna
     }
 
     @Override
-    protected void assertFromXContent(InternalValueCount valueCount, ParsedAggregation parsedAggregation) {
-        assertEquals(valueCount.getValue(), ((ParsedValueCount) parsedAggregation).getValue(), 0);
-        assertEquals(valueCount.getValueAsString(), ((ParsedValueCount) parsedAggregation).getValueAsString());
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalValueCount sampled, InternalValueCount reduced, SamplingContext samplingContext) {
+        assertThat(sampled.getValue(), equalTo(samplingContext.scaleUp(reduced.getValue())));
     }
 
     @Override

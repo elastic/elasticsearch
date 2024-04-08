@@ -8,12 +8,11 @@
 
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
 
 import java.io.IOException;
-import java.util.Collections;
 
 public class SystemIndexMigrationTaskParamsTests extends AbstractNamedWriteableTestCase<SystemIndexMigrationTaskParams> {
 
@@ -26,21 +25,19 @@ public class SystemIndexMigrationTaskParamsTests extends AbstractNamedWriteableT
     }
 
     @Override
-    protected SystemIndexMigrationTaskParams copyInstance(SystemIndexMigrationTaskParams instance, Version version) throws IOException {
+    protected SystemIndexMigrationTaskParams mutateInstance(SystemIndexMigrationTaskParams instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected SystemIndexMigrationTaskParams copyInstance(SystemIndexMigrationTaskParams instance, TransportVersion version)
+        throws IOException {
         return new SystemIndexMigrationTaskParams();
     }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(
-            Collections.singletonList(
-                new NamedWriteableRegistry.Entry(
-                    SystemIndexMigrationTaskParams.class,
-                    SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
-                    SystemIndexMigrationTaskParams::new
-                )
-            )
-        );
+        return new NamedWriteableRegistry(SystemIndexMigrationExecutor.getNamedWriteables());
     }
 
     @Override

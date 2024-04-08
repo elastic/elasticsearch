@@ -8,7 +8,7 @@
 
 package org.elasticsearch.core;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 
 import java.nio.file.FileSystem;
 

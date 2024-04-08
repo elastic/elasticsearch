@@ -21,7 +21,7 @@ import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 public class BengaliNormalizationFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
     BengaliNormalizationFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
     }
 
     @Override

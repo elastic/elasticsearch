@@ -10,7 +10,6 @@ package org.elasticsearch.repositories.azure;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
@@ -51,7 +50,7 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
     private final Condition condition;
     private final Consumer<T> cleaner;
     private final AtomicReference<Subscription> subscription = new AtomicReference<>();
-    private final Logger logger = LogManager.getLogger(CancellableRateLimitedFluxIterator.class);
+    private static final Logger logger = LogManager.getLogger(CancellableRateLimitedFluxIterator.class);
     private volatile Throwable error;
     private volatile boolean done;
     private int emittedElements;
@@ -166,9 +165,9 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
     }
 
     public void cancel() {
+        done = true;
         cancelSubscription();
         clearQueue();
-        done = true;
         // cancel should be called from the consumer
         // thread, but to avoid potential deadlocks
         // we just try to release a possibly blocked
@@ -178,9 +177,9 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
 
     @Override
     public void onError(Throwable t) {
+        done = true;
         clearQueue();
         error = t;
-        done = true;
         signalConsumer();
     }
 
@@ -215,7 +214,7 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
         try {
             cleaner.accept(element);
         } catch (Exception e) {
-            logger.warn(new ParameterizedMessage("Unable to clean unused element"), e);
+            logger.warn("Unable to clean unused element", e);
         }
     }
 

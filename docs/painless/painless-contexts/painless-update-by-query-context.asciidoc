@@ -20,7 +20,7 @@ result of query.
 {ref}/mapping-index-field.html[`ctx['_index']`] (`String`, read-only)::
         The name of the index.
 
-{ref}/mapping-id-field.html[`ctx['_id']`] (`int`, read-only)::
+{ref}/mapping-id-field.html[`ctx['_id']`] (`String`, read-only)::
         The unique document id.
 
 `ctx['_version']` (`int`, read-only)::

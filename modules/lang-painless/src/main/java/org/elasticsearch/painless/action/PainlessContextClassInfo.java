@@ -124,22 +124,22 @@ public class PainlessContextClassInfo implements Writeable, ToXContentObject {
     public PainlessContextClassInfo(StreamInput in) throws IOException {
         name = in.readString();
         imported = in.readBoolean();
-        constructors = Collections.unmodifiableList(in.readList(PainlessContextConstructorInfo::new));
-        staticMethods = Collections.unmodifiableList(in.readList(PainlessContextMethodInfo::new));
-        methods = Collections.unmodifiableList(in.readList(PainlessContextMethodInfo::new));
-        staticFields = Collections.unmodifiableList(in.readList(PainlessContextFieldInfo::new));
-        fields = Collections.unmodifiableList(in.readList(PainlessContextFieldInfo::new));
+        constructors = in.readCollectionAsImmutableList(PainlessContextConstructorInfo::new);
+        staticMethods = in.readCollectionAsImmutableList(PainlessContextMethodInfo::new);
+        methods = in.readCollectionAsImmutableList(PainlessContextMethodInfo::new);
+        staticFields = in.readCollectionAsImmutableList(PainlessContextFieldInfo::new);
+        fields = in.readCollectionAsImmutableList(PainlessContextFieldInfo::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeBoolean(imported);
-        out.writeList(constructors);
-        out.writeList(staticMethods);
-        out.writeList(methods);
-        out.writeList(staticFields);
-        out.writeList(fields);
+        out.writeCollection(constructors);
+        out.writeCollection(staticMethods);
+        out.writeCollection(methods);
+        out.writeCollection(staticFields);
+        out.writeCollection(fields);
     }
 
     public static PainlessContextClassInfo fromXContent(XContentParser parser) {

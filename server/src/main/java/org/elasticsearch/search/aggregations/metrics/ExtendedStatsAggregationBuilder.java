@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -15,7 +17,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -29,7 +30,6 @@ import java.util.Objects;
 import java.util.Set;
 
 public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuilder.MetricsAggregationBuilder<
-    ValuesSource.Numeric,
     ExtendedStatsAggregationBuilder> {
     public static final String NAME = "extended_stats";
     public static final ValuesSourceRegistry.RegistryKey<ExtendedStatsAggregatorProvider> REGISTRY_KEY =
@@ -77,6 +77,11 @@ public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     public Set<String> metricNames() {
         return InternalExtendedStats.METRIC_NAMES;
     }
@@ -97,10 +102,6 @@ public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuil
         }
         this.sigma = sigma;
         return this;
-    }
-
-    public double sigma() {
-        return sigma;
     }
 
     @Override
@@ -140,7 +141,7 @@ public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

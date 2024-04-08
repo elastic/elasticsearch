@@ -12,15 +12,16 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 public class GetUsersRequestBuilder extends ActionRequestBuilder<GetUsersRequest, GetUsersResponse> {
 
     public GetUsersRequestBuilder(ElasticsearchClient client) {
-        this(client, GetUsersAction.INSTANCE);
-    }
-
-    public GetUsersRequestBuilder(ElasticsearchClient client, GetUsersAction action) {
-        super(client, action, new GetUsersRequest());
+        super(client, GetUsersAction.INSTANCE, new GetUsersRequest());
     }
 
     public GetUsersRequestBuilder usernames(String... usernames) {
         request.usernames(usernames);
+        return this;
+    }
+
+    public GetUsersRequestBuilder withProfileUid(boolean withProfileUid) {
+        request.setWithProfileUid(withProfileUid);
         return this;
     }
 }

@@ -25,12 +25,12 @@ public class ChainIT extends ESCCRRestTestCase {
                 mapping = """
                     "_source": {  "includes": ["field"],  "excludes": ["filtered_field"]}""";
             }
-            createIndex(leaderIndexName, Settings.EMPTY, mapping);
+            createIndex(adminClient(), leaderIndexName, Settings.EMPTY, mapping, null);
             for (int i = 0; i < numDocs; i++) {
                 logger.info("Indexing doc [{}]", i);
                 index(client(), leaderIndexName, Integer.toString(i), "field", i, "filtered_field", "true");
             }
-            refresh(leaderIndexName);
+            refresh(adminClient(), leaderIndexName);
             verifyDocuments(leaderIndexName, numDocs, "filtered_field:true");
         } else if ("middle".equals(targetCluster)) {
             logger.info("Running against middle cluster");

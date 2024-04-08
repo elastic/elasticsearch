@@ -11,14 +11,14 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequestBuilder;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
+import org.elasticsearch.xpack.security.action.user.SetEnabledRequestBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,7 +30,8 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  * REST handler for enabling and disabling users. The username is required and we use the path to determine if the user is being
  * enabled or disabled.
  */
-public class RestSetEnabledAction extends SecurityBaseRestHandler {
+@ServerlessScope(Scope.INTERNAL)
+public class RestSetEnabledAction extends NativeUserBaseRestHandler {
 
     public RestSetEnabledAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
@@ -70,7 +71,7 @@ public class RestSetEnabledAction extends SecurityBaseRestHandler {
             .execute(new RestBuilderListener<>(channel) {
                 @Override
                 public RestResponse buildResponse(ActionResponse.Empty setEnabledResponse, XContentBuilder builder) throws Exception {
-                    return new BytesRestResponse(RestStatus.OK, builder.startObject().endObject());
+                    return new RestResponse(RestStatus.OK, builder.startObject().endObject());
                 }
             });
     }

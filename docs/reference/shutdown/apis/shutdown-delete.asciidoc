@@ -26,7 +26,8 @@ you must be an operator to use this API.
 Enables a node to resume normal operations following a
 <<put-shutdown, put shutdown>> request.
 You must explicitly clear the shutdown request when a node rejoins the cluster,
-regardless of the shutdown type.
+or when a node has permanently left the cluster. Shutdown requests are never
+removed automatically by {es}.
 
 
 [[delete-shutdown-api-path-params]]

@@ -16,13 +16,13 @@
  - do:
       index:
           index:   test_1
-          id:      1
+          id:      "1"
           body:    { foo: bar }
 
  - do:
       termvectors:
           index:    test_1
-          id:       1
+          id:       "1"
           realtime: false
 
  - is_false: found
@@ -30,7 +30,7 @@
  - do:
       termvectors:
           index:    test_1
-          id:       1
+          id:       "1"
           realtime: true
 
  - is_true: found

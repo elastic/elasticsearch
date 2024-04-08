@@ -11,7 +11,9 @@ import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 
 import org.bouncycastle.asn1.DERIA5String;
+import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
 import org.bouncycastle.asn1.x509.GeneralNames;
+import org.bouncycastle.asn1.x509.KeyPurposeId;
 import org.bouncycastle.cert.CertIOException;
 import org.bouncycastle.openssl.jcajce.JcaMiscPEMGenerator;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
@@ -22,7 +24,7 @@ import org.bouncycastle.util.io.pem.PemObjectGenerator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.SuppressForbidden;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
@@ -33,6 +35,7 @@ import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
@@ -68,6 +71,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -146,7 +150,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         printHeader("Elasticsearch HTTP Certificate Utility", terminal);
 
         terminal.println("The 'http' command guides you through the process of generating certificates");
@@ -308,7 +312,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         }
     }
 
-    private void createZipDirectory(ZipOutputStream zip, String name) throws IOException {
+    private static void createZipDirectory(ZipOutputStream zip, String name) throws IOException {
         ZipEntry entry = new ZipEntry(name + "/");
         assert entry.isDirectory();
         zip.putNextEntry(entry);
@@ -331,7 +335,12 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
             // (i.e. show them the certutil cert command that they would need).
             if (ca == null) {
                 // No local CA, generate a CSR instead
-                final PKCS10CertificationRequest csr = CertGenUtils.generateCSR(keyPair, cert.subject, sanList);
+                final PKCS10CertificationRequest csr = CertGenUtils.generateCSR(
+                    keyPair,
+                    cert.subject,
+                    sanList,
+                    Set.of(new ExtendedKeyUsage(KeyPurposeId.id_kp_serverAuth))
+                );
                 final String csrFile = "http-" + cert.name + ".csr";
                 final String keyFile = "http-" + cert.name + ".key";
                 final String certName = "http-" + cert.name + ".crt";
@@ -362,7 +371,8 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                     false,
                     notBefore,
                     notAfter,
-                    null
+                    null,
+                    Set.of(new ExtendedKeyUsage(KeyPurposeId.id_kp_serverAuth))
                 );
 
                 final String p12Name = "http.p12";
@@ -492,7 +502,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         }
     }
 
-    private Map<String, String> buildSubstitutions(Environment env, Map<String, String> entries) {
+    private static Map<String, String> buildSubstitutions(Environment env, Map<String, String> entries) {
         final Map<String, String> map = Maps.newMapWithExpectedSize(entries.size() + 4);
         ZonedDateTime now = ZonedDateTime.now().withNano(0);
         map.put("DATE", now.format(DateTimeFormatter.ISO_LOCAL_DATE));
@@ -532,14 +542,14 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         }
     }
 
-    private JcaMiscPEMGenerator generator(PrivateKey privateKey, char[] password) throws IOException {
+    private static JcaMiscPEMGenerator generator(PrivateKey privateKey, char[] password) throws IOException {
         if (password == null || password.length == 0) {
             return new JcaMiscPEMGenerator(privateKey);
         }
         return new JcaMiscPEMGenerator(privateKey, CertificateTool.getEncrypter(password));
     }
 
-    private Period getCertificateValidityPeriod(Terminal terminal) {
+    private static Period getCertificateValidityPeriod(Terminal terminal) {
         printHeader("How long should your certificates be valid?", terminal);
         terminal.println("Every certificate has an expiry date. When the expiry date is reached clients");
         terminal.println("will stop trusting your certificate and TLS connections will fail.");
@@ -556,7 +566,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         return readPeriodInput(terminal, "For how long should your certificate be valid?", DEFAULT_CERT_VALIDITY, 60);
     }
 
-    private boolean askMultipleCertificates(Terminal terminal) {
+    private static boolean askMultipleCertificates(Terminal terminal) {
         printHeader("Do you wish to generate one certificate per node?", terminal);
         terminal.println("If you have multiple nodes in your cluster, then you may choose to generate a");
         terminal.println("separate certificate for each of these nodes. Each certificate will have its");
@@ -617,7 +627,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
             terminal.println("When you are done, press <ENTER> once more to move on to the next step.");
             terminal.println("");
 
-            dnsNames.addAll(readMultiLineInput(terminal, this::validateHostname));
+            dnsNames.addAll(readMultiLineInput(terminal, HttpCertificateCommand::validateHostname));
             if (dnsNames.isEmpty()) {
                 terminal.println(Terminal.Verbosity.SILENT, "You did not enter any hostnames.");
                 terminal.println("Clients are likely to encounter TLS hostname verification errors if they");
@@ -650,7 +660,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
             terminal.println("When you are done, press <ENTER> once more to move on to the next step.");
             terminal.println("");
 
-            ipNames.addAll(readMultiLineInput(terminal, this::validateIpAddress));
+            ipNames.addAll(readMultiLineInput(terminal, HttpCertificateCommand::validateIpAddress));
             if (ipNames.isEmpty()) {
                 terminal.println(Terminal.Verbosity.SILENT, "You did not enter any IP addresses.");
             } else {
@@ -731,7 +741,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         return new CertOptions(certName, dn, dnsNames, ipNames, keySize, validity);
     }
 
-    private String validateHostname(String name) {
+    private static String validateHostname(String name) {
         if (DERIA5String.isIA5String(name)) {
             return null;
         } else {
@@ -739,7 +749,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         }
     }
 
-    private String validateIpAddress(String ip) {
+    private static String validateIpAddress(String ip) {
         if (InetAddresses.isInetAddress(ip)) {
             return null;
         } else {
@@ -747,11 +757,11 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         }
     }
 
-    private X500Principal buildDistinguishedName(String name) {
+    private static X500Principal buildDistinguishedName(String name) {
         return new X500Principal("CN=" + name.replace(".", ",DC="));
     }
 
-    private List<String> readMultiLineInput(Terminal terminal, Function<String, String> validator) {
+    private static List<String> readMultiLineInput(Terminal terminal, Function<String, String> validator) {
         final List<String> lines = new ArrayList<>();
         while (true) {
             String input = terminal.readText("");
@@ -769,7 +779,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         return lines;
     }
 
-    private boolean askCertSigningRequest(Terminal terminal) {
+    private static boolean askCertSigningRequest(Terminal terminal) {
         printHeader("Do you wish to generate a Certificate Signing Request (CSR)?", terminal);
 
         terminal.println("A CSR is used when you want your certificate to be created by an existing");
@@ -791,7 +801,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         return terminal.promptYesNo("Generate a CSR?", false);
     }
 
-    private CertificateTool.CAInfo findExistingCA(Terminal terminal, Environment env) throws UserException {
+    private static CertificateTool.CAInfo findExistingCA(Terminal terminal, Environment env) throws UserException {
         printHeader("What is the path to your CA?", terminal);
 
         terminal.println("Please enter the full pathname to the Certificate Authority that you wish to");
@@ -921,7 +931,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
      * Read input from the terminal as a {@link Period}.
      * Package protected for testing purposes.
      */
-    Period readPeriodInput(Terminal terminal, String prompt, Period defaultValue, int recommendedMinimumDays) {
+    static Period readPeriodInput(Terminal terminal, String prompt, Period defaultValue, int recommendedMinimumDays) {
         Period period = tryReadInput(terminal, prompt, defaultValue, input -> {
             String periodInput = input.replaceAll("[,\\s]", "");
             if (input.charAt(0) != 'P') {
@@ -945,7 +955,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         return period;
     }
 
-    private Integer readKeySize(Terminal terminal, int keySize) {
+    private static Integer readKeySize(Terminal terminal, int keySize) {
         return tryReadInput(terminal, "Key Size", keySize, input -> {
             try {
                 final int size = Integer.parseInt(input);
@@ -969,7 +979,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         });
     }
 
-    private char[] readPassword(Terminal terminal, String prompt, boolean confirm) {
+    private static char[] readPassword(Terminal terminal, String prompt, boolean confirm) {
         while (true) {
             final char[] password = terminal.readSecret(prompt + " [<ENTER> for none]");
             if (password.length == 0) {
@@ -993,7 +1003,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         }
     }
 
-    private CertificateTool.CAInfo readKeystoreCA(Path ksPath, FileType fileType, Terminal terminal) throws UserException {
+    private static CertificateTool.CAInfo readKeystoreCA(Path ksPath, FileType fileType, Terminal terminal) throws UserException {
         final String storeType = fileType == FileType.PKCS12 ? "PKCS12" : "jks";
         terminal.println("Reading a " + storeType + " keystore requires a password.");
         terminal.println("It is possible for the keystore's password to be blank,");
@@ -1019,13 +1029,13 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         }
     }
 
-    private CertificateTool.CAInfo readPemCA(Path certPath, Path keyPath, Terminal terminal) throws UserException {
+    private static CertificateTool.CAInfo readPemCA(Path certPath, Path keyPath, Terminal terminal) throws UserException {
         final X509Certificate cert = readCertificate(certPath, terminal);
         final PrivateKey key = readPrivateKey(keyPath, terminal);
         return new CertificateTool.CAInfo(cert, key);
     }
 
-    private X509Certificate readCertificate(Path path, Terminal terminal) throws UserException {
+    private static X509Certificate readCertificate(Path path, Terminal terminal) throws UserException {
         try {
             final X509Certificate[] certificates = CertParsingUtils.readX509Certificates(List.of(path));
             switch (certificates.length) {
@@ -1043,7 +1053,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         }
     }
 
-    private PrivateKey readPrivateKey(Path path, Terminal terminal) {
+    private static PrivateKey readPrivateKey(Path path, Terminal terminal) {
         try {
             return PemUtils.readPrivateKey(path, () -> {
                 terminal.println("");
@@ -1056,7 +1066,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         }
     }
 
-    private boolean askExistingCertificateAuthority(Terminal terminal) {
+    private static boolean askExistingCertificateAuthority(Terminal terminal) {
         printHeader("Do you have an existing Certificate Authority (CA) key-pair that you wish to use to sign your certificate?", terminal);
         terminal.println("If you have an existing CA certificate and key, then you can use that CA to");
         terminal.println("sign your new http certificate. This allows you to use the same CA across");
@@ -1069,7 +1079,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         return terminal.promptYesNo("Use an existing CA?", false);
     }
 
-    private <T> T tryReadInput(Terminal terminal, String prompt, T defaultValue, Function<String, T> parser) {
+    private static <T> T tryReadInput(Terminal terminal, String prompt, T defaultValue, Function<String, T> parser) {
         final String defaultStr = defaultValue instanceof Period ? toString((Period) defaultValue) : String.valueOf(defaultValue);
         while (true) {
             final String input = terminal.readText(prompt + " [" + defaultStr + "] ");
@@ -1103,7 +1113,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         return Strings.collectionToCommaDelimitedString(parts);
     }
 
-    private Path requestPath(String prompt, Terminal terminal, Environment env, boolean requireExisting) {
+    private static Path requestPath(String prompt, Terminal terminal, Environment env, boolean requireExisting) {
         for (;;) {
             final String input = terminal.readText(prompt);
             final Path path = env.configFile().resolve(input).toAbsolutePath();
@@ -1199,7 +1209,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         return FileType.UNRECOGNIZED;
     }
 
-    private void printHeader(String text, Terminal terminal) {
+    private static void printHeader(String text, Terminal terminal) {
         terminal.println("");
         terminal.println(Terminal.Verbosity.SILENT, "## " + text);
         terminal.println("");

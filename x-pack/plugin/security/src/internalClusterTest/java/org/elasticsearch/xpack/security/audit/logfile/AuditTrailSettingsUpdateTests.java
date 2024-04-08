@@ -24,7 +24,6 @@ import java.util.HashSet;
 import java.util.List;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.is;
@@ -84,13 +83,11 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
         final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settingsBuilder.build(), clusterService, logger, threadContext);
         final String expected = auditTrail.eventFilterPolicyRegistry.toString();
         // update settings on internal cluster
-        updateSettings(updateFilterSettings);
+        updateClusterSettings(Settings.builder().put(updateFilterSettings));
         final String actual = ((LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
             .iterator()
             .next()
-            .getAuditTrails()
-            .iterator()
-            .next()).eventFilterPolicyRegistry.toString();
+            .getAuditTrail()).eventFilterPolicyRegistry.toString();
         assertEquals(expected, actual);
     }
 
@@ -106,49 +103,46 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
         settingsBuilder.put(randomFrom(allSettingsKeys), invalidLuceneRegex);
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settingsBuilder.build()).get()
+            () -> clusterAdmin().prepareUpdateSettings().setPersistentSettings(settingsBuilder.build()).get()
         );
         assertThat(e.getMessage(), containsString("invalid pattern [/invalid]"));
     }
 
     public void testDynamicHostSettings() {
-        final boolean persistent = randomBoolean();
         final Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING.getKey(), true);
         settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), true);
         settingsBuilder.put(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey(), true);
         settingsBuilder.put(LoggingAuditTrail.EMIT_NODE_ID_SETTING.getKey(), true);
-        updateSettings(settingsBuilder.build());
+        updateClusterSettings(settingsBuilder);
         final LoggingAuditTrail loggingAuditTrail = (LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
             .iterator()
             .next()
-            .getAuditTrails()
-            .iterator()
-            .next();
+            .getAuditTrail();
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.NODE_NAME_FIELD_NAME), startsWith("node_"));
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.NODE_ID_FIELD_NAME), is(true));
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is("127.0.0.1"));
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_NAME_FIELD_NAME), is("127.0.0.1"));
         settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING.getKey(), false);
-        updateSettings(settingsBuilder.build());
+        updateClusterSettings(settingsBuilder);
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.NODE_NAME_FIELD_NAME), startsWith("node_"));
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.NODE_ID_FIELD_NAME), is(true));
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is(nullValue()));
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_NAME_FIELD_NAME), is("127.0.0.1"));
         settingsBuilder.put(LoggingAuditTrail.EMIT_HOST_NAME_SETTING.getKey(), false);
-        updateSettings(settingsBuilder.build());
+        updateClusterSettings(settingsBuilder);
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.NODE_NAME_FIELD_NAME), startsWith("node_"));
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.NODE_ID_FIELD_NAME), is(true));
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is(nullValue()));
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_NAME_FIELD_NAME), is(nullValue()));
         settingsBuilder.put(LoggingAuditTrail.EMIT_NODE_NAME_SETTING.getKey(), false);
-        updateSettings(settingsBuilder.build());
+        updateClusterSettings(settingsBuilder);
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.NODE_NAME_FIELD_NAME), is(nullValue()));
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.containsKey(LoggingAuditTrail.NODE_ID_FIELD_NAME), is(true));
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is(nullValue()));
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_NAME_FIELD_NAME), is(nullValue()));
         settingsBuilder.put(LoggingAuditTrail.EMIT_NODE_ID_SETTING.getKey(), false);
-        updateSettings(settingsBuilder.build());
+        updateClusterSettings(settingsBuilder);
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.NODE_NAME_FIELD_NAME), is(nullValue()));
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.NODE_ID_FIELD_NAME), is(nullValue()));
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.HOST_ADDRESS_FIELD_NAME), is(nullValue()));
@@ -159,33 +153,31 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
         final LoggingAuditTrail loggingAuditTrail = (LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
             .iterator()
             .next()
-            .getAuditTrails()
-            .iterator()
-            .next();
+            .getAuditTrail();
 
         final Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(LoggingAuditTrail.EMIT_CLUSTER_NAME_SETTING.getKey(), true);
         settingsBuilder.put(LoggingAuditTrail.EMIT_CLUSTER_UUID_SETTING.getKey(), true);
-        updateSettings(settingsBuilder.build());
+        updateClusterSettings(settingsBuilder);
         final String clusterName = loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.CLUSTER_NAME_FIELD_NAME);
         final String clusterUuid = loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.CLUSTER_UUID_FIELD_NAME);
         assertThat(clusterName, not(emptyOrNullString()));
         assertThat(clusterUuid, not(emptyOrNullString()));
 
         settingsBuilder.put(LoggingAuditTrail.EMIT_CLUSTER_NAME_SETTING.getKey(), false);
-        updateSettings(settingsBuilder.build());
+        updateClusterSettings(settingsBuilder);
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.CLUSTER_NAME_FIELD_NAME), is(nullValue()));
 
         settingsBuilder.put(LoggingAuditTrail.EMIT_CLUSTER_NAME_SETTING.getKey(), true);
-        updateSettings(settingsBuilder.build());
+        updateClusterSettings(settingsBuilder);
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.CLUSTER_NAME_FIELD_NAME), is(clusterName));
 
         settingsBuilder.put(LoggingAuditTrail.EMIT_CLUSTER_UUID_SETTING.getKey(), false);
-        updateSettings(settingsBuilder.build());
+        updateClusterSettings(settingsBuilder);
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.CLUSTER_UUID_FIELD_NAME), is(nullValue()));
 
         settingsBuilder.put(LoggingAuditTrail.EMIT_CLUSTER_UUID_SETTING.getKey(), true);
-        updateSettings(settingsBuilder.build());
+        updateClusterSettings(settingsBuilder);
         assertThat(loggingAuditTrail.entryCommonFields.commonFields.get(LoggingAuditTrail.CLUSTER_UUID_FIELD_NAME), is(clusterUuid));
     }
 
@@ -193,16 +185,14 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
         final boolean enableRequestBody = randomBoolean();
         final Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(LoggingAuditTrail.INCLUDE_REQUEST_BODY.getKey(), enableRequestBody);
-        updateSettings(settingsBuilder.build());
+        updateClusterSettings(settingsBuilder);
         final LoggingAuditTrail loggingAuditTrail = (LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
             .iterator()
             .next()
-            .getAuditTrails()
-            .iterator()
-            .next();
+            .getAuditTrail();
         assertEquals(enableRequestBody, loggingAuditTrail.includeRequestBody);
         settingsBuilder.put(LoggingAuditTrail.INCLUDE_REQUEST_BODY.getKey(), enableRequestBody == false);
-        updateSettings(settingsBuilder.build());
+        updateClusterSettings(settingsBuilder);
         assertEquals(enableRequestBody == false, loggingAuditTrail.includeRequestBody);
     }
 
@@ -226,18 +216,12 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
         final Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.putList(LoggingAuditTrail.INCLUDE_EVENT_SETTINGS.getKey(), includedEvents);
         settingsBuilder.putList(LoggingAuditTrail.EXCLUDE_EVENT_SETTINGS.getKey(), excludedEvents);
-        updateSettings(settingsBuilder.build());
+        updateClusterSettings(settingsBuilder);
         final LoggingAuditTrail loggingAuditTrail = (LoggingAuditTrail) internalCluster().getInstances(AuditTrailService.class)
             .iterator()
             .next()
-            .getAuditTrails()
-            .iterator()
-            .next();
+            .getAuditTrail();
         assertEquals(AuditLevel.parse(includedEvents, excludedEvents), loggingAuditTrail.events);
-    }
-
-    private void updateSettings(Settings settings) {
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
     }
 
     private static List<String> randomNonEmptyListOfFilteredNames(String... namePrefix) {

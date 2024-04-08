@@ -127,8 +127,7 @@ init_script::       Executed prior to any collection of documents. Allows the ag
 +
 In the above example, the `init_script` creates an array `transactions` in the `state` object.
 
-map_script::        Executed once per document collected. This is a required script. If no combine_script is specified, the resulting state
-                    needs to be stored in the `state` object.
+map_script::        Executed once per document collected. This is a required script. 
 +
 In the above example, the `map_script` checks the value of the type field. If the value is 'sale' the value of the amount field
 is added to the transactions array. If the value of the type field is not 'sale' the negated value of the amount field is added

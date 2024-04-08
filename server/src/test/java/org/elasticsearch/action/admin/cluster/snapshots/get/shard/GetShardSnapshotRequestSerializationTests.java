@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
@@ -39,7 +38,7 @@ public class GetShardSnapshotRequestSerializationTests extends AbstractWireSeria
     }
 
     @Override
-    protected GetShardSnapshotRequest mutateInstance(GetShardSnapshotRequest instance) throws IOException {
+    protected GetShardSnapshotRequest mutateInstance(GetShardSnapshotRequest instance) {
         ShardId shardId = randomShardId();
         if (instance.getFromAllRepositories()) {
             return GetShardSnapshotRequest.latestSnapshotInAllRepositories(shardId);

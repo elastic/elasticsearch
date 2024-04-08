@@ -11,8 +11,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -203,7 +202,7 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
 
     public void testSummationAccuracy() throws IOException {
         double[] values = new double[] { 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7 };
-        verifyStatsOfDoubles(values, 13.5, 16.21, 0d);
+        verifyStatsOfDoubles(values, 13.5, 16.21, TOLERANCE);
 
         // Summing up an array which contains NaN and infinities and expect a result same as naive summation
         int n = randomIntBetween(5, 10);
@@ -266,7 +265,7 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
         ExtendedStatsAggregationBuilder aggBuilder = new ExtendedStatsAggregationBuilder("my_agg").field("field")
             .sigma(randomDoubleBetween(0, 10, true));
 
-        testCase(aggBuilder, new MatchAllDocsQuery(), buildIndex, verify, ft);
+        testCase(buildIndex, verify, new AggTestConfig(aggBuilder, ft));
     }
 
     static class ExtendedSimpleStatsAggregator extends StatsAggregatorTests.SimpleStatsAggregator {

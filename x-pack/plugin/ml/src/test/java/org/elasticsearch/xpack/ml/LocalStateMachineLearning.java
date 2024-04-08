@@ -42,6 +42,10 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
     private final MachineLearning mlPlugin;
 
     public LocalStateMachineLearning(final Settings settings, final Path configPath) {
+        this(settings, configPath, null);
+    }
+
+    protected LocalStateMachineLearning(final Settings settings, final Path configPath, final ExtensionLoader extensionLoader) {
         super(settings, configPath);
         LocalStateMachineLearning thisVar = this;
         mlPlugin = new MachineLearning(settings) {
@@ -50,6 +54,7 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
                 return thisVar.getLicenseState();
             }
         };
+        mlPlugin.loadExtensions(extensionLoader);
         mlPlugin.setCircuitBreaker(new NoopCircuitBreaker(TRAINED_MODEL_CIRCUIT_BREAKER_NAME));
         plugins.add(mlPlugin);
         plugins.add(new Monitoring(settings) {
@@ -68,7 +73,7 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
                 return thisVar.getLicenseState();
             }
         });
-        plugins.add(new Security(settings, configPath) {
+        plugins.add(new Security(settings) {
             @Override
             protected SSLService getSslService() {
                 return thisVar.getSslService();

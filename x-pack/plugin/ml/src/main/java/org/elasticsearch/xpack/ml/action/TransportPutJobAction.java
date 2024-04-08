@@ -8,8 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -20,9 +19,11 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -32,9 +33,13 @@ import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.job.JobManager;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class TransportPutJobAction extends TransportMasterNodeAction<PutJobAction.Request, PutJobAction.Response> {
 
@@ -67,7 +72,7 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
             PutJobAction.Request::new,
             indexNameExpressionResolver,
             PutJobAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseState = licenseState;
         this.jobManager = jobManager;
@@ -94,24 +99,30 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
                 new PutDatafeedAction.Request(jobCreated.getResponse().getDatafeedConfig().get()),
                 // Use newer state from cluster service as the job creation may have created shared indexes
                 clusterService.state(),
-                licenseState,
                 securityContext,
                 threadPool,
-                ActionListener.wrap(
-                    createdDatafeed -> listener.onResponse(jobCreated),
+                ActionListener.wrap(createdDatafeed -> {
+                    // We might need to add the authorization info to the embedded datafeed config in the response
+                    if (createdDatafeed.getResponse().getHeaders().isEmpty()) {
+                        listener.onResponse(jobCreated);
+                    } else {
+                        Job.Builder finalJobBuilder = new Job.Builder(jobCreated.getResponse()).setDatafeed(
+                            new DatafeedConfig.Builder(createdDatafeed.getResponse())
+                        );
+                        listener.onResponse(new PutJobAction.Response(finalJobBuilder.build()));
+                    }
+                },
                     failed -> jobManager.deleteJob(
                         new DeleteJobAction.Request(request.getJobBuilder().getId()),
                         state,
                         ActionListener.wrap(deleted -> listener.onFailure(failed), deleteFailed -> {
                             logger.warn(
-                                () -> new ParameterizedMessage(
-                                    "[{}] failed to cleanup job after datafeed creation failure",
-                                    request.getJobBuilder().getId()
-                                ),
+                                () -> format("[%s] failed to cleanup job after datafeed creation failure", request.getJobBuilder().getId()),
                                 deleteFailed
                             );
-                            ElasticsearchException ex = new ElasticsearchException(
+                            ElasticsearchStatusException ex = new ElasticsearchStatusException(
                                 "failed to cleanup job after datafeed creation failure",
+                                RestStatus.REQUEST_TIMEOUT,
                                 failed
                             );
                             ex.addSuppressed(deleteFailed);

@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 
 /**
  * Base class for interceptors that disables features when field level security is configured for indices a request
@@ -47,38 +48,32 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
         AuthorizationInfo authorizationInfo,
         ActionListener<Void> listener
     ) {
-        if (requestInfo.getRequest()instanceof IndicesRequest indicesRequest
-            && false == TransportActionProxy.isProxyAction(requestInfo.getAction())) {
-            // TODO: should we check is DLS/FLS feature allowed here
-            if (supports(indicesRequest)) {
-                final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
-                final IndicesAccessControl indicesAccessControl = threadContext.getTransient(
-                    AuthorizationServiceField.INDICES_PERMISSIONS_KEY
-                );
-                final Map<String, IndicesAccessControl.IndexAccessControl> accessControlByIndex = new HashMap<>();
-                for (String index : requestIndices(indicesRequest)) {
-                    IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
-                    if (indexAccessControl != null) {
-                        final boolean flsEnabled = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
-                        final boolean dlsEnabled = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
-                        if ((flsEnabled || dlsEnabled) && isDlsLicensed) {
-                            logger.trace(
-                                "intercepted request for index [{}] with field level access controls [{}] "
-                                    + "document level access controls [{}]. disabling conflicting features",
-                                index,
-                                flsEnabled,
-                                dlsEnabled
-                            );
-                            accessControlByIndex.put(index, indexAccessControl);
-                        }
-                    } else {
-                        logger.trace("intercepted request for index [{}] without field or document level access controls", index);
-                    }
+        final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
+        final boolean isFlsLicensed = FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
+        if (requestInfo.getRequest() instanceof IndicesRequest indicesRequest
+            && false == TransportActionProxy.isProxyAction(requestInfo.getAction())
+            && supports(indicesRequest)
+            && (isDlsLicensed || isFlsLicensed)) {
+            final IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+            final Map<String, IndicesAccessControl.IndexAccessControl> accessControlByIndex = new HashMap<>();
+            for (String index : requestIndices(indicesRequest)) {
+                IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
+                if (indexAccessControl != null
+                    && (indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()
+                        || indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions())) {
+                    logger.trace(
+                        "intercepted request for index [{}] with field level access controls [{}] "
+                            + "document level access controls [{}]. disabling conflicting features",
+                        index,
+                        indexAccessControl.getFieldPermissions().hasFieldLevelSecurity(),
+                        indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions()
+                    );
+                    accessControlByIndex.put(index, indexAccessControl);
                 }
-                if (false == accessControlByIndex.isEmpty()) {
-                    disableFeatures(indicesRequest, accessControlByIndex, listener);
-                    return;
-                }
+            }
+            if (false == accessControlByIndex.isEmpty()) {
+                disableFeatures(indicesRequest, accessControlByIndex, listener);
+                return;
             }
         }
         listener.onResponse(null);

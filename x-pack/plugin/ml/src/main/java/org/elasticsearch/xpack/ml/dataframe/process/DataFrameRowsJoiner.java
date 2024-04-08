@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -79,7 +78,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
         try {
             addResultAndJoinIfEndOfBatch(rowResults);
         } catch (Exception e) {
-            LOGGER.error(new ParameterizedMessage("[{}] Failed to join results ", analyticsId), e);
+            LOGGER.error(() -> "[" + analyticsId + "] Failed to join results ", e);
             failure = "[" + analyticsId + "] Failed to join results: " + e.getMessage();
         }
     }
@@ -119,7 +118,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
         );
     }
 
-    private void checkChecksumsMatch(DataFrameDataExtractor.Row row, RowResults result) {
+    private static void checkChecksumsMatch(DataFrameDataExtractor.Row row, RowResults result) {
         if (row.getChecksum() != result.getChecksum()) {
             String msg = "Detected checksum mismatch for document with id [" + row.getHit().getId() + "]; ";
             msg += "expected [" + row.getChecksum() + "] but result had [" + result.getChecksum() + "]; ";
@@ -145,13 +144,13 @@ class DataFrameRowsJoiner implements AutoCloseable {
         try {
             joinCurrentResults();
         } catch (Exception e) {
-            LOGGER.error(new ParameterizedMessage("[{}] Failed to join results", analyticsId), e);
+            LOGGER.error(() -> "[" + analyticsId + "] Failed to join results", e);
             failure = "[" + analyticsId + "] Failed to join results: " + e.getMessage();
         } finally {
             try {
                 consumeDataExtractor();
             } catch (Exception e) {
-                LOGGER.error(new ParameterizedMessage("[{}] Failed to consume data extractor", analyticsId), e);
+                LOGGER.error(() -> "[" + analyticsId + "] Failed to consume data extractor", e);
             }
         }
     }
@@ -187,7 +186,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
             return row;
         }
 
-        private boolean hasNoMatch(DataFrameDataExtractor.Row row) {
+        private static boolean hasNoMatch(DataFrameDataExtractor.Row row) {
             return row == null || row.shouldSkip() || row.isTraining() == false;
         }
 

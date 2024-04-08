@@ -8,8 +8,8 @@
 
 package org.elasticsearch.env;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
@@ -31,8 +31,8 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
+import static org.elasticsearch.env.NodeEnvironment.SEARCHABLE_SHARED_CACHE_FILE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -54,7 +54,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
 
         logger.info("--> creating index");
-        prepareCreate(indexName, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).get();
+        prepareCreate(indexName, indexSettings(1, 0)).get();
         final String indexUUID = resolveIndex(indexName).getUUID();
         if (writeDanglingIndices) {
             assertBusy(
@@ -84,7 +84,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         internalCluster().startNode(dataPathSettings);
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex(indexName).setId("1").setSource("field1", "value1").get();
+        prepareIndex(indexName).setId("1").setSource("field1", "value1").get();
 
         logger.info("--> restarting the node without the data role");
         ex = expectThrows(
@@ -126,7 +126,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         );
         assertThat(
             illegalStateException.getMessage(),
-            allOf(startsWith("cannot downgrade a node from version ["), endsWith("] to version [" + Version.CURRENT + "]"))
+            allOf(startsWith("cannot downgrade a node from version ["), endsWith("] to version [" + Build.current().version() + "]"))
         );
     }
 
@@ -140,9 +140,9 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
                 startsWith("cannot upgrade a node from version ["),
                 endsWith(
                     "] directly to version ["
-                        + Version.CURRENT
+                        + Build.current().version()
                         + "], upgrade to version ["
-                        + Version.CURRENT.minimumCompatibilityVersion()
+                        + Build.current().minWireCompatVersion()
                         + "] first."
                 )
             )
@@ -152,17 +152,14 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
     public void testUpgradeDataFolder() throws IOException, InterruptedException {
         String node = internalCluster().startNode();
         prepareCreate("test").get();
-        indexRandom(true, client().prepareIndex("test").setId("1").setSource("{}", XContentType.JSON));
-        String nodeId = client().admin().cluster().prepareState().get().getState().nodes().getMasterNodeId();
+        indexRandom(true, prepareIndex("test").setId("1").setSource("{}", XContentType.JSON));
+        String nodeId = clusterAdmin().prepareState().get().getState().nodes().getMasterNodeId();
 
         final Settings dataPathSettings = internalCluster().dataPathSettings(node);
         internalCluster().stopRandomDataNode();
 
         // simulate older data path layout by moving data under "nodes/0" folder
-        final List<Path> dataPaths = Environment.PATH_DATA_SETTING.get(dataPathSettings)
-            .stream()
-            .map(PathUtils::get)
-            .collect(Collectors.toList());
+        final List<Path> dataPaths = Environment.PATH_DATA_SETTING.get(dataPathSettings).stream().map(PathUtils::get).toList();
         dataPaths.forEach(path -> {
             final Path nodesPath = path.resolve("nodes");
             final Path targetPath = nodesPath.resolve("0");
@@ -220,14 +217,28 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
             }
         }
 
+        // simulate a frozen node with a shared cache file
+        if (rarely()) {
+            final Path randomDataPath = randomFrom(dataPaths);
+            final Path sharedCache = randomDataPath.resolve("nodes").resolve("0").resolve(SEARCHABLE_SHARED_CACHE_FILE);
+            Files.createFile(sharedCache);
+        }
+
+        // check that settings are validated prior to moving folders
+        dataPaths.forEach(path -> assertTrue(Files.isDirectory(path.resolve("nodes"))));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> internalCluster().startNode(Settings.builder().put(dataPathSettings).put("bad", "setting"))
+        );
+
         // check that upgrade works
         dataPaths.forEach(path -> assertTrue(Files.isDirectory(path.resolve("nodes"))));
         internalCluster().startNode(dataPathSettings);
         dataPaths.forEach(path -> assertTrue(Files.isRegularFile(path.resolve("nodes"))));
-        assertEquals(nodeId, client().admin().cluster().prepareState().get().getState().nodes().getMasterNodeId());
+        assertEquals(nodeId, clusterAdmin().prepareState().get().getState().nodes().getMasterNodeId());
         assertTrue(indexExists("test"));
         ensureYellow("test");
-        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
+        assertHitCount(prepareSearch().setQuery(matchAllQuery()), 1L);
     }
 
     public void testFailsToStartOnDataPathsFromMultipleNodes() throws IOException {
@@ -240,8 +251,8 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         final List<String> allDataPaths = new ArrayList<>(node0DataPaths);
         allDataPaths.addAll(node1DataPaths);
 
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(1)));
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(0)));
+        internalCluster().stopNode(nodes.get(1));
+        internalCluster().stopNode(nodes.get(0));
 
         CorruptStateException corruptStateException = expectThrows(
             CorruptStateException.class,

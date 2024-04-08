@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -17,9 +16,9 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -59,13 +58,17 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 /**
  * NativeUsersStore is a store for users that reads from an Elasticsearch index. This store is responsible for fetching the full
@@ -119,11 +122,11 @@ public class NativeUsersStore {
             listener.onFailure(t);
         };
 
-        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
+        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
-        } else if (frozenSecurityIndex.isAvailable() == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
         } else if (userNames.length == 1) { // optimization for single user lookup
             final String username = userNames[0];
             getUserAndPassword(
@@ -160,12 +163,46 @@ public class NativeUsersStore {
         }
     }
 
+    public void queryUsers(SearchRequest searchRequest, ActionListener<QueryUserResults> listener) {
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
+        if (frozenSecurityIndex.indexExists() == false) {
+            logger.debug("security index does not exist");
+            listener.onResponse(QueryUserResults.EMPTY);
+        } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+        } else {
+            securityIndex.checkIndexVersionThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client,
+                    SECURITY_ORIGIN,
+                    TransportSearchAction.TYPE,
+                    searchRequest,
+                    ActionListener.wrap(searchResponse -> {
+                        final long total = searchResponse.getHits().getTotalHits().value;
+                        if (total == 0) {
+                            logger.debug("No users found for query [{}]", searchRequest.source().query());
+                            listener.onResponse(QueryUserResults.EMPTY);
+                            return;
+                        }
+
+                        final List<QueryUserResult> userItems = Arrays.stream(searchResponse.getHits().getHits()).map(hit -> {
+                            UserAndPassword userAndPassword = transformUser(hit.getId(), hit.getSourceAsMap());
+                            return userAndPassword != null ? new QueryUserResult(userAndPassword.user(), hit.getSortValues()) : null;
+                        }).filter(Objects::nonNull).toList();
+                        listener.onResponse(new QueryUserResults(userItems, total));
+                    }, listener::onFailure)
+                )
+            );
+        }
+    }
+
     void getUserCount(final ActionListener<Long> listener) {
-        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
+        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(0L);
-        } else if (frozenSecurityIndex.isAvailable() == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
         } else {
             securityIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
@@ -177,7 +214,7 @@ public class NativeUsersStore {
                         .setSize(0)
                         .setTrackTotalHits(true)
                         .request(),
-                    listener.<SearchResponse>delegateFailure((l, response) -> l.onResponse(response.getHits().getTotalHits().value)),
+                    listener.<SearchResponse>safeMap(response -> response.getHits().getTotalHits().value),
                     client::search
                 )
             );
@@ -188,8 +225,8 @@ public class NativeUsersStore {
      * Async method to retrieve a user and their password
      */
     private void getUserAndPassword(final String user, final ActionListener<UserAndPassword> listener) {
-        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
-        if (frozenSecurityIndex.isAvailable() == false) {
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
+        if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
             if (frozenSecurityIndex.indexExists() == false) {
                 logger.trace("could not retrieve user [{}] because security index does not exist", user);
             } else {
@@ -220,12 +257,9 @@ public class NativeUsersStore {
                         @Override
                         public void onFailure(Exception t) {
                             if (t instanceof IndexNotFoundException) {
-                                logger.trace(
-                                    new ParameterizedMessage("could not retrieve user [{}] because security index does not exist", user),
-                                    t
-                                );
+                                logger.trace(() -> "could not retrieve user [" + user + "] because security index does not exist", t);
                             } else {
-                                logger.error(new ParameterizedMessage("failed to retrieve user [{}]", user), t);
+                                logger.error(() -> "failed to retrieve user [" + user + "]", t);
                             }
                             // We don't invoke the onFailure listener here, instead
                             // we call the response with a null user
@@ -244,7 +278,6 @@ public class NativeUsersStore {
      */
     public void changePassword(final ChangePasswordRequest request, final ActionListener<Void> listener) {
         final String username = request.username();
-        assert User.isInternalUsername(username) == false : username + "is internal!";
         final String docType;
         if (ClientReservedRealm.isReserved(username, settings)) {
             docType = RESERVED_USER_TYPE;
@@ -280,13 +313,7 @@ public class NativeUsersStore {
                                     listener
                                 );
                             } else {
-                                logger.debug(
-                                    (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                                        "failed to change password for user [{}]",
-                                        request.username()
-                                    ),
-                                    e
-                                );
+                                logger.debug(() -> format("failed to change password for user [%s]", request.username()), e);
                                 ValidationException validationException = new ValidationException();
                                 validationException.addValidationError("user must exist in order to change password");
                                 listener.onFailure(validationException);
@@ -337,7 +364,7 @@ public class NativeUsersStore {
                     )
                     .setRefreshPolicy(refresh)
                     .request(),
-                listener.<IndexResponse>delegateFailure((l, indexResponse) -> clearRealmCache(username, l, null)),
+                listener.<DocWriteResponse>delegateFailure((l, indexResponse) -> clearRealmCache(username, l, null)),
                 client::index
             );
         });
@@ -402,13 +429,7 @@ public class NativeUsersStore {
                         if (isIndexNotFoundOrDocumentMissing(e)) {
                             // if the index doesn't exist we can never update a user
                             // if the document doesn't exist, then this update is not valid
-                            logger.debug(
-                                (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                                    "failed to update user document with username [{}]",
-                                    putUserRequest.username()
-                                ),
-                                e
-                            );
+                            logger.debug(() -> format("failed to update user document with username [%s]", putUserRequest.username()), e);
                             ValidationException validationException = new ValidationException();
                             validationException.addValidationError("password must be specified unless you are updating an existing user");
                             failure = validationException;
@@ -449,7 +470,7 @@ public class NativeUsersStore {
                     )
                     .setRefreshPolicy(putUserRequest.getRefreshPolicy())
                     .request(),
-                listener.<IndexResponse>delegateFailure(
+                listener.<DocWriteResponse>delegateFailure(
                     (l, updateResponse) -> clearRealmCache(
                         putUserRequest.username(),
                         l,
@@ -504,14 +525,7 @@ public class NativeUsersStore {
                         if (isIndexNotFoundOrDocumentMissing(e)) {
                             // if the index doesn't exist we can never update a user
                             // if the document doesn't exist, then this update is not valid
-                            logger.debug(
-                                (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                                    "failed to {} user [{}]",
-                                    enabled ? "enable" : "disable",
-                                    username
-                                ),
-                                e
-                            );
+                            logger.debug(() -> format("failed to %s user [%s]", enabled ? "enable" : "disable", username), e);
                             ValidationException validationException = new ValidationException();
                             validationException.addValidationError("only existing users can be " + (enabled ? "enabled" : "disabled"));
                             failure = validationException;
@@ -561,11 +575,11 @@ public class NativeUsersStore {
     }
 
     public void deleteUser(final DeleteUserRequest deleteUserRequest, final ActionListener<Boolean> listener) {
-        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(false);
-        } else if (frozenSecurityIndex.isAvailable() == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 DeleteRequest request = client.prepareDelete(SECURITY_MAIN_ALIAS, getIdForUser(USER_DOC_TYPE, deleteUserRequest.username()))
@@ -619,11 +633,11 @@ public class NativeUsersStore {
     }
 
     void getReservedUserInfo(String username, ActionListener<ReservedUserInfo> listener) {
-        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(null);
-        } else if (frozenSecurityIndex.isAvailable() == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
         } else {
             securityIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
@@ -658,10 +672,7 @@ public class NativeUsersStore {
                         public void onFailure(Exception e) {
                             if (TransportActions.isShardNotAvailableException(e)) {
                                 logger.trace(
-                                    (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                                        "could not retrieve built in user [{}] info since security index unavailable",
-                                        username
-                                    ),
+                                    () -> format("could not retrieve built in user [%s] info since security index unavailable", username),
                                     e
                                 );
                             }
@@ -675,11 +686,11 @@ public class NativeUsersStore {
     }
 
     void getAllReservedUserInfo(ActionListener<Map<String, ReservedUserInfo>> listener) {
-        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyMap());
-        } else if (frozenSecurityIndex.isAvailable() == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
         } else {
             securityIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
@@ -745,7 +756,7 @@ public class NativeUsersStore {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(new ParameterizedMessage("unable to clear realm cache for user [{}]", username), e);
+                logger.error(() -> "unable to clear realm cache for user [" + username + "]", e);
                 ElasticsearchException exception = new ElasticsearchException(
                     "clearing the cache for [" + username + "] failed. please clear the realm cache manually",
                     e
@@ -756,7 +767,7 @@ public class NativeUsersStore {
     }
 
     @Nullable
-    private UserAndPassword transformUser(final String id, final Map<String, Object> sourceMap) {
+    private static UserAndPassword transformUser(final String id, final Map<String, Object> sourceMap) {
         if (sourceMap == null) {
             return null;
         }
@@ -777,7 +788,7 @@ public class NativeUsersStore {
             Map<String, Object> metadata = (Map<String, Object>) sourceMap.get(Fields.METADATA.getPreferredName());
             return new UserAndPassword(new User(username, roles, fullName, email, metadata, enabled), password.toCharArray());
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("error in the format of data for user [{}]", username), e);
+            logger.error(() -> "error in the format of data for user [" + username + "]", e);
             return null;
         }
     }
@@ -826,5 +837,17 @@ public class NativeUsersStore {
         static ReservedUserInfo defaultDisabledUserInfo() {
             return new ReservedUserInfo(new char[0], false);
         }
+    }
+
+    /**
+     * Result record for every document matching a user
+     */
+    public record QueryUserResult(User user, Object[] sortValues) {}
+
+    /**
+     * Total result for a Query User query
+     */
+    public record QueryUserResults(List<QueryUserResult> userQueryResult, long total) {
+        public static final QueryUserResults EMPTY = new QueryUserResults(List.of(), 0);
     }
 }

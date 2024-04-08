@@ -24,8 +24,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -72,24 +70,24 @@ public class TokenCountFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(index, hasDocValues, store, analyzer, nullValue, enablePositionIncrements, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { index, hasDocValues, store, analyzer, nullValue, enablePositionIncrements, meta };
         }
 
         @Override
         public TokenCountFieldMapper build(MapperBuilderContext context) {
             if (analyzer.getValue() == null) {
-                throw new MapperParsingException("Analyzer must be set for field [" + name + "] but wasn't.");
+                throw new MapperParsingException("Analyzer must be set for field [" + name() + "] but wasn't.");
             }
             MappedFieldType ft = new TokenCountFieldType(
-                context.buildFullName(name),
+                context.buildFullName(name()),
                 index.getValue(),
                 store.getValue(),
                 hasDocValues.getValue(),
                 nullValue.getValue(),
                 meta.getValue()
             );
-            return new TokenCountFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new TokenCountFieldMapper(name(), ft, multiFieldsBuilder.build(this, context), copyTo, this);
         }
     }
 
@@ -114,6 +112,7 @@ public class TokenCountFieldMapper extends FieldMapper {
                 meta,
                 null,
                 false,
+                null,
                 null
             );
         }
@@ -121,9 +120,9 @@ public class TokenCountFieldMapper extends FieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (hasDocValues() == false) {
-                return (lookup, ignoredValues) -> List.of();
+                return ValueFetcher.EMPTY;
             }
-            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
+            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
         }
     }
 
@@ -167,7 +166,7 @@ public class TokenCountFieldMapper extends FieldMapper {
             tokenCount = countPositions(analyzer, name(), value, enablePositionIncrements);
         }
 
-        context.doc().addAll(NumberFieldMapper.NumberType.INTEGER.createFields(fieldType().name(), tokenCount, index, hasDocValues, store));
+        NumberFieldMapper.NumberType.INTEGER.addFields(context.doc(), fieldType().name(), tokenCount, index, hasDocValues, store);
     }
 
     /**
@@ -205,14 +204,6 @@ public class TokenCountFieldMapper extends FieldMapper {
      */
     public String analyzer() {
         return analyzer.name();
-    }
-
-    /**
-     * Indicates if position increments are counted.
-     * @return <code>true</code> if position increments are counted
-     */
-    public boolean enablePositionIncrements() {
-        return enablePositionIncrements;
     }
 
     @Override

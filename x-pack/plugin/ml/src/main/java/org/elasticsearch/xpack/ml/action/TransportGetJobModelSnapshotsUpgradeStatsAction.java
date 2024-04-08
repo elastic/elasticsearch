@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -20,8 +19,10 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
@@ -39,6 +40,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class TransportGetJobModelSnapshotsUpgradeStatsAction extends TransportMasterNodeReadAction<Request, Response> {
 
@@ -64,18 +67,17 @@ public class TransportGetJobModelSnapshotsUpgradeStatsAction extends TransportMa
             Request::new,
             indexNameExpressionResolver,
             Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.jobConfigProvider = jobConfigProvider;
     }
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
-        logger.debug(
-            () -> new ParameterizedMessage("[{}] get stats for model snapshot [{}] upgrades", request.getJobId(), request.getSnapshotId())
-        );
+        logger.debug(() -> format("[%s] get stats for model snapshot [%s] upgrades", request.getJobId(), request.getSnapshotId()));
         final PersistentTasksCustomMetadata tasksInProgress = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         final Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgrades = MlTasks.snapshotUpgradeTasks(tasksInProgress);
+        final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
 
         // 2. Now that we have the job IDs, find the relevant model snapshot upgrades
         ActionListener<List<Job.Builder>> expandIdsListener = ActionListener.wrap(jobs -> {
@@ -120,7 +122,7 @@ public class TransportGetJobModelSnapshotsUpgradeStatsAction extends TransportMa
         }, listener::onFailure);
 
         // 1. Expand jobs - this will throw if a required job ID match isn't made
-        jobConfigProvider.expandJobs(request.getJobId(), request.allowNoMatch(), true, expandIdsListener);
+        jobConfigProvider.expandJobs(request.getJobId(), request.allowNoMatch(), true, parentTaskId, expandIdsListener);
     }
 
     @Override

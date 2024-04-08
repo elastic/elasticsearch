@@ -13,8 +13,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
 
-import java.io.IOException;
-
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
@@ -36,7 +34,7 @@ public class DeleteServiceAccountTokenRequestTests extends AbstractWireSerializi
     }
 
     @Override
-    protected DeleteServiceAccountTokenRequest mutateInstance(DeleteServiceAccountTokenRequest instance) throws IOException {
+    protected DeleteServiceAccountTokenRequest mutateInstance(DeleteServiceAccountTokenRequest instance) {
         DeleteServiceAccountTokenRequest newInstance = instance;
         if (randomBoolean()) {
             newInstance = new DeleteServiceAccountTokenRequest(

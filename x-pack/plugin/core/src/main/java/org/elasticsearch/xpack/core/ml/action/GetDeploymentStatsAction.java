@@ -19,7 +19,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStats;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -33,7 +33,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
     public static final String NAME = "cluster:internal/xpack/ml/trained_models/deployments/stats/get";
 
     private GetDeploymentStatsAction() {
-        super(NAME, GetDeploymentStatsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<GetDeploymentStatsAction.Request> {
@@ -43,14 +43,14 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
         private List<String> expandedIds;
 
         public Request(String deploymentId) {
-            this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, "deployment_id");
+            this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, InferModelAction.Request.DEPLOYMENT_ID);
             this.expandedIds = Collections.singletonList(deploymentId);
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.deploymentId = in.readString();
-            this.expandedIds = in.readStringList();
+            this.expandedIds = in.readStringCollectionAsList();
         }
 
         @Override
@@ -91,12 +91,12 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
 
         public static final ParseField DEPLOYMENT_STATS = new ParseField("deployment_stats");
 
-        private final QueryPage<AllocationStats> stats;
+        private final QueryPage<AssignmentStats> stats;
 
         public Response(
             List<TaskOperationFailure> taskFailures,
             List<? extends ElasticsearchException> nodeFailures,
-            List<AllocationStats> stats,
+            List<AssignmentStats> stats,
             long count
         ) {
             super(taskFailures, nodeFailures);
@@ -105,10 +105,10 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            stats = new QueryPage<>(in, AllocationStats::new);
+            stats = new QueryPage<>(in, AssignmentStats::new);
         }
 
-        public QueryPage<AllocationStats> getStats() {
+        public QueryPage<AssignmentStats> getStats() {
             return stats;
         }
 

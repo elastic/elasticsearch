@@ -26,11 +26,11 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.junit.BeforeClass;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.is;
 
 public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNodeTestCase {
@@ -69,7 +69,7 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
             // prevents the .security index from being created automatically (after elastic user authentication)
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
             updateSettingsRequest.transientSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true));
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            assertAcked(clusterAdmin().updateSettings(updateSettingsRequest).actionGet());
 
             // delete the security index, if it exist
             GetIndexRequest getIndexRequest = new GetIndexRequest();
@@ -78,7 +78,7 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
             GetIndexResponse getIndexResponse = client().admin().indices().getIndex(getIndexRequest).actionGet();
             if (getIndexResponse.getIndices().length > 0) {
                 assertThat(getIndexResponse.getIndices().length, is(1));
-                assertThat(getIndexResponse.getIndices()[0], is(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7));
+                assertThat(getIndexResponse.getIndices()[0], is(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7));
                 DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(getIndexResponse.getIndices());
                 assertAcked(client().admin().indices().delete(deleteIndexRequest).actionGet());
             }
@@ -123,7 +123,7 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
             updateSettingsRequest.transientSettings(
                 Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), (String) null)
             );
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            assertAcked(clusterAdmin().updateSettings(updateSettingsRequest).actionGet());
         }
     }
 
@@ -141,7 +141,7 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
             // but then make the cluster read-only
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
             updateSettingsRequest.transientSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true));
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            assertAcked(clusterAdmin().updateSettings(updateSettingsRequest).actionGet());
 
             // elastic user now gets 503 for the good password
             Request restRequest = randomFrom(
@@ -166,7 +166,7 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
             updateSettingsRequest.transientSettings(
                 Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), (String) null)
             );
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            assertAcked(clusterAdmin().updateSettings(updateSettingsRequest).actionGet());
 
             if (randomBoolean()) {
                 Request restRequest2 = randomFrom(
@@ -208,7 +208,7 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
             updateSettingsRequest.transientSettings(
                 Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), (String) null)
             );
-            assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+            assertAcked(clusterAdmin().updateSettings(updateSettingsRequest).actionGet());
         }
     }
 }

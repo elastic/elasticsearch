@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ml;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -16,17 +16,17 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase.DEFAULT_BWC_VERSIONS;
 
-public abstract class AbstractBWCSerializationTestCase<T extends Writeable & ToXContent> extends AbstractSerializingTestCase<T> {
+public abstract class AbstractBWCSerializationTestCase<T extends Writeable & ToXContent> extends AbstractXContentSerializingTestCase<T> {
 
     /**
      * Returns the expected instance if serialized from the given version.
      */
-    protected abstract T mutateInstanceForVersion(T instance, Version version);
+    protected abstract T mutateInstanceForVersion(T instance, TransportVersion version);
 
     /**
      * The bwc versions to test serialization against
      */
-    protected List<Version> bwcVersions() {
+    protected List<TransportVersion> bwcVersions() {
         return DEFAULT_BWC_VERSIONS;
     }
 
@@ -36,7 +36,7 @@ public abstract class AbstractBWCSerializationTestCase<T extends Writeable & ToX
     public final void testBwcSerialization() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
             T testInstance = createTestInstance();
-            for (Version bwcVersion : bwcVersions()) {
+            for (TransportVersion bwcVersion : bwcVersions()) {
                 assertBwcSerialization(testInstance, bwcVersion);
             }
         }
@@ -47,7 +47,7 @@ public abstract class AbstractBWCSerializationTestCase<T extends Writeable & ToX
      * for sanity checking the backwards compatibility of the wire. It isn't a substitute for
      * real backwards compatibility tests but it is *so* much faster.
      */
-    protected final void assertBwcSerialization(T testInstance, Version version) throws IOException {
+    protected final void assertBwcSerialization(T testInstance, TransportVersion version) throws IOException {
         T deserializedInstance = copyWriteable(testInstance, getNamedWriteableRegistry(), instanceReader(), version);
         assertOnBWCObject(deserializedInstance, mutateInstanceForVersion(testInstance, version), version);
     }
@@ -57,7 +57,7 @@ public abstract class AbstractBWCSerializationTestCase<T extends Writeable & ToX
      * @param testInstance The original test instance
      * @param version The version which serialized
      */
-    protected void assertOnBWCObject(T bwcSerializedObject, T testInstance, Version version) {
+    protected void assertOnBWCObject(T bwcSerializedObject, T testInstance, TransportVersion version) {
         assertNotSame(version.toString(), bwcSerializedObject, testInstance);
         assertEquals(version.toString(), bwcSerializedObject, testInstance);
         assertEquals(version.toString(), bwcSerializedObject.hashCode(), testInstance.hashCode());

@@ -51,7 +51,7 @@ setup:
         Content-Type: application/json
       index:
           index:  "test"
-          id:     1
+          id:     "1"
           body:
             binary: "YWJjZGUxMjM0"
             boolean: true
@@ -76,7 +76,7 @@ setup:
         Content-Type: application/json
       index:
           index:  "test"
-          id:     2
+          id:     "2"
           body:
             binary: "YWJjZGUxMjM0"
             boolean: false
@@ -100,7 +100,7 @@ setup:
         Content-Type: application/json
       index:
           index:  "test"
-          id:     3
+          id:     "3"
           routing: "route_me"
           body:
             binary: "YWJjZGUxMjM0"
@@ -123,7 +123,7 @@ setup:
   - do:
       index:
           index:  "test"
-          id:     4
+          id:     "4"
           body: {}
 
   - do:
@@ -190,7 +190,7 @@ setup:
         Content-Type: application/json
       index:
           index:  "test-no-dv"
-          id:     1
+          id:     "1"
           body:
             binary: "YWJjZGUxMjM0"
             boolean: true
@@ -215,7 +215,7 @@ setup:
         Content-Type: application/json
       index:
           index:  "test-no-dv"
-          id:     2
+          id:     "2"
           body:
             binary: "YWJjZGUxMjM0"
             boolean: false
@@ -239,7 +239,7 @@ setup:
         Content-Type: application/json
       index:
           index:  "test-no-dv"
-          id:     3
+          id:     "3"
           routing: "route_me"
           body:
             binary: "YWJjZGUxMjM0"
@@ -262,7 +262,7 @@ setup:
   - do:
       index:
           index:  "test-no-dv"
-          id:     4
+          id:     "4"
           body: {}
 
   - do:
@@ -278,7 +278,7 @@ setup:
   - do:
       index:
           index:  "test-unmapped"
-          id:     1
+          id:     "1"
           body:
             unrelated: "foo"
 
@@ -1238,3 +1238,31 @@ setup:
                 field: text
 
   - match: {hits.total: 3}
+
+---
+"Test exists query on text field with empty values":
+  - skip:
+      version: '8.4.0 - 8.5.0'
+      reason:  Regression introduced in 8.4.0, fixed in 8.5.1
+
+  - do:
+      index:
+          index:  "empty_text"
+          id:     "999"
+          body:
+            text: ""
+
+  - do:
+      indices.refresh:
+          index: [empty_text]
+
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: empty_text
+          body:
+            query:
+              exists:
+                field: text
+
+  - match: {hits.total: 1}

@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.action.resync;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -32,12 +32,13 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class TransportResyncReplicationAction extends TransportWriteAction<
     ResyncReplicationRequest,
@@ -69,7 +70,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
             actionFilters,
             ResyncReplicationRequest::new,
             ResyncReplicationRequest::new,
-            ExecutorSelector::getWriteExecutorForShard,
+            ExecutorSelector.getWriteExecutorForShard(threadPool),
             true, /* we should never reject resync because of thread pool capacity on primary */
             indexingPressure,
             systemIndices
@@ -111,7 +112,14 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
     ) {
         ActionListener.completeWith(
             listener,
-            () -> new WritePrimaryResult<>(performOnPrimary(request), new ResyncReplicationResponse(), null, null, primary, logger)
+            () -> new WritePrimaryResult<>(
+                performOnPrimary(request),
+                new ResyncReplicationResponse(),
+                null,
+                primary,
+                logger,
+                postWriteRefresh
+            )
         );
     }
 
@@ -190,11 +198,11 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
             new ConcreteShardRequest<>(request, primaryAllocationId, primaryTerm),
             parentTask,
             transportOptions,
-            new TransportResponseHandler<ResyncReplicationResponse>() {
-                @Override
-                public ResyncReplicationResponse read(StreamInput in) throws IOException {
-                    return newResponseInstance(in);
-                }
+            new ActionListenerResponseHandler<>(
+                listener,
+                TransportResyncReplicationAction.this::newResponseInstance,
+                TransportResponseHandler.TRANSPORT_WORKER
+            ) {
 
                 @Override
                 public void handleResponse(ResyncReplicationResponse response) {
@@ -203,20 +211,11 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
                     for (int i = 0; i < failures.length; i++) {
                         final ReplicationResponse.ShardInfo.Failure f = failures[i];
                         logger.info(
-                            new ParameterizedMessage(
-                                "{} primary-replica resync to replica on node [{}] failed",
-                                f.fullShardId(),
-                                f.nodeId()
-                            ),
+                            () -> format("%s primary-replica resync to replica on node [%s] failed", f.fullShardId(), f.nodeId()),
                             f.getCause()
                         );
                     }
                     listener.onResponse(response);
-                }
-
-                @Override
-                public void handleException(TransportException exp) {
-                    listener.onFailure(exp);
                 }
             }
         );

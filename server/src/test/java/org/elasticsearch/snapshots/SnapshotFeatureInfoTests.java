@@ -9,13 +9,13 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
 
-public class SnapshotFeatureInfoTests extends AbstractSerializingTestCase<SnapshotFeatureInfo> {
+public class SnapshotFeatureInfoTests extends AbstractXContentSerializingTestCase<SnapshotFeatureInfo> {
     @Override
     protected SnapshotFeatureInfo doParseInstance(XContentParser parser) throws IOException {
         return SnapshotFeatureInfo.fromXContent(parser);
@@ -38,7 +38,7 @@ public class SnapshotFeatureInfoTests extends AbstractSerializingTestCase<Snapsh
     }
 
     @Override
-    protected SnapshotFeatureInfo mutateInstance(SnapshotFeatureInfo instance) throws IOException {
+    protected SnapshotFeatureInfo mutateInstance(SnapshotFeatureInfo instance) {
         if (randomBoolean()) {
             return new SnapshotFeatureInfo(
                 randomValueOtherThan(instance.getPluginName(), () -> randomAlphaOfLengthBetween(5, 20)),

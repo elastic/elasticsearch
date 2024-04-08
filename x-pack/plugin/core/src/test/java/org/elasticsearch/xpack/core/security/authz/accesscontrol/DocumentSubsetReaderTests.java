@@ -23,12 +23,12 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -91,7 +91,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         iw.close();
         openDirectoryReader();
 
-        IndexSearcher indexSearcher = new IndexSearcher(
+        IndexSearcher indexSearcher = newSearcher(
             DocumentSubsetReader.wrap(directoryReader, bitsetCache, new TermQuery(new Term("field", "value1")))
         );
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(1));
@@ -99,25 +99,19 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         assertThat(result.totalHits.value, equalTo(1L));
         assertThat(result.scoreDocs[0].doc, equalTo(0));
 
-        indexSearcher = new IndexSearcher(
-            DocumentSubsetReader.wrap(directoryReader, bitsetCache, new TermQuery(new Term("field", "value2")))
-        );
+        indexSearcher = newSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache, new TermQuery(new Term("field", "value2"))));
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(1));
         result = indexSearcher.search(new MatchAllDocsQuery(), 1);
         assertThat(result.totalHits.value, equalTo(1L));
         assertThat(result.scoreDocs[0].doc, equalTo(1));
 
         // this doc has been marked as deleted:
-        indexSearcher = new IndexSearcher(
-            DocumentSubsetReader.wrap(directoryReader, bitsetCache, new TermQuery(new Term("field", "value3")))
-        );
+        indexSearcher = newSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache, new TermQuery(new Term("field", "value3"))));
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(0));
         result = indexSearcher.search(new MatchAllDocsQuery(), 1);
         assertThat(result.totalHits.value, equalTo(0L));
 
-        indexSearcher = new IndexSearcher(
-            DocumentSubsetReader.wrap(directoryReader, bitsetCache, new TermQuery(new Term("field", "value4")))
-        );
+        indexSearcher = newSearcher(DocumentSubsetReader.wrap(directoryReader, bitsetCache, new TermQuery(new Term("field", "value4"))));
         assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(1));
         result = indexSearcher.search(new MatchAllDocsQuery(), 1);
         assertThat(result.totalHits.value, equalTo(1L));

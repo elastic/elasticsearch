@@ -37,7 +37,7 @@ Change the default GC log output location to `/opt/my-app/gc.log` by
 -Xlog:all=warning:stderr:utctime,level,tags
 
 # Enable GC logging to a custom location with a variety of options
--Xlog:gc*,gc+age=trace,safepoint:file=/opt/my-app/gc.log:utctime,pid,tags:filecount=32,filesize=64m
+-Xlog:gc*,gc+age=trace,safepoint:file=/opt/my-app/gc.log:utctime,level,pid,tags:filecount=32,filesize=64m
 ----
 
 Configure an {es} <<docker,Docker container>> to send GC debug logs to

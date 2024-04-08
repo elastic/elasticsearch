@@ -8,10 +8,11 @@
 
 package org.elasticsearch.action.admin.indices.template.post;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,7 +31,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
     public static final String NAME = "indices:admin/index_template/simulate";
 
     private SimulateTemplateAction() {
-        super(NAME, SimulateIndexTemplateResponse::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
@@ -39,7 +40,8 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
         private String templateName;
 
         @Nullable
-        private PutComposableIndexTemplateAction.Request indexTemplateRequest;
+        private TransportPutComposableIndexTemplateAction.Request indexTemplateRequest;
+        private boolean includeDefaults = false;
 
         public Request() {}
 
@@ -50,7 +52,7 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
             this.templateName = templateName;
         }
 
-        public Request(PutComposableIndexTemplateAction.Request indexTemplateRequest) {
+        public Request(TransportPutComposableIndexTemplateAction.Request indexTemplateRequest) {
             if (indexTemplateRequest == null) {
                 throw new IllegalArgumentException("index template body must be present");
             }
@@ -60,7 +62,10 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
         public Request(StreamInput in) throws IOException {
             super(in);
             templateName = in.readOptionalString();
-            indexTemplateRequest = in.readOptionalWriteable(PutComposableIndexTemplateAction.Request::new);
+            indexTemplateRequest = in.readOptionalWriteable(TransportPutComposableIndexTemplateAction.Request::new);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+                includeDefaults = in.readBoolean();
+            }
         }
 
         @Override
@@ -68,6 +73,9 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
             super.writeTo(out);
             out.writeOptionalString(templateName);
             out.writeOptionalWriteable(indexTemplateRequest);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+                out.writeBoolean(includeDefaults);
+            }
         }
 
         @Override
@@ -90,8 +98,12 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
             return templateName;
         }
 
+        public boolean includeDefaults() {
+            return includeDefaults;
+        }
+
         @Nullable
-        public PutComposableIndexTemplateAction.Request getIndexTemplateRequest() {
+        public TransportPutComposableIndexTemplateAction.Request getIndexTemplateRequest() {
             return indexTemplateRequest;
         }
 
@@ -100,8 +112,13 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
             return this;
         }
 
-        public Request indexTemplateRequest(PutComposableIndexTemplateAction.Request indexTemplateRequest) {
+        public Request indexTemplateRequest(TransportPutComposableIndexTemplateAction.Request indexTemplateRequest) {
             this.indexTemplateRequest = indexTemplateRequest;
+            return this;
+        }
+
+        public Request includeDefaults(boolean includeDefaults) {
+            this.includeDefaults = includeDefaults;
             return this;
         }
 
@@ -114,12 +131,14 @@ public class SimulateTemplateAction extends ActionType<SimulateIndexTemplateResp
                 return false;
             }
             Request that = (Request) o;
-            return templateName.equals(that.templateName) && Objects.equals(indexTemplateRequest, that.indexTemplateRequest);
+            return templateName.equals(that.templateName)
+                && Objects.equals(indexTemplateRequest, that.indexTemplateRequest)
+                && includeDefaults == that.includeDefaults;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(templateName, indexTemplateRequest);
+            return Objects.hash(templateName, indexTemplateRequest, includeDefaults);
         }
     }
 }

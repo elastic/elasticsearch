@@ -31,8 +31,10 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.rest.RestRequest.PATH_RESTRICTED;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -201,6 +203,17 @@ public class RestRequestTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("Invalid media-type value on headers [Content-Type]"));
     }
 
+    public void testInvalidMediaTypeCharacter() {
+        List<String> headers = List.of("a/b[", "a/b]", "a/b\\");
+        for (String header : headers) {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> RestRequest.parseContentType(Collections.singletonList(header))
+            );
+            assertThat(e.getMessage(), equalTo("invalid Content-Type header [" + header + "]"));
+        }
+    }
+
     public void testNoContentTypeHeader() {
         RestRequest contentRestRequest = contentRestRequest("", Collections.emptyMap(), Collections.emptyMap());
         assertNull(contentRestRequest.getXContentType());
@@ -236,7 +249,19 @@ public class RestRequestTests extends ESTestCase {
         assertEquals("unknown content type", e.getMessage());
     }
 
-    private static RestRequest contentRestRequest(String content, Map<String, String> params) {
+    public void testMarkPathRestricted() {
+        RestRequest request1 = contentRestRequest("content", new HashMap<>());
+        request1.markPathRestricted("foo");
+        assertEquals(request1.param(PATH_RESTRICTED), "foo");
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> request1.markPathRestricted("foo"));
+        assertThat(exception.getMessage(), is("The parameter [" + PATH_RESTRICTED + "] is already defined."));
+
+        RestRequest request2 = contentRestRequest("content", Map.of(PATH_RESTRICTED, "foo"));
+        exception = expectThrows(IllegalArgumentException.class, () -> request2.markPathRestricted("bar"));
+        assertThat(exception.getMessage(), is("The parameter [" + PATH_RESTRICTED + "] is already defined."));
+    }
+
+    public static RestRequest contentRestRequest(String content, Map<String, String> params) {
         Map<String, List<String>> headers = new HashMap<>();
         headers.put("Content-Type", Collections.singletonList("application/json"));
         return contentRestRequest(content, params, headers);
@@ -250,7 +275,7 @@ public class RestRequestTests extends ESTestCase {
         return new ContentRestRequest(builder.build());
     }
 
-    private static final class ContentRestRequest extends RestRequest {
+    public static final class ContentRestRequest extends RestRequest {
 
         private final RestRequest restRequest;
 

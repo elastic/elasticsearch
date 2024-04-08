@@ -15,7 +15,11 @@ import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.DependencySet;
 import org.gradle.api.artifacts.ModuleVersionIdentifier;
 import org.gradle.api.artifacts.ProjectDependency;
+import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.internal.ConventionTask;
+import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
@@ -33,6 +37,8 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import javax.inject.Inject;
+
 /**
  * A task to gather information about the dependencies and export them into a csv file.
  * <p>
@@ -45,17 +51,12 @@ import java.util.stream.Collectors;
  * </ul>
  */
 public class DependenciesInfoTask extends ConventionTask {
-    /**
-     * Directory to read license files
-     */
-    @Optional
-    @InputDirectory
-    private File licensesDir = new File(getProject().getProjectDir(), "licenses").exists()
-        ? new File(getProject().getProjectDir(), "licenses")
-        : null;
+
+    private final DirectoryProperty licensesDir;
 
     @OutputFile
-    private File outputFile = new File(getProject().getBuildDir(), "reports/dependencies/dependencies.csv");
+    private File outputFile;
+
     private LinkedHashMap<String, String> mappings;
 
     public Configuration getRuntimeConfiguration() {
@@ -74,12 +75,22 @@ public class DependenciesInfoTask extends ConventionTask {
         this.compileOnlyConfiguration = compileOnlyConfiguration;
     }
 
+    /**
+     * Directory to read license files
+     */
+    @Optional
+    @InputDirectory
     public File getLicensesDir() {
-        return licensesDir;
+        File asFile = licensesDir.get().getAsFile();
+        if (asFile.exists()) {
+            return asFile;
+        }
+
+        return null;
     }
 
     public void setLicensesDir(File licensesDir) {
-        this.licensesDir = licensesDir;
+        this.licensesDir.set(licensesDir);
     }
 
     public File getOutputFile() {
@@ -101,13 +112,16 @@ public class DependenciesInfoTask extends ConventionTask {
     @InputFiles
     private Configuration compileOnlyConfiguration;
 
-    public DependenciesInfoTask() {
+    @Inject
+    public DependenciesInfoTask(ProjectLayout projectLayout, ObjectFactory objectFactory, ProviderFactory providerFactory) {
+        this.licensesDir = objectFactory.directoryProperty();
+        this.licensesDir.convention(providerFactory.provider(() -> projectLayout.getProjectDirectory().dir("licenses")));
+        this.outputFile = projectLayout.getBuildDirectory().dir("reports/dependencies").get().file("dependencies.csv").getAsFile();
         setDescription("Create a CSV file with dependencies information.");
     }
 
     @TaskAction
     public void generateDependenciesInfo() throws IOException {
-
         final DependencySet runtimeDependencies = runtimeConfiguration.getAllDependencies();
         // we have to resolve the transitive dependencies and create a group:artifactId:version map
 
@@ -128,7 +142,7 @@ public class DependenciesInfoTask extends ConventionTask {
             }
 
             // only external dependencies are checked
-            if (dep instanceof ProjectDependency) {
+            if (dep instanceof ProjectDependency || dep.getGroup().startsWith("org.elasticsearch")) {
                 continue;
             }
 
@@ -158,7 +172,7 @@ public class DependenciesInfoTask extends ConventionTask {
      */
     protected String createURL(final String group, final String name, final String version) {
         final String baseURL = "https://repo1.maven.org/maven2";
-        return baseURL + "/" + group.replaceAll("\\.", "/") + "/" + name + "/" + version;
+        return baseURL + "/" + group.replace('.', '/') + "/" + name + "/" + version;
     }
 
     /**
@@ -184,7 +198,7 @@ public class DependenciesInfoTask extends ConventionTask {
         if (licenseInfo.spdxLicense() == false) {
             // License has not be identified as SPDX.
             // As we have the license file, we create a Custom entry with the URL to this license file.
-            final String gitBranch = System.getProperty("build.branch", "master");
+            final String gitBranch = System.getProperty("build.branch", "main");
             final String githubBaseURL = "https://raw.githubusercontent.com/elastic/elasticsearch/" + gitBranch + "/";
             licenseType = licenseInfo.identifier()
                 + ";"
@@ -202,27 +216,22 @@ public class DependenciesInfoTask extends ConventionTask {
         return licenseType;
     }
 
-    protected File getDependencyInfoFile(final String group, final String name, final String infoFileSuffix) {
-        java.util.Optional<File> license = licensesDir != null
-            ? Arrays.stream(licensesDir.listFiles((dir, fileName) -> Pattern.matches(".*-" + infoFileSuffix + ".*", fileName)))
-                .filter(file -> {
-                    String prefix = file.getName().split("-" + infoFileSuffix + ".*")[0];
-                    return group.contains(prefix) || name.contains(prefix);
-                })
-                .findFirst()
-            : java.util.Optional.empty();
+    private IllegalStateException missingInfo(String group, String name, String infoFileSuffix, String reason) {
+        return new IllegalStateException("Unable to find " + infoFileSuffix + " file for dependency " + group + ":" + name + " " + reason);
+    }
 
-        return license.orElseThrow(
-            () -> new IllegalStateException(
-                "Unable to find "
-                    + infoFileSuffix
-                    + " file for dependency "
-                    + group
-                    + ":"
-                    + name
-                    + " in "
-                    + getLicensesDir().getAbsolutePath()
-            )
-        );
+    protected File getDependencyInfoFile(final String group, final String name, final String infoFileSuffix) {
+        File dir = getLicensesDir();
+        if (dir == null) {
+            throw missingInfo(group, name, infoFileSuffix, " because license dir is missing at " + licensesDir.getAsFile().get());
+        }
+        java.util.Optional<File> license = Arrays.stream(
+            dir.listFiles((d, fileName) -> Pattern.matches(".*-" + infoFileSuffix + ".*", fileName))
+        ).filter(file -> {
+            String prefix = file.getName().split("-" + infoFileSuffix + ".*")[0];
+            return group.contains(prefix) || name.contains(prefix);
+        }).findFirst();
+
+        return license.orElseThrow(() -> missingInfo(group, name, infoFileSuffix, " in " + dir));
     }
 }

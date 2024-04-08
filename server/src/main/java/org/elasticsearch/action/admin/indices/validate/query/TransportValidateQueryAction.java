@@ -27,7 +27,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
@@ -73,7 +72,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
             indexNameExpressionResolver,
             ValidateQueryRequest::new,
             ShardValidateQueryRequest::new,
-            ThreadPool.Names.SEARCH
+            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
         );
         this.searchService = searchService;
     }
@@ -202,8 +201,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
             request.nowInMillis(),
             request.filteringAliases()
         );
-        SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
-        try {
+        try (SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT)) {
             ParsedQuery parsedQuery = searchContext.getSearchExecutionContext().toQuery(request.query());
             searchContext.parsedQuery(parsedQuery);
             searchContext.preProcess();
@@ -215,14 +213,12 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         } catch (AssertionError e) {
             valid = false;
             error = e.getMessage();
-        } finally {
-            Releasables.close(searchContext);
         }
 
         return new ShardValidateQueryResponse(request.shardId(), valid, explanation, error);
     }
 
-    private String explain(SearchContext context, boolean rewritten) {
+    private static String explain(SearchContext context, boolean rewritten) {
         Query query = rewritten ? context.rewrittenQuery() : context.query();
         if (rewritten && query instanceof MatchNoDocsQuery) {
             return context.parsedQuery().query().toString();

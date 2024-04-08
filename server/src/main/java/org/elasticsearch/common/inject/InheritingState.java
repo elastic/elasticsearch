@@ -22,16 +22,12 @@ import org.elasticsearch.common.inject.internal.InstanceBindingImpl;
 import org.elasticsearch.common.inject.internal.InternalFactory;
 import org.elasticsearch.common.inject.internal.MatcherAndConverter;
 import org.elasticsearch.common.inject.internal.SourceProvider;
-import org.elasticsearch.common.inject.spi.TypeListenerBinding;
 
-import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static java.util.Collections.emptySet;
 
@@ -40,32 +36,27 @@ import static java.util.Collections.emptySet;
  */
 class InheritingState implements State {
 
-    private final State parent;
-
     // Must be a linked hashmap in order to preserve order of bindings in Modules.
     private final Map<Key<?>, Binding<?>> explicitBindingsMutable = new LinkedHashMap<>();
     private final Map<Key<?>, Binding<?>> explicitBindings = Collections.unmodifiableMap(explicitBindingsMutable);
-    private final Map<Class<? extends Annotation>, Scope> scopes = new HashMap<>();
     private final List<MatcherAndConverter> converters = new ArrayList<>();
-    private final List<TypeListenerBinding> listenerBindings = new ArrayList<>();
     private WeakKeySet blacklistedKeys = new WeakKeySet();
     private final Object lock;
 
-    InheritingState(State parent) {
-        this.parent = Objects.requireNonNull(parent, "parent");
-        this.lock = (parent == State.NONE) ? this : parent.lock();
+    InheritingState() {
+        this.lock = this;
     }
 
     @Override
     public State parent() {
-        return parent;
+        return State.NONE;
     }
 
     @Override
     @SuppressWarnings("unchecked") // we only put in BindingImpls that match their key types
     public <T> BindingImpl<T> getExplicitBinding(Key<T> key) {
         Binding<?> binding = explicitBindings.get(key);
-        return binding != null ? (BindingImpl<T>) binding : parent.getExplicitBinding(key);
+        return binding != null ? (BindingImpl<T>) binding : State.NONE.getExplicitBinding(key);
     }
 
     @Override
@@ -76,17 +67,6 @@ class InheritingState implements State {
     @Override
     public void putBinding(Key<?> key, BindingImpl<?> binding) {
         explicitBindingsMutable.put(key, binding);
-    }
-
-    @Override
-    public Scope getScope(Class<? extends Annotation> annotationType) {
-        Scope scope = scopes.get(annotationType);
-        return scope != null ? scope : parent.getScope(annotationType);
-    }
-
-    @Override
-    public void putAnnotation(Class<? extends Annotation> annotationType, Scope scope) {
-        scopes.put(annotationType, scope);
     }
 
     @Override
@@ -116,22 +96,8 @@ class InheritingState implements State {
     }
 
     @Override
-    public void addTypeListener(TypeListenerBinding listenerBinding) {
-        listenerBindings.add(listenerBinding);
-    }
-
-    @Override
-    public List<TypeListenerBinding> getTypeListenerBindings() {
-        List<TypeListenerBinding> parentBindings = parent.getTypeListenerBindings();
-        List<TypeListenerBinding> result = new ArrayList<>(parentBindings.size() + 1);
-        result.addAll(parentBindings);
-        result.addAll(listenerBindings);
-        return result;
-    }
-
-    @Override
     public void blacklist(Key<?> key) {
-        parent.blacklist(key);
+        State.NONE.blacklist(key);
         blacklistedKeys.add(key);
     }
 

@@ -23,15 +23,42 @@ import java.util.Collections;
 import java.util.Map;
 
 /**
- * Plugin for defining system indices. Extends {@link ActionPlugin} because system indices must be accessed via APIs
- * added by the plugin that owns the system index, rather than standard APIs.
+ * A Plugin that can store state in protected Elasticsearch indices or data streams.
+ *
+ * <p>A Plugin that implements this interface can define {@link SystemIndexDescriptor}s and {@link SystemDataStreamDescriptor}s using
+ * index patterns. Any index or data stream matching these patterns will be separated from user space.
+ *
+ * <p>The indices and data streams will be restricted to users whose relevant index permissions have the “allow_restricted_indices”
+ * parameter set to true. Accessing these indices without using specific headers may result in a deprecation warning, or, in some cases,
+ * will result in denial of the request. In the future, all requests without correct headers will be rejected or ignored.
+ *
+ * <p>SystemIndexPlugin extends {@link ActionPlugin} because, ideally, the plugin will provide its own APIs for manipulating its resources,
+ * rather than providing direct access to the indices or data streams. However, if direct index access is required, system index
+ * descriptors can be defined as “external” (see {@link SystemIndexDescriptor.Type}).
+ *
+ * <p>A SystemIndexPlugin may also specify “associated indices,” which hold plugin state in user space. These indices are not managed or
+ * protected, but they are included in snapshots of the feature.
+ *
+ * <p>An implementation of SystemIndexPlugin may override {@link #cleanUpFeature(ClusterService, Client, ActionListener)} in order to
+ * provide a “factory reset” of the plugin state. This can be useful for testing. The default method will simply retrieve a list of
+ * system and associated indices and delete them.
+ *
+ * <p>An implementation may also override {@link #prepareForIndicesMigration(ClusterService, Client, ActionListener)}  and
+ * {@link #indicesMigrationComplete(Map, ClusterService, Client, ActionListener)}  in order to take special action before and after a
+ * feature migration, which will temporarily block access to system indices. For example, a plugin might want to enter a safe mode and
+ * reject certain requests while the migration is in progress. See {@link org.elasticsearch.upgrades.SystemIndexMigrationExecutor} for
+ * more details.
+ *
+ * <p>After plugins are loaded, the {@link SystemIndices} class will provide the rest of the system with access to the feature's
+ * descriptors.
  */
 public interface SystemIndexPlugin extends ActionPlugin {
 
     /**
      * Returns a {@link Collection} of {@link SystemIndexDescriptor}s that describe this plugin's system indices, including
      * name, mapping, and settings.
-     * @param settings The node's settings
+     * @param settings The node's settings. Note that although this parameter is not heavily used in our codebase, it could be an
+     *                 excellent way to make the definition of a system index responsive to settings on the node.
      * @return Descriptions of the system indices managed by this plugin.
      */
     default Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {

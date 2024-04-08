@@ -13,13 +13,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.BoostingQueryBuilder;
-import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
-import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
@@ -27,13 +23,13 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Collections;
 
 /**
  * This class helps in evaluating the query field if it is template,
@@ -78,10 +74,7 @@ public final class DLSRoleQueryValidator {
     }
 
     private static boolean isTemplateQuery(BytesReference query, NamedXContentRegistry xContentRegistry) throws IOException {
-        try (
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, query.utf8ToString())
-        ) {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(parserConfig(xContentRegistry), query.utf8ToString())) {
             return isTemplateQuery(parser);
         }
     }
@@ -111,10 +104,7 @@ public final class DLSRoleQueryValidator {
     }
 
     public static boolean hasStoredScript(BytesReference query, NamedXContentRegistry xContentRegistry) throws IOException {
-        try (
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, query.utf8ToString())
-        ) {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(parserConfig(xContentRegistry), query.utf8ToString())) {
             if (false == isTemplateQuery(parser)) {
                 return false;
             }
@@ -161,59 +151,44 @@ public final class DLSRoleQueryValidator {
     @Nullable
     public static QueryBuilder evaluateAndVerifyRoleQuery(String query, NamedXContentRegistry xContentRegistry) throws IOException {
         if (query != null) {
-            try (
-                XContentParser parser = XContentFactory.xContent(query)
-                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, query)
-            ) {
-                QueryBuilder queryBuilder = AbstractQueryBuilder.parseInnerQueryBuilder(parser);
-                verifyRoleQuery(queryBuilder);
-                return queryBuilder;
+            NamedXContentRegistry registryWrapper = new NamedXContentRegistry(Collections.emptyList()) {
+                @Override
+                public <T, C> T parseNamedObject(Class<T> categoryClass, String name, XContentParser parser, C context) throws IOException {
+                    T namedObject = xContentRegistry.parseNamedObject(categoryClass, name, parser, context);
+                    if (categoryClass.equals(QueryBuilder.class)) {
+                        if (namedObject instanceof TermsQueryBuilder termsQueryBuilder) {
+                            if (termsQueryBuilder.termsLookup() != null) {
+                                throw new IllegalArgumentException("terms query with terms lookup isn't supported as part of a role query");
+                            }
+                        } else if (namedObject instanceof GeoShapeQueryBuilder geoShapeQueryBuilder) {
+                            if (geoShapeQueryBuilder.shape() == null) {
+                                throw new IllegalArgumentException(
+                                    "geoshape query referring to indexed shapes isn't supported as part of a role query"
+                                );
+                            }
+                        }
+                    }
+                    return namedObject;
+                }
+            };
+            try (XContentParser parser = XContentFactory.xContent(query).createParser(parserConfig(registryWrapper), query)) {
+                return AbstractQueryBuilder.parseTopLevelQuery(parser, queryName -> {
+                    switch (queryName) {
+                        // actually only if percolate query is referring to an existing document then this is problematic,
+                        // a normal percolate query does work. However we can't check that here as this query builder is inside
+                        // another module. So we don't allow the entire percolate query. I don't think users would ever use
+                        // a percolate query as role query, so this restriction shouldn't prohibit anyone from using dls.
+                        case "percolate", "has_child", "has_parent" -> throw new IllegalArgumentException(
+                            queryName + " query isn't supported as part of a role query"
+                        );
+                    }
+                });
             }
         }
         return null;
     }
 
-    /**
-     * Checks whether the role query contains queries we know can't be used as DLS role query.
-     *
-     * @param queryBuilder {@link QueryBuilder} for given query
-     */
-    // pkg protected for testing
-    static void verifyRoleQuery(QueryBuilder queryBuilder) {
-        if (queryBuilder instanceof TermsQueryBuilder termsQueryBuilder) {
-            if (termsQueryBuilder.termsLookup() != null) {
-                throw new IllegalArgumentException("terms query with terms lookup isn't supported as part of a role query");
-            }
-        } else if (queryBuilder instanceof GeoShapeQueryBuilder geoShapeQueryBuilder) {
-            if (geoShapeQueryBuilder.shape() == null) {
-                throw new IllegalArgumentException("geoshape query referring to indexed shapes isn't supported as part of a role query");
-            }
-        } else if (queryBuilder.getName().equals("percolate")) {
-            // actually only if percolate query is referring to an existing document then this is problematic,
-            // a normal percolate query does work. However we can't check that here as this query builder is inside
-            // another module. So we don't allow the entire percolate query. I don't think users would ever use
-            // a percolate query as role query, so this restriction shouldn't prohibit anyone from using dls.
-            throw new IllegalArgumentException("percolate query isn't supported as part of a role query");
-        } else if (queryBuilder.getName().equals("has_child")) {
-            throw new IllegalArgumentException("has_child query isn't supported as part of a role query");
-        } else if (queryBuilder.getName().equals("has_parent")) {
-            throw new IllegalArgumentException("has_parent query isn't supported as part of a role query");
-        } else if (queryBuilder instanceof BoolQueryBuilder boolQueryBuilder) {
-            List<QueryBuilder> clauses = new ArrayList<>();
-            clauses.addAll(boolQueryBuilder.filter());
-            clauses.addAll(boolQueryBuilder.must());
-            clauses.addAll(boolQueryBuilder.mustNot());
-            clauses.addAll(boolQueryBuilder.should());
-            for (QueryBuilder clause : clauses) {
-                verifyRoleQuery(clause);
-            }
-        } else if (queryBuilder instanceof ConstantScoreQueryBuilder) {
-            verifyRoleQuery(((ConstantScoreQueryBuilder) queryBuilder).innerQuery());
-        } else if (queryBuilder instanceof FunctionScoreQueryBuilder) {
-            verifyRoleQuery(((FunctionScoreQueryBuilder) queryBuilder).query());
-        } else if (queryBuilder instanceof BoostingQueryBuilder) {
-            verifyRoleQuery(((BoostingQueryBuilder) queryBuilder).negativeQuery());
-            verifyRoleQuery(((BoostingQueryBuilder) queryBuilder).positiveQuery());
-        }
+    private static XContentParserConfiguration parserConfig(NamedXContentRegistry xContentRegistry) {
+        return XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
     }
 }

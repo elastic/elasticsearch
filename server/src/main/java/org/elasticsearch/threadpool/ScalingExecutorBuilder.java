@@ -30,6 +30,7 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
     private final Setting<Integer> coreSetting;
     private final Setting<Integer> maxSetting;
     private final Setting<TimeValue> keepAliveSetting;
+    private final boolean rejectAfterShutdown;
 
     /**
      * Construct a scaling executor builder; the settings will have the
@@ -40,9 +41,16 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
      * @param max       the maximum number of threads in the pool
      * @param keepAlive the time that spare threads above {@code core}
      *                  threads will be kept alive
+     * @param rejectAfterShutdown set to {@code true} if the executor should reject tasks after shutdown
      */
-    public ScalingExecutorBuilder(final String name, final int core, final int max, final TimeValue keepAlive) {
-        this(name, core, max, keepAlive, "thread_pool." + name);
+    public ScalingExecutorBuilder(
+        final String name,
+        final int core,
+        final int max,
+        final TimeValue keepAlive,
+        final boolean rejectAfterShutdown
+    ) {
+        this(name, core, max, keepAlive, rejectAfterShutdown, "thread_pool." + name);
     }
 
     /**
@@ -55,12 +63,21 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
      * @param keepAlive the time that spare threads above {@code core}
      *                  threads will be kept alive
      * @param prefix    the prefix for the settings keys
+     * @param rejectAfterShutdown set to {@code true} if the executor should reject tasks after shutdown
      */
-    public ScalingExecutorBuilder(final String name, final int core, final int max, final TimeValue keepAlive, final String prefix) {
+    public ScalingExecutorBuilder(
+        final String name,
+        final int core,
+        final int max,
+        final TimeValue keepAlive,
+        final boolean rejectAfterShutdown,
+        final String prefix
+    ) {
         super(name);
         this.coreSetting = Setting.intSetting(settingsKey(prefix, "core"), core, Setting.Property.NodeScope);
         this.maxSetting = Setting.intSetting(settingsKey(prefix, "max"), max, Setting.Property.NodeScope);
         this.keepAliveSetting = Setting.timeSetting(settingsKey(prefix, "keep_alive"), keepAlive, Setting.Property.NodeScope);
+        this.rejectAfterShutdown = rejectAfterShutdown;
     }
 
     @Override
@@ -89,6 +106,7 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
             max,
             keepAlive.millis(),
             TimeUnit.MILLISECONDS,
+            rejectAfterShutdown,
             threadFactory,
             threadContext
         );

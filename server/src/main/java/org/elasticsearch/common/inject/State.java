@@ -19,11 +19,7 @@ package org.elasticsearch.common.inject;
 import org.elasticsearch.common.inject.internal.BindingImpl;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.MatcherAndConverter;
-import org.elasticsearch.common.inject.spi.TypeListenerBinding;
 
-import java.lang.annotation.Annotation;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptySet;
@@ -58,16 +54,6 @@ interface State {
         }
 
         @Override
-        public Scope getScope(Class<? extends Annotation> scopingAnnotation) {
-            return null;
-        }
-
-        @Override
-        public void putAnnotation(Class<? extends Annotation> annotationType, Scope scope) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public void addConverter(MatcherAndConverter matcherAndConverter) {
             throw new UnsupportedOperationException();
         }
@@ -80,16 +66,6 @@ interface State {
         @Override
         public Iterable<MatcherAndConverter> getConvertersThisLevel() {
             return emptySet();
-        }
-
-        @Override
-        public void addTypeListener(TypeListenerBinding typeListenerBinding) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public List<TypeListenerBinding> getTypeListenerBindings() {
-            return Collections.emptyList();
         }
 
         @Override
@@ -126,13 +102,6 @@ interface State {
 
     void putBinding(Key<?> key, BindingImpl<?> binding);
 
-    /**
-     * Returns the matching scope, or null.
-     */
-    Scope getScope(Class<? extends Annotation> scopingAnnotation);
-
-    void putAnnotation(Class<? extends Annotation> annotationType, Scope scope);
-
     void addConverter(MatcherAndConverter matcherAndConverter);
 
     /**
@@ -144,10 +113,6 @@ interface State {
      * Returns all converters at this level only.
      */
     Iterable<MatcherAndConverter> getConvertersThisLevel();
-
-    void addTypeListener(TypeListenerBinding typeListenerBinding);
-
-    List<TypeListenerBinding> getTypeListenerBindings();
 
     /**
      * Forbids the corresponding injector from creating a binding to {@code key}. Child injectors

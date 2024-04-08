@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ml.MachineLearningField.ML_API_FEATURE;
@@ -93,8 +92,8 @@ public class JobStatsCollector extends Collector {
             return jobs.getResponse()
                 .results()
                 .stream()
-                .map(jobStats -> new JobStatsMonitoringDoc(clusterUuid, timestamp, interval, node, jobStats))
-                .collect(Collectors.toList());
+                .<MonitoringDoc>map(jobStats -> new JobStatsMonitoringDoc(clusterUuid, timestamp, interval, node, jobStats))
+                .toList();
         }
     }
 

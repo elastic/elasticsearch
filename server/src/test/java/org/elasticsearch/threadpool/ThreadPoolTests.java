@@ -11,22 +11,36 @@ package org.elasticsearch.threadpool;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedTransferQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DO_NOT_TRACK;
 import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.assertCurrentMethodIsNotCalledRecursively;
+import static org.elasticsearch.threadpool.ThreadPool.getMaxSnapshotThreadPoolSize;
+import static org.elasticsearch.threadpool.ThreadPool.halfAllocatedProcessorsMaxFive;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ThreadPoolTests extends ESTestCase {
 
@@ -49,6 +63,13 @@ public class ThreadPoolTests extends ESTestCase {
         int max = randomIntBetween(min + 1, 64);
         int value = randomIntBetween(min, max);
         assertThat(ThreadPool.boundedBy(value, min, max), equalTo(value));
+    }
+
+    public void testOneEighthAllocatedProcessors() {
+        assertThat(ThreadPool.oneEighthAllocatedProcessors(1), equalTo(1));
+        assertThat(ThreadPool.oneEighthAllocatedProcessors(4), equalTo(1));
+        assertThat(ThreadPool.oneEighthAllocatedProcessors(8), equalTo(1));
+        assertThat(ThreadPool.oneEighthAllocatedProcessors(32), equalTo(4));
     }
 
     public void testAbsoluteTime() throws Exception {
@@ -251,7 +272,7 @@ public class ThreadPoolTests extends ESTestCase {
                 assertNull(threadPool.getThreadContext().getHeader("bar"));
                 assertNull(threadPool.getThreadContext().getTransient("bar"));
                 executed.countDown();
-            }, TimeValue.timeValueMillis(randomInt(100)), randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC));
+            }, TimeValue.timeValueMillis(randomInt(100)), randomFrom(EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.generic()));
             threadPool.getThreadContext().putTransient("bar", "boom");
             threadPool.getThreadContext().putHeader("bar", "boom");
             latch.countDown();
@@ -296,7 +317,7 @@ public class ThreadPoolTests extends ESTestCase {
                     return "slow-test-task";
                 }
             };
-            threadPool.schedule(runnable, TimeValue.timeValueMillis(randomLongBetween(0, 300)), ThreadPool.Names.SAME);
+            threadPool.schedule(runnable, TimeValue.timeValueMillis(randomLongBetween(0, 300)), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             assertBusy(appender::assertAllExpectationsMatched);
         } finally {
             Loggers.removeAppender(logger, appender);
@@ -304,4 +325,235 @@ public class ThreadPoolTests extends ESTestCase {
             assertTrue(terminate(threadPool));
         }
     }
+
+    public void testForceMergeThreadPoolSize() {
+        final int allocatedProcessors = randomIntBetween(1, EsExecutors.allocatedProcessors(Settings.EMPTY));
+        final ThreadPool threadPool = new TestThreadPool(
+            "test",
+            Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), allocatedProcessors).build()
+        );
+        try {
+            final int expectedSize = Math.max(1, allocatedProcessors / 8);
+            ThreadPool.Info info = threadPool.info(ThreadPool.Names.FORCE_MERGE);
+            assertThat(info.getThreadPoolType(), equalTo(ThreadPool.ThreadPoolType.FIXED));
+            assertThat(info.getMin(), equalTo(expectedSize));
+            assertThat(info.getMax(), equalTo(expectedSize));
+        } finally {
+            assertTrue(terminate(threadPool));
+        }
+    }
+
+    public void testSearchCoordinationThreadPoolSize() {
+        final int expectedSize = randomIntBetween(1, EsExecutors.allocatedProcessors(Settings.EMPTY) / 2);
+        final int allocatedProcessors = Math.min(
+            EsExecutors.allocatedProcessors(Settings.EMPTY),
+            expectedSize * 2 - (randomIntBetween(0, 1))
+        );
+        final ThreadPool threadPool = new TestThreadPool(
+            "test",
+            Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), allocatedProcessors).build()
+        );
+        try {
+            ThreadPool.Info info = threadPool.info(ThreadPool.Names.SEARCH_COORDINATION);
+            assertThat(info.getThreadPoolType(), equalTo(ThreadPool.ThreadPoolType.FIXED));
+            assertThat(info.getMin(), equalTo(expectedSize));
+            assertThat(info.getMax(), equalTo(expectedSize));
+        } finally {
+            assertTrue(terminate(threadPool));
+        }
+    }
+
+    public void testGetMaxSnapshotCores() {
+        int allocatedProcessors = randomIntBetween(1, 16);
+        assertThat(
+            getMaxSnapshotThreadPoolSize(allocatedProcessors, ByteSizeValue.ofMb(400)),
+            equalTo(halfAllocatedProcessorsMaxFive(allocatedProcessors))
+        );
+        allocatedProcessors = randomIntBetween(1, 16);
+        assertThat(
+            getMaxSnapshotThreadPoolSize(allocatedProcessors, ByteSizeValue.ofMb(749)),
+            equalTo(halfAllocatedProcessorsMaxFive(allocatedProcessors))
+        );
+        allocatedProcessors = randomIntBetween(1, 16);
+        assertThat(getMaxSnapshotThreadPoolSize(allocatedProcessors, ByteSizeValue.ofMb(750)), equalTo(10));
+        allocatedProcessors = randomIntBetween(1, 16);
+        assertThat(getMaxSnapshotThreadPoolSize(allocatedProcessors, ByteSizeValue.ofGb(4)), equalTo(10));
+    }
+
+    public void testWriteThreadPoolUsesTaskExecutionTimeTrackingEsThreadPoolExecutor() {
+        final ThreadPool threadPool = new TestThreadPool("test", Settings.EMPTY);
+        try {
+            assertThat(threadPool.executor(ThreadPool.Names.WRITE), instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
+            assertThat(threadPool.executor(ThreadPool.Names.SYSTEM_WRITE), instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class));
+            assertThat(
+                threadPool.executor(ThreadPool.Names.SYSTEM_CRITICAL_WRITE),
+                instanceOf(TaskExecutionTimeTrackingEsThreadPoolExecutor.class)
+            );
+        } finally {
+            assertTrue(terminate(threadPool));
+        }
+    }
+
+    public void testSearchWorkedThreadPool() {
+        final int allocatedProcessors = randomIntBetween(1, EsExecutors.allocatedProcessors(Settings.EMPTY));
+        final ThreadPool threadPool = new TestThreadPool(
+            "test",
+            Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), allocatedProcessors).build()
+        );
+        try {
+            ExecutorService executor = threadPool.executor(ThreadPool.Names.SEARCH_WORKER);
+            assertThat(executor, instanceOf(ThreadPoolExecutor.class));
+            ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) executor;
+            int expectedPoolSize = allocatedProcessors * 3 / 2 + 1;
+            assertEquals(expectedPoolSize, threadPoolExecutor.getCorePoolSize());
+            assertEquals(expectedPoolSize, threadPoolExecutor.getMaximumPoolSize());
+            assertThat(threadPoolExecutor.getQueue(), instanceOf(LinkedTransferQueue.class));
+        } finally {
+            assertTrue(terminate(threadPool));
+        }
+    }
+
+    public void testScheduledOneShotRejection() {
+        final var name = "fixed-bounded";
+        final var threadPool = new TestThreadPool(
+            getTestName(),
+            new FixedExecutorBuilder(Settings.EMPTY, name, between(1, 5), between(1, 5), randomFrom(DEFAULT, DO_NOT_TRACK))
+        );
+
+        final var future = new PlainActionFuture<Void>();
+        final var latch = new CountDownLatch(1);
+        try {
+            blockExecution(threadPool.executor(name), latch);
+            threadPool.schedule(
+                ActionRunnable.run(future, () -> fail("should not execute")),
+                TimeValue.timeValueMillis(between(1, 100)),
+                threadPool.executor(name)
+            );
+
+            expectThrows(EsRejectedExecutionException.class, () -> FutureUtils.get(future, 10, TimeUnit.SECONDS));
+        } finally {
+            latch.countDown();
+            assertTrue(terminate(threadPool));
+        }
+    }
+
+    public void testScheduledOneShotForceExecution() {
+        final var name = "fixed-bounded";
+        final var threadPool = new TestThreadPool(
+            getTestName(),
+            new FixedExecutorBuilder(Settings.EMPTY, name, between(1, 5), between(1, 5), randomFrom(DEFAULT, DO_NOT_TRACK))
+        );
+
+        final var future = new PlainActionFuture<Void>();
+        final var latch = new CountDownLatch(1);
+        try {
+            blockExecution(threadPool.executor(name), latch);
+            threadPool.schedule(
+                forceExecution(ActionRunnable.run(future, () -> {})),
+                TimeValue.timeValueMillis(between(1, 100)),
+                threadPool.executor(name)
+            );
+
+            Thread.yield();
+            assertFalse(future.isDone());
+
+            latch.countDown();
+            FutureUtils.get(future, 10, TimeUnit.SECONDS); // shouldn't throw
+        } finally {
+            latch.countDown();
+            assertTrue(terminate(threadPool));
+        }
+    }
+
+    public void testScheduledFixedDelayRejection() {
+        final var name = "fixed-bounded";
+        final var threadPool = new TestThreadPool(
+            getTestName(),
+            new FixedExecutorBuilder(Settings.EMPTY, name, between(1, 5), between(1, 5), randomFrom(DEFAULT, DO_NOT_TRACK))
+        );
+
+        final var future = new PlainActionFuture<Void>();
+        final var latch = new CountDownLatch(1);
+        try {
+            blockExecution(threadPool.executor(name), latch);
+            threadPool.scheduleWithFixedDelay(
+                ActionRunnable.wrap(future, ignored -> fail("should not execute")),
+                TimeValue.timeValueMillis(between(1, 100)),
+                threadPool.executor(name)
+            );
+
+            expectThrows(EsRejectedExecutionException.class, () -> FutureUtils.get(future, 10, TimeUnit.SECONDS));
+        } finally {
+            latch.countDown();
+            assertTrue(terminate(threadPool));
+        }
+    }
+
+    public void testScheduledFixedDelayForceExecution() {
+        final var name = "fixed-bounded";
+        final var threadPool = new TestThreadPool(
+            getTestName(),
+            new FixedExecutorBuilder(Settings.EMPTY, name, between(1, 5), between(1, 5), randomFrom(DEFAULT, DO_NOT_TRACK))
+        );
+
+        final var future = new PlainActionFuture<Void>();
+        final var latch = new CountDownLatch(1);
+        try {
+            blockExecution(threadPool.executor(name), latch);
+
+            threadPool.scheduleWithFixedDelay(
+                forceExecution(ActionRunnable.run(future, Thread::yield)),
+                TimeValue.timeValueMillis(between(1, 100)),
+                threadPool.executor(name)
+            );
+
+            assertFalse(future.isDone());
+
+            latch.countDown();
+            FutureUtils.get(future, 10, TimeUnit.SECONDS); // shouldn't throw
+        } finally {
+            latch.countDown();
+            assertTrue(terminate(threadPool));
+        }
+    }
+
+    private static AbstractRunnable forceExecution(AbstractRunnable delegate) {
+        return new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                delegate.onFailure(e);
+            }
+
+            @Override
+            protected void doRun() {
+                delegate.run();
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                delegate.onRejection(e);
+            }
+
+            @Override
+            public void onAfter() {
+                delegate.onAfter();
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                return true;
+            }
+        };
+    }
+
+    private static void blockExecution(ExecutorService executor, CountDownLatch latch) {
+        while (true) {
+            try {
+                executor.execute(() -> safeAwait(latch));
+            } catch (EsRejectedExecutionException e) {
+                break;
+            }
+        }
+    }
+
 }

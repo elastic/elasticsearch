@@ -13,10 +13,8 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.core.CheckedConsumer;
@@ -25,7 +23,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.InternalMin;
+import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
@@ -51,8 +49,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
 
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg").field("field").interval(5);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, longField("field"));
+                InternalHistogram histogram = searchAndReduce(reader, new AggTestConfig(aggBuilder, longField("field")));
                 assertEquals(6, histogram.getBuckets().size());
                 assertEquals(-10d, histogram.getBuckets().get(0).getKey());
                 assertEquals(2, histogram.getBuckets().get(0).getDocCount());
@@ -81,8 +78,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
 
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg").field("field").interval(5);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, doubleField("field"));
+                InternalHistogram histogram = searchAndReduce(reader, new AggTestConfig(aggBuilder, doubleField("field")));
                 assertEquals(6, histogram.getBuckets().size());
                 assertEquals(6, histogram.getBuckets().size());
                 assertEquals(-10d, histogram.getBuckets().get(0).getKey());
@@ -131,8 +127,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg").field(fieldName)
                 .interval(1000 * 60 * 60 * 24);
             try (IndexReader reader = indexWriter.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalHistogram histogram = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
                 assertTrue(AggregationInspectionHelper.hasValue(histogram));
             }
         }
@@ -148,8 +143,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
 
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg").field("field").interval(Math.PI);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, longField("field"));
+                InternalHistogram histogram = searchAndReduce(reader, new AggTestConfig(aggBuilder, longField("field")));
                 assertEquals(6, histogram.getBuckets().size());
                 assertEquals(-4 * Math.PI, histogram.getBuckets().get(0).getKey());
                 assertEquals(1, histogram.getBuckets().get(0).getDocCount());
@@ -178,8 +172,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
 
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg").field("field").interval(10).minDocCount(2);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, longField("field"));
+                InternalHistogram histogram = searchAndReduce(reader, new AggTestConfig(aggBuilder, longField("field")));
                 assertEquals(2, histogram.getBuckets().size());
                 assertEquals(-10d, histogram.getBuckets().get(0).getKey());
                 assertEquals(2, histogram.getBuckets().get(0).getDocCount());
@@ -201,8 +194,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
 
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg").field("field").interval(5).missing(2d);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, longField("field"));
+                InternalHistogram histogram = searchAndReduce(reader, new AggTestConfig(aggBuilder, longField("field")));
                 assertEquals(6, histogram.getBuckets().size());
                 assertEquals(-10d, histogram.getBuckets().get(0).getKey());
                 assertEquals(2, histogram.getBuckets().get(0).getDocCount());
@@ -230,8 +222,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
 
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg").field("field").interval(5).missing(2d);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder);
+                InternalHistogram histogram = searchAndReduce(reader, new AggTestConfig(aggBuilder));
 
                 assertEquals(1, histogram.getBuckets().size());
 
@@ -254,10 +245,9 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                 .interval(5)
                 .missing(missingValue);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
                 Throwable t = expectThrows(
                     IllegalArgumentException.class,
-                    () -> { searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder); }
+                    () -> { searchAndReduce(reader, new AggTestConfig(aggBuilder)); }
                 );
                 // This throws a number format exception (which is a subclass of IllegalArgumentException) and might be ok?
                 assertThat(t.getMessage(), containsString(missingValue));
@@ -275,11 +265,10 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
 
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg").field("field").interval(5);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
 
                 expectThrows(
                     IllegalArgumentException.class,
-                    () -> { searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, keywordField("field")); }
+                    () -> { searchAndReduce(reader, new AggTestConfig(aggBuilder, keywordField("field"))); }
                 );
             }
         }
@@ -296,8 +285,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
 
             HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg").field("field").interval(5).offset(Math.PI);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, doubleField("field"));
+                InternalHistogram histogram = searchAndReduce(reader, new AggTestConfig(aggBuilder, doubleField("field")));
                 assertEquals(4, histogram.getBuckets().size());
                 assertEquals(-10 + Math.PI, histogram.getBuckets().get(0).getKey());
                 assertEquals(2, histogram.getBuckets().get(0).getDocCount());
@@ -328,8 +316,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                 .interval(interval)
                 .offset(offset);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, doubleField("field"));
+                InternalHistogram histogram = searchAndReduce(reader, new AggTestConfig(aggBuilder, doubleField("field")));
                 assertEquals(4, histogram.getBuckets().size());
 
                 assertEquals(-10 + expectedOffset, histogram.getBuckets().get(0).getKey());
@@ -362,8 +349,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                 .extendedBounds(-12, 13);
             MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, doubleField("field"));
+                InternalHistogram histogram = searchAndReduce(reader, new AggTestConfig(aggBuilder, doubleField("field")));
                 assertEquals(6, histogram.getBuckets().size());
                 assertEquals(-15d, histogram.getBuckets().get(0).getKey());
                 assertEquals(0, histogram.getBuckets().get(0).getDocCount());
@@ -395,8 +381,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                 .hardBounds(new DoubleBounds(0.0, 10.0));
             MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalHistogram histogram = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
                 assertEquals(1, histogram.getBuckets().size());
                 assertEquals(0d, histogram.getBuckets().get(0).getKey());
                 assertEquals(2, histogram.getBuckets().get(0).getDocCount());
@@ -436,11 +421,11 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                 for (int innerIdx = 0; innerIdx < 20; innerIdx++) {
                     InternalHistogram.Bucket innerBucket = inner.getBuckets().get(innerIdx);
                     assertThat(innerBucket.getKey(), equalTo(5.0 * innerIdx));
-                    InternalMin min = innerBucket.getAggregations().get("min");
-                    assertThat(min.getValue(), equalTo(outerIdx * 5.0 + innerIdx * 500.0));
+                    Min min = innerBucket.getAggregations().get("min");
+                    assertThat(min.value(), equalTo(outerIdx * 5.0 + innerIdx * 500.0));
                 }
             }
         };
-        testCase(request, new MatchAllDocsQuery(), buildIndex, verify, longField("outer"), longField("inner"), longField("n"));
+        testCase(buildIndex, verify, new AggTestConfig(request, longField("outer"), longField("inner"), longField("n")));
     }
 }

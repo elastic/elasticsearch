@@ -11,7 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
-import org.apache.lucene.util.TimeUnits;
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -23,6 +23,11 @@ public class MultiClusterYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static final String USER = "test_user";
     private static final String PASS = "x-pack-test-password";
+
+    @Override
+    protected boolean resetFeatureStates() {
+        return false;
+    }
 
     @Override
     protected boolean preserveIndicesUponCompletion() {

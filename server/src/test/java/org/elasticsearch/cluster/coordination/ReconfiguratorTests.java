@@ -8,10 +8,9 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
@@ -28,6 +27,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION;
+import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -174,7 +174,7 @@ public class ReconfiguratorTests extends ESTestCase {
     private Set<DiscoveryNode> nodes(String... nodes) {
         final Set<DiscoveryNode> liveNodes = new HashSet<>();
         for (String id : nodes) {
-            liveNodes.add(new DiscoveryNode(id, buildNewFakeTransportAddress(), Version.CURRENT));
+            liveNodes.add(DiscoveryNodeUtils.create(id));
         }
         return liveNodes;
     }
@@ -218,14 +218,14 @@ public class ReconfiguratorTests extends ESTestCase {
         final DiscoveryNode master = liveNodes.stream().filter(n -> n.getId().equals(masterId)).findFirst().get();
         final VotingConfiguration adaptedConfig = reconfigurator.reconfigure(liveNodes, retired, master, config);
         assertEquals(
-            new ParameterizedMessage(
-                "[liveNodes={}, retired={}, master={}, config={}, autoShrinkVotingConfiguration={}]",
+            format(
+                "[liveNodes=%s, retired=%s, master=%s, config=%s, autoShrinkVotingConfiguration=%s]",
                 liveNodes,
                 retired,
                 master,
                 config,
                 autoShrinkVotingConfiguration
-            ).getFormattedMessage(),
+            ),
             expectedConfig,
             adaptedConfig
         );

@@ -10,7 +10,6 @@ package org.elasticsearch.env;
 import joptsimple.OptionSet;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterName;
@@ -25,6 +24,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 import org.junit.Before;
@@ -52,21 +52,21 @@ public class NodeRepurposeCommandTests extends ESTestCase {
     private static final Index INDEX = new Index("testIndex", "testUUID");
     private Settings dataMasterSettings;
     private Environment environment;
-    private Path[] nodePaths;
+    private Path[] dataPaths;
     private Settings dataNoMasterSettings;
     private Settings noDataNoMasterSettings;
     private Settings noDataMasterSettings;
 
     @Before
-    public void createNodePaths() throws IOException {
+    public void createDataPaths() throws IOException {
         dataMasterSettings = buildEnvSettings(Settings.EMPTY);
         environment = TestEnvironment.newEnvironment(dataMasterSettings);
         try (NodeEnvironment nodeEnvironment = new NodeEnvironment(dataMasterSettings, environment)) {
-            nodePaths = nodeEnvironment.nodeDataPaths();
+            dataPaths = nodeEnvironment.nodeDataPaths();
             final String nodeId = randomAlphaOfLength(10);
             try (
                 PersistedClusterStateService.Writer writer = new PersistedClusterStateService(
-                    nodePaths,
+                    dataPaths,
                     nodeId,
                     xContentRegistry(),
                     new ClusterSettings(dataMasterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -200,7 +200,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
 
     private static void withTerminal(boolean verbose, Matcher<String> outputMatcher, CheckedConsumer<MockTerminal, Exception> consumer)
         throws Exception {
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
         if (verbose) {
             terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
         }
@@ -240,7 +240,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
                                         IndexMetadata.builder(INDEX.getName())
                                             .settings(
                                                 Settings.builder()
-                                                    .put("index.version.created", Version.CURRENT)
+                                                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                                     .put(IndexMetadata.SETTING_INDEX_UUID, INDEX.getUUID())
                                             )
                                             .numberOfShards(1)

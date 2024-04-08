@@ -16,6 +16,8 @@ import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.ByteArrayInputStream;
@@ -28,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.singleton;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -39,7 +42,7 @@ public class ExplainActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen("test");
 
-        client().prepareIndex("test").setId("1").setSource("field", "value1").get();
+        prepareIndex("test").setId("1").setSource("field", "value1").get();
 
         ExplainResponse response = client().prepareExplain(indexOrAlias(), "1").setQuery(QueryBuilders.matchAllQuery()).get();
         assertNotNull(response);
@@ -96,8 +99,7 @@ public class ExplainActionIT extends ESIntegTestCase {
         );
         ensureGreen("test");
 
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(
                 jsonBuilder().startObject().startObject("obj1").field("field1", "value1").field("field2", "value2").endObject().endObject()
             )
@@ -151,12 +153,11 @@ public class ExplainActionIT extends ESIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testExplainWitSource() throws Exception {
+    public void testExplainWithSource() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen("test");
 
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setSource(
                 jsonBuilder().startObject().startObject("obj1").field("field1", "value1").field("field2", "value2").endObject().endObject()
             )
@@ -174,8 +175,8 @@ public class ExplainActionIT extends ESIntegTestCase {
         assertThat(response.getExplanation().getValue(), equalTo(1.0f));
         assertThat(response.getGetResult().isExists(), equalTo(true));
         assertThat(response.getGetResult().getId(), equalTo("1"));
-        assertThat(response.getGetResult().getSource().size(), equalTo(1));
-        assertThat(((Map<String, Object>) response.getGetResult().getSource().get("obj1")).get("field1").toString(), equalTo("value1"));
+        assertThat(response.getGetResult().sourceAsMap().size(), equalTo(1));
+        assertThat(((Map<String, Object>) response.getGetResult().sourceAsMap().get("obj1")).get("field1").toString(), equalTo("value1"));
 
         response = client().prepareExplain(indexOrAlias(), "1")
             .setQuery(QueryBuilders.matchAllQuery())
@@ -183,7 +184,7 @@ public class ExplainActionIT extends ESIntegTestCase {
             .get();
         assertNotNull(response);
         assertTrue(response.isMatch());
-        assertThat(((Map<String, Object>) response.getGetResult().getSource().get("obj1")).get("field1").toString(), equalTo("value1"));
+        assertThat(((Map<String, Object>) response.getGetResult().sourceAsMap().get("obj1")).get("field1").toString(), equalTo("value1"));
     }
 
     public void testExplainWithFilteredAlias() {
@@ -193,7 +194,7 @@ public class ExplainActionIT extends ESIntegTestCase {
         );
         ensureGreen("test");
 
-        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value1").get();
+        prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value1").get();
         refresh();
 
         ExplainResponse response = client().prepareExplain("alias1", "1").setQuery(QueryBuilders.matchAllQuery()).get();
@@ -204,15 +205,13 @@ public class ExplainActionIT extends ESIntegTestCase {
 
     public void testExplainWithFilteredAliasFetchSource() {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setMapping("field2", "type=text")
                 .addAlias(new Alias("alias1").filter(QueryBuilders.termQuery("field2", "value2")))
         );
         ensureGreen("test");
 
-        client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value1").get();
+        prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value1").get();
         refresh();
 
         ExplainResponse response = client().prepareExplain("alias1", "1")
@@ -228,8 +227,8 @@ public class ExplainActionIT extends ESIntegTestCase {
         assertThat(response.getGetResult(), notNullValue());
         assertThat(response.getGetResult().getIndex(), equalTo("test"));
         assertThat(response.getGetResult().getId(), equalTo("1"));
-        assertThat(response.getGetResult().getSource(), notNullValue());
-        assertThat(response.getGetResult().getSource().get("field1"), equalTo("value1"));
+        assertThat(response.getGetResult().sourceAsMap(), notNullValue());
+        assertThat(response.getGetResult().sourceAsMap().get("field1"), equalTo("value1"));
     }
 
     public void testExplainDateRangeInQueryString() {
@@ -239,7 +238,7 @@ public class ExplainActionIT extends ESIntegTestCase {
         String aMonthAgo = DateTimeFormatter.ISO_LOCAL_DATE.format(now.minusMonths(1));
         String aMonthFromNow = DateTimeFormatter.ISO_LOCAL_DATE.format(now.plusMonths(1));
 
-        client().prepareIndex("test").setId("1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
+        prepareIndex("test").setId("1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
 
         refresh();
 
@@ -280,5 +279,24 @@ public class ExplainActionIT extends ESIntegTestCase {
 
         result = Lucene.readExplanation(esBuffer);
         assertThat(exp.toString(), equalTo(result.toString()));
+    }
+
+    public void testQueryRewrite() {
+        indicesAdmin().prepareCreate("twitter")
+            .setMapping("user", "type=keyword", "followers", "type=keyword")
+            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2))
+            .get();
+        ensureGreen("twitter");
+
+        prepareIndex("twitter").setId("1").setSource("user", "user1", "followers", new String[] { "user2", "user3" }).get();
+        prepareIndex("twitter").setId("2").setSource("user", "user2", "followers", new String[] { "user1" }).get();
+        refresh();
+
+        TermsQueryBuilder termsLookupQuery = QueryBuilders.termsLookupQuery("user", new TermsLookup("twitter", "2", "followers"));
+        ExplainResponse response = client().prepareExplain("twitter", "1").setQuery(termsLookupQuery).get();
+
+        Explanation explanation = response.getExplanation();
+        assertNotNull(explanation);
+        assertTrue(explanation.isMatch());
     }
 }

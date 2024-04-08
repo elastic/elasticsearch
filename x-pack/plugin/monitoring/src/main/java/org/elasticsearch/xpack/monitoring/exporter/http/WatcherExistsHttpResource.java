@@ -42,10 +42,7 @@ public class WatcherExistsHttpResource extends PublishableHttpResource {
     /**
      * Valid response codes that note explicitly that {@code _xpack} does not exist.
      */
-    public static final Set<Integer> XPACK_DOES_NOT_EXIST = Sets.newHashSet(
-        RestStatus.NOT_FOUND.getStatus(),
-        RestStatus.BAD_REQUEST.getStatus()
-    );
+    public static final Set<Integer> XPACK_DOES_NOT_EXIST = Set.of(RestStatus.NOT_FOUND.getStatus(), RestStatus.BAD_REQUEST.getStatus());
 
     /**
      * The cluster service allows this check to be limited to only handling <em>elected</em> master nodes
@@ -135,7 +132,7 @@ public class WatcherExistsHttpResource extends PublishableHttpResource {
      * @throws IOException if any issue occurs while parsing the {@code xContent} {@code response}.
      * @throws RuntimeException if the response format is changed.
      */
-    private boolean canUseWatcher(final Response response, final XContent xContent) throws IOException {
+    private static boolean canUseWatcher(final Response response, final XContent xContent) throws IOException {
         // no named content used; so EMPTY is fine
         final Map<String, Object> xpackInfo = XContentHelper.convertToMap(xContent, response.getEntity().getContent(), false);
 

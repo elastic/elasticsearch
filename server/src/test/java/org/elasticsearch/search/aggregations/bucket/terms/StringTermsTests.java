@@ -35,19 +35,14 @@ public class StringTermsTests extends InternalTermsTestCase {
     }
 
     @Override
-    protected List<InternalTerms<?, ?>> randomResultsToReduce(String name, int size) {
+    protected BuilderAndToReduce<InternalTerms<?, ?>> randomResultsToReduce(String name, int size) {
         List<InternalTerms<?, ?>> inputs = new ArrayList<>();
         BytesRef[] dict = generateRandomDict();
         for (int i = 0; i < size; i++) {
             InternalTerms<?, ?> t = randomBoolean() ? createUnmappedInstance(name) : createTestInstance(dict, name);
             inputs.add(t);
         }
-        return inputs;
-    }
-
-    @Override
-    protected Class<ParsedStringTerms> implementationClass() {
-        return ParsedStringTerms.class;
+        return new BuilderAndToReduce<>(mockBuilder(inputs), inputs);
     }
 
     @Override

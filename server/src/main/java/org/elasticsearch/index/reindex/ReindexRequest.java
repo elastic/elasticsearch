@@ -17,8 +17,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
@@ -30,13 +33,14 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
@@ -66,7 +70,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         this(search, destination, true);
     }
 
-    private ReindexRequest(SearchRequest search, IndexRequest destination, boolean setDefaults) {
+    ReindexRequest(SearchRequest search, IndexRequest destination, boolean setDefaults) {
         super(search, setDefaults);
         this.destination = destination;
     }
@@ -314,10 +318,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         return builder;
     }
 
-    static final ObjectParser<ReindexRequest, Void> PARSER = new ObjectParser<>("reindex");
+    static final ObjectParser<ReindexRequest, Predicate<NodeFeature>> PARSER = new ObjectParser<>("reindex");
 
     static {
-        ObjectParser.Parser<ReindexRequest, Void> sourceParser = (parser, request, context) -> {
+        ObjectParser.Parser<ReindexRequest, Predicate<NodeFeature>> sourceParser = (parser, request, context) -> {
             // Funky hack to work around Search not having a proper ObjectParser and us wanting to extract query if using remote.
             Map<String, Object> source = parser.map();
             String[] indices = extractStringArray(source, "index");
@@ -328,12 +332,14 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
             builder.map(source);
             try (
-                InputStream stream = BytesReference.bytes(builder).streamInput();
-                XContentParser innerParser = parser.contentType()
-                    .xContent()
-                    .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), stream)
+                XContentParser innerParser = XContentHelper.createParserNotCompressed(
+                    XContentParserConfiguration.EMPTY.withRegistry(parser.getXContentRegistry())
+                        .withDeprecationHandler(parser.getDeprecationHandler()),
+                    BytesReference.bytes(builder),
+                    parser.contentType()
+                )
             ) {
-                request.getSearchRequest().source().parseXContent(innerParser, false);
+                request.getSearchRequest().source().parseXContent(innerParser, false, context);
             }
         };
 
@@ -344,8 +350,12 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         destParser.declareString(IndexRequest::setPipeline, new ParseField("pipeline"));
         destParser.declareString((s, i) -> s.versionType(VersionType.fromString(i)), new ParseField("version_type"));
 
-        PARSER.declareField(sourceParser::parse, new ParseField("source"), ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), c), new ParseField("dest"), ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(sourceParser, new ParseField("source"), ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(
+            (p, v, c) -> destParser.parse(p, v.getDestination(), null),
+            new ParseField("dest"),
+            ObjectParser.ValueType.OBJECT
+        );
 
         PARSER.declareInt(
             ReindexRequest::setMaxDocsValidateIdentical,
@@ -366,9 +376,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         PARSER.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));
     }
 
-    public static ReindexRequest fromXContent(XContentParser parser) throws IOException {
+    public static ReindexRequest fromXContent(XContentParser parser, Predicate<NodeFeature> clusterSupportsFeature) throws IOException {
         ReindexRequest reindexRequest = new ReindexRequest();
-        PARSER.parse(parser, reindexRequest, null);
+        PARSER.parse(parser, reindexRequest, clusterSupportsFeature);
         return reindexRequest;
     }
 
@@ -399,7 +409,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             return null;
         }
         String username = extractString(remote, "username");
-        String password = extractString(remote, "password");
+        SecureString password = extractSecureString(remote, "password");
         String hostInRequest = requireNonNull(extractString(remote, "host"), "[host] must be specified to reindex from a remote cluster");
         URI uri;
         try {
@@ -451,8 +461,19 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         if (value == null) {
             return null;
         }
-        if (value instanceof String) {
-            return (String) value;
+        if (value instanceof String str) {
+            return str;
+        }
+        throw new IllegalArgumentException("Expected [" + name + "] to be a string but was [" + value + "]");
+    }
+
+    private static SecureString extractSecureString(Map<String, Object> source, String name) {
+        Object value = source.remove(name);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof String str) {
+            return new SecureString(str.toCharArray());
         }
         throw new IllegalArgumentException("Expected [" + name + "] to be a string but was [" + value + "]");
     }

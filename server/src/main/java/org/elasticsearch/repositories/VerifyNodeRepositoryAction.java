@@ -10,7 +10,6 @@ package org.elasticsearch.repositories;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -19,12 +18,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -32,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class VerifyNodeRepositoryAction {
@@ -56,7 +56,7 @@ public class VerifyNodeRepositoryAction {
         this.repositoriesService = repositoriesService;
         transportService.registerRequestHandler(
             ACTION_NAME,
-            ThreadPool.Names.SNAPSHOT,
+            transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT),
             VerifyNodeRepositoryRequest::new,
             new VerifyNodeRepositoryRequestHandler()
         );
@@ -80,7 +80,7 @@ public class VerifyNodeRepositoryAction {
                 try {
                     doVerify(repository, verificationToken, localNode);
                 } catch (Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("[{}] failed to verify repository", repository), e);
+                    logger.warn(() -> "[" + repository + "] failed to verify repository", e);
                     errors.add(new VerificationFailure(node.getId(), e));
                 }
                 if (counter.decrementAndGet() == 0) {
@@ -91,9 +91,14 @@ public class VerifyNodeRepositoryAction {
                     node,
                     ACTION_NAME,
                     new VerifyNodeRepositoryRequest(repository, verificationToken),
-                    new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                    new TransportResponseHandler.Empty() {
                         @Override
-                        public void handleResponse(TransportResponse.Empty response) {
+                        public Executor executor() {
+                            return TransportResponseHandler.TRANSPORT_WORKER;
+                        }
+
+                        @Override
+                        public void handleResponse() {
                             if (counter.decrementAndGet() == 0) {
                                 finishVerification(repository, listener, nodes, errors);
                             }
@@ -165,7 +170,7 @@ public class VerifyNodeRepositoryAction {
             try {
                 doVerify(request.repository, request.verificationToken, localNode);
             } catch (Exception ex) {
-                logger.warn(() -> new ParameterizedMessage("[{}] failed to verify repository", request.repository), ex);
+                logger.warn(() -> "[" + request.repository + "] failed to verify repository", ex);
                 throw ex;
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);

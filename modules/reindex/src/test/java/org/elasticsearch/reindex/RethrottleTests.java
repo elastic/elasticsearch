@@ -81,7 +81,7 @@ public class RethrottleTests extends ReindexTestCase {
 
         List<IndexRequestBuilder> docs = new ArrayList<>();
         for (int i = 0; i < numSlices * 10; i++) {
-            docs.add(client().prepareIndex("test").setId(Integer.toString(i)).setSource("foo", "bar"));
+            docs.add(prepareIndex("test").setId(Integer.toString(i)).setSource("foo", "bar"));
         }
         indexRandom(true, docs);
 
@@ -91,24 +91,22 @@ public class RethrottleTests extends ReindexTestCase {
         ActionFuture<? extends BulkByScrollResponse> responseListener = request.execute();
 
         TaskGroup taskGroupToRethrottle = findTaskToRethrottle(actionName, numSlices);
-        TaskId taskToRethrottle = taskGroupToRethrottle.getTaskInfo().getTaskId();
+        TaskId taskToRethrottle = taskGroupToRethrottle.taskInfo().taskId();
 
         if (numSlices == 1) {
-            assertThat(taskGroupToRethrottle.getChildTasks(), empty());
+            assertThat(taskGroupToRethrottle.childTasks(), empty());
         } else {
             // There should be a sane number of child tasks running
-            assertThat(taskGroupToRethrottle.getChildTasks(), hasSize(allOf(greaterThanOrEqualTo(1), lessThanOrEqualTo(numSlices))));
+            assertThat(taskGroupToRethrottle.childTasks(), hasSize(allOf(greaterThanOrEqualTo(1), lessThanOrEqualTo(numSlices))));
             // Wait for all of the sub tasks to start (or finish, some might finish early, all that matters is that not all do)
             assertBusy(() -> {
-                BulkByScrollTask.Status parent = (BulkByScrollTask.Status) client().admin()
-                    .cluster()
-                    .prepareGetTask(taskToRethrottle)
+                BulkByScrollTask.Status parent = (BulkByScrollTask.Status) clusterAdmin().prepareGetTask(taskToRethrottle)
                     .get()
                     .getTask()
                     .getTask()
-                    .getStatus();
+                    .status();
                 long finishedSubTasks = parent.getSliceStatuses().stream().filter(Objects::nonNull).count();
-                ListTasksResponse list = client().admin().cluster().prepareListTasks().setTargetParentTaskId(taskToRethrottle).get();
+                ListTasksResponse list = clusterAdmin().prepareListTasks().setTargetParentTaskId(taskToRethrottle).get();
                 list.rethrowFailures("subtasks");
                 assertThat(finishedSubTasks + list.getTasks().size(), greaterThanOrEqualTo((long) numSlices));
                 assertThat(list.getTasks().size(), greaterThan(0));
@@ -118,7 +116,7 @@ public class RethrottleTests extends ReindexTestCase {
         // Now rethrottle it so it'll finish
         float newRequestsPerSecond = randomBoolean() ? Float.POSITIVE_INFINITY : between(1, 1000) * 100000; // No throttle or "very fast"
         ListTasksResponse rethrottleResponse = rethrottleTask(taskToRethrottle, newRequestsPerSecond);
-        BulkByScrollTask.Status status = (BulkByScrollTask.Status) rethrottleResponse.getTasks().get(0).getStatus();
+        BulkByScrollTask.Status status = (BulkByScrollTask.Status) rethrottleResponse.getTasks().get(0).status();
 
         // Now check the resulting requests per second.
         if (numSlices == 1) {
@@ -223,7 +221,7 @@ public class RethrottleTests extends ReindexTestCase {
     private TaskGroup findTaskToRethrottle(String actionName, int sliceCount) {
         long start = System.nanoTime();
         do {
-            ListTasksResponse tasks = client().admin().cluster().prepareListTasks().setActions(actionName).setDetailed(true).get();
+            ListTasksResponse tasks = clusterAdmin().prepareListTasks().setActions(actionName).setDetailed(true).get();
             tasks.rethrowFailures("Finding tasks to rethrottle");
             assertThat("tasks are left over from the last execution of this test", tasks.getTaskGroups(), hasSize(lessThan(2)));
             if (0 == tasks.getTaskGroups().size()) {
@@ -232,7 +230,7 @@ public class RethrottleTests extends ReindexTestCase {
             }
             TaskGroup taskGroup = tasks.getTaskGroups().get(0);
             if (sliceCount != 1) {
-                BulkByScrollTask.Status status = (BulkByScrollTask.Status) taskGroup.getTaskInfo().getStatus();
+                BulkByScrollTask.Status status = (BulkByScrollTask.Status) taskGroup.taskInfo().status();
                 /*
                  * If there are child tasks wait for all of them to start. It
                  * is possible that we'll end up with some very small slices
@@ -243,21 +241,21 @@ public class RethrottleTests extends ReindexTestCase {
                 logger.info(
                     "Expected [{}] total children, [{}] are running and [{}] are finished\n{}",
                     sliceCount,
-                    taskGroup.getChildTasks().size(),
+                    taskGroup.childTasks().size(),
                     finishedChildStatuses,
                     status.getSliceStatuses()
                 );
                 if (sliceCount == finishedChildStatuses) {
                     fail("all slices finished:\n" + status);
                 }
-                if (sliceCount != taskGroup.getChildTasks().size() + finishedChildStatuses) {
+                if (sliceCount != taskGroup.childTasks().size() + finishedChildStatuses) {
                     continue;
                 }
             }
             return taskGroup;
         } while (System.nanoTime() - start < TimeUnit.SECONDS.toNanos(10));
         throw new AssertionError(
-            "Couldn't find tasks to rethrottle. Here are the running tasks " + client().admin().cluster().prepareListTasks().get()
+            "Couldn't find tasks to rethrottle. Here are the running tasks " + clusterAdmin().prepareListTasks().get()
         );
     }
 }

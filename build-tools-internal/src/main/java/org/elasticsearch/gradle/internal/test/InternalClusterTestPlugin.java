@@ -35,8 +35,5 @@ public class InternalClusterTestPlugin implements Plugin<Project> {
 
         // TODO: fix usages of IT tests depending on Tests methods so this extension is not necessary
         GradleUtils.extendSourceSet(project, SourceSet.TEST_SOURCE_SET_NAME, SOURCE_SET_NAME);
-
-        // add alias task that is easier to type
-        project.getTasks().register("icTest").configure(alias -> alias.dependsOn(SOURCE_SET_NAME));
     }
 }

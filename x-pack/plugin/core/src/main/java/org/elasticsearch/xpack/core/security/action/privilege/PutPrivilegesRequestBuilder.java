@@ -13,13 +13,12 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -35,7 +34,8 @@ public final class PutPrivilegesRequestBuilder extends ActionRequestBuilder<PutP
         super(client, PutPrivilegesAction.INSTANCE, new PutPrivilegesRequest());
     }
 
-    ApplicationPrivilegeDescriptor parsePrivilege(XContentParser parser, String applicationName, String privilegeName) throws IOException {
+    static ApplicationPrivilegeDescriptor parsePrivilege(XContentParser parser, String applicationName, String privilegeName)
+        throws IOException {
         ApplicationPrivilegeDescriptor privilege = ApplicationPrivilegeDescriptor.parse(parser, applicationName, privilegeName, false);
         checkPrivilegeName(privilege, applicationName, privilegeName);
         return privilege;
@@ -49,11 +49,13 @@ public final class PutPrivilegesRequestBuilder extends ActionRequestBuilder<PutP
      */
     public PutPrivilegesRequestBuilder source(BytesReference source, XContentType xContentType) throws IOException {
         Objects.requireNonNull(xContentType);
-        // EMPTY is ok here because we never call namedObject
+        // NamedXContentRegistry.EMPTY is ok here because we never call namedObject
         try (
-            InputStream stream = source.streamInput();
-            XContentParser parser = xContentType.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                source,
+                xContentType
+            )
         ) {
             XContentParser.Token token = parser.currentToken();
             if (token == null) {
@@ -99,7 +101,7 @@ public final class PutPrivilegesRequestBuilder extends ActionRequestBuilder<PutP
         return this;
     }
 
-    private void checkPrivilegeName(ApplicationPrivilegeDescriptor privilege, String applicationName, String providedName) {
+    private static void checkPrivilegeName(ApplicationPrivilegeDescriptor privilege, String applicationName, String providedName) {
         final String privilegeName = privilege.getName();
         if (Strings.isNullOrEmpty(applicationName) == false && applicationName.equals(privilege.getApplication()) == false) {
             throw new IllegalArgumentException(

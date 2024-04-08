@@ -28,7 +28,7 @@ import java.util.Set;
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
  */
-public interface ProviderInstanceBinding<T> extends Binding<T>, HasDependencies {
+public interface ProviderInstanceBinding<T> extends Binding<T> {
 
     /**
      * Returns the user-supplied, unscoped provider.

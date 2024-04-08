@@ -17,6 +17,14 @@
                 "ja_stop" : {
                     "type": "ja_stop",
                     "stopwords": ["_japanese_", "スピード"]
+                },
+                "kuromoji_completion_index" : {
+                    "type": "kuromoji_completion",
+                    "mode": "index"
+                },
+                "kuromoji_completion_query" : {
+                    "type": "kuromoji_completion",
+                    "mode": "query"
                 }
             },
 
@@ -70,6 +78,14 @@
                 "my_analyzer" : {
                     "type" : "custom",
                     "tokenizer" : "kuromoji_tokenizer"
+                },
+                "completion_index_analyzer" : {
+                    "type" : "kuromoji_completion",
+                    "mode" : "index"
+                },
+                "completion_query_analyzer" : {
+                    "type" : "kuromoji_completion",
+                    "mode" : "query"
                 }
             }
 

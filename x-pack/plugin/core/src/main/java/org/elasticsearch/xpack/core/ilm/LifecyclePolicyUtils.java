@@ -14,20 +14,17 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ItemUsage;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.template.resources.TemplateResources;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -40,14 +37,20 @@ public class LifecyclePolicyUtils {
     /**
      * Loads a built-in index lifecycle policy and returns its source.
      */
-    public static LifecyclePolicy loadPolicy(String name, String resource, NamedXContentRegistry xContentRegistry) {
+    public static LifecyclePolicy loadPolicy(
+        String name,
+        String resource,
+        Map<String, String> variables,
+        NamedXContentRegistry xContentRegistry
+    ) {
         try {
-            BytesReference source = load(resource);
+            String source = TemplateResources.load(resource);
+            source = replaceVariables(source, variables);
             validate(source);
 
             try (
                 XContentParser parser = XContentType.JSON.xContent()
-                    .createParser(xContentRegistry, LoggingDeprecationHandler.THROW_UNSUPPORTED_OPERATION, source.utf8ToString())
+                    .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry), source)
             ) {
                 LifecyclePolicy policy = LifecyclePolicy.parse(parser, name);
                 policy.validate();
@@ -58,28 +61,30 @@ public class LifecyclePolicyUtils {
         }
     }
 
-    /**
-     * Loads a resource from the classpath and returns it as a {@link BytesReference}
-     */
-    private static BytesReference load(String name) throws IOException {
-        try (InputStream is = LifecyclePolicyUtils.class.getResourceAsStream(name)) {
-            try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-                Streams.copy(is, out);
-                return new BytesArray(out.toByteArray());
-            }
+    private static String replaceVariables(String template, Map<String, String> variables) {
+        for (Map.Entry<String, String> variable : variables.entrySet()) {
+            template = replaceVariable(template, variable.getKey(), variable.getValue());
         }
+        return template;
+    }
+
+    /**
+     * Replaces all occurrences of given variable with the value
+     */
+    public static String replaceVariable(String input, String variable, String value) {
+        return input.replace("${" + variable + "}", value);
     }
 
     /**
      * Parses and validates that the source is not empty.
      */
-    private static void validate(BytesReference source) {
+    private static void validate(String source) {
         if (source == null) {
             throw new ElasticsearchParseException("policy must not be null");
         }
 
         try {
-            XContentHelper.convertToMap(source, false, XContentType.JSON).v2();
+            XContentHelper.convertToMap(new BytesArray(source), false, XContentType.JSON).v2();
         } catch (NotXContentException e) {
             throw new ElasticsearchParseException("policy must not be empty");
         } catch (Exception e) {
@@ -100,7 +105,7 @@ public class LifecyclePolicyUtils {
             .indices()
             .values()
             .stream()
-            .filter(indexMetadata -> policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings())))
+            .filter(indexMetadata -> policyName.equals(indexMetadata.getLifecyclePolicyName()))
             .map(indexMetadata -> indexMetadata.getIndex().getName())
             .collect(Collectors.toList());
 

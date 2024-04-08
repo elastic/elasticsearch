@@ -7,25 +7,35 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.stream.Stream;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class DynamicMappingTests extends MapperServiceTestCase {
 
-    private XContentBuilder dynamicMapping(String dynamicValue, CheckedConsumer<XContentBuilder, IOException> buildFields)
+    private static XContentBuilder dynamicMapping(String dynamicValue, CheckedConsumer<XContentBuilder, IOException> buildFields)
         throws IOException {
         return topMapping(b -> {
             b.field("dynamic", dynamicValue);
@@ -105,17 +115,17 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             dynamicMapping("strict", b -> b.startObject("field1").field("type", "text").endObject())
         );
 
-        StrictDynamicMappingException e = expectThrows(StrictDynamicMappingException.class, () -> defaultMapper.parse(source(b -> {
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> defaultMapper.parse(source(b -> {
             b.field("field1", "value1");
             b.field("field2", "value2");
         })));
-        assertThat(e.getMessage(), equalTo("mapping set to strict, dynamic introduction of [field2] within [_doc] is not allowed"));
+        assertThat(e.getMessage(), containsString("mapping set to strict, dynamic introduction of [field2] within [_doc] is not allowed"));
 
-        e = expectThrows(StrictDynamicMappingException.class, () -> defaultMapper.parse(source(b -> {
+        e = expectThrows(DocumentParsingException.class, () -> defaultMapper.parse(source(b -> {
             b.field("field1", "value1");
             b.nullField("field2");
         })));
-        assertThat(e.getMessage(), equalTo("mapping set to strict, dynamic introduction of [field2] within [_doc] is not allowed"));
+        assertThat(e.getMessage(), containsString("mapping set to strict, dynamic introduction of [field2] within [_doc] is not allowed"));
     }
 
     public void testDynamicFalseWithInnerObjectButDynamicSetOnRoot() throws IOException {
@@ -157,7 +167,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        StrictDynamicMappingException e = expectThrows(StrictDynamicMappingException.class, () -> defaultMapper.parse(source(b -> {
+        DocumentParsingException e = expectThrows(DocumentParsingException.class, () -> defaultMapper.parse(source(b -> {
             b.startObject("obj1");
             {
                 b.field("field1", "value1");
@@ -165,7 +175,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
             }
             b.endObject();
         })));
-        assertThat(e.getMessage(), equalTo("mapping set to strict, dynamic introduction of [field2] within [obj1] is not allowed"));
+        assertThat(e.getMessage(), containsString("mapping set to strict, dynamic introduction of [field2] within [obj1] is not allowed"));
     }
 
     public void testDynamicMappingOnEmptyString() throws Exception {
@@ -330,8 +340,8 @@ public class DynamicMappingTests extends MapperServiceTestCase {
     }
 
     public void testObject() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-        ParsedDocument doc = mapper.parse(source(b -> {
+        MapperService mapperService = createMapperService(mapping(b -> {}));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
             b.startObject("foo");
             {
                 b.startObject("bar").field("baz", "foo").endObject();
@@ -340,6 +350,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         }));
 
         assertNotNull(doc.dynamicMappingsUpdate());
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
         assertThat(Strings.toString(doc.dynamicMappingsUpdate()), containsString("""
             {"foo":{"properties":{"bar":{"properties":{"baz":{"type":"text\""""));
     }
@@ -552,8 +563,8 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         }));
         assertNull(doc.dynamicMappingsUpdate());
 
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
             () -> newMapper.parse(source(b -> b.field("my_field2", "foobar")))
         );
         assertThat(e.getMessage(), containsString("failed to parse field [my_field2] of type [integer]"));
@@ -794,5 +805,202 @@ public class DynamicMappingTests extends MapperServiceTestCase {
                 }
               }
             }"""), Strings.toString(doc.dynamicMappingsUpdate()));
+    }
+
+    // test for https://github.com/elastic/elasticsearch/issues/65333
+    public void testDottedFieldDynamicFalse() throws IOException {
+        DocumentMapper defaultMapper = createDocumentMapper(
+            dynamicMapping("false", b -> b.startObject("myfield").field("type", "keyword").endObject())
+        );
+
+        ParsedDocument doc = defaultMapper.parse(source(b -> {
+            b.field("myfield", "value1");
+            b.array("something.myfield", "value2", "value3");
+        }));
+
+        assertThat(doc.rootDoc().getFields("myfield"), hasSize(1));
+        for (IndexableField field : doc.rootDoc().getFields("myfield")) {
+            assertThat(field.binaryValue(), equalTo(new BytesRef("value1")));
+        }
+        // dynamic is false, so `something.myfield` should be ignored entirely. It used to be merged with myfield by mistake.
+        assertThat(doc.rootDoc().getFields("something.myfield"), hasSize(0));
+
+        assertNull(doc.dynamicMappingsUpdate());
+    }
+
+    public void testArraysDynamicFalse() throws IOException {
+        DocumentMapper defaultMapper = createDocumentMapper(
+            dynamicMapping("false", b -> b.startObject("myarray").field("type", "keyword").endObject())
+        );
+
+        ParsedDocument doc = defaultMapper.parse(source(b -> {
+            b.array("unmapped", "unknown1", "unknown2");
+            b.array("myarray", "array1", "array2");
+        }));
+
+        assertThat(doc.rootDoc().getFields("myarray"), hasSize(2));
+        assertThat(doc.rootDoc().getFields("unmapped"), empty());
+        assertNull(doc.dynamicMappingsUpdate());
+    }
+
+    public void testArraysOfObjectsRootDynamicFalse() throws IOException {
+        DocumentMapper defaultMapper = createDocumentMapper(
+            dynamicMapping(
+                "false",
+                b -> b.startObject("objects")
+                    .startObject("properties")
+                    .startObject("subfield")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+
+        ParsedDocument doc = defaultMapper.parse(source(b -> {
+            b.startArray("objects");
+            b.startObject().field("subfield", "sub").field("unmapped", "unmapped").endObject();
+            b.endArray();
+            b.startArray("unmapped");
+            b.startObject().field("subfield", "unmapped").endObject();
+            b.endArray();
+        }));
+
+        assertThat(doc.rootDoc().getFields("objects.subfield"), hasSize(1));
+        assertThat(doc.rootDoc().getFields("objects.unmapped"), empty());
+        assertThat(doc.rootDoc().getFields("unmapped.subfield"), empty());
+        assertNull(doc.dynamicMappingsUpdate());
+    }
+
+    public void testArraysOfObjectsDynamicFalse() throws IOException {
+        DocumentMapper defaultMapper = createDocumentMapper(
+            dynamicMapping(
+                "true",
+                b -> b.startObject("objects")
+                    .field("dynamic", false)
+                    .startObject("properties")
+                    .startObject("subfield")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+
+        ParsedDocument doc = defaultMapper.parse(source(b -> {
+            b.startArray("objects");
+            b.startObject().field("subfield", "sub").field("unmapped", "unmapped").endObject();
+            b.endArray();
+            b.field("myfield", 2);
+        }));
+
+        assertThat(doc.rootDoc().getFields("myfield"), hasSize(1));
+        assertThat(doc.rootDoc().getFields("objects.subfield"), hasSize(1));
+        assertThat(doc.rootDoc().getFields("objects.unmapped"), empty());
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "_doc": {
+                "dynamic":"true",
+                "properties":{
+                  "myfield":{
+                    "type":"long"
+                  }
+                }
+              }
+            }"""), Strings.toString(doc.dynamicMappingsUpdate()));
+    }
+
+    public void testSubobjectsFalseRootDynamicUpdate() throws Exception {
+        MapperService mapperService = createMapperService(
+            mappingNoSubobjects(b -> b.startObject("host.name").field("type", "keyword").endObject())
+        );
+        ParsedDocument doc = mapperService.documentMapper().parse(source("""
+            {
+              "time" : 10,
+              "time.max" : 500,
+              "time.min" : 1,
+              "host.name" : "localhost",
+              "host.id" : 111
+            }
+            """));
+
+        Mapping mappingsUpdate = doc.dynamicMappingsUpdate();
+        assertNotNull(mappingsUpdate);
+        assertNotNull(mappingsUpdate.getRoot().getMapper("time"));
+        assertNotNull(mappingsUpdate.getRoot().getMapper("time.max"));
+        assertNotNull(mappingsUpdate.getRoot().getMapper("time.min"));
+        assertNotNull(mappingsUpdate.getRoot().getMapper("host.id"));
+        assertNull(mappingsUpdate.getRoot().getMapper("host.name"));
+
+        assertNotNull(doc.rootDoc().getFields("time"));
+        assertNotNull(doc.rootDoc().getFields("time.max"));
+        assertNotNull(doc.rootDoc().getFields("time.min"));
+        assertNotNull(doc.rootDoc().getFields("host.name"));
+        assertNotNull(doc.rootDoc().getFields("host.id"));
+
+        merge(mapperService, dynamicMapping(mappingsUpdate));
+
+        assertNotNull(mapperService.fieldType("time"));
+        assertNotNull(mapperService.fieldType("time.max"));
+        assertNotNull(mapperService.fieldType("time.min"));
+        assertNotNull(mapperService.fieldType("host.id"));
+        assertNotNull(mapperService.fieldType("host.name"));
+
+        assertEquals(0, mapperService.mappingLookup().objectMappers().size());
+    }
+
+    public void testDefaultDenseVectorMappings() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("numeric_detection", true)));
+        doTestDefaultDenseVectorMappings(mapper, XContentFactory.jsonBuilder());
+        doTestDefaultDenseVectorMappings(mapper, XContentFactory.yamlBuilder());
+        doTestDefaultDenseVectorMappings(mapper, XContentFactory.smileBuilder());
+        doTestDefaultDenseVectorMappings(mapper, XContentFactory.cborBuilder());
+    }
+
+    private void doTestDefaultDenseVectorMappings(DocumentMapper mapper, XContentBuilder builder) throws IOException {
+        BytesReference source = BytesReference.bytes(
+            builder.startObject()
+                .field("mapsToFloatTooSmall", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING - 1, 0.0, 5.0).toArray())
+                .field("mapsToFloatTooBig", Randomness.get().doubles(MAX_DIMS_COUNT + 1, 0.0, 5.0).toArray())
+                .field("mapsToDenseVector", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING, 0.0, 5.0).toArray())
+                .endObject()
+        );
+        ParsedDocument parsedDocument = mapper.parse(new SourceToParse("id", source, builder.contentType()));
+        Mapping update = parsedDocument.dynamicMappingsUpdate();
+        assertNotNull(update);
+        assertThat(((FieldMapper) update.getRoot().getMapper("mapsToFloatTooSmall")).fieldType().typeName(), equalTo("float"));
+        assertThat(((FieldMapper) update.getRoot().getMapper("mapsToFloatTooBig")).fieldType().typeName(), equalTo("float"));
+        assertThat(((FieldMapper) update.getRoot().getMapper("mapsToDenseVector")).fieldType().typeName(), equalTo("dense_vector"));
+        DenseVectorFieldMapper dvFieldMapper = ((DenseVectorFieldMapper) update.getRoot().getMapper("mapsToDenseVector"));
+    }
+
+    public void testDefaultDenseVectorMappingsObject() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("numeric_detection", true)));
+        BytesReference source = BytesReference.bytes(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("parent_object")
+                .field("mapsToFloatTooSmall", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING - 1, 0.0, 5.0).toArray())
+                .field("mapsToFloatTooBig", Randomness.get().doubles(MAX_DIMS_COUNT + 1, 0.0, 5.0).toArray())
+                .field("mapsToDenseVector", Randomness.get().doubles(MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING, 0.0, 5.0).toArray())
+                .endObject()
+                .endObject()
+        );
+        ParsedDocument parsedDocument = mapper.parse(new SourceToParse("id", source, XContentType.JSON));
+        Mapping update = parsedDocument.dynamicMappingsUpdate();
+        assertNotNull(update);
+        ObjectMapper parent = (ObjectMapper) update.getRoot().getMapper("parent_object");
+        assertThat(((FieldMapper) parent.getMapper("mapsToDenseVector")).fieldType().typeName(), equalTo("dense_vector"));
+    }
+
+    public void testStringArraysAreText() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("numeric_detection", true)));
+        BytesReference source = BytesReference.bytes(
+            XContentFactory.jsonBuilder().startObject().field("mapsToString", Stream.generate(() -> "foo").limit(129).toArray()).endObject()
+        );
+        ParsedDocument parsedDocument = mapper.parse(new SourceToParse("id", source, XContentType.JSON));
+        Mapping update = parsedDocument.dynamicMappingsUpdate();
+        assertNotNull(update);
+        assertThat(((FieldMapper) update.getRoot().getMapper("mapsToString")).fieldType().typeName(), equalTo("text"));
     }
 }

@@ -18,20 +18,20 @@ setup:
   - do:
       index:
         index: source
-        id:    1
+        id:    "1"
         body:  { "join_field": { "name": "parent" } }
 
   - do:
       index:
         index: source
-        id:    2
+        id:    "2"
         routing: "1"
         body:  { "join_field": { "name": "child", "parent": "1" } }
 
   - do:
       index:
         index: source
-        id:    3
+        id:    "3"
         routing: "1"
         body:  { "join_field": { "name": "grand_child", "parent": "2" } }
 
@@ -59,7 +59,7 @@ setup:
           query:
             parent_id:
               type: child
-              id: 1
+              id: "1"
   - match: {hits.total: 1}
   - match: {hits.hits.0._id: "2"}
 
@@ -74,7 +74,7 @@ setup:
               query:
                 parent_id:
                   type: child
-                  id: 1
+                  id: "1"
   - match: {hits.total: 1}
   - match: {hits.hits.0._id: "3"}
 
@@ -117,7 +117,7 @@ setup:
           query:
             parent_id:
               type: child
-              id: 1
+              id: "1"
   - match: {hits.total: 1}
   - match: {hits.hits.0._id: "2"}
 
@@ -132,7 +132,7 @@ setup:
               query:
                 parent_id:
                   type: child
-                  id: 1
+                  id: "1"
   - match: {hits.total: 1}
   - match: {hits.hits.0._id: "3"}
 

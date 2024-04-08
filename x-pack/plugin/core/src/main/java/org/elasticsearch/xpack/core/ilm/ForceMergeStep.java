@@ -56,12 +56,12 @@ public class ForceMergeStep extends AsyncActionStep {
         String indexName = indexMetadata.getIndex().getName();
         ForceMergeRequest request = new ForceMergeRequest(indexName);
         request.maxNumSegments(maxNumSegments);
-        getClient().admin().indices().forceMerge(request, ActionListener.wrap(response -> {
+        getClient().admin().indices().forceMerge(request, listener.delegateFailureAndWrap((l, response) -> {
             if (response.getFailedShards() == 0) {
-                listener.onResponse(null);
+                l.onResponse(null);
             } else {
                 DefaultShardOperationFailedException[] failures = response.getShardFailures();
-                String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+                String policyName = indexMetadata.getLifecyclePolicyName();
                 String errorMessage = String.format(
                     Locale.ROOT,
                     "index [%s] in policy [%s] encountered failures [%s] on step [%s]",
@@ -77,9 +77,9 @@ public class ForceMergeStep extends AsyncActionStep {
                 );
                 logger.warn(errorMessage);
                 // let's report it as a failure and retry
-                listener.onFailure(new ElasticsearchException(errorMessage));
+                l.onFailure(new ElasticsearchException(errorMessage));
             }
-        }, listener::onFailure));
+        }));
     }
 
     @Override

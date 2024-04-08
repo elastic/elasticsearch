@@ -36,7 +36,7 @@ import java.util.ArrayList;
  * results or are output (the {@link DuplicateSequenceAttribute} attribute can
  * be used to inspect the number of prior sightings when emitDuplicates is true)
  */
-public class DeDuplicatingTokenFilter extends FilteringTokenFilter {
+public final class DeDuplicatingTokenFilter extends FilteringTokenFilter {
     private final DuplicateSequenceAttribute seqAtt = addAttribute(DuplicateSequenceAttribute.class);
     private final boolean emitDuplicates;
     static final MurmurHash3.Hash128 seed = new MurmurHash3.Hash128();

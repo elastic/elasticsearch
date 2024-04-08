@@ -11,6 +11,8 @@ package org.elasticsearch.search.suggest.phrase;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.suggest.phrase.WordScorer.WordScorerFactory;
@@ -40,7 +42,7 @@ public final class Laplace extends SmoothingModel {
      */
     public static final double DEFAULT_LAPLACE_ALPHA = 0.5;
 
-    private double alpha = DEFAULT_LAPLACE_ALPHA;
+    private final double alpha;
 
     /**
      * Creates a Laplace smoothing model.
@@ -116,5 +118,10 @@ public final class Laplace extends SmoothingModel {
             separator,
             alpha
         );
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

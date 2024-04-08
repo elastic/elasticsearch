@@ -47,12 +47,12 @@ public class ShortCircuitingRenormalizerTests extends ESTestCase {
             // Blast through many sets of quantiles in quick succession, faster than the normalizer can process them
             for (int i = 1; i < TEST_SIZE / 2; ++i) {
                 Quantiles quantiles = new Quantiles(JOB_ID, new Date(), Integer.toString(i));
-                renormalizer.renormalize(quantiles);
+                renormalizer.renormalize(quantiles, () -> {});
             }
             renormalizer.waitUntilIdle();
             for (int i = TEST_SIZE / 2; i <= TEST_SIZE; ++i) {
                 Quantiles quantiles = new Quantiles(JOB_ID, new Date(), Integer.toString(i));
-                renormalizer.renormalize(quantiles);
+                renormalizer.renormalize(quantiles, () -> {});
             }
             renormalizer.waitUntilIdle();
 

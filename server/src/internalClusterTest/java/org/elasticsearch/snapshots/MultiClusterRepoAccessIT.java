@@ -9,8 +9,10 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -24,6 +26,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.function.Function;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
@@ -79,7 +82,20 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
 
     @After
     public void stopSecondCluster() throws IOException {
-        IOUtils.close(secondCluster);
+        IOUtils.close(secondCluster::close);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
+            .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), getTestTransportPlugin());
     }
 
     public void testConcurrentDeleteFromOtherCluster() throws InterruptedException {
@@ -111,12 +127,7 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
 
         final SnapshotException sne = expectThrows(
             SnapshotException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareCreateSnapshot(repoNameOnFirstCluster, "snap-4")
-                .setWaitForCompletion(true)
-                .execute()
-                .actionGet()
+            clusterAdmin().prepareCreateSnapshot(repoNameOnFirstCluster, "snap-4").setWaitForCompletion(true)
         );
         assertThat(sne.getMessage(), containsString("failed to update snapshot in repository"));
         final RepositoryException cause = (RepositoryException) sne.getCause();
@@ -131,7 +142,7 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
                     + "] at generation [4]."
             )
         );
-        assertAcked(client().admin().cluster().prepareDeleteRepository(repoNameOnFirstCluster).get());
+        assertAcked(clusterAdmin().prepareDeleteRepository(repoNameOnFirstCluster).get());
         createRepository(repoNameOnFirstCluster, "fs", repoPath);
         createFullSnapshot(repoNameOnFirstCluster, "snap-5");
     }
@@ -144,9 +155,7 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
 
         createIndexWithRandomDocs("test-idx-1", randomIntBetween(1, 100));
         createFullSnapshot(repoName, "snap-1");
-        final String repoUuid = client().admin()
-            .cluster()
-            .prepareGetRepositories(repoName)
+        final String repoUuid = clusterAdmin().prepareGetRepositories(repoName)
             .get()
             .repositories()
             .stream()
@@ -180,14 +189,12 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
             equalTo(repoUuid)
         );
 
-        assertAcked(client().admin().cluster().prepareDeleteRepository(repoName));
+        assertAcked(clusterAdmin().prepareDeleteRepository(repoName));
         IOUtils.rm(internalCluster().getCurrentMasterNodeInstance(Environment.class).resolveRepoFile(repoPath.toString()));
         createRepository(repoName, "fs", repoPath);
         createFullSnapshot(repoName, "snap-1");
 
-        final String newRepoUuid = client().admin()
-            .cluster()
-            .prepareGetRepositories(repoName)
+        final String newRepoUuid = clusterAdmin().prepareGetRepositories(repoName)
             .get()
             .repositories()
             .stream()

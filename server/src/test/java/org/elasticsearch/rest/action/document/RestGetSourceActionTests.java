@@ -37,7 +37,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RestGetSourceActionTests extends RestActionTestCase {
+public final class RestGetSourceActionTests extends RestActionTestCase {
 
     private static RestRequest request = new FakeRestRequest();
     private static FakeRestChannel channel = new FakeRestChannel(request, true, 0);

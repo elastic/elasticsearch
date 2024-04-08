@@ -49,9 +49,9 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
     public void testGetOperationsBasedOnGlobalSequenceId() throws Exception {
         client().admin().indices().prepareCreate("index").setSettings(Settings.builder().put("index.number_of_shards", 1)).get();
 
-        client().prepareIndex("index").setId("1").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("index").setId("2").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("index").setId("3").setSource("{}", XContentType.JSON).get();
+        prepareIndex("index").setId("1").setSource("{}", XContentType.JSON).get();
+        prepareIndex("index").setId("2").setSource("{}", XContentType.JSON).get();
+        prepareIndex("index").setId("3").setSource("{}", XContentType.JSON).get();
 
         ShardStats shardStats = client().admin().indices().prepareStats("index").get().getIndex("index").getShards()[0];
         long globalCheckPoint = shardStats.getSeqNoStats().getGlobalCheckpoint();
@@ -75,9 +75,9 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
         assertThat(operation.seqNo(), equalTo(2L));
         assertThat(operation.id(), equalTo("3"));
 
-        client().prepareIndex("index").setId("3").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("index").setId("4").setSource("{}", XContentType.JSON).get();
-        client().prepareIndex("index").setId("5").setSource("{}", XContentType.JSON).get();
+        prepareIndex("index").setId("3").setSource("{}", XContentType.JSON).get();
+        prepareIndex("index").setId("4").setSource("{}", XContentType.JSON).get();
+        prepareIndex("index").setId("5").setSource("{}", XContentType.JSON).get();
 
         shardStats = client().admin().indices().prepareStats("index").get().getIndex("index").getShards()[0];
         globalCheckPoint = shardStats.getSeqNoStats().getGlobalCheckpoint();
@@ -102,20 +102,15 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
     }
 
     public void testMissingOperations() throws Exception {
-        client().admin()
-            .indices()
-            .prepareCreate("index")
+        indicesAdmin().prepareCreate("index")
             .setSettings(
-                Settings.builder()
-                    .put("index.soft_deletes.retention.operations", 0)
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 0)
+                indexSettings(1, 0).put("index.soft_deletes.retention.operations", 0)
                     .put(IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.getKey(), "200ms")
             )
             .get();
 
         for (int i = 0; i < 32; i++) {
-            client().prepareIndex("index").setId("1").setSource("{}", XContentType.JSON).get();
+            prepareIndex("index").setId("1").setSource("{}", XContentType.JSON).get();
             client().prepareDelete("index", "1").get();
             client().admin().indices().flush(new FlushRequest("index").force(true)).actionGet();
         }
@@ -138,13 +133,10 @@ public class ShardChangesTests extends ESSingleNodeTestCase {
         forceMergeRequest.maxNumSegments(1);
         client().admin().indices().forceMerge(forceMergeRequest).actionGet();
 
-        client().admin()
-            .indices()
-            .execute(
-                RetentionLeaseActions.Add.INSTANCE,
-                new RetentionLeaseActions.AddRequest(new ShardId(resolveIndex("index"), 0), "test", RetentionLeaseActions.RETAIN_ALL, "ccr")
-            )
-            .get();
+        indicesAdmin().execute(
+            RetentionLeaseActions.ADD,
+            new RetentionLeaseActions.AddRequest(new ShardId(resolveIndex("index"), 0), "test", RetentionLeaseActions.RETAIN_ALL, "ccr")
+        ).get();
 
         ShardStats shardStats = client().admin().indices().prepareStats("index").get().getIndex("index").getShards()[0];
         String historyUUID = shardStats.getCommitStats().getUserData().get(Engine.HISTORY_UUID_KEY);

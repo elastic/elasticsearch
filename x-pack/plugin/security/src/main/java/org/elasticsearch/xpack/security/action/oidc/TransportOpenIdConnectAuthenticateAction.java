@@ -11,12 +11,12 @@ import com.nimbusds.openid.connect.sdk.Nonce;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
@@ -59,7 +59,8 @@ public class TransportOpenIdConnectAuthenticateAction extends HandledTransportAc
             OpenIdConnectAuthenticateAction.NAME,
             transportService,
             actionFilters,
-            (Writeable.Reader<OpenIdConnectAuthenticateRequest>) OpenIdConnectAuthenticateRequest::new
+            (Writeable.Reader<OpenIdConnectAuthenticateRequest>) OpenIdConnectAuthenticateRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.threadPool = threadPool;
         this.authenticationService = authenticationService;
@@ -109,7 +110,7 @@ public class TransportOpenIdConnectAuthenticateAction extends HandledTransportAc
                     }, listener::onFailure)
                 );
             }, e -> {
-                logger.debug(() -> new ParameterizedMessage("OpenIDConnectToken [{}] could not be authenticated", token), e);
+                logger.debug(() -> "OpenIDConnectToken [" + token + "] could not be authenticated", e);
                 listener.onFailure(e);
             }));
         }

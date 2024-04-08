@@ -11,7 +11,7 @@ a given distance of a geopoint.
 [[geo-distance-query-ex]]
 ==== Example
 
-Assume the following the following documents are indexed:
+Assume the following documents are indexed:
 
 [source,console]
 --------------------------------------------------
@@ -146,13 +146,13 @@ GET my_locations,my_geoshapes/_search
 
 
 [discrete]
-==== Accepted Formats
+==== Accepted formats
 
 In much the same way the `geo_point` type can accept different
 representations of the geo point, the filter can accept it as well:
 
 [discrete]
-===== Lat Lon As Properties
+===== Lat lon as properties
 
 [source,console]
 --------------------------------------------------
@@ -178,7 +178,7 @@ GET /my_locations/_search
 --------------------------------------------------
 
 [discrete]
-===== Lat Lon As Array
+===== Lat lon as array
 
 Format in `[lon, lat]`, note, the order of lon/lat here in order to
 conform with http://geojson.org/[GeoJSON].
@@ -205,9 +205,9 @@ GET /my_locations/_search
 
 
 [discrete]
-===== Lat Lon As String
+===== Lat lon as WKT string
 
-Format in `lat,lon`.
+Format in https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text].
 
 [source,console]
 --------------------------------------------------
@@ -221,7 +221,7 @@ GET /my_locations/_search
       "filter": {
         "geo_distance": {
           "distance": "12km",
-          "pin.location": "40,-70"
+          "pin.location": "POINT (-70 40)"
         }
       }
     }
@@ -280,14 +280,14 @@ The following are options allowed on the filter:
     coordinates (default is `STRICT`).
 
 [discrete]
-==== Multi Location Per Document
+==== Multi location per document
 
 The `geo_distance` filter can work with multiple locations / points per
 document. Once a single location / point matches the filter, the
 document will be included in the filter.
 
 [discrete]
-==== Ignore Unmapped
+==== Ignore unmapped
 
 When set to `true` the `ignore_unmapped` option will ignore an unmapped field
 and will not match any documents for this query. This can be useful when

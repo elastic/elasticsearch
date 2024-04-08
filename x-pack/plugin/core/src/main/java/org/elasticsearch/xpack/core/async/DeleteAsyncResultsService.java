@@ -9,18 +9,12 @@ package org.elasticsearch.xpack.core.async;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 
 import java.util.function.Consumer;
 
@@ -29,9 +23,11 @@ import java.util.function.Consumer;
  * is still running and AsyncTaskIndexService if task results already stored there.
  */
 public class DeleteAsyncResultsService {
-    private final Logger logger = LogManager.getLogger(DeleteAsyncResultsService.class);
-    private final TaskManager taskManager;
+    private static final Logger logger = LogManager.getLogger(DeleteAsyncResultsService.class);
+
     private final AsyncTaskIndexService<? extends AsyncResponse<?>> store;
+    private final AsyncSearchSecurity security;
+    private final TaskManager taskManager;
 
     /**
      * Creates async results service
@@ -40,8 +36,9 @@ public class DeleteAsyncResultsService {
      * @param taskManager    task manager
      */
     public DeleteAsyncResultsService(AsyncTaskIndexService<? extends AsyncResponse<?>> store, TaskManager taskManager) {
-        this.taskManager = taskManager;
         this.store = store;
+        this.security = store.getSecurity();
+        this.taskManager = taskManager;
     }
 
     public void deleteResponse(DeleteAsyncResultRequest request, ActionListener<AcknowledgedResponse> listener) {
@@ -53,26 +50,7 @@ public class DeleteAsyncResultsService {
      * delete async search submitted by another user.
      */
     private void hasCancelTaskPrivilegeAsync(Consumer<Boolean> consumer) {
-        final Authentication current = store.getAuthentication();
-        if (current != null) {
-            HasPrivilegesRequest req = new HasPrivilegesRequest();
-            req.username(current.getUser().principal());
-            req.clusterPrivileges(ClusterPrivilegeResolver.CANCEL_TASK.name());
-            req.indexPrivileges(new RoleDescriptor.IndicesPrivileges[] {});
-            req.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[] {});
-            try {
-                store.getClient()
-                    .execute(
-                        HasPrivilegesAction.INSTANCE,
-                        req,
-                        ActionListener.wrap(resp -> consumer.accept(resp.isCompleteMatch()), exc -> consumer.accept(false))
-                    );
-            } catch (Exception exc) {
-                consumer.accept(false);
-            }
-        } else {
-            consumer.accept(false);
-        }
+        security.currentUserHasCancelTaskPrivilege(consumer);
     }
 
     private void deleteResponseAsync(
@@ -83,7 +61,7 @@ public class DeleteAsyncResultsService {
         try {
             AsyncExecutionId searchId = AsyncExecutionId.decode(request.getId());
             AsyncTask task = hasCancelTaskPrivilege
-                ? store.getTask(taskManager, searchId, AsyncTask.class)
+                ? AsyncTaskIndexService.getTask(taskManager, searchId, AsyncTask.class)
                 : store.getTaskAndCheckAuthentication(taskManager, searchId, AsyncTask.class);
             if (task != null) {
                 // the task was found and gets cancelled. The response may or may not be found, but we will return 200 anyways.
@@ -92,9 +70,9 @@ public class DeleteAsyncResultsService {
                 if (hasCancelTaskPrivilege) {
                     deleteResponseFromIndex(searchId, false, listener);
                 } else {
-                    store.ensureAuthenticatedUserCanDeleteFromIndex(
+                    store.security.ensureAuthenticatedUserCanDeleteFromIndex(
                         searchId,
-                        ActionListener.wrap(res -> deleteResponseFromIndex(searchId, false, listener), listener::onFailure)
+                        listener.delegateFailureAndWrap((l, res) -> deleteResponseFromIndex(searchId, false, l))
                     );
                 }
             }
@@ -117,7 +95,7 @@ public class DeleteAsyncResultsService {
             if (status == RestStatus.NOT_FOUND && taskWasFound) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             } else {
-                logger.error(() -> new ParameterizedMessage("failed to clean async result [{}]", taskId.getEncoded()), exc);
+                logger.error(() -> "failed to clean async result [" + taskId.getEncoded() + "]", exc);
                 listener.onFailure(new ResourceNotFoundException(taskId.getEncoded()));
             }
         }));

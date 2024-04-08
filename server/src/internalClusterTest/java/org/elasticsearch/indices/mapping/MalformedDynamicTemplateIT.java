@@ -8,11 +8,12 @@
 
 package org.elasticsearch.indices.mapping;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -54,18 +55,18 @@ public class MalformedDynamicTemplateIT extends ESIntegTestCase {
                 Settings.builder()
                     .put(indexSettings())
                     .put("number_of_shards", 1)
-                    .put("index.version.created", VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0))
-            ).setMapping(mapping).get()
+                    .put("index.version.created", IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0))
+            ).setMapping(mapping)
         );
-        client().prepareIndex(indexName).setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
-        assertNoFailures((client().admin().indices().prepareRefresh(indexName)).get());
-        assertHitCount(client().prepareSearch(indexName).get(), 1);
+        prepareIndex(indexName).setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
+        assertNoFailures((indicesAdmin().prepareRefresh(indexName)).get());
+        assertHitCount(prepareSearch(indexName), 1);
 
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> prepareCreate("malformed_dynamic_template_8.0").setSettings(
-                Settings.builder().put(indexSettings()).put("number_of_shards", 1).put("index.version.created", Version.CURRENT)
-            ).setMapping(mapping).get()
+            prepareCreate("malformed_dynamic_template_8.0").setSettings(
+                Settings.builder().put(indexSettings()).put("number_of_shards", 1).put("index.version.created", IndexVersion.current())
+            ).setMapping(mapping)
         );
         assertThat(ex.getMessage(), containsString("dynamic template [my_template] has invalid content"));
     }

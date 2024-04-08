@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.transform;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 
-public class TransformMetadataTests extends AbstractSerializingTestCase<TransformMetadata> {
+public class TransformMetadataTests extends AbstractChunkedSerializingTestCase<TransformMetadata> {
 
     @Override
     protected TransformMetadata createTestInstance() {

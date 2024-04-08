@@ -9,8 +9,9 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -318,7 +319,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
         if (context != null) {
             MappedFieldType fieldType = context.getFieldType(fieldName);
             if (fieldType == null) {
-                return new MatchNoneQueryBuilder();
+                return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
             }
         }
         return super.doRewrite(context);
@@ -331,12 +332,15 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
             throw new IllegalStateException("Rewrite first");
         }
         String rewrite = this.rewrite;
-        Query query = fieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context);
-        if (query instanceof MultiTermQuery) {
-            MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
-            QueryParsers.setRewriteMethod((MultiTermQuery) query, rewriteMethod);
-        }
-        return query;
+        return fieldType.fuzzyQuery(
+            value,
+            fuzziness,
+            prefixLength,
+            maxExpansions,
+            transpositions,
+            context,
+            QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE)
+        );
     }
 
     @Override
@@ -353,5 +357,10 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
             && Objects.equals(maxExpansions, other.maxExpansions)
             && Objects.equals(transpositions, other.transpositions)
             && Objects.equals(rewrite, other.rewrite);
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

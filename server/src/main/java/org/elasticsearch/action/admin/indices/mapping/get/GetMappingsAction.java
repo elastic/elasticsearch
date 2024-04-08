@@ -16,6 +16,6 @@ public class GetMappingsAction extends ActionType<GetMappingsResponse> {
     public static final String NAME = "indices:admin/mappings/get";
 
     private GetMappingsAction() {
-        super(NAME, GetMappingsResponse::new);
+        super(NAME);
     }
 }

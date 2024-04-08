@@ -7,22 +7,14 @@
  */
 
 import org.elasticsearch.gradle.internal.info.BuildParams
-import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.rest-resources'
-
-final Project fixture = project(':test:fixtures:azure-fixture')
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
-  testImplementation(testArtifact(project(xpackModule('snapshot-based-recoveries'))))
-}
-
-restResources {
-  restApi {
-    include 'indices', 'search', 'bulk', 'snapshot'
-  }
+  clusterModules project(':modules:repository-azure')
+  clusterModules project(xpackModule('snapshot-based-recoveries'))
+  javaRestTestImplementation(testArtifact(project(xpackModule('snapshot-based-recoveries'))))
+  javaRestTestImplementation(project(':test:fixtures:azure-fixture'))
 }
 
 boolean useFixture = false
@@ -42,48 +34,16 @@ if (!azureAccount && !azureKey && !azureContainer && !azureBasePath && !azureSas
 
 }
 
-if (useFixture) {
-  apply plugin: 'elasticsearch.test.fixtures'
-  testFixtures.useFixture(fixture.path, 'azure-fixture-snapshot-based-recoveries')
-}
-
-tasks.named("integTest").configure {
+tasks.named("javaRestTest").configure {
+  systemProperty 'test.azure.fixture', Boolean.toString(useFixture)
+  systemProperty 'test.azure.account', azureAccount
   systemProperty 'test.azure.container', azureContainer
+  systemProperty 'test.azure.key', azureKey
+  systemProperty 'test.azure.sas_token', azureSasToken
   nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_snapshot_based_recoveries_tests_" + BuildParams.testSeed
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
-  testDistribution = 'DEFAULT'
-  numberOfNodes = 3
-
-  setting 'xpack.license.self_generated.type', 'trial'
-
-  keystore 'azure.client.snapshot_based_recoveries.account', azureAccount
-  if (azureKey != null && azureKey.isEmpty() == false) {
-    keystore 'azure.client.snapshot_based_recoveries.key', azureKey
-  }
-  if (azureSasToken != null && azureSasToken.isEmpty() == false) {
-    keystore 'azure.client.snapshot_based_recoveries.sas_token', azureSasToken
-  }
-
-  setting 'xpack.security.enabled', 'false'
-
-  if (useFixture) {
-    def fixtureAddress = { fixtureName ->
-      assert useFixture: 'closure should not be used without a fixture'
-      int ephemeralPort =  fixture.postProcessFixture.ext."test.fixtures.${fixtureName}.tcp.8091"
-      assert ephemeralPort > 0
-      '127.0.0.1:' + ephemeralPort
-    }
-    setting 'azure.client.snapshot_based_recoveries.endpoint_suffix',
-      { "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://${-> fixtureAddress('azure-fixture-snapshot-based-recoveries')}/azure_integration_test_account" }, IGNORE_VALUE
-
-  } else {
-    println "Using an external service to test " + project.name
-  }
-}
-
 tasks.register("azureThirdPartyTest") {
-  dependsOn "integTest"
+  dependsOn "javaRestTest"
 }
 

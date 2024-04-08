@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -48,6 +47,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
@@ -192,15 +192,15 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         final CyclicBarrier barrier = new CyclicBarrier(2);
         final Thread thread = new Thread(() -> {
             try {
-                barrier.await();
+                safeAwait(barrier);
                 tracker.markAllocationIdAsInSync(replicaId.getId(), randomLongBetween(NO_OPS_PERFORMED, localCheckpoint - 1));
-                barrier.await();
-            } catch (BrokenBarrierException | InterruptedException e) {
+                safeAwait(barrier);
+            } catch (InterruptedException e) {
                 throw new AssertionError(e);
             }
         });
         thread.start();
-        barrier.await();
+        safeAwait(barrier);
         assertBusy(() -> assertTrue(tracker.pendingInSync()));
         final long updatedLocalCheckpoint = randomLongBetween(1 + localCheckpoint, Long.MAX_VALUE);
         // there is a shard copy pending in sync, the global checkpoint can not advance
@@ -210,7 +210,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         // we are implicitly marking the pending in sync copy as in sync with the current global checkpoint, no advancement should occur
         tracker.updateLocalCheckpoint(replicaId.getId(), localCheckpoint);
         assertThat(updatedGlobalCheckpoint.get(), equalTo(UNASSIGNED_SEQ_NO));
-        barrier.await();
+        safeAwait(barrier);
         thread.join();
         // now we expect that the global checkpoint would advance
         tracker.markAllocationIdAsInSync(replicaId.getId(), updatedLocalCheckpoint);
@@ -380,7 +380,9 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         // synchronize starting with the waiting thread
         barrier.await();
 
-        final List<Integer> elements = IntStream.rangeClosed(0, globalCheckpoint - 1).boxed().collect(Collectors.toList());
+        final List<Integer> elements = IntStream.rangeClosed(0, globalCheckpoint - 1)
+            .boxed()
+            .collect(Collectors.toCollection(ArrayList::new));
         Randomness.shuffle(elements);
         for (int i = 0; i < elements.size(); i++) {
             updateLocalCheckpoint(tracker, trackingAllocationId.getId(), elements.get(i));
@@ -929,14 +931,14 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         activeAllocationIds.remove(primaryId);
         activeAllocationIds.add(relocatingId);
         final ShardId shardId = new ShardId("test", "_na_", 0);
-        final ShardRouting primaryShard = TestShardRouting.newShardRouting(
+        final ShardRouting primaryShard = shardRoutingBuilder(
             shardId,
             nodeIdFromAllocationId(relocatingId),
-            nodeIdFromAllocationId(AllocationId.newInitializing(relocatingId.getRelocationId())),
             true,
-            ShardRoutingState.RELOCATING,
-            relocatingId
-        );
+            ShardRoutingState.RELOCATING
+        ).withRelocatingNodeId(nodeIdFromAllocationId(AllocationId.newInitializing(relocatingId.getRelocationId())))
+            .withAllocationId(relocatingId)
+            .build();
 
         return new FakeClusterState(initialClusterStateVersion, activeAllocationIds, routingTable(initializingAllocationIds, primaryShard));
     }
@@ -1031,7 +1033,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
     private static void addPeerRecoveryRetentionLease(final ReplicationTracker tracker, final AllocationId allocationId) {
         final String nodeId = nodeIdFromAllocationId(allocationId);
         if (tracker.getRetentionLeases().contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(nodeId)) == false) {
-            tracker.addPeerRecoveryRetentionLease(nodeId, NO_OPS_PERFORMED, ActionListener.wrap(() -> {}));
+            tracker.addPeerRecoveryRetentionLease(nodeId, NO_OPS_PERFORMED, ActionListener.noop());
         }
     }
 
@@ -1151,7 +1153,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         IndexShardRoutingTable.Builder routingTableBuilder = new IndexShardRoutingTable.Builder(routingTable);
         for (ShardRouting replicaShard : routingTable.replicaShards()) {
             routingTableBuilder.removeShard(replicaShard);
-            routingTableBuilder.addShard(replicaShard.moveToStarted());
+            routingTableBuilder.addShard(replicaShard.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
         }
         routingTable = routingTableBuilder.build();
         activeAllocationIds.addAll(initializingAllocationIds);
@@ -1165,7 +1167,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
                 equalTo(expectedLeaseIds)
             );
             // ... and any extra peer recovery retention leases are expired immediately since the shard is fully active
-            tracker.addPeerRecoveryRetentionLease(randomAlphaOfLength(10), randomNonNegativeLong(), ActionListener.wrap(() -> {}));
+            tracker.addPeerRecoveryRetentionLease(randomAlphaOfLength(10), randomNonNegativeLong(), ActionListener.noop());
         });
 
         tracker.renewPeerRecoveryRetentionLeases();
@@ -1230,6 +1232,68 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             currentTimeMillis.get(),
             lessThanOrEqualTo(testStartTimeMillis + maximumTestTimeMillis)
         );
+    }
+
+    public void testTrackedGlobalCheckpointsNeedSync() {
+        final int numberOfActiveAllocationsIds = randomIntBetween(2, 8);
+        final int numberOfInitializingIds = randomIntBetween(0, 8);
+        final var activeAndInitializingAllocationIds = randomActiveAndInitializingAllocationIds(
+            numberOfActiveAllocationsIds,
+            numberOfInitializingIds
+        );
+        final var activeAllocationIds = activeAndInitializingAllocationIds.v1();
+        final var initializingAllocationIds = activeAndInitializingAllocationIds.v2();
+
+        final var primaryId = activeAllocationIds.iterator().next();
+
+        final var initialClusterStateVersion = randomNonNegativeLong();
+
+        final var currentTimeMillis = new AtomicLong(0L);
+        final var tracker = newTracker(primaryId, updatedGlobalCheckpoint::set, currentTimeMillis::get);
+
+        final var routingTable = routingTable(initializingAllocationIds, primaryId);
+        tracker.updateFromMaster(initialClusterStateVersion, ids(activeAllocationIds), routingTable);
+        final var localCheckpoint = randomLongBetween(0L, 1000L);
+        tracker.activatePrimaryMode(localCheckpoint);
+
+        // the global checkpoint hasn't moved yet so no sync is needed
+        assertEquals(UNASSIGNED_SEQ_NO, tracker.globalCheckpoint);
+        assertFalse(tracker.trackedGlobalCheckpointsNeedSync());
+
+        // advance the local checkpoint on all in-sync copies to move the global checkpoint on the primary
+        for (final var activeAllocationId : activeAllocationIds) {
+            assertEquals(UNASSIGNED_SEQ_NO, tracker.globalCheckpoint);
+            assertFalse(tracker.trackedGlobalCheckpointsNeedSync());
+            tracker.updateLocalCheckpoint(activeAllocationId.getId(), localCheckpoint);
+
+            // there may also be some activity on initializing shards but this is irrelevant
+            if (0 < numberOfInitializingIds && randomBoolean()) {
+                tracker.updateLocalCheckpoint(
+                    randomFrom(initializingAllocationIds).getId(),
+                    usually() ? localCheckpoint : randomLongBetween(0L, localCheckpoint)
+                );
+            }
+        }
+        // the global checkpoint advanced on the primary, but not on any other copy, so a sync is needed
+        assertEquals(localCheckpoint, tracker.globalCheckpoint);
+        assertTrue(tracker.trackedGlobalCheckpointsNeedSync());
+
+        // sync the global checkpoint on every active copy
+        for (final var activeAllocationId : activeAllocationIds) {
+            assertTrue(tracker.trackedGlobalCheckpointsNeedSync());
+            tracker.updateGlobalCheckpointForShard(activeAllocationId.getId(), localCheckpoint);
+
+            // there may also be some activity on initializing shards but this is irrelevant
+            if (0 < numberOfInitializingIds && randomBoolean()) {
+                tracker.updateGlobalCheckpointForShard(
+                    randomFrom(initializingAllocationIds).getId(),
+                    usually() ? localCheckpoint : randomLongBetween(0L, localCheckpoint)
+                );
+            }
+        }
+
+        // the global checkpoint is up to date on every in-sync copy so no further sync is needed
+        assertFalse(tracker.trackedGlobalCheckpointsNeedSync());
     }
 
 }

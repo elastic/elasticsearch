@@ -9,11 +9,15 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParseException;
 
 import java.io.IOException;
 import java.util.List;
@@ -21,6 +25,7 @@ import java.util.List;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestClearScrollAction extends BaseRestHandler {
 
     @Override
@@ -43,13 +48,13 @@ public class RestClearScrollAction extends BaseRestHandler {
                 // NOTE: if rest request with xcontent body has request parameters, values parsed from request body have the precedence
                 try {
                     clearRequest.fromXContent(xContentParser);
-                } catch (IOException e) {
+                } catch (IOException | XContentParseException e) {
                     throw new IllegalArgumentException("Failed to parse request body", e);
                 }
             }
         }));
 
-        return channel -> client.clearScroll(clearRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.clearScroll(clearRequest, new RestToXContentListener<>(channel, ClearScrollResponse::status));
     }
 
 }

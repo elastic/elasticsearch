@@ -1,0 +1,125 @@
+setup:
+  - skip:
+      version: " - 8.5.0"
+      reason: fixed in 8.5.1
+  - do:
+      indices.create:
+        index: dates_year_only
+        body:
+          mappings:
+            properties:
+              date:
+                type: date
+                format: uuuu
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index" : { "_index" : "dates_year_only", "_id" : "1" } }'
+          - '{"date" : "1900", "field" : 1 }'
+          - '{ "index" : { "_index" : "dates_year_only", "_id" : "2" } }'
+          - '{"date" : "2022", "field" : 2 }'
+          - '{ "index" : { "_index" : "dates_year_only", "_id" : "3" } }'
+          - '{"date" : "2022", "field" : 3 }'
+          - '{ "index" : { "_index" : "dates_year_only", "_id" : "4" } }'
+          - '{"date" : "1500", "field" : 4 }'
+
+  - do:
+      indices.create:
+        index: dates
+        body:
+          mappings:
+            properties:
+              date:
+                type: date
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "index" : { "_index" : "dates", "_id" : "1" } }'
+          - '{"date" : "1900-01-01T12:12:12.123456789Z", "field" : 1 }'
+          - '{ "index" : { "_index" : "dates", "_id" : "2" } }'
+          - '{"date" : "2022-01-01T12:12:12.123456789Z", "field" : 2 }'
+          - '{ "index" : { "_index" : "dates", "_id" : "3" } }'
+          - '{"date" : "2022-01-03T12:12:12.123456789Z", "field" : 3 }'
+          - '{ "index" : { "_index" : "dates", "_id" : "4" } }'
+          - '{"date" : "1500-01-01T12:12:12.123456789Z", "field" : 4 }'
+          - '{ "index" : { "_index" : "dates", "_id" : "5" } }'
+          - '{"date" : "1500-01-05T12:12:12.123456789Z", "field" : 5 }'
+
+---
+"test range query for all docs with year uuuu":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: dates
+        body:
+          sort: field
+          query:
+            range:
+              date:
+                gte: 1000
+                lte: 2023
+                format: uuuu
+
+  - match: { hits.total: 5 }
+  - length: { hits.hits: 5 }
+
+---
+"test match query gte and lt for single result with year uuuu":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: dates
+        body:
+          sort: field
+          query:
+            range:
+              date:
+                gte: 1500 #1500-01-01T00:00:00
+                lte: 1500 #1500-01-01T23:59:59
+                format: uuuu
+
+  - match: { hits.total: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "4" }
+
+---
+"test match query gte and lte with year uuuu":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: dates
+        body:
+          sort: field
+          query:
+            range:
+              date:
+                gte: 1500
+                lte: 2000
+                format: uuuu
+
+  - match: { hits.total: 3 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "4" }
+  - match: { hits.hits.2._id: "5" }
+
+---
+"test match query with year uuuu":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: dates_year_only
+        body:
+          sort: field
+          query:
+            match:
+              date:
+                query: "1500"
+
+  - match: { hits.total: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "4" }

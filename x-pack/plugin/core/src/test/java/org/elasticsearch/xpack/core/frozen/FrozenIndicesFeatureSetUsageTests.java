@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.core.frozen;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
-
 public class FrozenIndicesFeatureSetUsageTests extends AbstractWireSerializingTestCase<FrozenIndicesFeatureSetUsage> {
 
     @Override
@@ -21,7 +19,7 @@ public class FrozenIndicesFeatureSetUsageTests extends AbstractWireSerializingTe
     }
 
     @Override
-    protected FrozenIndicesFeatureSetUsage mutateInstance(FrozenIndicesFeatureSetUsage instance) throws IOException {
+    protected FrozenIndicesFeatureSetUsage mutateInstance(FrozenIndicesFeatureSetUsage instance) {
         boolean available = instance.available();
         boolean enabled = instance.enabled();
         int numFrozenIndices = instance.getNumberOfFrozenIndices();

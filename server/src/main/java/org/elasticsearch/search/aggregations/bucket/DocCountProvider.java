@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
-import org.apache.lucene.index.Term;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 
 import java.io.IOException;
@@ -41,7 +40,7 @@ public class DocCountProvider {
     }
 
     public void setLeafReaderContext(LeafReaderContext ctx) throws IOException {
-        docCountPostings = ctx.reader().postings(new Term(DocCountFieldMapper.NAME, DocCountFieldMapper.NAME));
+        docCountPostings = DocCountFieldMapper.leafLookup(ctx.reader());
     }
 
     public boolean alwaysOne() {

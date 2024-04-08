@@ -62,6 +62,14 @@ public abstract class TextStructureTestCase extends ESTestCase {
         [2018-05-11T17:07:29,556][INFO ][o.e.n.Node               ] [node-0] node name [node-0], node ID [tJ9u8HcaTbWxRtnlfz1RQA]
         """;
 
+    protected static final String TEXT_WITH_NO_TIMESTAMPS_SAMPLE = """
+        [INFO ][o.e.n.Node               ] [node-0] initializing ...
+        [INFO ][o.e.e.NodeEnvironment    ] [node-0] using [1] data paths, mounts [[/ (/dev/disk1)]], net \
+        usable_space [223.4gb], net total_space [464.7gb], types [hfs]
+        [INFO ][o.e.e.NodeEnvironment    ] [node-0] heap size [3.9gb], compressed ordinary object pointers [true]
+        [INFO ][o.e.n.Node               ] [node-0] node name [node-0], node ID [tJ9u8HcaTbWxRtnlfz1RQA]
+        """;
+
     protected static final String TSV_SAMPLE = """
         time\tid\tvalue
         2018-05-17T16:23:40\tkey1\t42.0

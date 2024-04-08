@@ -35,7 +35,7 @@ public class SearchableSnapshotAllocationIntegTests extends BaseSearchableSnapsh
         createRepository(repoName, "fs");
         final String snapshotName = "test-snapshot";
         createSnapshot(repoName, snapshotName, List.of(index));
-        assertAcked(client().admin().indices().prepareDelete(index));
+        assertAcked(indicesAdmin().prepareDelete(index));
         final String restoredIndex = mountSnapshot(repoName, snapshotName, index, Settings.EMPTY);
         ensureGreen(restoredIndex);
         internalCluster().startDataOnlyNodes(randomIntBetween(1, 4));
@@ -50,7 +50,7 @@ public class SearchableSnapshotAllocationIntegTests extends BaseSearchableSnapsh
         setAllocation(EnableAllocationDecider.Allocation.ALL);
         ensureGreen(restoredIndex);
 
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState().get().getState();
         assertEquals(
             state.nodes().resolveNode(firstDataNode).getId(),
             state.routingTable().index(restoredIndex).shard(0).primaryShard().currentNodeId()
@@ -67,7 +67,7 @@ public class SearchableSnapshotAllocationIntegTests extends BaseSearchableSnapsh
         createRepository(repoName, "fs");
         final String snapshotName = "test-snapshot";
         createSnapshot(repoName, snapshotName, List.of(index));
-        assertAcked(client().admin().indices().prepareDelete(index));
+        assertAcked(indicesAdmin().prepareDelete(index));
         final String restoredIndex = mountSnapshot(
             repoName,
             snapshotName,
@@ -88,7 +88,7 @@ public class SearchableSnapshotAllocationIntegTests extends BaseSearchableSnapsh
         setAllocation(EnableAllocationDecider.Allocation.ALL);
         ensureGreen(restoredIndex);
 
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState().get().getState();
         final Set<String> nodesWithCache = Set.of(
             state.nodes().resolveNode(firstDataNode).getId(),
             state.nodes().resolveNode(secondDataNode).getId()
@@ -99,16 +99,8 @@ public class SearchableSnapshotAllocationIntegTests extends BaseSearchableSnapsh
 
     private void setAllocation(EnableAllocationDecider.Allocation allocation) {
         logger.info("--> setting allocation to [{}]", allocation);
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), allocation.name())
-                        .build()
-                )
-                .get()
+        updateClusterSettings(
+            Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), allocation.name())
         );
     }
 }

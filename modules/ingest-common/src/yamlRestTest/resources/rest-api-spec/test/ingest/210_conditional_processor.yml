@@ -28,14 +28,14 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {bytes_source_field: "1kb", conditional_field: "bar"}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.bytes_source_field: "1kb" }
   - match: { _source.conditional_field: "bar" }
   - match: { _source.bytes_target_field: 1024 }
@@ -63,14 +63,14 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {bytes_source_field: "1kb", conditional_field: "bar"}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.bytes_source_field: "1kb" }
   - match: { _source.conditional_field: "bar" }
   - is_false: _source.bytes_target_field

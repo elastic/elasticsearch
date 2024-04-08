@@ -53,18 +53,29 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
     }
 
     @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected T createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
         final int precision = randomPrecision();
-        int size = randomNumberOfBuckets();
-        List<InternalGeoGridBucket> buckets = new ArrayList<>(size);
+        final int size = randomNumberOfBuckets();
+        final List<InternalGeoGridBucket> buckets = new ArrayList<>(size);
+        final List<Long> seen = new ArrayList<>(size);
+        int finalSize = 0;
         for (int i = 0; i < size; i++) {
             double latitude = randomDoubleBetween(-90.0, 90.0, false);
             double longitude = randomDoubleBetween(-180.0, 180.0, false);
 
             long hashAsLong = longEncode(longitude, latitude, precision);
-            buckets.add(createInternalGeoGridBucket(hashAsLong, randomInt(IndexWriter.MAX_DOCS), aggregations));
+            if (seen.contains(hashAsLong) == false) { // make sure we don't add twice the same bucket
+                buckets.add(createInternalGeoGridBucket(hashAsLong, randomInt(IndexWriter.MAX_DOCS), aggregations));
+                seen.add(hashAsLong);
+                finalSize++;
+            }
         }
-        return createInternalGeoGrid(name, size, buckets, metadata);
+        return createInternalGeoGrid(name, finalSize, buckets, metadata);
     }
 
     @Override
@@ -96,7 +107,7 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
             }
             return cmp;
         });
-        int requestedSize = inputs.get(0).getRequiredSize();
+        int requestedSize = reduced.getRequiredSize();
         expectedBuckets = expectedBuckets.subList(0, Math.min(requestedSize, expectedBuckets.size()));
         assertEquals(expectedBuckets.size(), reduced.getBuckets().size());
         for (int i = 0; i < reduced.getBuckets().size(); i++) {
@@ -105,11 +116,6 @@ public abstract class GeoGridTestCase<B extends InternalGeoGridBucket, T extends
             assertEquals(expected.getDocCount(), actual.getDocCount());
             assertEquals(expected.getKey(), actual.getKey());
         }
-    }
-
-    @Override
-    protected Class<ParsedGeoGrid> implementationClass() {
-        return ParsedGeoGrid.class;
     }
 
     @Override

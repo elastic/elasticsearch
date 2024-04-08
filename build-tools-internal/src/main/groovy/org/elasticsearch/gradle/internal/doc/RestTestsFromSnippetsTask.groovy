@@ -10,8 +10,10 @@ package org.elasticsearch.gradle.internal.doc
 
 import groovy.transform.PackageScope
 import org.elasticsearch.gradle.internal.doc.SnippetsTask.Snippet
+import org.gradle.api.Action
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.internal.file.FileOperations
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.OutputDirectory
@@ -24,7 +26,7 @@ import java.nio.file.Path
 /**
  * Generates REST tests for each snippet marked // TEST.
  */
-class RestTestsFromSnippetsTask extends SnippetsTask {
+abstract class RestTestsFromSnippetsTask extends SnippetsTask {
     /**
      * These languages aren't supported by the syntax highlighter so we
      * shouldn't use them.
@@ -65,12 +67,22 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
     Set<String> names = new HashSet<>()
 
     @Inject
+    abstract FileOperations getFileOperations();
+
+    @Inject
     RestTestsFromSnippetsTask(ObjectFactory objectFactory) {
         testRoot = objectFactory.directoryProperty()
         TestBuilder builder = new TestBuilder()
-        perSnippet builder.&handleSnippet
-        doLast builder.&checkUnconverted
-        doLast builder.&finishLastTest
+        perSnippet = new Action<Snippet>() {
+            @Override
+            void execute(Snippet snippet) {
+                builder.handleSnippet(snippet)
+            }
+        }
+        doLast {
+            builder.checkUnconverted()
+            builder.finishLastTest()
+        }
     }
 
     /**
@@ -190,6 +202,7 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
          * Called each time a snippet is encountered. Tracks the snippets and
          * calls buildTest to actually build the test.
          */
+
         void handleSnippet(Snippet snippet) {
             if (RestTestsFromSnippetsTask.isConsoleCandidate(snippet)) {
                 unconvertedCandidates.add(snippet.path.toString()
@@ -210,6 +223,12 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
                 return
             }
             if (snippet.testResponse || snippet.language == 'console-result') {
+                if (previousTest == null) {
+                    throw new InvalidUserDataException("$snippet: No paired previous test")
+                }
+                if (previousTest.path != snippet.path) {
+                    throw new InvalidUserDataException("$snippet: Result can't be first in file")
+                }
                 response(snippet)
                 return
             }
@@ -391,7 +410,7 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
         }
 
         private void testTearDown(Snippet snippet) {
-            if (previousTest.testSetup == false && lastDocsPath == snippet.path) {
+            if (previousTest != null && previousTest.testSetup == false && lastDocsPath == snippet.path) {
                 throw new InvalidUserDataException("$snippet must follow test setup or be first")
             }
             setupCurrent(snippet)

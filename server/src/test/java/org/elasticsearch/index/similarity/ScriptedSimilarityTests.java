@@ -28,7 +28,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.script.SimilarityScript;
 import org.elasticsearch.script.SimilarityWeightScript;
@@ -87,10 +87,9 @@ public class ScriptedSimilarityTests extends ESTestCase {
                 ) {
 
                     StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
-                    if (Arrays.stream(stackTraceElements)
-                        .anyMatch(
-                            ste -> { return ste.getClassName().endsWith(".TermScorer") && ste.getMethodName().equals("score"); }
-                        ) == false) {
+                    if (Arrays.stream(stackTraceElements).anyMatch(ste -> {
+                        return ste.getClassName().endsWith(".TermScorer") && ste.getMethodName().equals("score");
+                    }) == false) {
                         // this might happen when computing max scores
                         return Float.MAX_VALUE;
                     }
@@ -135,7 +134,7 @@ public class ScriptedSimilarityTests extends ESTestCase {
 
         IndexReader r = DirectoryReader.open(w);
         w.close();
-        IndexSearcher searcher = new IndexSearcher(r);
+        IndexSearcher searcher = newSearcher(r);
         searcher.setSimilarity(sim);
         Query query = new BoostQuery(
             new BooleanQuery.Builder().add(new TermQuery(new Term("f", "foo")), Occur.SHOULD)
@@ -147,6 +146,7 @@ public class ScriptedSimilarityTests extends ESTestCase {
         assertEquals(1, topDocs.totalHits.value);
         assertTrue(called.get());
         assertEquals(42, topDocs.scoreDocs[0].score, 0);
+        r.close();
         w.close();
         dir.close();
     }
@@ -186,10 +186,9 @@ public class ScriptedSimilarityTests extends ESTestCase {
                 ) {
 
                     StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
-                    if (Arrays.stream(stackTraceElements)
-                        .anyMatch(
-                            ste -> { return ste.getClassName().endsWith(".TermScorer") && ste.getMethodName().equals("score"); }
-                        ) == false) {
+                    if (Arrays.stream(stackTraceElements).anyMatch(ste -> {
+                        return ste.getClassName().endsWith(".TermScorer") && ste.getMethodName().equals("score");
+                    }) == false) {
                         // this might happen when computing max scores
                         return Float.MAX_VALUE;
                     }
@@ -232,7 +231,7 @@ public class ScriptedSimilarityTests extends ESTestCase {
 
         IndexReader r = DirectoryReader.open(w);
         w.close();
-        IndexSearcher searcher = new IndexSearcher(r);
+        IndexSearcher searcher = newSearcher(r);
         searcher.setSimilarity(sim);
         Query query = new BoostQuery(new TermQuery(new Term("f", "foo")), 3.2f);
         TopDocs topDocs = searcher.search(query, 1);
@@ -240,6 +239,7 @@ public class ScriptedSimilarityTests extends ESTestCase {
         assertTrue(initCalled.get());
         assertTrue(called.get());
         assertEquals(42, topDocs.scoreDocs[0].score, 0);
+        r.close();
         w.close();
         dir.close();
     }

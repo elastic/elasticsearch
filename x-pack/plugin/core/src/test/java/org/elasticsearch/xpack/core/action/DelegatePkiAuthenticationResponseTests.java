@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.TimeValue;
@@ -17,17 +16,16 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class DelegatePkiAuthenticationResponseTests extends AbstractXContentTestCase<DelegatePkiAuthenticationResponse> {
@@ -51,7 +49,10 @@ public class DelegatePkiAuthenticationResponseTests extends AbstractXContentTest
         return new DelegatePkiAuthenticationResponse(
             randomAlphaOfLengthBetween(0, 10),
             TimeValue.parseTimeValue(randomTimeValue(), getClass().getSimpleName() + ".expiresIn"),
-            createAuthentication()
+            AuthenticationTestHelper.builder()
+                .realm()
+                .realmRef(new Authentication.RealmRef(randomAlphaOfLengthBetween(3, 8), PkiRealmSettings.TYPE, "node_name"))
+                .build(false)
         );
     }
 
@@ -97,21 +98,22 @@ public class DelegatePkiAuthenticationResponseTests extends AbstractXContentTest
     private static final ConstructingObjectParser<Authentication, Void> AUTH_PARSER = new ConstructingObjectParser<>(
         "authentication",
         true,
-        a -> new Authentication(
-            new User(
-                (String) a[0],
-                ((ArrayList<String>) a[1]).toArray(new String[0]),
-                (String) a[2],
-                (String) a[3],
-                (Map<String, Object>) a[4],
-                (boolean) a[5]
-            ),
-            (Authentication.RealmRef) a[6],
-            (Authentication.RealmRef) a[7],
-            Version.CURRENT,
-            Authentication.AuthenticationType.valueOf(a[8].toString().toUpperCase(Locale.ROOT)),
-            (Map<String, Object>) a[4]
-        )
+        a -> {
+            // No lookup realm
+            assertThat(a[6], equalTo(a[7]));
+            assertThat(a[8], equalTo("realm"));
+            return Authentication.newRealmAuthentication(
+                new User(
+                    (String) a[0],
+                    ((ArrayList<String>) a[1]).toArray(new String[0]),
+                    (String) a[2],
+                    (String) a[3],
+                    (Map<String, Object>) a[4],
+                    (boolean) a[5]
+                ),
+                (Authentication.RealmRef) a[6]
+            );
+        }
     );
     static {
         final ConstructingObjectParser<Authentication.RealmRef, Void> realmInfoParser = new ConstructingObjectParser<>(
@@ -134,42 +136,5 @@ public class DelegatePkiAuthenticationResponseTests extends AbstractXContentTest
 
     public static Authentication parseAuthentication(final XContentParser parser) throws IOException {
         return AUTH_PARSER.apply(parser, null);
-    }
-
-    public static Authentication createAuthentication() {
-        final String username = randomAlphaOfLengthBetween(1, 4);
-        final String[] roles = generateRandomStringArray(4, 4, false, true);
-        final Map<String, Object> metadata;
-        metadata = new HashMap<>();
-        if (randomBoolean()) {
-            metadata.put("string", null);
-        } else {
-            metadata.put("string", randomAlphaOfLengthBetween(0, 4));
-        }
-        if (randomBoolean()) {
-            metadata.put("string_list", null);
-        } else {
-            metadata.put("string_list", Arrays.asList(generateRandomStringArray(4, 4, false, true)));
-        }
-        final String fullName = randomFrom(random(), null, randomAlphaOfLengthBetween(0, 4));
-        final String email = randomFrom(random(), null, randomAlphaOfLengthBetween(0, 4));
-        final String authenticationRealmName = randomAlphaOfLength(5);
-        final String authenticationRealmType = randomFrom("file", "native", "ldap", "active_directory", "saml", "kerberos");
-        final String lookupRealmName = randomAlphaOfLength(5);
-        final String lookupRealmType = randomFrom("file", "native", "ldap", "active_directory", "saml", "kerberos");
-        final String nodeName = "node_name";
-        final Authentication.AuthenticationType authenticationType = randomFrom(Authentication.AuthenticationType.values());
-        if (Authentication.AuthenticationType.API_KEY.equals(authenticationType)) {
-            metadata.put(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(1, 10));
-            metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 10));
-        }
-        return new Authentication(
-            new User(username, roles, fullName, email, metadata, true),
-            new Authentication.RealmRef(authenticationRealmName, authenticationRealmType, nodeName),
-            new Authentication.RealmRef(lookupRealmName, lookupRealmType, nodeName),
-            Version.CURRENT,
-            authenticationType,
-            metadata
-        );
     }
 }

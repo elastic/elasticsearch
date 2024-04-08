@@ -21,13 +21,20 @@ import java.util.Objects;
 /**
  * Encapsulates information about how to perform text searches over a field
  */
-public class TextSearchInfo {
+public record TextSearchInfo(
+    FieldType luceneFieldType,
+    SimilarityProvider similarity,
+    NamedAnalyzer searchAnalyzer,
+    NamedAnalyzer searchQuoteAnalyzer
+) {
 
-    private static final FieldType SIMPLE_MATCH_ONLY_FIELD_TYPE = new FieldType();
+    private static final FieldType SIMPLE_MATCH_ONLY_FIELD_TYPE;
+
     static {
-        SIMPLE_MATCH_ONLY_FIELD_TYPE.setTokenized(false);
-        SIMPLE_MATCH_ONLY_FIELD_TYPE.setOmitNorms(true);
-        SIMPLE_MATCH_ONLY_FIELD_TYPE.freeze();
+        FieldType ft = new FieldType();
+        ft.setTokenized(false);
+        ft.setOmitNorms(true);
+        SIMPLE_MATCH_ONLY_FIELD_TYPE = Mapper.freezeAndDeduplicateFieldType(ft);
     }
 
     /**
@@ -79,19 +86,14 @@ public class TextSearchInfo {
         FORBIDDEN_ANALYZER
     );
 
-    private final FieldType luceneFieldType;
-    private final SimilarityProvider similarity;
-    private final NamedAnalyzer searchAnalyzer;
-    private final NamedAnalyzer searchQuoteAnalyzer;
-
     /**
      * Create a new TextSearchInfo
      *
-     * @param luceneFieldType       the lucene {@link FieldType} of the field to be searched
-     * @param similarity            defines which Similarity to use when searching.  If set to {@code null}
-     *                              then the default Similarity will be used.
-     * @param searchAnalyzer        the search-time analyzer to use.  May not be {@code null}
-     * @param searchQuoteAnalyzer   the search-time analyzer to use for phrase searches.  May not be {@code null}
+     * @param luceneFieldType     the lucene {@link FieldType} of the field to be searched
+     * @param similarity          defines which Similarity to use when searching.  If set to {@code null}
+     *                            then the default Similarity will be used.
+     * @param searchAnalyzer      the search-time analyzer to use.  May not be {@code null}
+     * @param searchQuoteAnalyzer the search-time analyzer to use for phrase searches.  May not be {@code null}
      */
     public TextSearchInfo(
         FieldType luceneFieldType,
@@ -99,22 +101,10 @@ public class TextSearchInfo {
         NamedAnalyzer searchAnalyzer,
         NamedAnalyzer searchQuoteAnalyzer
     ) {
-        this.luceneFieldType = luceneFieldType;
+        this.luceneFieldType = Mapper.freezeAndDeduplicateFieldType(luceneFieldType);
         this.similarity = similarity;
         this.searchAnalyzer = Objects.requireNonNull(searchAnalyzer);
         this.searchQuoteAnalyzer = Objects.requireNonNull(searchQuoteAnalyzer);
-    }
-
-    public SimilarityProvider getSimilarity() {
-        return similarity;
-    }
-
-    public NamedAnalyzer getSearchAnalyzer() {
-        return searchAnalyzer;
-    }
-
-    public NamedAnalyzer getSearchQuoteAnalyzer() {
-        return searchQuoteAnalyzer;
     }
 
     /**

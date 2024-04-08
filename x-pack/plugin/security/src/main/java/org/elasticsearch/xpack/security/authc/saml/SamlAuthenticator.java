@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -35,8 +34,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.security.authc.saml.SamlAttributes.NAMEID_SYNTHENTIC_ATTRIBUTE;
+import static org.elasticsearch.xpack.security.authc.saml.SamlAttributes.PERSISTENT_NAMEID_SYNTHENTIC_ATTRIBUTE;
 import static org.elasticsearch.xpack.security.authc.saml.SamlUtils.samlException;
 import static org.opensaml.saml.saml2.core.SubjectConfirmation.METHOD_BEARER;
 
@@ -46,6 +49,7 @@ import static org.opensaml.saml.saml2.core.SubjectConfirmation.METHOD_BEARER;
 class SamlAuthenticator extends SamlResponseHandler {
 
     private static final String RESPONSE_TAG_NAME = "Response";
+    private static final Set<String> SPECIAL_ATTRIBUTE_NAMES = Set.of(NAMEID_SYNTHENTIC_ATTRIBUTE, PERSISTENT_NAMEID_SYNTHENTIC_ATTRIBUTE);
 
     SamlAuthenticator(Clock clock, IdpConfiguration idp, SpConfiguration sp, TimeValue maxSkew) {
         super(clock, idp, sp, maxSkew);
@@ -104,10 +108,7 @@ class SamlAuthenticator extends SamlResponseHandler {
         final Assertion assertion = details.v1();
         final SamlNameId nameId = SamlNameId.forSubject(assertion.getSubject());
         final String session = getSessionIndex(assertion);
-        final List<SamlAttributes.SamlAttribute> attributes = details.v2()
-            .stream()
-            .map(SamlAttributes.SamlAttribute::new)
-            .collect(Collectors.toList());
+        final List<SamlAttributes.SamlAttribute> attributes = details.v2().stream().map(SamlAttributes.SamlAttribute::new).toList();
         if (logger.isTraceEnabled()) {
             StringBuilder sb = new StringBuilder();
             sb.append("The SAML Assertion contained the following attributes: \n");
@@ -129,7 +130,7 @@ class SamlAuthenticator extends SamlResponseHandler {
         return new SamlAttributes(nameId, session, attributes);
     }
 
-    private String getSessionIndex(Assertion assertion) {
+    private static String getSessionIndex(Assertion assertion) {
         return assertion.getAuthnStatements().stream().map(as -> as.getSessionIndex()).filter(Objects::nonNull).findFirst().orElse(null);
     }
 
@@ -165,7 +166,7 @@ class SamlAuthenticator extends SamlResponseHandler {
         throw samlException("No assertions found in SAML response");
     }
 
-    private void moveToNewDocument(XMLObject xmlObject) {
+    private static void moveToNewDocument(XMLObject xmlObject) {
         final Element element = xmlObject.getDOM();
         final Document doc = element.getOwnerDocument().getImplementation().createDocument(null, null, null);
         doc.adoptNode(element);
@@ -180,8 +181,8 @@ class SamlAuthenticator extends SamlResponseHandler {
             return decrypter.decrypt(encrypted);
         } catch (DecryptionException e) {
             logger.debug(
-                () -> new ParameterizedMessage(
-                    "Failed to decrypt SAML assertion [{}] with [{}]",
+                () -> format(
+                    "Failed to decrypt SAML assertion [%s] with [%s]",
                     text(encrypted, 512),
                     describe(getSpConfiguration().getEncryptionCredentials())
                 ),
@@ -224,6 +225,9 @@ class SamlAuthenticator extends SamlResponseHandler {
                 }
             }
         }
+
+        warnOnSpecialAttributeNames(assertion, attributes);
+
         return attributes;
     }
 
@@ -299,7 +303,7 @@ class SamlAuthenticator extends SamlResponseHandler {
             .filter(data -> data.getMethod().equals(METHOD_BEARER))
             .map(SubjectConfirmation::getSubjectConfirmationData)
             .filter(Objects::nonNull)
-            .collect(Collectors.toList());
+            .toList();
         if (confirmationData.size() != 1) {
             throw samlException(
                 "SAML Assertion subject contains [{}] bearer SubjectConfirmation, while exactly one was expected.",
@@ -316,7 +320,10 @@ class SamlAuthenticator extends SamlResponseHandler {
         checkSubjectInResponseTo(confirmationData.get(0), allowedSamlRequestIds);
     }
 
-    private void checkSubjectInResponseTo(SubjectConfirmationData subjectConfirmationData, Collection<String> allowedSamlRequestIds) {
+    private static void checkSubjectInResponseTo(
+        SubjectConfirmationData subjectConfirmationData,
+        Collection<String> allowedSamlRequestIds
+    ) {
         // Allow for IdP initiated SSO where InResponseTo MUST be missing
         if (Strings.hasText(subjectConfirmationData.getInResponseTo())
             && allowedSamlRequestIds.contains(subjectConfirmationData.getInResponseTo()) == false) {
@@ -397,5 +404,32 @@ class SamlAuthenticator extends SamlResponseHandler {
 
     private void checkLifetimeRestrictions(SubjectConfirmationData subjectConfirmationData) {
         validateNotOnOrAfter(subjectConfirmationData.getNotOnOrAfter());
+    }
+
+    private void warnOnSpecialAttributeNames(Assertion assertion, List<Attribute> attributes) {
+        attributes.forEach(attribute -> {
+            warnOnSpecialAttributeName(assertion, attribute.getName(), "name");
+
+            String attributeFriendlyName = attribute.getFriendlyName();
+            if (attributeFriendlyName != null) {
+                warnOnSpecialAttributeName(assertion, attributeFriendlyName, "friendly name");
+            }
+        });
+    }
+
+    private void warnOnSpecialAttributeName(Assertion assertion, String attributeName, String fieldNameForLogMessage) {
+        if (SPECIAL_ATTRIBUTE_NAMES.contains(attributeName)) {
+            logger.warn(
+                "SAML assertion [{}] has attribute with {} [{}] which clashes with a special attribute name. "
+                    + "Attributes with a name clash may prevent authentication or interfere will role mapping. "
+                    + "Change your IdP configuration to use a different attribute {}"
+                    + " that will not clash with any of [{}]",
+                assertion.getElementQName(),
+                fieldNameForLogMessage,
+                attributeName,
+                fieldNameForLogMessage,
+                String.join(",", SPECIAL_ATTRIBUTE_NAMES)
+            );
+        }
     }
 }

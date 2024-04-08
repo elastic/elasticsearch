@@ -48,10 +48,7 @@ public class MapsTests extends ESTestCase {
         final String key = randomValueOtherThanMany(keys::contains, () -> randomAlphaOfLength(16));
         final String value = randomAlphaOfLength(16);
         final Map<String, String> concatenation = Maps.copyMapWithAddedEntry(map, key, value);
-        assertMapEntriesAndImmutability(
-            concatenation,
-            Stream.concat(entries.stream(), Stream.of(entry(key, value))).collect(Collectors.toUnmodifiableList())
-        );
+        assertMapEntriesAndImmutability(concatenation, Stream.concat(entries.stream(), Stream.of(entry(key, value))).toList());
     }
 
     public void testAddEntryInImmutableMap() {
@@ -67,10 +64,7 @@ public class MapsTests extends ESTestCase {
         final String key = randomValueOtherThanMany(keys::contains, () -> randomAlphaOfLength(16));
         final String value = randomAlphaOfLength(16);
         final Map<String, String> add = Maps.copyMapWithAddedOrReplacedEntry(map, key, value);
-        assertMapEntriesAndImmutability(
-            add,
-            Stream.concat(entries.stream(), Stream.of(entry(key, value))).collect(Collectors.toUnmodifiableList())
-        );
+        assertMapEntriesAndImmutability(add, Stream.concat(entries.stream(), Stream.of(entry(key, value))).toList());
     }
 
     public void testReplaceEntryInImmutableMap() {
@@ -88,8 +82,7 @@ public class MapsTests extends ESTestCase {
         final Map<String, String> replaced = Maps.copyMapWithAddedOrReplacedEntry(map, key, value);
         assertMapEntriesAndImmutability(
             replaced,
-            Stream.concat(entries.stream().filter(e -> key.equals(e.getKey()) == false), Stream.of(entry(key, value)))
-                .collect(Collectors.toUnmodifiableList())
+            Stream.concat(entries.stream().filter(e -> key.equals(e.getKey()) == false), Stream.of(entry(key, value))).toList()
         );
     }
 
@@ -106,7 +99,31 @@ public class MapsTests extends ESTestCase {
         assertMapEntriesAndImmutability(map, entries);
     }
 
-    public void testDeepEquals() {
+    public void testDeepEqualsMapsWithSimpleValues() {
+        final Supplier<String> keyGenerator = () -> randomAlphaOfLengthBetween(1, 5);
+        final Supplier<Integer> valueGenerator = () -> randomInt(5);
+        final Map<String, Integer> map = randomMap(randomInt(5), keyGenerator, valueGenerator);
+        final Map<String, Integer> mapCopy = new HashMap<>(map);
+
+        assertTrue(Maps.deepEquals(map, mapCopy));
+
+        final Map<String, Integer> mapModified = mapCopy;
+        if (mapModified.isEmpty()) {
+            mapModified.put(keyGenerator.get(), valueGenerator.get());
+        } else {
+            if (randomBoolean()) {
+                final String randomKey = mapModified.keySet().toArray(new String[0])[randomInt(mapModified.size() - 1)];
+                final int value = mapModified.get(randomKey);
+                mapModified.put(randomKey, randomValueOtherThanMany((v) -> v.equals(value), valueGenerator));
+            } else {
+                mapModified.put(randomValueOtherThanMany(mapModified::containsKey, keyGenerator), valueGenerator.get());
+            }
+        }
+
+        assertFalse(Maps.deepEquals(map, mapModified));
+    }
+
+    public void testDeepEqualsMapsWithArrayValues() {
         final Supplier<String> keyGenerator = () -> randomAlphaOfLengthBetween(1, 5);
         final Supplier<int[]> arrayValueGenerator = () -> random().ints(randomInt(5)).toArray();
         final Map<String, int[]> map = randomMap(randomInt(5), keyGenerator, arrayValueGenerator);
@@ -126,6 +143,42 @@ public class MapsTests extends ESTestCase {
                 mapModified.put(randomKey, randomValueOtherThanMany((v) -> Arrays.equals(v, value), arrayValueGenerator));
             } else {
                 mapModified.put(randomValueOtherThanMany(mapModified::containsKey, keyGenerator), arrayValueGenerator.get());
+            }
+        }
+
+        assertFalse(Maps.deepEquals(map, mapModified));
+    }
+
+    public void testDeepEqualsMapsWithMapValuesSimple() {
+        Map<String, Map<String, int[]>> m1 = Map.of("a", Map.of("b", new int[] { 1 }));
+        Map<String, Map<String, int[]>> m2 = Map.of("a", Map.of("b", new int[] { 1 }));
+        assertTrue(Maps.deepEquals(m1, m2));
+    }
+
+    public void testDeepEqualsMapsWithMapValues() {
+        final Supplier<String> keyGenerator = () -> randomAlphaOfLengthBetween(1, 5);
+        final Supplier<Map<String, int[]>> mapValueGenerator = () -> Map.of("nested", random().ints(randomInt(5)).toArray());
+        final Map<String, Map<String, int[]>> map = randomMap(randomInt(5), keyGenerator, mapValueGenerator);
+        final Map<String, Map<String, int[]>> mapCopy = map.entrySet().stream().collect(toMap(Map.Entry::getKey, e -> {
+            int[] value = e.getValue().get("nested");
+            return Map.of("nested", Arrays.copyOf(value, value.length));
+        }));
+
+        assertTrue(Maps.deepEquals(map, mapCopy));
+
+        final Map<String, Map<String, int[]>> mapModified = mapCopy;
+        if (mapModified.isEmpty()) {
+            mapModified.put(keyGenerator.get(), mapValueGenerator.get());
+        } else {
+            if (randomBoolean()) {
+                final String randomKey = mapModified.keySet().toArray(new String[0])[randomInt(mapModified.size() - 1)];
+                final Map<String, int[]> value = mapModified.get(randomKey);
+                mapModified.put(
+                    randomKey,
+                    randomValueOtherThanMany((v) -> Arrays.equals(v.get("nested"), value.get("nested")), mapValueGenerator)
+                );
+            } else {
+                mapModified.put(randomValueOtherThanMany(mapModified::containsKey, keyGenerator), mapValueGenerator.get());
             }
         }
 
@@ -164,7 +217,7 @@ public class MapsTests extends ESTestCase {
         List<Tuple<String, String>> tuples = randomList(0, 100, () -> randomAlphaOfLength(10)).stream()
             .distinct()
             .map(key -> Tuple.tuple(key, randomAlphaOfLength(10)))
-            .collect(Collectors.toList());
+            .collect(Collectors.toCollection(ArrayList::new));
         Randomness.shuffle(tuples);
 
         SortedMap<String, String> sortedTuplesMap = tuples.stream().collect(Maps.toUnmodifiableSortedMap(Tuple::v1, Tuple::v2));
@@ -196,6 +249,15 @@ public class MapsTests extends ESTestCase {
             illegalStateException.getMessage(),
             equalTo("Duplicate key (attempted merging values Nova Scotia  and Nouvelle-Écosse)")
         );
+    }
+
+    public void testListFlatten() {
+        Map<String, Object> map = Map.of("parent1", List.of(Map.of("key1", "val1", "key2", "val2")));
+        Map<String, Object> flatten = Maps.flatten(map, true, true);
+        assertThat(flatten.size(), equalTo(2));
+        for (Map.Entry<String, Object> entry : flatten.entrySet()) {
+            assertThat(entry.getKey(), entry.getValue(), equalTo(deepGet(entry.getKey(), map)));
+        }
     }
 
     public void testFlatten() {
@@ -256,10 +318,7 @@ public class MapsTests extends ESTestCase {
 
     private Map<String, Object> randomNestedMap(int level) {
         final Supplier<String> keyGenerator = () -> randomAlphaOfLengthBetween(1, 5);
-        final Supplier<Object> arrayValueGenerator = () -> random().ints(randomInt(5))
-            .boxed()
-            .map(s -> (Object) s)
-            .collect(Collectors.toList());
+        final Supplier<Object> arrayValueGenerator = () -> random().ints(randomInt(5)).boxed().map(s -> (Object) s).toList();
 
         final Supplier<Object> mapSupplier;
         if (level > 0) {

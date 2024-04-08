@@ -11,6 +11,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
@@ -66,7 +67,7 @@ public abstract class CoreTestTranslater {
             ClientYamlTestSection modified = new ClientYamlTestSection(
                 candidate.getTestSection().getLocation(),
                 candidate.getTestSection().getName(),
-                candidate.getTestSection().getSkipSection(),
+                candidate.getTestSection().getPrerequisiteSection(),
                 candidate.getTestSection().getExecutableSections()
             );
             result.add(new Object[] { new ClientYamlTestCandidate(suite.modified, modified) });
@@ -167,7 +168,8 @@ public abstract class CoreTestTranslater {
             modified = new ClientYamlTestSuite(
                 candidate.getApi(),
                 candidate.getName(),
-                new SetupSection(candidate.getSetupSection().getSkipSection(), setup),
+                candidate.getRestTestSuite().getFile(),
+                new SetupSection(candidate.getSetupSection().getPrerequisiteSection(), setup),
                 candidate.getTeardownSection(),
                 List.of()
             );
@@ -259,7 +261,7 @@ public abstract class CoreTestTranslater {
          * runtime fields that load from source.
          * @return true if this mapping supports runtime fields, false otherwise
          */
-        protected final boolean runtimeifyMappingProperties(Map<String, Object> properties, Map<String, Object> runtimeFields) {
+        protected static boolean runtimeifyMappingProperties(Map<String, Object> properties, Map<String, Object> runtimeFields) {
             for (Map.Entry<String, Object> property : properties.entrySet()) {
                 if (false == property.getValue() instanceof Map) {
                     continue;
@@ -290,6 +292,18 @@ public abstract class CoreTestTranslater {
                 }
                 if (propertyMap.containsKey("ignore_malformed")) {
                     // Our source reading script doesn't emulate ignore_malformed
+                    continue;
+                }
+                if (propertyMap.containsKey("time_series_dimension")) {
+                    // time_series_dimension field can't emulate with scripts.
+                    continue;
+                }
+                if (propertyMap.containsKey("time_series_metric")) {
+                    // time_series_metric field can't emulate with scripts.
+                    continue;
+                }
+                if (name.equals(DataStreamTimestampFieldMapper.DEFAULT_PATH)) {
+                    // time_series and data stream indices need timestamp field
                     continue;
                 }
                 if (RUNTIME_TYPES.contains(type) == false) {
@@ -336,6 +350,8 @@ public abstract class CoreTestTranslater {
                     defaultRouting,
                     null,
                     defaultPipeline,
+                    null,
+                    null,
                     null,
                     true,
                     XContentType.JSON,

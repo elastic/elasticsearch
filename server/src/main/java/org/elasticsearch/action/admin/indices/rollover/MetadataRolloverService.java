@@ -8,27 +8,40 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.datastreams.autosharding.AutoShardingResult;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamAutoShardingEvent;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
@@ -40,19 +53,21 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.ALIAS;
 import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.DATA_STREAM;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.lookupTemplateForDataStream;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV1Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 
 /**
  * Service responsible for handling rollover requests for write aliases and data streams
  */
 public class MetadataRolloverService {
+    private static final Logger logger = LogManager.getLogger(MetadataRolloverService.class);
     private static final Pattern INDEX_NAME_PATTERN = Pattern.compile("^.*-\\d+$");
     private static final List<IndexAbstraction.Type> VALID_ROLLOVER_TARGETS = List.of(ALIAS, DATA_STREAM);
 
@@ -61,34 +76,28 @@ public class MetadataRolloverService {
     private final ThreadPool threadPool;
     private final MetadataCreateIndexService createIndexService;
     private final MetadataIndexAliasesService indexAliasesService;
-    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;
+    private final WriteLoadForecaster writeLoadForecaster;
+    private final ClusterService clusterService;
 
     @Inject
     public MetadataRolloverService(
         ThreadPool threadPool,
         MetadataCreateIndexService createIndexService,
         MetadataIndexAliasesService indexAliasesService,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        WriteLoadForecaster writeLoadForecaster,
+        ClusterService clusterService
     ) {
         this.threadPool = threadPool;
         this.createIndexService = createIndexService;
         this.indexAliasesService = indexAliasesService;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.systemIndices = systemIndices;
+        this.writeLoadForecaster = writeLoadForecaster;
+        this.clusterService = clusterService;
     }
 
-    public static class RolloverResult {
-        public final String rolloverIndexName;
-        public final String sourceIndexName;
-        public final ClusterState clusterState;
-
-        private RolloverResult(String rolloverIndexName, String sourceIndexName, ClusterState clusterState) {
-            this.rolloverIndexName = rolloverIndexName;
-            this.sourceIndexName = sourceIndexName;
-            this.clusterState = clusterState;
-        }
+    public record RolloverResult(String rolloverIndexName, String sourceIndexName, ClusterState clusterState) {
 
         @Override
         public String toString() {
@@ -110,9 +119,12 @@ public class MetadataRolloverService {
         List<Condition<?>> metConditions,
         Instant now,
         boolean silent,
-        boolean onlyValidate
+        boolean onlyValidate,
+        @Nullable IndexMetadataStats sourceIndexStats,
+        @Nullable AutoShardingResult autoShardingResult,
+        boolean isFailureStoreRollover
     ) throws Exception {
-        validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest);
+        validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest, isFailureStoreRollover);
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
         return switch (indexAbstraction.getType()) {
             case ALIAS -> rolloverAlias(
@@ -127,13 +139,16 @@ public class MetadataRolloverService {
             );
             case DATA_STREAM -> rolloverDataStream(
                 currentState,
-                (IndexAbstraction.DataStream) indexAbstraction,
+                (DataStream) indexAbstraction,
                 rolloverTarget,
                 createIndexRequest,
                 metConditions,
                 now,
                 silent,
-                onlyValidate
+                onlyValidate,
+                sourceIndexStats,
+                autoShardingResult,
+                isFailureStoreRollover
             );
             default ->
                 // the validate method above prevents this case
@@ -141,59 +156,62 @@ public class MetadataRolloverService {
         };
     }
 
-    public void validateIndexName(ClusterState state, String index) {
-        createIndexService.validateIndexName(index, state);
+    public static void validateIndexName(ClusterState state, String index) {
+        MetadataCreateIndexService.validateIndexName(index, state);
     }
 
     /**
      * Returns the names that rollover would use, but does not perform the actual rollover
      */
-    public NameResolution resolveRolloverNames(
+    public static NameResolution resolveRolloverNames(
         ClusterState currentState,
         String rolloverTarget,
         String newIndexName,
-        CreateIndexRequest createIndexRequest
+        CreateIndexRequest createIndexRequest,
+        boolean isFailureStoreRollover
     ) {
-        validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest);
+        validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest, isFailureStoreRollover);
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
         return switch (indexAbstraction.getType()) {
             case ALIAS -> resolveAliasRolloverNames(currentState.metadata(), indexAbstraction, newIndexName);
-            case DATA_STREAM -> resolveDataStreamRolloverNames(currentState.getMetadata(), (IndexAbstraction.DataStream) indexAbstraction);
+            case DATA_STREAM -> {
+                if (isFailureStoreRollover) {
+                    yield resolveDataStreamFailureStoreRolloverNames(currentState.metadata(), (DataStream) indexAbstraction);
+                }
+                yield resolveDataStreamRolloverNames(currentState.getMetadata(), (DataStream) indexAbstraction);
+            }
             default ->
                 // the validate method above prevents this case
                 throw new IllegalStateException("unable to roll over type [" + indexAbstraction.getType().getDisplayName() + "]");
         };
     }
 
-    public static class NameResolution {
-        final String sourceName;
-        @Nullable
-        final String unresolvedName;
-        final String rolloverName;
+    public record NameResolution(String sourceName, @Nullable String unresolvedName, String rolloverName) {}
 
-        NameResolution(String sourceName, String unresolvedName, String rolloverName) {
-            this.sourceName = sourceName;
-            this.unresolvedName = unresolvedName;
-            this.rolloverName = rolloverName;
-        }
-    }
-
-    private NameResolution resolveAliasRolloverNames(Metadata metadata, IndexAbstraction alias, String newIndexName) {
+    private static NameResolution resolveAliasRolloverNames(Metadata metadata, IndexAbstraction alias, String newIndexName) {
         final IndexMetadata writeIndex = metadata.index(alias.getWriteIndex());
         final String sourceProvidedName = writeIndex.getSettings()
             .get(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, writeIndex.getIndex().getName());
         final String sourceIndexName = writeIndex.getIndex().getName();
-        final String unresolvedName = (newIndexName != null)
-            ? newIndexName
-            : generateRolloverIndexName(sourceProvidedName, indexNameExpressionResolver);
-        final String rolloverIndexName = indexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
+        final String unresolvedName = (newIndexName != null) ? newIndexName : generateRolloverIndexName(sourceProvidedName);
+        final String rolloverIndexName = IndexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
         return new NameResolution(sourceIndexName, unresolvedName, rolloverIndexName);
     }
 
-    private NameResolution resolveDataStreamRolloverNames(Metadata metadata, IndexAbstraction.DataStream dataStream) {
-        final DataStream ds = dataStream.getDataStream();
+    private static NameResolution resolveDataStreamRolloverNames(Metadata metadata, DataStream dataStream) {
         final IndexMetadata originalWriteIndex = metadata.index(dataStream.getWriteIndex());
-        return new NameResolution(originalWriteIndex.getIndex().getName(), null, ds.nextWriteIndexAndGeneration(metadata).v1());
+        return new NameResolution(originalWriteIndex.getIndex().getName(), null, dataStream.nextWriteIndexAndGeneration(metadata).v1());
+    }
+
+    private static NameResolution resolveDataStreamFailureStoreRolloverNames(Metadata metadata, DataStream dataStream) {
+        assert dataStream.getFailureStoreWriteIndex() != null : "Unable to roll over failure store with no failure store indices";
+
+        final IndexMetadata originalWriteIndex = metadata.index(dataStream.getFailureStoreWriteIndex());
+        return new NameResolution(
+            originalWriteIndex.getIndex().getName(),
+            null,
+            dataStream.nextFailureStoreWriteIndexAndGeneration(metadata).v1()
+        );
     }
 
     private RolloverResult rolloverAlias(
@@ -217,18 +235,21 @@ public class MetadataRolloverService {
         final Boolean isHidden = IndexMetadata.INDEX_HIDDEN_SETTING.exists(createIndexRequest.settings())
             ? IndexMetadata.INDEX_HIDDEN_SETTING.get(createIndexRequest.settings())
             : null;
-        createIndexService.validateIndexName(rolloverIndexName, currentState); // fails if the index already exists
+        MetadataCreateIndexService.validateIndexName(rolloverIndexName, currentState); // fails if the index already exists
         checkNoDuplicatedAliasInIndexTemplate(metadata, rolloverIndexName, aliasName, isHidden);
         if (onlyValidate) {
             return new RolloverResult(rolloverIndexName, sourceIndexName, currentState);
         }
 
-        CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest = prepareCreateIndexRequest(
-            unresolvedName,
-            rolloverIndexName,
-            createIndexRequest
+        var createIndexClusterStateRequest = prepareCreateIndexRequest(unresolvedName, rolloverIndexName, createIndexRequest);
+        assert createIndexClusterStateRequest.performReroute() == false
+            : "rerouteCompletionIsNotRequired() assumes reroute is not called by underlying service";
+        ClusterState newState = createIndexService.applyCreateIndexRequest(
+            currentState,
+            createIndexClusterStateRequest,
+            silent,
+            rerouteCompletionIsNotRequired()
         );
-        ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest, silent);
         newState = indexAliasesService.applyAliasActions(
             newState,
             rolloverAliasToNewIndex(sourceIndexName, rolloverIndexName, explicitWriteIndex, aliasMetadata.isHidden(), aliasName)
@@ -247,13 +268,16 @@ public class MetadataRolloverService {
 
     private RolloverResult rolloverDataStream(
         ClusterState currentState,
-        IndexAbstraction.DataStream dataStream,
+        DataStream dataStream,
         String dataStreamName,
         CreateIndexRequest createIndexRequest,
         List<Condition<?>> metConditions,
         Instant now,
         boolean silent,
-        boolean onlyValidate
+        boolean onlyValidate,
+        @Nullable IndexMetadataStats sourceIndexStats,
+        @Nullable AutoShardingResult autoShardingResult,
+        boolean isFailureStoreRollover
     ) throws Exception {
 
         if (SnapshotsService.snapshottingDataStreams(currentState, Collections.singleton(dataStream.getName())).isEmpty() == false) {
@@ -267,57 +291,191 @@ public class MetadataRolloverService {
             );
         }
 
+        final Metadata metadata = currentState.getMetadata();
+        final ComposableIndexTemplate templateV2;
         final SystemDataStreamDescriptor systemDataStreamDescriptor;
         if (dataStream.isSystem() == false) {
             systemDataStreamDescriptor = null;
-            lookupTemplateForDataStream(dataStreamName, currentState.metadata());
+            templateV2 = lookupTemplateForDataStream(dataStreamName, metadata);
         } else {
             systemDataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(dataStreamName);
             if (systemDataStreamDescriptor == null) {
                 throw new IllegalArgumentException("no system data stream descriptor found for data stream [" + dataStreamName + "]");
             }
+            templateV2 = systemDataStreamDescriptor.getComposableIndexTemplate();
         }
 
-        final DataStream ds = dataStream.getDataStream();
-        final Index originalWriteIndex = dataStream.getWriteIndex();
-        final Tuple<String, Long> nextIndexAndGeneration = ds.nextWriteIndexAndGeneration(currentState.metadata());
+        final Index originalWriteIndex = isFailureStoreRollover ? dataStream.getFailureStoreWriteIndex() : dataStream.getWriteIndex();
+        final Tuple<String, Long> nextIndexAndGeneration = isFailureStoreRollover
+            ? dataStream.nextFailureStoreWriteIndexAndGeneration(currentState.metadata())
+            : dataStream.nextWriteIndexAndGeneration(currentState.metadata());
         final String newWriteIndexName = nextIndexAndGeneration.v1();
         final long newGeneration = nextIndexAndGeneration.v2();
-        createIndexService.validateIndexName(newWriteIndexName, currentState); // fails if the index already exists
+        MetadataCreateIndexService.validateIndexName(newWriteIndexName, currentState); // fails if the index already exists
         if (onlyValidate) {
             return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), currentState);
         }
 
-        CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest = prepareDataStreamCreateIndexRequest(
-            dataStreamName,
-            newWriteIndexName,
-            createIndexRequest,
-            systemDataStreamDescriptor,
-            now
-        );
-        ClusterState newState = createIndexService.applyCreateIndexRequest(
-            currentState,
-            createIndexClusterStateRequest,
-            silent,
-            (builder, indexMetadata) -> builder.put(ds.rollover(indexMetadata.getIndex(), newGeneration))
-        );
+        ClusterState newState;
+        if (isFailureStoreRollover) {
+            newState = MetadataCreateDataStreamService.createFailureStoreIndex(
+                createIndexService,
+                "rollover_failure_store",
+                clusterService.getSettings(),
+                currentState,
+                now.toEpochMilli(),
+                dataStreamName,
+                templateV2,
+                newWriteIndexName,
+                (builder, indexMetadata) -> builder.put(dataStream.rolloverFailureStore(indexMetadata.getIndex(), newGeneration))
+            );
+        } else {
+            DataStreamAutoShardingEvent dataStreamAutoShardingEvent = autoShardingResult == null
+                ? dataStream.getAutoShardingEvent()
+                : switch (autoShardingResult.type()) {
+                    case NO_CHANGE_REQUIRED, COOLDOWN_PREVENTED_INCREASE, COOLDOWN_PREVENTED_DECREASE -> {
+                        if (dataStream.getAutoShardingEvent() != null) {
+                            logger.info(
+                                "Rolling over data stream [{}] using existing auto-sharding recommendation [{}]",
+                                dataStreamName,
+                                dataStream.getAutoShardingEvent()
+                            );
+                        }
+                        yield dataStream.getAutoShardingEvent();
+                    }
+                    case INCREASE_SHARDS, DECREASE_SHARDS -> {
+                        logger.info("Auto sharding data stream [{}] to [{}]", dataStreamName, autoShardingResult);
+                        yield new DataStreamAutoShardingEvent(
+                            dataStream.getWriteIndex().getName(),
+                            autoShardingResult.targetNumberOfShards(),
+                            now.toEpochMilli()
+                        );
+                    }
+                    // data sharding might not be available due to the feature not being available/enabled or due to cluster level excludes
+                    // being configured. the index template will dictate the number of shards as usual
+                    case NOT_APPLICABLE -> {
+                        logger.debug("auto sharding is not applicable for data stream [{}]", dataStreamName);
+                        yield null;
+                    }
+                };
+
+            // configure the number of shards using an auto sharding event (new, or existing) if we have one
+            if (dataStreamAutoShardingEvent != null) {
+                Settings settingsWithAutoSharding = Settings.builder()
+                    .put(createIndexRequest.settings())
+                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), dataStreamAutoShardingEvent.targetNumberOfShards())
+                    .build();
+                createIndexRequest.settings(settingsWithAutoSharding);
+            }
+
+            var createIndexClusterStateRequest = prepareDataStreamCreateIndexRequest(
+                dataStreamName,
+                newWriteIndexName,
+                createIndexRequest,
+                systemDataStreamDescriptor,
+                now
+            );
+            createIndexClusterStateRequest.setMatchingTemplate(templateV2);
+            assert createIndexClusterStateRequest.performReroute() == false
+                : "rerouteCompletionIsNotRequired() assumes reroute is not called by underlying service";
+
+            newState = createIndexService.applyCreateIndexRequest(
+                currentState,
+                createIndexClusterStateRequest,
+                silent,
+                (builder, indexMetadata) -> {
+                    downgradeBrokenTsdbBackingIndices(dataStream, builder);
+                    builder.put(
+                        dataStream.rollover(
+                            indexMetadata.getIndex(),
+                            newGeneration,
+                            metadata.isTimeSeriesTemplate(templateV2),
+                            dataStreamAutoShardingEvent
+                        )
+                    );
+                },
+                rerouteCompletionIsNotRequired()
+            );
+        }
 
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());
-        newState = ClusterState.builder(newState)
-            .metadata(
-                Metadata.builder(newState.metadata())
-                    .put(IndexMetadata.builder(newState.metadata().index(originalWriteIndex)).putRolloverInfo(rolloverInfo))
-            )
-            .build();
+
+        Metadata.Builder metadataBuilder = Metadata.builder(newState.metadata())
+            .put(
+                IndexMetadata.builder(newState.metadata().index(originalWriteIndex)).stats(sourceIndexStats).putRolloverInfo(rolloverInfo)
+            );
+
+        metadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(dataStreamName, metadataBuilder);
+        metadataBuilder = withShardSizeForecastForWriteIndex(dataStreamName, metadataBuilder);
+
+        newState = ClusterState.builder(newState).metadata(metadataBuilder).build();
+        newState = MetadataDataStreamsService.setRolloverOnWrite(newState, dataStreamName, false);
 
         return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), newState);
     }
 
-    static String generateRolloverIndexName(String sourceIndexName, IndexNameExpressionResolver indexNameExpressionResolver) {
-        String resolvedName = indexNameExpressionResolver.resolveDateMathExpression(sourceIndexName);
+    /**
+     * This method before rollover fixes tsdb backing indices with no start and end time index settings set by
+     * removing the index.mode and index.routing_path index settings. This downgrades these indices to regular indices.
+     * Due to <a href="https://github.com/elastic/elasticsearch/issues/98834">a bug</a>  data streams may exist that
+     * have backing indices with no start and end time index settings set.
+     * Note that as part of rollover the new backing index will be in tsdb mode.
+     */
+    private static void downgradeBrokenTsdbBackingIndices(DataStream dataStream, Metadata.Builder builder) {
+        for (Index indexName : dataStream.getIndices()) {
+            var index = builder.getSafe(indexName);
+            final Settings originalSettings = index.getSettings();
+            if (index.getCreationVersion().before(IndexVersions.FIRST_DETACHED_INDEX_VERSION)
+                && index.getIndexMode() == IndexMode.TIME_SERIES
+                && originalSettings.keySet().contains(IndexSettings.TIME_SERIES_START_TIME.getKey()) == false
+                && originalSettings.keySet().contains(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
+                final Settings.Builder settingsBuilder = Settings.builder().put(originalSettings);
+                settingsBuilder.remove(IndexSettings.MODE.getKey());
+                settingsBuilder.remove(IndexMetadata.INDEX_ROUTING_PATH.getKey());
+                long newVersion = index.getSettingsVersion() + 1;
+                builder.put(IndexMetadata.builder(index).settings(settingsBuilder.build()).settingsVersion(newVersion));
+            }
+        }
+    }
+
+    public Metadata.Builder withShardSizeForecastForWriteIndex(String dataStreamName, Metadata.Builder metadata) {
+        final DataStream dataStream = metadata.dataStream(dataStreamName);
+
+        if (dataStream == null) {
+            return metadata;
+        }
+
+        final List<IndexMetadataStats> indicesStats = dataStream.getIndices()
+            .stream()
+            .map(metadata::getSafe)
+            .map(IndexMetadata::getStats)
+            .filter(Objects::nonNull)
+            .toList();
+
+        long totalSizeInBytes = 0;
+        int shardCount = 0;
+        for (IndexMetadataStats stats : indicesStats) {
+            var averageShardSize = stats.averageShardSize();
+            totalSizeInBytes += averageShardSize.totalSizeInBytes();
+            shardCount += averageShardSize.numberOfShards();
+        }
+
+        if (shardCount == 0) {
+            return metadata;
+        }
+
+        long shardSizeInBytesForecast = totalSizeInBytes / shardCount;
+        final IndexMetadata writeIndex = metadata.getSafe(dataStream.getWriteIndex());
+        metadata.put(IndexMetadata.builder(writeIndex).shardSizeInBytesForecast(shardSizeInBytesForecast).build(), false);
+
+        return metadata;
+    }
+
+    static String generateRolloverIndexName(String sourceIndexName) {
+        String resolvedName = IndexNameExpressionResolver.resolveDateMathExpression(sourceIndexName);
         final boolean isDateMath = sourceIndexName.equals(resolvedName) == false;
         if (INDEX_NAME_PATTERN.matcher(resolvedName).matches()) {
-            int numberIndex = sourceIndexName.lastIndexOf("-");
+            int numberIndex = sourceIndexName.lastIndexOf('-');
             assert numberIndex != -1 : "no separator '-' found";
             int counter = Integer.parseInt(
                 sourceIndexName.substring(numberIndex + 1, isDateMath ? sourceIndexName.length() - 1 : sourceIndexName.length())
@@ -437,7 +595,7 @@ public class MetadataRolloverService {
                         Locale.ROOT,
                         "Rollover alias [%s] can point to multiple indices, found duplicated alias [%s] in index template [%s]",
                         rolloverRequestAlias,
-                        template.aliases().keys(),
+                        template.aliases().keySet(),
                         template.name()
                     )
                 );
@@ -445,7 +603,13 @@ public class MetadataRolloverService {
         }
     }
 
-    static void validate(Metadata metadata, String rolloverTarget, String newIndexName, CreateIndexRequest request) {
+    static void validate(
+        Metadata metadata,
+        String rolloverTarget,
+        String newIndexName,
+        CreateIndexRequest request,
+        boolean isFailureStoreRollover
+    ) {
         final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(rolloverTarget);
         if (indexAbstraction == null) {
             throw new IllegalArgumentException("rollover target [" + rolloverTarget + "] does not exist");
@@ -456,7 +620,7 @@ public class MetadataRolloverService {
                     + indexAbstraction.getType().getDisplayName()
                     + "] but one of ["
                     + Strings.collectionToCommaDelimitedString(
-                        VALID_ROLLOVER_TARGETS.stream().map(IndexAbstraction.Type::getDisplayName).collect(Collectors.toList())
+                        VALID_ROLLOVER_TARGETS.stream().map(IndexAbstraction.Type::getDisplayName).toList()
                     )
                     + "] was expected"
             );
@@ -473,6 +637,12 @@ public class MetadataRolloverService {
                 || (request.mappings().equals("{}") == false)) {
                 throw new IllegalArgumentException(
                     "aliases, mappings, and index settings may not be specified when rolling over a data stream"
+                );
+            }
+            var dataStream = (DataStream) indexAbstraction;
+            if (isFailureStoreRollover && dataStream.isFailureStore() == false) {
+                throw new IllegalArgumentException(
+                    "unable to roll over failure store because [" + indexAbstraction.getName() + "] does not have the failure store enabled"
                 );
             }
         }

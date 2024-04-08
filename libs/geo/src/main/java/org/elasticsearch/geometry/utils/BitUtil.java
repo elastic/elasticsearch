@@ -11,6 +11,9 @@ package org.elasticsearch.geometry.utils;
  * Utilities for common Bit twiddling methods. Borrowed heavily from Lucene (org.apache.lucene.util.BitUtil).
  */
 public class BitUtil {  // magic numbers for bit interleaving
+
+    private BitUtil() {}
+
     private static final long MAGIC[] = {
         0x5555555555555555L,
         0x3333333333333333L,

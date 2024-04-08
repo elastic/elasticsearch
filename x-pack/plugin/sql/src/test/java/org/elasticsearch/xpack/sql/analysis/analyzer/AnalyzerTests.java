@@ -35,12 +35,13 @@ import static org.hamcrest.Matchers.startsWith;
 public class AnalyzerTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();
-    private final Analyzer analyzer = new Analyzer(
+    private final AnalyzerContext context = new AnalyzerContext(
         SqlTestUtils.TEST_CFG,
         new SqlFunctionRegistry(),
-        IndexResolution.valid(new EsIndex("test", loadMapping("mapping-basic.json"))),
-        new Verifier(new Metrics())
+        IndexResolution.valid(new EsIndex("test", loadMapping("mapping-basic.json")))
     );
+
+    private final Analyzer analyzer = new Analyzer(context, new Verifier(new Metrics()));
 
     private LogicalPlan analyze(String sql) {
         return analyzer.analyze(parser.createStatement(sql), false);
@@ -115,7 +116,7 @@ public class AnalyzerTests extends ESTestCase {
         // see https://github.com/elastic/elasticsearch/issues/81577
         // The query itself is not supported (using aggregates in a sub-select) but it shouldn't bring down ES
         LogicalPlan plan = analyze(
-            "SELECT salary AS salary, salary AS s FROM (SELECT ROUND(AVG(salary)) AS salary FROM test_emp GROUP BY gender) "
+            "SELECT salary AS salary, salary AS s FROM (SELECT ROUND(AVG(salary)) AS salary FROM test GROUP BY gender) "
                 + "WHERE s > 48000 OR salary > 46000"
         );
         // passing the analysis step should succeed

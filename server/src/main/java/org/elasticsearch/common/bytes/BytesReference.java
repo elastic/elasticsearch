@@ -65,7 +65,7 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
             while ((r = byteRefIterator.next()) != null) {
                 buffers.add(ByteBuffer.wrap(r.bytes, r.offset, r.length));
             }
-            return buffers.toArray(new ByteBuffer[buffers.size()]);
+            return buffers.toArray(ByteBuffer[]::new);
 
         } catch (IOException e) {
             // this is really an error since we don't do IO in our bytesreferences
@@ -125,6 +125,21 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
     int getInt(int index);
 
     /**
+     * Returns the integer read from the 4 bytes (LE) starting at the given index.
+     */
+    int getIntLE(int index);
+
+    /**
+     * Returns the long read from the 8 bytes (LE) starting at the given index.
+     */
+    long getLongLE(int index);
+
+    /**
+     * Returns the double read from the 8 bytes (LE) starting at the given index.
+     */
+    double getDoubleLE(int index);
+
+    /**
      * Finds the index of the first occurrence of the given marker between within the given bounds.
      * @param marker marker byte to search
      * @param from lower bound for the index to check (inclusive)
@@ -169,7 +184,9 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
 
     /**
      * Returns a BytesRefIterator for this BytesReference. This method allows
-     * access to the internal pages of this reference without copying them. Use with care!
+     * access to the internal pages of this reference without copying them.
+     * It must return direct references to the pages, not copies. Use with care!
+     *
      * @see BytesRefIterator
      */
     BytesRefIterator iterator();

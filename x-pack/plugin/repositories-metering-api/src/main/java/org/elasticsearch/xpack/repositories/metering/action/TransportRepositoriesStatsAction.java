@@ -41,14 +41,11 @@ public final class TransportRepositoriesStatsAction extends TransportNodesAction
     ) {
         super(
             RepositoriesMeteringAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            RepositoriesMeteringRequest::new,
             RepositoriesNodeStatsRequest::new,
-            ThreadPool.Names.SAME,
-            RepositoriesNodeMeteringResponse.class
+            threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.repositoriesService = repositoriesService;
     }

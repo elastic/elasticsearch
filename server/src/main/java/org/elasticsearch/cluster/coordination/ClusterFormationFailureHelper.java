@@ -9,11 +9,16 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -25,10 +30,14 @@ import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
+import java.io.IOException;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
@@ -46,6 +55,7 @@ public class ClusterFormationFailureHelper {
 
     private final Supplier<ClusterFormationState> clusterFormationStateSupplier;
     private final ThreadPool threadPool;
+    private final Executor clusterCoordinationExecutor;
     private final TimeValue clusterFormationWarningTimeout;
     private final Runnable logLastFailedJoinAttempt;
     @Nullable // if no warning is scheduled
@@ -59,6 +69,7 @@ public class ClusterFormationFailureHelper {
     ) {
         this.clusterFormationStateSupplier = clusterFormationStateSupplier;
         this.threadPool = threadPool;
+        this.clusterCoordinationExecutor = threadPool.executor(Names.CLUSTER_COORDINATION);
         this.clusterFormationWarningTimeout = DISCOVERY_CLUSTER_FORMATION_WARNING_TIMEOUT_SETTING.get(settings);
         this.logLastFailedJoinAttempt = logLastFailedJoinAttempt;
     }
@@ -84,7 +95,7 @@ public class ClusterFormationFailureHelper {
         }
 
         void scheduleNextWarning() {
-            threadPool.scheduleUnlessShuttingDown(clusterFormationWarningTimeout, Names.GENERIC, new AbstractRunnable() {
+            threadPool.scheduleUnlessShuttingDown(clusterFormationWarningTimeout, clusterCoordinationExecutor, new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
                     logger.debug("unexpected exception scheduling cluster formation warning", e);
@@ -94,7 +105,11 @@ public class ClusterFormationFailureHelper {
                 protected void doRun() {
                     if (isActive()) {
                         logLastFailedJoinAttempt.run();
-                        logger.warn(clusterFormationStateSupplier.get().getDescription());
+                        logger.warn(
+                            "{}; for troubleshooting guidance, see {}",
+                            clusterFormationStateSupplier.get().getDescription(),
+                            ReferenceDocs.DISCOVERY_TROUBLESHOOTING
+                        );
                     }
                 }
 
@@ -113,40 +128,123 @@ public class ClusterFormationFailureHelper {
         }
     }
 
-    static class ClusterFormationState {
-        private final Settings settings;
-        private final ClusterState clusterState;
-        private final List<TransportAddress> resolvedAddresses;
-        private final List<DiscoveryNode> foundPeers;
-        private final long currentTerm;
-        private final ElectionStrategy electionStrategy;
-        private final StatusInfo statusInfo;
+    /**
+     * If this node believes that cluster formation has failed, this record provides information that can be used to determine why that is.
+     */
+    public record ClusterFormationState(
+        List<String> initialMasterNodesSetting,
+        DiscoveryNode localNode,
+        Map<String, DiscoveryNode> masterEligibleNodes,
+        long clusterStateVersion,
+        long acceptedTerm,
+        VotingConfiguration lastAcceptedConfiguration,
+        VotingConfiguration lastCommittedConfiguration,
+        List<TransportAddress> resolvedAddresses,
+        List<DiscoveryNode> foundPeers,
+        Set<DiscoveryNode> mastersOfPeers,
+        long currentTerm,
+        boolean hasDiscoveredQuorum,
+        StatusInfo statusInfo,
+        List<JoinStatus> inFlightJoinStatuses
+    ) implements Writeable {
 
-        ClusterFormationState(
+        public ClusterFormationState(
             Settings settings,
             ClusterState clusterState,
             List<TransportAddress> resolvedAddresses,
             List<DiscoveryNode> foundPeers,
+            Set<DiscoveryNode> mastersOfPeers,
             long currentTerm,
             ElectionStrategy electionStrategy,
-            StatusInfo statusInfo
+            StatusInfo statusInfo,
+            List<JoinStatus> inFlightJoinStatuses
         ) {
-            this.settings = settings;
-            this.clusterState = clusterState;
-            this.resolvedAddresses = resolvedAddresses;
-            this.foundPeers = foundPeers;
-            this.currentTerm = currentTerm;
-            this.electionStrategy = electionStrategy;
-            this.statusInfo = statusInfo;
+            this(
+                INITIAL_MASTER_NODES_SETTING.get(settings),
+                clusterState.nodes().getLocalNode(),
+                clusterState.nodes().getMasterNodes(),
+                clusterState.version(),
+                clusterState.term(),
+                clusterState.getLastAcceptedConfiguration(),
+                clusterState.getLastCommittedConfiguration(),
+                resolvedAddresses,
+                foundPeers,
+                mastersOfPeers,
+                currentTerm,
+                calculateHasDiscoveredQuorum(
+                    foundPeers,
+                    electionStrategy,
+                    clusterState.nodes().getLocalNode(),
+                    currentTerm,
+                    clusterState.term(),
+                    clusterState.version(),
+                    clusterState.getLastCommittedConfiguration(),
+                    clusterState.getLastAcceptedConfiguration()
+                ),
+                statusInfo,
+                inFlightJoinStatuses
+            );
         }
 
-        String getDescription() {
+        private static boolean calculateHasDiscoveredQuorum(
+            List<DiscoveryNode> foundPeers,
+            ElectionStrategy electionStrategy,
+            DiscoveryNode localNode,
+            long currentTerm,
+            long acceptedTerm,
+            long clusterStateVersion,
+            VotingConfiguration lastCommittedConfiguration,
+            VotingConfiguration lastAcceptedConfiguration
+        ) {
+            final VoteCollection voteCollection = new VoteCollection();
+            foundPeers.forEach(voteCollection::addVote);
+            return electionStrategy.isElectionQuorum(
+                localNode,
+                currentTerm,
+                acceptedTerm,
+                clusterStateVersion,
+                lastCommittedConfiguration,
+                lastAcceptedConfiguration,
+                voteCollection
+            );
+        }
+
+        public ClusterFormationState(StreamInput in) throws IOException {
+            this(
+                in.readStringCollectionAsList(),
+                new DiscoveryNode(in),
+                in.readMap(DiscoveryNode::new),
+                in.readLong(),
+                in.readLong(),
+                new VotingConfiguration(in),
+                new VotingConfiguration(in),
+                in.readCollectionAsImmutableList(TransportAddress::new),
+                in.readCollectionAsImmutableList(DiscoveryNode::new),
+                in.getTransportVersion().onOrAfter(TransportVersions.PEERFINDER_REPORTS_PEERS_MASTERS)
+                    ? in.readCollectionAsImmutableSet(DiscoveryNode::new)
+                    : Set.of(),
+                in.readLong(),
+                in.readBoolean(),
+                new StatusInfo(in),
+                in.readCollectionAsList(JoinStatus::new)
+            );
+        }
+
+        /**
+         * This method provides a human-readable String describing why cluster formation failed.
+         * @return A human-readable String describing why cluster formation failed
+         */
+        public String getDescription() {
+            return getCoordinatorDescription() + getJoinStatusDescription();
+        }
+
+        private String getCoordinatorDescription() {
             if (statusInfo.getStatus() == UNHEALTHY) {
                 return String.format(Locale.ROOT, "this node is unhealthy: %s", statusInfo.getInfo());
             }
 
             final StringBuilder clusterStateNodes = new StringBuilder();
-            DiscoveryNodes.addCommaSeparatedNodesWithoutAttributes(clusterState.nodes().getMasterNodes().valuesIt(), clusterStateNodes);
+            DiscoveryNodes.addCommaSeparatedNodesWithoutAttributes(masterEligibleNodes.values().iterator(), clusterStateNodes);
 
             final String discoveryWillContinueDescription = String.format(
                 Locale.ROOT,
@@ -155,35 +253,42 @@ public class ClusterFormationFailureHelper {
                 resolvedAddresses,
                 clusterStateNodes,
                 currentTerm,
-                clusterState.version(),
-                clusterState.term()
+                clusterStateVersion,
+                acceptedTerm
             );
 
-            final StringBuilder foundPeersDescription = new StringBuilder();
+            final StringBuilder foundPeersDescription = new StringBuilder("[");
             DiscoveryNodes.addCommaSeparatedNodesWithoutAttributes(foundPeers.iterator(), foundPeersDescription);
+            if (mastersOfPeers.isEmpty()) {
+                foundPeersDescription.append(']');
+            } else {
+                foundPeersDescription.append("] who claim current master to be [");
+                DiscoveryNodes.addCommaSeparatedNodesWithoutAttributes(mastersOfPeers.iterator(), foundPeersDescription);
+                foundPeersDescription.append(']');
+            }
 
             final String discoveryStateIgnoringQuorum = String.format(
                 Locale.ROOT,
-                "have discovered [%s]; %s",
+                "have discovered %s; %s",
                 foundPeersDescription,
                 discoveryWillContinueDescription
             );
 
-            if (clusterState.nodes().getLocalNode().isMasterNode() == false) {
+            if (localNode.isMasterNode() == false) {
                 return String.format(Locale.ROOT, "master not discovered yet: %s", discoveryStateIgnoringQuorum);
             }
 
-            if (clusterState.getLastAcceptedConfiguration().isEmpty()) {
+            if (lastAcceptedConfiguration.isEmpty()) {
 
                 final String bootstrappingDescription;
 
-                if (INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY).equals(INITIAL_MASTER_NODES_SETTING.get(settings))) {
+                if (INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY).equals(initialMasterNodesSetting)) {
                     bootstrappingDescription = "[" + INITIAL_MASTER_NODES_SETTING.getKey() + "] is empty on this node";
                 } else {
                     bootstrappingDescription = String.format(
                         Locale.ROOT,
                         "this node must discover master-eligible nodes %s to bootstrap a cluster",
-                        INITIAL_MASTER_NODES_SETTING.get(settings)
+                        initialMasterNodesSetting
                     );
                 }
 
@@ -195,41 +300,31 @@ public class ClusterFormationFailureHelper {
                 );
             }
 
-            assert clusterState.getLastCommittedConfiguration().isEmpty() == false;
+            assert lastCommittedConfiguration.isEmpty() == false;
 
-            if (clusterState.getLastCommittedConfiguration().equals(VotingConfiguration.MUST_JOIN_ELECTED_MASTER)) {
+            if (lastCommittedConfiguration.equals(VotingConfiguration.MUST_JOIN_ELECTED_MASTER)) {
                 return String.format(
                     Locale.ROOT,
-                    "master not discovered yet and this node was detached from its previous cluster, have discovered [%s]; %s",
+                    "master not discovered yet and this node was detached from its previous cluster, have discovered %s; %s",
                     foundPeersDescription,
                     discoveryWillContinueDescription
                 );
             }
 
             final String quorumDescription;
-            if (clusterState.getLastAcceptedConfiguration().equals(clusterState.getLastCommittedConfiguration())) {
-                quorumDescription = describeQuorum(clusterState.getLastAcceptedConfiguration());
+            if (lastAcceptedConfiguration.equals(lastCommittedConfiguration)) {
+                quorumDescription = describeQuorum(lastAcceptedConfiguration);
             } else {
-                quorumDescription = describeQuorum(clusterState.getLastAcceptedConfiguration())
-                    + " and "
-                    + describeQuorum(clusterState.getLastCommittedConfiguration());
+                quorumDescription = describeQuorum(lastAcceptedConfiguration) + " and " + describeQuorum(lastCommittedConfiguration);
             }
 
             final VoteCollection voteCollection = new VoteCollection();
             foundPeers.forEach(voteCollection::addVote);
-            final String haveDiscoveredQuorum = electionStrategy.isElectionQuorum(
-                clusterState.nodes().getLocalNode(),
-                currentTerm,
-                clusterState.term(),
-                clusterState.version(),
-                clusterState.getLastCommittedConfiguration(),
-                clusterState.getLastAcceptedConfiguration(),
-                voteCollection
-            ) ? "have discovered possible quorum" : "have only discovered non-quorum";
+            final String haveDiscoveredQuorum = hasDiscoveredQuorum ? "have discovered possible quorum" : "have only discovered non-quorum";
 
             return String.format(
                 Locale.ROOT,
-                "master not discovered or elected yet, an election requires %s, %s [%s]; %s",
+                "master not discovered or elected yet, an election requires %s, %s %s; %s",
                 quorumDescription,
                 haveDiscoveredQuorum,
                 foundPeersDescription,
@@ -237,7 +332,7 @@ public class ClusterFormationFailureHelper {
             );
         }
 
-        private String describeQuorum(VotingConfiguration votingConfiguration) {
+        private static String describeQuorum(VotingConfiguration votingConfiguration) {
             final Set<String> nodeIds = votingConfiguration.getNodeIds();
             assert nodeIds.isEmpty() == false;
             final int requiredNodes = nodeIds.size() / 2 + 1;
@@ -262,6 +357,58 @@ public class ClusterFormationFailureHelper {
                     return requiredNodes + " nodes with ids " + realNodeIds;
                 }
             }
+        }
+
+        private String getJoinStatusDescription() {
+            if (inFlightJoinStatuses.isEmpty()) {
+                return "";
+            }
+
+            final var stringBuilder = new StringBuilder();
+            inFlightJoinStatuses.stream()
+                .sorted(Comparator.comparing(JoinStatus::age).reversed())
+                .limit(10)
+                .forEachOrdered(
+                    joinStatus -> stringBuilder.append("; joining [")
+                        .append(joinStatus.remoteNode().descriptionWithoutAttributes())
+                        .append("] in term [")
+                        .append(joinStatus.term())
+                        .append("] has status [")
+                        .append(joinStatus.message())
+                        .append("] after [")
+                        .append(timeValueWithMillis(joinStatus.age()))
+                        .append("]")
+                );
+            return stringBuilder.toString();
+        }
+
+        private static String timeValueWithMillis(TimeValue timeValue) {
+            final var millis = timeValue.millis();
+            if (millis >= 1000) {
+                return timeValue + "/" + millis + "ms";
+            } else {
+                return millis + "ms";
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeStringCollection(initialMasterNodesSetting);
+            localNode.writeTo(out);
+            out.writeMap(masterEligibleNodes, StreamOutput::writeWriteable);
+            out.writeLong(clusterStateVersion);
+            out.writeLong(acceptedTerm);
+            lastAcceptedConfiguration.writeTo(out);
+            lastCommittedConfiguration.writeTo(out);
+            out.writeCollection(resolvedAddresses);
+            out.writeCollection(foundPeers);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.PEERFINDER_REPORTS_PEERS_MASTERS)) {
+                out.writeCollection(mastersOfPeers);
+            }
+            out.writeLong(currentTerm);
+            out.writeBoolean(hasDiscoveredQuorum);
+            statusInfo.writeTo(out);
+            out.writeCollection(inFlightJoinStatuses);
         }
     }
 }

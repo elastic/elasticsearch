@@ -8,13 +8,15 @@ package org.elasticsearch.xpack.idp;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.security.user.User;
-import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -64,11 +66,11 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
         final String roleName = username + "_role";
         final User user = createUser(username, password, roleName);
 
-        final ApplicationResourcePrivileges applicationPrivilege = new ApplicationResourcePrivileges(
-            "elastic-cloud",
-            List.of("sso:admin"),
-            List.of("sso:" + entityId)
-        );
+        final RoleDescriptor.ApplicationResourcePrivileges applicationPrivilege = RoleDescriptor.ApplicationResourcePrivileges.builder()
+            .application("elastic-cloud")
+            .privileges("sso:admin")
+            .resources("sso:" + entityId)
+            .build();
         createRole(roleName, List.of(), List.of(), List.of(applicationPrivilege));
 
         final String samlResponse = initSso(entityId, acs, new UsernamePasswordToken(username, password));
@@ -78,10 +80,39 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
             assertThat(samlResponse, containsString("FriendlyName=\"" + attr + "\""));
         }
 
-        assertThat(samlResponse, containsString(user.getUsername()));
-        assertThat(samlResponse, containsString(user.getEmail()));
-        assertThat(samlResponse, containsString(user.getFullName()));
+        assertThat(samlResponse, containsString(user.principal()));
+        assertThat(samlResponse, containsString(user.email()));
+        assertThat(samlResponse, containsString(user.fullName()));
         assertThat(samlResponse, containsString(">admin<"));
+
+        deleteUser(username);
+        deleteRole(roleName);
+    }
+
+    public void testInitSingleSignOnToWildcardServiceProviderWithMismatchedACSandEntityIds() throws Exception {
+        final String owner = randomAlphaOfLength(8);
+        final String service = randomAlphaOfLength(8);
+        // From "wildcard_services.json"
+        final String entityId = "service:" + owner + ":" + service;
+        final String acs = "https://" + service + "extra_stuff_lol" + ".services.example.com/api/v1/saml";
+
+        final String username = randomAlphaOfLength(6);
+        final SecureString password = new SecureString((randomAlphaOfLength(6) + randomIntBetween(10, 99)).toCharArray());
+        final String roleName = username + "_role";
+        final User user = createUser(username, password, roleName);
+
+        final RoleDescriptor.ApplicationResourcePrivileges applicationPrivilege = RoleDescriptor.ApplicationResourcePrivileges.builder()
+            .application("elastic-cloud")
+            .privileges("sso:admin")
+            .resources("sso:" + entityId)
+            .build();
+        createRole(roleName, List.of(), List.of(), List.of(applicationPrivilege));
+
+        ResponseException exception = expectThrows(
+            ResponseException.class,
+            () -> initSso(entityId, acs, new UsernamePasswordToken(username, password))
+        );
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
 
         deleteUser(username);
         deleteRole(roleName);

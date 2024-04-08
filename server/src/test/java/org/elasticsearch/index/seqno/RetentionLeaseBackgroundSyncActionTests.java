@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -17,7 +16,7 @@ import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -145,7 +144,7 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
             retentionLeases
         );
 
-        final PlainActionFuture<TransportReplicationAction.ReplicaResult> listener = PlainActionFuture.newFuture();
+        final PlainActionFuture<TransportReplicationAction.ReplicaResult> listener = new PlainActionFuture<>();
         action.shardOperationOnReplica(request, indexShard, listener);
         final TransportReplicationAction.ReplicaResult result = listener.actionGet();
         // the retention leases on the shard should be updated
@@ -154,7 +153,7 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
         verify(indexShard).persistRetentionLeases();
         // the result should indicate success
         final AtomicBoolean success = new AtomicBoolean();
-        result.runPostReplicaActions(ActionListener.wrap(r -> success.set(true), e -> fail(e.toString())));
+        result.runPostReplicaActions(ActionTestUtils.assertNoFailureListener(r -> success.set(true)));
         assertTrue(success.get());
     }
 

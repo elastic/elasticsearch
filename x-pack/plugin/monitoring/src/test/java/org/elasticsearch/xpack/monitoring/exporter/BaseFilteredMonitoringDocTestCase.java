@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.Set;
 
 import static java.util.Collections.emptySet;
@@ -74,7 +73,7 @@ public abstract class BaseFilteredMonitoringDocTestCase<F extends FilteredMonito
     }
 
     public void testFilteredMonitoringDocToXContent() throws IOException {
-        final Set<String> filters = new HashSet<>(5);
+        final Set<String> filters = Sets.newHashSetWithExpectedSize(5);
         filters.add("_type.field_1");
         filters.add("_type.field_3");
         filters.add("_type.field_5.sub_*");

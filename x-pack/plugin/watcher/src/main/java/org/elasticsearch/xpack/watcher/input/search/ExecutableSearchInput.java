@@ -18,7 +18,6 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -33,6 +32,7 @@ import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateServi
 import java.util.Collections;
 import java.util.Map;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.watcher.input.search.SearchInput.TYPE;
 
 /**
@@ -70,7 +70,7 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
             request = new WatcherSearchTemplateRequest(input.getRequest(), new BytesArray(renderedTemplate));
             return doExecute(ctx, request);
         } catch (Exception e) {
-            logger.error("failed to execute [{}] input for watch [{}], reason [{}]", TYPE, ctx.watch().id(), e.getMessage());
+            logger.error(() -> format("failed to execute [%s] input for watch [%s]", TYPE, ctx.watch().id()), e);
             return new SearchInput.Result(request, e);
         }
     }
@@ -88,39 +88,40 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
             client,
             () -> client.search(searchRequest).actionGet(timeout)
         );
+        try {
 
-        if (logger.isDebugEnabled()) {
-            logger.debug("[{}] found [{}] hits", ctx.id(), response.getHits().getTotalHits().value);
-            for (SearchHit hit : response.getHits()) {
-                logger.debug("[{}] hit [{}]", ctx.id(), hit.getSourceAsMap());
+            if (logger.isDebugEnabled()) {
+                logger.debug("[{}] found [{}] hits", ctx.id(), response.getHits().getTotalHits().value);
             }
-        }
 
-        final Payload payload;
-        final Params params;
-        if (request.isRestTotalHitsAsint()) {
-            params = new MapParams(Collections.singletonMap("rest_total_hits_as_int", "true"));
-        } else {
-            params = EMPTY_PARAMS;
-        }
-        if (input.getExtractKeys() != null) {
-            BytesReference bytes = XContentHelper.toXContent(response, XContentType.SMILE, params, false);
-            // EMPTY is safe here because we never use namedObject
-            try (
-                XContentParser parser = XContentHelper.createParser(
-                    NamedXContentRegistry.EMPTY,
-                    LoggingDeprecationHandler.INSTANCE,
-                    bytes,
-                    XContentType.SMILE
-                )
-            ) {
-                Map<String, Object> filteredKeys = XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser);
-                payload = new Payload.Simple(filteredKeys);
+            final Payload payload;
+            final Params params;
+            if (request.isRestTotalHitsAsint()) {
+                params = new MapParams(Collections.singletonMap("rest_total_hits_as_int", "true"));
+            } else {
+                params = EMPTY_PARAMS;
             }
-        } else {
-            payload = new Payload.XContent(response, params);
-        }
+            if (input.getExtractKeys() != null) {
+                BytesReference bytes = XContentHelper.toXContent(response, XContentType.SMILE, params, false);
+                // EMPTY is safe here because we never use namedObject
+                try (
+                    XContentParser parser = XContentHelper.createParser(
+                        NamedXContentRegistry.EMPTY,
+                        LoggingDeprecationHandler.INSTANCE,
+                        bytes,
+                        XContentType.SMILE
+                    )
+                ) {
+                    Map<String, Object> filteredKeys = XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser);
+                    payload = new Payload.Simple(filteredKeys);
+                }
+            } else {
+                payload = new Payload.XContent(response, params);
+            }
 
-        return new SearchInput.Result(request, payload);
+            return new SearchInput.Result(request, payload);
+        } finally {
+            response.decRef();
+        }
     }
 }

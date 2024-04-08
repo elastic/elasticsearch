@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.routing.RelocationFailureInfo;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -50,6 +51,12 @@ public class RoutingNodesChangedObserver implements RoutingChangesObserver {
     @Override
     public void unassignedInfoUpdated(ShardRouting unassignedShard, UnassignedInfo newUnassignedInfo) {
         assert unassignedShard.unassigned() : "expected unassigned shard " + unassignedShard;
+        setChanged();
+    }
+
+    @Override
+    public void relocationFailureInfoUpdated(ShardRouting relocatedShard, RelocationFailureInfo relocationFailureInfo) {
+        assert relocatedShard.active() : "expected active shard " + relocatedShard;
         setChanged();
     }
 

@@ -24,14 +24,12 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
-import org.elasticsearch.transport.nio.NioTransportPlugin;
 import org.elasticsearch.xpack.sql.proto.CoreProtocol;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Payloads;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.content.ContentFactory;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,13 +49,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class RestSqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
 
-    private static String nodeHttpTypeKey;
-
-    @BeforeClass
-    public static void setUpTransport() {
-        nodeHttpTypeKey = getHttpTypeKey(randomFrom(Netty4Plugin.class, NioTransportPlugin.class));
-    }
-
     @Override
     protected boolean addMockHttpTransport() {
         return false; // enable http
@@ -67,35 +58,22 @@ public class RestSqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(NetworkModule.HTTP_TYPE_KEY, nodeHttpTypeKey)
+            .put(NetworkModule.HTTP_TYPE_KEY, Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME)
             .build();
-    }
-
-    private static String getHttpTypeKey(Class<? extends Plugin> clazz) {
-        if (clazz.equals(NioTransportPlugin.class)) {
-            return NioTransportPlugin.NIO_HTTP_TRANSPORT_NAME;
-        } else {
-            assert clazz.equals(Netty4Plugin.class);
-            return Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME;
-        }
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(getTestTransportPlugin());
-        plugins.add(NioTransportPlugin.class);
+        plugins.add(Netty4Plugin.class);
         return plugins;
     }
 
     @TestLogging(value = "org.elasticsearch.xpack.sql:TRACE", reason = "debug")
     public void testRestCancellation() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date")
-                .get()
+            indicesAdmin().prepareCreate("test").setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date")
         );
         createIndex("idx_unmapped");
 
@@ -106,14 +84,13 @@ public class RestSqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             int fieldValue = randomIntBetween(0, 10);
             builders.add(
-                client().prepareIndex("test")
-                    .setSource(
-                        jsonBuilder().startObject()
-                            .field("val", fieldValue)
-                            .field("event_type", "my_event")
-                            .field("@timestamp", "2020-04-09T12:35:48Z")
-                            .endObject()
-                    )
+                prepareIndex("test").setSource(
+                    jsonBuilder().startObject()
+                        .field("val", fieldValue)
+                        .field("event_type", "my_event")
+                        .field("@timestamp", "2020-04-09T12:35:48Z")
+                        .endObject()
+                )
             );
         }
 
@@ -153,8 +130,8 @@ public class RestSqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
 
         assertBusy(() -> {
             for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-                if (transportService.getLocalNode().getId().equals(blockedTaskInfo.getTaskId().getNodeId())) {
-                    Task task = transportService.getTaskManager().getTask(blockedTaskInfo.getId());
+                if (transportService.getLocalNode().getId().equals(blockedTaskInfo.taskId().getNodeId())) {
+                    Task task = transportService.getTaskManager().getTask(blockedTaskInfo.id());
                     if (task != null) {
                         assertThat(task, instanceOf(SqlQueryTask.class));
                         SqlQueryTask sqlSearchTask = (SqlQueryTask) task;
@@ -197,15 +174,12 @@ public class RestSqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
                     new RequestInfo(Mode.PLAIN),
                     CoreProtocol.FIELD_MULTI_VALUE_LENIENCY,
                     CoreProtocol.INDEX_INCLUDE_FROZEN,
-                    CoreProtocol.BINARY_COMMUNICATION
+                    CoreProtocol.BINARY_COMMUNICATION,
+                    CoreProtocol.ALLOW_PARTIAL_SEARCH_RESULTS
                 )
             );
         }
         return out.bytes().utf8ToString();
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
 }

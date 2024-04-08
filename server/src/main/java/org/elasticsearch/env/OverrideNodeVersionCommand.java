@@ -60,9 +60,9 @@ public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
     }
 
     @Override
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException {
-        final Path[] nodePaths = Arrays.stream(toNodePaths(dataPaths)).map(p -> p.path).toArray(Path[]::new);
-        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePaths);
+    protected void processDataPaths(Terminal terminal, Path[] paths, OptionSet options, Environment env) throws IOException {
+        final Path[] dataPaths = Arrays.stream(toDataPaths(paths)).map(p -> p.path).toArray(Path[]::new);
+        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(dataPaths);
         if (nodeMetadata == null) {
             throw new ElasticsearchException(NO_METADATA_MESSAGE);
         }
@@ -82,13 +82,13 @@ public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
 
         confirm(
             terminal,
-            (nodeMetadata.nodeVersion().before(Version.CURRENT) ? TOO_OLD_MESSAGE : TOO_NEW_MESSAGE).replace(
+            (nodeMetadata.nodeVersion().onOrAfterMinimumCompatible() == false ? TOO_OLD_MESSAGE : TOO_NEW_MESSAGE).replace(
                 "V_OLD",
                 nodeMetadata.nodeVersion().toString()
             ).replace("V_NEW", nodeMetadata.nodeVersion().toString()).replace("V_CUR", Version.CURRENT.toString())
         );
 
-        PersistedClusterStateService.overrideVersion(Version.CURRENT, dataPaths);
+        PersistedClusterStateService.overrideVersion(Version.CURRENT, paths);
 
         terminal.println(SUCCESS_MESSAGE);
     }

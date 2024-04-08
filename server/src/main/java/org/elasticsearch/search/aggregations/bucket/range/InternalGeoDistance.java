@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -23,38 +22,16 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
 
     static class Bucket extends InternalRange.Bucket {
 
-        Bucket(
-            String key,
-            double from,
-            double originalFrom,
-            double to,
-            double originalTo,
-            long docCount,
-            InternalAggregations aggregations,
-            boolean keyed
-        ) {
-            super(key, from, originalFrom, to, originalTo, docCount, aggregations, keyed, DocValueFormat.RAW);
+        Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed) {
+            super(key, from, to, docCount, aggregations, keyed, DocValueFormat.RAW);
         }
 
-        @Override
-        protected InternalRange.Factory<Bucket, ?> getFactory() {
-            return FACTORY;
-        }
-
-        boolean keyed() {
-            return keyed;
-        }
     }
 
     public static class Factory extends InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> {
         @Override
         public ValuesSourceType getValueSourceType() {
             return CoreValuesSourceType.GEOPOINT;
-        }
-
-        @Override
-        public ValueType getValueType() {
-            return ValueType.GEOPOINT;
         }
 
         @Override
@@ -77,15 +54,13 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
         public Bucket createBucket(
             String key,
             double from,
-            double originalFrom,
             double to,
-            double originalTo,
             long docCount,
             InternalAggregations aggregations,
             boolean keyed,
             DocValueFormat format
         ) {
-            return new Bucket(key, from, originalFrom, to, originalTo, docCount, aggregations, keyed);
+            return new Bucket(key, from, to, docCount, aggregations, keyed);
         }
 
         @Override
@@ -93,9 +68,7 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
             return new Bucket(
                 prototype.getKey(),
                 ((Number) prototype.getFrom()).doubleValue(),
-                ((Number) prototype.getOriginalFrom()).doubleValue(),
                 ((Number) prototype.getTo()).doubleValue(),
-                ((Number) prototype.getOriginalTo()).doubleValue(),
                 prototype.getDocCount(),
                 aggregations,
                 prototype.getKeyed()

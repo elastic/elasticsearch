@@ -9,13 +9,13 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -46,7 +46,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -153,19 +152,15 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     public void testBuild() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             SB suggestionBuilder = randomTestBuilder();
-            Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+            Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
             IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(
                 new Index(randomAlphaOfLengthBetween(1, 10), "_na_"),
                 indexSettings
             );
             ScriptService scriptService = mock(ScriptService.class);
             MappedFieldType fieldType = mockFieldType(suggestionBuilder.field());
-            IndexAnalyzers indexAnalyzers = new IndexAnalyzers(new HashMap<>() {
-                @Override
-                public NamedAnalyzer get(Object key) {
-                    return new NamedAnalyzer(key.toString(), AnalyzerScope.INDEX, new SimpleAnalyzer());
-                }
-            }, Collections.emptyMap(), Collections.emptyMap());
+            IndexAnalyzers indexAnalyzers = (type, name) -> new NamedAnalyzer(name, AnalyzerScope.INDEX, new SimpleAnalyzer());
+            ;
             MapperService mapperService = mock(MapperService.class);
             when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
             when(scriptService.compile(any(Script.class), any())).then(
@@ -219,7 +214,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     }
 
     public void testBuildWithUnmappedField() {
-        Settings.Builder builder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+        Settings.Builder builder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current());
         if (randomBoolean()) {
             builder.put(IndexSettings.ALLOW_UNMAPPED.getKey(), randomBoolean());
         }
@@ -266,7 +261,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
 
     protected MappedFieldType mockFieldType(String fieldName) {
         MappedFieldType fieldType = mock(MappedFieldType.class);
-        when(fieldType.name()).thenReturn(fieldName);
+        when(fieldType.name()).thenReturn(fieldName.intern()); // intern field name to not trip assertions that ensure all field names are
+                                                               // interned
         NamedAnalyzer searchAnalyzer = new NamedAnalyzer("fieldSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer());
         TextSearchInfo tsi = new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, searchAnalyzer, searchAnalyzer);
         when(fieldType.getTextSearchInfo()).thenReturn(tsi);

@@ -8,9 +8,11 @@
 
 package org.elasticsearch.index.mapper.extras;
 
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -34,7 +36,8 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
 
         public static final RankFeatureMetaFieldType INSTANCE = new RankFeatureMetaFieldType();
 
-        private RankFeatureMetaFieldType() {
+        // made visible for tests
+        RankFeatureMetaFieldType() {
             super(NAME, false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
@@ -54,6 +57,11 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public boolean fieldHasValue(FieldInfos fieldInfos) {
+            return fieldInfos.fieldInfo(NAME) != null;
+        }
+
+        @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             throw new UnsupportedOperationException("The [_feature] field may not be queried directly");
         }
@@ -68,4 +76,8 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
+    }
 }

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.get;
 
-import com.carrotsearch.hppc.IntArrayList;
-
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,15 +15,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class MultiGetShardResponse extends ActionResponse {
 
-    final IntArrayList locations;
+    final List<Integer> locations;
     final List<GetResponse> responses;
     final List<MultiGetResponse.Failure> failures;
 
     MultiGetShardResponse() {
-        locations = new IntArrayList();
+        locations = new ArrayList<>();
         responses = new ArrayList<>();
         failures = new ArrayList<>();
     }
@@ -33,7 +32,7 @@ public class MultiGetShardResponse extends ActionResponse {
     MultiGetShardResponse(StreamInput in) throws IOException {
         super(in);
         int size = in.readVInt();
-        locations = new IntArrayList(size);
+        locations = new ArrayList<>(size);
         responses = new ArrayList<>(size);
         failures = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -81,5 +80,18 @@ public class MultiGetShardResponse extends ActionResponse {
                 failures.get(i).writeTo(out);
             }
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o instanceof MultiGetShardResponse == false) return false;
+        MultiGetShardResponse other = (MultiGetShardResponse) o;
+        return Objects.equals(locations, other.locations) && Objects.equals(responses, other.responses);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(locations, responses);
     }
 }

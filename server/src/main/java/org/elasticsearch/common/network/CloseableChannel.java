@@ -11,7 +11,7 @@ package org.elasticsearch.common.network;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -83,7 +83,7 @@ public interface CloseableChannel extends Closeable {
         if (blocking) {
             ArrayList<ActionFuture<Void>> futures = new ArrayList<>(channels.size());
             for (final C channel : channels) {
-                PlainActionFuture<Void> closeFuture = PlainActionFuture.newFuture();
+                PlainActionFuture<Void> closeFuture = new PlainActionFuture<>();
                 channel.addCloseListener(closeFuture);
                 futures.add(closeFuture);
             }

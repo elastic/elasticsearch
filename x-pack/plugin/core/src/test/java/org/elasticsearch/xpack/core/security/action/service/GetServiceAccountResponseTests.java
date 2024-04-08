@@ -42,7 +42,7 @@ public class GetServiceAccountResponseTests extends AbstractWireSerializingTestC
     }
 
     @Override
-    protected GetServiceAccountResponse mutateInstance(GetServiceAccountResponse instance) throws IOException {
+    protected GetServiceAccountResponse mutateInstance(GetServiceAccountResponse instance) {
         if (instance.getServiceAccountInfos().length == 0) {
             final String principal = randomPrincipal();
             return new GetServiceAccountResponse(

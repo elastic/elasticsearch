@@ -9,7 +9,9 @@
 package org.elasticsearch.gradle.plugin;
 
 import org.gradle.api.Project;
+import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.plugins.BasePluginExtension;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 
 import java.io.File;
@@ -34,10 +36,6 @@ public class PluginPropertiesExtension {
 
     private boolean hasNativeController;
 
-    private PluginType type = PluginType.ISOLATED;
-
-    private String javaOpts = "";
-
     /** Whether a license agreement must be accepted before this plugin can be installed. */
     private boolean isLicensed = false;
 
@@ -54,6 +52,7 @@ public class PluginPropertiesExtension {
     private File noticeFile;
 
     private final Project project;
+    private CopySpec bundleSpec;
 
     public PluginPropertiesExtension(Project project) {
         this.project = project;
@@ -64,6 +63,7 @@ public class PluginPropertiesExtension {
     }
 
     public void setName(String name) {
+        this.project.getExtensions().getByType(BasePluginExtension.class).getArchivesName().set(name);
         this.name = name;
     }
 
@@ -80,6 +80,7 @@ public class PluginPropertiesExtension {
     }
 
     public void setDescription(String description) {
+        project.setDescription(description);
         this.description = description;
     }
 
@@ -101,22 +102,6 @@ public class PluginPropertiesExtension {
 
     public void setHasNativeController(boolean hasNativeController) {
         this.hasNativeController = hasNativeController;
-    }
-
-    public PluginType getType() {
-        return type;
-    }
-
-    public void setType(PluginType type) {
-        this.type = type;
-    }
-
-    public String getJavaOpts() {
-        return javaOpts;
-    }
-
-    public void setJavaOpts(String javaOpts) {
-        this.javaOpts = javaOpts;
     }
 
     public boolean isLicensed() {
@@ -167,5 +152,13 @@ public class PluginPropertiesExtension {
 
     public void setExtendedPlugins(List<String> extendedPlugins) {
         this.extendedPlugins = extendedPlugins;
+    }
+
+    public void setBundleSpec(CopySpec bundleSpec) {
+        this.bundleSpec = bundleSpec;
+    }
+
+    public CopySpec getBundleSpec() {
+        return bundleSpec;
     }
 }

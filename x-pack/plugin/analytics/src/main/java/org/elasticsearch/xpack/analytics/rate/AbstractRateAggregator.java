@@ -34,6 +34,7 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
     protected DoubleArray sums;
     protected DoubleArray compensations;
 
+    @SuppressWarnings("this-escape")
     public AbstractRateAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,

@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.ml.inference.persistence;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor.TaskContext;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -26,9 +28,11 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 
 import java.util.HashMap;
 
-public class TrainedModelCacheMetadataService {
+public class TrainedModelCacheMetadataService implements ClusterStateListener {
     private static final Logger LOGGER = LogManager.getLogger(TrainedModelCacheMetadataService.class);
     private final MasterServiceTaskQueue<ModelCacheMetadataManagementTask> modelCacheMetadataManagementTaskQueue;
+
+    private volatile boolean isMasterNode = false;
 
     public TrainedModelCacheMetadataService(ClusterService clusterService) {
         this.modelCacheMetadataManagementTaskQueue = clusterService.createTaskQueue(
@@ -36,9 +40,16 @@ public class TrainedModelCacheMetadataService {
             Priority.IMMEDIATE,
             new ModelCacheMetadataManagementTaskExecutor()
         );
+        clusterService.addListener(this);
     }
 
     public void deleteCacheMetadataEntry(String modelId, ActionListener<AcknowledgedResponse> listener) {
+        if (this.isMasterNode == false) {
+            listener.onResponse(AcknowledgedResponse.FALSE);
+            return;
+        }
+
+
         ModelCacheMetadataManagementTask deleteModelCacheMetadataTask = new DeleteModelCacheMetadataTask(modelId, listener);
         this.modelCacheMetadataManagementTaskQueue.submitTask(
             deleteModelCacheMetadataTask.getDescription(),
@@ -48,8 +59,18 @@ public class TrainedModelCacheMetadataService {
     }
 
     public void saveCacheMetadataEntry(TrainedModelConfig modelConfig, ActionListener<AcknowledgedResponse> listener) {
+        if (this.isMasterNode == false) {
+            listener.onResponse(AcknowledgedResponse.FALSE);
+            return;
+        }
+
         ModelCacheMetadataManagementTask putModelCacheMetadataTask = new PutModelCacheMetadataTask(modelConfig.getModelId(), listener);
         this.modelCacheMetadataManagementTaskQueue.submitTask(putModelCacheMetadataTask.getDescription(), putModelCacheMetadataTask, null);
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        this.isMasterNode = event.localNodeMaster();
     }
 
     private abstract static class ModelCacheMetadataManagementTask implements ClusterStateTaskListener {

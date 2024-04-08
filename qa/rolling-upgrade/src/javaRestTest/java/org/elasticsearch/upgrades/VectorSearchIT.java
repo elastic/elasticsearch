@@ -112,8 +112,8 @@ public class VectorSearchIT extends ParameterizedRollingUpgradeTestCase {
             // create index and index 10 random floating point vectors
             createIndex(FLOAT_INDEX_NAME, Settings.EMPTY, mapping);
             indexVectors(FLOAT_INDEX_NAME);
-            // refresh the index
-            client().performRequest(new Request("POST", "/" + FLOAT_INDEX_NAME + "/_refresh"));
+            // force merge the index
+            client().performRequest(new Request("POST", "/" + FLOAT_INDEX_NAME + "/_forcemerge?max_num_segments=1"));
         }
         // search with a script query
         Request searchRequest = new Request("POST", "/" + FLOAT_INDEX_NAME + "/_search");
@@ -186,7 +186,8 @@ public class VectorSearchIT extends ParameterizedRollingUpgradeTestCase {
             createIndex(BYTE_INDEX_NAME, Settings.EMPTY, mapping);
             indexVectors(BYTE_INDEX_NAME);
             // refresh the index
-            client().performRequest(new Request("POST", "/" + BYTE_INDEX_NAME + "/_refresh"));
+            // force merge the index
+            client().performRequest(new Request("POST", "/" + BYTE_INDEX_NAME + "/_forcemerge?max_num_segments=1"));
         }
         // search with a script query
         Request searchRequest = new Request("POST", "/" + BYTE_INDEX_NAME + "/_search");
@@ -260,8 +261,8 @@ public class VectorSearchIT extends ParameterizedRollingUpgradeTestCase {
             // create index and index 10 random floating point vectors
             createIndex(QUANTIZED_INDEX_NAME, Settings.EMPTY, mapping);
             indexVectors(QUANTIZED_INDEX_NAME);
-            // refresh the index
-            client().performRequest(new Request("POST", "/" + QUANTIZED_INDEX_NAME + "/_refresh"));
+            // force merge the index
+            client().performRequest(new Request("POST", "/" + QUANTIZED_INDEX_NAME + "/_forcemerge?max_num_segments=1"));
         }
         Request searchRequest = new Request("POST", "/" + QUANTIZED_INDEX_NAME + "/_search");
         searchRequest.setJsonEntity("""

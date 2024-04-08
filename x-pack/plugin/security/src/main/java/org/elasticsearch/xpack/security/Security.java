@@ -292,6 +292,8 @@ import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenSt
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthActions;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
+import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper;
+import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.AuthorizationDenialMessages;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -765,6 +767,7 @@ public class Security extends Plugin
             systemIndices.getMainIndexManager(),
             scriptService
         );
+        final ClusterStateRoleMapper clusterStateRoleMapper = new ClusterStateRoleMapper(scriptService, clusterService);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         components.add(anonymousUser);
         final ReservedRealm reservedRealm = new ReservedRealm(environment, settings, nativeUsersStore, anonymousUser, threadPool);
@@ -773,7 +776,7 @@ public class Security extends Plugin
             client,
             clusterService,
             resourceWatcherService,
-            nativeRoleMappingStore
+            new CompositeRoleMapper(nativeRoleMappingStore, clusterStateRoleMapper)
         );
         Map<String, Realm.Factory> realmFactories = new HashMap<>(
             InternalRealms.getFactories(
@@ -782,7 +785,7 @@ public class Security extends Plugin
                 resourceWatcherService,
                 getSslService(),
                 nativeUsersStore,
-                nativeRoleMappingStore,
+                new CompositeRoleMapper(nativeRoleMappingStore, clusterStateRoleMapper),
                 systemIndices.getMainIndexManager()
             )
         );

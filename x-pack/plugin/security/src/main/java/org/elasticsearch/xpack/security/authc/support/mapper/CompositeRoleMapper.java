@@ -37,7 +37,7 @@ public class CompositeRoleMapper implements UserRoleMapper {
         this(new DnRoleMapper(realmConfig, watcherService), nativeRoleMappingStore);
     }
 
-    private CompositeRoleMapper(UserRoleMapper... delegates) {
+    public CompositeRoleMapper(UserRoleMapper... delegates) {
         this.delegates = new ArrayList<>(Arrays.asList(delegates));
     }
 

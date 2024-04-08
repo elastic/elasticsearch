@@ -39,8 +39,8 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
+import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
-import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 
 import java.util.HashMap;
@@ -72,13 +72,13 @@ public final class LdapRealm extends CachingUsernamePasswordRealm implements Rel
         RealmConfig config,
         SSLService sslService,
         ResourceWatcherService watcherService,
-        NativeRoleMappingStore nativeRoleMappingStore,
+        UserRoleMapper userRoleMapper,
         ThreadPool threadPool
     ) throws LDAPException {
         this(
             config,
             sessionFactory(config, sslService, threadPool),
-            new CompositeRoleMapper(config, watcherService, nativeRoleMappingStore),
+            new CompositeRoleMapper(new DnRoleMapper(config, watcherService), userRoleMapper),
             threadPool
         );
     }

@@ -34,7 +34,7 @@ public class ClusterStateRoleMapper implements UserRoleMapper, ClusterStateListe
     private final ClusterService clusterService;
     private final CopyOnWriteArrayList<Runnable> clearCacheListeners = new CopyOnWriteArrayList<>();
 
-    ClusterStateRoleMapper(ScriptService scriptService, ClusterService clusterService) {
+    public ClusterStateRoleMapper(ScriptService scriptService, ClusterService clusterService) {
         this.scriptService = scriptService;
         this.clusterService = clusterService;
     }

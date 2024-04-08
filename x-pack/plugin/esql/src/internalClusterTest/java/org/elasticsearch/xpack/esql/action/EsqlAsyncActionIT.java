@@ -121,20 +121,6 @@ public class EsqlAsyncActionIT extends EsqlActionIT {
         }
     }
 
-    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
-    @Override
-    public void testErrorMessageForUnknownColumn() {
-        var e = expectThrows(VerificationException.class, () -> run("row a = 1 | eval x = b"));
-        assertThat(e.getMessage(), containsString("Unknown column [b]"));
-    }
-
-    // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
-    @Override
-    public void testErrorMessageForEmptyParams() {
-        var e = expectThrows(ParsingException.class, () -> run("row a = 1 | eval x = ?"));
-        assertThat(e.getMessage(), containsString("Not enough actual parameters 0"));
-    }
-
     public static class LocalStateEsqlAsync extends LocalStateCompositeXPackPlugin {
         public LocalStateEsqlAsync(final Settings settings, final Path configPath) {
             super(settings, configPath);

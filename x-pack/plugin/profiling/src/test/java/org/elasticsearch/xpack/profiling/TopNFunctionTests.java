@@ -22,7 +22,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 
 public class TopNFunctionTests extends ESTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107117")
     public void testToXContent() throws IOException {
         String fileID = "6tVKI4mSYDEJ-ABAIpYXcg";
         int frameType = 1;
@@ -56,8 +55,10 @@ public class TopNFunctionTests extends ESTestCase {
             .rawValue("2.2000")
             .field("total_annual_co2_tons")
             .rawValue("22.0000")
-            .field("self_annual_costs_usd", "12.0000")
-            .field("total_annual_costs_usd", "120.0000")
+            .field("self_annual_costs_usd")
+            .rawValue("12.0000")
+            .field("total_annual_costs_usd")
+            .rawValue("120.0000")
             .endObject();
 
         XContentBuilder actualRequest = XContentFactory.contentBuilder(contentType);

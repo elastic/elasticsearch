@@ -98,6 +98,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -470,6 +471,16 @@ public class CsvTests extends ESTestCase {
                 normalized.add(normW);
             }
         }
-        assertMap(normalized, matchesList(testCase.expectedWarnings(true)));
+        List<Pattern> expectedWarningsRegex = testCase.expectedWarningsRegex();
+        if (expectedWarningsRegex.isEmpty()) {
+            assertMap(normalized.stream().sorted().toList(), matchesList(testCase.expectedWarnings(true).stream().sorted().toList()));
+        } else {
+            for (String warning : normalized) {
+                assertTrue(
+                    "Unexpected warning: " + warning,
+                    expectedWarningsRegex.stream().anyMatch(x -> x.matcher(String.valueOf(warning)).matches())
+                );
+            }
+        }
     }
 }

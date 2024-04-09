@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -133,13 +134,14 @@ public class MultiClustersIT extends ESRestTestCase {
 
     private Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject) throws IOException {
         if (supportsAsync()) {
-            return RestEsqlTestCase.runEsqlAsync(requestObject, NO_WARNINGS);
+            return RestEsqlTestCase.runEsqlAsync(requestObject, NO_WARNINGS, NO_WARNINGS_REGEX);
         } else {
-            return RestEsqlTestCase.runEsqlSync(requestObject, NO_WARNINGS);
+            return RestEsqlTestCase.runEsqlSync(requestObject, NO_WARNINGS, NO_WARNINGS_REGEX);
         }
     }
 
     private static final List<String> NO_WARNINGS = List.of();
+    private static final List<Pattern> NO_WARNINGS_REGEX = List.of();
 
     public void testCount() throws Exception {
         {

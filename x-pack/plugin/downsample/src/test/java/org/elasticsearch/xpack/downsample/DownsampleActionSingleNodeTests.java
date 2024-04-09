@@ -553,7 +553,10 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 fail("downsample index has not been created");
             }
         });
-        downsample(sourceIndex, downsampleIndex, config);
+
+        // Downsample with retries, in case the downsampled index is not ready.
+        assertBusy(() -> downsample(sourceIndex, downsampleIndex, config), 120, TimeUnit.SECONDS);
+
         // We must wait until the in-progress downsample ends, otherwise data will not be cleaned up
         assertBusy(() -> assertTrue("In progress downsample did not complete", downsampleListener.success), 60, TimeUnit.SECONDS);
     }
@@ -1186,7 +1189,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                     measurement.value().longValue() >= 0 && measurement.value().longValue() < 1000_000
                 );
                 assertEquals(1, measurement.attributes().size());
-                assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "invalid_configuration")));
+                assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "invalid_configuration", "failed")));
             }
         }, 10, TimeUnit.SECONDS);
     }

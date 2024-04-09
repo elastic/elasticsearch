@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
@@ -20,7 +19,7 @@ import java.util.List;
 public class RankedDocsResultsTests extends AbstractBWCSerializationTestCase<RankedDocsResults> {
 
     @Override
-    protected Writeable.Reader instanceReader() {
+    protected Writeable.Reader<RankedDocsResults> instanceReader() {
         return RankedDocsResults::new;
     }
 

@@ -123,7 +123,7 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
         testRoot = objectFactory.directoryProperty();
         TestBuilder builder = new TestBuilder();
 
-        perSnippet = snippet -> builder.handleSnippet(snippet);
+        setPerSnippet(snippet -> builder.handleSnippet(snippet));
         doLast(task -> {
             builder.finishLastTest();
             builder.checkUnconverted();

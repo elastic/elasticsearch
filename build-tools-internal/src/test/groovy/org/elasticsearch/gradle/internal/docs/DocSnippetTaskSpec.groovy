@@ -25,49 +25,49 @@ class DocSnippetTaskSpec extends Specification {
     def testMatchSource() {
         expect:
         with(matchSource("[source,console]")) {
-            matches == true;
-            language == "console";
-            name == null;
+            matches == true
+            language == "console"
+            name == null
         }
 
         with(matchSource("[source,console,id=snippet-name-1]")) {
-            matches == true;
-            language == "console";
-            name == "snippet-name-1";
+            matches == true
+            language == "console"
+            name == "snippet-name-1"
         }
 
         with(matchSource("[source, console, id=snippet-name-1]")) {
-            matches == true;
-            language == "console";
-            name == "snippet-name-1";
+            matches == true
+            language == "console"
+            name == "snippet-name-1"
         }
 
         with(matchSource("[source, console, id=snippet-name-1]")) {
-            matches == true;
-            language == "console";
-            name == "snippet-name-1";
+            matches == true
+            language == "console"
+            name == "snippet-name-1"
         }
 
         with(matchSource("[source,console,attr=5,id=snippet-name-1,attr2=6]")) {
-            matches == true;
-            language == "console";
-            name == "snippet-name-1";
+            matches == true
+            language == "console"
+            name == "snippet-name-1"
         }
 
         with(matchSource("[source,console, attr=5, id=snippet-name-1, attr2=6]")) {
-            matches == true;
-            language == "console";
-            name == "snippet-name-1";
+            matches == true
+            language == "console"
+            name == "snippet-name-1"
         }
 
         with(matchSource("[\"source\",\"console\",id=\"snippet-name-1\"]")) {
-            matches == true;
-            language == "console";
-            name == "snippet-name-1";
+            matches == true
+            language == "console"
+            name == "snippet-name-1"
         }
 
         with(matchSource("[source,console,id=\"snippet-name-1\"]")) {
-            matches == true;
+            matches == true
             language == "console"
             name == "snippet-name-1"
         }
@@ -86,7 +86,7 @@ class DocSnippetTaskSpec extends Specification {
         given:
         def snippet = snippet()
         when:
-        def task = ProjectBuilder.builder().build().tasks.create("docSnippetTask", DocSnippetTask)
+        def task = ProjectBuilder.builder().build().tasks.register("docSnippetTask", DocSnippetTask).get()
         task.emit(snippet, "snippet-content", [:], [])
         then:
         def e = thrown(InvalidUserDataException)
@@ -99,8 +99,7 @@ class DocSnippetTaskSpec extends Specification {
             language = "console"
         }
         when:
-        def task = ProjectBuilder.builder().build().tasks.create("docSnippetTask", DocSnippetTask)
-        task.emit(snippet, "snippet-content", [:], [])
+        task().emit(snippet, "snippet-content", [:], [])
         then:
         snippet.contents == "snippet-content"
     }
@@ -112,8 +111,7 @@ class DocSnippetTaskSpec extends Specification {
             name = "snippet-name-1"
         }
         when:
-        def task = ProjectBuilder.builder().build().tasks.create("docSnippetTask", DocSnippetTask)
-        task.emit(snippet, "curl substDefault subst", [:], [:].entrySet())
+        task().emit(snippet, "curl substDefault subst", [:], [:].entrySet())
         then:
         snippet.curl == true
     }
@@ -125,8 +123,7 @@ class DocSnippetTaskSpec extends Specification {
             language = "shell"
         }
         when:
-        def task = ProjectBuilder.builder().build().tasks.create("docSnippetTask", DocSnippetTask)
-        task.emit(snippet, "hello substDefault subst", [:], [:].entrySet())
+        task().emit(snippet, "hello substDefault subst", [:], [:].entrySet())
         then:
         def e = thrown(InvalidUserDataException)
         e.message.contains("No need for NOTCONSOLE if snippet doesn't contain `curl`")
@@ -135,7 +132,6 @@ class DocSnippetTaskSpec extends Specification {
     @Unroll
     def "checks for valid json for #languageParam"() {
         given:
-        def task = ProjectBuilder.builder().build().tasks.create("docSnippetTask", DocSnippetTask)
         def snippet = snippet() {
             language = languageParam
             testResponse = true
@@ -153,19 +149,19 @@ class DocSnippetTaskSpec extends Specification {
     "hobbies": ["Reading", "Cooking", "Traveling"]
 }"""
         when:
-        def result = task.emit(snippet, json, [:], [:].entrySet())
+        def result = task().emit(snippet, json, [:], [:].entrySet())
         then:
         result != null
 
         when:
-        task.emit(snippet, "some no valid json", [:], [:].entrySet())
+        task().emit(snippet, "some no valid json", [:], [:].entrySet())
         then:
         def e = thrown(InvalidUserDataException)
         e.message.contains("Invalid json in")
 
         when:
         snippet.skip = "true"
-        result = task.emit(snippet, "some no valid json", [:], [:].entrySet())
+        result = task().emit(snippet, "some no valid json", [:], [:].entrySet())
         then:
         result != null
 
@@ -185,11 +181,10 @@ class DocSnippetTaskSpec extends Specification {
         snippet.contents == "snippet-content \$body substValue"
     }
 
-
     def "handling test parsing multiple snippets per file"() {
         given:
         def project = ProjectBuilder.builder().build()
-        def task = project.tasks.create("docSnippetTask", DocSnippetTask)
+        def task = project.tasks.register("docSnippetTask", DocSnippetTask).get()
         when:
         def substitutions = []
         def snippets = task.parseDocFiles(
@@ -524,12 +519,9 @@ but with the following exceptions:
         snippets*.catchPart == [null, null, null, null, null, null, null]
     }
         def "handling test parsing"() {
-        given:
-        def project = ProjectBuilder.builder().build()
-        def task = project.tasks.create("docSnippetTask", DocSnippetTask)
         when:
         def substitutions = []
-        def snippets = task.parseDocFiles(
+        def snippets = task().parseDocFiles(
             tempDir, docFile(
             """
 [source,console]
@@ -548,7 +540,7 @@ POST logs-my_app-default/_rollover/
 
         when:
         substitutions = []
-        snippets = task.parseDocFiles(
+        snippets = task().parseDocFiles(
             tempDir, docFile(
             """
 
@@ -573,12 +565,9 @@ PUT _snapshot/my_hdfs_repository
     }
 
     def "handling testresponse parsing"() {
-        given:
-        def project = ProjectBuilder.builder().build()
-        def task = project.tasks.create("docSnippetTask", DocSnippetTask)
         when:
         def substitutions = []
-        def snippets = task.parseDocFiles(
+        def snippets = task().parseDocFiles(
             tempDir, docFile(
             """
 [source,console]
@@ -592,11 +581,11 @@ POST logs-my_app-default/_rollover/
         snippets*.test == [false]
         snippets*.testResponse == [true]
         substitutions.size() == 1
-        substitutions[0].key == "\"root_cause\": \\.\\.\\."
-        substitutions[0].value == "\"root_cause\": \$body.error.root_cause"
+        substitutions[0].key == "\\.\\.\\."
+        substitutions[0].value == "\"script_stack\": \$body.error.caused_by.script_stack, \"script\": \$body.error.caused_by.script, \"lang\": \$body.error.caused_by.lang, \"position\": \$body.error.caused_by.position, \"caused_by\": \$body.error.caused_by.caused_by, \"reason\": \$body.error.caused_by.reason"
 
         when:
-        snippets = task.parseDocFiles(
+        snippets = task().parseDocFiles(
             tempDir, docFile(
             """
 [source,console]
@@ -613,7 +602,7 @@ POST logs-my_app-default/_rollover/
 
         when:
         substitutions = []
-        snippets = task.parseDocFiles(
+        snippets = task().parseDocFiles(
             tempDir, docFile(
             """
 [source,txt]
@@ -631,11 +620,8 @@ my-index-000001 0 p RELOCATING 3014 31.1mb 192.168.56.10 H5dfFeA -> -> 192.168.5
 
 
     def "handling console parsing"() {
-        given:
-        def project = ProjectBuilder.builder().build()
-        def task = project.tasks.create("docSnippetTask", DocSnippetTask)
         when:
-        def snippets = task.parseDocFiles(
+        def snippets = task().parseDocFiles(
             tempDir, docFile(
             """
 [source,console]
@@ -650,7 +636,7 @@ my-index-000001 0 p RELOCATING 3014 31.1mb 192.168.56.10 H5dfFeA -> -> 192.168.5
 
 
         when:
-        task.parseDocFiles(
+        task().parseDocFiles(
             tempDir, docFile(
             """
 [source,console]
@@ -665,7 +651,7 @@ my-index-000001 0 p RELOCATING 3014 31.1mb 192.168.56.10 H5dfFeA -> -> 192.168.5
         e.message == "mapping-charfilter.asciidoc:4: Can't be both CONSOLE and NOTCONSOLE"
 
         when:
-        task.parseDocFiles(
+        task().parseDocFiles(
             tempDir, docFile(
             """
 // $firstToken
@@ -683,9 +669,6 @@ my-index-000001 0 p RELOCATING 3014 31.1mb 192.168.56.10 H5dfFeA -> -> 192.168.5
     }
 
     def "test parsing snippet from doc"() {
-        given:
-        def project = ProjectBuilder.builder().build()
-        def task = project.tasks.create("docSnippetTask", DocSnippetTask)
         def doc = docFile(
             """
 [source,console]
@@ -708,7 +691,7 @@ GET /_analyze
 ----
 """
         )
-        def snippets = task.parseDocFiles(tempDir, doc, [])
+        def snippets = task().parseDocFiles(tempDir, doc, [])
         expect:
         snippets*.start == [3]
         snippets*.language == ["console"]
@@ -732,8 +715,6 @@ GET /_analyze
 
     def "test parsing snippet from doc2"() {
         given:
-        def project = ProjectBuilder.builder().build()
-        def task = project.tasks.create("docSnippetTask", DocSnippetTask)
         def doc = docFile(
             """
 [role="xpack"]
@@ -811,7 +792,7 @@ When the snapshot is updated, you receive the following results:
 
 """
         )
-        def snippets = task.parseDocFiles(tempDir, doc, [])
+        def snippets = task().parseDocFiles(tempDir, doc, [])
         expect:
         snippets*.start == [50, 62]
         snippets*.language == ["console", "js"]
@@ -847,4 +828,9 @@ _ml/anomaly_detectors/it_ops_new_logs/model_snapshots/1491852978/_update
         configClosure()
         return snippet
     }
+
+    private DocSnippetTask task() {
+        ProjectBuilder.builder().build().tasks.register("docSnippetTask", DocSnippetTask).get()
+    }
+
 }

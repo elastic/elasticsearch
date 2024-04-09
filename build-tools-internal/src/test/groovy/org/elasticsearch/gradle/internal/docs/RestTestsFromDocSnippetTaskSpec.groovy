@@ -14,7 +14,7 @@ import spock.lang.TempDir
 import org.gradle.api.InvalidUserDataException
 import org.gradle.testfixtures.ProjectBuilder
 
-import static org.elasticsearch.gradle.internal.doc.RestTestsFromSnippetsTask.replaceBlockQuote
+import static org.elasticsearch.gradle.internal.docs.RestTestsFromDocSnippetTask.replaceBlockQuote
 import static org.elasticsearch.gradle.internal.docs.RestTestsFromDocSnippetTask.shouldAddShardFailureCheck
 
 class RestTestsFromDocSnippetTaskSpec extends Specification {

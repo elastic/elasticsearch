@@ -28,12 +28,12 @@ import java.util.Map;
 
 import javax.inject.Inject;
 
-public class Docs2Plugin implements Plugin<Project> {
+public class DocsTestPlugin implements Plugin<Project> {
     private FileOperations fileOperations;
     private ProjectLayout projectLayout;
 
     @Inject
-    Docs2Plugin(FileOperations fileOperations, ProjectLayout projectLayout) {
+    DocsTestPlugin(FileOperations fileOperations, ProjectLayout projectLayout) {
         this.projectLayout = projectLayout;
         this.fileOperations = fileOperations;
     }

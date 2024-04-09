@@ -12,8 +12,8 @@ import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin
 import org.gradle.testkit.runner.TaskOutcome
 
-class Docs2PluginFuncTest extends AbstractGradleInternalPluginFuncTest {
-    Class<? extends PrecommitPlugin> pluginClassUnderTest = Docs2Plugin.class
+class DocsTestPluginFuncTest extends AbstractGradleInternalPluginFuncTest {
+    Class<? extends PrecommitPlugin> pluginClassUnderTest = DocsTestPlugin.class
 
     def setup() {
         File docDir = new File(projectDir, 'doc');

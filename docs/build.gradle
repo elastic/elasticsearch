@@ -11,7 +11,7 @@ import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
  * Side Public License, v 1.
  */
 
-apply plugin: 'elasticsearch.docs-test2'
+apply plugin: 'elasticsearch.docs-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 ext.docsFileTree = fileTree(projectDir) {

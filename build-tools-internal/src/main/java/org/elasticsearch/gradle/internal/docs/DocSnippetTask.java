@@ -32,7 +32,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class DocSnippetTask extends DefaultTask {
+public abstract class DocSnippetTask extends DefaultTask {
 
     private static final String SCHAR = "(?:\\\\\\/|[^\\/])";
     private static final String SUBSTITUTION = "s\\/(" + SCHAR + "+)\\/(" + SCHAR + "*)\\/";
@@ -57,12 +57,12 @@ public class DocSnippetTask extends DefaultTask {
         + "|(skip_shard_failures)) ?";
 
     public static final Pattern SNIPPET_PATTERN = Pattern.compile("-{4,}\\s*");
+
     /**
      * Action to take on each snippet. Called with a single parameter, an
      * instance of Snippet.
      */
-    // @Internal
-    Action<Snippet> perSnippet;
+    private Action<Snippet> perSnippet;
 
     /**
      * The docs to scan. Defaults to every file in the directory exception the

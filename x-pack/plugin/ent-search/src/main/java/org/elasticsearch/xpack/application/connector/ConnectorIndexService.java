@@ -254,10 +254,11 @@ public class ConnectorIndexService {
     }
 
     /**
-     * Deletes the {@link Connector} in the underlying index.
+     * Deletes the {@link Connector} and the related sync jobs in the underlying index.
      *
-     * @param connectorId The id of the connector object.
-     * @param listener    The action listener to invoke on response/failure.
+     * @param connectorId          The id of the connector object.
+     * @param shouldDeleteSyncJobs The flag indicating if connector sync jobs should also be deleted.
+     * @param listener             The action listener to invoke on response/failure.
      */
     public void deleteConnector(String connectorId, boolean shouldDeleteSyncJobs, ActionListener<DeleteResponse> listener) {
 
@@ -270,10 +271,8 @@ public class ConnectorIndexService {
                     l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                     return;
                 }
-
                 if (shouldDeleteSyncJobs) {
-                    ConnectorSyncJobIndexService syncJobIndexService = new ConnectorSyncJobIndexService(client);
-                    syncJobIndexService.deleteAllSyncJobsByConnectorId(connectorId, l.map(r -> deleteResponse));
+                    new ConnectorSyncJobIndexService(client).deleteAllSyncJobsByConnectorId(connectorId, l.map(r -> deleteResponse));
                 } else {
                     l.onResponse(deleteResponse);
                 }

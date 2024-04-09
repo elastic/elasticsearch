@@ -595,6 +595,7 @@ public class ConnectorSyncJobIndexService {
 
     /**
      * Deletes all {@link ConnectorSyncJob} documents that match a specific connector id in the underlying index.
+     * Gracefully handles non-existent sync job index.
      *
      * @param connectorId The id of the connector to match in the sync job documents.
      * @param listener    The action listener to invoke on response/failure.
@@ -621,21 +622,6 @@ public class ConnectorSyncJobIndexService {
             }
             l.onResponse(r);
         }));
-    }
-
-    /**
-     * Deletes all {@link ConnectorSyncJob} documents that match a specific connector id in the underlying index.
-     *
-     * @param connectorId The id of the connector to match in the sync job documents.
-     * @param listener    The action listener to invoke on response/failure.
-     */
-    public void connectorSyncJobIndexExists(String connectorId, ActionListener<Boolean> listener) {
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(CONNECTOR_SYNC_JOB_INDEX_NAME).setQuery(
-            new TermQueryBuilder(
-                ConnectorSyncJob.CONNECTOR_FIELD.getPreferredName() + "." + Connector.ID_FIELD.getPreferredName(),
-                connectorId
-            )
-        ).setRefresh(true);
     }
 
     /**

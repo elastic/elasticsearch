@@ -67,7 +67,7 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
 
     private static final String JSON_EXTENSION = ".json";
 
-    static final Map<String, ComponentTemplate> COMPONENT_TEMPLATES;
+    public static final Map<String, ComponentTemplate> COMPONENT_TEMPLATES;
 
     static {
         final Map<String, ComponentTemplate> componentTemplates = new HashMap<>();

@@ -21,6 +21,8 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.ParseField;
@@ -41,6 +43,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +56,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.registerSimplifiedConnectorIndexTemplates;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -74,8 +78,18 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
     private String connectorTwoId;
     private String connectorThreeId;
 
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
+        // Reindex plugin is required for testDeleteAllSyncJobsByConnectorId (supports delete_by_query)
+        plugins.add(ReindexPlugin.class);
+        return plugins;
+    }
+
     @Before
     public void setup() throws Exception {
+
+        registerSimplifiedConnectorIndexTemplates(indicesAdmin());
 
         connectorOneId = createConnector(ConnectorTestUtils.getRandomConnector());
         connectorTwoId = createConnector(ConnectorTestUtils.getRandomConnector());
@@ -516,7 +530,6 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(idOfReturnedSyncJob, equalTo(syncJobOneId));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/enterprise-search-team/issues/6351")
     public void testListConnectorSyncJobs_WithConnectorOneId_GivenTwoOverallOneFromConnectorOne_ExpectOne() throws Exception {
         PostConnectorSyncJobAction.Request requestOne = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
             connectorOneId

@@ -206,10 +206,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
     }
 
     public void testRolloverUpgradeToTsdbDataStream() {
-        IndexMode indexMode = randomBoolean() ? IndexMode.STANDARD : null;
-        DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
-        // Ensure index_mode=null
-        ds = new DataStream.Builder(ds).setIndexMode(indexMode).build();
+        DataStream ds = new DataStream.Builder(DataStreamTestHelper.randomInstance()).setReplicated(false)
+            .setIndexMode(randomBoolean() ? IndexMode.STANDARD : null)
+            .build();
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
         var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), true, null);
@@ -222,8 +221,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
     }
 
     public void testRolloverDowngradeToRegularDataStream() {
-        DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
-        ds = new DataStream.Builder(ds).setIndexMode(IndexMode.TIME_SERIES).build();
+        DataStream ds = new DataStream.Builder(DataStreamTestHelper.randomInstance()).setReplicated(false)
+            .setIndexMode(IndexMode.TIME_SERIES)
+            .build();
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
         var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), false, null);

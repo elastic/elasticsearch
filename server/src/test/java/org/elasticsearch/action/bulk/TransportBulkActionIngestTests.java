@@ -100,8 +100,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     private static final Thread DUMMY_WRITE_THREAD = new Thread(ThreadPool.Names.WRITE);
     private FeatureService mockFeatureService;
 
-    private static final ExecutorService writeExecutor = new DirectExecutor("write");
-    private static final ExecutorService systemWriteExecutor = new DirectExecutor("system_write");
+    private static final ExecutorService writeExecutor = new NamedDirectExecutorService("write");
+    private static final ExecutorService systemWriteExecutor = new NamedDirectExecutorService("system_write");
 
     /** Services needed by bulk action */
     TransportService transportService;
@@ -194,11 +194,11 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         }
     }
 
-    private static final class DirectExecutor implements ExecutorService {
+    private static final class NamedDirectExecutorService implements ExecutorService {
 
         private final String name;
 
-        DirectExecutor(String name) {
+        NamedDirectExecutorService(String name) {
             this.name = name;
         }
 
@@ -233,7 +233,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         }
 
         @Override
-        public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+        public boolean awaitTermination(long timeout, TimeUnit unit) {
             return fail(null, "shutdown not supported");
         }
 
@@ -253,7 +253,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         }
 
         @Override
-        public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks) throws InterruptedException {
+        public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks) {
             return null;
         }
 
@@ -263,7 +263,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         }
 
         @Override
-        public <T> T invokeAny(Collection<? extends Callable<T>> tasks) throws InterruptedException, ExecutionException {
+        public <T> T invokeAny(Collection<? extends Callable<T>> tasks) {
             return fail(null, "shutdown not supported");
         }
 

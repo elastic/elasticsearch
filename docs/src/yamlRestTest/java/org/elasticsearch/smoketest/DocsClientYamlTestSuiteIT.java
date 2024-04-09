@@ -251,7 +251,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         if (isWatcherTest()) {
             assertBusy(() -> {
                 ClientYamlTestResponse response = getAdminExecutionContext().callApi("watcher.stats", emptyMap(), emptyList(), emptyMap());
-                String state = (String) response.evaluate("stats.0.watcher_state");
+                String state = response.evaluate("stats.0.watcher_state");
 
                 switch (state) {
                     case "stopped":
@@ -261,7 +261,7 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                             emptyList(),
                             emptyMap()
                         );
-                        boolean isAcknowledged = (boolean) startResponse.evaluate("acknowledged");
+                        boolean isAcknowledged = startResponse.evaluate("acknowledged");
                         assertThat(isAcknowledged, is(true));
                         throw new AssertionError("waiting until stopped state reached started state");
                     case "stopping":

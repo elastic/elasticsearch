@@ -86,12 +86,9 @@ public class Substring extends EsqlScalarFunction implements OptionalArgument {
 
     @Evaluator(extraName = "NoLength")
     static BytesRef process(BytesRef str, int start) {
-        if (str.length == 0) {
-            return null;
-        }
-        int codePointCount = UnicodeUtil.codePointCount(str);
-        int indexStart = indexStart(codePointCount, start);
-        return new BytesRef(str.utf8ToString().substring(indexStart));
+        int length = str.length; // we just need a value at least the length of the string
+        return process(str, start, length);
+
     }
 
     @Evaluator

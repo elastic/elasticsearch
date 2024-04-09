@@ -194,7 +194,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         String phase = randomAlphaOfLengthBetween(1, 10);
         List<Step> steps = action.toSteps(client, phase, nextStepKey);
         AsyncBranchingStep step = ((AsyncBranchingStep) steps.get(0));
-        Step finalStep = steps.get(steps.size()-1);
+        Step finalStep = steps.get(steps.size() - 1);
 
         LifecyclePolicy policy = new LifecyclePolicy(
             lifecycleName,

@@ -476,10 +476,7 @@ public class CsvTests extends ESTestCase {
             assertMap(normalized.stream().sorted().toList(), matchesList(testCase.expectedWarnings(true).stream().sorted().toList()));
         } else {
             for (String warning : normalized) {
-                assertTrue(
-                    "Unexpected warning: " + warning,
-                    expectedWarningsRegex.stream().anyMatch(x -> x.matcher(String.valueOf(warning)).matches())
-                );
+                assertTrue("Unexpected warning: " + warning, expectedWarningsRegex.stream().anyMatch(x -> x.matcher(warning).matches()));
             }
         }
     }

@@ -909,10 +909,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             assertMap(warnings.stream().sorted().toList(), matchesList(allowedWarnings.stream().sorted().toList()));
         } else {
             for (String warning : warnings) {
-                assertTrue(
-                    "Unexpected warning: " + warning,
-                    allowedWarningsRegex.stream().anyMatch(x -> x.matcher(String.valueOf(warning)).matches())
-                );
+                assertTrue("Unexpected warning: " + warning, allowedWarningsRegex.stream().anyMatch(x -> x.matcher(warning).matches()));
             }
         }
         return response.getEntity();

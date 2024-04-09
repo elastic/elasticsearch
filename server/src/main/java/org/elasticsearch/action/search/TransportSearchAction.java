@@ -337,6 +337,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         final IndicesOptions indicesOptions = original.indicesOptions();
 
+        // Use a supplier to resolve local indices lazily.
+        // It would be nice if we could always resolve local indices synchronously here, but point-in-time requests make that difficult.
+        // Point-in-time requests use indices that were resolved when the point in time was established. We do not attempt to resolve local
+        // indices for search requests that reference a point in time because one or more of the indices could have since been deleted.
+        // Instead, in this case, we use the indices resolved when the point in time was established and (optionally) allow for partial
+        // search results to handle if an index has since been deleted.
         final AtomicReference<Index[]> resolvedLocalIndices = new AtomicReference<>();
         final Supplier<Index[]> resolvedLocalIndicesSupplier = () -> {
             resolvedLocalIndices.compareAndSet(null, resolveLocalIndices(localIndices, clusterState, timeProvider));

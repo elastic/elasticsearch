@@ -141,7 +141,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         postTags(in.readOptionalStringArray());
         fragmentSize(in.readOptionalVInt());
         numOfFragments(in.readOptionalVInt());
-        encoder(in.readOptionalString());
+        if (in.getTransportVersion().onOrAfter(TransportVersions.HIGHLIGHTERS_TAGS_ON_FIELD_LEVEL)) {
+            encoder(in.readOptionalString());
+        }
         highlighterType(in.readOptionalString());
         fragmenter(in.readOptionalString());
         if (in.readBoolean()) {
@@ -178,7 +180,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         out.writeOptionalStringArray(postTags);
         out.writeOptionalVInt(fragmentSize);
         out.writeOptionalVInt(numOfFragments);
-        out.writeOptionalString(encoder);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.HIGHLIGHTERS_TAGS_ON_FIELD_LEVEL)) {
+            out.writeOptionalString(encoder);
+        }
         out.writeOptionalString(highlighterType);
         out.writeOptionalString(fragmenter);
         boolean hasQuery = highlightQuery != null;

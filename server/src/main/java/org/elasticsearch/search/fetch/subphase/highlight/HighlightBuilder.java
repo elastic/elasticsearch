@@ -10,6 +10,7 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -120,6 +121,9 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
      */
     public HighlightBuilder(StreamInput in) throws IOException {
         super(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.HIGHLIGHTERS_TAGS_ON_FIELD_LEVEL)) {
+            encoder(in.readOptionalString());
+        }
         useExplicitFieldOrder(in.readBoolean());
         this.fields = in.readCollectionAsList(Field::new);
         assert this.equals(new HighlightBuilder(this, highlightQuery, fields)) : "copy constructor is broken";
@@ -127,6 +131,9 @@ public final class HighlightBuilder extends AbstractHighlighterBuilder<Highlight
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.HIGHLIGHTERS_TAGS_ON_FIELD_LEVEL)) {
+            out.writeOptionalString(encoder);
+        }
         out.writeBoolean(useExplicitFieldOrder);
         out.writeCollection(fields);
     }

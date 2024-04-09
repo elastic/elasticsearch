@@ -72,7 +72,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         this(nameFromTypes(types), types, supplier);
     }
 
-    static String nameFromTypes(List<DataType> types) {
+    public static String nameFromTypes(List<DataType> types) {
         return types.stream().map(t -> "<" + t.typeName() + ">").collect(Collectors.joining(", "));
     }
 

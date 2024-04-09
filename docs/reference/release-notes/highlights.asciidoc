@@ -31,46 +31,20 @@ endif::[]
 // tag::notable-highlights[]
 
 [discrete]
-[[improve_storage_efficiency_for_non_metric_fields_in_tsdb]]
-=== Improve storage efficiency for non-metric fields in TSDB
-Adds a new `doc_values` encoding for non-metric fields in TSDB that takes advantage of TSDB's index sorting.
-While terms that are used in multiple documents (such as the host name) are already stored only once in the terms dictionary,
-there are a lot of repetitions in the references to the terms dictionary that are stored in `doc_values` (ordinals).
-In TSDB, documents (and therefore `doc_values`) are implicitly sorted by dimenstions and timestamp.
-This means that for each time series, we are storing long consecutive runs of the same ordinal.
-With this change, we are introducing an encoding that detects and efficiently stores runs of the same value (such as `1 1 1 2 2 2 …`),
-and runs of cycling values (such as `1 2 1 2 …`).
-In our testing, we have seen a reduction in storage size by about 13%.
-The effectiveness of this encoding depends on how many non-metric fields, such as dimensions, are used.
-The more non-metric fields, the more effective this improvement will be.
+[[add_global_retention_in_data_stream_lifecycle]]
+=== Add global retention in data stream lifecycle
+Data stream lifecycle now supports configuring retention on a cluster level, namely global retention. Global retention 
+allows us to configure two different retentions:
 
-{es-pull}99747[#99747]
+- `default_retention` is applied to all data streams managed by the data stream lifecycle that do not have retention
+defined on the data stream level.
+- `max_retention` is applied to all data streams managed by the data stream lifecycle and it allows any data stream 
+data to be deleted after the `max_retention` has passed.
 
-[discrete]
-[[ga_release_of_synonyms_api]]
-=== GA Release of Synonyms API
-Removes the beta label for the Synonyms API to make it GA.
+Furthermore, we introduce the term `effective_retention` which is the retention applied at a certain moment to a data
+stream considering all the available retention configurations.
 
-{es-pull}103223[#103223]
-
-[discrete]
-[[flag_in_field_caps_to_return_only_fields_with_values_in_index]]
-=== Flag in `_field_caps` to return only fields with values in index
-We added support for filtering the field capabilities API output by removing
-fields that don't have a value. This can be done through the newly added
-`include_empty_fields` parameter, which defaults to true.
-
-{es-pull}103651[#103651]
-
-[discrete]
-[[new_lucene_9_10_release]]
-=== New Lucene 9.10 release
-- https://github.com/apache/lucene/pull/13090: Prevent humongous allocations in ScalarQuantizer when building quantiles.
-- https://github.com/apache/lucene/pull/12962: Speedup concurrent multi-segment HNSW graph search
-- https://github.com/apache/lucene/pull/13033: Range queries on numeric/date/ip fields now exit earlier on segments whose values don't intersect with the query range. This should especially help when there are other required clauses in the `bool` query and when the range filter is narrow, e.g. filtering on the last 5 minutes.
-- https://github.com/apache/lucene/pull/13026: `bool` queries that mix `filter` and `should` clauses will now propagate minimum competitive scores through the `should` clauses. This should yield speedups when sorting by descending score.
-
-{es-pull}105578[#105578]
+{es-pull}105682[#105682]
 
 // end::notable-highlights[]
 

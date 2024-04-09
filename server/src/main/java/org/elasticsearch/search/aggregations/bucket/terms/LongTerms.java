@@ -213,8 +213,8 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
         }
         return new AggregatorReducer() {
 
-            final List<InternalAggregation> aggregations = new ArrayList<>(size);
-            boolean isPromotedToDouble = false;
+            private List<InternalAggregation> aggregations = new ArrayList<>(size);
+            private boolean isPromotedToDouble = false;
 
             @Override
             public void accept(InternalAggregation aggregation) {
@@ -243,7 +243,16 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
             @Override
             public InternalAggregation get() {
-                return ((AbstractInternalTerms<?, ?>) aggregations.get(0)).doReduce(aggregations, reduceContext);
+                try (
+                    AggregatorReducer processor = ((AbstractInternalTerms<?, ?>) aggregations.get(0)).termsAggregationReducer(
+                        reduceContext,
+                        size
+                    )
+                ) {
+                    aggregations.forEach(processor::accept);
+                    aggregations = null; // release memory
+                    return processor.get();
+                }
             }
         };
     }

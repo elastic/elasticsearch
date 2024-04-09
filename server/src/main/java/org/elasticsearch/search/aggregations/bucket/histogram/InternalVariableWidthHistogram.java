@@ -29,7 +29,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -236,7 +235,6 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
     private final DocValueFormat format;
     private final int targetNumBuckets;
     final EmptyBucketInfo emptyBucketInfo;
-    private final boolean keySorted;
 
     InternalVariableWidthHistogram(
         String name,
@@ -251,7 +249,6 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         this.emptyBucketInfo = emptyBucketInfo;
         this.format = formatter;
         this.targetNumBuckets = targetNumBuckets;
-        this.keySorted = true;
     }
 
     /**
@@ -263,8 +260,11 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         format = in.readNamedWriteable(DocValueFormat.class);
         buckets = in.readCollectionAsList(stream -> new Bucket(stream, format));
         targetNumBuckets = in.readVInt();
-        keySorted = in.getTransportVersion()
-            .between(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS, TransportVersions.HISTOGRAM_AGGS_KEY_SORTED) == false;
+        // we changed the order format in 8.13 for partial reduce, therefore we need to order them to perform merge sort
+        if (in.getTransportVersion().between(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS, TransportVersions.HISTOGRAM_AGGS_KEY_SORTED)) {
+            // list is mutable by #readCollectionAsList contract
+            buckets.sort(Comparator.comparingDouble(b -> b.centroid));
+        }
     }
 
     @Override
@@ -536,19 +536,8 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             public void accept(InternalAggregation aggregation) {
                 final InternalVariableWidthHistogram histogram = (InternalVariableWidthHistogram) aggregation;
                 if (histogram.buckets.isEmpty() == false) {
-                    pq.add(new IteratorAndCurrent<>(getIterator(histogram)));
+                    pq.add(new IteratorAndCurrent<>(histogram.buckets.iterator()));
                 }
-            }
-
-            private static Iterator<Bucket> getIterator(InternalVariableWidthHistogram histogram) {
-                if (histogram.keySorted == false) {
-                    // we changed the order format in 8.13 for partial reduce so in case of CCS with
-                    // that version, we need to perform this check
-                    List<Bucket> buckets = new ArrayList<>(histogram.buckets);
-                    buckets.sort(Comparator.comparingDouble(b -> b.centroid));
-                    return buckets.iterator();
-                }
-                return histogram.buckets.iterator();
             }
 
             @Override

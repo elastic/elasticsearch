@@ -31,7 +31,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -208,7 +207,6 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
     private final boolean keyed;
     private final long minDocCount;
     final EmptyBucketInfo emptyBucketInfo;
-    final boolean keySorted;
 
     public InternalHistogram(
         String name,
@@ -228,7 +226,6 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
         this.emptyBucketInfo = emptyBucketInfo;
         this.format = formatter;
         this.keyed = keyed;
-        this.keySorted = true;
     }
 
     /**
@@ -246,8 +243,11 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
         format = in.readNamedWriteable(DocValueFormat.class);
         keyed = in.readBoolean();
         buckets = in.readCollectionAsList(stream -> new Bucket(stream, keyed, format));
-        keySorted = in.getTransportVersion()
-            .between(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS, TransportVersions.HISTOGRAM_AGGS_KEY_SORTED) == false;
+        // we changed the order format in 8.13 for partial reduce, therefore we need to order them to perform merge sort
+        if (in.getTransportVersion().between(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS, TransportVersions.HISTOGRAM_AGGS_KEY_SORTED)) {
+            // list is mutable by #readCollectionAsList contract
+            buckets.sort(Comparator.comparingDouble(b -> b.key));
+        }
     }
 
     @Override
@@ -458,19 +458,8 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
             public void accept(InternalAggregation aggregation) {
                 final InternalHistogram histogram = (InternalHistogram) aggregation;
                 if (histogram.buckets.isEmpty() == false) {
-                    pq.add(new IteratorAndCurrent<>(getIterator(histogram)));
+                    pq.add(new IteratorAndCurrent<>(histogram.buckets.iterator()));
                 }
-            }
-
-            private static Iterator<Bucket> getIterator(InternalHistogram histogram) {
-                if (histogram.keySorted == false) {
-                    // we changed the order format in 8.13 for partial reduce so in case of CCS with
-                    // that version, we need to perform this check
-                    List<Bucket> buckets = new ArrayList<>(histogram.buckets);
-                    buckets.sort(Comparator.comparingDouble(b -> b.key));
-                    return buckets.iterator();
-                }
-                return histogram.buckets.iterator();
             }
 
             @Override

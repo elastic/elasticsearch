@@ -36,7 +36,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -202,7 +201,6 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
      * The interval within the rounding that the buckets are using.
      */
     private final long bucketInnerInterval;
-    private final boolean keySorted;
 
     InternalAutoDateHistogram(
         String name,
@@ -219,7 +217,6 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         this.format = formatter;
         this.targetBuckets = targetBuckets;
         this.bucketInnerInterval = bucketInnerInterval;
-        this.keySorted = true;
     }
 
     /**
@@ -236,8 +233,11 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         } else {
             bucketInnerInterval = 1; // Calculated on merge.
         }
-        keySorted = in.getTransportVersion()
-            .between(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS, TransportVersions.HISTOGRAM_AGGS_KEY_SORTED) == false;
+        // we changed the order format in 8.13 for partial reduce, therefore we need to order them to perform merge sort
+        if (in.getTransportVersion().between(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS, TransportVersions.HISTOGRAM_AGGS_KEY_SORTED)) {
+            // list is mutable by #readCollectionAsList contract
+            buckets.sort(Comparator.comparingLong(b -> b.key));
+        }
     }
 
     @Override
@@ -514,19 +514,8 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
                 if (histogram.buckets.isEmpty() == false) {
                     min = Math.min(min, histogram.buckets.get(0).key);
                     max = Math.max(max, histogram.buckets.get(histogram.buckets.size() - 1).key);
-                    pq.add(new IteratorAndCurrent<>(getIterator(histogram)));
+                    pq.add(new IteratorAndCurrent<>(histogram.buckets.iterator()));
                 }
-            }
-
-            private static Iterator<Bucket> getIterator(InternalAutoDateHistogram histogram) {
-                if (histogram.keySorted == false) {
-                    // we changed the order format in 8.13 for partial reduce so in case of CCS with
-                    // that version, we need to perform this check
-                    List<Bucket> buckets = new ArrayList<>(histogram.buckets);
-                    buckets.sort(Comparator.comparingLong(b -> b.key));
-                    return buckets.iterator();
-                }
-                return histogram.buckets.iterator();
             }
 
             @Override

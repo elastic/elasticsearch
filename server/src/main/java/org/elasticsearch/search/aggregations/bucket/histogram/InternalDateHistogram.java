@@ -35,7 +35,6 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -211,7 +210,6 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     private final long minDocCount;
     private final long offset;
     final EmptyBucketInfo emptyBucketInfo;
-    private final boolean keySorted;
 
     InternalDateHistogram(
         String name,
@@ -235,7 +233,6 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         this.format = formatter;
         this.keyed = keyed;
         this.downsampledResultsOffset = downsampledResultsOffset;
-        this.keySorted = true;
     }
 
     boolean versionSupportsDownsamplingTimezone(TransportVersion version) {
@@ -267,8 +264,11 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             downsampledResultsOffset = false;
         }
         buckets = in.readCollectionAsList(stream -> new Bucket(stream, keyed, format));
-        keySorted = in.getTransportVersion()
-            .between(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS, TransportVersions.HISTOGRAM_AGGS_KEY_SORTED) == false;
+        // we changed the order format in 8.13 for partial reduce, therefore we need to order them to perform merge sort
+        if (in.getTransportVersion().between(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS, TransportVersions.HISTOGRAM_AGGS_KEY_SORTED)) {
+            // list is mutable by #readCollectionAsList contract
+            buckets.sort(Comparator.comparingLong(b -> b.key));
+        }
     }
 
     @Override
@@ -516,19 +516,8 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             public void accept(InternalAggregation aggregation) {
                 final InternalDateHistogram histogram = (InternalDateHistogram) aggregation;
                 if (histogram.buckets.isEmpty() == false) {
-                    pq.add(new IteratorAndCurrent<>(getIterator(histogram)));
+                    pq.add(new IteratorAndCurrent<>(histogram.buckets.iterator()));
                 }
-            }
-
-            private static Iterator<Bucket> getIterator(InternalDateHistogram histogram) {
-                if (histogram.keySorted == false) {
-                    // we changed the order format in 8.13 for partial reduce so in case of CCS with
-                    // that version, we need to perform this check
-                    List<Bucket> buckets = new ArrayList<>(histogram.buckets);
-                    buckets.sort(Comparator.comparingLong(b -> b.key));
-                    return buckets.iterator();
-                }
-                return histogram.buckets.iterator();
             }
 
             @Override

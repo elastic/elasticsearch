@@ -1,0 +1,66 @@
+---
+"line_8":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "clientips"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "client_ip": {
+                  "type": "keyword"
+                },
+                "env": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "clientips/_bulk"
+        body: |
+          { "index" : {}}
+          { "client_ip": "172.21.0.5", "env": "Development" }
+          { "index" : {}}
+          { "client_ip": "172.21.2.113", "env": "QA" }
+          { "index" : {}}
+          { "client_ip": "172.21.2.162", "env": "QA" }
+          { "index" : {}}
+          { "client_ip": "172.21.3.15", "env": "Production" }
+          { "index" : {}}
+          { "client_ip": "172.21.3.16", "env": "Production" }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_enrich/policy/clientip_policy"
+        body: |
+          {
+            "match": {
+              "indices": "clientips",
+              "match_field": "client_ip",
+              "enrich_fields": ["env"]
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_enrich/policy/clientip_policy/_execute"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_enrich/policy/clientip_policy"
+  - is_false: _shards.failures

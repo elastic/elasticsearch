@@ -1,0 +1,329 @@
+---
+"line_53":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ingest/pipeline/attachment"
+        body: |
+          {
+            "description" : "Extract attachment information",
+            "processors" : [
+              {
+                "attachment" : {
+                  "field" : "data",
+                  "remove_binary": false
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/my_id"
+        pipeline: "attachment"
+        body: |
+          {
+            "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0="
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_doc/my_id"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "found": true,
+          "_index": "my-index-000001",
+          "_id": "my_id",
+          "_version": 1,
+          "_seq_no" : $body._seq_no,
+          "_primary_term": 1,
+          "_source": {
+            "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
+            "attachment": {
+              "content_type": "application/rtf",
+              "language": "ro",
+              "content": "Lorem ipsum dolor sit amet",
+              "content_length": 28
+            }
+          }
+        }
+---
+"line_137":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ingest/pipeline/attachment"
+        body: |
+          {
+            "description" : "Extract attachment information",
+            "processors" : [
+              {
+                "attachment" : {
+                  "field" : "data",
+                  "properties": [ "content", "title" ],
+                  "remove_binary": false
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+---
+"line_165":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ingest/pipeline/cbor-attachment"
+        body: |
+          {
+            "description" : "Extract attachment information",
+            "processors" : [
+              {
+                "attachment" : {
+                  "field" : "data",
+                  "remove_binary": false
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+---
+"line_219":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ingest/pipeline/attachment"
+        body: |
+          {
+            "description" : "Extract attachment information",
+            "processors" : [
+              {
+                "attachment" : {
+                  "field" : "data",
+                  "indexed_chars" : 11,
+                  "indexed_chars_field" : "max_size",
+                  "remove_binary": false
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/my_id"
+        pipeline: "attachment"
+        body: |
+          {
+            "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0="
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_doc/my_id"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "found": true,
+          "_index": "my-index-000001",
+          "_id": "my_id",
+          "_version": 1,
+          "_seq_no" : $body._seq_no,
+          "_primary_term": 1,
+          "_source": {
+            "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
+            "attachment": {
+              "content_type": "application/rtf",
+              "language": "is",
+              "content": "Lorem ipsum",
+              "content_length": 11
+            }
+          }
+        }
+---
+"line_267":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ingest/pipeline/attachment"
+        body: |
+          {
+            "description" : "Extract attachment information",
+            "processors" : [
+              {
+                "attachment" : {
+                  "field" : "data",
+                  "indexed_chars" : 11,
+                  "indexed_chars_field" : "max_size",
+                  "remove_binary": false
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/my_id_2"
+        pipeline: "attachment"
+        body: |
+          {
+            "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
+            "max_size": 5
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_doc/my_id_2"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "found": true,
+          "_index": "my-index-000001",
+          "_id": "my_id_2",
+          "_version": 1,
+          "_seq_no" : $body._seq_no,
+          "_primary_term": 1,
+          "_source": {
+            "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
+            "max_size": 5,
+            "attachment": {
+              "content_type": "application/rtf",
+              "language": "sl",
+              "content": "Lorem",
+              "content_length": 5
+            }
+          }
+        }
+---
+"line_349":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ingest/pipeline/attachment"
+        body: |
+          {
+            "description" : "Extract attachment information from arrays",
+            "processors" : [
+              {
+                "foreach": {
+                  "field": "attachments",
+                  "processor": {
+                    "attachment": {
+                      "target_field": "_ingest._value.attachment",
+                      "field": "_ingest._value.data",
+                      "remove_binary": false
+                    }
+                  }
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/my_id"
+        pipeline: "attachment"
+        body: |
+          {
+            "attachments" : [
+              {
+                "filename" : "ipsum.txt",
+                "data" : "dGhpcyBpcwpqdXN0IHNvbWUgdGV4dAo="
+              },
+              {
+                "filename" : "test.txt",
+                "data" : "VGhpcyBpcyBhIHRlc3QK"
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_doc/my_id"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "_index" : "my-index-000001",
+          "_id" : "my_id",
+          "_version" : 1,
+          "_seq_no" : $body._seq_no,
+          "_primary_term" : $body._primary_term,
+          "found" : true,
+          "_source" : {
+            "attachments" : [
+              {
+                "filename" : "ipsum.txt",
+                "data" : "dGhpcyBpcwpqdXN0IHNvbWUgdGV4dAo=",
+                "attachment" : {
+                  "content_type" : "text/plain; charset=ISO-8859-1",
+                  "language" : "en",
+                  "content" : "this is\njust some text",
+                  "content_length" : 24
+                }
+              },
+              {
+                "filename" : "test.txt",
+                "data" : "VGhpcyBpcyBhIHRlc3QK",
+                "attachment" : {
+                  "content_type" : "text/plain; charset=ISO-8859-1",
+                  "language" : "en",
+                  "content" : "This is a test",
+                  "content_length" : 16
+                }
+              }
+            ]
+          }
+        }

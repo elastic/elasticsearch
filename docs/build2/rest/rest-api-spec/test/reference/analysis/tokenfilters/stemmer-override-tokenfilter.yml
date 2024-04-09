@@ -1,0 +1,69 @@
+---
+"line_25":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "my_analyzer": {
+                    "tokenizer": "standard",
+                    "filter": [ "lowercase", "custom_stems", "porter_stem" ]
+                  }
+                },
+                "filter": {
+                  "custom_stems": {
+                    "type": "stemmer_override",
+                    "rules_path": "analysis/stemmer_override.txt"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_57":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "my_analyzer": {
+                    "tokenizer": "standard",
+                    "filter": [ "lowercase", "custom_stems", "porter_stem" ]
+                  }
+                },
+                "filter": {
+                  "custom_stems": {
+                    "type": "stemmer_override",
+                    "rules": [
+                      "running, runs => run",
+                      "stemmer => stemmer"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

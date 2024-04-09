@@ -1,0 +1,71 @@
+---
+"line_162":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: setup ecommerce job
+  - do:
+      raw:
+        method: PUT
+        path: "_ml/datafeeds/datafeed-test-job"
+        pretty: ""
+        body: |
+          {
+            "indices": [
+              "kibana_sample_data_logs"
+            ],
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "match_all": {}
+                  }
+                ]
+              }
+            },
+            "job_id": "test-job"
+          }
+  - match:
+      $body:
+        {
+          "datafeed_id" : "datafeed-test-job",
+          "job_id" : "test-job",
+          "authorization" : {
+            "roles" : [
+              "superuser"
+            ]
+          },
+          "query_delay" : "91820ms",
+          "chunking_config" : {
+            "mode" : "auto"
+          },
+          "indices_options" : {
+            "expand_wildcards" : [
+              "open"
+            ],
+            "ignore_unavailable" : false,
+            "allow_no_indices" : true,
+            "ignore_throttled" : true
+          },
+          "query" : {
+            "bool" : {
+              "must" : [
+                {
+                  "match_all" : { }
+                }
+              ]
+            }
+          },
+          "indices" : [
+            "kibana_sample_data_logs"
+          ],
+          "scroll_size" : 1000,
+          "delayed_data_check_config" : {
+            "enabled" : true
+          }
+        }

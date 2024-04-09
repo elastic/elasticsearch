@@ -1,0 +1,117 @@
+---
+"line_23":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer": "standard",
+            "filter": [ "stemmer" ],
+            "text": "the foxes jumping quickly"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens": [
+            {
+              "token": "the",
+              "start_offset": 0,
+              "end_offset": 3,
+              "type": "<ALPHANUM>",
+              "position": 0
+            },
+            {
+              "token": "fox",
+              "start_offset": 4,
+              "end_offset": 9,
+              "type": "<ALPHANUM>",
+              "position": 1
+            },
+            {
+              "token": "jump",
+              "start_offset": 10,
+              "end_offset": 17,
+              "type": "<ALPHANUM>",
+              "position": 2
+            },
+            {
+              "token": "quickli",
+              "start_offset": 18,
+              "end_offset": 25,
+              "type": "<ALPHANUM>",
+              "position": 3
+            }
+          ]
+        }
+---
+"line_85":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "my_analyzer": {
+                    "tokenizer": "whitespace",
+                    "filter": [ "stemmer" ]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_265":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "my_analyzer": {
+                    "tokenizer": "standard",
+                    "filter": [
+                      "lowercase",
+                      "my_stemmer"
+                    ]
+                  }
+                },
+                "filter": {
+                  "my_stemmer": {
+                    "type": "stemmer",
+                    "language": "light_german"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

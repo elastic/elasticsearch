@@ -1,0 +1,42 @@
+---
+"line_144":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_cluster/state/metadata,routing_table/foo,bar"
+  - is_false: _shards.failures
+---
+"line_151":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_cluster/state/_all/foo,bar"
+  - is_false: _shards.failures
+---
+"line_158":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_cluster/state/blocks"
+  - is_false: _shards.failures

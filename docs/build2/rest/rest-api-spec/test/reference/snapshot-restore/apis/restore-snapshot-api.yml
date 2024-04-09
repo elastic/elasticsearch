@@ -1,0 +1,143 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_repository"
+        body: |
+          {
+            "type": "fs",
+            "settings": {
+              "location": "my_backup_location"
+            }
+          }
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_repository/my_snapshot"
+        wait_for_completion: "true"
+  - do:
+      raw:
+        method: PUT
+        path: "index_1"
+  - do:
+      raw:
+        method: PUT
+        path: "index_2"
+  - do:
+      raw:
+        method: PUT
+        path: "index_3"
+  - do:
+      raw:
+        method: PUT
+        path: "index_4"
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_repository/snapshot_2"
+        wait_for_completion: "true"
+        body: |
+          {
+            "indices": "index_1,index_2",
+            "ignore_unavailable": true,
+            "include_global_state": false,
+            "metadata": {
+              "taken_by": "Elastic Machine",
+              "taken_because": "backup testing"
+            }
+          }
+  - do:
+      raw:
+        method: POST
+        path: "index_1/_close"
+  - do:
+      raw:
+        method: POST
+        path: "index_2/_close"
+  - do:
+      raw:
+        method: POST
+        path: "index_3/_close"
+  - do:
+      raw:
+        method: POST
+        path: "index_4/_close"
+---
+"line_54":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_snapshot/my_repository/my_snapshot/_restore"
+        wait_for_completion: "true"
+  - is_false: _shards.failures
+---
+"line_88":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_index_template/*"
+        filter_path: "index_templates.name,index_templates.index_template.index_patterns,index_templates.index_template.data_stream"
+  - is_false: _shards.failures
+---
+"line_242":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_snapshot/my_repository/snapshot_2/_restore"
+        wait_for_completion: "true"
+        body: |
+          {
+            "indices": "index_1,index_2",
+            "ignore_unavailable": true,
+            "include_global_state": false,
+            "rename_pattern": "index_(.+)",
+            "rename_replacement": "restored_index_$1",
+            "include_aliases": false
+          }
+  - is_false: _shards.failures
+---
+"line_268":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "index_1/_close"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_snapshot/my_repository/snapshot_2/_restore"
+        wait_for_completion: "true"
+        body: |
+          {
+            "indices": "index_1"
+          }
+  - is_false: _shards.failures

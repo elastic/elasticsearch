@@ -1,0 +1,250 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/found-snapshots"
+        body: |
+          {
+           "type": "fs",
+            "settings": {
+              "location": "my_backup_location"
+            }
+          }
+---
+"line_48":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ilm/policy/my-lifecycle-policy"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "hot": {
+                  "actions": {
+                    "rollover": {
+                      "max_primary_shard_size": "50gb"
+                    }
+                  }
+                },
+                "warm": {
+                  "min_age": "30d",
+                  "actions": {
+                    "shrink": {
+                      "number_of_shards": 1
+                    },
+                    "forcemerge": {
+                      "max_num_segments": 1
+                    }
+                  }
+                },
+                "cold": {
+                  "min_age": "60d",
+                  "actions": {
+                    "searchable_snapshot": {
+                      "snapshot_repository": "found-snapshots"
+                    }
+                  }
+                },
+                "frozen": {
+                  "min_age": "90d",
+                  "actions": {
+                    "searchable_snapshot": {
+                      "snapshot_repository": "found-snapshots"
+                    }
+                  }
+                },
+                "delete": {
+                  "min_age": "735d",
+                  "actions": {
+                    "delete": {}
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_component_template/my-mappings"
+        body: |
+          {
+            "template": {
+              "mappings": {
+                "properties": {
+                  "@timestamp": {
+                    "type": "date",
+                    "format": "date_optional_time||epoch_millis"
+                  },
+                  "message": {
+                    "type": "wildcard"
+                  }
+                }
+              }
+            },
+            "_meta": {
+              "description": "Mappings for @timestamp and message fields",
+              "my-custom-meta-field": "More arbitrary metadata"
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_component_template/my-settings"
+        body: |
+          {
+            "template": {
+              "settings": {
+                "index.lifecycle.name": "my-lifecycle-policy"
+              }
+            },
+            "_meta": {
+              "description": "Settings for ILM",
+              "my-custom-meta-field": "More arbitrary metadata"
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_index_template/my-index-template"
+        body: |
+          {
+            "index_patterns": ["my-data-stream*"],
+            "data_stream": { },
+            "composed_of": [ "my-mappings", "my-settings" ],
+            "priority": 500,
+            "_meta": {
+              "description": "Template for my time series data",
+              "my-custom-meta-field": "More arbitrary metadata"
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-data-stream/_bulk"
+        body: |
+          { "create":{ } }
+          { "@timestamp": "2099-05-06T16:21:15.000Z", "message": "192.0.2.42 - - [06/May/2099:16:21:15 +0000] \"GET /images/bg.jpg HTTP/1.0\" 200 24736" }
+          { "create":{ } }
+          { "@timestamp": "2099-05-06T16:25:42.000Z", "message": "192.0.2.255 - - [06/May/2099:16:25:42 +0000] \"GET /favicon.ico HTTP/1.0\" 200 3638" }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "my-data-stream/_doc"
+        body: |
+          {
+            "@timestamp": "2099-05-06T16:21:15.000Z",
+            "message": "192.0.2.42 - - [06/May/2099:16:21:15 +0000] \"GET /images/bg.jpg HTTP/1.0\" 200 24736"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_data_stream/my-data-stream-alt"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "idx1/_doc/"
+        body: |
+          {
+              "message" : "testing",
+              "@timestamp" : "2099-01-01"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "idx2/_doc/"
+        body: |
+          {
+              "message" : "testing2",
+              "@timestamp" : "2099-01-01"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_aliases"
+        body: |
+          {
+            "actions": [
+              {
+                "add": {
+                  "index": "idx1",
+                  "alias": "my-time-series-data",
+                  "is_write_index": true
+                }
+              },
+              {
+                "add": {
+                  "index": "idx2",
+                  "alias": "my-time-series-data"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_index_template/template"
+        body: |
+          {
+            "index_patterns": ["my-time-series-data"],
+            "data_stream": { }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_data_stream/_migrate/my-time-series-data"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "my-data-stream/_rollover/"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_data_stream/my-data-stream"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_data_stream/my-data-stream"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_data_stream/*"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_index_template/*"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_component_template/my-*"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_ilm/policy/my-lifecycle-policy"
+  - is_false: _shards.failures

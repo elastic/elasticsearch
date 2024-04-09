@@ -1,0 +1,25 @@
+---
+"line_96":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_nodes/USpTGYaBSIKbgSUJR2Z9lg/shutdown"
+        body: |
+          {
+            "type": "restart",
+            "reason": "Demonstrating how the node shutdown API works",
+            "allocation_delay": "20m"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "acknowledged": true
+        }

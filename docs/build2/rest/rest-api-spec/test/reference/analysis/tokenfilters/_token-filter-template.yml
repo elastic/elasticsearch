@@ -1,0 +1,86 @@
+---
+"line_44":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason:  REMOVE THIS COMMENT.
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer" : "standard",
+            "filter" : ["sample"],
+            "text" : "the quick fox jumps the lazy dog"
+          }
+  - is_false: _shards.failures
+---
+"line_145":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason:  REMOVE THIS COMMENT.
+  - do:
+      raw:
+        method: PUT
+        path: "sample_example"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "my_sample_analyzer": {
+                    "tokenizer": "standard",
+                    "filter": [ "sample" ]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_212":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason:  REMOVE THIS COMMENT.
+  - do:
+      raw:
+        method: PUT
+        path: "sample_example"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "my_custom_analyzer": {
+                    "tokenizer": "whitespace",
+                    "filter": [ "my_custom_sample_token_filter" ]
+                  }
+                },
+                "filter": {
+                  "my_custom_sample_token_filter": {
+                    "type": "sample",
+                    "foo": true
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

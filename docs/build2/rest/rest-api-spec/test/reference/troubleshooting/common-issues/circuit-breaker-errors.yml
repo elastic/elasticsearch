@@ -1,0 +1,49 @@
+---
+"line_56":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_cat/nodes"
+        v: "true"
+        h: "name,node*,heap*"
+---
+"line_64":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/stats/breaker"
+  - is_false: _shards.failures
+---
+"line_92":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_cache/clear"
+        fielddata: "true"
+  - is_false: _shards.failures

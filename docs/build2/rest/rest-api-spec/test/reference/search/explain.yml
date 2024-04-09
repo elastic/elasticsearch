@@ -1,0 +1,201 @@
+---
+"line_11":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup messages
+
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            {"index":{"_id": "0"}}
+            {"message": "trying out Elasticsearch", "context": "foo"}
+            {"index":{"_id": "1"}}
+            {"message": "some message with the number 1", "context": "bar"}
+            {"index":{"_id": "2"}}
+            {"message": "some message with the number 2", "context": "bar"}
+            {"index":{"_id": "3"}}
+            {"message": "some message with the number 3", "context": "bar"}
+            {"index":{"_id": "4"}}
+            {"message": "some message with the number 4", "context": "bar"}
+
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_explain/0"
+        body: |
+          {
+            "query" : {
+              "match" : { "message" : "elasticsearch" }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_99":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup messages
+
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            {"index":{"_id": "0"}}
+            {"message": "trying out Elasticsearch", "context": "foo"}
+            {"index":{"_id": "1"}}
+            {"message": "some message with the number 1", "context": "bar"}
+            {"index":{"_id": "2"}}
+            {"message": "some message with the number 2", "context": "bar"}
+            {"index":{"_id": "3"}}
+            {"message": "some message with the number 3", "context": "bar"}
+            {"index":{"_id": "4"}}
+            {"message": "some message with the number 4", "context": "bar"}
+
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_explain/0"
+        body: |
+          {
+            "query" : {
+              "match" : { "message" : "elasticsearch" }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+           "_index":"my-index-000001",
+           "_id":"0",
+           "matched":true,
+           "explanation":{
+              "value":1.6943598,
+              "description":"weight(message:elasticsearch in 0) [PerFieldSimilarity], result of:",
+              "details":[
+                 {
+                    "value":1.6943598,
+                    "description":"score(freq=1.0), computed as boost * idf * tf from:",
+                    "details":[
+                       {
+                          "value":2.2,
+                          "description":"boost",
+                          "details":[]
+                       },
+                       {
+                          "value":1.3862944,
+                          "description":"idf, computed as log(1 + (N - n + 0.5) / (n + 0.5)) from:",
+                          "details":[
+                             {
+                                "value":1,
+                                "description":"n, number of documents containing term",
+                                "details":[]
+                             },
+                             {
+                                "value":5,
+                                "description":"N, total number of documents with field",
+                                "details":[]
+                             }
+                          ]
+                       },
+                       {
+                          "value":0.5555556,
+                          "description":"tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
+                          "details":[
+                             {
+                                "value":1.0,
+                                "description":"freq, occurrences of term within document",
+                                "details":[]
+                             },
+                             {
+                                "value":1.2,
+                                "description":"k1, term saturation parameter",
+                                "details":[]
+                             },
+                             {
+                                "value":0.75,
+                                "description":"b, length normalization parameter",
+                                "details":[]
+                             },
+                             {
+                                "value":3.0,
+                                "description":"dl, length of field",
+                                "details":[]
+                             },
+                             {
+                                "value":5.4,
+                                "description":"avgdl, average length of field",
+                                "details":[]
+                             }
+                          ]
+                       }
+                    ]
+                 }
+              ]
+           }
+        }
+---
+"line_192":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup messages
+
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            {"index":{"_id": "0"}}
+            {"message": "trying out Elasticsearch", "context": "foo"}
+            {"index":{"_id": "1"}}
+            {"message": "some message with the number 1", "context": "bar"}
+            {"index":{"_id": "2"}}
+            {"message": "some message with the number 2", "context": "bar"}
+            {"index":{"_id": "3"}}
+            {"message": "some message with the number 3", "context": "bar"}
+            {"index":{"_id": "4"}}
+            {"message": "some message with the number 4", "context": "bar"}
+
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_explain/0"
+        q: "message:search"
+  - is_false: _shards.failures

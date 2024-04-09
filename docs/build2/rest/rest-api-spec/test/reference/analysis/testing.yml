@@ -1,0 +1,200 @@
+---
+"line_9":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_analyze"
+        body: |
+          {
+            "analyzer": "whitespace",
+            "text":     "The quick brown fox."
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens": [
+            {
+              "token": "The",
+              "start_offset": 0,
+              "end_offset": 3,
+              "type": "word",
+              "position": 0
+            },
+            {
+              "token": "quick",
+              "start_offset": 4,
+              "end_offset": 9,
+              "type": "word",
+              "position": 1
+            },
+            {
+              "token": "brown",
+              "start_offset": 10,
+              "end_offset": 15,
+              "type": "word",
+              "position": 2
+            },
+            {
+              "token": "fox.",
+              "start_offset": 16,
+              "end_offset": 20,
+              "type": "word",
+              "position": 3
+            }
+          ]
+        }
+---
+"line_62":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer": "standard",
+            "filter":  [ "lowercase", "asciifolding" ],
+            "text":      "Is this déja vu?"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens": [
+            {
+              "token": "is",
+              "start_offset": 0,
+              "end_offset": 2,
+              "type": "<ALPHANUM>",
+              "position": 0
+            },
+            {
+              "token": "this",
+              "start_offset": 3,
+              "end_offset": 7,
+              "type": "<ALPHANUM>",
+              "position": 1
+            },
+            {
+              "token": "deja",
+              "start_offset": 8,
+              "end_offset": 12,
+              "type": "<ALPHANUM>",
+              "position": 2
+            },
+            {
+              "token": "vu",
+              "start_offset": 13,
+              "end_offset": 15,
+              "type": "<ALPHANUM>",
+              "position": 3
+            }
+          ]
+        }
+---
+"line_125":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "std_folded": {
+                    "type": "custom",
+                    "tokenizer": "standard",
+                    "filter": [
+                      "lowercase",
+                      "asciifolding"
+                    ]
+                  }
+                }
+              }
+            },
+            "mappings": {
+              "properties": {
+                "my_text": {
+                  "type": "text",
+                  "analyzer": "std_folded"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_analyze"
+        body: |
+          {
+            "analyzer": "std_folded",
+            "text":     "Is this déjà vu?"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_analyze"
+        body: |
+          {
+            "field": "my_text",
+            "text":  "Is this déjà vu?"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens": [
+            {
+              "token": "is",
+              "start_offset": 0,
+              "end_offset": 2,
+              "type": "<ALPHANUM>",
+              "position": 0
+            },
+            {
+              "token": "this",
+              "start_offset": 3,
+              "end_offset": 7,
+              "type": "<ALPHANUM>",
+              "position": 1
+            },
+            {
+              "token": "deja",
+              "start_offset": 8,
+              "end_offset": 12,
+              "type": "<ALPHANUM>",
+              "position": 2
+            },
+            {
+              "token": "vu",
+              "start_offset": 13,
+              "end_offset": 15,
+              "type": "<ALPHANUM>",
+              "position": 3
+            }
+          ]
+        }

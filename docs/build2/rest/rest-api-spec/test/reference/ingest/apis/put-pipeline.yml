@@ -1,0 +1,61 @@
+---
+"line_11":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ingest/pipeline/my-pipeline-id"
+        body: |
+          {
+            "description" : "My optional pipeline description",
+            "processors" : [
+              {
+                "set" : {
+                  "description" : "My optional processor description",
+                  "field": "my-keyword-field",
+                  "value": "foo"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+---
+"line_120":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ingest/pipeline/my-pipeline-id"
+        body: |
+          {
+            "description" : "My optional pipeline description",
+            "processors" : [
+              {
+                "set" : {
+                  "description" : "My optional processor description",
+                  "field": "my-keyword-field",
+                  "value": "foo"
+                }
+              }
+            ],
+            "_meta": {
+              "reason": "set my-keyword-field to foo",
+              "serialization": {
+                "class": "MyPipeline",
+                "id": 10
+              }
+            }
+          }
+  - is_false: _shards.failures

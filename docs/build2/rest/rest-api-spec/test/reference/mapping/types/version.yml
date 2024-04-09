@@ -1,0 +1,73 @@
+---
+"line_19":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "my_version": {
+                  "type": "version"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"synthetic-source-version-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "idx"
+        body: |
+          {
+            "mappings": {
+              "_source": { "mode": "synthetic" },
+              "properties": {
+                "versions": { "type": "version" }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "idx/_doc/1"
+        body: |
+          {
+            "versions": ["8.0.0-beta1", "8.5.0", "0.90.12", "2.6.1", "1.3.4", "1.3.4"]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "idx/_doc/1"
+        filter_path: "_source"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "idx/_doc/1"
+        filter_path: "_source"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {"_source":{
+          "versions": ["0.90.12", "1.3.4", "2.6.1", "8.0.0-beta1", "8.5.0"]
+        }}

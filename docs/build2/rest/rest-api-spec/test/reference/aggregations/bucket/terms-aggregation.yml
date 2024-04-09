@@ -1,0 +1,619 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "products"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "genre": {
+                  "type": "keyword"
+                },
+                "product": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+  - do:
+      raw:
+        method: POST
+        path: "products/_bulk"
+        refresh: ""
+        body: |
+          {"index":{"_id":0}}
+          {"genre": "rock", "product": "Product A"}
+          {"index":{"_id":1}}
+          {"genre": "rock", "product": "Product B"}
+          {"index":{"_id":2}}
+          {"genre": "rock", "product": "Product C"}
+          {"index":{"_id":3}}
+          {"genre": "jazz", "product": "Product D"}
+          {"index":{"_id":4}}
+          {"genre": "jazz", "product": "Product E"}
+          {"index":{"_id":5}}
+          {"genre": "electronic", "product": "Anthology A"}
+          {"index":{"_id":6}}
+          {"genre": "electronic", "product": "Anthology A"}
+          {"index":{"_id":7}}
+          {"genre": "electronic", "product": "Product F"}
+          {"index":{"_id":8}}
+          {"genre": "electronic", "product": "Product G"}
+          {"index":{"_id":9}}
+          {"genre": "electronic", "product": "Product H"}
+          {"index":{"_id":10}}
+          {"genre": "electronic", "product": "Product I"}
+---
+"terms-aggregation-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        filter_path: "aggregations"
+        body: |
+          {
+            "aggs": {
+              "genres": {
+                "terms": { "field": "genre" }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          
+          "aggregations": {
+            "genres": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "electronic",
+                  "doc_count": 6
+                },
+                {
+                  "key": "rock",
+                  "doc_count": 3
+                },
+                {
+                  "key": "jazz",
+                  "doc_count": 2
+                }
+              ]
+            }
+          }
+        }
+---
+"terms-aggregation-doc-count-error-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        filter_path: "aggregations"
+        body: |
+          {
+            "aggs": {
+              "products": {
+                "terms": {
+                  "field": "product",
+                  "size": 5,
+                  "show_term_doc_count_error": true
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"terms-aggregation-asc-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "aggs": {
+              "genres": {
+                "terms": {
+                  "field": "genre",
+                  "order": { "_key": "asc" }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"terms-aggregation-subaggregation-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "aggs": {
+              "genres": {
+                "terms": {
+                  "field": "genre",
+                  "order": { "max_play_count": "desc" }
+                },
+                "aggs": {
+                  "max_play_count": { "max": { "field": "play_count" } }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"terms-aggregation-multivalue-subaggregation-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "aggs": {
+              "genres": {
+                "terms": {
+                  "field": "genre",
+                  "order": { "playback_stats.max": "desc" }
+                },
+                "aggs": {
+                  "playback_stats": { "stats": { "field": "play_count" } }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"terms-aggregation-hierarchy-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "aggs": {
+              "countries": {
+                "terms": {
+                  "field": "artist.country",
+                  "order": { "rock>playback_stats.avg": "desc" }
+                },
+                "aggs": {
+                  "rock": {
+                    "filter": { "term": { "genre": "rock" } },
+                    "aggs": {
+                      "playback_stats": { "stats": { "field": "play_count" } }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"terms-aggregation-multicriteria-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "aggs": {
+              "countries": {
+                "terms": {
+                  "field": "artist.country",
+                  "order": [ { "rock>playback_stats.avg": "desc" }, { "_count": "desc" } ]
+                },
+                "aggs": {
+                  "rock": {
+                    "filter": { "term": { "genre": "rock" } },
+                    "aggs": {
+                      "playback_stats": { "stats": { "field": "play_count" } }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"terms-aggregation-count-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "aggs": {
+              "genres": {
+                "terms": {
+                  "field": "genre",
+                  "order": { "_count": "asc" }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"terms-aggregation-min-doc-count-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "aggs": {
+              "tags": {
+                "terms": {
+                  "field": "tags",
+                  "min_doc_count": 10
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"terms-aggregation-script-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "size": 0,
+            "runtime_mappings": {
+              "normalized_genre": {
+                "type": "keyword",
+                "script": "\n        String genre = doc['genre'].value;\n        if (doc['product'].value.startsWith('Anthology')) {\n          emit(genre + ' anthology');\n        } else {\n          emit(genre);\n        }\n      "
+              }
+            },
+            "aggs": {
+              "genres": {
+                "terms": {
+                  "field": "normalized_genre"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "aggregations": {
+            "genres": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": "electronic",
+                  "doc_count": 4
+                },
+                {
+                  "key": "rock",
+                  "doc_count": 3
+                },
+                {
+                  "key": "electronic anthology",
+                  "doc_count": 2
+                },
+                {
+                  "key": "jazz",
+                  "doc_count": 2
+                }
+              ]
+            }
+          },
+          "took": "$body.took", "timed_out": false, "_shards": "$body._shards", "hits": "$body.hits"
+        }
+---
+"terms-aggregation-regex-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "aggs": {
+              "tags": {
+                "terms": {
+                  "field": "tags",
+                  "include": ".*sport.*",
+                  "exclude": "water_.*"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"terms-aggregation-exact-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "aggs": {
+              "JapaneseCars": {
+                "terms": {
+                  "field": "make",
+                  "include": [ "mazda", "honda" ]
+                }
+              },
+              "ActiveCarManufacturers": {
+                "terms": {
+                  "field": "make",
+                  "exclude": [ "rover", "jensen" ]
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"terms-aggregation-partitions-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+             "size": 0,
+             "aggs": {
+                "expired_sessions": {
+                   "terms": {
+                      "field": "account_id",
+                      "include": {
+                         "partition": 0,
+                         "num_partitions": 20
+                      },
+                      "size": 10000,
+                      "order": {
+                         "last_access": "asc"
+                      }
+                   },
+                   "aggs": {
+                      "last_access": {
+                         "max": {
+                            "field": "access_date"
+                         }
+                      }
+                   }
+                }
+             }
+          }
+  - is_false: _shards.failures
+---
+"terms-aggregation-collect-mode-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "aggs": {
+              "actors": {
+                "terms": {
+                  "field": "actors",
+                  "size": 10
+                },
+                "aggs": {
+                  "costars": {
+                    "terms": {
+                      "field": "actors",
+                      "size": 5
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"terms-aggregation-breadth-first-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "aggs": {
+              "actors": {
+                "terms": {
+                  "field": "actors",
+                  "size": 10,
+                  "collect_mode": "breadth_first"
+                },
+                "aggs": {
+                  "costars": {
+                    "terms": {
+                      "field": "actors",
+                      "size": 5
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"terms-aggregation-execution-hint-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "aggs": {
+              "tags": {
+                "terms": {
+                  "field": "tags",
+                  "execution_hint": "map"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"terms-aggregation-missing-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "aggs": {
+              "tags": {
+                "terms": {
+                  "field": "tags",
+                  "missing": "N/A"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"terms-aggregation-value_type-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "aggs": {
+              "ip_addresses": {
+                "terms": {
+                  "field": "destination_ip",
+                  "missing": "0.0.0.0",
+                  "value_type": "ip"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

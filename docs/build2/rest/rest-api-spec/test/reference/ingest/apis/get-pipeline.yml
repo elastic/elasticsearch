@@ -1,0 +1,53 @@
+---
+"line_12":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ingest/pipeline/my-pipeline-id"
+        body: |
+          {
+            "description" : "describe pipeline",
+            "version" : 123,
+            "processors" : [
+              {
+                "set" : {
+                  "field": "foo",
+                  "value": "bar"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_ingest/pipeline/my-pipeline-id"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_ingest/pipeline/my-pipeline-id"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "my-pipeline-id" : {
+            "description" : "describe pipeline",
+            "version" : 123,
+            "processors" : [
+              {
+                "set" : {
+                  "field" : "foo",
+                  "value" : "bar"
+                }
+              }
+            ]
+          }
+        }

@@ -1,0 +1,121 @@
+---
+"line_24":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer" : "whitespace",
+            "filter" : ["truncate"],
+            "text" : "the quinquennial extravaganza carried on"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens" : [
+            {
+              "token" : "the",
+              "start_offset" : 0,
+              "end_offset" : 3,
+              "type" : "word",
+              "position" : 0
+            },
+            {
+              "token" : "quinquenni",
+              "start_offset" : 4,
+              "end_offset" : 16,
+              "type" : "word",
+              "position" : 1
+            },
+            {
+              "token" : "extravagan",
+              "start_offset" : 17,
+              "end_offset" : 29,
+              "type" : "word",
+              "position" : 2
+            },
+            {
+              "token" : "carried",
+              "start_offset" : 30,
+              "end_offset" : 37,
+              "type" : "word",
+              "position" : 3
+            },
+            {
+              "token" : "on",
+              "start_offset" : 38,
+              "end_offset" : 40,
+              "type" : "word",
+              "position" : 4
+            }
+          ]
+        }
+---
+"line_93":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "custom_truncate_example"
+        body: |
+          {
+            "settings" : {
+              "analysis" : {
+                "analyzer" : {
+                  "standard_truncate" : {
+                  "tokenizer" : "standard",
+                  "filter" : ["truncate"]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_128":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "5_char_words_example"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "lowercase_5_char": {
+                    "tokenizer": "lowercase",
+                    "filter": [ "5_char_trunc" ]
+                  }
+                },
+                "filter": {
+                  "5_char_trunc": {
+                    "type": "truncate",
+                    "length": 5
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

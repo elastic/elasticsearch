@@ -1,0 +1,139 @@
+---
+"line_24":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "simple_query_string" : {
+                  "query": "\"fried eggs\" +(eggplant | potato) -frittata",
+                  "fields": ["title^5", "body"],
+                  "default_operator": "and"
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_153":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "simple_query_string": {
+                "fields": [ "content" ],
+                "query": "foo bar -baz"
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_181":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "simple_query_string": {
+                "query": "foo | bar + baz*",
+                "flags": "OR|AND|PREFIX"
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_245":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "simple_query_string" : {
+                "query":    "Will Smith",
+                "fields": [ "title", "*_name" ]
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_262":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "simple_query_string" : {
+                "query" : "this is a test",
+                "fields" : [ "subject^3", "message" ]
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_291":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "simple_query_string": {
+                "query": "ny city",
+                "auto_generate_synonyms_phrase_query": false
+              }
+            }
+          }
+  - is_false: _shards.failures

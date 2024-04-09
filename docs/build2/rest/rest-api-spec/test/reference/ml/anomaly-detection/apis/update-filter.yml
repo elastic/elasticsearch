@@ -1,0 +1,29 @@
+---
+"line_44":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: setup:ml_filter_safe_domains
+  - do:
+      raw:
+        method: POST
+        path: "_ml/filters/safe_domains/_update"
+        body: |
+          {
+            "description": "Updated list of domains",
+            "add_items": ["*.myorg.com"],
+            "remove_items": ["wikipedia.org"]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "filter_id": "safe_domains",
+          "description": "Updated list of domains",
+          "items": ["*.google.com", "*.myorg.com"]
+        }

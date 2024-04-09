@@ -1,0 +1,91 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_connector/my-connector"
+        body: |
+          {
+            "index_name": "search-google-drive",
+            "name": "My Connector",
+            "service_type": "google_drive"
+          }
+---
+teardown:
+  - do:
+      raw:
+        method: DELETE
+        path: "_connector/my-connector"
+---
+"line_124":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_connector/my-connector/_filtering"
+        body: |
+          {
+              "filtering": [
+                  {
+                      "active": {
+                          "advanced_snippet": {
+                              "created_at": "2023-11-09T15:13:08.231Z",
+                              "updated_at": "2023-11-09T15:13:08.231Z",
+                              "value": {}
+                          },
+                          "rules": [
+                              {
+                                  "created_at": "2023-11-09T15:13:08.231Z",
+                                  "field": "_",
+                                  "id": "DEFAULT",
+                                  "order": 0,
+                                  "policy": "include",
+                                  "rule": "regex",
+                                  "updated_at": "2023-11-09T15:13:08.231Z",
+                                  "value": ".*"
+                              }
+                          ],
+                          "validation": {
+                              "errors": [],
+                              "state": "valid"
+                          }
+                      },
+                      "domain": "DEFAULT",
+                      "draft": {
+                          "advanced_snippet": {
+                              "created_at": "2023-11-09T15:13:08.231Z",
+                              "updated_at": "2023-11-09T15:13:08.231Z",
+                              "value": {}
+                          },
+                          "rules": [
+                              {
+                                  "created_at": "2023-11-09T15:13:08.231Z",
+                                  "field": "_",
+                                  "id": "DEFAULT",
+                                  "order": 0,
+                                  "policy": "include",
+                                  "rule": "regex",
+                                  "updated_at": "2023-11-09T15:13:08.231Z",
+                                  "value": ".*"
+                              }
+                          ],
+                          "validation": {
+                              "errors": [],
+                              "state": "valid"
+                          }
+                      }
+                  }
+              ]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+            "result": "updated"
+        }

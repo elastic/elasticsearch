@@ -1,0 +1,306 @@
+---
+"line_12":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup my_index
+
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                http:
+                  properties:
+                    request:
+                      properties:
+                        method:
+                          type: keyword
+                message:
+                  type: text
+                  fields:
+                    keyword:
+                      type: keyword
+                user:
+                  properties:
+                    id:
+                      type: keyword
+                      doc_values: true
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            { "index":{"_id": "0"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "127.0.0.1" }, "user": { "id": "kimchy" } }
+            { "index":{"_id": "1"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "2"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "3"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "4"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_recovery"
+  - is_false: _shards.failures
+---
+"line_193":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "index1"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "index2"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "index1,index2/_recovery"
+        human: ""
+  - is_false: _shards.failures
+---
+"line_208":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "index1"
+        body: |
+          {"settings": {"index.number_of_shards": 1}}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_repository"
+        body: |
+          {"type": "fs","settings": {"location": "recovery_asciidoc" }}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_repository/snap_1"
+        wait_for_completion: "true"
+        body: |
+          {"indices": "index1"}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "index1"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_snapshot/my_repository/snap_1/_restore"
+        wait_for_completion: "true"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "snapshot": {
+            "snapshot": "snap_1",
+            "indices": [
+              "index1"
+            ],
+            "shards": {
+              "total": 1,
+              "failed": 0,
+              "successful": 1
+            }
+          }
+        }
+  - do:
+      raw:
+        method: GET
+        path: "_recovery"
+        human: ""
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "index1" : {
+            "shards" : [ {
+              "id" : $body.$_path,
+              "type" : $body.$_path,
+              "stage" : $body.$_path,
+              "primary" : true,
+              "start_time" : $body.$_path,
+              "start_time_in_millis": $body.$_path,
+              "stop_time" : $body.$_path,
+              "stop_time_in_millis" : $body.$_path,
+              "total_time" : $body.$_path,
+              "total_time_in_millis" : $body.$_path,
+              "source" : {
+                "repository" : $body.$_path,
+                "snapshot" : $body.$_path,
+                "index" : $body.$_path,
+                "version" : $body.$_path,
+                "restoreUUID": $body.$_path
+              },
+              "target" : {
+                "id" : $body.$_path,
+                "host" : $body.$_path,
+                "transport_address" : $body.$_path,
+                "ip" : $body.$_path,
+                "name" : $body.$_path
+              },
+              "index" : {
+                "size" : {
+                  "total" : $body.$_path,
+                  "total_in_bytes" : $body.$_path,
+                  "reused" : $body.$_path,
+                  "reused_in_bytes" : $body.$_path,
+                  "recovered" : $body.$_path,
+                  "recovered_in_bytes" : $body.$_path,
+                  "recovered_from_snapshot" : $body.$_path,
+                  "recovered_from_snapshot_in_bytes" : $body.$_path,
+                  "percent" : $body.$_path
+                },
+                "files" : {
+                  "total" : $body.$_path,
+                  "reused" : $body.$_path,
+                  "recovered" : $body.$_path,
+                  "percent" : $body.$_path
+                },
+                "total_time" : $body.$_path,
+                "total_time_in_millis" : $body.$_path,
+                "source_throttle_time" : $body.$_path,
+                "source_throttle_time_in_millis" : $body.$_path,
+                "target_throttle_time" : $body.$_path,
+                "target_throttle_time_in_millis" : $body.$_path
+              },
+              "translog" : {
+                "recovered" : $body.$_path,
+                "total" : $body.$_path,
+                "percent" : $body.$_path,
+                "total_on_start" : $body.$_path,
+                "total_time" : $body.$_path,
+                "total_time_in_millis" : $body.$_path
+              },
+              "verify_index" : {
+                "check_index_time" : $body.$_path,
+                "check_index_time_in_millis" : $body.$_path,
+                "total_time" : $body.$_path,
+                "total_time_in_millis" : $body.$_path
+              }
+            } ]
+          }
+        }
+---
+"line_350":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "index1"
+        body: |
+          {"settings": {"index.number_of_shards": 1}}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_recovery"
+        human: ""
+        detailed: "true"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "index1" : {
+            "shards" : [ {
+              "id" : $body.$_path,
+              "type" : $body.$_path,
+              "stage" : $body.$_path,
+              "primary" : true,
+              "start_time" : $body.$_path,
+              "start_time_in_millis" : $body.$_path,
+              "stop_time" : $body.$_path,
+              "stop_time_in_millis" : $body.$_path,
+              "total_time" : $body.$_path,
+              "total_time_in_millis" : $body.$_path,
+              "source" : $body.$_path,
+              "target" : {
+                "id" : $body.$_path,
+                "host" : $body.$_path,
+                "transport_address" : $body.$_path,
+                "ip" : $body.$_path,
+                "name" : $body.$_path
+              },
+              "index" : {
+                "size" : {
+                  "total" : $body.$_path,
+                  "total_in_bytes" : $body.$_path,
+                  "reused" : $body.$_path,
+                  "reused_in_bytes" : $body.$_path,
+                  "recovered" : $body.$_path,
+                  "recovered_in_bytes" : $body.$_path,
+                  "recovered_from_snapshot" : $body.$_path,
+                  "recovered_from_snapshot_in_bytes" : $body.$_path,
+                  "percent" : $body.$_path
+                },
+                "files" : {
+                  "total" : $body.$_path,
+                  "reused" : $body.$_path,
+                  "recovered" : $body.$_path,
+                  "percent" : $body.$_path,
+                  "details" : $body.$_path
+                },
+                "total_time" : $body.$_path,
+                "total_time_in_millis" : $body.$_path,
+                "source_throttle_time" : $body.$_path,
+                "source_throttle_time_in_millis" : $body.$_path,
+                "target_throttle_time" : $body.$_path,
+                "target_throttle_time_in_millis" : $body.$_path
+              },
+              "translog" : {
+                "recovered" : $body.$_path,
+                "total" : $body.$_path,
+                "percent" : $body.$_path,
+                "total_on_start" : $body.$_path,
+                "total_time" : $body.$_path,
+                "total_time_in_millis" : $body.$_path
+              },
+              "verify_index" : {
+                "check_index_time" : $body.$_path,
+                "check_index_time_in_millis" : $body.$_path,
+                "total_time" : $body.$_path,
+                "total_time_in_millis" : $body.$_path
+              }
+            } ]
+          }
+        }

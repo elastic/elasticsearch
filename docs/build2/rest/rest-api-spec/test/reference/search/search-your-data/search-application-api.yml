@@ -1,0 +1,486 @@
+---
+"line_97":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TODO
+  - do:
+      raw:
+        method: POST
+        path: "_application/search_application/%3Cmy_search_application%3E/_search"
+        body: |
+          {
+            "params": {
+              "query_string": "my first query"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_141":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TODO
+  - do:
+      raw:
+        method: PUT
+        path: "_application/search_application/my_search_application"
+        body: |
+          {
+            "indices": ["my_index1", "my_index2"],
+            "template": {
+              "script": {
+                "lang": "mustache",
+                "source": "\n      {\n        \"query\": {\n          \"multi_match\": {\n            \"query\": \"{{query_string}}\",\n            \"fields\": [{{#text_fields}}\"{{name}}^{{boost}}\",{{/text_fields}}]\n          }\n        },\n        \"explain\": \"{{explain}}\",\n        \"from\": \"{{from}}\",\n        \"size\": \"{{size}}\"\n      }\n      ",
+                "params": {
+                  "query_string": "*",
+                  "text_fields": [
+                    {"name": "title", "boost": 10},
+                    {"name": "description", "boost": 5}
+                  ],
+                  "explain": false,
+                  "from": 0,
+                  "size": 10
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_179":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TODO
+  - do:
+      raw:
+        method: POST
+        path: "_application/search_application/my_search_application/_search"
+        body: |
+          {
+            "params": {
+              "size": 5,
+              "query_string": "mountain climbing",
+              "text_fields": [
+                    {"name": "title", "boost": 10},
+                    {"name": "description", "boost": 2},
+                    {"name": "state", "boost": 1}
+               ]
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_207":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TODO
+  - do:
+      raw:
+        method: PUT
+        path: "_application/search_application/my-search-app"
+        body: |
+          {
+            "indices": [
+              "search-my-crawler"
+            ],
+            "template": {
+              "script": {
+                "lang": "mustache",
+                "source": "\n      {\n        \"retriever\": {\n          \"rrf\": {\n            \"retrievers\": [\n              {{#text_fields}}\n              {\n                \"standard\": {\n                  \"query\": {\n                    \"match\": {\n                      \"{{.}}\": \"{{query_string}}\"\n                    }\n                  }\n                }\n              },\n              {{/text_fields}}\n              {{#elser_fields}}\n              {\n                \"standard\": {\n                  \"query\": {\n                    \"text_expansion\": {\n                      \"ml.inference.{{.}}_expanded.predicted_value\": {\n                        \"model_text\": \"{{query_string}}\",\n                        \"model_id\": \"<elser_model_id>\"\n                      }\n                    }\n                  }\n                }\n              }\n              {{/elser_fields}}\n            ],\n            \"window_size\": {{rrf.window_size}},\n            \"rank_constant\": {{rrf.rank_constant}}\n          }\n        }\n      }\n      ",
+                "params": {
+                  "elser_fields": ["title", "meta_description"],
+                  "text_fields": ["title", "meta_description"],
+                  "query_string": "",
+                  "rrf": {
+                    "window_size": 100,
+                    "rank_constant": 60
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_273":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TODO
+  - do:
+      raw:
+        method: POST
+        path: "_application/search_application/my-search-app/_search"
+        body: |
+          {
+            "params": {
+              "query_string": "What is the most popular brand of coffee sold in the United States?",
+              "elser_fields": ["title", "meta_description"],
+              "text_fields": ["title", "meta_description"],
+              "rrf": {
+                "window_size": 50,
+                "rank_constant": 25
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_302":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TODO
+  - do:
+      raw:
+        method: PUT
+        path: "_application/search_application/my_search_application"
+        body: |
+          {
+            "indices": [
+              "my_index1",
+              "my_index2"
+            ],
+            "template": {
+              "script": {
+                "lang": "mustache",
+                "source": "\n      {\n        \"query\": {\n          \"bool\": {\n            \"should\": [\n              {{#text}}\n              {\n                \"multi_match\": {\n                  \"query\": \"{{query_string}}\",\n                  \"fields\": [{{#text_fields}}\"{{name}}^{{boost}}\",{{/text_fields}}],\n                  \"boost\": \"{{text_query_boost}}\"\n                }\n              },\n              {{/text}}\n              {{#elser}}\n              {{#elser_fields}}\n              {\n                \"text_expansion\": {\n                  \"ml.inference.{{name}}_expanded.predicted_value\": {\n                    \"model_text\": \"{{query_string}}\",\n                    \"model_id\": \".elser_model_1\",\n                    \"boost\": \"{{boost}}\"\n                  }\n                }\n              },\n              {{/elser_fields}}\n              { \"bool\": { \"must\": [] } },\n              {{/elser}}\n              {{^text}}\n              {{^elser}}\n              {\n                \"query_string\": {\n                  \"query\": \"{{query_string}}\",\n                  \"default_field\": \"{{default_field}}\",\n                  \"default_operator\": \"{{default_operator}}\",\n                  \"boost\": \"{{text_query_boost}}\"\n                }\n              },\n              {{/elser}}\n              {{/text}}\n              { \"bool\": { \"must\": [] } }\n              ],\n            \"minimum_should_match\": 1\n          }\n        },\n        \"min_score\": \"{{min_score}}\",\n        \"explain\": \"{{explain}}\",\n        \"from\": \"{{from}}\",\n        \"size\": \"{{size}}\"\n      }\n      ",
+                "params": {
+                  "text": false,
+                  "elser": false,
+                  "elser_fields": [
+                    {"name": "title", "boost": 1},
+                    {"name": "description", "boost": 1}
+                  ],
+                  "text_fields": [
+                    {"name": "title", "boost": 10},
+                    {"name": "description", "boost": 5},
+                    {"name": "state", "boost": 1}
+                  ],
+                  "query_string": "*",
+                  "text_query_boost": 4,
+                  "default_field": "*",
+                  "default_operator": "OR",
+                  "explain": false,
+                  "from": 0,
+                  "size": 10,
+                  "min_score": 0
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_392":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TODO
+  - do:
+      raw:
+        method: POST
+        path: "_application/search_application/my_search_application/_search"
+        body: |
+          {
+            "params": {
+              "text": true,
+              "size": 5,
+              "query_string": "mountain climbing",
+              "text_fields": [
+                    {"name": "title", "boost": 10},
+                    {"name": "description", "boost": 5},
+                    {"name": "state", "boost": 1}
+               ]
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_411":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TODO
+  - do:
+      raw:
+        method: POST
+        path: "_application/search_application/my_search_application/_search"
+        body: |
+          {
+            "params": {
+              "elser": true,
+              "query_string": "where is the best mountain climbing?",
+              "elser_fields": [
+                {"name": "title", "boost": 1},
+                {"name": "description", "boost": 1}
+              ]
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_428":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TODO
+  - do:
+      raw:
+        method: POST
+        path: "_application/search_application/my_search_application/_search"
+        body: |
+          {
+            "params": {
+              "elser": true,
+              "text": true,
+              "query_string": "where is the best mountain climbing?",
+              "elser_fields": [
+                {"name": "title", "boost": 1},
+                {"name": "description", "boost": 1}
+              ],
+              "text_query_boost": 4,
+              "min_score": 10
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_462":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TODO
+  - do:
+      raw:
+        method: POST
+        path: "_application/search_application/my_search_application/_search"
+  - is_false: _shards.failures
+---
+"line_473":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TODO
+  - do:
+      raw:
+        method: PUT
+        path: "_application/search_application/my_search_application"
+        body: |
+          {
+            "indices": [
+              "my_index1",
+              "my_index2"
+              ],
+              "template": {
+                "script": {
+                  "lang": "mustache",
+                  "source": "\n        {\n          \"query\": {\n            \"bool\": {\n              \"should\": [\n                {{#elser_fields}}\n                {\n                  \"text_expansion\": {\n                    \"ml.inference.{{name}}_expanded.predicted_value\": {\n                      \"model_text\": \"{{query_string}}\",\n                      \"model_id\": \"<elser_model_id>\"\n                    }\n                  }\n                },\n                {{/elser_fields}}\n                ]\n            }\n          },\n          \"min_score\": \"{{min_score}}\"\n        }\n        ",
+                  "params": {
+                    "query_string": "*",
+                    "min_score": "10",
+                    "elser_fields": [
+                      {
+                        "name": "title"
+                      },
+                      {
+                        "name": "description"
+                      }
+                      ]
+                  }
+                }
+              }
+          }
+  - is_false: _shards.failures
+---
+"line_527":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TODO
+  - do:
+      raw:
+        method: POST
+        path: "_application/search_application/my_search_application/_search"
+        body: |
+            {
+              "params": {
+                "query_string": "Where is the best place for mountain climbing?"
+              }
+            }
+  - is_false: _shards.failures
+---
+"line_546":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TODO
+  - do:
+      raw:
+        method: PUT
+        path: "_application/search_application/my_search_application"
+        body: |
+          {
+            "indices": [
+              "my_product_index"
+            ],
+            "template": {
+              "script": {
+                "lang": "mustache",
+                "source": "\n        {\n          \"query\": {\n            \"script_score\": {\n              \"query\": {\n                \"bool\": {\n                  \"filter\": {\n                    \"range\": {\n                      \"{{field}}\": {\n                        \"{{operator}}\": {{value}}\n                      }\n                    }\n                  }\n                }\n              },\n              \"script\": {\n                \"source\": \"cosineSimilarity({{#toJson}}query_vector{{/toJson}}, '{{dense_vector_field}}') + 1.0\"\n              }\n            }\n          }\n        }\n        ",
+                "params": {
+                  "field": "price",
+                  "operator": "gte",
+                  "value": 1000,
+                  "dense_vector_field": "product-vector",
+                  "query_vector": []
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_592":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TODO
+  - do:
+      raw:
+        method: POST
+        path: "_application/search_application/my_search_application/_search"
+        body: |
+          {
+            "params": {
+              "field": "price",
+              "operator": "gte",
+              "value": 500
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_607":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TODO
+  - do:
+      raw:
+        method: PUT
+        path: "_application/search_application/my_search_application"
+        body: |
+          {
+            "indices": [
+              "my_product_index"
+            ],
+            "template": {
+              "script": {
+                "lang": "mustache",
+                "source": "\n      {\n          \"knn\": {\n            \"field\": \"{{knn_field}}\",\n            \"query_vector\": {{#toJson}}query_vector{{/toJson}},\n            \"k\": \"{{k}}\",\n            \"num_candidates\": {{num_candidates}}\n          },\n          \"fields\": {{#toJson}}fields{{/toJson}}\n      }\n      ",
+                "params": {
+                  "knn_field": "image-vector",
+                  "query_vector": [],
+                  "k": 10,
+                  "num_candidates": 100,
+                  "fields": ["title", "file-type"]
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_642":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TODO
+  - do:
+      raw:
+        method: POST
+        path: "_application/search_application/my_search_application/_search"
+        body: |
+          {
+            "params": {
+              "knn_field": "image-vector",
+                  "query_vector": [-5, 9, -12],
+                  "k": 10,
+                  "num_candidates": 100,
+                  "fields": ["title", "file-type"]
+            }
+          }
+  - is_false: _shards.failures

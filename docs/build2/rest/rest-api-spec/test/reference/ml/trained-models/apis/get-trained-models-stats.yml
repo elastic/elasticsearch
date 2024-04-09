@@ -1,0 +1,74 @@
+---
+"line_405":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TBD
+  - do:
+      raw:
+        method: GET
+        path: "_ml/trained_models/_stats"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "count": 2,
+          "trained_model_stats": [
+            {
+              "model_id": "flight-delay-prediction-1574775339910",
+              "pipeline_count": 0,
+              "inference_stats": {
+                "failure_count": 0,
+                "inference_count": 4,
+                "cache_miss_count": 3,
+                "missing_all_fields_count": 0,
+                "timestamp": 1592399986979
+              }
+            },
+            {
+              "model_id": "regression-job-one-1574775307356",
+              "pipeline_count": 1,
+              "inference_stats": {
+                "failure_count": 0,
+                "inference_count": 178,
+                "cache_miss_count": 3,
+                "missing_all_fields_count": 0,
+                "timestamp": 1592399986979
+              },
+              "ingest": {
+                "total": {
+                  "count": 178,
+                  "time_in_millis": 8,
+                  "current": 0,
+                  "failed": 0
+                },
+                "pipelines": {
+                  "flight-delay": {
+                    "count": 178,
+                    "time_in_millis": 8,
+                    "current": 0,
+                    "failed": 0,
+                    "processors": [
+                      {
+                        "inference": {
+                          "type": "inference",
+                          "stats": {
+                            "count": 178,
+                            "time_in_millis": 7,
+                            "current": 0,
+                            "failed": 0
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }

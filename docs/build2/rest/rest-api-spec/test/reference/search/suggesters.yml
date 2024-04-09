@@ -1,0 +1,175 @@
+---
+"line_7":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup messages
+
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            {"index":{"_id": "0"}}
+            {"message": "trying out Elasticsearch", "context": "foo"}
+            {"index":{"_id": "1"}}
+            {"message": "some message with the number 1", "context": "bar"}
+            {"index":{"_id": "2"}}
+            {"message": "some message with the number 2", "context": "bar"}
+            {"index":{"_id": "3"}}
+            {"message": "some message with the number 3", "context": "bar"}
+            {"index":{"_id": "4"}}
+            {"message": "some message with the number 4", "context": "bar"}
+
+  - do:
+      raw:
+        method: POST
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "query" : {
+              "match": {
+                "message": "tring out Elasticsearch"
+              }
+            },
+            "suggest" : {
+              "my-suggestion" : {
+                "text" : "tring out Elasticsearch",
+                "term" : {
+                  "field" : "message"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_46":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup messages
+
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            {"index":{"_id": "0"}}
+            {"message": "trying out Elasticsearch", "context": "foo"}
+            {"index":{"_id": "1"}}
+            {"message": "some message with the number 1", "context": "bar"}
+            {"index":{"_id": "2"}}
+            {"message": "some message with the number 2", "context": "bar"}
+            {"index":{"_id": "3"}}
+            {"message": "some message with the number 3", "context": "bar"}
+            {"index":{"_id": "4"}}
+            {"message": "some message with the number 4", "context": "bar"}
+
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_mapping"
+        body: |
+          {"properties":{"user":{"properties":{"id":{"type":"keyword"}}}}}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_search"
+        body: |
+          {
+            "suggest": {
+              "my-suggest-1" : {
+                "text" : "tring out Elasticsearch",
+                "term" : {
+                  "field" : "message"
+                }
+              },
+              "my-suggest-2" : {
+                "text" : "kmichy",
+                "term" : {
+                  "field" : "user.id"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "_shards": "$body._shards",
+          "hits": "$body.hits",
+          "took": "$body.took",
+          "timed_out": false,
+          "suggest": {
+            "my-suggest-1": [ {
+              "text": "tring",
+              "offset": 0,
+              "length": 5,
+              "options": [ {"text": "trying", "score": 0.8, "freq": 1 } ]
+            }, {
+              "text": "out",
+              "offset": 6,
+              "length": 3,
+              "options": []
+            }, {
+              "text": "elasticsearch",
+              "offset": 10,
+              "length": 13,
+              "options": []
+            } ],
+            "my-suggest-2": "$body.suggest.my-suggest-2"
+          }
+        }
+---
+"line_122":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_search"
+        body: |
+          {
+            "suggest": {
+              "text" : "tring out Elasticsearch",
+              "my-suggest-1" : {
+                "term" : {
+                  "field" : "message"
+                }
+              },
+              "my-suggest-2" : {
+                 "term" : {
+                  "field" : "user"
+                 }
+              }
+            }
+          }
+  - is_false: _shards.failures

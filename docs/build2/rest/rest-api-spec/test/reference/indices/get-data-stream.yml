@@ -1,0 +1,172 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_ilm/policy/my-lifecycle-policy"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "hot": {
+                  "actions": {
+                    "rollover": {
+                      "max_primary_shard_size": "25GB"
+                    }
+                  }
+                },
+                "delete": {
+                  "min_age": "30d",
+                  "actions": {
+                    "delete": {}
+                  }
+                }
+              }
+            }
+          }
+  - do:
+      raw:
+        method: PUT
+        path: "_index_template/my-index-template"
+        body: |
+          {
+            "index_patterns": [ "my-data-stream*" ],
+            "data_stream": {},
+            "template": {
+              "settings": {
+                "index.lifecycle.name": "my-lifecycle-policy"
+              }
+            },
+            "_meta": {
+              "my-meta-field": "foo"
+            }
+          }
+  - do:
+      raw:
+        method: PUT
+        path: "_data_stream/my-data-stream"
+  - do:
+      raw:
+        method: POST
+        path: "my-data-stream/_rollover"
+  - do:
+      raw:
+        method: PUT
+        path: "_data_stream/my-data-stream-two"
+  - do:
+      raw:
+        method: DELETE
+        path: "_data_stream/my-data-stream*/_lifecycle"
+---
+teardown:
+  - do:
+      raw:
+        method: DELETE
+        path: "_data_stream/*"
+  - do:
+      raw:
+        method: DELETE
+        path: "_index_template/*"
+  - do:
+      raw:
+        method: DELETE
+        path: "_ilm/policy/my-lifecycle-policy"
+---
+"line_71":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_data_stream/my-data-stream"
+  - is_false: _shards.failures
+---
+"line_276":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_data_stream/my-data-stream*"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "data_streams": [
+            {
+              "name": "my-data-stream",
+              "timestamp_field": {
+                "name": "@timestamp"
+              },
+              "indices": [
+                {
+                  "index_name": $body.data_streams.0.indices.0.index_name,
+                  "index_uuid": $body.data_streams.0.indices.0.index_uuid,
+                  "prefer_ilm": true,
+                  "ilm_policy": "my-lifecycle-policy",
+                  "managed_by": "Index Lifecycle Management"
+                },
+                {
+                  "index_name": $body.data_streams.0.indices.1.index_name,
+                  "index_uuid": $body.data_streams.0.indices.1.index_uuid,
+                  "prefer_ilm": true,
+                  "ilm_policy": "my-lifecycle-policy",
+                  "managed_by": "Index Lifecycle Management"
+                }
+              ],
+              "generation": 2,
+              "_meta": {
+                "my-meta-field": "foo"
+              },
+              "status": "YELLOW",
+              "next_generation_managed_by": "Index Lifecycle Management",
+              "prefer_ilm": true,
+              "template": "my-index-template",
+              "ilm_policy": "my-lifecycle-policy",
+              "hidden": false,
+              "system": false,
+              "allow_custom_routing": false,
+              "replicated": false,"failure_indices":[],"failure_store":false,
+              "rollover_on_write": false
+            },
+            {
+              "name": "my-data-stream-two",
+              "timestamp_field": {
+                "name": "@timestamp"
+              },
+              "indices": [
+                {
+                  "index_name": $body.data_streams.1.indices.0.index_name,
+                  "index_uuid": $body.data_streams.1.indices.0.index_uuid,
+                  "prefer_ilm": true,
+                  "ilm_policy": "my-lifecycle-policy",
+                  "managed_by": "Index Lifecycle Management"
+                }
+              ],
+              "generation": 1,
+              "_meta": {
+                "my-meta-field": "foo"
+              },
+              "status": "YELLOW",
+              "next_generation_managed_by": "Index Lifecycle Management",
+              "prefer_ilm": true,
+              "template": "my-index-template",
+              "ilm_policy": "my-lifecycle-policy",
+              "hidden": false,
+              "system": false,
+              "allow_custom_routing": false,
+              "replicated": false,"failure_indices":[],"failure_store":false,
+              "rollover_on_write": false
+            }
+          ]
+        }

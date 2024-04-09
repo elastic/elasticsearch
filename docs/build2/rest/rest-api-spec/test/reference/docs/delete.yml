@@ -1,0 +1,157 @@
+---
+"line_72":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/1"
+        routing: "shard-1"
+        body: |
+          {
+            "test": "test"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "my-index-000001/_doc/1"
+        routing: "shard-1"
+  - is_false: _shards.failures
+---
+"line_138":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup my_index
+
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                http:
+                  properties:
+                    request:
+                      properties:
+                        method:
+                          type: keyword
+                message:
+                  type: text
+                  fields:
+                    keyword:
+                      type: keyword
+                user:
+                  properties:
+                    id:
+                      type: keyword
+                      doc_values: true
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            { "index":{"_id": "0"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "127.0.0.1" }, "user": { "id": "kimchy" } }
+            { "index":{"_id": "1"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "2"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "3"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "4"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+  - do:
+      raw:
+        method: DELETE
+        path: "my-index-000001/_doc/1"
+        timeout: "5m"
+  - is_false: _shards.failures
+---
+"line_180":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup my_index
+
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                http:
+                  properties:
+                    request:
+                      properties:
+                        method:
+                          type: keyword
+                message:
+                  type: text
+                  fields:
+                    keyword:
+                      type: keyword
+                user:
+                  properties:
+                    id:
+                      type: keyword
+                      doc_values: true
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            { "index":{"_id": "0"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "127.0.0.1" }, "user": { "id": "kimchy" } }
+            { "index":{"_id": "1"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "2"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "3"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "4"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+  - do:
+      raw:
+        method: DELETE
+        path: "my-index-000001/_doc/1"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "_shards": {
+            "total": 2,
+            "failed": 0,
+            "successful": 1
+          },
+          "_index": "my-index-000001",
+          "_id": "1",
+          "_version": 2,
+          "_primary_term": $body._primary_term,
+          "_seq_no": $body._seq_no,
+          "result": "deleted"
+        }

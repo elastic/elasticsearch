@@ -1,0 +1,104 @@
+---
+"line_104":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "index"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "body": {
+                  "type": "text"
+                },
+                "pagerank": {
+                  "type": "long"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "index/_search"
+        body: |
+          {
+            "query": {
+              "script_score": {
+                "query": {
+                  "match": { "body": "elasticsearch" }
+                },
+                "script": {
+                  "source": "_score * saturation(doc['pagerank'].value, 10)"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_148":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "index"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "body": {
+                  "type": "text"
+                },
+                "pagerank": {
+                  "type": "rank_feature"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_168":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "bool": {
+                "must": {
+                  "match": { "body": "elasticsearch" }
+                },
+                "should": {
+                  "rank_feature": {
+                    "field": "pagerank",
+                    "saturation": {
+                      "pivot": 10
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

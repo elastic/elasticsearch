@@ -1,0 +1,484 @@
+---
+setup:
+# Named setup setup-repository
+
+  - do:
+      snapshot.create_repository:
+        repository: my_repository
+        body:
+          type: fs
+          settings:
+            location: buildDir/cluster/shared/repo
+
+  - do:
+      raw:
+        method: PUT
+        path: "_slm/policy/nightly-snapshots"
+        body: |
+          {
+            "schedule": "0 30 1 * * ?",
+            "name": "<nightly-snap-{now/d}>",
+            "repository": "my_repository",
+            "config": {
+              "indices": "*",
+              "include_global_state": true
+            },
+            "retention": {
+              "expire_after": "30d",
+              "min_count": 5,
+              "max_count": 50
+            }
+          }
+---
+"line_136":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: security is not enabled here
+  - do:
+      raw:
+        method: POST
+        path: "_security/role/slm-admin"
+        body: |
+          {
+            "cluster": [ "manage_slm", "cluster:admin/snapshot/*" ],
+            "indices": [
+              {
+                "names": [ ".slm-history-*" ],
+                "privileges": [ "all" ]
+              }
+            ]
+          }
+  - is_false: _shards.failures
+---
+"line_157":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: security is not enabled here
+  - do:
+      raw:
+        method: POST
+        path: "_security/role/slm-read-only"
+        body: |
+          {
+            "cluster": [ "read_slm" ],
+            "indices": [
+              {
+                "names": [ ".slm-history-*" ],
+                "privileges": [ "read" ]
+              }
+            ]
+          }
+  - is_false: _shards.failures
+---
+"line_187":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_slm/policy/nightly-snapshots"
+        body: |
+          {
+            "schedule": "0 30 1 * * ?",
+            "name": "<nightly-snap-{now/d}>",
+            "repository": "my_repository",
+            "config": {
+              "indices": "*",
+              "include_global_state": true
+            },
+            "retention": {
+              "expire_after": "30d",
+              "min_count": 5,
+              "max_count": 50
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_231":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: we can't easily handle snapshots from docs tests
+  - do:
+      raw:
+        method: POST
+        path: "_slm/policy/nightly-snapshots/_execute"
+  - is_false: _shards.failures
+---
+"line_249":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_cluster/settings"
+        body: |
+          {
+            "persistent" : {
+              "slm.retention_schedule" : "0 30 1 * * ?"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_262":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_slm/_execute_retention"
+  - is_false: _shards.failures
+---
+"line_290":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_repository/%3Cmy_snapshot_%7Bnow%2Fd%7D%3E"
+        wait_for_completion: "true"
+  - is_false: _shards.failures
+---
+"line_302":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_repository/my_snapshot"
+        wait_for_completion: "true"
+  - is_false: _shards.failures
+---
+"line_317":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_snapshot/my_repository/_current"
+  - is_false: _shards.failures
+---
+"line_325":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_snapshot/_status"
+  - is_false: _shards.failures
+---
+"line_339":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_slm/stats"
+  - is_false: _shards.failures
+---
+"line_353":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_slm/policy/nightly-snapshots"
+  - is_false: _shards.failures
+---
+"line_366":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup setup-snapshots
+
+  - do:
+      snapshot.create_repository:
+        repository: my_repository
+        body:
+          type: fs
+          settings:
+            location: buildDir/cluster/shared/repo
+
+  - do:
+      bulk:
+        index: my-index
+        refresh: true
+        body: |
+          {"index":{"_id": "0"}}
+          {"message": "trying out Elasticsearch", "context": "foo"}
+  - do:
+      bulk:
+        index: logs-my_app-default
+        refresh: true
+        body: |
+          {"create":{"_id": "0"}}
+          {"message": "trying out Elasticsearch", "context": "foo"}
+  - do:
+      snapshot.create:
+        repository: my_repository
+        snapshot: my_snapshot_2099.05.06
+        wait_for_completion: true
+
+  - do:
+      raw:
+        method: DELETE
+        path: "_snapshot/my_repository/my_snapshot_2099.05.06"
+  - is_false: _shards.failures
+---
+"line_405":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_features"
+  - is_false: _shards.failures
+---
+"line_440":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_slm/policy/nightly-snapshots"
+        body: |
+          {
+            "schedule": "0 30 2 * * ?",
+            "name": "<nightly-snap-{now/d}>",
+            "repository": "my_repository",
+            "config": {
+              "indices": "*",
+              "include_global_state": true,
+              "feature_states": [
+                "kibana",
+                "security"
+              ]
+            },
+            "retention": {
+              "expire_after": "30d",
+              "min_count": 5,
+              "max_count": 50
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_487":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_slm/policy/nightly-cluster-state-snapshots"
+        body: |
+          {
+            "schedule": "0 30 2 * * ?",
+            "name": "<nightly-cluster-state-snap-{now/d}>",
+            "repository": "my_repository",
+            "config": {
+              "include_global_state": true,
+              "indices": "-*"
+            },
+            "retention": {
+              "expire_after": "30d",
+              "min_count": 5,
+              "max_count": 50
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_514":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_slm/policy/nightly-snapshots"
+        body: |
+          {
+            "schedule": "0 30 2 * * ?",
+            "name": "<nightly-snap-{now/d}>",
+            "repository": "my_repository",
+            "config": {
+              "include_global_state": false,
+              "indices": "*"
+            },
+            "retention": {
+              "expire_after": "30d",
+              "min_count": 5,
+              "max_count": 50
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_557":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_slm/policy/hourly-snapshots"
+        body: |
+          {
+            "name": "<hourly-snapshot-{now/d}>",
+            "schedule": "0 0 * * * ?",
+            "repository": "my_repository",
+            "config": {
+              "indices": "*",
+              "include_global_state": true
+            },
+            "retention": {
+              "expire_after": "1d",
+              "min_count": 1,
+              "max_count": 24
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_579":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_slm/policy/daily-snapshots"
+        body: |
+          {
+            "name": "<daily-snapshot-{now/d}>",
+            "schedule": "0 45 23 * * ?",
+            "repository": "my_repository",
+            "config": {
+              "indices": "*",
+              "include_global_state": true
+            },
+            "retention": {
+              "expire_after": "30d",
+              "min_count": 1,
+              "max_count": 31
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_603":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_slm/policy/monthly-snapshots"
+        body: |
+          {
+            "name": "<monthly-snapshot-{now/d}>",
+            "schedule": "0 56 23 1 * ?",
+            "repository": "my_repository",
+            "config": {
+              "indices": "*",
+              "include_global_state": true
+            },
+            "retention": {
+              "expire_after": "366d",
+              "min_count": 1,
+              "max_count": 12
+            }
+          }
+  - is_false: _shards.failures

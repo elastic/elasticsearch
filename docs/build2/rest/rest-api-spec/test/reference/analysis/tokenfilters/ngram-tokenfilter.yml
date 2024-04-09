@@ -1,0 +1,188 @@
+---
+"line_30":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer": "standard",
+            "filter": [ "ngram" ],
+            "text": "Quick fox"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens" : [
+            {
+              "token" : "Q",
+              "start_offset" : 0,
+              "end_offset" : 5,
+              "type" : "<ALPHANUM>",
+              "position" : 0
+            },
+            {
+              "token" : "Qu",
+              "start_offset" : 0,
+              "end_offset" : 5,
+              "type" : "<ALPHANUM>",
+              "position" : 0
+            },
+            {
+              "token" : "u",
+              "start_offset" : 0,
+              "end_offset" : 5,
+              "type" : "<ALPHANUM>",
+              "position" : 0
+            },
+            {
+              "token" : "ui",
+              "start_offset" : 0,
+              "end_offset" : 5,
+              "type" : "<ALPHANUM>",
+              "position" : 0
+            },
+            {
+              "token" : "i",
+              "start_offset" : 0,
+              "end_offset" : 5,
+              "type" : "<ALPHANUM>",
+              "position" : 0
+            },
+            {
+              "token" : "ic",
+              "start_offset" : 0,
+              "end_offset" : 5,
+              "type" : "<ALPHANUM>",
+              "position" : 0
+            },
+            {
+              "token" : "c",
+              "start_offset" : 0,
+              "end_offset" : 5,
+              "type" : "<ALPHANUM>",
+              "position" : 0
+            },
+            {
+              "token" : "ck",
+              "start_offset" : 0,
+              "end_offset" : 5,
+              "type" : "<ALPHANUM>",
+              "position" : 0
+            },
+            {
+              "token" : "k",
+              "start_offset" : 0,
+              "end_offset" : 5,
+              "type" : "<ALPHANUM>",
+              "position" : 0
+            },
+            {
+              "token" : "f",
+              "start_offset" : 6,
+              "end_offset" : 9,
+              "type" : "<ALPHANUM>",
+              "position" : 1
+            },
+            {
+              "token" : "fo",
+              "start_offset" : 6,
+              "end_offset" : 9,
+              "type" : "<ALPHANUM>",
+              "position" : 1
+            },
+            {
+              "token" : "o",
+              "start_offset" : 6,
+              "end_offset" : 9,
+              "type" : "<ALPHANUM>",
+              "position" : 1
+            },
+            {
+              "token" : "ox",
+              "start_offset" : 6,
+              "end_offset" : 9,
+              "type" : "<ALPHANUM>",
+              "position" : 1
+            },
+            {
+              "token" : "x",
+              "start_offset" : 6,
+              "end_offset" : 9,
+              "type" : "<ALPHANUM>",
+              "position" : 1
+            }
+          ]
+        }
+---
+"line_161":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "ngram_example"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "standard_ngram": {
+                    "tokenizer": "standard",
+                    "filter": [ "ngram" ]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_208":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "ngram_custom_example"
+        body: |
+          {
+            "settings": {
+              "index": {
+                "max_ngram_diff": 2
+              },
+              "analysis": {
+                "analyzer": {
+                  "default": {
+                    "tokenizer": "whitespace",
+                    "filter": [ "3_5_grams" ]
+                  }
+                },
+                "filter": {
+                  "3_5_grams": {
+                    "type": "ngram",
+                    "min_gram": 3,
+                    "max_gram": 5
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

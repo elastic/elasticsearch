@@ -1,0 +1,40 @@
+---
+"line_92":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "test_index"
+        body: |
+          {
+            "settings": {
+              "index": {
+                "analysis": {
+                  "analyzer": {
+                    "synonym": {
+                      "tokenizer": "standard",
+                      "filter": [ "my_stop", "synonym_graph" ]
+                    }
+                  },
+                  "filter": {
+                    "my_stop": {
+                      "type": "stop",
+                      "stopwords": [ "bar" ]
+                    },
+                    "synonym_graph": {
+                      "type": "synonym_graph",
+                      "lenient": true,
+                      "synonyms": [ "foo, bar => baz" ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

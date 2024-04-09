@@ -1,0 +1,223 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "my_dense_vector": {
+                  "type": "dense_vector",
+                  "dims": 3
+                },
+                "status" : {
+                  "type" : "keyword"
+                }
+              }
+            }
+          }
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/1"
+        body: |
+          {
+            "my_dense_vector": [0.5, 10, 6],
+            "status" : "published"
+          }
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/2"
+        body: |
+          {
+            "my_dense_vector": [-0.5, 10, 10],
+            "status" : "published"
+          }
+  - do:
+      raw:
+        method: POST
+        path: "my-index-000001/_refresh"
+---
+"line_71":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "query": {
+              "script_score": {
+                "query" : {
+                  "bool" : {
+                    "filter" : {
+                      "term" : {
+                        "status" : "published"
+                      }
+                    }
+                  }
+                },
+                "script": {
+                  "source": "cosineSimilarity(params.query_vector, 'my_dense_vector') + 1.0",
+                  "params": {
+                    "query_vector": [4, 3.4, -0.2]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_110":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "query": {
+              "script_score": {
+                "query" : {
+                  "bool" : {
+                    "filter" : {
+                      "term" : {
+                        "status" : "published"
+                      }
+                    }
+                  }
+                },
+                "script": {
+                  "source": "\n          double value = dotProduct(params.query_vector, 'my_dense_vector');\n          return sigmoid(1, Math.E, -value);\n        ",
+                  "params": {
+                    "query_vector": [4, 3.4, -0.2]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_148":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "query": {
+              "script_score": {
+                "query" : {
+                  "bool" : {
+                    "filter" : {
+                      "term" : {
+                        "status" : "published"
+                      }
+                    }
+                  }
+                },
+                "script": {
+                  "source": "1 / (1 + l1norm(params.queryVector, 'my_dense_vector'))",
+                  "params": {
+                    "queryVector": [4, 3.4, -0.2]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_190":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "query": {
+              "script_score": {
+                "query" : {
+                  "bool" : {
+                    "filter" : {
+                      "term" : {
+                        "status" : "published"
+                      }
+                    }
+                  }
+                },
+                "script": {
+                  "source": "1 / (1 + l2norm(params.queryVector, 'my_dense_vector'))",
+                  "params": {
+                    "queryVector": [4, 3.4, -0.2]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_245":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "query": {
+              "script_score": {
+                "query" : {
+                  "bool" : {
+                    "filter" : {
+                      "term" : {
+                        "status" : "published"
+                      }
+                    }
+                  }
+                },
+                "script": {
+                  "source": "\n          float[] v = doc['my_dense_vector'].vectorValue;\n          float vm = doc['my_dense_vector'].magnitude;\n          float dotProduct = 0;\n          for (int i = 0; i < v.length; i++) {\n            dotProduct += v[i] * params.queryVector[i];\n          }\n          return dotProduct / (vm * (float) params.queryVectorMag);\n        ",
+                  "params": {
+                    "queryVector": [4, 3.4, -0.2],
+                    "queryVectorMag": 5.25357
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

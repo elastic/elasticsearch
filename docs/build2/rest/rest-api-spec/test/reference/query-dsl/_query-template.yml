@@ -1,0 +1,50 @@
+---
+"line_40":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason:  REMOVE THIS COMMENT.
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "sample": {
+                "foo": "baz",
+                "bar": true
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_107":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason:  REMOVE THIS COMMENT.
+  - do:
+      raw:
+        method: GET
+        path: "my_time_series_index/_search"
+        body: |
+          {
+            "query": {
+              "sample": {
+                "foo": "baz",
+                "bar": false
+              }
+            }
+          }
+  - is_false: _shards.failures

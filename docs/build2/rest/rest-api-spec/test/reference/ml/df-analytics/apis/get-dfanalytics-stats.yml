@@ -1,0 +1,71 @@
+---
+"line_533":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: Kibana sample data
+  - do:
+      raw:
+        method: GET
+        path: "_ml/data_frame/analytics/weblog-outliers/_stats"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "count" : 1,
+          "data_frame_analytics" : [
+            {
+              "id" : "weblog-outliers",
+              "state" : "stopped",
+              "progress" : [
+                {
+                  "phase" : "reindexing",
+                  "progress_percent" : 100
+                },
+                {
+                  "phase" : "loading_data",
+                  "progress_percent" : 100
+                },
+                {
+                  "phase" : "computing_outliers",
+                  "progress_percent" : 100
+                },
+                {
+                  "phase" : "writing_results",
+                  "progress_percent" : 100
+                }
+              ],
+              "data_counts" : {
+                "training_docs_count" : 1001,
+                "test_docs_count" : 0,
+                "skipped_docs_count" : 0
+              },
+              "memory_usage" : {
+                "timestamp" : 1626264770206,
+                "peak_usage_bytes" : 328011,
+                "status" : "ok"
+              },
+              "analysis_stats" : {
+                "outlier_detection_stats" : {
+                  "timestamp" : 1626264770206,
+                  "parameters" : {
+                    "n_neighbors" : 0,
+                    "method" : "ensemble",
+                    "compute_feature_influence" : true,
+                    "feature_influence_threshold" : 0.1,
+                    "outlier_fraction" : 0.05,
+                    "standardization_enabled" : true
+                  },
+                  "timing_stats" : {
+                    "elapsed_time" : 32
+                  }
+                }
+              }
+            }
+          ]
+        }

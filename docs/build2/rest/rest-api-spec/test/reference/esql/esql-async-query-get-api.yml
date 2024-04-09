@@ -1,0 +1,16 @@
+---
+"line_11":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason:  no access to query ID
+  - do:
+      raw:
+        method: GET
+        path: "_query/async/FkpMRkJGS1gzVDRlM3g4ZzMyRGlLbkEaTXlJZHdNT09TU2VTZVBoNDM3cFZMUToxMDM="
+  - is_false: _shards.failures

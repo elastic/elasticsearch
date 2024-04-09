@@ -1,0 +1,25 @@
+---
+"line_109":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: Kibana sample data
+  - do:
+      raw:
+        method: POST
+        path: "_ml/datafeeds/datafeed-low_request_rate/_start"
+        body: |
+          {
+            "start": "2019-04-07T18:22:16Z"
+          }
+  - match:
+      $body:
+        {
+          "started" : true,
+          "node" : "node-1"
+        }

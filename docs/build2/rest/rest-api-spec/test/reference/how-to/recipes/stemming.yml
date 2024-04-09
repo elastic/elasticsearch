@@ -1,0 +1,204 @@
+---
+"line_11":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "index"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "english_exact": {
+                    "tokenizer": "standard",
+                    "filter": [
+                      "lowercase"
+                    ]
+                  }
+                }
+              }
+            },
+            "mappings": {
+              "properties": {
+                "body": {
+                  "type": "text",
+                  "analyzer": "english",
+                  "fields": {
+                    "exact": {
+                      "type": "text",
+                      "analyzer": "english_exact"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "index/_doc/1"
+        body: |
+          {
+            "body": "Ski resort"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "index/_doc/2"
+        body: |
+          {
+            "body": "A pair of skis"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "index/_refresh"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "index/_search"
+        body: |
+          {
+            "query": {
+              "simple_query_string": {
+                "fields": [ "body" ],
+                "query": "ski"
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": "$body.took",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped" : 0,
+            "failed": 0
+          },
+          "hits": {
+            "total" : {
+                "value": 2,
+                "relation": "eq"
+            },
+            "max_score": 0.18232156,
+            "hits": [
+              {
+                "_index": "index",
+                "_id": "1",
+                "_score": 0.18232156,
+                "_source": {
+                  "body": "Ski resort"
+                }
+              },
+              {
+                "_index": "index",
+                "_id": "2",
+                "_score": 0.18232156,
+                "_source": {
+                  "body": "A pair of skis"
+                }
+              }
+            ]
+          }
+        }
+  - do:
+      raw:
+        method: GET
+        path: "index/_search"
+        body: |
+          {
+            "query": {
+              "simple_query_string": {
+                "fields": [ "body.exact" ],
+                "query": "ski"
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": "$body.took",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped" : 0,
+            "failed": 0
+          },
+          "hits": {
+            "total" : {
+                "value": 1,
+                "relation": "eq"
+            },
+            "max_score": 0.8025915,
+            "hits": [
+              {
+                "_index": "index",
+                "_id": "1",
+                "_score": 0.8025915,
+                "_source": {
+                  "body": "Ski resort"
+                }
+              }
+            ]
+          }
+        }
+  - do:
+      raw:
+        method: GET
+        path: "index/_search"
+        body: |
+          {
+            "query": {
+              "simple_query_string": {
+                "fields": [ "body" ],
+                "quote_field_suffix": ".exact",
+                "query": "\"ski\""
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": "$body.took",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped" : 0,
+            "failed": 0
+          },
+          "hits": {
+            "total" : {
+                "value": 1,
+                "relation": "eq"
+            },
+            "max_score": 0.8025915,
+            "hits": [
+              {
+                "_index": "index",
+                "_id": "1",
+                "_score": 0.8025915,
+                "_source": {
+                  "body": "Ski resort"
+                }
+              }
+            ]
+          }
+        }

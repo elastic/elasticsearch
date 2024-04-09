@@ -1,0 +1,60 @@
+---
+"line_62":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ilm/policy/my_policy"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "warm": {
+                  "min_age": "10d",
+                  "actions": {
+                    "forcemerge": {
+                      "max_num_segments": 1
+                    }
+                  }
+                },
+                "delete": {
+                  "min_age": "30d",
+                  "actions": {
+                    "delete": {}
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "settings": {
+              "index.lifecycle.name": "my_policy",
+              "index.number_of_replicas": 0
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_cluster/health"
+        wait_for_status: "green"
+        timeout: "10s"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_ilm/explain"
+        human: ""
+  - is_false: _shards.failures

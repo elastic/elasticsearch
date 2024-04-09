@@ -1,0 +1,21 @@
+---
+"line_43":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: todo
+  - do:
+      raw:
+        method: DELETE
+        path: "_ml/anomaly_detectors/farequote/model_snapshots/1491948163"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "acknowledged": true
+        }

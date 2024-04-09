@@ -1,0 +1,100 @@
+---
+"line_40":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TODO
+  - do:
+      raw:
+        method: POST
+        path: "_security/api_key"
+        body: |
+          {
+            "name": "my-restricted-api-key",
+            "expiration": "7d",
+            "role_descriptors": {
+              "my-restricted-role-descriptor": {
+                "indices": [
+                  {
+                    "names": ["website-product-search"],
+                    "privileges": ["read"]
+                  }
+                ],
+                "restriction":  {
+                  "workflows": ["search_application_query"]
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_128":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TODO
+  - do:
+      raw:
+        method: PUT
+        path: "_application/search_application/website-product-search"
+        body: |
+          {
+            "indices": [
+              "website-products"
+            ],
+            "template": {
+              "script": {
+                "source": {
+                  "query": {
+                    "term": {
+                      "{{field_name}}": "{{field_value}}"
+                    }
+                  },
+                  "aggs": {
+                    "color_facet": {
+                      "terms": {
+                        "field": "color",
+                        "size": "{{agg_size}}"
+                      }
+                    }
+                  }
+                },
+                "params": {
+                  "field_name": "product_name",
+                  "field_value": "hello world",
+                  "agg_size": 5
+                }
+              },
+              "dictionary": {
+                "properties": {
+                  "field_name": {
+                    "type": "string",
+                    "enum": ["name", "color", "description"]
+                  },
+                  "field_value": {
+                    "type": "string"
+                  },
+                  "agg_size": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10
+                  }
+                },
+                "required": [
+                  "field_name"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+  - is_false: _shards.failures

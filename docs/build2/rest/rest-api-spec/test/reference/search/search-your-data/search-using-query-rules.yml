@@ -1,0 +1,97 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+---
+"line_122":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_query_rules/my-ruleset"
+        body: |
+          {
+            "rules": [
+              {
+                "rule_id": "rule1",
+                "type": "pinned",
+                "criteria": [
+                  {
+                    "type": "fuzzy",
+                    "metadata": "query_string",
+                    "values": [ "puggles", "pugs" ]
+                  },
+                  {
+                    "type": "exact",
+                    "metadata": "user_country",
+                    "values": [ "us" ]
+                  }
+                ],
+                "actions": {
+                  "ids": [
+                    "id1",
+                    "id2"
+                  ]
+                }
+              },
+              {
+                "rule_id": "rule2",
+                "type": "pinned",
+                "criteria": [
+                  {
+                    "type": "contains",
+                    "metadata": "query_string",
+                    "values": [ "beagles" ]
+                  }
+                ],
+                "actions": {
+                  "docs": [
+                    {
+                      "_index": "my-index-000001",
+                      "_id": "id3"
+                    },
+                    {
+                      "_index": "my-index-000002",
+                      "_id": "id4"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "result": "created"
+        }
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "query": {
+              "rule_query": {
+                "organic": {
+                  "query_string": {
+                    "query": "puggles"
+                  }
+                },
+                "match_criteria": {
+                  "query_string": "puggles",
+                  "user_country": "us"
+                },
+                "ruleset_id": "my-ruleset"
+              }
+            }
+          }
+  - is_false: _shards.failures

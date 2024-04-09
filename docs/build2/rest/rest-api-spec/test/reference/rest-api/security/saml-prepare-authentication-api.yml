@@ -1,0 +1,36 @@
+---
+"line_79":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/saml/prepare"
+        body: |
+          {
+            "realm" : "saml1"
+          }
+  - is_false: _shards.failures
+---
+"line_90":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/saml/prepare"
+        body: |
+          {
+            "acs" : "https://kibana.org/api/security/saml/callback"
+          }
+  - is_false: _shards.failures

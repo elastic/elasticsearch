@@ -1,0 +1,229 @@
+---
+"line_70":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: No tasks to retrieve
+  - do:
+      raw:
+        method: GET
+        path: "_tasks"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_tasks"
+        nodes: "nodeId1,nodeId2"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_tasks"
+        nodes: "nodeId1,nodeId2"
+        actions: "cluster:*"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "nodes" : {
+            "oTUltX4IQMOUUVeiohTt8A" : {
+              "name" : "H5dfFeA",
+              "transport_address" : "127.0.0.1:9300",
+              "host" : "127.0.0.1",
+              "ip" : "127.0.0.1:9300",
+              "tasks" : {
+                "oTUltX4IQMOUUVeiohTt8A:124" : {
+                  "node" : "oTUltX4IQMOUUVeiohTt8A",
+                  "id" : 124,
+                  "type" : "direct",
+                  "action" : "cluster:monitor/tasks/lists[n]",
+                  "start_time_in_millis" : 1458585884904,
+                  "running_time_in_nanos" : 47402,
+                  "cancellable" : false,
+                  "parent_task_id" : "oTUltX4IQMOUUVeiohTt8A:123"
+                },
+                "oTUltX4IQMOUUVeiohTt8A:123" : {
+                  "node" : "oTUltX4IQMOUUVeiohTt8A",
+                  "id" : 123,
+                  "type" : "transport",
+                  "action" : "cluster:monitor/tasks/lists",
+                  "start_time_in_millis" : 1458585884904,
+                  "running_time_in_nanos" : 236042,
+                  "cancellable" : false
+                }
+              }
+            }
+          }
+        }
+---
+"line_124":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      catch: missing
+      raw:
+        method: GET
+        path: "_tasks/oTUltX4IQMOUUVeiohTt8A:124"
+  - is_false: _shards.failures
+---
+"line_134":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_tasks"
+        parent_task_id: "oTUltX4IQMOUUVeiohTt8A:123"
+  - is_false: _shards.failures
+---
+"line_149":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: No tasks to retrieve
+  - do:
+      raw:
+        method: GET
+        path: "_tasks"
+        actions: "*search"
+        detailed: ""
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "nodes" : {
+            "oTUltX4IQMOUUVeiohTt8A" : {
+              "name" : "H5dfFeA",
+              "transport_address" : "127.0.0.1:9300",
+              "host" : "127.0.0.1",
+              "ip" : "127.0.0.1:9300",
+              "tasks" : {
+                "oTUltX4IQMOUUVeiohTt8A:464" : {
+                  "node" : "oTUltX4IQMOUUVeiohTt8A",
+                  "id" : 464,
+                  "type" : "transport",
+                  "action" : "indices:data/read/search",
+                  "description" : "indices[test], types[test], search_type[QUERY_THEN_FETCH], source[{\"query\":...}]",
+                  "start_time_in_millis" : 1483478610008,
+                  "running_time_in_nanos" : 13991383,
+                  "cancellable" : true,
+                  "cancelled" : false
+                }
+              }
+            }
+          }
+        }
+---
+"line_213":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      catch: missing
+      raw:
+        method: GET
+        path: "_tasks/oTUltX4IQMOUUVeiohTt8A:12345"
+        wait_for_completion: "true"
+        timeout: "10s"
+  - is_false: _shards.failures
+---
+"line_222":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_tasks"
+        actions: "*reindex"
+        wait_for_completion: "true"
+        timeout: "10s"
+  - is_false: _shards.failures
+---
+"line_233":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_tasks/oTUltX4IQMOUUVeiohTt8A:12345/_cancel"
+  - is_false: _shards.failures
+---
+"line_243":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_tasks/_cancel"
+        nodes: "nodeId1,nodeId2"
+        actions: "*reindex"
+  - is_false: _shards.failures
+---
+"line_266":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_tasks"
+        group_by: "parents"
+  - is_false: _shards.failures
+---
+"line_273":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_tasks"
+        group_by: "none"
+  - is_false: _shards.failures

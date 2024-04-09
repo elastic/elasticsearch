@@ -1,0 +1,55 @@
+---
+"line_32":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index/"
+        body: |
+          {
+            "mappings": {
+              "runtime": {
+                "day_of_week": {
+                  "type": "keyword",
+                  "script": {
+                    "source":
+                    "emit(doc['@timestamp'].value.dayOfWeekEnum\n          .getDisplayName(TextStyle.FULL, Locale.ROOT))"
+                  }
+                }
+              },
+              "properties": {
+                "@timestamp": {"type": "date"}
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index/_search"
+        body: |
+          {
+            "runtime_mappings": {
+              "day_of_week": {
+                "type": "keyword",
+                "script": {
+                  "source":
+                  "emit(doc['@timestamp'].value.dayOfWeekEnum\n        .getDisplayName(TextStyle.FULL, Locale.ROOT))"
+                }
+              }
+            },
+            "aggs": {
+              "day_of_week": {
+                "terms": {
+                  "field": "day_of_week"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

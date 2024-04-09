@@ -1,0 +1,115 @@
+---
+"line_20":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer" : "standard",
+            "filter" : ["lowercase"],
+            "text" : "THE Quick FoX JUMPs"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens" : [
+            {
+              "token" : "the",
+              "start_offset" : 0,
+              "end_offset" : 3,
+              "type" : "<ALPHANUM>",
+              "position" : 0
+            },
+            {
+              "token" : "quick",
+              "start_offset" : 4,
+              "end_offset" : 9,
+              "type" : "<ALPHANUM>",
+              "position" : 1
+            },
+            {
+              "token" : "fox",
+              "start_offset" : 10,
+              "end_offset" : 13,
+              "type" : "<ALPHANUM>",
+              "position" : 2
+            },
+            {
+              "token" : "jumps",
+              "start_offset" : 14,
+              "end_offset" : 19,
+              "type" : "<ALPHANUM>",
+              "position" : 3
+            }
+          ]
+        }
+---
+"line_82":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "lowercase_example"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "whitespace_lowercase": {
+                    "tokenizer": "whitespace",
+                    "filter": [ "lowercase" ]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_131":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "custom_lowercase_example"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "greek_lowercase_example": {
+                    "type": "custom",
+                    "tokenizer": "standard",
+                    "filter": ["greek_lowercase"]
+                  }
+                },
+                "filter": {
+                  "greek_lowercase": {
+                    "type": "lowercase",
+                    "language": "greek"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

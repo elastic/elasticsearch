@@ -1,0 +1,249 @@
+---
+"line_46":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup user_hits
+
+  - do:
+        indices.create:
+          index: user_hits
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                user_id:
+                  type: keyword
+                timestamp:
+                  type: date
+  - do:
+        bulk:
+          index: user_hits
+          refresh: true
+          body: |
+            {"index":{}}
+            {"timestamp": "2019-01-01T13:00:00", "user_id": "1"}
+            {"index":{}}
+            {"timestamp": "2019-01-01T13:00:00", "user_id": "2"}
+            {"index":{}}
+            {"timestamp": "2019-01-02T13:00:00", "user_id": "1"}
+            {"index":{}}
+            {"timestamp": "2019-01-02T13:00:00", "user_id": "3"}
+            {"index":{}}
+            {"timestamp": "2019-01-03T13:00:00", "user_id": "1"}
+            {"index":{}}
+            {"timestamp": "2019-01-03T13:00:00", "user_id": "2"}
+            {"index":{}}
+            {"timestamp": "2019-01-03T13:00:00", "user_id": "4"}
+  - do:
+      raw:
+        method: GET
+        path: "user_hits/_search"
+        body: |
+          {
+            "size": 0,
+            "aggs": {
+              "users_per_day": {
+                "date_histogram": {
+                  "field": "timestamp",
+                  "calendar_interval": "day"
+                },
+                "aggs": {
+                  "distinct_users": {
+                    "cardinality": {
+                      "field": "user_id"
+                    }
+                  },
+                  "total_new_users": {
+                    "cumulative_cardinality": {
+                      "buckets_path": "distinct_users"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+           "took": $body.took,
+           "timed_out": false,
+           "_shards": $body._shards,
+           "hits": $body.hits,
+           "aggregations": {
+              "users_per_day": {
+                 "buckets": [
+                    {
+                       "key_as_string": "2019-01-01T00:00:00.000Z",
+                       "key": 1546300800000,
+                       "doc_count": 2,
+                       "distinct_users": {
+                          "value": 2
+                       },
+                       "total_new_users": {
+                          "value": 2
+                       }
+                    },
+                    {
+                       "key_as_string": "2019-01-02T00:00:00.000Z",
+                       "key": 1546387200000,
+                       "doc_count": 2,
+                       "distinct_users": {
+                          "value": 2
+                       },
+                       "total_new_users": {
+                          "value": 3
+                       }
+                    },
+                    {
+                       "key_as_string": "2019-01-03T00:00:00.000Z",
+                       "key": 1546473600000,
+                       "doc_count": 3,
+                       "distinct_users": {
+                          "value": 3
+                       },
+                       "total_new_users": {
+                          "value": 4
+                       }
+                    }
+                 ]
+              }
+           }
+        }
+---
+"line_145":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup user_hits
+
+  - do:
+        indices.create:
+          index: user_hits
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                user_id:
+                  type: keyword
+                timestamp:
+                  type: date
+  - do:
+        bulk:
+          index: user_hits
+          refresh: true
+          body: |
+            {"index":{}}
+            {"timestamp": "2019-01-01T13:00:00", "user_id": "1"}
+            {"index":{}}
+            {"timestamp": "2019-01-01T13:00:00", "user_id": "2"}
+            {"index":{}}
+            {"timestamp": "2019-01-02T13:00:00", "user_id": "1"}
+            {"index":{}}
+            {"timestamp": "2019-01-02T13:00:00", "user_id": "3"}
+            {"index":{}}
+            {"timestamp": "2019-01-03T13:00:00", "user_id": "1"}
+            {"index":{}}
+            {"timestamp": "2019-01-03T13:00:00", "user_id": "2"}
+            {"index":{}}
+            {"timestamp": "2019-01-03T13:00:00", "user_id": "4"}
+  - do:
+      raw:
+        method: GET
+        path: "user_hits/_search"
+        body: |
+          {
+            "size": 0,
+            "aggs": {
+              "users_per_day": {
+                "date_histogram": {
+                  "field": "timestamp",
+                  "calendar_interval": "day"
+                },
+                "aggs": {
+                  "distinct_users": {
+                    "cardinality": {
+                      "field": "user_id"
+                    }
+                  },
+                  "total_new_users": {
+                    "cumulative_cardinality": {
+                      "buckets_path": "distinct_users"
+                    }
+                  },
+                  "incremental_new_users": {
+                    "derivative": {
+                      "buckets_path": "total_new_users"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+           "took": $body.took,
+           "timed_out": false,
+           "_shards": $body._shards,
+           "hits": $body.hits,
+           "aggregations": {
+              "users_per_day": {
+                 "buckets": [
+                    {
+                       "key_as_string": "2019-01-01T00:00:00.000Z",
+                       "key": 1546300800000,
+                       "doc_count": 2,
+                       "distinct_users": {
+                          "value": 2
+                       },
+                       "total_new_users": {
+                          "value": 2
+                       }
+                    },
+                    {
+                       "key_as_string": "2019-01-02T00:00:00.000Z",
+                       "key": 1546387200000,
+                       "doc_count": 2,
+                       "distinct_users": {
+                          "value": 2
+                       },
+                       "total_new_users": {
+                          "value": 3
+                       },
+                       "incremental_new_users": {
+                          "value": 1.0
+                       }
+                    },
+                    {
+                       "key_as_string": "2019-01-03T00:00:00.000Z",
+                       "key": 1546473600000,
+                       "doc_count": 3,
+                       "distinct_users": {
+                          "value": 3
+                       },
+                       "total_new_users": {
+                          "value": 4
+                       },
+                       "incremental_new_users": {
+                          "value": 1.0
+                       }
+                    }
+                 ]
+              }
+           }
+        }

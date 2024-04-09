@@ -1,0 +1,45 @@
+---
+"line_105":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: doc tests run with only a single node
+  - do:
+      raw:
+        method: POST
+        path: "_internal/prevalidate_node_removal"
+        names: "node1,node2"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "is_safe": false,
+          "message": "removal of the following nodes might not be safe: [node2-id]",
+          "nodes": [
+            {
+              "id": "node1-id",
+              "name" : "node1",
+              "external_id" : "node1-externalId",
+              "result" : {
+                "is_safe": true,
+                "reason": "no_red_shards_on_node",
+                "message": ""
+              }
+            },
+            {
+              "id": "node2-id",
+              "name" : "node2",
+              "external_id" : "node2-externalId",
+              "result" : {
+                "is_safe": false,
+                "reason": "red_shards_on_node",
+                "message": "node contains copies of the following red shards: [[indexName][0]]"
+              }
+            }
+          ]
+        }

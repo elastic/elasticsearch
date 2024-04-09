@@ -1,0 +1,120 @@
+---
+"line_31":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: stopping ILM requires waiting
+  - do:
+      raw:
+        method: POST
+        path: "_ilm/stop"
+  - is_false: _shards.failures
+---
+"line_49":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_ilm/status"
+  - is_false: _shards.failures
+---
+"line_66":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: this can flake as we're not waiting for ILM to stop
+  - do:
+      raw:
+        method: POST
+        path: "_ilm/migrate_to_data_tiers"
+  - is_false: _shards.failures
+---
+"line_98":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_ilm/start"
+  - is_false: _shards.failures
+---
+"line_139":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: stopping ILM requires waiting
+  - do:
+      raw:
+        method: POST
+        path: "_ilm/stop"
+  - is_false: _shards.failures
+---
+"line_158":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_ilm/status"
+  - is_false: _shards.failures
+---
+"line_175":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: this can flake as we're not waiting for ILM to stop
+  - do:
+      raw:
+        method: POST
+        path: "_ilm/migrate_to_data_tiers"
+  - is_false: _shards.failures
+---
+"line_208":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_ilm/start"
+  - is_false: _shards.failures

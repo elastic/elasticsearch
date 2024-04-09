@@ -1,0 +1,107 @@
+---
+"line_26":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TODO
+  - do:
+      raw:
+        method: POST
+        path: "_security/role/remote-replication"
+        body: |
+          {
+            "cluster": [
+              "manage_ccr"
+            ],
+            "remote_indices": [
+              {
+                "clusters": [ "my_remote_cluster" ],
+                "names": [
+                  "leader-index"
+                ],
+                "privileges": [
+                  "cross_cluster_replication"
+                ]
+              }
+            ]
+          }
+  - is_false: _shards.failures
+---
+"line_53":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TODO
+  - do:
+      raw:
+        method: POST
+        path: "_security/user/cross-cluster-user"
+        body: |
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "remote-replication" ]
+          }
+  - is_false: _shards.failures
+---
+"line_71":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TODO
+  - do:
+      raw:
+        method: POST
+        path: "_security/role/remote-search"
+        body: |
+          {
+            "remote_indices": [
+              {
+                "clusters": [ "my_remote_cluster" ],
+                "names": [
+                  "target-index"
+                ],
+                "privileges": [
+                  "read",
+                  "read_cross_cluster",
+                  "view_index_metadata"
+                ]
+              }
+            ]
+          }
+  - is_false: _shards.failures
+---
+"line_98":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TODO
+  - do:
+      raw:
+        method: POST
+        path: "_security/user/cross-search-user"
+        body: |
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "remote-search" ]
+          }
+  - is_false: _shards.failures

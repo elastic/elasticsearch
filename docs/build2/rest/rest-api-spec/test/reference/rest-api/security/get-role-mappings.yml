@@ -1,0 +1,42 @@
+---
+"line_64":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup role_mapping
+
+  - do:
+        security.put_role_mapping:
+         name: "mapping1"
+         body:  >
+            {
+               "enabled": true,
+               "roles": [ "user" ],
+               "rules": { "field": { "username": "*" } }
+            }
+
+  - do:
+      raw:
+        method: GET
+        path: "_security/role_mapping/mapping1"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "mapping1": {
+            "enabled": true,
+            "roles": [
+              "user"
+            ],
+            "rules": {
+              "field": {
+                "username": "*"
+              }
+            },
+            "metadata": {}
+          }
+        }

@@ -1,0 +1,175 @@
+---
+"line_12":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup my_index
+
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                http:
+                  properties:
+                    request:
+                      properties:
+                        method:
+                          type: keyword
+                message:
+                  type: text
+                  fields:
+                    keyword:
+                      type: keyword
+                user:
+                  properties:
+                    id:
+                      type: keyword
+                      doc_values: true
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            { "index":{"_id": "0"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "127.0.0.1" }, "user": { "id": "kimchy" } }
+            { "index":{"_id": "1"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "2"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "3"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "4"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_segments"
+  - is_false: _shards.failures
+---
+"line_105":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "test"
+        body: |
+          {"settings":{"number_of_shards":1, "number_of_replicas": 0}}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "test/_doc"
+        refresh: ""
+        body: |
+          {"test": "test"}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "test/_segments"
+  - is_false: _shards.failures
+---
+"line_114":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "test1"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "test2"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "test1,test2/_segments"
+  - is_false: _shards.failures
+---
+"line_123":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "test"
+        body: |
+          {"settings":{"number_of_shards":1, "number_of_replicas": 0}}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "test/_doc"
+        refresh: ""
+        body: |
+          {"test": "test"}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_segments"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "_shards": $body._shards,
+          "indices": {
+            "test": {
+              "shards": {
+                "0": [
+                  {
+                    "routing": {
+                      "state": "STARTED",
+                      "primary": true,
+                      "node": $body.$_path
+                    },
+                    "num_committed_segments": $body.$_path,
+                    "num_search_segments": $body.$_path,
+                    "segments": {
+                      "_0": {
+                        "generation": $body.$_path,
+                        "num_docs": $body.$_path,
+                        "deleted_docs": $body.$_path,
+                        "size_in_bytes": $body.$_path,
+                        "committed": false,
+                        "search": true,
+                        "version": "$body.$_path",
+                        "compound": true,
+                        "attributes": $body.$_path
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }

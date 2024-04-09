@@ -1,0 +1,472 @@
+---
+"line_79":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup host
+
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http, transport ]
+  - set: {nodes.$master.http.publish_address: host}
+  - set: {nodes.$master.transport.publish_address: transport_host}
+
+  - do:
+      raw:
+        method: PUT
+        path: "_cluster/settings"
+        body: |
+          {
+            "persistent": {
+              "cluster": {
+                "remote": {
+                  "cluster_one": {
+                    "seeds": [
+                      "${transport_host}"
+                    ],
+                    "skip_unavailable": true
+                  },
+                  "cluster_two": {
+                    "seeds": [
+                      "${transport_host}"
+                    ],
+                    "skip_unavailable": false
+                  },
+                  "cluster_three": {
+                    "seeds": [
+                      "${transport_host}"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+# Named setup my_index
+
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                http:
+                  properties:
+                    request:
+                      properties:
+                        method:
+                          type: keyword
+                message:
+                  type: text
+                  fields:
+                    keyword:
+                      type: keyword
+                user:
+                  properties:
+                    id:
+                      type: keyword
+                      doc_values: true
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            { "index":{"_id": "0"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "127.0.0.1" }, "user": { "id": "kimchy" } }
+            { "index":{"_id": "1"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "2"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "3"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "4"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+  - do:
+      raw:
+        method: GET
+        path: "cluster_one:my-index-000001/_search"
+        body: |
+          {
+            "size": 1,
+            "query": {
+              "match": {
+                "user.id": "kimchy"
+              }
+            },
+            "_source": ["user.id", "message", "http.response.status_code"]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": "$body.took",
+          "timed_out": false,
+          "_shards": {
+            "total": "$body._shards.total",
+            "successful": "$body._shards.successful",
+            "failed": 0,
+            "skipped": "$body._shards.skipped"
+          },
+          "_clusters": {
+            "total": 1,
+            "successful": 1,
+            "skipped": "$body._shards.skipped",
+            "running": 0,
+            "partial": 0,
+            "failed": 0,
+            "details": {
+              "cluster_one": {
+                "status": "successful",
+                "indices": "my-index-000001",
+                "took": "$body._clusters.details.cluster_one.took",
+                "timed_out": false,
+                "_shards": {
+                  "total": "$body._shards.total",
+                  "successful": "$body._shards.successful",
+                  "skipped": "$body._shards.skipped",
+                  "failed": 0
+                }
+              }
+            }
+          },
+          "hits": {
+            "total" : {
+                "value": 1,
+                "relation": "eq"
+            },
+            "max_score": "$body.hits.max_score",
+            "hits": [
+              {
+                "_index": "cluster_one:my-index-000001",
+                "_id": "0",
+                "_score": "$body.hits.hits.0._score",
+                "_source": {
+                  "user": {
+                    "id": "kimchy"
+                  },
+                  "message": "GET /search HTTP/1.1 200 1070000",
+                  "http": {
+                    "response":
+                      {
+                        "status_code": 200
+                      }
+                  }
+                }
+              }
+            ]
+          }
+        }
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001/_search"
+        body: |
+          {
+            "query": {
+              "match": {
+                "user.id": "kimchy"
+              }
+            },
+            "_source": ["user.id", "message", "http.response.status_code"]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": "$body.took",
+          "timed_out": false,
+          "num_reduce_phases": 4,
+          "_shards": {
+            "total": "$body._shards.total",
+            "successful": "$body._shards.successful",
+            "failed": 0,
+            "skipped": 0
+          },
+          "_clusters": {
+            "total": 3,
+            "successful": 3,
+            "skipped": 0,
+            "running": 0,
+            "partial": 0,
+            "failed": 0,
+            "details": {
+              "(local)": {
+                "status": "successful",
+                "indices": "my-index-000001",
+                "took": "$body._clusters.details.(local).took",
+                "timed_out": false,
+                "_shards": {
+                  "total": "$body._clusters.details.(local)._shards.total",
+                  "successful": "$body._clusters.details.(local)._shards.successful",
+                  "skipped": 0,
+                  "failed": 0
+                }
+              },
+              "cluster_one": {
+                "status": "successful",
+                "indices": "my-index-000001",
+                "took": "$body._clusters.details.cluster_one.took",
+                "timed_out": false,
+                "_shards": {
+                  "total": "$body._clusters.details.cluster_one._shards.total",
+                  "successful": "$body._clusters.details.cluster_one._shards.successful",
+                  "skipped": 0,
+                  "failed": 0
+                }
+              },
+              "cluster_two": {
+                "status": "successful",
+                "indices": "my-index-000001",
+                "took": "$body._clusters.details.cluster_two.took",
+                "timed_out": false,
+                "_shards": {
+                  "total": "$body._clusters.details.cluster_two._shards.total",
+                  "successful": "$body._clusters.details.cluster_two._shards.successful",
+                  "skipped": 0,
+                  "failed": 0
+                }
+              }
+            }
+          },
+          "hits": {
+            "total" : {
+                "value": 3,
+                "relation": "eq"
+            },
+            "max_score": "$body.hits.max_score",
+            "hits": [
+              {
+                "_index": "my-index-000001",
+                "_id": "0",
+                "_score": "$body.hits.hits.1._score",
+                "_source": {
+                  "user": {
+                    "id": "kimchy"
+                  },
+                  "message": "GET /search HTTP/1.1 200 1070000",
+                  "http": {
+                    "response":
+                      {
+                        "status_code": 200
+                      }
+                  }
+                }
+              },
+              {
+                "_index": "cluster_one:my-index-000001",
+                "_id": "0",
+                "_score": "$body.hits.hits.0._score",
+                "_source": {
+                  "user": {
+                    "id": "kimchy"
+                  },
+                  "message": "GET /search HTTP/1.1 200 1070000",
+                  "http": {
+                    "response":
+                      {
+                        "status_code": 200
+                      }
+                  }
+                }
+              },
+              {
+                "_index": "cluster_two:my-index-000001",
+                "_id": "0",
+                "_score": "$body.hits.hits.0._score",
+                "_source": {
+                  "user": {
+                    "id": "kimchy"
+                  },
+                  "message": "GET /search HTTP/1.1 200 1070000",
+                  "http": {
+                    "response":
+                      {
+                        "status_code": 200
+                      }
+                  }
+                }
+              }
+            ]
+          }
+        }
+  - do:
+      raw:
+        method: POST
+        path: "my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001/_async_search"
+        ccs_minimize_roundtrips: "true"
+        wait_for_completion_timeout: "100ms"
+        keep_on_completion: "true"
+        body: |
+          {
+            "query": {
+              "match": {
+                "user.id": "kimchy"
+              }
+            },
+            "_source": ["user.id", "message", "http.response.status_code"]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_async_search/${body.id}"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_async_search/${body.id}"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "id": "$body.id",
+          "is_partial": false,
+          "is_running": false,
+          "start_time_in_millis": $body.start_time_in_millis,
+          "expiration_time_in_millis": $body.expiration_time_in_millis,
+          "completion_time_in_millis": $body.completion_time_in_millis,
+          "response": {
+            "took": "$body.response.took",
+            "timed_out": false,
+            "num_reduce_phases": 4,
+            "_shards": {
+              "total": $body.response._shards.total,
+              "successful": $body.response._shards.successful,
+              "skipped": 0,
+              "failed": 0
+            },
+            "_clusters": {
+              "total": $body.$_path,
+              "successful": $body.response._clusters.successful,
+              "skipped": 0,
+              "running": 0,
+              "partial": 0,
+              "failed": 0,
+              "details": {
+                "(local)": {
+                  "status": "successful",
+                  "indices": "my-index-000001",
+                  "took": "$body.$_path",
+                  "timed_out": false,
+                  "_shards": {
+                    "total": $body.$_path,
+                    "successful": $body.$_path,
+                    "skipped": 0,
+                    "failed": 0
+                  }
+                },
+                "cluster_one": {
+                  "status": "successful",
+                  "indices": "my-index-000001",
+                  "took": "$body.$_path",
+                  "timed_out": false,
+                  "_shards": {
+                    "total": $body.$_path,
+                    "successful": $body.$_path,
+                    "skipped": 0,
+                    "failed": 0
+                  }
+                },
+                "cluster_two": {
+                  "status": "successful",
+                  "indices": "my-index-000001",
+                  "took": "$body.$_path",
+                  "timed_out": false,
+                  "_shards": {
+                    "total": $body.$_path,
+                    "successful": $body.$_path,
+                    "skipped": 0,
+                    "failed": 0
+                  }
+                }
+              }
+            },
+            "hits": {
+              "total": {
+                "value": "$body.response.hits.total.value",
+                "relation": "$body.response.hits.total.relation"
+              },
+              "max_score": "$body.response.hits.max_score",
+              "hits": $body.response.hits.hits
+            }
+          }
+        }
+  - do:
+      raw:
+        method: GET
+        path: "_async_search/status/${body.id}"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_async_search/${body.id}"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "my-index-000001,cluster*:my-index-000001,-cluster_three:*/_async_search"
+        body: |
+          {
+            "query": {
+              "match": {
+                "user.id": "kimchy"
+              }
+            },
+            "_source": ["user.id", "message", "http.response.status_code"]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "my-index-000001,cluster*:my-index-*,cluster_three:-my-index-000001/_async_search"
+        body: |
+          {
+            "query": {
+              "match": {
+                "user.id": "kimchy"
+              }
+            },
+            "_source": ["user.id", "message", "http.response.status_code"]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "my-index-000001,cluster_one:my-index-000001,cluster_two:my-index-000001/_async_search"
+        ccs_minimize_roundtrips: "false"
+        wait_for_completion_timeout: "2s"
+        keep_on_completion: "true"
+        body: |
+          {
+            "query": {
+              "match": {
+                "user.id": "kimchy"
+              }
+            },
+            "_source": ["user.id", "message", "http.response.status_code"]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_cluster/settings"
+        body: |
+          {
+            "persistent": {
+              "cluster.remote.cluster_two.skip_unavailable": true
+            }
+          }
+  - is_false: _shards.failures

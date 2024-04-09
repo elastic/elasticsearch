@@ -13,7 +13,7 @@ import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 
 apply plugin: 'elasticsearch.docs-test2'
 apply plugin: 'elasticsearch.rest-resources'
-//
+
 ext.docsFileTree = fileTree(projectDir) {
   include '**/*.asciidoc'
   // That is where the snippets go, not where they come from!
@@ -34,32 +34,32 @@ ext.docsFileTree = fileTree(projectDir) {
     exclude 'reference/cat/plugins.asciidoc'
   }
 }
-//
-///* List of files that have snippets that will not work until platinum tests can occur ... */
-//tasks.named("buildRestTests").configure {
-//  expectedUnconvertedCandidates = [
-//          'reference/ml/anomaly-detection/ml-configuring-transform.asciidoc',
-//          'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
-//          'reference/ml/anomaly-detection/apis/get-bucket.asciidoc',
-//          'reference/ml/anomaly-detection/apis/get-category.asciidoc',
-//          'reference/ml/anomaly-detection/apis/get-influencer.asciidoc',
-//          'reference/ml/anomaly-detection/apis/get-job-stats.asciidoc',
-//          'reference/ml/anomaly-detection/apis/get-job.asciidoc',
-//          'reference/ml/anomaly-detection/apis/get-overall-buckets.asciidoc',
-//          'reference/ml/anomaly-detection/apis/get-record.asciidoc',
-//          'reference/ml/anomaly-detection/apis/get-snapshot.asciidoc',
-//          'reference/ml/anomaly-detection/apis/post-data.asciidoc',
-//          'reference/ml/anomaly-detection/apis/revert-snapshot.asciidoc',
-//          'reference/ml/anomaly-detection/apis/update-snapshot.asciidoc',
-//          'reference/ml/anomaly-detection/apis/update-job.asciidoc',
-//          'reference/security/authentication/user-cache.asciidoc',
-//          'reference/security/authorization/run-as-privilege.asciidoc',
-//          'reference/security/ccs-clients-integrations/http.asciidoc',
-//          'reference/rest-api/watcher/put-watch.asciidoc',
-//          'reference/rest-api/watcher/stats.asciidoc',
-//          'reference/watcher/example-watches/watching-time-series-data.asciidoc'
-//  ]
-//}
+
+/* List of files that have snippets that will not work until platinum tests can occur ... */
+tasks.named("buildRestTests").configure {
+  expectedUnconvertedCandidates = [
+          'reference/ml/anomaly-detection/ml-configuring-transform.asciidoc',
+          'reference/ml/anomaly-detection/apis/delete-calendar-event.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-bucket.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-category.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-influencer.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-job-stats.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-job.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-overall-buckets.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-record.asciidoc',
+          'reference/ml/anomaly-detection/apis/get-snapshot.asciidoc',
+          'reference/ml/anomaly-detection/apis/post-data.asciidoc',
+          'reference/ml/anomaly-detection/apis/revert-snapshot.asciidoc',
+          'reference/ml/anomaly-detection/apis/update-snapshot.asciidoc',
+          'reference/ml/anomaly-detection/apis/update-job.asciidoc',
+          'reference/security/authentication/user-cache.asciidoc',
+          'reference/security/authorization/run-as-privilege.asciidoc',
+          'reference/security/ccs-clients-integrations/http.asciidoc',
+          'reference/rest-api/watcher/put-watch.asciidoc',
+          'reference/rest-api/watcher/stats.asciidoc',
+          'reference/watcher/example-watches/watching-time-series-data.asciidoc'
+  ]
+}
 
 restResources {
   restApi {
@@ -176,1808 +176,1808 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/*.mmdb'
 }
 
-//tasks.named("buildRestTests").configure {
-//  docs = docsFileTree
-//}
+tasks.named("buildRestTests").configure {
+  docs = docsFileTree
+}
 
 tasks.named("listSnippets").configure {
   docs = docsFileTree
 }
-//
-//tasks.named("listConsoleCandidates").configure {
-//  docs = docsFileTree
-//}
 
-//Closure setupMyIndex = { String name, int count ->
-//  tasks.named("buildRestTests").configure { buildRestTests ->
-//    buildRestTests.setups[name] = '''
-//  - do:
-//        indices.create:
-//          index: my-index-000001
-//          body:
-//            settings:
-//              number_of_shards: 1
-//              number_of_replicas: 1
-//            mappings:
-//              properties:
-//                "@timestamp":
-//                  type: date
-//                http:
-//                  properties:
-//                    request:
-//                      properties:
-//                        method:
-//                          type: keyword
-//                message:
-//                  type: text
-//                  fields:
-//                    keyword:
-//                      type: keyword
-//                user:
-//                  properties:
-//                    id:
-//                      type: keyword
-//                      doc_values: true
-//  - do:
-//        bulk:
-//          index: my-index-000001
-//          refresh: true
-//          body: |'''
-//    for (int i = 0; i < count; i++) {
-//      String ip, user_id
-//      if (i == 0) {
-//        ip = '127.0.0.1'
-//        user_id = 'kimchy'
-//      } else {
-//        ip = '10.42.42.42'
-//        user_id = 'elkbee'
-//      }
-//      buildRestTests.setups[name] += """
-//            { "index":{"_id": "$i"} }
-//            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "$ip" }, "user": { "id": "$user_id" } }"""
-//    }
-//  }
-//}
-//setupMyIndex('my_index', 5)
-//setupMyIndex('my_index_big', 120)
-//setupMyIndex('my_index_huge', 1200)
-//
-//tasks.named("buildRestTests").configure {buildRestTests ->
-//
-//setups['my_data_stream_template'] = '''
-//  - do:
-//      indices.put_index_template:
-//        name: my-data-stream-template
-//        body: |
-//          {
-//            "index_patterns": [ "my-data-stream*" ],
-//            "data_stream": { },
-//            "priority": 500
-//          }
-//'''
-//
-//setups['my_data_stream'] = setups['my_data_stream_template'] + '''
-//  - do:
-//      raw:
-//        method: PUT
-//        path: '_data_stream/my-data-stream'
-//'''
-//
-//teardowns['data_stream_cleanup'] = '''
-//  - do:
-//      raw:
-//        method: DELETE
-//        path: '_data_stream/*'
-//  - is_true: acknowledged
-//  - do:
-//      raw:
-//        method: DELETE
-//        path: '_index_template/*'
-//  - is_true: acknowledged
-//'''
-//
-//// Used for TSDS examples
-//setups['tsds_template'] = '''
-//  - do:
-//      indices.put_index_template:
-//        name: my-weather-sensor-index-template
-//        body: |
-//          {
-//            "index_patterns": [ "metrics-weather_sensors-*" ],
-//            "data_stream": { },
-//            "template": {
-//              "settings": {
-//                "index.mode": "time_series",
-//                "index.routing_path": [ "sensor_id", "location" ]
-//              },
-//              "mappings": {
-//                "properties": {
-//                  "sensor_id": {
-//                    "type": "keyword",
-//                    "time_series_dimension": true
-//                  },
-//                  "location": {
-//                    "type": "keyword",
-//                    "time_series_dimension": true
-//                  }
-//                }
-//              }
-//            },
-//            "priority": 500
-//          }
-//'''
-//
-//setups['tsds'] = setups['tsds_template'] + '''
-//  - do:
-//      raw:
-//        method: PUT
-//        path: '_data_stream/metrics-weather_sensors-dev'
-//'''
-//
-//teardowns['tsds_cleanup'] = '''
-//  - do:
-//      raw:
-//        method: DELETE
-//        path: '_data_stream/*'
-//  - is_true: acknowledged
-//  - do:
-//      raw:
-//        method: DELETE
-//        path: '_index_template/*'
-//  - is_true: acknowledged
-//'''
-//
-//// Used for several full-text search and agg examples
-//buildRestTests.setups['messages'] = '''
-//  - do:
-//        indices.create:
-//          index: my-index-000001
-//          body:
-//            settings:
-//              number_of_shards: 1
-//              number_of_replicas: 1
-//  - do:
-//        bulk:
-//          index: my-index-000001
-//          refresh: true
-//          body: |
-//            {"index":{"_id": "0"}}
-//            {"message": "trying out Elasticsearch", "context": "foo"}
-//            {"index":{"_id": "1"}}
-//            {"message": "some message with the number 1", "context": "bar"}
-//            {"index":{"_id": "2"}}
-//            {"message": "some message with the number 2", "context": "bar"}
-//            {"index":{"_id": "3"}}
-//            {"message": "some message with the number 3", "context": "bar"}
-//            {"index":{"_id": "4"}}
-//            {"message": "some message with the number 4", "context": "bar"}
-//'''
-//
-//// Used for EQL
-//setups['sec_logs'] = setups['my_data_stream'] + '''
-//  - do:
-//        bulk:
-//          index: my-data-stream
-//          refresh: true
-//          body: |
-//            {"create":{}}
-//            {"@timestamp": "2099-12-06T11:04:05.000Z", "event": { "category": "process", "id": "edwCRnyD", "sequence": 1 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" }}
-//            {"create":{}}
-//            {"@timestamp": "2099-12-06T11:04:07.000Z", "event": { "category": "file", "id": "dGCHwoeS", "sequence": 2 }, "file": { "accessed": "2099-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\\\Windows\\\\System32\\\\cmd.exe", "type": "file", "size": 16384 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" }}
-//            {"create":{}}
-//            {"@timestamp": "2099-12-07T11:06:07.000Z", "event": { "category": "process", "id": "cMyt5SZ2", "sequence": 3 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" } }
-//            {"create":{}}
-//            {"@timestamp": "2099-12-07T11:07:09.000Z", "event": { "category": "process", "id": "aR3NWVOs", "sequence": 4 }, "process": { "pid": 2012, "name": "regsvr32.exe", "command_line": "regsvr32.exe  /s /u /i:https://...RegSvr32.sct scrobj.dll", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }}
-//            {"create":{}}
-//            {"@timestamp": "2099-12-07T11:07:10.000Z", "event": { "category": "file", "id": "tZ1NWVOs", "sequence": 5 }, "process": { "pid": 2012, "name": "regsvr32.exe", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }, "file": { "path": "C:\\\\Windows\\\\System32\\\\scrobj.dll", "name": "scrobj.dll" }}
-//            {"create":{}}
-//            {"@timestamp": "2099-12-07T11:07:10.000Z", "event": { "category": "process", "id": "GTSmSqgz0U", "sequence": 6, "type": "termination" }, "process": { "pid": 2012, "name": "regsvr32.exe", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }}'''
-//
-//buildRestTests.setups['host'] = '''
-//  # Fetch the http host. We use the host of the master because we know there will always be a master.
-//  - do:
-//      cluster.state: {}
-//  - set: { master_node: master }
-//  - do:
-//      nodes.info:
-//        metric: [ http, transport ]
-//  - set: {nodes.$master.http.publish_address: host}
-//  - set: {nodes.$master.transport.publish_address: transport_host}
-//'''
-//
-//buildRestTests.setups['node'] = '''
-//  # Fetch the node name. We use the host of the master because we know there will always be a master.
-//  - do:
-//      cluster.state: {}
-//  - is_true: master_node
-//  - set: { master_node: node_name }
-//'''
-//
-//// Used by scripted metric docs
-//buildRestTests.setups['ledger'] = '''
-//  - do:
-//        indices.create:
-//          index: ledger
-//          body:
-//            settings:
-//              number_of_shards: 2
-//              number_of_replicas: 1
-//            mappings:
-//              properties:
-//                type:
-//                  type: keyword
-//                amount:
-//                  type: double
-//  - do:
-//        bulk:
-//          index: ledger
-//          refresh: true
-//          body: |
-//            {"index":{}}
-//            {"date": "2015/01/01 00:00:00", "amount": 200, "type": "sale", "description": "something"}
-//            {"index":{}}
-//            {"date": "2015/01/01 00:00:00", "amount": 10, "type": "expense", "description": "another thing"}
-//            {"index":{}}
-//            {"date": "2015/01/01 00:00:00", "amount": 150, "type": "sale", "description": "blah"}
-//            {"index":{}}
-//            {"date": "2015/01/01 00:00:00", "amount": 50, "type": "expense", "description": "cost of blah"}
-//            {"index":{}}
-//            {"date": "2015/01/01 00:00:00", "amount": 50, "type": "expense", "description": "advertisement"}'''
-//
-//// Used by aggregation docs
-//buildRestTests.setups['sales'] = '''
-//  - do:
-//        indices.create:
-//          index: sales
-//          body:
-//            settings:
-//              number_of_shards: 2
-//              number_of_replicas: 1
-//            mappings:
-//              properties:
-//                type:
-//                  type: keyword
-//  - do:
-//        bulk:
-//          index: sales
-//          refresh: true
-//          body: |
-//            {"index":{}}
-//            {"date": "2015/01/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "hat"}
-//            {"index":{}}
-//            {"date": "2015/01/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "t-shirt"}
-//            {"index":{}}
-//            {"date": "2015/01/01 00:00:00", "price": 150, "promoted": true, "rating": 5, "type": "bag"}
-//            {"index":{}}
-//            {"date": "2015/02/01 00:00:00", "price": 50, "promoted": false, "rating": 1, "type": "hat"}
-//            {"index":{}}
-//            {"date": "2015/02/01 00:00:00", "price": 10, "promoted": true, "rating": 4, "type": "t-shirt"}
-//            {"index":{}}
-//            {"date": "2015/03/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "hat"}
-//            {"index":{}}
-//            {"date": "2015/03/01 00:00:00", "price": 175, "promoted": false, "rating": 2, "type": "t-shirt"}'''
-//
-//// Used by cumulative cardinality aggregation docs
-//buildRestTests.setups['user_hits'] = '''
-//  - do:
-//        indices.create:
-//          index: user_hits
-//          body:
-//            settings:
-//              number_of_shards: 1
-//              number_of_replicas: 0
-//            mappings:
-//              properties:
-//                user_id:
-//                  type: keyword
-//                timestamp:
-//                  type: date
-//  - do:
-//        bulk:
-//          index: user_hits
-//          refresh: true
-//          body: |
-//            {"index":{}}
-//            {"timestamp": "2019-01-01T13:00:00", "user_id": "1"}
-//            {"index":{}}
-//            {"timestamp": "2019-01-01T13:00:00", "user_id": "2"}
-//            {"index":{}}
-//            {"timestamp": "2019-01-02T13:00:00", "user_id": "1"}
-//            {"index":{}}
-//            {"timestamp": "2019-01-02T13:00:00", "user_id": "3"}
-//            {"index":{}}
-//            {"timestamp": "2019-01-03T13:00:00", "user_id": "1"}
-//            {"index":{}}
-//            {"timestamp": "2019-01-03T13:00:00", "user_id": "2"}
-//            {"index":{}}
-//            {"timestamp": "2019-01-03T13:00:00", "user_id": "4"}'''
-//
-//// Used by sampler and diversified-sampler aggregation docs
-//buildRestTests.setups['stackoverflow'] = '''
-//  - do:
-//        indices.create:
-//          index: stackoverflow
-//          body:
-//            settings:
-//              number_of_shards: 1
-//              number_of_replicas: 1
-//            mappings:
-//              properties:
-//                author:
-//                  type: keyword
-//                tags:
-//                  type: keyword
-//  - do:
-//        bulk:
-//          index: stackoverflow
-//          refresh: true
-//          body: |'''
-//
-//// Make Kibana strongly connected to elasticsearch and logstash
-//// Make Kibana rarer (and therefore higher-ranking) than JavaScript
-//// Make JavaScript strongly connected to jquery and angular
-//// Make Cabana strongly connected to elasticsearch but only as a result of a single author
-//
-//for (int i = 0; i < 150; i++) {
-//  buildRestTests.setups['stackoverflow'] += """
-//            {"index":{}}
-//            {"author": "very_relevant_$i", "tags": ["elasticsearch", "kibana"]}"""
-//}
-//for (int i = 0; i < 50; i++) {
-//  buildRestTests.setups['stackoverflow'] += """
-//            {"index":{}}
-//            {"author": "very_relevant_$i", "tags": ["logstash", "kibana"]}"""
-//}
-//for (int i = 0; i < 200; i++) {
-//  buildRestTests.setups['stackoverflow'] += """
-//            {"index":{}}
-//            {"author": "partially_relevant_$i", "tags": ["javascript", "jquery"]}"""
-//}
-//for (int i = 0; i < 200; i++) {
-//  buildRestTests.setups['stackoverflow'] += """
-//            {"index":{}}
-//            {"author": "partially_relevant_$i", "tags": ["javascript", "angular"]}"""
-//}
-//for (int i = 0; i < 50; i++) {
-//  buildRestTests.setups['stackoverflow'] += """
-//            {"index":{}}
-//            {"author": "noisy author", "tags": ["elasticsearch", "cabana"]}"""
-//}
-//buildRestTests.setups['stackoverflow'] += """
-//"""
-//// Used by significant_text aggregation docs
-//buildRestTests.setups['news'] = '''
-//  - do:
-//        indices.create:
-//          index: news
-//          body:
-//            settings:
-//              number_of_shards: 1
-//              number_of_replicas: 1
-//            mappings:
-//              properties:
-//                source:
-//                  type: keyword
-//                content:
-//                  type: text
-//                  copy_to: custom_all
-//                custom_all:
-//                  type: text
-//  - do:
-//        bulk:
-//          index: news
-//          refresh: true
-//          body: |'''
-//
-//// Make h5n1 strongly connected to bird flu
-//
-//for (int i = 0; i < 100; i++) {
-//  buildRestTests.setups['news'] += """
-//            {"index":{}}
-//            {"source": "very_relevant_$i", "content": "bird flu h5n1"}"""
-//}
-//for (int i = 0; i < 100; i++) {
-//  buildRestTests.setups['news'] += """
-//            {"index":{}}
-//            {"source": "filler_$i", "content": "bird dupFiller "}"""
-//}
-//for (int i = 0; i < 100; i++) {
-//  buildRestTests.setups['news'] += """
-//            {"index":{}}
-//            {"source": "filler_$i", "content": "flu dupFiller "}"""
-//}
-//for (int i = 0; i < 20; i++) {
-//  buildRestTests.setups['news'] += """
-//            {"index":{}}
-//            {"source": "partially_relevant_$i", "content": "elasticsearch dupFiller dupFiller dupFiller dupFiller pozmantier"}"""
-//}
-//for (int i = 0; i < 10; i++) {
-//  buildRestTests.setups['news'] += """
-//            {"index":{}}
-//            {"source": "partially_relevant_$i", "content": "elasticsearch logstash kibana"}"""
-//}
-//buildRestTests.setups['news'] += """
-//"""
-//
-//// Used by some aggregations
-//buildRestTests.setups['exams'] = '''
-//  - do:
-//        indices.create:
-//          index: exams
-//          body:
-//            settings:
-//              number_of_shards: 1
-//              number_of_replicas: 1
-//            mappings:
-//              properties:
-//                grade:
-//                  type: byte
-//  - do:
-//        bulk:
-//          index: exams
-//          refresh: true
-//          body: |
-//            {"index":{}}
-//            {"grade": 100, "weight": 2}
-//            {"index":{}}
-//            {"grade": 50, "weight": 3}'''
-//
-//
-//buildRestTests.setups['stored_scripted_metric_script'] = '''
-//  - do:
-//      put_script:
-//        id: "my_init_script"
-//        body: { "script": { "lang": "painless", "source": "state.transactions = []" } }
-//  - match: { acknowledged: true }
-//
-//  - do:
-//      put_script:
-//        id: "my_map_script"
-//        body: { "script": { "lang": "painless", "source": "state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)" } }
-//  - match: { acknowledged: true }
-//
-//  - do:
-//      put_script:
-//        id: "my_combine_script"
-//        body: { "script": { "lang": "painless", "source": "double profit = 0;for (t in state.transactions) { profit += t; } return profit" } }
-//  - match: { acknowledged: true }
-//
-//  - do:
-//      put_script:
-//        id: "my_reduce_script"
-//        body: { "script": { "lang": "painless", "source": "double profit = 0;for (a in states) { profit += a; } return profit" } }
-//  - match: { acknowledged: true }
-//'''
-//
-//// Used by analyze api
-//buildRestTests.setups['analyze_sample'] = '''
-//  - do:
-//        indices.create:
-//          index: analyze_sample
-//          body:
-//            settings:
-//              number_of_shards: 1
-//              number_of_replicas: 0
-//              analysis:
-//                normalizer:
-//                  my_normalizer:
-//                    type: custom
-//                    filter: [lowercase]
-//            mappings:
-//              properties:
-//                obj1.field1:
-//                  type: text'''
-//
-//// Used by percentile/percentile-rank aggregations
-//buildRestTests.setups['latency'] = '''
-//  - do:
-//        indices.create:
-//          index: latency
-//          body:
-//            settings:
-//              number_of_shards: 1
-//              number_of_replicas: 1
-//            mappings:
-//              properties:
-//                load_time:
-//                  type: long
-//  - do:
-//        bulk:
-//          index: latency
-//          refresh: true
-//          body: |'''
-//
-//
-//for (int i = 0; i < 100; i++) {
-//  def value = i
-//  if (i % 10) {
-//    value = i * 10
-//  }
-//  buildRestTests.setups['latency'] += """
-//            {"index":{}}
-//            {"load_time": "$value"}"""
-//}
-//
-//// Used by t_test aggregations
-//buildRestTests.setups['node_upgrade'] = '''
-//  - do:
-//        indices.create:
-//          index: node_upgrade
-//          body:
-//            settings:
-//              number_of_shards: 1
-//              number_of_replicas: 1
-//            mappings:
-//              properties:
-//                group:
-//                  type: keyword
-//                startup_time_before:
-//                  type: long
-//                startup_time_after:
-//                  type: long
-//  - do:
-//        bulk:
-//          index: node_upgrade
-//          refresh: true
-//          body: |
-//            {"index":{}}
-//            {"group": "A", "startup_time_before": 102, "startup_time_after": 89}
-//            {"index":{}}
-//            {"group": "A", "startup_time_before": 99, "startup_time_after": 93}
-//            {"index":{}}
-//            {"group": "A", "startup_time_before": 111, "startup_time_after": 72}
-//            {"index":{}}
-//            {"group": "B", "startup_time_before": 97, "startup_time_after": 98}
-//            {"index":{}}
-//            {"group": "B", "startup_time_before": 101, "startup_time_after": 102}
-//            {"index":{}}
-//            {"group": "B", "startup_time_before": 99, "startup_time_after": 98}'''
-//
-//// Used by iprange agg
-//buildRestTests.setups['iprange'] = '''
-//  - do:
-//        indices.create:
-//          index: ip_addresses
-//          body:
-//            settings:
-//              number_of_shards: 1
-//              number_of_replicas: 1
-//            mappings:
-//              properties:
-//                ip:
-//                  type: ip
-//  - do:
-//        bulk:
-//          index: ip_addresses
-//          refresh: true
-//          body: |'''
-//
-//
-//for (int i = 0; i < 255; i++) {
-//  buildRestTests.setups['iprange'] += """
-//            {"index":{}}
-//            {"ip": "10.0.0.$i"}"""
-//}
-//for (int i = 0; i < 5; i++) {
-//  buildRestTests.setups['iprange'] += """
-//            {"index":{}}
-//            {"ip": "9.0.0.$i"}"""
-//  buildRestTests.setups['iprange'] += """
-//            {"index":{}}
-//            {"ip": "11.0.0.$i"}"""
-//  buildRestTests.setups['iprange'] += """
-//            {"index":{}}
-//            {"ip": "12.0.0.$i"}"""
-//}
-//// Used by SQL because it looks SQL-ish
-//buildRestTests.setups['library'] = '''
-//  - do:
-//        indices.create:
-//          index: library
-//          body:
-//            settings:
-//              number_of_shards: 1
-//              number_of_replicas: 1
-//            mappings:
-//                properties:
-//                  name:
-//                    type: text
-//                    fields:
-//                      keyword:
-//                        type: keyword
-//                  author:
-//                    type: text
-//                    fields:
-//                      keyword:
-//                        type: keyword
-//                  release_date:
-//                    type: date
-//                  page_count:
-//                    type: short
-//  - do:
-//        bulk:
-//          index: library
-//          refresh: true
-//          body: |
-//            {"index":{"_id": "Leviathan Wakes"}}
-//            {"name": "Leviathan Wakes", "author": "James S.A. Corey", "release_date": "2011-06-02", "page_count": 561}
-//            {"index":{"_id": "Hyperion"}}
-//            {"name": "Hyperion", "author": "Dan Simmons", "release_date": "1989-05-26", "page_count": 482}
-//            {"index":{"_id": "Dune"}}
-//            {"name": "Dune", "author": "Frank Herbert", "release_date": "1965-06-01", "page_count": 604}
-//            {"index":{"_id": "Dune Messiah"}}
-//            {"name": "Dune Messiah", "author": "Frank Herbert", "release_date": "1969-10-15", "page_count": 331}
-//            {"index":{"_id": "Children of Dune"}}
-//            {"name": "Children of Dune", "author": "Frank Herbert", "release_date": "1976-04-21", "page_count": 408}
-//            {"index":{"_id": "God Emperor of Dune"}}
-//            {"name": "God Emperor of Dune", "author": "Frank Herbert", "release_date": "1981-05-28", "page_count": 454}
-//            {"index":{"_id": "Consider Phlebas"}}
-//            {"name": "Consider Phlebas", "author": "Iain M. Banks", "release_date": "1987-04-23", "page_count": 471}
-//            {"index":{"_id": "Pandora's Star"}}
-//            {"name": "Pandora's Star", "author": "Peter F. Hamilton", "release_date": "2004-03-02", "page_count": 768}
-//            {"index":{"_id": "Revelation Space"}}
-//            {"name": "Revelation Space", "author": "Alastair Reynolds", "release_date": "2000-03-15", "page_count": 585}
-//            {"index":{"_id": "A Fire Upon the Deep"}}
-//            {"name": "A Fire Upon the Deep", "author": "Vernor Vinge", "release_date": "1992-06-01", "page_count": 613}
-//            {"index":{"_id": "Ender's Game"}}
-//            {"name": "Ender's Game", "author": "Orson Scott Card", "release_date": "1985-06-01", "page_count": 324}
-//            {"index":{"_id": "1984"}}
-//            {"name": "1984", "author": "George Orwell", "release_date": "1985-06-01", "page_count": 328}
-//            {"index":{"_id": "Fahrenheit 451"}}
-//            {"name": "Fahrenheit 451", "author": "Ray Bradbury", "release_date": "1953-10-15", "page_count": 227}
-//            {"index":{"_id": "Brave New World"}}
-//            {"name": "Brave New World", "author": "Aldous Huxley", "release_date": "1932-06-01", "page_count": 268}
-//            {"index":{"_id": "Foundation"}}
-//            {"name": "Foundation", "author": "Isaac Asimov", "release_date": "1951-06-01", "page_count": 224}
-//            {"index":{"_id": "The Giver"}}
-//            {"name": "The Giver", "author": "Lois Lowry", "release_date": "1993-04-26", "page_count": 208}
-//            {"index":{"_id": "Slaughterhouse-Five"}}
-//            {"name": "Slaughterhouse-Five", "author": "Kurt Vonnegut", "release_date": "1969-06-01", "page_count": 275}
-//            {"index":{"_id": "The Hitchhiker's Guide to the Galaxy"}}
-//            {"name": "The Hitchhiker's Guide to the Galaxy", "author": "Douglas Adams", "release_date": "1979-10-12", "page_count": 180}
-//            {"index":{"_id": "Snow Crash"}}
-//            {"name": "Snow Crash", "author": "Neal Stephenson", "release_date": "1992-06-01", "page_count": 470}
-//            {"index":{"_id": "Neuromancer"}}
-//            {"name": "Neuromancer", "author": "William Gibson", "release_date": "1984-07-01", "page_count": 271}
-//            {"index":{"_id": "The Handmaid's Tale"}}
-//            {"name": "The Handmaid's Tale", "author": "Margaret Atwood", "release_date": "1985-06-01", "page_count": 311}
-//            {"index":{"_id": "Starship Troopers"}}
-//            {"name": "Starship Troopers", "author": "Robert A. Heinlein", "release_date": "1959-12-01", "page_count": 335}
-//            {"index":{"_id": "The Left Hand of Darkness"}}
-//            {"name": "The Left Hand of Darkness", "author": "Ursula K. Le Guin", "release_date": "1969-06-01", "page_count": 304}
-//            {"index":{"_id": "The Moon is a Harsh Mistress"}}
-//            {"name": "The Moon is a Harsh Mistress", "author": "Robert A. Heinlein", "release_date": "1966-04-01", "page_count": 288}
-//
-//'''
-//buildRestTests.setups['sensor_rollup_job'] = '''
-//  - do:
-//      indices.create:
-//        index: sensor-1
-//        body:
-//          settings:
-//            number_of_shards: 1
-//            number_of_replicas: 0
-//          mappings:
-//            properties:
-//              timestamp:
-//                type: date
-//              temperature:
-//                type: long
-//              voltage:
-//                type: float
-//              node:
-//                type: keyword
-//  - do:
-//      raw:
-//        method: PUT
-//        path: _rollup/job/sensor
-//        body:  >
-//            {
-//                "index_pattern": "sensor-*",
-//                "rollup_index": "sensor_rollup",
-//                "cron": "*/30 * * * * ?",
-//                "page_size" :1000,
-//                "groups" : {
-//                  "date_histogram": {
-//                    "field": "timestamp",
-//                    "fixed_interval": "1h",
-//                    "delay": "7d"
-//                  },
-//                  "terms": {
-//                    "fields": ["node"]
-//                  }
-//                },
-//                "metrics": [
-//                    {
-//                        "field": "temperature",
-//                        "metrics": ["min", "max", "sum"]
-//                    },
-//                    {
-//                        "field": "voltage",
-//                        "metrics": ["avg"]
-//                    }
-//                ]
-//            }
-//'''
-//buildRestTests.setups['sensor_started_rollup_job'] = '''
-//  - do:
-//      indices.create:
-//        index: sensor-1
-//        body:
-//          settings:
-//            number_of_shards: 1
-//            number_of_replicas: 0
-//          mappings:
-//            properties:
-//              timestamp:
-//                type: date
-//              temperature:
-//                type: long
-//              voltage:
-//                type: float
-//              node:
-//                type: keyword
-//
-//  - do:
-//      bulk:
-//        index: sensor-1
-//        refresh: true
-//        body: |
-//          {"index":{}}
-//          {"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a"}
-//          {"index":{}}
-//          {"timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b"}
-//          {"index":{}}
-//          {"timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a"}
-//          {"index":{}}
-//          {"timestamp": 1516470094000, "temperature": 198, "voltage": 5.6, "node": "b"}
-//          {"index":{}}
-//          {"timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c"}
-//          {"index":{}}
-//          {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
-//
-//  - do:
-//      raw:
-//        method: PUT
-//        path: _rollup/job/sensor
-//        body:  >
-//            {
-//                "index_pattern": "sensor-*",
-//                "rollup_index": "sensor_rollup",
-//                "cron": "* * * * * ?",
-//                "page_size" :1000,
-//                "groups" : {
-//                  "date_histogram": {
-//                    "field": "timestamp",
-//                    "fixed_interval": "1h",
-//                    "delay": "7d"
-//                  },
-//                  "terms": {
-//                    "fields": ["node"]
-//                  }
-//                },
-//                "metrics": [
-//                    {
-//                        "field": "temperature",
-//                        "metrics": ["min", "max", "sum"]
-//                    },
-//                    {
-//                        "field": "voltage",
-//                        "metrics": ["avg"]
-//                    }
-//                ]
-//            }
-//  - do:
-//      raw:
-//        method: POST
-//        path: _rollup/job/sensor/_start
-//'''
-//
-//buildRestTests.setups['sensor_index'] = '''
-//  - do:
-//      indices.create:
-//        index: sensor-1
-//        body:
-//          settings:
-//            number_of_shards: 1
-//            number_of_replicas: 0
-//          mappings:
-//            properties:
-//              timestamp:
-//                type: date
-//              temperature:
-//                type: long
-//              voltage:
-//                type: float
-//              node:
-//                type: keyword
-//              load:
-//                type: double
-//              net_in:
-//                type: long
-//              net_out:
-//                type: long
-//              hostname:
-//                type: keyword
-//              datacenter:
-//                type: keyword
-//'''
-//
-//buildRestTests.setups['sensor_prefab_data'] = '''
-//  - do:
-//      indices.create:
-//        index: sensor-1
-//        body:
-//          settings:
-//            number_of_shards: 1
-//            number_of_replicas: 0
-//          mappings:
-//            properties:
-//              timestamp:
-//                type: date
-//              temperature:
-//                type: long
-//              voltage:
-//                type: float
-//              node:
-//                type: keyword
-//  - do:
-//      indices.create:
-//        index: sensor_rollup
-//        body:
-//          settings:
-//            number_of_shards: 1
-//            number_of_replicas: 0
-//          mappings:
-//            properties:
-//              node.terms.value:
-//                type: keyword
-//              temperature.sum.value:
-//                type: double
-//              temperature.max.value:
-//                type: double
-//              temperature.min.value:
-//                type: double
-//              timestamp.date_histogram.time_zone:
-//                type: keyword
-//              timestamp.date_histogram.interval:
-//                type: keyword
-//              timestamp.date_histogram.timestamp:
-//                type: date
-//              timestamp.date_histogram._count:
-//                type: long
-//              voltage.avg.value:
-//                type: double
-//              voltage.avg._count:
-//                type: long
-//              _rollup.id:
-//                type: keyword
-//              _rollup.version:
-//                type: long
-//            _meta:
-//              _rollup:
-//                sensor:
-//                  cron: "* * * * * ?"
-//                  rollup_index: "sensor_rollup"
-//                  index_pattern: "sensor-*"
-//                  timeout: "20s"
-//                  page_size: 1000
-//                  groups:
-//                    date_histogram:
-//                      delay: "7d"
-//                      field: "timestamp"
-//                      fixed_interval: "60m"
-//                      time_zone: "UTC"
-//                    terms:
-//                      fields:
-//                        - "node"
-//                  id: sensor
-//                  metrics:
-//                    - field: "temperature"
-//                      metrics:
-//                        - min
-//                        - max
-//                        - sum
-//                    - field: "voltage"
-//                      metrics:
-//                        - avg
-//
-//  - do:
-//      bulk:
-//        index: sensor_rollup
-//        refresh: true
-//        body: |
-//          {"index":{}}
-//          {"node.terms.value":"b","temperature.sum.value":201.0,"temperature.max.value":201.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":201.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":5.800000190734863,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516640400000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
-//          {"index":{}}
-//          {"node.terms.value":"c","temperature.sum.value":200.0,"temperature.max.value":200.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":200.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":4.199999809265137,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516381200000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
-//          {"index":{}}
-//          {"node.terms.value":"a","temperature.sum.value":202.0,"temperature.max.value":202.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":202.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":5.099999904632568,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516554000000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
-//          {"index":{}}
-//          {"node.terms.value":"a","temperature.sum.value":200.0,"temperature.max.value":200.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":200.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":5.199999809265137,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516726800000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
-//          {"index":{}}
-//          {"node.terms.value":"b","temperature.sum.value":198.0,"temperature.max.value":198.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":198.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":5.599999904632568,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516467600000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
-//          {"index":{}}
-//          {"node.terms.value":"c","temperature.sum.value":202.0,"temperature.max.value":202.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":202.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":4.0,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516294800000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
-//
-//'''
-//buildRestTests.setups['sample_job'] = '''
-//  - do:
-//      ml.put_job:
-//        job_id: "sample_job"
-//        body:  >
-//          {
-//            "description" : "Very basic job",
-//            "analysis_config" : {
-//              "bucket_span":"10m",
-//              "detectors" :[
-//              {
-//                "function": "count"
-//              }
-//            ]},
-//            "data_description" : {
-//              "time_field":"timestamp",
-//              "time_format": "epoch_ms"
-//            }
-//          }
-//'''
-//buildRestTests.setups['farequote_index'] = '''
-//  - do:
-//        indices.create:
-//          index: farequote
-//          body:
-//            settings:
-//              number_of_shards: 1
-//              number_of_replicas: 0
-//            mappings:
-//              metric:
-//                properties:
-//                  time:
-//                    type: date
-//                  responsetime:
-//                    type: float
-//                  airline:
-//                     type: keyword
-//                  doc_count:
-//                     type: integer
-//'''
-//buildRestTests.setups['farequote_data'] = buildRestTests.setups['farequote_index'] + '''
-//  - do:
-//        bulk:
-//          index: farequote
-//          refresh: true
-//          body: |
-//            {"index": {"_id":"1"}}
-//            {"airline":"JZA","responsetime":990.4628,"time":"2016-02-07T00:00:00+0000", "doc_count": 5}
-//            {"index": {"_id":"2"}}
-//            {"airline":"JBU","responsetime":877.5927,"time":"2016-02-07T00:00:00+0000", "doc_count": 23}
-//            {"index": {"_id":"3"}}
-//            {"airline":"KLM","responsetime":1355.4812,"time":"2016-02-07T00:00:00+0000", "doc_count": 42}
-//'''
-//buildRestTests.setups['farequote_job'] = buildRestTests.setups['farequote_data'] + '''
-//  - do:
-//      ml.put_job:
-//        job_id: "farequote"
-//        body:  >
-//          {
-//            "analysis_config": {
-//              "bucket_span": "60m",
-//              "detectors": [{
-//                "function": "mean",
-//                "field_name": "responsetime",
-//                "by_field_name": "airline"
-//              }],
-//            "summary_count_field_name": "doc_count"
-//            },
-//            "data_description": {
-//              "time_field": "time"
-//            }
-//          }
-//'''
-//buildRestTests.setups['farequote_datafeed'] = buildRestTests.setups['farequote_job'] + '''
-//  - do:
-//      ml.put_datafeed:
-//        datafeed_id: "datafeed-farequote"
-//        body:  >
-//          {
-//          "job_id":"farequote",
-//          "indexes":"farequote"
-//          }
-//'''
-//buildRestTests.setups['categorize_text'] = '''
-//  - do:
-//        indices.create:
-//          index: log-messages
-//          body:
-//            settings:
-//              number_of_shards: 1
-//              number_of_replicas: 0
-//            mappings:
-//              properties:
-//                time:
-//                  type: date
-//                message:
-//                  type: text
-//
-//  - do:
-//        bulk:
-//          index: log-messages
-//          refresh: true
-//          body: |
-//            {"index": {"_id":"1"}}
-//            {"time":"2016-02-07T00:01:00+0000", "message": "2016-02-07T00:00:00+0000 Node 3 shutting down"}
-//            {"index": {"_id":"2"}}
-//            {"time":"2016-02-07T00:02:00+0000", "message": "2016-02-07T00:00:00+0000 Node 5 starting up"}
-//            {"index": {"_id":"3"}}
-//            {"time":"2016-02-07T00:03:00+0000", "message": "2016-02-07T00:00:00+0000 Node 4 shutting down"}
-//            {"index": {"_id":"4"}}
-//            {"time":"2016-02-08T00:01:00+0000", "message": "2016-02-08T00:00:00+0000 Node 5 shutting down"}
-//            {"index": {"_id":"5"}}
-//            {"time":"2016-02-08T00:02:00+0000", "message": "2016-02-08T00:00:00+0000 User foo_325 logging on"}
-//            {"index": {"_id":"6"}}
-//            {"time":"2016-02-08T00:04:00+0000", "message": "2016-02-08T00:00:00+0000 User foo_864 logged off"}
-//'''
-//buildRestTests.setups['server_metrics_index'] = '''
-//  - do:
-//        indices.create:
-//          index: server-metrics
-//          body:
-//            settings:
-//              number_of_shards: 1
-//              number_of_replicas: 0
-//            mappings:
-//              properties:
-//                timestamp:
-//                  type: date
-//                total:
-//                  type: long
-//'''
-//buildRestTests.setups['server_metrics_data'] = buildRestTests.setups['server_metrics_index'] + '''
-//  - do:
-//        bulk:
-//          index: server-metrics
-//          refresh: true
-//          body: |
-//            {"index": {"_id":"1177"}}
-//            {"timestamp":"2017-03-23T13:00:00","total":40476}
-//            {"index": {"_id":"1178"}}
-//            {"timestamp":"2017-03-23T13:00:00","total":15287}
-//            {"index": {"_id":"1179"}}
-//            {"timestamp":"2017-03-23T13:00:00","total":-776}
-//            {"index": {"_id":"1180"}}
-//            {"timestamp":"2017-03-23T13:00:00","total":11366}
-//            {"index": {"_id":"1181"}}
-//            {"timestamp":"2017-03-23T13:00:00","total":3606}
-//            {"index": {"_id":"1182"}}
-//            {"timestamp":"2017-03-23T13:00:00","total":19006}
-//            {"index": {"_id":"1183"}}
-//            {"timestamp":"2017-03-23T13:00:00","total":38613}
-//            {"index": {"_id":"1184"}}
-//            {"timestamp":"2017-03-23T13:00:00","total":19516}
-//            {"index": {"_id":"1185"}}
-//            {"timestamp":"2017-03-23T13:00:00","total":-258}
-//            {"index": {"_id":"1186"}}
-//            {"timestamp":"2017-03-23T13:00:00","total":9551}
-//            {"index": {"_id":"1187"}}
-//            {"timestamp":"2017-03-23T13:00:00","total":11217}
-//            {"index": {"_id":"1188"}}
-//            {"timestamp":"2017-03-23T13:00:00","total":22557}
-//            {"index": {"_id":"1189"}}
-//            {"timestamp":"2017-03-23T13:00:00","total":40508}
-//            {"index": {"_id":"1190"}}
-//            {"timestamp":"2017-03-23T13:00:00","total":11887}
-//            {"index": {"_id":"1191"}}
-//            {"timestamp":"2017-03-23T13:00:00","total":31659}
-//'''
-//buildRestTests.setups['server_metrics_job'] = buildRestTests.setups['server_metrics_data'] + '''
-//  - do:
-//      ml.put_job:
-//        job_id: "total-requests"
-//        body:  >
-//          {
-//            "description" : "Total sum of requests",
-//            "analysis_config" : {
-//              "bucket_span":"10m",
-//              "detectors" :[
-//              {
-//                "detector_description": "Sum of total",
-//                "function": "sum",
-//                "field_name": "total"
-//              }
-//            ]},
-//            "data_description" : {
-//              "time_field":"timestamp",
-//              "time_format": "epoch_ms"
-//            }
-//          }
-//'''
-//buildRestTests.setups['server_metrics_job-raw'] = buildRestTests.setups['server_metrics_data'] + '''
-//  - do:
-//      raw:
-//        method: PUT
-//        path: _ml/anomaly_detectors/total-requests
-//        body:  >
-//          {
-//            "description" : "Total sum of requests",
-//            "analysis_config" : {
-//              "bucket_span":"10m",
-//              "detectors" :[
-//              {
-//                "detector_description": "Sum of total",
-//                "function": "sum",
-//                "field_name": "total"
-//              }
-//            ]},
-//            "data_description" : {
-//              "time_field":"timestamp",
-//              "time_format": "epoch_ms"
-//            }
-//          }
-//'''
-//buildRestTests.setups['server_metrics_datafeed'] = buildRestTests.setups['server_metrics_job'] + '''
-//  - do:
-//      ml.put_datafeed:
-//        datafeed_id: "datafeed-total-requests"
-//        body:  >
-//          {
-//          "job_id":"total-requests",
-//          "indexes":"server-metrics"
-//          }
-//'''
-//buildRestTests.setups['server_metrics_datafeed-raw'] = buildRestTests.setups['server_metrics_job-raw'] + '''
-//  - do:
-//      raw:
-//        method: PUT
-//        path: _ml/datafeeds/datafeed-total-requests
-//        body:  >
-//          {
-//          "job_id":"total-requests",
-//          "indexes":"server-metrics"
-//          }
-//'''
-//buildRestTests.setups['server_metrics_openjob'] = buildRestTests.setups['server_metrics_datafeed'] + '''
-//  - do:
-//      ml.open_job:
-//        job_id: "total-requests"
-//'''
-//buildRestTests.setups['server_metrics_openjob-raw'] = buildRestTests.setups['server_metrics_datafeed-raw'] + '''
-//  - do:
-//      raw:
-//        method: POST
-//        path: _ml/anomaly_detectors/total-requests/_open
-//'''
-//buildRestTests.setups['server_metrics_startdf'] = buildRestTests.setups['server_metrics_openjob'] + '''
-//  - do:
-//      ml.start_datafeed:
-//        datafeed_id: "datafeed-total-requests"
-//'''
-//buildRestTests.setups['calendar_outages'] = '''
-//  - do:
-//        ml.put_calendar:
-//          calendar_id: "planned-outages"
-//'''
-//buildRestTests.setups['calendar_outages_addevent'] = buildRestTests.setups['calendar_outages'] + '''
-//  - do:
-//        ml.post_calendar_events:
-//          calendar_id: "planned-outages"
-//          body: >
-//            { "description": "event 1", "start_time": "2017-12-01T00:00:00Z", "end_time": "2017-12-02T00:00:00Z", "calendar_id": "planned-outages" }
-//
-//
-//'''
-//buildRestTests.setups['calendar_outages_openjob'] = buildRestTests.setups['server_metrics_openjob'] + '''
-//  - do:
-//       ml.put_calendar:
-//         calendar_id: "planned-outages"
-//'''
-//buildRestTests.setups['calendar_outages_addjob'] = buildRestTests.setups['server_metrics_openjob'] + '''
-//  - do:
-//       ml.put_calendar:
-//         calendar_id: "planned-outages"
-//         body:  >
-//           {
-//           "job_ids": ["total-requests"]
-//           }
-//'''
-//setups['calendar_outages_addevent'] = setups['calendar_outages_addjob'] + '''
-//  - do:
-//       ml.post_calendar_events:
-//         calendar_id: "planned-outages"
-//         body:  >
-//           { "events" : [
-//           { "description": "event 1", "start_time": "1513641600000", "end_time": "1513728000000"},
-//           { "description": "event 2", "start_time": "1513814400000", "end_time": "1513900800000"},
-//           { "description": "event 3", "start_time": "1514160000000", "end_time": "1514246400000"}
-//           ]}
-//'''
-//
-//// used by median absolute deviation aggregation
-//setups['reviews'] = '''
-//  - do:
-//        indices.create:
-//          index: reviews
-//          body:
-//            settings:
-//              number_of_shards: 1
-//              number_of_replicas: 0
-//            mappings:
-//              properties:
-//                product:
-//                  type: keyword
-//                rating:
-//                  type: long
-//  - do:
-//        bulk:
-//          index: reviews
-//          refresh: true
-//          body: |
-//            {"index": {"_id": "1"}}
-//            {"product": "widget-foo", "rating": 1}
-//            {"index": {"_id": "2"}}
-//            {"product": "widget-foo", "rating": 5}
-//'''
-//setups['remote_cluster'] = setups['host'] + '''
-//  - do:
-//      cluster.put_settings:
-//        body:
-//          persistent:
-//            cluster.remote.remote_cluster.seeds: $transport_host
-//'''
-//
-//
-//setups['remote_cluster_and_leader_index'] = setups['remote_cluster'] + '''
-//  - do:
-//      indices.create:
-//        index: leader_index
-//        body:
-//          settings:
-//            index.number_of_replicas: 0
-//            index.number_of_shards: 1
-//            index.soft_deletes.enabled: true
-//'''
-//
-//setups['remote_cluster_and_leader_index_and_follower_index'] = setups['remote_cluster_and_leader_index'] + '''
-//  - do:
-//      raw:
-//        method: PUT
-//        path: 'follower_index/_ccr/follow'
-//        wait_for_active_shards: 1
-//        body: |
-//          {
-//            "remote_cluster" : "remote_cluster",
-//            "leader_index" : "leader_index"
-//          }
-//  - is_true: follow_index_created
-//  - is_true: follow_index_shards_acked
-//  - is_true: index_following_started
-//'''
-//
-//teardowns['pause_follow'] = '''
-//  - do:
-//      raw:
-//        method: POST
-//        path: 'follower_index/_ccr/pause_follow'
-//  - is_true: acknowledged
-//'''
-//
-//setups['seats'] = '''
-//  - do:
-//        indices.create:
-//          index: seats
-//          body:
-//            settings:
-//              number_of_shards: 1
-//              number_of_replicas: 0
-//            mappings:
-//              properties:
-//                theatre:
-//                  type: keyword
-//                play:
-//                  type: keyword
-//                actors:
-//                  type: keyword
-//                date:
-//                  type: keyword
-//                time:
-//                  type: keyword
-//                cost:
-//                  type: long
-//                row:
-//                  type: long
-//                number:
-//                  type: long
-//                sold:
-//                  type: boolean
-//                datetime:
-//                  type: date
-//
-//  - do:
-//      raw:
-//        method: PUT
-//        path: "_ingest/pipeline/seats"
-//        body: |
-//          {
-//            "description": "update datetime for seats",
-//            "processors": [
-//              {
-//                "script": {
-//                  "source": "String[] dateSplit = ctx.date.splitOnToken('-'); String year = dateSplit[0].trim(); String month = dateSplit[1].trim(); if (month.length() == 1) { month = '0' + month; } String day = dateSplit[2].trim(); if (day.length() == 1) { day = '0' + day; } boolean pm = ctx.time.substring(ctx.time.length() - 2).equals('PM'); String[] timeSplit = ctx.time.substring(0, ctx.time.length() - 2).splitOnToken(':'); int hours = Integer.parseInt(timeSplit[0].trim()); int minutes = Integer.parseInt(timeSplit[1].trim()); if (pm) { hours += 12; } String dts = year + '-' + month + '-' + day + 'T' + (hours < 10 ? '0' + hours : '' + hours) + ':' + (minutes < 10 ? '0' + minutes : '' + minutes) + ':00+08:00'; ZonedDateTime dt = ZonedDateTime.parse(dts, DateTimeFormatter.ISO_OFFSET_DATE_TIME); ctx.datetime = dt.getLong(ChronoField.INSTANT_SECONDS)*1000L;"
-//                }
-//              }
-//            ]
-//          }
-//  - do:
-//        bulk:
-//          index: seats
-//          pipeline: seats
-//          refresh: true
-//          body: |
-//            {"index":{"_id": "1"}}
-//            {"theatre": "Skyline", "play": "Rent", "actors": ["James Holland", "Krissy Smith", "Joe Muir", "Ryan Earns"], "date": "2021-4-1", "time": "3:00PM", "cost": 37, "row": 1, "number": 7, "sold": false}
-//            {"index":{"_id": "2"}}
-//            {"theatre": "Graye", "play": "Rent", "actors": ["Dave Christmas"], "date": "2021-4-1", "time": "3:00PM", "cost": 30, "row": 3, "number": 5, "sold": false}
-//            {"index":{"_id": "3"}}
-//            {"theatre": "Graye", "play": "Rented", "actors": ["Dave Christmas"], "date": "2021-4-1", "time": "3:00PM", "cost": 33, "row": 2, "number": 6, "sold": false}
-//            {"index":{"_id": "4"}}
-//            {"theatre": "Skyline", "play": "Rented", "actors": ["James Holland", "Krissy Smith", "Joe Muir", "Ryan Earns"], "date": "2021-4-1", "time": "3:00PM", "cost": 20, "row": 5, "number": 2, "sold": false}
-//            {"index":{"_id": "5"}}
-//            {"theatre": "Down Port", "play": "Pick It Up", "actors": ["Joel Madigan", "Jessica Brown", "Baz Knight", "Jo Hangum", "Rachel Grass", "Phoebe Miller"], "date": "2018-4-2", "time": "8:00PM", "cost": 27.5, "row": 3, "number": 2, "sold": false}
-//            {"index":{"_id": "6"}}
-//            {"theatre": "Down Port", "play": "Harriot", "actors": ["Phoebe Miller", "Sarah Notch", "Brayden Green", "Joshua Iller", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue", "Mike Candlestick", "Jacey Bell"], "date": "2018-8-7", "time": "8:00PM", "cost": 30.0, "row": 1, "number": 10, "sold": false}
-//            {"index":{"_id": "7"}}
-//            {"theatre": "Skyline", "play": "Auntie Jo", "actors": ["Jo Hangum", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue"], "date": "2018-10-2", "time": "5:40PM", "cost": 22.5, "row": 7, "number": 10, "sold": false}
-//            {"index":{"_id": "8"}}
-//            {"theatre": "Skyline", "play": "Test Run", "actors": ["Joe Muir", "Ryan Earns", "Joel Madigan", "Jessica Brown"], "date": "2018-8-5", "time": "7:30PM", "cost": 17.5, "row": 11, "number": 12, "sold": true}
-//            {"index":{"_id": "9"}}
-//            {"theatre": "Skyline", "play": "Sunnyside Down", "actors": ["Krissy Smith", "Joe Muir", "Ryan Earns", "Nora Blue", "Mike Candlestick", "Jacey Bell"], "date": "2018-6-12", "time": "4:00PM", "cost": 21.25, "row": 8, "number": 15, "sold": true}
-//            {"index":{"_id": "10"}}
-//            {"theatre": "Graye", "play": "Line and Single", "actors": ["Nora Blue", "Mike Candlestick"], "date": "2018-6-5", "time": "2:00PM", "cost": 30.0, "row": 1, "number": 2, "sold": false}
-//            {"index":{"_id":"11"}}
-//            {"theatre": "Graye", "play": "Hamilton", "actors": ["Lin-Manuel Miranda", "Leslie Odom Jr."] ,"date":"2018-6-5", "time": "2:00PM", "cost": 5000.0, "row":1, "number": 20, "sold": true}
-//            '''
-//setups['kibana_sample_data_ecommerce'] = '''
-//  - do:
-//        indices.create:
-//          index: kibana_sample_data_ecommerce
-//          body:
-//            settings:
-//              number_of_shards: 1
-//              number_of_replicas: 0
-//            mappings:
-//              properties:
-//                order_date:
-//                  type: date
-//'''
-//setups['add_timestamp_pipeline'] = '''
-//  - do:
-//      ingest.put_pipeline:
-//        id: "add_timestamp_pipeline"
-//        body:  >
-//          {
-//            "processors": [
-//              {
-//                "set" : {
-//                  "field" : "@timestamp",
-//                  "value" : "{{_ingest.timestamp}}"
-//                }
-//              }
-//            ]
-//          }
-//'''
-//setups['simple_kibana_continuous_pivot'] = setups['kibana_sample_data_ecommerce'] + setups['add_timestamp_pipeline']  + '''
-//  - do:
-//      raw:
-//        method: PUT
-//        path: _transform/simple-kibana-ecomm-pivot
-//        body:  >
-//          {
-//            "source": {
-//              "index": "kibana_sample_data_ecommerce",
-//              "query": {
-//                "term": {
-//                  "geoip.continent_name": {
-//                    "value": "Asia"
-//                  }
-//                }
-//              }
-//            },
-//            "pivot": {
-//              "group_by": {
-//                "customer_id": {
-//                  "terms": {
-//                    "field": "customer_id"
-//                  }
-//                }
-//              },
-//              "aggregations": {
-//                "max_price": {
-//                  "max": {
-//                    "field": "taxful_total_price"
-//                  }
-//                }
-//              }
-//            },
-//            "description": "Maximum priced ecommerce data",
-//            "dest": {
-//              "index": "kibana_sample_data_ecommerce_transform",
-//              "pipeline": "add_timestamp_pipeline"
-//            },
-//            "frequency": "5m",
-//            "sync": {
-//              "time": {
-//                "field": "order_date",
-//                "delay": "60s"
-//              }
-//            }
-//          }
-//'''
-//setups['setup_houseprices'] = '''
-//  - do:
-//        indices.create:
-//          index: houses_sold_last_10_yrs
-//          body:
-//            settings:
-//              number_of_shards: 1
-//              number_of_replicas: 1
-//'''
-//setups['setup_logdata'] = '''
-//  - do:
-//        indices.create:
-//          index: logdata
-//          body:
-//            settings:
-//              number_of_shards: 1
-//              number_of_replicas: 1
-//            mappings:
-//              properties:
-//                grade:
-//                  type: byte
-//  - do:
-//        bulk:
-//          index: logdata
-//          refresh: true
-//          body: |
-//            {"index":{}}
-//            {"grade": 100, "weight": 2}
-//            {"index":{}}
-//            {"grade": 50, "weight": 3}
-//'''
-//setups['logdata_job'] = setups['setup_logdata'] + '''
-//  - do:
-//      ml.put_data_frame_analytics:
-//        id: "loganalytics"
-//        body:  >
-//          {
-//            "source": {
-//              "index": "logdata"
-//              },
-//            "dest": {
-//              "index": "logdata_out"
-//              },
-//            "analysis": {
-//              "outlier_detection": {}
-//            }
-//          }
-//'''
-//// Used by snapshot lifecycle management docs
-//setups['setup-repository'] = '''
-//  - do:
-//      snapshot.create_repository:
-//        repository: my_repository
-//        body:
-//          type: fs
-//          settings:
-//            location: buildDir/cluster/shared/repo
-//'''
-//
-//// Used by snapshot restore docs
-//setups['setup-snapshots'] = setups['setup-repository'] + '''
-//  - do:
-//      bulk:
-//        index: my-index
-//        refresh: true
-//        body: |
-//          {"index":{"_id": "0"}}
-//          {"message": "trying out Elasticsearch", "context": "foo"}
-//  - do:
-//      bulk:
-//        index: logs-my_app-default
-//        refresh: true
-//        body: |
-//          {"create":{"_id": "0"}}
-//          {"message": "trying out Elasticsearch", "context": "foo"}
-//  - do:
-//      snapshot.create:
-//        repository: my_repository
-//        snapshot: my_snapshot_2099.05.06
-//        wait_for_completion: true
-//'''
-//
-//// Fake sec logs data used by EQL search
-//  setups['atomic_red_regsvr32'] = setups['my_data_stream'] + '''
-//  - do:
-//        bulk:
-//          index: my-data-stream
-//          refresh: true
-//          body: |
-//#atomic_red_data#
-//'''
-//
-//  setups['my_inactive_watch'] = '''
-//  - do:
-//      watcher.put_watch:
-//        id: "my_watch"
-//        active: false
-//        body:  >
-//          {
-//            "trigger": {
-//              "schedule": {
-//                "hourly": {
-//                  "minute": [ 0, 5 ]
-//                }
-//              }
-//            },
-//            "input": {
-//              "simple": {
-//                "payload": {
-//                  "send": "yes"
-//                }
-//              }
-//            },
-//            "condition": {
-//              "always": {}
-//            },
-//            "actions": {
-//              "test_index": {
-//                "index": {
-//                  "index": "test"
-//                }
-//              }
-//            }
-//          }
-//  - match: { _id: "my_watch" }
-//'''
-//
-//  setups['my_active_watch'] = setups['my_inactive_watch'].replace(
-//        'active: false', 'active: true')
-//
-//  setups['role_mapping'] = '''
-//  - do:
-//        security.put_role_mapping:
-//         name: "mapping1"
-//         body:  >
-//            {
-//               "enabled": true,
-//               "roles": [ "user" ],
-//               "rules": { "field": { "username": "*" } }
-//            }
-//'''
-//
-//  setups['admin_role'] = '''
-//  - do:
-//      security.put_role:
-//        name: "my_admin_role"
-//        body: >
-//          {
-//            "cluster": ["all"],
-//            "indices": [
-//              {"names": ["index1", "index2" ], "privileges": ["all"], "field_security" : {"grant" : [ "title", "body" ]}}
-//              ],
-//            "run_as": [ "other_user" ],
-//            "metadata" : {"version": 1}
-//          }
-//'''
-//  setups['jacknich_user'] = '''
-//  - do:
-//      security.put_user:
-//        username: "jacknich"
-//        body:  >
-//          {
-//            "password" : "l0ng-r4nd0m-p@ssw0rd",
-//            "roles" : [ "admin", "other_role1" ],
-//            "full_name" : "Jack Nicholson",
-//            "email" : "jacknich@example.com",
-//            "metadata" : { "intelligence" : 7 }
-//          }
-//  - do:
-//      security.activate_user_profile:
-//        body: >
-//          {
-//            "grant_type": "password",
-//            "username": "jacknich",
-//            "password" : "l0ng-r4nd0m-p@ssw0rd"
-//          }
-//'''
-//  setups['sandrakn_user'] = '''
-//  - do:
-//      security.put_user:
-//        username: "sandrakn"
-//        body:  >
-//          {
-//            "password" : "l0ng-r4nd0m-p@ssw0rd",
-//            "roles" : [ "admin", "other_role1" ],
-//            "full_name" : "Sandra Knight",
-//            "email" : "sandrakn@example.com",
-//            "metadata" : { "intelligence" : 7 }
-//          }
-//  - do:
-//      security.activate_user_profile:
-//        body: >
-//          {
-//            "grant_type": "password",
-//            "username": "sandrakn",
-//            "password" : "l0ng-r4nd0m-p@ssw0rd"
-//          }
-//
-//'''
-//  setups['app0102_privileges'] = '''
-//  - do:
-//        security.put_privileges:
-//          body: >
-//            {
-//              "myapp": {
-//                "read": {
-//                  "application": "myapp",
-//                  "name": "read",
-//                  "actions": [
-//                    "data:read/*",
-//                    "action:login" ],
-//                  "metadata": {
-//                    "description": "Read access to myapp"
-//                  }
-//                }
-//              }
-//            }
-//'''
-//  setups['service_token42'] = '''
-//  - do:
-//      security.create_service_token:
-//        namespace: elastic
-//        service: fleet-server
-//        name: token42
-//'''
-//  setups['user_profiles'] = '''
-//  - do:
-//      security.put_user:
-//        username: "jacknich"
-//        body:  >
-//          {
-//            "password" : "l0ng-r4nd0m-p@ssw0rd",
-//            "roles" : [ "admin", "other_role1" ],
-//            "full_name" : "Jack Nicholson",
-//            "email" : "jacknich@example.com"
-//          }
-//  - do:
-//      security.put_user:
-//        username: "jackrea"
-//        body:  >
-//          {
-//            "password" : "l0ng-r4nd0m-p@ssw0rd",
-//            "roles" : [ "admin" ],
-//            "full_name" : "Jack Reacher",
-//            "email" : "jackrea@example.com"
-//          }
-//  - do:
-//      security.put_user:
-//        username: "jackspa"
-//        body:  >
-//          {
-//            "password" : "l0ng-r4nd0m-p@ssw0rd",
-//            "roles" : [ "user" ],
-//            "full_name" : "Jack Sparrow",
-//            "email" : "jackspa@example.com"
-//          }
-//  - do:
-//      security.activate_user_profile:
-//        body: >
-//          {
-//            "grant_type": "password",
-//            "username": "jacknich",
-//            "password" : "l0ng-r4nd0m-p@ssw0rd"
-//          }
-//  - do:
-//      security.activate_user_profile:
-//        body: >
-//          {
-//            "grant_type": "password",
-//            "username": "jackrea",
-//            "password" : "l0ng-r4nd0m-p@ssw0rd"
-//          }
-//  - do:
-//      security.activate_user_profile:
-//        body: >
-//          {
-//            "grant_type": "password",
-//            "username": "jackspa",
-//            "password" : "l0ng-r4nd0m-p@ssw0rd"
-//          }
-//  # jacknich
-//  - do:
-//      security.update_user_profile_data:
-//        uid: "u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0"
-//        body: >
-//          {
-//            "labels": {
-//              "direction": "north"
-//            },
-//            "data": {
-//              "app1": {
-//                "key1": "value1"
-//              }
-//            }
-//          }
-//  # jackrea
-//  - do:
-//      security.update_user_profile_data:
-//        uid: "u_P_0BMHgaOK3p7k-PFWUCbw9dQ-UFjt01oWJ_Dp2PmPc_0"
-//        body: >
-//          {
-//            "labels": {
-//              "direction": "west"
-//            }
-//          }
-//  # jackspa
-//  - do:
-//      security.update_user_profile_data:
-//        uid: "u_8RKO7AKfEbSiIHZkZZ2LJy2MUSDPWDr3tMI_CkIGApU_0"
-//        body: >
-//          {
-//            "labels": {
-//              "direction": "south"
-//            }
-//          }
-//'''
-//
-//  // fake data used by the correlation bucket agg
-//  buildRestTests.setups['correlate_latency'] = '''
-//  - do:
-//        indices.create:
-//          index: correlate_latency
-//          body:
-//            settings:
-//              number_of_shards: 1
-//              number_of_replicas: 0
-//            mappings:
-//              properties:
-//                latency:
-//                  type: double
-//                version:
-//                  type: keyword
-//  - do:
-//        bulk:
-//          index: correlate_latency
-//          refresh: true
-//          body: |'''
-//
-//
-//  for (int i = 100; i < 200; i++) {
-//    def value = i
-//    if (i % 10) {
-//      value = i * 10
-//    }
-//    buildRestTests.setups['correlate_latency'] += """
-//            {"index":{}}
-//            {"latency": "$value", "version": "1.0"}"""
-//  }
-//  for (int i = 0; i < 100; i++) {
-//    def value = i
-//    if (i % 10) {
-//      value = i * 10
-//    }
-//    buildRestTests.setups['correlate_latency'] += """
-//            {"index":{}}
-//            {"latency": "$value", "version": "2.0"}"""
-//  }
-//
-//  /* Load the actual events only if we're going to use them. */
-//  File atomicRedRegsvr32File = new File("$projectDir/src/yamlRestTest/resources/normalized-T1117-AtomicRed-regsvr32.json")
-//  inputs.file(atomicRedRegsvr32File)
-//
-//  doFirst {
-//    String events = atomicRedRegsvr32File.getText('UTF-8')
-//    // Indent like a yaml test needs
-//    events = events.replaceAll('(?m)^', '            ')
-//    setups['atomic_red_regsvr32'] =
-//    setups['atomic_red_regsvr32'].replace('#atomic_red_data#', events)
-//  }
-//}
+tasks.named("listConsoleCandidates").configure {
+  docs = docsFileTree
+}
+
+Closure setupMyIndex = { String name, int count ->
+  tasks.named("buildRestTests").configure { buildRestTests ->
+    buildRestTests.setups[name] = '''
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                http:
+                  properties:
+                    request:
+                      properties:
+                        method:
+                          type: keyword
+                message:
+                  type: text
+                  fields:
+                    keyword:
+                      type: keyword
+                user:
+                  properties:
+                    id:
+                      type: keyword
+                      doc_values: true
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |'''
+    for (int i = 0; i < count; i++) {
+      String ip, user_id
+      if (i == 0) {
+        ip = '127.0.0.1'
+        user_id = 'kimchy'
+      } else {
+        ip = '10.42.42.42'
+        user_id = 'elkbee'
+      }
+      buildRestTests.setups[name] += """
+            { "index":{"_id": "$i"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "$ip" }, "user": { "id": "$user_id" } }"""
+    }
+  }
+}
+setupMyIndex('my_index', 5)
+setupMyIndex('my_index_big', 120)
+setupMyIndex('my_index_huge', 1200)
+
+tasks.named("buildRestTests").configure {buildRestTests ->
+
+setups['my_data_stream_template'] = '''
+  - do:
+      indices.put_index_template:
+        name: my-data-stream-template
+        body: |
+          {
+            "index_patterns": [ "my-data-stream*" ],
+            "data_stream": { },
+            "priority": 500
+          }
+'''
+
+setups['my_data_stream'] = setups['my_data_stream_template'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: '_data_stream/my-data-stream'
+'''
+
+teardowns['data_stream_cleanup'] = '''
+  - do:
+      raw:
+        method: DELETE
+        path: '_data_stream/*'
+  - is_true: acknowledged
+  - do:
+      raw:
+        method: DELETE
+        path: '_index_template/*'
+  - is_true: acknowledged
+'''
+
+// Used for TSDS examples
+setups['tsds_template'] = '''
+  - do:
+      indices.put_index_template:
+        name: my-weather-sensor-index-template
+        body: |
+          {
+            "index_patterns": [ "metrics-weather_sensors-*" ],
+            "data_stream": { },
+            "template": {
+              "settings": {
+                "index.mode": "time_series",
+                "index.routing_path": [ "sensor_id", "location" ]
+              },
+              "mappings": {
+                "properties": {
+                  "sensor_id": {
+                    "type": "keyword",
+                    "time_series_dimension": true
+                  },
+                  "location": {
+                    "type": "keyword",
+                    "time_series_dimension": true
+                  }
+                }
+              }
+            },
+            "priority": 500
+          }
+'''
+
+setups['tsds'] = setups['tsds_template'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: '_data_stream/metrics-weather_sensors-dev'
+'''
+
+teardowns['tsds_cleanup'] = '''
+  - do:
+      raw:
+        method: DELETE
+        path: '_data_stream/*'
+  - is_true: acknowledged
+  - do:
+      raw:
+        method: DELETE
+        path: '_index_template/*'
+  - is_true: acknowledged
+'''
+
+// Used for several full-text search and agg examples
+buildRestTests.setups['messages'] = '''
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            {"index":{"_id": "0"}}
+            {"message": "trying out Elasticsearch", "context": "foo"}
+            {"index":{"_id": "1"}}
+            {"message": "some message with the number 1", "context": "bar"}
+            {"index":{"_id": "2"}}
+            {"message": "some message with the number 2", "context": "bar"}
+            {"index":{"_id": "3"}}
+            {"message": "some message with the number 3", "context": "bar"}
+            {"index":{"_id": "4"}}
+            {"message": "some message with the number 4", "context": "bar"}
+'''
+
+// Used for EQL
+setups['sec_logs'] = setups['my_data_stream'] + '''
+  - do:
+        bulk:
+          index: my-data-stream
+          refresh: true
+          body: |
+            {"create":{}}
+            {"@timestamp": "2099-12-06T11:04:05.000Z", "event": { "category": "process", "id": "edwCRnyD", "sequence": 1 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" }}
+            {"create":{}}
+            {"@timestamp": "2099-12-06T11:04:07.000Z", "event": { "category": "file", "id": "dGCHwoeS", "sequence": 2 }, "file": { "accessed": "2099-12-07T11:07:08.000Z", "name": "cmd.exe", "path": "C:\\\\Windows\\\\System32\\\\cmd.exe", "type": "file", "size": 16384 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" }}
+            {"create":{}}
+            {"@timestamp": "2099-12-07T11:06:07.000Z", "event": { "category": "process", "id": "cMyt5SZ2", "sequence": 3 }, "process": { "pid": 2012, "name": "cmd.exe", "executable": "C:\\\\Windows\\\\System32\\\\cmd.exe" } }
+            {"create":{}}
+            {"@timestamp": "2099-12-07T11:07:09.000Z", "event": { "category": "process", "id": "aR3NWVOs", "sequence": 4 }, "process": { "pid": 2012, "name": "regsvr32.exe", "command_line": "regsvr32.exe  /s /u /i:https://...RegSvr32.sct scrobj.dll", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }}
+            {"create":{}}
+            {"@timestamp": "2099-12-07T11:07:10.000Z", "event": { "category": "file", "id": "tZ1NWVOs", "sequence": 5 }, "process": { "pid": 2012, "name": "regsvr32.exe", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }, "file": { "path": "C:\\\\Windows\\\\System32\\\\scrobj.dll", "name": "scrobj.dll" }}
+            {"create":{}}
+            {"@timestamp": "2099-12-07T11:07:10.000Z", "event": { "category": "process", "id": "GTSmSqgz0U", "sequence": 6, "type": "termination" }, "process": { "pid": 2012, "name": "regsvr32.exe", "executable": "C:\\\\Windows\\\\System32\\\\regsvr32.exe" }}'''
+
+buildRestTests.setups['host'] = '''
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http, transport ]
+  - set: {nodes.$master.http.publish_address: host}
+  - set: {nodes.$master.transport.publish_address: transport_host}
+'''
+
+buildRestTests.setups['node'] = '''
+  # Fetch the node name. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - is_true: master_node
+  - set: { master_node: node_name }
+'''
+
+// Used by scripted metric docs
+buildRestTests.setups['ledger'] = '''
+  - do:
+        indices.create:
+          index: ledger
+          body:
+            settings:
+              number_of_shards: 2
+              number_of_replicas: 1
+            mappings:
+              properties:
+                type:
+                  type: keyword
+                amount:
+                  type: double
+  - do:
+        bulk:
+          index: ledger
+          refresh: true
+          body: |
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "amount": 200, "type": "sale", "description": "something"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "amount": 10, "type": "expense", "description": "another thing"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "amount": 150, "type": "sale", "description": "blah"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "amount": 50, "type": "expense", "description": "cost of blah"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "amount": 50, "type": "expense", "description": "advertisement"}'''
+
+// Used by aggregation docs
+buildRestTests.setups['sales'] = '''
+  - do:
+        indices.create:
+          index: sales
+          body:
+            settings:
+              number_of_shards: 2
+              number_of_replicas: 1
+            mappings:
+              properties:
+                type:
+                  type: keyword
+  - do:
+        bulk:
+          index: sales
+          refresh: true
+          body: |
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "t-shirt"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 150, "promoted": true, "rating": 5, "type": "bag"}
+            {"index":{}}
+            {"date": "2015/02/01 00:00:00", "price": 50, "promoted": false, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/02/01 00:00:00", "price": 10, "promoted": true, "rating": 4, "type": "t-shirt"}
+            {"index":{}}
+            {"date": "2015/03/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/03/01 00:00:00", "price": 175, "promoted": false, "rating": 2, "type": "t-shirt"}'''
+
+// Used by cumulative cardinality aggregation docs
+buildRestTests.setups['user_hits'] = '''
+  - do:
+        indices.create:
+          index: user_hits
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                user_id:
+                  type: keyword
+                timestamp:
+                  type: date
+  - do:
+        bulk:
+          index: user_hits
+          refresh: true
+          body: |
+            {"index":{}}
+            {"timestamp": "2019-01-01T13:00:00", "user_id": "1"}
+            {"index":{}}
+            {"timestamp": "2019-01-01T13:00:00", "user_id": "2"}
+            {"index":{}}
+            {"timestamp": "2019-01-02T13:00:00", "user_id": "1"}
+            {"index":{}}
+            {"timestamp": "2019-01-02T13:00:00", "user_id": "3"}
+            {"index":{}}
+            {"timestamp": "2019-01-03T13:00:00", "user_id": "1"}
+            {"index":{}}
+            {"timestamp": "2019-01-03T13:00:00", "user_id": "2"}
+            {"index":{}}
+            {"timestamp": "2019-01-03T13:00:00", "user_id": "4"}'''
+
+// Used by sampler and diversified-sampler aggregation docs
+buildRestTests.setups['stackoverflow'] = '''
+  - do:
+        indices.create:
+          index: stackoverflow
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                author:
+                  type: keyword
+                tags:
+                  type: keyword
+  - do:
+        bulk:
+          index: stackoverflow
+          refresh: true
+          body: |'''
+
+// Make Kibana strongly connected to elasticsearch and logstash
+// Make Kibana rarer (and therefore higher-ranking) than JavaScript
+// Make JavaScript strongly connected to jquery and angular
+// Make Cabana strongly connected to elasticsearch but only as a result of a single author
+
+for (int i = 0; i < 150; i++) {
+  buildRestTests.setups['stackoverflow'] += """
+            {"index":{}}
+            {"author": "very_relevant_$i", "tags": ["elasticsearch", "kibana"]}"""
+}
+for (int i = 0; i < 50; i++) {
+  buildRestTests.setups['stackoverflow'] += """
+            {"index":{}}
+            {"author": "very_relevant_$i", "tags": ["logstash", "kibana"]}"""
+}
+for (int i = 0; i < 200; i++) {
+  buildRestTests.setups['stackoverflow'] += """
+            {"index":{}}
+            {"author": "partially_relevant_$i", "tags": ["javascript", "jquery"]}"""
+}
+for (int i = 0; i < 200; i++) {
+  buildRestTests.setups['stackoverflow'] += """
+            {"index":{}}
+            {"author": "partially_relevant_$i", "tags": ["javascript", "angular"]}"""
+}
+for (int i = 0; i < 50; i++) {
+  buildRestTests.setups['stackoverflow'] += """
+            {"index":{}}
+            {"author": "noisy author", "tags": ["elasticsearch", "cabana"]}"""
+}
+buildRestTests.setups['stackoverflow'] += """
+"""
+// Used by significant_text aggregation docs
+buildRestTests.setups['news'] = '''
+  - do:
+        indices.create:
+          index: news
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                source:
+                  type: keyword
+                content:
+                  type: text
+                  copy_to: custom_all
+                custom_all:
+                  type: text
+  - do:
+        bulk:
+          index: news
+          refresh: true
+          body: |'''
+
+// Make h5n1 strongly connected to bird flu
+
+for (int i = 0; i < 100; i++) {
+  buildRestTests.setups['news'] += """
+            {"index":{}}
+            {"source": "very_relevant_$i", "content": "bird flu h5n1"}"""
+}
+for (int i = 0; i < 100; i++) {
+  buildRestTests.setups['news'] += """
+            {"index":{}}
+            {"source": "filler_$i", "content": "bird dupFiller "}"""
+}
+for (int i = 0; i < 100; i++) {
+  buildRestTests.setups['news'] += """
+            {"index":{}}
+            {"source": "filler_$i", "content": "flu dupFiller "}"""
+}
+for (int i = 0; i < 20; i++) {
+  buildRestTests.setups['news'] += """
+            {"index":{}}
+            {"source": "partially_relevant_$i", "content": "elasticsearch dupFiller dupFiller dupFiller dupFiller pozmantier"}"""
+}
+for (int i = 0; i < 10; i++) {
+  buildRestTests.setups['news'] += """
+            {"index":{}}
+            {"source": "partially_relevant_$i", "content": "elasticsearch logstash kibana"}"""
+}
+buildRestTests.setups['news'] += """
+"""
+
+// Used by some aggregations
+buildRestTests.setups['exams'] = '''
+  - do:
+        indices.create:
+          index: exams
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                grade:
+                  type: byte
+  - do:
+        bulk:
+          index: exams
+          refresh: true
+          body: |
+            {"index":{}}
+            {"grade": 100, "weight": 2}
+            {"index":{}}
+            {"grade": 50, "weight": 3}'''
+
+
+buildRestTests.setups['stored_scripted_metric_script'] = '''
+  - do:
+      put_script:
+        id: "my_init_script"
+        body: { "script": { "lang": "painless", "source": "state.transactions = []" } }
+  - match: { acknowledged: true }
+
+  - do:
+      put_script:
+        id: "my_map_script"
+        body: { "script": { "lang": "painless", "source": "state.transactions.add(doc.type.value == 'sale' ? doc.amount.value : -1 * doc.amount.value)" } }
+  - match: { acknowledged: true }
+
+  - do:
+      put_script:
+        id: "my_combine_script"
+        body: { "script": { "lang": "painless", "source": "double profit = 0;for (t in state.transactions) { profit += t; } return profit" } }
+  - match: { acknowledged: true }
+
+  - do:
+      put_script:
+        id: "my_reduce_script"
+        body: { "script": { "lang": "painless", "source": "double profit = 0;for (a in states) { profit += a; } return profit" } }
+  - match: { acknowledged: true }
+'''
+
+// Used by analyze api
+buildRestTests.setups['analyze_sample'] = '''
+  - do:
+        indices.create:
+          index: analyze_sample
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+              analysis:
+                normalizer:
+                  my_normalizer:
+                    type: custom
+                    filter: [lowercase]
+            mappings:
+              properties:
+                obj1.field1:
+                  type: text'''
+
+// Used by percentile/percentile-rank aggregations
+buildRestTests.setups['latency'] = '''
+  - do:
+        indices.create:
+          index: latency
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                load_time:
+                  type: long
+  - do:
+        bulk:
+          index: latency
+          refresh: true
+          body: |'''
+
+
+for (int i = 0; i < 100; i++) {
+  def value = i
+  if (i % 10) {
+    value = i * 10
+  }
+  buildRestTests.setups['latency'] += """
+            {"index":{}}
+            {"load_time": "$value"}"""
+}
+
+// Used by t_test aggregations
+buildRestTests.setups['node_upgrade'] = '''
+  - do:
+        indices.create:
+          index: node_upgrade
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                group:
+                  type: keyword
+                startup_time_before:
+                  type: long
+                startup_time_after:
+                  type: long
+  - do:
+        bulk:
+          index: node_upgrade
+          refresh: true
+          body: |
+            {"index":{}}
+            {"group": "A", "startup_time_before": 102, "startup_time_after": 89}
+            {"index":{}}
+            {"group": "A", "startup_time_before": 99, "startup_time_after": 93}
+            {"index":{}}
+            {"group": "A", "startup_time_before": 111, "startup_time_after": 72}
+            {"index":{}}
+            {"group": "B", "startup_time_before": 97, "startup_time_after": 98}
+            {"index":{}}
+            {"group": "B", "startup_time_before": 101, "startup_time_after": 102}
+            {"index":{}}
+            {"group": "B", "startup_time_before": 99, "startup_time_after": 98}'''
+
+// Used by iprange agg
+buildRestTests.setups['iprange'] = '''
+  - do:
+        indices.create:
+          index: ip_addresses
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                ip:
+                  type: ip
+  - do:
+        bulk:
+          index: ip_addresses
+          refresh: true
+          body: |'''
+
+
+for (int i = 0; i < 255; i++) {
+  buildRestTests.setups['iprange'] += """
+            {"index":{}}
+            {"ip": "10.0.0.$i"}"""
+}
+for (int i = 0; i < 5; i++) {
+  buildRestTests.setups['iprange'] += """
+            {"index":{}}
+            {"ip": "9.0.0.$i"}"""
+  buildRestTests.setups['iprange'] += """
+            {"index":{}}
+            {"ip": "11.0.0.$i"}"""
+  buildRestTests.setups['iprange'] += """
+            {"index":{}}
+            {"ip": "12.0.0.$i"}"""
+}
+// Used by SQL because it looks SQL-ish
+buildRestTests.setups['library'] = '''
+  - do:
+        indices.create:
+          index: library
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+                properties:
+                  name:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                  author:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                  release_date:
+                    type: date
+                  page_count:
+                    type: short
+  - do:
+        bulk:
+          index: library
+          refresh: true
+          body: |
+            {"index":{"_id": "Leviathan Wakes"}}
+            {"name": "Leviathan Wakes", "author": "James S.A. Corey", "release_date": "2011-06-02", "page_count": 561}
+            {"index":{"_id": "Hyperion"}}
+            {"name": "Hyperion", "author": "Dan Simmons", "release_date": "1989-05-26", "page_count": 482}
+            {"index":{"_id": "Dune"}}
+            {"name": "Dune", "author": "Frank Herbert", "release_date": "1965-06-01", "page_count": 604}
+            {"index":{"_id": "Dune Messiah"}}
+            {"name": "Dune Messiah", "author": "Frank Herbert", "release_date": "1969-10-15", "page_count": 331}
+            {"index":{"_id": "Children of Dune"}}
+            {"name": "Children of Dune", "author": "Frank Herbert", "release_date": "1976-04-21", "page_count": 408}
+            {"index":{"_id": "God Emperor of Dune"}}
+            {"name": "God Emperor of Dune", "author": "Frank Herbert", "release_date": "1981-05-28", "page_count": 454}
+            {"index":{"_id": "Consider Phlebas"}}
+            {"name": "Consider Phlebas", "author": "Iain M. Banks", "release_date": "1987-04-23", "page_count": 471}
+            {"index":{"_id": "Pandora's Star"}}
+            {"name": "Pandora's Star", "author": "Peter F. Hamilton", "release_date": "2004-03-02", "page_count": 768}
+            {"index":{"_id": "Revelation Space"}}
+            {"name": "Revelation Space", "author": "Alastair Reynolds", "release_date": "2000-03-15", "page_count": 585}
+            {"index":{"_id": "A Fire Upon the Deep"}}
+            {"name": "A Fire Upon the Deep", "author": "Vernor Vinge", "release_date": "1992-06-01", "page_count": 613}
+            {"index":{"_id": "Ender's Game"}}
+            {"name": "Ender's Game", "author": "Orson Scott Card", "release_date": "1985-06-01", "page_count": 324}
+            {"index":{"_id": "1984"}}
+            {"name": "1984", "author": "George Orwell", "release_date": "1985-06-01", "page_count": 328}
+            {"index":{"_id": "Fahrenheit 451"}}
+            {"name": "Fahrenheit 451", "author": "Ray Bradbury", "release_date": "1953-10-15", "page_count": 227}
+            {"index":{"_id": "Brave New World"}}
+            {"name": "Brave New World", "author": "Aldous Huxley", "release_date": "1932-06-01", "page_count": 268}
+            {"index":{"_id": "Foundation"}}
+            {"name": "Foundation", "author": "Isaac Asimov", "release_date": "1951-06-01", "page_count": 224}
+            {"index":{"_id": "The Giver"}}
+            {"name": "The Giver", "author": "Lois Lowry", "release_date": "1993-04-26", "page_count": 208}
+            {"index":{"_id": "Slaughterhouse-Five"}}
+            {"name": "Slaughterhouse-Five", "author": "Kurt Vonnegut", "release_date": "1969-06-01", "page_count": 275}
+            {"index":{"_id": "The Hitchhiker's Guide to the Galaxy"}}
+            {"name": "The Hitchhiker's Guide to the Galaxy", "author": "Douglas Adams", "release_date": "1979-10-12", "page_count": 180}
+            {"index":{"_id": "Snow Crash"}}
+            {"name": "Snow Crash", "author": "Neal Stephenson", "release_date": "1992-06-01", "page_count": 470}
+            {"index":{"_id": "Neuromancer"}}
+            {"name": "Neuromancer", "author": "William Gibson", "release_date": "1984-07-01", "page_count": 271}
+            {"index":{"_id": "The Handmaid's Tale"}}
+            {"name": "The Handmaid's Tale", "author": "Margaret Atwood", "release_date": "1985-06-01", "page_count": 311}
+            {"index":{"_id": "Starship Troopers"}}
+            {"name": "Starship Troopers", "author": "Robert A. Heinlein", "release_date": "1959-12-01", "page_count": 335}
+            {"index":{"_id": "The Left Hand of Darkness"}}
+            {"name": "The Left Hand of Darkness", "author": "Ursula K. Le Guin", "release_date": "1969-06-01", "page_count": 304}
+            {"index":{"_id": "The Moon is a Harsh Mistress"}}
+            {"name": "The Moon is a Harsh Mistress", "author": "Robert A. Heinlein", "release_date": "1966-04-01", "page_count": 288}
+
+'''
+buildRestTests.setups['sensor_rollup_job'] = '''
+  - do:
+      indices.create:
+        index: sensor-1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: float
+              node:
+                type: keyword
+  - do:
+      raw:
+        method: PUT
+        path: _rollup/job/sensor
+        body:  >
+            {
+                "index_pattern": "sensor-*",
+                "rollup_index": "sensor_rollup",
+                "cron": "*/30 * * * * ?",
+                "page_size" :1000,
+                "groups" : {
+                  "date_histogram": {
+                    "field": "timestamp",
+                    "fixed_interval": "1h",
+                    "delay": "7d"
+                  },
+                  "terms": {
+                    "fields": ["node"]
+                  }
+                },
+                "metrics": [
+                    {
+                        "field": "temperature",
+                        "metrics": ["min", "max", "sum"]
+                    },
+                    {
+                        "field": "voltage",
+                        "metrics": ["avg"]
+                    }
+                ]
+            }
+'''
+buildRestTests.setups['sensor_started_rollup_job'] = '''
+  - do:
+      indices.create:
+        index: sensor-1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: float
+              node:
+                type: keyword
+
+  - do:
+      bulk:
+        index: sensor-1
+        refresh: true
+        body: |
+          {"index":{}}
+          {"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516470094000, "temperature": 198, "voltage": 5.6, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c"}
+          {"index":{}}
+          {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
+
+  - do:
+      raw:
+        method: PUT
+        path: _rollup/job/sensor
+        body:  >
+            {
+                "index_pattern": "sensor-*",
+                "rollup_index": "sensor_rollup",
+                "cron": "* * * * * ?",
+                "page_size" :1000,
+                "groups" : {
+                  "date_histogram": {
+                    "field": "timestamp",
+                    "fixed_interval": "1h",
+                    "delay": "7d"
+                  },
+                  "terms": {
+                    "fields": ["node"]
+                  }
+                },
+                "metrics": [
+                    {
+                        "field": "temperature",
+                        "metrics": ["min", "max", "sum"]
+                    },
+                    {
+                        "field": "voltage",
+                        "metrics": ["avg"]
+                    }
+                ]
+            }
+  - do:
+      raw:
+        method: POST
+        path: _rollup/job/sensor/_start
+'''
+
+buildRestTests.setups['sensor_index'] = '''
+  - do:
+      indices.create:
+        index: sensor-1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: float
+              node:
+                type: keyword
+              load:
+                type: double
+              net_in:
+                type: long
+              net_out:
+                type: long
+              hostname:
+                type: keyword
+              datacenter:
+                type: keyword
+'''
+
+buildRestTests.setups['sensor_prefab_data'] = '''
+  - do:
+      indices.create:
+        index: sensor-1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: float
+              node:
+                type: keyword
+  - do:
+      indices.create:
+        index: sensor_rollup
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              node.terms.value:
+                type: keyword
+              temperature.sum.value:
+                type: double
+              temperature.max.value:
+                type: double
+              temperature.min.value:
+                type: double
+              timestamp.date_histogram.time_zone:
+                type: keyword
+              timestamp.date_histogram.interval:
+                type: keyword
+              timestamp.date_histogram.timestamp:
+                type: date
+              timestamp.date_histogram._count:
+                type: long
+              voltage.avg.value:
+                type: double
+              voltage.avg._count:
+                type: long
+              _rollup.id:
+                type: keyword
+              _rollup.version:
+                type: long
+            _meta:
+              _rollup:
+                sensor:
+                  cron: "* * * * * ?"
+                  rollup_index: "sensor_rollup"
+                  index_pattern: "sensor-*"
+                  timeout: "20s"
+                  page_size: 1000
+                  groups:
+                    date_histogram:
+                      delay: "7d"
+                      field: "timestamp"
+                      fixed_interval: "60m"
+                      time_zone: "UTC"
+                    terms:
+                      fields:
+                        - "node"
+                  id: sensor
+                  metrics:
+                    - field: "temperature"
+                      metrics:
+                        - min
+                        - max
+                        - sum
+                    - field: "voltage"
+                      metrics:
+                        - avg
+
+  - do:
+      bulk:
+        index: sensor_rollup
+        refresh: true
+        body: |
+          {"index":{}}
+          {"node.terms.value":"b","temperature.sum.value":201.0,"temperature.max.value":201.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":201.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":5.800000190734863,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516640400000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+          {"index":{}}
+          {"node.terms.value":"c","temperature.sum.value":200.0,"temperature.max.value":200.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":200.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":4.199999809265137,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516381200000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+          {"index":{}}
+          {"node.terms.value":"a","temperature.sum.value":202.0,"temperature.max.value":202.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":202.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":5.099999904632568,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516554000000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+          {"index":{}}
+          {"node.terms.value":"a","temperature.sum.value":200.0,"temperature.max.value":200.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":200.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":5.199999809265137,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516726800000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+          {"index":{}}
+          {"node.terms.value":"b","temperature.sum.value":198.0,"temperature.max.value":198.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":198.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":5.599999904632568,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516467600000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+          {"index":{}}
+          {"node.terms.value":"c","temperature.sum.value":202.0,"temperature.max.value":202.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":202.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":4.0,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516294800000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+
+'''
+buildRestTests.setups['sample_job'] = '''
+  - do:
+      ml.put_job:
+        job_id: "sample_job"
+        body:  >
+          {
+            "description" : "Very basic job",
+            "analysis_config" : {
+              "bucket_span":"10m",
+              "detectors" :[
+              {
+                "function": "count"
+              }
+            ]},
+            "data_description" : {
+              "time_field":"timestamp",
+              "time_format": "epoch_ms"
+            }
+          }
+'''
+buildRestTests.setups['farequote_index'] = '''
+  - do:
+        indices.create:
+          index: farequote
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              metric:
+                properties:
+                  time:
+                    type: date
+                  responsetime:
+                    type: float
+                  airline:
+                     type: keyword
+                  doc_count:
+                     type: integer
+'''
+buildRestTests.setups['farequote_data'] = buildRestTests.setups['farequote_index'] + '''
+  - do:
+        bulk:
+          index: farequote
+          refresh: true
+          body: |
+            {"index": {"_id":"1"}}
+            {"airline":"JZA","responsetime":990.4628,"time":"2016-02-07T00:00:00+0000", "doc_count": 5}
+            {"index": {"_id":"2"}}
+            {"airline":"JBU","responsetime":877.5927,"time":"2016-02-07T00:00:00+0000", "doc_count": 23}
+            {"index": {"_id":"3"}}
+            {"airline":"KLM","responsetime":1355.4812,"time":"2016-02-07T00:00:00+0000", "doc_count": 42}
+'''
+buildRestTests.setups['farequote_job'] = buildRestTests.setups['farequote_data'] + '''
+  - do:
+      ml.put_job:
+        job_id: "farequote"
+        body:  >
+          {
+            "analysis_config": {
+              "bucket_span": "60m",
+              "detectors": [{
+                "function": "mean",
+                "field_name": "responsetime",
+                "by_field_name": "airline"
+              }],
+            "summary_count_field_name": "doc_count"
+            },
+            "data_description": {
+              "time_field": "time"
+            }
+          }
+'''
+buildRestTests.setups['farequote_datafeed'] = buildRestTests.setups['farequote_job'] + '''
+  - do:
+      ml.put_datafeed:
+        datafeed_id: "datafeed-farequote"
+        body:  >
+          {
+          "job_id":"farequote",
+          "indexes":"farequote"
+          }
+'''
+buildRestTests.setups['categorize_text'] = '''
+  - do:
+        indices.create:
+          index: log-messages
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                time:
+                  type: date
+                message:
+                  type: text
+
+  - do:
+        bulk:
+          index: log-messages
+          refresh: true
+          body: |
+            {"index": {"_id":"1"}}
+            {"time":"2016-02-07T00:01:00+0000", "message": "2016-02-07T00:00:00+0000 Node 3 shutting down"}
+            {"index": {"_id":"2"}}
+            {"time":"2016-02-07T00:02:00+0000", "message": "2016-02-07T00:00:00+0000 Node 5 starting up"}
+            {"index": {"_id":"3"}}
+            {"time":"2016-02-07T00:03:00+0000", "message": "2016-02-07T00:00:00+0000 Node 4 shutting down"}
+            {"index": {"_id":"4"}}
+            {"time":"2016-02-08T00:01:00+0000", "message": "2016-02-08T00:00:00+0000 Node 5 shutting down"}
+            {"index": {"_id":"5"}}
+            {"time":"2016-02-08T00:02:00+0000", "message": "2016-02-08T00:00:00+0000 User foo_325 logging on"}
+            {"index": {"_id":"6"}}
+            {"time":"2016-02-08T00:04:00+0000", "message": "2016-02-08T00:00:00+0000 User foo_864 logged off"}
+'''
+buildRestTests.setups['server_metrics_index'] = '''
+  - do:
+        indices.create:
+          index: server-metrics
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                timestamp:
+                  type: date
+                total:
+                  type: long
+'''
+buildRestTests.setups['server_metrics_data'] = buildRestTests.setups['server_metrics_index'] + '''
+  - do:
+        bulk:
+          index: server-metrics
+          refresh: true
+          body: |
+            {"index": {"_id":"1177"}}
+            {"timestamp":"2017-03-23T13:00:00","total":40476}
+            {"index": {"_id":"1178"}}
+            {"timestamp":"2017-03-23T13:00:00","total":15287}
+            {"index": {"_id":"1179"}}
+            {"timestamp":"2017-03-23T13:00:00","total":-776}
+            {"index": {"_id":"1180"}}
+            {"timestamp":"2017-03-23T13:00:00","total":11366}
+            {"index": {"_id":"1181"}}
+            {"timestamp":"2017-03-23T13:00:00","total":3606}
+            {"index": {"_id":"1182"}}
+            {"timestamp":"2017-03-23T13:00:00","total":19006}
+            {"index": {"_id":"1183"}}
+            {"timestamp":"2017-03-23T13:00:00","total":38613}
+            {"index": {"_id":"1184"}}
+            {"timestamp":"2017-03-23T13:00:00","total":19516}
+            {"index": {"_id":"1185"}}
+            {"timestamp":"2017-03-23T13:00:00","total":-258}
+            {"index": {"_id":"1186"}}
+            {"timestamp":"2017-03-23T13:00:00","total":9551}
+            {"index": {"_id":"1187"}}
+            {"timestamp":"2017-03-23T13:00:00","total":11217}
+            {"index": {"_id":"1188"}}
+            {"timestamp":"2017-03-23T13:00:00","total":22557}
+            {"index": {"_id":"1189"}}
+            {"timestamp":"2017-03-23T13:00:00","total":40508}
+            {"index": {"_id":"1190"}}
+            {"timestamp":"2017-03-23T13:00:00","total":11887}
+            {"index": {"_id":"1191"}}
+            {"timestamp":"2017-03-23T13:00:00","total":31659}
+'''
+buildRestTests.setups['server_metrics_job'] = buildRestTests.setups['server_metrics_data'] + '''
+  - do:
+      ml.put_job:
+        job_id: "total-requests"
+        body:  >
+          {
+            "description" : "Total sum of requests",
+            "analysis_config" : {
+              "bucket_span":"10m",
+              "detectors" :[
+              {
+                "detector_description": "Sum of total",
+                "function": "sum",
+                "field_name": "total"
+              }
+            ]},
+            "data_description" : {
+              "time_field":"timestamp",
+              "time_format": "epoch_ms"
+            }
+          }
+'''
+buildRestTests.setups['server_metrics_job-raw'] = buildRestTests.setups['server_metrics_data'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: _ml/anomaly_detectors/total-requests
+        body:  >
+          {
+            "description" : "Total sum of requests",
+            "analysis_config" : {
+              "bucket_span":"10m",
+              "detectors" :[
+              {
+                "detector_description": "Sum of total",
+                "function": "sum",
+                "field_name": "total"
+              }
+            ]},
+            "data_description" : {
+              "time_field":"timestamp",
+              "time_format": "epoch_ms"
+            }
+          }
+'''
+buildRestTests.setups['server_metrics_datafeed'] = buildRestTests.setups['server_metrics_job'] + '''
+  - do:
+      ml.put_datafeed:
+        datafeed_id: "datafeed-total-requests"
+        body:  >
+          {
+          "job_id":"total-requests",
+          "indexes":"server-metrics"
+          }
+'''
+buildRestTests.setups['server_metrics_datafeed-raw'] = buildRestTests.setups['server_metrics_job-raw'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: _ml/datafeeds/datafeed-total-requests
+        body:  >
+          {
+          "job_id":"total-requests",
+          "indexes":"server-metrics"
+          }
+'''
+buildRestTests.setups['server_metrics_openjob'] = buildRestTests.setups['server_metrics_datafeed'] + '''
+  - do:
+      ml.open_job:
+        job_id: "total-requests"
+'''
+buildRestTests.setups['server_metrics_openjob-raw'] = buildRestTests.setups['server_metrics_datafeed-raw'] + '''
+  - do:
+      raw:
+        method: POST
+        path: _ml/anomaly_detectors/total-requests/_open
+'''
+buildRestTests.setups['server_metrics_startdf'] = buildRestTests.setups['server_metrics_openjob'] + '''
+  - do:
+      ml.start_datafeed:
+        datafeed_id: "datafeed-total-requests"
+'''
+buildRestTests.setups['calendar_outages'] = '''
+  - do:
+        ml.put_calendar:
+          calendar_id: "planned-outages"
+'''
+buildRestTests.setups['calendar_outages_addevent'] = buildRestTests.setups['calendar_outages'] + '''
+  - do:
+        ml.post_calendar_events:
+          calendar_id: "planned-outages"
+          body: >
+            { "description": "event 1", "start_time": "2017-12-01T00:00:00Z", "end_time": "2017-12-02T00:00:00Z", "calendar_id": "planned-outages" }
+
+
+'''
+buildRestTests.setups['calendar_outages_openjob'] = buildRestTests.setups['server_metrics_openjob'] + '''
+  - do:
+       ml.put_calendar:
+         calendar_id: "planned-outages"
+'''
+buildRestTests.setups['calendar_outages_addjob'] = buildRestTests.setups['server_metrics_openjob'] + '''
+  - do:
+       ml.put_calendar:
+         calendar_id: "planned-outages"
+         body:  >
+           {
+           "job_ids": ["total-requests"]
+           }
+'''
+setups['calendar_outages_addevent'] = setups['calendar_outages_addjob'] + '''
+  - do:
+       ml.post_calendar_events:
+         calendar_id: "planned-outages"
+         body:  >
+           { "events" : [
+           { "description": "event 1", "start_time": "1513641600000", "end_time": "1513728000000"},
+           { "description": "event 2", "start_time": "1513814400000", "end_time": "1513900800000"},
+           { "description": "event 3", "start_time": "1514160000000", "end_time": "1514246400000"}
+           ]}
+'''
+
+// used by median absolute deviation aggregation
+setups['reviews'] = '''
+  - do:
+        indices.create:
+          index: reviews
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                product:
+                  type: keyword
+                rating:
+                  type: long
+  - do:
+        bulk:
+          index: reviews
+          refresh: true
+          body: |
+            {"index": {"_id": "1"}}
+            {"product": "widget-foo", "rating": 1}
+            {"index": {"_id": "2"}}
+            {"product": "widget-foo", "rating": 5}
+'''
+setups['remote_cluster'] = setups['host'] + '''
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            cluster.remote.remote_cluster.seeds: $transport_host
+'''
+
+
+setups['remote_cluster_and_leader_index'] = setups['remote_cluster'] + '''
+  - do:
+      indices.create:
+        index: leader_index
+        body:
+          settings:
+            index.number_of_replicas: 0
+            index.number_of_shards: 1
+            index.soft_deletes.enabled: true
+'''
+
+setups['remote_cluster_and_leader_index_and_follower_index'] = setups['remote_cluster_and_leader_index'] + '''
+  - do:
+      raw:
+        method: PUT
+        path: 'follower_index/_ccr/follow'
+        wait_for_active_shards: 1
+        body: |
+          {
+            "remote_cluster" : "remote_cluster",
+            "leader_index" : "leader_index"
+          }
+  - is_true: follow_index_created
+  - is_true: follow_index_shards_acked
+  - is_true: index_following_started
+'''
+
+teardowns['pause_follow'] = '''
+  - do:
+      raw:
+        method: POST
+        path: 'follower_index/_ccr/pause_follow'
+  - is_true: acknowledged
+'''
+
+setups['seats'] = '''
+  - do:
+        indices.create:
+          index: seats
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                theatre:
+                  type: keyword
+                play:
+                  type: keyword
+                actors:
+                  type: keyword
+                date:
+                  type: keyword
+                time:
+                  type: keyword
+                cost:
+                  type: long
+                row:
+                  type: long
+                number:
+                  type: long
+                sold:
+                  type: boolean
+                datetime:
+                  type: date
+
+  - do:
+      raw:
+        method: PUT
+        path: "_ingest/pipeline/seats"
+        body: |
+          {
+            "description": "update datetime for seats",
+            "processors": [
+              {
+                "script": {
+                  "source": "String[] dateSplit = ctx.date.splitOnToken('-'); String year = dateSplit[0].trim(); String month = dateSplit[1].trim(); if (month.length() == 1) { month = '0' + month; } String day = dateSplit[2].trim(); if (day.length() == 1) { day = '0' + day; } boolean pm = ctx.time.substring(ctx.time.length() - 2).equals('PM'); String[] timeSplit = ctx.time.substring(0, ctx.time.length() - 2).splitOnToken(':'); int hours = Integer.parseInt(timeSplit[0].trim()); int minutes = Integer.parseInt(timeSplit[1].trim()); if (pm) { hours += 12; } String dts = year + '-' + month + '-' + day + 'T' + (hours < 10 ? '0' + hours : '' + hours) + ':' + (minutes < 10 ? '0' + minutes : '' + minutes) + ':00+08:00'; ZonedDateTime dt = ZonedDateTime.parse(dts, DateTimeFormatter.ISO_OFFSET_DATE_TIME); ctx.datetime = dt.getLong(ChronoField.INSTANT_SECONDS)*1000L;"
+                }
+              }
+            ]
+          }
+  - do:
+        bulk:
+          index: seats
+          pipeline: seats
+          refresh: true
+          body: |
+            {"index":{"_id": "1"}}
+            {"theatre": "Skyline", "play": "Rent", "actors": ["James Holland", "Krissy Smith", "Joe Muir", "Ryan Earns"], "date": "2021-4-1", "time": "3:00PM", "cost": 37, "row": 1, "number": 7, "sold": false}
+            {"index":{"_id": "2"}}
+            {"theatre": "Graye", "play": "Rent", "actors": ["Dave Christmas"], "date": "2021-4-1", "time": "3:00PM", "cost": 30, "row": 3, "number": 5, "sold": false}
+            {"index":{"_id": "3"}}
+            {"theatre": "Graye", "play": "Rented", "actors": ["Dave Christmas"], "date": "2021-4-1", "time": "3:00PM", "cost": 33, "row": 2, "number": 6, "sold": false}
+            {"index":{"_id": "4"}}
+            {"theatre": "Skyline", "play": "Rented", "actors": ["James Holland", "Krissy Smith", "Joe Muir", "Ryan Earns"], "date": "2021-4-1", "time": "3:00PM", "cost": 20, "row": 5, "number": 2, "sold": false}
+            {"index":{"_id": "5"}}
+            {"theatre": "Down Port", "play": "Pick It Up", "actors": ["Joel Madigan", "Jessica Brown", "Baz Knight", "Jo Hangum", "Rachel Grass", "Phoebe Miller"], "date": "2018-4-2", "time": "8:00PM", "cost": 27.5, "row": 3, "number": 2, "sold": false}
+            {"index":{"_id": "6"}}
+            {"theatre": "Down Port", "play": "Harriot", "actors": ["Phoebe Miller", "Sarah Notch", "Brayden Green", "Joshua Iller", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue", "Mike Candlestick", "Jacey Bell"], "date": "2018-8-7", "time": "8:00PM", "cost": 30.0, "row": 1, "number": 10, "sold": false}
+            {"index":{"_id": "7"}}
+            {"theatre": "Skyline", "play": "Auntie Jo", "actors": ["Jo Hangum", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue"], "date": "2018-10-2", "time": "5:40PM", "cost": 22.5, "row": 7, "number": 10, "sold": false}
+            {"index":{"_id": "8"}}
+            {"theatre": "Skyline", "play": "Test Run", "actors": ["Joe Muir", "Ryan Earns", "Joel Madigan", "Jessica Brown"], "date": "2018-8-5", "time": "7:30PM", "cost": 17.5, "row": 11, "number": 12, "sold": true}
+            {"index":{"_id": "9"}}
+            {"theatre": "Skyline", "play": "Sunnyside Down", "actors": ["Krissy Smith", "Joe Muir", "Ryan Earns", "Nora Blue", "Mike Candlestick", "Jacey Bell"], "date": "2018-6-12", "time": "4:00PM", "cost": 21.25, "row": 8, "number": 15, "sold": true}
+            {"index":{"_id": "10"}}
+            {"theatre": "Graye", "play": "Line and Single", "actors": ["Nora Blue", "Mike Candlestick"], "date": "2018-6-5", "time": "2:00PM", "cost": 30.0, "row": 1, "number": 2, "sold": false}
+            {"index":{"_id":"11"}}
+            {"theatre": "Graye", "play": "Hamilton", "actors": ["Lin-Manuel Miranda", "Leslie Odom Jr."] ,"date":"2018-6-5", "time": "2:00PM", "cost": 5000.0, "row":1, "number": 20, "sold": true}
+            '''
+setups['kibana_sample_data_ecommerce'] = '''
+  - do:
+        indices.create:
+          index: kibana_sample_data_ecommerce
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                order_date:
+                  type: date
+'''
+setups['add_timestamp_pipeline'] = '''
+  - do:
+      ingest.put_pipeline:
+        id: "add_timestamp_pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field" : "@timestamp",
+                  "value" : "{{_ingest.timestamp}}"
+                }
+              }
+            ]
+          }
+'''
+setups['simple_kibana_continuous_pivot'] = setups['kibana_sample_data_ecommerce'] + setups['add_timestamp_pipeline']  + '''
+  - do:
+      raw:
+        method: PUT
+        path: _transform/simple-kibana-ecomm-pivot
+        body:  >
+          {
+            "source": {
+              "index": "kibana_sample_data_ecommerce",
+              "query": {
+                "term": {
+                  "geoip.continent_name": {
+                    "value": "Asia"
+                  }
+                }
+              }
+            },
+            "pivot": {
+              "group_by": {
+                "customer_id": {
+                  "terms": {
+                    "field": "customer_id"
+                  }
+                }
+              },
+              "aggregations": {
+                "max_price": {
+                  "max": {
+                    "field": "taxful_total_price"
+                  }
+                }
+              }
+            },
+            "description": "Maximum priced ecommerce data",
+            "dest": {
+              "index": "kibana_sample_data_ecommerce_transform",
+              "pipeline": "add_timestamp_pipeline"
+            },
+            "frequency": "5m",
+            "sync": {
+              "time": {
+                "field": "order_date",
+                "delay": "60s"
+              }
+            }
+          }
+'''
+setups['setup_houseprices'] = '''
+  - do:
+        indices.create:
+          index: houses_sold_last_10_yrs
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+'''
+setups['setup_logdata'] = '''
+  - do:
+        indices.create:
+          index: logdata
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                grade:
+                  type: byte
+  - do:
+        bulk:
+          index: logdata
+          refresh: true
+          body: |
+            {"index":{}}
+            {"grade": 100, "weight": 2}
+            {"index":{}}
+            {"grade": 50, "weight": 3}
+'''
+setups['logdata_job'] = setups['setup_logdata'] + '''
+  - do:
+      ml.put_data_frame_analytics:
+        id: "loganalytics"
+        body:  >
+          {
+            "source": {
+              "index": "logdata"
+              },
+            "dest": {
+              "index": "logdata_out"
+              },
+            "analysis": {
+              "outlier_detection": {}
+            }
+          }
+'''
+// Used by snapshot lifecycle management docs
+setups['setup-repository'] = '''
+  - do:
+      snapshot.create_repository:
+        repository: my_repository
+        body:
+          type: fs
+          settings:
+            location: buildDir/cluster/shared/repo
+'''
+
+// Used by snapshot restore docs
+setups['setup-snapshots'] = setups['setup-repository'] + '''
+  - do:
+      bulk:
+        index: my-index
+        refresh: true
+        body: |
+          {"index":{"_id": "0"}}
+          {"message": "trying out Elasticsearch", "context": "foo"}
+  - do:
+      bulk:
+        index: logs-my_app-default
+        refresh: true
+        body: |
+          {"create":{"_id": "0"}}
+          {"message": "trying out Elasticsearch", "context": "foo"}
+  - do:
+      snapshot.create:
+        repository: my_repository
+        snapshot: my_snapshot_2099.05.06
+        wait_for_completion: true
+'''
+
+// Fake sec logs data used by EQL search
+  setups['atomic_red_regsvr32'] = setups['my_data_stream'] + '''
+  - do:
+        bulk:
+          index: my-data-stream
+          refresh: true
+          body: |
+#atomic_red_data#
+'''
+
+  setups['my_inactive_watch'] = '''
+  - do:
+      watcher.put_watch:
+        id: "my_watch"
+        active: false
+        body:  >
+          {
+            "trigger": {
+              "schedule": {
+                "hourly": {
+                  "minute": [ 0, 5 ]
+                }
+              }
+            },
+            "input": {
+              "simple": {
+                "payload": {
+                  "send": "yes"
+                }
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "test_index": {
+                "index": {
+                  "index": "test"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch" }
+'''
+
+  setups['my_active_watch'] = setups['my_inactive_watch'].replace(
+        'active: false', 'active: true')
+
+  setups['role_mapping'] = '''
+  - do:
+        security.put_role_mapping:
+         name: "mapping1"
+         body:  >
+            {
+               "enabled": true,
+               "roles": [ "user" ],
+               "rules": { "field": { "username": "*" } }
+            }
+'''
+
+  setups['admin_role'] = '''
+  - do:
+      security.put_role:
+        name: "my_admin_role"
+        body: >
+          {
+            "cluster": ["all"],
+            "indices": [
+              {"names": ["index1", "index2" ], "privileges": ["all"], "field_security" : {"grant" : [ "title", "body" ]}}
+              ],
+            "run_as": [ "other_user" ],
+            "metadata" : {"version": 1}
+          }
+'''
+  setups['jacknich_user'] = '''
+  - do:
+      security.put_user:
+        username: "jacknich"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "admin", "other_role1" ],
+            "full_name" : "Jack Nicholson",
+            "email" : "jacknich@example.com",
+            "metadata" : { "intelligence" : 7 }
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "jacknich",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+'''
+  setups['sandrakn_user'] = '''
+  - do:
+      security.put_user:
+        username: "sandrakn"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "admin", "other_role1" ],
+            "full_name" : "Sandra Knight",
+            "email" : "sandrakn@example.com",
+            "metadata" : { "intelligence" : 7 }
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "sandrakn",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+
+'''
+  setups['app0102_privileges'] = '''
+  - do:
+        security.put_privileges:
+          body: >
+            {
+              "myapp": {
+                "read": {
+                  "application": "myapp",
+                  "name": "read",
+                  "actions": [
+                    "data:read/*",
+                    "action:login" ],
+                  "metadata": {
+                    "description": "Read access to myapp"
+                  }
+                }
+              }
+            }
+'''
+  setups['service_token42'] = '''
+  - do:
+      security.create_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: token42
+'''
+  setups['user_profiles'] = '''
+  - do:
+      security.put_user:
+        username: "jacknich"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "admin", "other_role1" ],
+            "full_name" : "Jack Nicholson",
+            "email" : "jacknich@example.com"
+          }
+  - do:
+      security.put_user:
+        username: "jackrea"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "admin" ],
+            "full_name" : "Jack Reacher",
+            "email" : "jackrea@example.com"
+          }
+  - do:
+      security.put_user:
+        username: "jackspa"
+        body:  >
+          {
+            "password" : "l0ng-r4nd0m-p@ssw0rd",
+            "roles" : [ "user" ],
+            "full_name" : "Jack Sparrow",
+            "email" : "jackspa@example.com"
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "jacknich",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "jackrea",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "jackspa",
+            "password" : "l0ng-r4nd0m-p@ssw0rd"
+          }
+  # jacknich
+  - do:
+      security.update_user_profile_data:
+        uid: "u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0"
+        body: >
+          {
+            "labels": {
+              "direction": "north"
+            },
+            "data": {
+              "app1": {
+                "key1": "value1"
+              }
+            }
+          }
+  # jackrea
+  - do:
+      security.update_user_profile_data:
+        uid: "u_P_0BMHgaOK3p7k-PFWUCbw9dQ-UFjt01oWJ_Dp2PmPc_0"
+        body: >
+          {
+            "labels": {
+              "direction": "west"
+            }
+          }
+  # jackspa
+  - do:
+      security.update_user_profile_data:
+        uid: "u_8RKO7AKfEbSiIHZkZZ2LJy2MUSDPWDr3tMI_CkIGApU_0"
+        body: >
+          {
+            "labels": {
+              "direction": "south"
+            }
+          }
+'''
+
+  // fake data used by the correlation bucket agg
+  buildRestTests.setups['correlate_latency'] = '''
+  - do:
+        indices.create:
+          index: correlate_latency
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                latency:
+                  type: double
+                version:
+                  type: keyword
+  - do:
+        bulk:
+          index: correlate_latency
+          refresh: true
+          body: |'''
+
+
+  for (int i = 100; i < 200; i++) {
+    def value = i
+    if (i % 10) {
+      value = i * 10
+    }
+    buildRestTests.setups['correlate_latency'] += """
+            {"index":{}}
+            {"latency": "$value", "version": "1.0"}"""
+  }
+  for (int i = 0; i < 100; i++) {
+    def value = i
+    if (i % 10) {
+      value = i * 10
+    }
+    buildRestTests.setups['correlate_latency'] += """
+            {"index":{}}
+            {"latency": "$value", "version": "2.0"}"""
+  }
+
+  /* Load the actual events only if we're going to use them. */
+  File atomicRedRegsvr32File = new File("$projectDir/src/yamlRestTest/resources/normalized-T1117-AtomicRed-regsvr32.json")
+  inputs.file(atomicRedRegsvr32File)
+
+  doFirst {
+    String events = atomicRedRegsvr32File.getText('UTF-8')
+    // Indent like a yaml test needs
+    events = events.replaceAll('(?m)^', '            ')
+    setups['atomic_red_regsvr32'] =
+    setups['atomic_red_regsvr32'].replace('#atomic_red_data#', events)
+  }
+}

@@ -1,0 +1,69 @@
+---
+"line_40":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "my_analyzer": {
+                    "tokenizer": "my_tokenizer"
+                  }
+                },
+                "tokenizer": {
+                  "my_tokenizer": {
+                    "type": "simple_pattern_split",
+                    "pattern": "_"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "my-index-000001/_analyze"
+        body: |
+          {
+            "analyzer": "my_analyzer",
+            "text": "an_underscored_phrase"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens" : [
+            {
+              "token" : "an",
+              "start_offset" : 0,
+              "end_offset" : 2,
+              "type" : "word",
+              "position" : 0
+            },
+            {
+              "token" : "underscored",
+              "start_offset" : 3,
+              "end_offset" : 14,
+              "type" : "word",
+              "position" : 1
+            },
+            {
+              "token" : "phrase",
+              "start_offset" : 15,
+              "end_offset" : 21,
+              "type" : "word",
+              "position" : 2
+            }
+          ]
+        }

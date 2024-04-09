@@ -1,0 +1,128 @@
+---
+"line_17":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "networks"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "range": { "type": "ip_range" },
+                "name": { "type": "keyword" },
+                "department": { "type": "keyword" }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "networks/_doc/1"
+        refresh: "wait_for"
+        body: |
+          {
+            "range": "10.100.0.0/16",
+            "name": "production",
+            "department": "OPS"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_enrich/policy/networks-policy"
+        body: |
+          {
+            "range": {
+              "indices": "networks",
+              "match_field": "range",
+              "enrich_fields": ["name", "department"]
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_enrich/policy/networks-policy/_execute"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_ingest/pipeline/networks_lookup"
+        body: |
+          {
+            "processors" : [
+              {
+                "enrich" : {
+                  "description": "Add 'network' data based on 'ip'",
+                  "policy_name": "networks-policy",
+                  "field" : "ip",
+                  "target_field": "network",
+                  "max_matches": "10"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/my_id"
+        pipeline: "networks_lookup"
+        body: |
+          {
+            "ip": "10.100.34.1"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_doc/my_id"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "_index" : "my-index-000001",
+          "_id" : "my_id",
+          "_version" : 1,
+          "_seq_no" : 0,
+          "_primary_term" : 1,
+          "found" : true,
+          "_source" : {
+            "ip" : "10.100.34.1",
+            "network" : [
+              {
+                "name" : "production",
+                "range" : "10.100.0.0/16",
+                "department" : "OPS"
+              }
+            ]
+          }
+        }
+  - do:
+      raw:
+        method: DELETE
+        path: "_ingest/pipeline/networks_lookup"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_enrich/policy/networks-policy"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "networks"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "my-index-000001"
+  - is_false: _shards.failures

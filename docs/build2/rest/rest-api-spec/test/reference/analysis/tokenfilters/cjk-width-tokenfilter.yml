@@ -1,0 +1,60 @@
+---
+"line_28":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer" : "standard",
+            "filter" : ["cjk_width"],
+            "text" : "ｼｰｻｲﾄﾞﾗｲﾅｰ"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens" : [
+            {
+              "token" : "シーサイドライナー",
+              "start_offset" : 0,
+              "end_offset" : 10,
+              "type" : "<KATAKANA>",
+              "position" : 0
+            }
+          ]
+        }
+---
+"line_69":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "cjk_width_example"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "standard_cjk_width": {
+                    "tokenizer": "standard",
+                    "filter": [ "cjk_width" ]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

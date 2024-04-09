@@ -1,0 +1,22 @@
+---
+"line_10":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "wrapper": {
+                "query": "eyJ0ZXJtIiA6IHsgInVzZXIuaWQiIDogImtpbWNoeSIgfX0="
+              }
+            }
+          }
+  - is_false: _shards.failures

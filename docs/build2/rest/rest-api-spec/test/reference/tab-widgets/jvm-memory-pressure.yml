@@ -1,0 +1,15 @@
+---
+"line_11":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/stats"
+        filter_path: "nodes.*.jvm.mem.pools.old"
+  - is_false: _shards.failures

@@ -1,0 +1,76 @@
+---
+"adjacency-matrix-aggregation-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "emails/_bulk"
+        refresh: ""
+        body: |
+          { "index" : { "_id" : 1 } }
+          { "accounts" : ["hillary", "sidney"]}
+          { "index" : { "_id" : 2 } }
+          { "accounts" : ["hillary", "donald"]}
+          { "index" : { "_id" : 3 } }
+          { "accounts" : ["vladimir", "donald"]}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "emails/_search"
+        body: |
+          {
+            "size": 0,
+            "aggs" : {
+              "interactions" : {
+                "adjacency_matrix" : {
+                  "filters" : {
+                    "grpA" : { "terms" : { "accounts" : ["hillary", "sidney"] }},
+                    "grpB" : { "terms" : { "accounts" : ["donald", "mitt"] }},
+                    "grpC" : { "terms" : { "accounts" : ["vladimir", "nigel"] }}
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": $body.took,
+          "timed_out": false,
+          "_shards": $body._shards,
+          "hits": $body.hits,
+          "aggregations": {
+            "interactions": {
+              "buckets": [
+                {
+                  "key":"grpA",
+                  "doc_count": 2
+                },
+                {
+                  "key":"grpA&grpB",
+                  "doc_count": 1
+                },
+                {
+                  "key":"grpB",
+                  "doc_count": 2
+                },
+                {
+                  "key":"grpB&grpC",
+                  "doc_count": 1
+                },
+                {
+                  "key":"grpC",
+                  "doc_count": 1
+                }
+              ]
+            }
+          }
+        }

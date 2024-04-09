@@ -1,0 +1,118 @@
+---
+"line_20":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: we don't have s3 setup while testing this
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_s3_repository"
+        body: |
+          {
+            "type": "s3",
+            "settings": {
+              "bucket": "my-bucket"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_41":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: we don't have S3 setup while testing this
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_s3_repository"
+        body: |
+          {
+            "type": "s3",
+            "settings": {
+              "bucket": "my-bucket",
+              "client": "my-alternate-client"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_217":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: we don't have S3 set up while testing this
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_s3_repository"
+        body: |
+          {
+            "type": "s3",
+            "settings": {
+              "bucket": "my-bucket",
+              "another_setting": "setting-value"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_317":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: we don't have s3 set up while testing this
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_s3_repository"
+        body: |
+          {
+            "type": "s3",
+            "settings": {
+              "client": "my-client",
+              "bucket": "my-bucket",
+              "endpoint": "my.s3.endpoint"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_578":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: we don't really want to change this logger
+  - do:
+      raw:
+        method: PUT
+        path: "_cluster/settings"
+        body: |
+          {
+            "persistent": {
+              "logger.com.amazonaws.request": "DEBUG"
+            }
+          }
+  - is_false: _shards.failures

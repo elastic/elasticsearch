@@ -1,0 +1,107 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_connector/connector-1"
+        body: |
+          {
+            "index_name": "search-google-drive",
+            "name": "Google Drive Connector",
+            "service_type": "google_drive"
+          }
+  - do:
+      raw:
+        method: PUT
+        path: "_connector/connector-2"
+        body: |
+          {
+            "index_name": "search-sharepoint-online",
+            "name": "Sharepoint Online Connector",
+            "service_type": "sharepoint_online"
+          }
+---
+teardown:
+  - do:
+      raw:
+        method: DELETE
+        path: "_connector/connector-1"
+  - do:
+      raw:
+        method: DELETE
+        path: "_connector/connector-2"
+---
+"line_76":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_connector"
+  - is_false: _shards.failures
+---
+"line_83":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_connector/"
+        from: "0"
+        size: "2"
+  - is_false: _shards.failures
+---
+"line_90":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_connector/"
+        index_name: "search-google-drive"
+  - is_false: _shards.failures
+---
+"line_98":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_connector/"
+        service_type: "sharepoint_online"
+  - is_false: _shards.failures
+---
+"line_105":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_connector/"
+        service_type: "sharepoint_online,google_drive"
+  - is_false: _shards.failures

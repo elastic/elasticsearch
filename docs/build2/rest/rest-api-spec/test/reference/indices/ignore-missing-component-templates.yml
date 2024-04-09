@@ -1,0 +1,79 @@
+---
+"line_14":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_component_template/logs-foo_component1"
+        body: |
+          {
+            "template": {
+              "mappings": {
+                "properties": {
+                  "host.name": {
+                    "type": "keyword"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_index_template/logs-foo"
+        body: |
+          {
+            "index_patterns": ["logs-foo-*"],
+            "data_stream": { },
+            "composed_of": ["logs-foo_component1", "logs-foo_component2"],
+            "ignore_missing_component_templates": ["logs-foo_component2"],
+            "priority": 500
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_data_stream/logs-foo-bar"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_component_template/logs-foo_component2"
+        body: |
+          {
+            "template": {
+              "mappings": {
+                "properties": {
+                  "host.ip": {
+                    "type": "ip"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "logs-foo-bar/_rollover"
+  - is_false: _shards.failures
+# Named teardown data_stream_cleanup
+
+  - do:
+      raw:
+        method: DELETE
+        path: '_data_stream/*'
+  - is_true: acknowledged
+  - do:
+      raw:
+        method: DELETE
+        path: '_index_template/*'
+  - is_true: acknowledged
+

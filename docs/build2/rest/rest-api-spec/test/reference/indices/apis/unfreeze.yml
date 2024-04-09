@@ -1,0 +1,21 @@
+---
+"line_51":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: unable to ignore deprecation warning
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "my-index-000001/_unfreeze"
+  - is_false: _shards.failures

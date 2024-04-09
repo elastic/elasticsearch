@@ -1,0 +1,95 @@
+---
+"line_18":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "my_field": {
+                  "type": "search_as_you_type"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/1"
+        refresh: ""
+        body: |
+          {
+            "my_field": "quick brown fox jump lazy dog"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "query": {
+              "multi_match": {
+                "query": "brown f",
+                "type": "bool_prefix",
+                "fields": [
+                  "my_field",
+                  "my_field._2gram",
+                  "my_field._3gram"
+                ]
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took" : $body.took,
+          "timed_out" : false,
+          "_shards" : {
+            "total" : 1,
+            "successful" : 1,
+            "skipped" : 0,
+            "failed" : 0
+          },
+          "hits" : {
+            "total" : {
+              "value" : 1,
+              "relation" : "eq"
+            },
+            "max_score" : $body.hits.max_score,
+            "hits" : [
+              {
+                "_index" : "my-index-000001",
+                "_id" : "1",
+                "_score" : $body.hits.hits.0._score,
+                "_source" : {
+                  "my_field" : "quick brown fox jump lazy dog"
+                }
+              }
+            ]
+          }
+        }
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "query": {
+              "match_phrase_prefix": {
+                "my_field": "brown f"
+              }
+            }
+          }
+  - is_false: _shards.failures

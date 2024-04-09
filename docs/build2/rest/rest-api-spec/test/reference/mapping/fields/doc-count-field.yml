@@ -1,0 +1,86 @@
+---
+"line_34":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my_index"
+        body: |
+          {
+            "mappings" : {
+              "properties" : {
+                "my_histogram" : {
+                  "type" : "histogram"
+                },
+                "my_text" : {
+                  "type" : "keyword"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_54":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my_index/_doc/1"
+        body: |
+          {
+            "my_text" : "histogram_1",
+            "my_histogram" : {
+                "values" : [0.1, 0.2, 0.3, 0.4, 0.5],
+                "counts" : [3, 7, 23, 12, 6]
+             },
+            "_doc_count": 45
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my_index/_doc/2"
+        body: |
+          {
+            "my_text" : "histogram_2",
+            "my_histogram" : {
+                "values" : [0.1, 0.25, 0.35, 0.4, 0.45, 0.5],
+                "counts" : [8, 17, 8, 7, 6, 2]
+             },
+            "_doc_count": 62
+          }
+  - is_false: _shards.failures
+---
+"line_80":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+              "aggs" : {
+                  "histogram_titles" : {
+                      "terms" : { "field" : "my_text" }
+                  }
+              }
+          }
+  - is_false: _shards.failures

@@ -1,0 +1,117 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "job-candidates"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "name": {
+                  "type": "keyword"
+                },
+                "programming_languages": {
+                  "type": "keyword"
+                },
+                "required_matches": {
+                  "type": "long"
+                }
+              }
+            }
+          }
+---
+"line_85":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "job-candidates/_doc/1"
+        refresh: ""
+        body: |
+          {
+            "name": "Jane Smith",
+            "programming_languages": [ "c++", "java" ],
+            "required_matches": 2
+          }
+  - is_false: _shards.failures
+---
+"line_107":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "job-candidates/_doc/2"
+        refresh: ""
+        body: |
+          {
+            "name": "Jason Response",
+            "programming_languages": [ "java", "php" ],
+            "required_matches": 2
+          }
+  - is_false: _shards.failures
+---
+"line_136":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "job-candidates/_search"
+        body: |
+          {
+            "query": {
+              "terms_set": {
+                "programming_languages": {
+                  "terms": [ "c++", "java", "php" ],
+                  "minimum_should_match_field": "required_matches"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_214":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "job-candidates/_search"
+        body: |
+          {
+            "query": {
+              "terms_set": {
+                "programming_languages": {
+                  "terms": [ "c++", "java", "php" ],
+                  "minimum_should_match_script": {
+                    "source": "Math.min(params.num_terms, doc['required_matches'].value)"
+                  },
+                  "boost": 1.0
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

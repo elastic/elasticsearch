@@ -1,0 +1,304 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "test/_doc/1"
+        body: |
+          {
+            "counter" : 1,
+            "tags" : ["red"]
+          }
+---
+"line_118":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "test/_update/1"
+        body: |
+          {
+            "script" : {
+              "source": "ctx._source.counter += params.count",
+              "lang": "painless",
+              "params" : {
+                "count" : 4
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_135":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "test/_update/1"
+        body: |
+          {
+            "script": {
+              "source": "ctx._source.tags.add(params.tag)",
+              "lang": "painless",
+              "params": {
+                "tag": "blue"
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_155":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "test/_update/1"
+        body: |
+          {
+            "script": {
+              "source": "if (ctx._source.tags.contains(params.tag)) { ctx._source.tags.remove(ctx._source.tags.indexOf(params.tag)) }",
+              "lang": "painless",
+              "params": {
+                "tag": "blue"
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_172":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "test/_update/1"
+        body: |
+          {
+            "script" : "ctx._source.new_field = 'value_of_new_field'"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "test/_update/1"
+        body: |
+          {
+            "script" : "ctx._source.remove('new_field')"
+          }
+  - is_false: _shards.failures
+---
+"line_194":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "test/_doc/1"
+        refresh: ""
+        body: |
+          {
+            "my-object": {
+              "my-subfield": true
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "test/_update/1"
+        body: |
+          {
+            "script": "ctx._source['my-object'].remove('my-subfield')"
+          }
+  - is_false: _shards.failures
+---
+"line_218":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "test/_update/1"
+        body: |
+          {
+            "script": {
+              "source": "if (ctx._source.tags.contains(params.tag)) { ctx.op = 'delete' } else { ctx.op = 'noop' }",
+              "lang": "painless",
+              "params": {
+                "tag": "green"
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_238":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "test/_update/1"
+        body: |
+          {
+            "doc": {
+              "name": "new_name"
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "test/_update/1"
+        body: |
+          {
+            "doc": {
+              "name": "new_name"
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+           "_shards": {
+                "total": 0,
+                "successful": 0,
+                "failed": 0
+           },
+           "_index": "test",
+           "_id": "1",
+           "_version": 2,
+           "_primary_term": 1,
+           "_seq_no": 1,
+           "result": "noop"
+        }
+---
+"line_290":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "test/_update/1"
+        body: |
+          {
+            "doc": {
+              "name": "new_name"
+            },
+            "detect_noop": false
+          }
+  - is_false: _shards.failures
+---
+"line_309":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "test/_update/1"
+        body: |
+          {
+            "script": {
+              "source": "ctx._source.counter += params.count",
+              "lang": "painless",
+              "params": {
+                "count": 4
+              }
+            },
+            "upsert": {
+              "counter": 1
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_333":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "test/_update/1"
+        body: |
+          {
+            "scripted_upsert": true,
+            "script": {
+              "source": "\n      if ( ctx.op == 'create' ) {\n        ctx._source.counter = params.count\n      } else {\n        ctx._source.counter += params.count\n      }\n    ",
+              "params": {
+                "count": 4
+              }
+            },
+            "upsert": {}
+          }
+  - is_false: _shards.failures
+---
+"line_362":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "test/_update/1"
+        body: |
+          {
+            "doc": {
+              "name": "new_name"
+            },
+            "doc_as_upsert": true
+          }
+  - is_false: _shards.failures

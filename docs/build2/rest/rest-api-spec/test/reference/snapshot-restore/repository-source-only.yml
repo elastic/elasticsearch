@@ -1,0 +1,32 @@
+---
+"line_38":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup setup-repository
+
+  - do:
+      snapshot.create_repository:
+        repository: my_repository
+        body:
+          type: fs
+          settings:
+            location: buildDir/cluster/shared/repo
+
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_src_only_repository"
+        body: |
+          {
+            "type": "source",
+            "settings": {
+              "delegate_type": "fs",
+              "location": "my_repository"
+            }
+          }
+  - is_false: _shards.failures

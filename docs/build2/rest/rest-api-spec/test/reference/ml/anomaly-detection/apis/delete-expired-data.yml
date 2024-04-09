@@ -1,0 +1,20 @@
+---
+"line_64":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: DELETE
+        path: "_ml/_delete_expired_data"
+        timeout: "1h"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "deleted": true
+        }

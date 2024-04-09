@@ -1,0 +1,29 @@
+---
+"line_220":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/role/clicks_admin"
+        body: |
+          {
+            "run_as": [ "clicks_watcher_1" ],
+            "cluster": [ "monitor" ],
+            "indices": [
+              {
+                "names": [ "events-*" ],
+                "privileges": [ "read" ],
+                "field_security" : {
+                  "grant" : [ "category", "@timestamp", "message" ]
+                },
+                "query": "{\"match\": {\"category\": \"click\"}}"
+              }
+            ]
+          }
+  - is_false: _shards.failures

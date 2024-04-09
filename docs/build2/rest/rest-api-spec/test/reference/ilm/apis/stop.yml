@@ -1,0 +1,55 @@
+---
+"line_49":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ilm/policy/my_policy"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "warm": {
+                  "min_age": "10d",
+                  "actions": {
+                    "forcemerge": {
+                      "max_num_segments": 1
+                    }
+                  }
+                },
+                "delete": {
+                  "min_age": "30d",
+                  "actions": {
+                    "delete": {}
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_ilm/stop"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "acknowledged": true
+        }
+  - do:
+      raw:
+        method: POST
+        path: "_ilm/start"
+  - is_false: _shards.failures

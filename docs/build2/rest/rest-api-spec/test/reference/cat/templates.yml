@@ -1,0 +1,57 @@
+---
+"line_61":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_index_template/my-template-2"
+        body: |
+          {"index_patterns": "teak*", "priority": 502, "version": 7}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_index_template/my-template-1"
+        body: |
+          {"index_patterns": "tea*", "priority": 501}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_index_template/my-template-0"
+        body: |
+          {"index_patterns": "te*", "priority": 500}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_cat/templates/my-template-*"
+        v: "true"
+        s: "name"
+  - match:
+      $body:
+        /name          \s+index_patterns \s+order \s+version \s+composed_of\s*
+         my-template-0 \s+\[te\*\]          \s+500           \s+\[\]\s*
+         my-template-1 \s+\[tea\*\]         \s+501           \s+\[\]\s*
+         my-template-2 \s+\[teak\*\]        \s+502   \s+7       \s+\[\]\s*/
+  - do:
+      raw:
+        method: DELETE
+        path: "_index_template/my-template-0"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_index_template/my-template-1"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_index_template/my-template-2"
+  - is_false: _shards.failures

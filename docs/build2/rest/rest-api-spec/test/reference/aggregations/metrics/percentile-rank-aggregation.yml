@@ -1,0 +1,1283 @@
+---
+"line_29":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup latency
+
+  - do:
+        indices.create:
+          index: latency
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                load_time:
+                  type: long
+  - do:
+        bulk:
+          index: latency
+          refresh: true
+          body: |
+            {"index":{}}
+            {"load_time": "0"}
+            {"index":{}}
+            {"load_time": "10"}
+            {"index":{}}
+            {"load_time": "20"}
+            {"index":{}}
+            {"load_time": "30"}
+            {"index":{}}
+            {"load_time": "40"}
+            {"index":{}}
+            {"load_time": "50"}
+            {"index":{}}
+            {"load_time": "60"}
+            {"index":{}}
+            {"load_time": "70"}
+            {"index":{}}
+            {"load_time": "80"}
+            {"index":{}}
+            {"load_time": "90"}
+            {"index":{}}
+            {"load_time": "10"}
+            {"index":{}}
+            {"load_time": "110"}
+            {"index":{}}
+            {"load_time": "120"}
+            {"index":{}}
+            {"load_time": "130"}
+            {"index":{}}
+            {"load_time": "140"}
+            {"index":{}}
+            {"load_time": "150"}
+            {"index":{}}
+            {"load_time": "160"}
+            {"index":{}}
+            {"load_time": "170"}
+            {"index":{}}
+            {"load_time": "180"}
+            {"index":{}}
+            {"load_time": "190"}
+            {"index":{}}
+            {"load_time": "20"}
+            {"index":{}}
+            {"load_time": "210"}
+            {"index":{}}
+            {"load_time": "220"}
+            {"index":{}}
+            {"load_time": "230"}
+            {"index":{}}
+            {"load_time": "240"}
+            {"index":{}}
+            {"load_time": "250"}
+            {"index":{}}
+            {"load_time": "260"}
+            {"index":{}}
+            {"load_time": "270"}
+            {"index":{}}
+            {"load_time": "280"}
+            {"index":{}}
+            {"load_time": "290"}
+            {"index":{}}
+            {"load_time": "30"}
+            {"index":{}}
+            {"load_time": "310"}
+            {"index":{}}
+            {"load_time": "320"}
+            {"index":{}}
+            {"load_time": "330"}
+            {"index":{}}
+            {"load_time": "340"}
+            {"index":{}}
+            {"load_time": "350"}
+            {"index":{}}
+            {"load_time": "360"}
+            {"index":{}}
+            {"load_time": "370"}
+            {"index":{}}
+            {"load_time": "380"}
+            {"index":{}}
+            {"load_time": "390"}
+            {"index":{}}
+            {"load_time": "40"}
+            {"index":{}}
+            {"load_time": "410"}
+            {"index":{}}
+            {"load_time": "420"}
+            {"index":{}}
+            {"load_time": "430"}
+            {"index":{}}
+            {"load_time": "440"}
+            {"index":{}}
+            {"load_time": "450"}
+            {"index":{}}
+            {"load_time": "460"}
+            {"index":{}}
+            {"load_time": "470"}
+            {"index":{}}
+            {"load_time": "480"}
+            {"index":{}}
+            {"load_time": "490"}
+            {"index":{}}
+            {"load_time": "50"}
+            {"index":{}}
+            {"load_time": "510"}
+            {"index":{}}
+            {"load_time": "520"}
+            {"index":{}}
+            {"load_time": "530"}
+            {"index":{}}
+            {"load_time": "540"}
+            {"index":{}}
+            {"load_time": "550"}
+            {"index":{}}
+            {"load_time": "560"}
+            {"index":{}}
+            {"load_time": "570"}
+            {"index":{}}
+            {"load_time": "580"}
+            {"index":{}}
+            {"load_time": "590"}
+            {"index":{}}
+            {"load_time": "60"}
+            {"index":{}}
+            {"load_time": "610"}
+            {"index":{}}
+            {"load_time": "620"}
+            {"index":{}}
+            {"load_time": "630"}
+            {"index":{}}
+            {"load_time": "640"}
+            {"index":{}}
+            {"load_time": "650"}
+            {"index":{}}
+            {"load_time": "660"}
+            {"index":{}}
+            {"load_time": "670"}
+            {"index":{}}
+            {"load_time": "680"}
+            {"index":{}}
+            {"load_time": "690"}
+            {"index":{}}
+            {"load_time": "70"}
+            {"index":{}}
+            {"load_time": "710"}
+            {"index":{}}
+            {"load_time": "720"}
+            {"index":{}}
+            {"load_time": "730"}
+            {"index":{}}
+            {"load_time": "740"}
+            {"index":{}}
+            {"load_time": "750"}
+            {"index":{}}
+            {"load_time": "760"}
+            {"index":{}}
+            {"load_time": "770"}
+            {"index":{}}
+            {"load_time": "780"}
+            {"index":{}}
+            {"load_time": "790"}
+            {"index":{}}
+            {"load_time": "80"}
+            {"index":{}}
+            {"load_time": "810"}
+            {"index":{}}
+            {"load_time": "820"}
+            {"index":{}}
+            {"load_time": "830"}
+            {"index":{}}
+            {"load_time": "840"}
+            {"index":{}}
+            {"load_time": "850"}
+            {"index":{}}
+            {"load_time": "860"}
+            {"index":{}}
+            {"load_time": "870"}
+            {"index":{}}
+            {"load_time": "880"}
+            {"index":{}}
+            {"load_time": "890"}
+            {"index":{}}
+            {"load_time": "90"}
+            {"index":{}}
+            {"load_time": "910"}
+            {"index":{}}
+            {"load_time": "920"}
+            {"index":{}}
+            {"load_time": "930"}
+            {"index":{}}
+            {"load_time": "940"}
+            {"index":{}}
+            {"load_time": "950"}
+            {"index":{}}
+            {"load_time": "960"}
+            {"index":{}}
+            {"load_time": "970"}
+            {"index":{}}
+            {"load_time": "980"}
+            {"index":{}}
+            {"load_time": "990"}
+  - do:
+      raw:
+        method: GET
+        path: "latency/_search"
+        body: |
+          {
+            "size": 0,
+            "aggs": {
+              "load_time_ranks": {
+                "percentile_ranks": {
+                  "field": "load_time",
+                  "values": [ 500, 600 ]
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,
+        
+         "aggregations": {
+            "load_time_ranks": {
+              "values": {
+                "500.0": 55.00000000000001,
+                "600.0": 64.0
+              }
+            }
+          }
+        }
+---
+"line_76":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup latency
+
+  - do:
+        indices.create:
+          index: latency
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                load_time:
+                  type: long
+  - do:
+        bulk:
+          index: latency
+          refresh: true
+          body: |
+            {"index":{}}
+            {"load_time": "0"}
+            {"index":{}}
+            {"load_time": "10"}
+            {"index":{}}
+            {"load_time": "20"}
+            {"index":{}}
+            {"load_time": "30"}
+            {"index":{}}
+            {"load_time": "40"}
+            {"index":{}}
+            {"load_time": "50"}
+            {"index":{}}
+            {"load_time": "60"}
+            {"index":{}}
+            {"load_time": "70"}
+            {"index":{}}
+            {"load_time": "80"}
+            {"index":{}}
+            {"load_time": "90"}
+            {"index":{}}
+            {"load_time": "10"}
+            {"index":{}}
+            {"load_time": "110"}
+            {"index":{}}
+            {"load_time": "120"}
+            {"index":{}}
+            {"load_time": "130"}
+            {"index":{}}
+            {"load_time": "140"}
+            {"index":{}}
+            {"load_time": "150"}
+            {"index":{}}
+            {"load_time": "160"}
+            {"index":{}}
+            {"load_time": "170"}
+            {"index":{}}
+            {"load_time": "180"}
+            {"index":{}}
+            {"load_time": "190"}
+            {"index":{}}
+            {"load_time": "20"}
+            {"index":{}}
+            {"load_time": "210"}
+            {"index":{}}
+            {"load_time": "220"}
+            {"index":{}}
+            {"load_time": "230"}
+            {"index":{}}
+            {"load_time": "240"}
+            {"index":{}}
+            {"load_time": "250"}
+            {"index":{}}
+            {"load_time": "260"}
+            {"index":{}}
+            {"load_time": "270"}
+            {"index":{}}
+            {"load_time": "280"}
+            {"index":{}}
+            {"load_time": "290"}
+            {"index":{}}
+            {"load_time": "30"}
+            {"index":{}}
+            {"load_time": "310"}
+            {"index":{}}
+            {"load_time": "320"}
+            {"index":{}}
+            {"load_time": "330"}
+            {"index":{}}
+            {"load_time": "340"}
+            {"index":{}}
+            {"load_time": "350"}
+            {"index":{}}
+            {"load_time": "360"}
+            {"index":{}}
+            {"load_time": "370"}
+            {"index":{}}
+            {"load_time": "380"}
+            {"index":{}}
+            {"load_time": "390"}
+            {"index":{}}
+            {"load_time": "40"}
+            {"index":{}}
+            {"load_time": "410"}
+            {"index":{}}
+            {"load_time": "420"}
+            {"index":{}}
+            {"load_time": "430"}
+            {"index":{}}
+            {"load_time": "440"}
+            {"index":{}}
+            {"load_time": "450"}
+            {"index":{}}
+            {"load_time": "460"}
+            {"index":{}}
+            {"load_time": "470"}
+            {"index":{}}
+            {"load_time": "480"}
+            {"index":{}}
+            {"load_time": "490"}
+            {"index":{}}
+            {"load_time": "50"}
+            {"index":{}}
+            {"load_time": "510"}
+            {"index":{}}
+            {"load_time": "520"}
+            {"index":{}}
+            {"load_time": "530"}
+            {"index":{}}
+            {"load_time": "540"}
+            {"index":{}}
+            {"load_time": "550"}
+            {"index":{}}
+            {"load_time": "560"}
+            {"index":{}}
+            {"load_time": "570"}
+            {"index":{}}
+            {"load_time": "580"}
+            {"index":{}}
+            {"load_time": "590"}
+            {"index":{}}
+            {"load_time": "60"}
+            {"index":{}}
+            {"load_time": "610"}
+            {"index":{}}
+            {"load_time": "620"}
+            {"index":{}}
+            {"load_time": "630"}
+            {"index":{}}
+            {"load_time": "640"}
+            {"index":{}}
+            {"load_time": "650"}
+            {"index":{}}
+            {"load_time": "660"}
+            {"index":{}}
+            {"load_time": "670"}
+            {"index":{}}
+            {"load_time": "680"}
+            {"index":{}}
+            {"load_time": "690"}
+            {"index":{}}
+            {"load_time": "70"}
+            {"index":{}}
+            {"load_time": "710"}
+            {"index":{}}
+            {"load_time": "720"}
+            {"index":{}}
+            {"load_time": "730"}
+            {"index":{}}
+            {"load_time": "740"}
+            {"index":{}}
+            {"load_time": "750"}
+            {"index":{}}
+            {"load_time": "760"}
+            {"index":{}}
+            {"load_time": "770"}
+            {"index":{}}
+            {"load_time": "780"}
+            {"index":{}}
+            {"load_time": "790"}
+            {"index":{}}
+            {"load_time": "80"}
+            {"index":{}}
+            {"load_time": "810"}
+            {"index":{}}
+            {"load_time": "820"}
+            {"index":{}}
+            {"load_time": "830"}
+            {"index":{}}
+            {"load_time": "840"}
+            {"index":{}}
+            {"load_time": "850"}
+            {"index":{}}
+            {"load_time": "860"}
+            {"index":{}}
+            {"load_time": "870"}
+            {"index":{}}
+            {"load_time": "880"}
+            {"index":{}}
+            {"load_time": "890"}
+            {"index":{}}
+            {"load_time": "90"}
+            {"index":{}}
+            {"load_time": "910"}
+            {"index":{}}
+            {"load_time": "920"}
+            {"index":{}}
+            {"load_time": "930"}
+            {"index":{}}
+            {"load_time": "940"}
+            {"index":{}}
+            {"load_time": "950"}
+            {"index":{}}
+            {"load_time": "960"}
+            {"index":{}}
+            {"load_time": "970"}
+            {"index":{}}
+            {"load_time": "980"}
+            {"index":{}}
+            {"load_time": "990"}
+  - do:
+      raw:
+        method: GET
+        path: "latency/_search"
+        body: |
+          {
+            "size": 0,
+            "aggs": {
+              "load_time_ranks": {
+                "percentile_ranks": {
+                  "field": "load_time",
+                  "values": [ 500, 600 ],
+                  "keyed": false
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,
+        
+          "aggregations": {
+            "load_time_ranks": {
+              "values": [
+                {
+                  "key": 500.0,
+                  "value": 55.00000000000001
+                },
+                {
+                  "key": 600.0,
+                  "value": 64.0
+                }
+              ]
+            }
+          }
+        }
+---
+"line_128":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup latency
+
+  - do:
+        indices.create:
+          index: latency
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                load_time:
+                  type: long
+  - do:
+        bulk:
+          index: latency
+          refresh: true
+          body: |
+            {"index":{}}
+            {"load_time": "0"}
+            {"index":{}}
+            {"load_time": "10"}
+            {"index":{}}
+            {"load_time": "20"}
+            {"index":{}}
+            {"load_time": "30"}
+            {"index":{}}
+            {"load_time": "40"}
+            {"index":{}}
+            {"load_time": "50"}
+            {"index":{}}
+            {"load_time": "60"}
+            {"index":{}}
+            {"load_time": "70"}
+            {"index":{}}
+            {"load_time": "80"}
+            {"index":{}}
+            {"load_time": "90"}
+            {"index":{}}
+            {"load_time": "10"}
+            {"index":{}}
+            {"load_time": "110"}
+            {"index":{}}
+            {"load_time": "120"}
+            {"index":{}}
+            {"load_time": "130"}
+            {"index":{}}
+            {"load_time": "140"}
+            {"index":{}}
+            {"load_time": "150"}
+            {"index":{}}
+            {"load_time": "160"}
+            {"index":{}}
+            {"load_time": "170"}
+            {"index":{}}
+            {"load_time": "180"}
+            {"index":{}}
+            {"load_time": "190"}
+            {"index":{}}
+            {"load_time": "20"}
+            {"index":{}}
+            {"load_time": "210"}
+            {"index":{}}
+            {"load_time": "220"}
+            {"index":{}}
+            {"load_time": "230"}
+            {"index":{}}
+            {"load_time": "240"}
+            {"index":{}}
+            {"load_time": "250"}
+            {"index":{}}
+            {"load_time": "260"}
+            {"index":{}}
+            {"load_time": "270"}
+            {"index":{}}
+            {"load_time": "280"}
+            {"index":{}}
+            {"load_time": "290"}
+            {"index":{}}
+            {"load_time": "30"}
+            {"index":{}}
+            {"load_time": "310"}
+            {"index":{}}
+            {"load_time": "320"}
+            {"index":{}}
+            {"load_time": "330"}
+            {"index":{}}
+            {"load_time": "340"}
+            {"index":{}}
+            {"load_time": "350"}
+            {"index":{}}
+            {"load_time": "360"}
+            {"index":{}}
+            {"load_time": "370"}
+            {"index":{}}
+            {"load_time": "380"}
+            {"index":{}}
+            {"load_time": "390"}
+            {"index":{}}
+            {"load_time": "40"}
+            {"index":{}}
+            {"load_time": "410"}
+            {"index":{}}
+            {"load_time": "420"}
+            {"index":{}}
+            {"load_time": "430"}
+            {"index":{}}
+            {"load_time": "440"}
+            {"index":{}}
+            {"load_time": "450"}
+            {"index":{}}
+            {"load_time": "460"}
+            {"index":{}}
+            {"load_time": "470"}
+            {"index":{}}
+            {"load_time": "480"}
+            {"index":{}}
+            {"load_time": "490"}
+            {"index":{}}
+            {"load_time": "50"}
+            {"index":{}}
+            {"load_time": "510"}
+            {"index":{}}
+            {"load_time": "520"}
+            {"index":{}}
+            {"load_time": "530"}
+            {"index":{}}
+            {"load_time": "540"}
+            {"index":{}}
+            {"load_time": "550"}
+            {"index":{}}
+            {"load_time": "560"}
+            {"index":{}}
+            {"load_time": "570"}
+            {"index":{}}
+            {"load_time": "580"}
+            {"index":{}}
+            {"load_time": "590"}
+            {"index":{}}
+            {"load_time": "60"}
+            {"index":{}}
+            {"load_time": "610"}
+            {"index":{}}
+            {"load_time": "620"}
+            {"index":{}}
+            {"load_time": "630"}
+            {"index":{}}
+            {"load_time": "640"}
+            {"index":{}}
+            {"load_time": "650"}
+            {"index":{}}
+            {"load_time": "660"}
+            {"index":{}}
+            {"load_time": "670"}
+            {"index":{}}
+            {"load_time": "680"}
+            {"index":{}}
+            {"load_time": "690"}
+            {"index":{}}
+            {"load_time": "70"}
+            {"index":{}}
+            {"load_time": "710"}
+            {"index":{}}
+            {"load_time": "720"}
+            {"index":{}}
+            {"load_time": "730"}
+            {"index":{}}
+            {"load_time": "740"}
+            {"index":{}}
+            {"load_time": "750"}
+            {"index":{}}
+            {"load_time": "760"}
+            {"index":{}}
+            {"load_time": "770"}
+            {"index":{}}
+            {"load_time": "780"}
+            {"index":{}}
+            {"load_time": "790"}
+            {"index":{}}
+            {"load_time": "80"}
+            {"index":{}}
+            {"load_time": "810"}
+            {"index":{}}
+            {"load_time": "820"}
+            {"index":{}}
+            {"load_time": "830"}
+            {"index":{}}
+            {"load_time": "840"}
+            {"index":{}}
+            {"load_time": "850"}
+            {"index":{}}
+            {"load_time": "860"}
+            {"index":{}}
+            {"load_time": "870"}
+            {"index":{}}
+            {"load_time": "880"}
+            {"index":{}}
+            {"load_time": "890"}
+            {"index":{}}
+            {"load_time": "90"}
+            {"index":{}}
+            {"load_time": "910"}
+            {"index":{}}
+            {"load_time": "920"}
+            {"index":{}}
+            {"load_time": "930"}
+            {"index":{}}
+            {"load_time": "940"}
+            {"index":{}}
+            {"load_time": "950"}
+            {"index":{}}
+            {"load_time": "960"}
+            {"index":{}}
+            {"load_time": "970"}
+            {"index":{}}
+            {"load_time": "980"}
+            {"index":{}}
+            {"load_time": "990"}
+  - do:
+      raw:
+        method: GET
+        path: "latency/_search"
+        filter_path: "aggregations"
+        body: |
+          {
+            "size": 0,
+            "runtime_mappings": {
+              "load_time.seconds": {
+                "type": "long",
+                "script": {
+                  "source": "emit(doc['load_time'].value / params.timeUnit)",
+                  "params": {
+                    "timeUnit": 1000
+                  }
+                }
+              }
+            },
+            "aggs": {
+              "load_time_ranks": {
+                "percentile_ranks": {
+                  "values": [ 500, 600 ],
+                  "field": "load_time.seconds"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "aggregations": {
+            "load_time_ranks": {
+              "values": {
+                "500.0": 100.0,
+                "600.0": 100.0
+              }
+            }
+          }
+        }
+---
+"line_184":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup latency
+
+  - do:
+        indices.create:
+          index: latency
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                load_time:
+                  type: long
+  - do:
+        bulk:
+          index: latency
+          refresh: true
+          body: |
+            {"index":{}}
+            {"load_time": "0"}
+            {"index":{}}
+            {"load_time": "10"}
+            {"index":{}}
+            {"load_time": "20"}
+            {"index":{}}
+            {"load_time": "30"}
+            {"index":{}}
+            {"load_time": "40"}
+            {"index":{}}
+            {"load_time": "50"}
+            {"index":{}}
+            {"load_time": "60"}
+            {"index":{}}
+            {"load_time": "70"}
+            {"index":{}}
+            {"load_time": "80"}
+            {"index":{}}
+            {"load_time": "90"}
+            {"index":{}}
+            {"load_time": "10"}
+            {"index":{}}
+            {"load_time": "110"}
+            {"index":{}}
+            {"load_time": "120"}
+            {"index":{}}
+            {"load_time": "130"}
+            {"index":{}}
+            {"load_time": "140"}
+            {"index":{}}
+            {"load_time": "150"}
+            {"index":{}}
+            {"load_time": "160"}
+            {"index":{}}
+            {"load_time": "170"}
+            {"index":{}}
+            {"load_time": "180"}
+            {"index":{}}
+            {"load_time": "190"}
+            {"index":{}}
+            {"load_time": "20"}
+            {"index":{}}
+            {"load_time": "210"}
+            {"index":{}}
+            {"load_time": "220"}
+            {"index":{}}
+            {"load_time": "230"}
+            {"index":{}}
+            {"load_time": "240"}
+            {"index":{}}
+            {"load_time": "250"}
+            {"index":{}}
+            {"load_time": "260"}
+            {"index":{}}
+            {"load_time": "270"}
+            {"index":{}}
+            {"load_time": "280"}
+            {"index":{}}
+            {"load_time": "290"}
+            {"index":{}}
+            {"load_time": "30"}
+            {"index":{}}
+            {"load_time": "310"}
+            {"index":{}}
+            {"load_time": "320"}
+            {"index":{}}
+            {"load_time": "330"}
+            {"index":{}}
+            {"load_time": "340"}
+            {"index":{}}
+            {"load_time": "350"}
+            {"index":{}}
+            {"load_time": "360"}
+            {"index":{}}
+            {"load_time": "370"}
+            {"index":{}}
+            {"load_time": "380"}
+            {"index":{}}
+            {"load_time": "390"}
+            {"index":{}}
+            {"load_time": "40"}
+            {"index":{}}
+            {"load_time": "410"}
+            {"index":{}}
+            {"load_time": "420"}
+            {"index":{}}
+            {"load_time": "430"}
+            {"index":{}}
+            {"load_time": "440"}
+            {"index":{}}
+            {"load_time": "450"}
+            {"index":{}}
+            {"load_time": "460"}
+            {"index":{}}
+            {"load_time": "470"}
+            {"index":{}}
+            {"load_time": "480"}
+            {"index":{}}
+            {"load_time": "490"}
+            {"index":{}}
+            {"load_time": "50"}
+            {"index":{}}
+            {"load_time": "510"}
+            {"index":{}}
+            {"load_time": "520"}
+            {"index":{}}
+            {"load_time": "530"}
+            {"index":{}}
+            {"load_time": "540"}
+            {"index":{}}
+            {"load_time": "550"}
+            {"index":{}}
+            {"load_time": "560"}
+            {"index":{}}
+            {"load_time": "570"}
+            {"index":{}}
+            {"load_time": "580"}
+            {"index":{}}
+            {"load_time": "590"}
+            {"index":{}}
+            {"load_time": "60"}
+            {"index":{}}
+            {"load_time": "610"}
+            {"index":{}}
+            {"load_time": "620"}
+            {"index":{}}
+            {"load_time": "630"}
+            {"index":{}}
+            {"load_time": "640"}
+            {"index":{}}
+            {"load_time": "650"}
+            {"index":{}}
+            {"load_time": "660"}
+            {"index":{}}
+            {"load_time": "670"}
+            {"index":{}}
+            {"load_time": "680"}
+            {"index":{}}
+            {"load_time": "690"}
+            {"index":{}}
+            {"load_time": "70"}
+            {"index":{}}
+            {"load_time": "710"}
+            {"index":{}}
+            {"load_time": "720"}
+            {"index":{}}
+            {"load_time": "730"}
+            {"index":{}}
+            {"load_time": "740"}
+            {"index":{}}
+            {"load_time": "750"}
+            {"index":{}}
+            {"load_time": "760"}
+            {"index":{}}
+            {"load_time": "770"}
+            {"index":{}}
+            {"load_time": "780"}
+            {"index":{}}
+            {"load_time": "790"}
+            {"index":{}}
+            {"load_time": "80"}
+            {"index":{}}
+            {"load_time": "810"}
+            {"index":{}}
+            {"load_time": "820"}
+            {"index":{}}
+            {"load_time": "830"}
+            {"index":{}}
+            {"load_time": "840"}
+            {"index":{}}
+            {"load_time": "850"}
+            {"index":{}}
+            {"load_time": "860"}
+            {"index":{}}
+            {"load_time": "870"}
+            {"index":{}}
+            {"load_time": "880"}
+            {"index":{}}
+            {"load_time": "890"}
+            {"index":{}}
+            {"load_time": "90"}
+            {"index":{}}
+            {"load_time": "910"}
+            {"index":{}}
+            {"load_time": "920"}
+            {"index":{}}
+            {"load_time": "930"}
+            {"index":{}}
+            {"load_time": "940"}
+            {"index":{}}
+            {"load_time": "950"}
+            {"index":{}}
+            {"load_time": "960"}
+            {"index":{}}
+            {"load_time": "970"}
+            {"index":{}}
+            {"load_time": "980"}
+            {"index":{}}
+            {"load_time": "990"}
+  - do:
+      raw:
+        method: GET
+        path: "latency/_search"
+        body: |
+          {
+            "size": 0,
+            "aggs": {
+              "load_time_ranks": {
+                "percentile_ranks": {
+                  "field": "load_time",
+                  "values": [ 500, 600 ],
+                  "hdr": {
+                    "number_of_significant_value_digits": 3
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_216":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup latency
+
+  - do:
+        indices.create:
+          index: latency
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                load_time:
+                  type: long
+  - do:
+        bulk:
+          index: latency
+          refresh: true
+          body: |
+            {"index":{}}
+            {"load_time": "0"}
+            {"index":{}}
+            {"load_time": "10"}
+            {"index":{}}
+            {"load_time": "20"}
+            {"index":{}}
+            {"load_time": "30"}
+            {"index":{}}
+            {"load_time": "40"}
+            {"index":{}}
+            {"load_time": "50"}
+            {"index":{}}
+            {"load_time": "60"}
+            {"index":{}}
+            {"load_time": "70"}
+            {"index":{}}
+            {"load_time": "80"}
+            {"index":{}}
+            {"load_time": "90"}
+            {"index":{}}
+            {"load_time": "10"}
+            {"index":{}}
+            {"load_time": "110"}
+            {"index":{}}
+            {"load_time": "120"}
+            {"index":{}}
+            {"load_time": "130"}
+            {"index":{}}
+            {"load_time": "140"}
+            {"index":{}}
+            {"load_time": "150"}
+            {"index":{}}
+            {"load_time": "160"}
+            {"index":{}}
+            {"load_time": "170"}
+            {"index":{}}
+            {"load_time": "180"}
+            {"index":{}}
+            {"load_time": "190"}
+            {"index":{}}
+            {"load_time": "20"}
+            {"index":{}}
+            {"load_time": "210"}
+            {"index":{}}
+            {"load_time": "220"}
+            {"index":{}}
+            {"load_time": "230"}
+            {"index":{}}
+            {"load_time": "240"}
+            {"index":{}}
+            {"load_time": "250"}
+            {"index":{}}
+            {"load_time": "260"}
+            {"index":{}}
+            {"load_time": "270"}
+            {"index":{}}
+            {"load_time": "280"}
+            {"index":{}}
+            {"load_time": "290"}
+            {"index":{}}
+            {"load_time": "30"}
+            {"index":{}}
+            {"load_time": "310"}
+            {"index":{}}
+            {"load_time": "320"}
+            {"index":{}}
+            {"load_time": "330"}
+            {"index":{}}
+            {"load_time": "340"}
+            {"index":{}}
+            {"load_time": "350"}
+            {"index":{}}
+            {"load_time": "360"}
+            {"index":{}}
+            {"load_time": "370"}
+            {"index":{}}
+            {"load_time": "380"}
+            {"index":{}}
+            {"load_time": "390"}
+            {"index":{}}
+            {"load_time": "40"}
+            {"index":{}}
+            {"load_time": "410"}
+            {"index":{}}
+            {"load_time": "420"}
+            {"index":{}}
+            {"load_time": "430"}
+            {"index":{}}
+            {"load_time": "440"}
+            {"index":{}}
+            {"load_time": "450"}
+            {"index":{}}
+            {"load_time": "460"}
+            {"index":{}}
+            {"load_time": "470"}
+            {"index":{}}
+            {"load_time": "480"}
+            {"index":{}}
+            {"load_time": "490"}
+            {"index":{}}
+            {"load_time": "50"}
+            {"index":{}}
+            {"load_time": "510"}
+            {"index":{}}
+            {"load_time": "520"}
+            {"index":{}}
+            {"load_time": "530"}
+            {"index":{}}
+            {"load_time": "540"}
+            {"index":{}}
+            {"load_time": "550"}
+            {"index":{}}
+            {"load_time": "560"}
+            {"index":{}}
+            {"load_time": "570"}
+            {"index":{}}
+            {"load_time": "580"}
+            {"index":{}}
+            {"load_time": "590"}
+            {"index":{}}
+            {"load_time": "60"}
+            {"index":{}}
+            {"load_time": "610"}
+            {"index":{}}
+            {"load_time": "620"}
+            {"index":{}}
+            {"load_time": "630"}
+            {"index":{}}
+            {"load_time": "640"}
+            {"index":{}}
+            {"load_time": "650"}
+            {"index":{}}
+            {"load_time": "660"}
+            {"index":{}}
+            {"load_time": "670"}
+            {"index":{}}
+            {"load_time": "680"}
+            {"index":{}}
+            {"load_time": "690"}
+            {"index":{}}
+            {"load_time": "70"}
+            {"index":{}}
+            {"load_time": "710"}
+            {"index":{}}
+            {"load_time": "720"}
+            {"index":{}}
+            {"load_time": "730"}
+            {"index":{}}
+            {"load_time": "740"}
+            {"index":{}}
+            {"load_time": "750"}
+            {"index":{}}
+            {"load_time": "760"}
+            {"index":{}}
+            {"load_time": "770"}
+            {"index":{}}
+            {"load_time": "780"}
+            {"index":{}}
+            {"load_time": "790"}
+            {"index":{}}
+            {"load_time": "80"}
+            {"index":{}}
+            {"load_time": "810"}
+            {"index":{}}
+            {"load_time": "820"}
+            {"index":{}}
+            {"load_time": "830"}
+            {"index":{}}
+            {"load_time": "840"}
+            {"index":{}}
+            {"load_time": "850"}
+            {"index":{}}
+            {"load_time": "860"}
+            {"index":{}}
+            {"load_time": "870"}
+            {"index":{}}
+            {"load_time": "880"}
+            {"index":{}}
+            {"load_time": "890"}
+            {"index":{}}
+            {"load_time": "90"}
+            {"index":{}}
+            {"load_time": "910"}
+            {"index":{}}
+            {"load_time": "920"}
+            {"index":{}}
+            {"load_time": "930"}
+            {"index":{}}
+            {"load_time": "940"}
+            {"index":{}}
+            {"load_time": "950"}
+            {"index":{}}
+            {"load_time": "960"}
+            {"index":{}}
+            {"load_time": "970"}
+            {"index":{}}
+            {"load_time": "980"}
+            {"index":{}}
+            {"load_time": "990"}
+  - do:
+      raw:
+        method: GET
+        path: "latency/_search"
+        body: |
+          {
+            "size": 0,
+            "aggs": {
+              "load_time_ranks": {
+                "percentile_ranks": {
+                  "field": "load_time",
+                  "values": [ 500, 600 ],
+                  "missing": 10
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

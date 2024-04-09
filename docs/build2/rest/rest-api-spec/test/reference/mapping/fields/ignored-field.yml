@@ -1,0 +1,44 @@
+---
+"line_21":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "exists": {
+                "field": "_ignored"
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_36":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "term": {
+                "_ignored": "@timestamp"
+              }
+            }
+          }
+  - is_false: _shards.failures

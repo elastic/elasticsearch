@@ -1,0 +1,249 @@
+---
+"line_31":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup reviews
+
+  - do:
+        indices.create:
+          index: reviews
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                product:
+                  type: keyword
+                rating:
+                  type: long
+  - do:
+        bulk:
+          index: reviews
+          refresh: true
+          body: |
+            {"index": {"_id": "1"}}
+            {"product": "widget-foo", "rating": 1}
+            {"index": {"_id": "2"}}
+            {"product": "widget-foo", "rating": 5}
+
+  - do:
+      raw:
+        method: GET
+        path: "reviews/_search"
+        body: |
+          {
+            "size": 0,
+            "aggs": {
+              "review_average": {
+                "avg": {
+                  "field": "rating"
+                }
+              },
+              "review_variability": {
+                "median_absolute_deviation": {
+                  "field": "rating"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,
+          "aggregations": {
+            "review_average": {
+              "value": 3.0
+            },
+            "review_variability": {
+              "value": 2.0
+            }
+          }
+        }
+---
+"line_90":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup reviews
+
+  - do:
+        indices.create:
+          index: reviews
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                product:
+                  type: keyword
+                rating:
+                  type: long
+  - do:
+        bulk:
+          index: reviews
+          refresh: true
+          body: |
+            {"index": {"_id": "1"}}
+            {"product": "widget-foo", "rating": 1}
+            {"index": {"_id": "2"}}
+            {"product": "widget-foo", "rating": 5}
+
+  - do:
+      raw:
+        method: GET
+        path: "reviews/_search"
+        body: |
+          {
+            "size": 0,
+            "aggs": {
+              "review_variability": {
+                "median_absolute_deviation": {
+                  "field": "rating",
+                  "compression": 100
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_116":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup reviews
+
+  - do:
+        indices.create:
+          index: reviews
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                product:
+                  type: keyword
+                rating:
+                  type: long
+  - do:
+        bulk:
+          index: reviews
+          refresh: true
+          body: |
+            {"index": {"_id": "1"}}
+            {"product": "widget-foo", "rating": 1}
+            {"index": {"_id": "2"}}
+            {"product": "widget-foo", "rating": 5}
+
+  - do:
+      raw:
+        method: GET
+        path: "reviews/_search"
+        filter_path: "aggregations"
+        body: |
+          {
+            "size": 0,
+            "runtime_mappings": {
+              "rating.out_of_ten": {
+                "type": "long",
+                "script": {
+                  "source": "emit(doc['rating'].value * params.scaleFactor)",
+                  "params": {
+                    "scaleFactor": 2
+                  }
+                }
+              }
+            },
+            "aggs": {
+              "review_average": {
+                "avg": {
+                  "field": "rating.out_of_ten"
+                }
+              },
+              "review_variability": {
+                "median_absolute_deviation": {
+                  "field": "rating.out_of_ten"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "aggregations": {
+            "review_average": {
+              "value": 6.0
+            },
+            "review_variability": {
+              "value": 4.0
+            }
+          }
+        }
+---
+"line_173":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup reviews
+
+  - do:
+        indices.create:
+          index: reviews
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                product:
+                  type: keyword
+                rating:
+                  type: long
+  - do:
+        bulk:
+          index: reviews
+          refresh: true
+          body: |
+            {"index": {"_id": "1"}}
+            {"product": "widget-foo", "rating": 1}
+            {"index": {"_id": "2"}}
+            {"product": "widget-foo", "rating": 5}
+
+  - do:
+      raw:
+        method: GET
+        path: "reviews/_search"
+        body: |
+          {
+            "size": 0,
+            "aggs": {
+              "review_variability": {
+                "median_absolute_deviation": {
+                  "field": "rating",
+                  "missing": 5
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

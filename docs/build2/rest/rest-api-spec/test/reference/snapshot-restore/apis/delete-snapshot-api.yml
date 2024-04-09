@@ -1,0 +1,61 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_repository"
+        body: |
+          {
+            "type": "fs",
+            "settings": {
+              "location": "my_backup_location"
+            }
+          }
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_repository/my_snapshot"
+        wait_for_completion: "true"
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_repository/snapshot_2"
+        wait_for_completion: "true"
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_repository/snapshot_3"
+        wait_for_completion: "true"
+---
+"line_30":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: DELETE
+        path: "_snapshot/my_repository/my_snapshot"
+  - is_false: _shards.failures
+---
+"line_67":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: DELETE
+        path: "_snapshot/my_repository/snapshot_2,snapshot_3"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "acknowledged" : true
+        }

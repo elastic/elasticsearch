@@ -1,0 +1,183 @@
+---
+"line_266":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TBD
+  - do:
+      raw:
+        method: PUT
+        path: "_inference/text_embedding/cohere-embeddings"
+        body: |
+          {
+              "service": "cohere",
+              "service_settings": {
+                  "api_key": "<api_key>",
+                  "model_id": "embed-english-light-v3.0",
+                  "embedding_type": "byte"
+              }
+          }
+  - is_false: _shards.failures
+---
+"line_288":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TBD
+  - do:
+      raw:
+        method: PUT
+        path: "_inference/text_embedding/my-e5-model"
+        body: |
+          {
+            "service": "elasticsearch",
+            "service_settings": {
+              "num_allocations": 1,
+              "num_threads": 1,
+              "model_id": ".multilingual-e5-small"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_313":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TBD
+  - do:
+      raw:
+        method: PUT
+        path: "_inference/sparse_embedding/my-elser-model"
+        body: |
+          {
+            "service": "elser",
+            "service_settings": {
+              "num_allocations": 1,
+              "num_threads": 1
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "inference_id": "my-elser-model",
+          "task_type": "sparse_embedding",
+          "service": "elser",
+          "service_settings": {
+            "num_allocations": 1,
+            "num_threads": 1
+          },
+          "task_settings": {}
+        }
+---
+"line_352":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TBD
+  - do:
+      raw:
+        method: PUT
+        path: "_inference/text_embedding/hugging-face-embeddings"
+        body: |
+          {
+            "service": "hugging_face",
+            "service_settings": {
+              "api_key": "<access_token>",
+              "url": "<url_endpoint>"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_382":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TBD
+  - do:
+      raw:
+        method: PUT
+        path: "_inference/text_embedding/my-msmarco-minilm-model"
+        body: |
+          {
+            "service": "elasticsearch",
+            "service_settings": {
+              "num_allocations": 1,
+              "num_threads": 1,
+              "model_id": "msmarco-MiniLM-L12-cos-v5"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_407":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TBD
+  - do:
+      raw:
+        method: PUT
+        path: "_inference/text_embedding/openai_embeddings"
+        body: |
+          {
+              "service": "openai",
+              "service_settings": {
+                  "api_key": "<api_key>",
+                  "model_id": "text-embedding-ada-002"
+              }
+          }
+  - is_false: _shards.failures
+---
+"line_423":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TBD
+  - do:
+      raw:
+        method: PUT
+        path: "_inference/completion/openai_completion"
+        body: |
+          {
+              "service": "openai",
+              "service_settings": {
+                  "api_key": "<api_key>",
+                  "model_id": "gpt-3.5-turbo"
+              }
+          }
+  - is_false: _shards.failures

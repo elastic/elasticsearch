@@ -1,0 +1,212 @@
+---
+"line_28":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "intervals" : {
+                "my_text" : {
+                  "all_of" : {
+                    "ordered" : true,
+                    "intervals" : [
+                      {
+                        "match" : {
+                          "query" : "my favorite food",
+                          "max_gaps" : 0,
+                          "ordered" : true
+                        }
+                      },
+                      {
+                        "any_of" : {
+                          "intervals" : [
+                            { "match" : { "query" : "hot water" } },
+                            { "match" : { "query" : "cold porridge" } }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_312":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "intervals" : {
+                "my_text" : {
+                  "match" : {
+                    "query" : "hot porridge",
+                    "max_gaps" : 10,
+                    "filter" : {
+                      "not_containing" : {
+                        "match" : {
+                          "query" : "salty"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_343":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "intervals" : {
+                "my_text" : {
+                  "match" : {
+                    "query" : "hot porridge",
+                    "filter" : {
+                      "script" : {
+                        "source" : "interval.start > 10 && interval.end < 20 && interval.gaps == 0"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_374":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "intervals" : {
+                "my_text" : {
+                  "match" : {
+                    "query" : "salty",
+                    "filter" : {
+                      "contained_by" : {
+                        "match" : {
+                          "query" : "hot porridge"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_409":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "intervals" : {
+                "my_text" : {
+                  "all_of" : {
+                    "intervals" : [
+                      { "match" : { "query" : "the" } },
+                      { "any_of" : {
+                          "intervals" : [
+                              { "match" : { "query" : "big" } },
+                              { "match" : { "query" : "big bad" } }
+                          ] } },
+                      { "match" : { "query" : "wolf" } }
+                    ],
+                    "max_gaps" : 0,
+                    "ordered" : true
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_442":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "intervals" : {
+                "my_text" : {
+                  "any_of" : {
+                    "intervals" : [
+                      { "match" : {
+                          "query" : "the big bad wolf",
+                          "ordered" : true,
+                          "max_gaps" : 0 } },
+                      { "match" : {
+                          "query" : "the big wolf",
+                          "ordered" : true,
+                          "max_gaps" : 0 } }
+                     ]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

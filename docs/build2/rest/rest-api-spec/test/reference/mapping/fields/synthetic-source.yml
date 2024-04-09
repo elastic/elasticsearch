@@ -1,0 +1,142 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "idx"
+        body: |
+          {
+            "mappings": {
+              "_source": {
+                "mode": "synthetic"
+              }
+            }
+          }
+---
+"synthetic-source-leaf-arrays-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "idx/_doc/1"
+        body: |
+          {
+            "foo": [
+              {
+                "bar": 1
+              },
+              {
+                "bar": 2
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "idx/_doc/1"
+        filter_path: "_source"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "idx/_doc/1"
+        filter_path: "_source"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {"_source":{
+          "foo": {
+            "bar": [1, 2]
+          }
+        }}
+---
+"synthetic-source-leaf-arrays-example-sneaky":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "idx/_doc/1"
+        body: |
+          {
+            "foo": [
+              {
+                "bar": 1
+              },
+              {
+                "baz": 2
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "idx/_doc/1"
+        filter_path: "_source"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "idx/_doc/1"
+        filter_path: "_source"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {"_source":{
+          "foo": {
+            "bar": 1,
+            "baz": 2
+          }
+        }}
+---
+"synthetic-source-objecty-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "idx/_doc/1"
+        body: |
+          {
+            "foo.bar.baz": 1
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "idx/_doc/1"
+        filter_path: "_source"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "idx/_doc/1"
+        filter_path: "_source"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {"_source":{
+          "foo": {
+            "bar": {
+              "baz": 1
+            }
+          }
+        }}

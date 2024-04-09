@@ -1,0 +1,216 @@
+---
+"line_44":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ilm/policy/my_policy"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "hot": {
+                  "actions": {
+                    "rollover": {
+                      "max_primary_shard_size": "25GB"
+                    }
+                  }
+                },
+                "delete": {
+                  "min_age": "30d",
+                  "actions": {
+                    "delete": {}
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_98":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_index_template/my_template"
+        body: |
+          {
+            "index_patterns": ["test-*"],
+            "template": {
+              "settings": {
+                "number_of_shards": 1,
+                "number_of_replicas": 1,
+                "index.lifecycle.name": "my_policy",
+                "index.lifecycle.rollover_alias": "test-alias"
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_index_template/my_template"
+  - is_false: _shards.failures
+---
+"line_147":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "test-000001"
+        body: |
+          {
+            "aliases": {
+              "test-alias":{
+                "is_write_index": true
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_184":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "test-index"
+        body: |
+          {
+            "settings": {
+              "number_of_shards": 1,
+              "number_of_replicas": 1,
+              "index.lifecycle.name": "my_policy"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_208":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_index_template/mylogs_template"
+        body: |
+          {
+            "index_patterns": [
+              "mylogs-*"
+            ],
+            "template": {
+              "settings": {
+                "number_of_shards": 1,
+                "number_of_replicas": 1
+              },
+              "mappings": {
+                "properties": {
+                  "message": {
+                    "type": "text"
+                  },
+                  "@timestamp": {
+                    "type": "date"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "mylogs-pre-ilm-2019.06.24/_doc"
+        body: |
+          {
+            "@timestamp": "2019-06-24T10:34:00",
+            "message": "this is one log message"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "mylogs-pre-ilm-2019.06.25/_doc"
+        body: |
+          {
+            "@timestamp": "2019-06-25T17:42:00",
+            "message": "this is another log message"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_index_template/mylogs_template"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "mylogs-pre-ilm*/_settings"
+        body: |
+          {
+            "index": {
+              "lifecycle": {
+                "name": "mylogs_policy_existing"
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_data_stream/logs-my_app-default"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "logs-my_app-default/_ilm/remove"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "logs-my_app-default"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "logs-my_app-default/_open"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "logs-my_app-default/_settings"
+        body: |
+          {
+            "index": {
+              "lifecycle": {
+                "name": "mylogs_policy_existing"
+              }
+            }
+          }
+  - is_false: _shards.failures

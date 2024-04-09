@@ -1,0 +1,732 @@
+---
+"line_85":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "image-index"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "image-vector": {
+                  "type": "dense_vector",
+                  "dims": 3,
+                  "similarity": "l2_norm"
+                },
+                "title-vector": {
+                  "type": "dense_vector",
+                  "dims": 5,
+                  "similarity": "l2_norm"
+                },
+                "title": {
+                  "type": "text"
+                },
+                "file-type": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "image-index/_bulk"
+        refresh: "true"
+        body: |
+          { "index": { "_id": "1" } }
+          { "image-vector": [1, 5, -20], "title-vector": [12, 50, -10, 0, 1], "title": "moose family", "file-type": "jpg" }
+          { "index": { "_id": "2" } }
+          { "image-vector": [42, 8, -15], "title-vector": [25, 1, 4, -12, 2], "title": "alpine lake", "file-type": "png" }
+          { "index": { "_id": "3" } }
+          { "image-vector": [15, 11, 23], "title-vector": [1, 5, 25, 50, 20], "title": "full moon", "file-type": "jpg" }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "image-index/_search"
+        body: |
+          {
+            "knn": {
+              "field": "image-vector",
+              "query_vector": [-5, 9, -12],
+              "k": 3,
+              "num_candidates": 3
+            },
+            "fields": [ "title", "file-type" ]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "byte-image-index"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "byte-image-vector": {
+                  "type": "dense_vector",
+                  "element_type": "byte",
+                  "dims": 2
+                },
+                "title": {
+                  "type": "text"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "byte-image-index/_bulk"
+        refresh: "true"
+        body: |
+          { "index": { "_id": "1" } }
+          { "byte-image-vector": [5, -20], "title": "moose family" }
+          { "index": { "_id": "2" } }
+          { "byte-image-vector": [8, -15], "title": "alpine lake" }
+          { "index": { "_id": "3" } }
+          { "byte-image-vector": [11, 23], "title": "full moon" }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "byte-image-index/_search"
+        body: |
+          {
+            "knn": {
+              "field": "byte-image-vector",
+              "query_vector": [-5, 9],
+              "k": 3,
+              "num_candidates": 3
+            },
+            "fields": [ "title" ]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "byte-image-index/_search"
+        body: |
+          {
+            "knn": {
+              "field": "byte-image-vector",
+              "query_vector": "fb09",
+              "k": 3,
+              "num_candidates": 3
+            },
+            "fields": [ "title" ]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "quantized-image-index"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "image-vector": {
+                  "type": "dense_vector",
+                  "element_type": "float",
+                  "dims": 2,
+                  "index": true,
+                  "index_options": {
+                    "type": "int8_hnsw"
+                  }
+                },
+                "title": {
+                  "type": "text"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "quantized-image-index/_bulk"
+        refresh: "true"
+        body: |
+          { "index": { "_id": "1" } }
+          { "image-vector": [0.1, -2], "title": "moose family" }
+          { "index": { "_id": "2" } }
+          { "image-vector": [0.75, -1], "title": "alpine lake" }
+          { "index": { "_id": "3" } }
+          { "image-vector": [1.2, 0.1], "title": "full moon" }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "quantized-image-index/_search"
+        body: |
+          {
+            "knn": {
+              "field": "image-vector",
+              "query_vector": [0.1, -2],
+              "k": 3,
+              "num_candidates": 3
+            },
+            "fields": [ "title" ]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "quantized-image-index/_search"
+        body: |
+          {
+            "knn": {
+              "field": "image-vector",
+              "query_vector": [0.1, -2],
+              "k": 3,
+              "num_candidates": 3
+            },
+            "fields": [ "title" ],
+            "rescore": {
+              "window_size": 10,
+              "query": {
+                "rescore_query": {
+                  "script_score": {
+                    "query": {
+                      "match_all": {}
+                    },
+                    "script": {
+                      "source": "cosineSimilarity(params.query_vector, 'image-vector') + 1.0",
+                      "params": {
+                        "query_vector": [0.1, -2]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "image-index/_search"
+        body: |
+          {
+            "knn": {
+              "field": "image-vector",
+              "query_vector": [54, 10, -2],
+              "k": 5,
+              "num_candidates": 50,
+              "filter": {
+                "term": {
+                  "file-type": "png"
+                }
+              }
+            },
+            "fields": ["title"],
+            "_source": false
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "image-index/_search"
+        body: |
+          {
+            "query": {
+              "match": {
+                "title": {
+                  "query": "mountain lake",
+                  "boost": 0.9
+                }
+              }
+            },
+            "knn": {
+              "field": "image-vector",
+              "query_vector": [54, 10, -2],
+              "k": 5,
+              "num_candidates": 50,
+              "boost": 0.1
+            },
+            "size": 10
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "image-index/_search"
+        body: |
+          {
+            "query": {
+              "match": {
+                "title": {
+                  "query": "mountain lake",
+                  "boost": 0.9
+                }
+              }
+            },
+            "knn": [ {
+              "field": "image-vector",
+              "query_vector": [54, 10, -2],
+              "k": 5,
+              "num_candidates": 50,
+              "boost": 0.1
+            },
+            {
+              "field": "title-vector",
+              "query_vector": [1, 20, -52, 23, 10],
+              "k": 10,
+              "num_candidates": 10,
+              "boost": 0.5
+            }],
+            "size": 10
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "image-index/_search"
+        body: |
+          {
+            "knn": {
+              "field": "image-vector",
+              "query_vector": [1, 5, -20],
+              "k": 5,
+              "num_candidates": 50,
+              "similarity": 36,
+              "filter": {
+                "term": {
+                  "file-type": "png"
+                }
+              }
+            },
+            "fields": ["title"],
+            "_source": false
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "passage_vectors"
+        body: |
+          {
+              "mappings": {
+                  "properties": {
+                      "full_text": {
+                          "type": "text"
+                      },
+                      "creation_time": {
+                          "type": "date"
+                      },
+                      "paragraph": {
+                          "type": "nested",
+                          "properties": {
+                              "vector": {
+                                  "type": "dense_vector",
+                                  "dims": 2,
+                                  "index_options": {
+                                      "type": "hnsw"
+                                  }
+                              },
+                              "text": {
+                                  "type": "text",
+                                  "index": false
+                              }
+                          }
+                      }
+                  }
+              }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "passage_vectors/_bulk"
+        refresh: "true"
+        body: |
+          { "index": { "_id": "1" } }
+          { "full_text": "first paragraph another paragraph", "creation_time": "2019-05-04", "paragraph": [ { "vector": [ 0.45, 45 ], "text": "first paragraph", "paragraph_id": "1" }, { "vector": [ 0.8, 0.6 ], "text": "another paragraph", "paragraph_id": "2" } ] }
+          { "index": { "_id": "2" } }
+          { "full_text": "number one paragraph number two paragraph", "creation_time": "2020-05-04", "paragraph": [ { "vector": [ 1.2, 4.5 ], "text": "number one paragraph", "paragraph_id": "1" }, { "vector": [ -1, 42 ], "text": "number two paragraph", "paragraph_id": "2" } ] }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "passage_vectors/_search"
+        body: |
+          {
+              "fields": ["full_text", "creation_time"],
+              "_source": false,
+              "knn": {
+                  "query_vector": [
+                      0.45,
+                      45
+                  ],
+                  "field": "paragraph.vector",
+                  "k": 2,
+                  "num_candidates": 2
+              }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+            "took" : "$body.took",
+            "timed_out": false,
+            "_shards": {
+                "total": 1,
+                "successful": 1,
+                "skipped": 0,
+                "failed": 0
+            },
+            "hits": {
+                "total": {
+                    "value": 2,
+                    "relation": "eq"
+                },
+                "max_score": 1.0,
+                "hits": [
+                    {
+                        "_index": "passage_vectors",
+                        "_id": "1",
+                        "_score": 1.0,
+                        "fields": {
+                            "creation_time": [
+                                "2019-05-04T00:00:00.000Z"
+                            ],
+                            "full_text": [
+                                "first paragraph another paragraph"
+                            ]
+                        }
+                    },
+                    {
+                        "_index": "passage_vectors",
+                        "_id": "2",
+                        "_score": 0.9997144,
+                        "fields": {
+                            "creation_time": [
+                                "2020-05-04T00:00:00.000Z"
+                            ],
+                            "full_text": [
+                                "number one paragraph number two paragraph"
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+  - do:
+      raw:
+        method: POST
+        path: "passage_vectors/_search"
+        body: |
+          {
+              "fields": [
+                  "creation_time",
+                  "full_text"
+              ],
+              "_source": false,
+              "knn": {
+                  "query_vector": [
+                      0.45,
+                      45
+                  ],
+                  "field": "paragraph.vector",
+                  "k": 2,
+                  "num_candidates": 2,
+                  "filter": {
+                      "bool": {
+                          "filter": [
+                              {
+                                  "range": {
+                                      "creation_time": {
+                                          "gte": "2019-05-01",
+                                          "lte": "2019-05-05"
+                                      }
+                                  }
+                              }
+                          ]
+                      }
+                  }
+              }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+            "took" : "$body.took",
+            "timed_out": false,
+            "_shards": {
+                "total": 1,
+                "successful": 1,
+                "skipped": 0,
+                "failed": 0
+            },
+            "hits": {
+                "total": {
+                    "value": 1,
+                    "relation": "eq"
+                },
+                "max_score": 1.0,
+                "hits": [
+                    {
+                        "_index": "passage_vectors",
+                        "_id": "1",
+                        "_score": 1.0,
+                        "fields": {
+                            "creation_time": [
+                                "2019-05-04T00:00:00.000Z"
+                            ],
+                            "full_text": [
+                                "first paragraph another paragraph"
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+  - do:
+      raw:
+        method: POST
+        path: "passage_vectors/_search"
+        body: |
+          {
+              "fields": [
+                  "creation_time",
+                  "full_text"
+              ],
+              "_source": false,
+              "knn": {
+                  "query_vector": [
+                      0.45,
+                      45
+                  ],
+                  "field": "paragraph.vector",
+                  "k": 2,
+                  "num_candidates": 2,
+                  "inner_hits": {
+                      "_source": false,
+                      "fields": [
+                          "paragraph.text"
+                      ],
+                      "size": 1
+                  }
+              }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+            "took" : "$body.took",
+            "timed_out": false,
+            "_shards": {
+                "total": 1,
+                "successful": 1,
+                "skipped": 0,
+                "failed": 0
+            },
+            "hits": {
+                "total": {
+                    "value": 2,
+                    "relation": "eq"
+                },
+                "max_score": 1.0,
+                "hits": [
+                    {
+                        "_index": "passage_vectors",
+                        "_id": "1",
+                        "_score": 1.0,
+                        "fields": {
+                            "creation_time": [
+                                "2019-05-04T00:00:00.000Z"
+                            ],
+                            "full_text": [
+                                "first paragraph another paragraph"
+                            ]
+                        },
+                        "inner_hits": {
+                            "paragraph": {
+                                "hits": {
+                                    "total": {
+                                        "value": 2,
+                                        "relation": "eq"
+                                    },
+                                    "max_score": 1.0,
+                                    "hits": [
+                                        {
+                                            "_index": "passage_vectors",
+                                            "_id": "1",
+                                            "_nested": {
+                                                "field": "paragraph",
+                                                "offset": 0
+                                            },
+                                            "_score": 1.0,
+                                            "fields": {
+                                                "paragraph": [
+                                                    {
+                                                        "text": [
+                                                            "first paragraph"
+                                                        ]
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "_index": "passage_vectors",
+                        "_id": "2",
+                        "_score": 0.9997144,
+                        "fields": {
+                            "creation_time": [
+                                "2020-05-04T00:00:00.000Z"
+                            ],
+                            "full_text": [
+                                "number one paragraph number two paragraph"
+                            ]
+                        },
+                        "inner_hits": {
+                            "paragraph": {
+                                "hits": {
+                                    "total": {
+                                        "value": 2,
+                                        "relation": "eq"
+                                    },
+                                    "max_score": 0.9997144,
+                                    "hits": [
+                                        {
+                                            "_index": "passage_vectors",
+                                            "_id": "2",
+                                            "_nested": {
+                                                "field": "paragraph",
+                                                "offset": 1
+                                            },
+                                            "_score": 0.9997144,
+                                            "fields": {
+                                                "paragraph": [
+                                                    {
+                                                        "text": [
+                                                            "number two paragraph"
+                                                        ]
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+---
+"line_1016":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "image-index"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "image-vector": {
+                  "type": "dense_vector",
+                  "dims": 3,
+                  "similarity": "l2_norm",
+                  "index_options": {
+                    "type": "hnsw",
+                    "m": 32,
+                    "ef_construction": 100
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_1062":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "product-index"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "product-vector": {
+                  "type": "dense_vector",
+                  "dims": 5,
+                  "index": false
+                },
+                "price": {
+                  "type": "long"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "product-index/_bulk"
+        refresh: "true"
+        body: |
+          { "index": { "_id": "1" } }
+          { "product-vector": [230.0, 300.33, -34.8988, 15.555, -200.0], "price": 1599 }
+          { "index": { "_id": "2" } }
+          { "product-vector": [-0.5, 100.0, -13.0, 14.8, -156.0], "price": 799 }
+          { "index": { "_id": "3" } }
+          { "product-vector": [0.5, 111.3, -13.0, 14.8, -156.0], "price": 1099 }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "product-index/_search"
+        body: |
+          {
+            "query": {
+              "script_score": {
+                "query" : {
+                  "bool" : {
+                    "filter" : {
+                      "range" : {
+                        "price" : {
+                          "gte": 1000
+                        }
+                      }
+                    }
+                  }
+                },
+                "script": {
+                  "source": "cosineSimilarity(params.queryVector, 'product-vector') + 1.0",
+                  "params": {
+                    "queryVector": [-0.5, 90.0, -10, 14.8, -156.0]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

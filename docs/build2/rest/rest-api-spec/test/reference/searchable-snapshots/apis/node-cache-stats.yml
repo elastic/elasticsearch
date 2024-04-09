@@ -1,0 +1,40 @@
+---
+"line_98":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup node
+
+  # Fetch the node name. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - is_true: master_node
+  - set: { master_node: node_name }
+
+  - do:
+      raw:
+        method: GET
+        path: "_searchable_snapshots/cache/stats"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "nodes" : {
+            $node_name : {
+              "shared_cache" : {
+                "reads" : 0,
+                "bytes_read_in_bytes" : 0,
+                "writes" : 0,
+                "bytes_written_in_bytes" : 0,
+                "evictions" : 0,
+                "num_regions" : 0,
+                "size_in_bytes" : 0,
+                "region_size_in_bytes" : 16777216
+              }
+            }
+          }
+        }

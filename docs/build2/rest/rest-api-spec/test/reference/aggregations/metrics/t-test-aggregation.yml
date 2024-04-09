@@ -1,0 +1,244 @@
+---
+"line_32":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup node_upgrade
+
+  - do:
+        indices.create:
+          index: node_upgrade
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                group:
+                  type: keyword
+                startup_time_before:
+                  type: long
+                startup_time_after:
+                  type: long
+  - do:
+        bulk:
+          index: node_upgrade
+          refresh: true
+          body: |
+            {"index":{}}
+            {"group": "A", "startup_time_before": 102, "startup_time_after": 89}
+            {"index":{}}
+            {"group": "A", "startup_time_before": 99, "startup_time_after": 93}
+            {"index":{}}
+            {"group": "A", "startup_time_before": 111, "startup_time_after": 72}
+            {"index":{}}
+            {"group": "B", "startup_time_before": 97, "startup_time_after": 98}
+            {"index":{}}
+            {"group": "B", "startup_time_before": 101, "startup_time_after": 102}
+            {"index":{}}
+            {"group": "B", "startup_time_before": 99, "startup_time_after": 98}
+  - do:
+      raw:
+        method: GET
+        path: "node_upgrade/_search"
+        body: |
+          {
+            "size": 0,
+            "aggs": {
+              "startup_time_ttest": {
+                "t_test": {
+                  "a": { "field": "startup_time_before" },
+                  "b": { "field": "startup_time_after" },
+                  "type": "paired"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,
+        
+         "aggregations": {
+            "startup_time_ttest": {
+              "value": 0.1914368843365979
+            }
+          }
+        }
+---
+"line_86":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup node_upgrade
+
+  - do:
+        indices.create:
+          index: node_upgrade
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                group:
+                  type: keyword
+                startup_time_before:
+                  type: long
+                startup_time_after:
+                  type: long
+  - do:
+        bulk:
+          index: node_upgrade
+          refresh: true
+          body: |
+            {"index":{}}
+            {"group": "A", "startup_time_before": 102, "startup_time_after": 89}
+            {"index":{}}
+            {"group": "A", "startup_time_before": 99, "startup_time_after": 93}
+            {"index":{}}
+            {"group": "A", "startup_time_before": 111, "startup_time_after": 72}
+            {"index":{}}
+            {"group": "B", "startup_time_before": 97, "startup_time_after": 98}
+            {"index":{}}
+            {"group": "B", "startup_time_before": 101, "startup_time_after": 102}
+            {"index":{}}
+            {"group": "B", "startup_time_before": 99, "startup_time_after": 98}
+  - do:
+      raw:
+        method: GET
+        path: "node_upgrade/_search"
+        body: |
+          {
+            "size": 0,
+            "aggs": {
+              "startup_time_ttest": {
+                "t_test": {
+                  "a": {
+                    "field": "startup_time_before",
+                    "filter": {
+                      "term": {
+                        "group": "A"
+                      }
+                    }
+                  },
+                  "b": {
+                    "field": "startup_time_before",
+                    "filter": {
+                      "term": {
+                        "group": "B"
+                      }
+                    }
+                  },
+                  "type": "heteroscedastic"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,
+        
+         "aggregations": {
+            "startup_time_ttest": {
+              "value": 0.2981858007281437
+            }
+          }
+        }
+---
+"line_148":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup node_upgrade
+
+  - do:
+        indices.create:
+          index: node_upgrade
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                group:
+                  type: keyword
+                startup_time_before:
+                  type: long
+                startup_time_after:
+                  type: long
+  - do:
+        bulk:
+          index: node_upgrade
+          refresh: true
+          body: |
+            {"index":{}}
+            {"group": "A", "startup_time_before": 102, "startup_time_after": 89}
+            {"index":{}}
+            {"group": "A", "startup_time_before": 99, "startup_time_after": 93}
+            {"index":{}}
+            {"group": "A", "startup_time_before": 111, "startup_time_after": 72}
+            {"index":{}}
+            {"group": "B", "startup_time_before": 97, "startup_time_after": 98}
+            {"index":{}}
+            {"group": "B", "startup_time_before": 101, "startup_time_after": 102}
+            {"index":{}}
+            {"group": "B", "startup_time_before": 99, "startup_time_after": 98}
+  - do:
+      raw:
+        method: GET
+        path: "node_upgrade/_search"
+        filter_path: "aggregations"
+        body: |
+          {
+            "size": 0,
+            "runtime_mappings": {
+              "startup_time_before.adjusted": {
+                "type": "long",
+                "script": {
+                  "source": "emit(doc['startup_time_before'].value - params.adjustment)",
+                  "params": {
+                    "adjustment": 10
+                  }
+                }
+              }
+            },
+            "aggs": {
+              "startup_time_ttest": {
+                "t_test": {
+                  "a": {
+                    "field": "startup_time_before.adjusted"
+                  },
+                  "b": {
+                    "field": "startup_time_after"
+                  },
+                  "type": "paired"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+         "aggregations": {
+            "startup_time_ttest": {
+              "value": 0.9397399375119482
+            }
+          }
+        }

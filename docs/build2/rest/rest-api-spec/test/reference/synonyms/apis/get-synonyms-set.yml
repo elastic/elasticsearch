@@ -1,0 +1,56 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_synonyms/my-synonyms-set"
+        body: |
+          {
+            "synonyms_set": [
+              {
+                "id": "test-1",
+                "synonyms": "hello, hi"
+              },
+              {
+                "id": "test-2",
+                "synonyms": "bye, goodbye"
+              },
+              {
+                "id": "test-3",
+                "synonyms": "test => check"
+              }
+            ]
+          }
+---
+"line_75":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_synonyms/my-synonyms-set"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "count": 3,
+          "synonyms_set": [
+            {
+              "id": "test-1",
+              "synonyms": "hello, hi"
+            },
+            {
+              "id": "test-2",
+              "synonyms": "bye, goodbye"
+            },
+            {
+              "id": "test-3",
+              "synonyms": "test => check"
+            }
+          ]
+        }

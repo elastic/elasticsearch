@@ -1,0 +1,121 @@
+---
+"line_60":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ilm/policy/my_policy"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "warm": {
+                  "actions": {
+                    "allocate" : {
+                      "number_of_replicas" : 2,
+                      "total_shards_per_node" : 200
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_89":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ilm/policy/my_policy"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "warm": {
+                  "actions": {
+                    "allocate" : {
+                      "include" : {
+                        "box_type": "hot,warm"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_116":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ilm/policy/my_policy"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "cold": {
+                  "actions": {
+                    "allocate" : {
+                      "require" : {
+                        "box_type": "cold",
+                        "storage": "high"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_147":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ilm/policy/my_policy"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "warm": {
+                  "actions": {
+                    "allocate" : {
+                      "number_of_replicas": 1,
+                      "require" : {
+                        "box_type": "cold"
+                      }
+                  }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

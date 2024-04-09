@@ -1,0 +1,137 @@
+---
+"line_144":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: setup kibana sample data
+  - do:
+      raw:
+        method: POST
+        path: "kibana_sample_data_ecommerce/_async_search"
+        body: |
+          {
+             "size":0,
+             "aggs":{
+                "my_agg":{
+                   "frequent_item_sets":{
+                      "minimum_set_size":3,
+                      "fields":[
+                         {
+                            "field":"category.keyword"
+                         },
+                         {
+                            "field":"geoip.city_name",
+                            "exclude":"other"
+                         }
+                      ],
+                      "size":3
+                   }
+                }
+             }
+          }
+  - is_false: _shards.failures
+---
+"line_173":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: setup kibana sample data
+  - do:
+      raw:
+        method: GET
+        path: "_async_search/%3Cid%3E"
+  - is_false: _shards.failures
+---
+"line_257":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: setup kibana sample data
+  - do:
+      raw:
+        method: POST
+        path: "kibana_sample_data_ecommerce/_async_search"
+        body: |
+          {
+            "size": 0,
+            "aggs": {
+              "my_agg": {
+                "frequent_item_sets": {
+                  "minimum_set_size": 3,
+                  "fields": [
+                    { "field": "category.keyword" },
+                    { "field": "geoip.city_name" }
+                  ],
+                  "size": 3,
+                  "filter": {
+                    "term": {
+                      "geoip.continent_name": "Europe"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_301":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: setup kibana sample data
+  - do:
+      raw:
+        method: GET
+        path: "kibana_sample_data_ecommerce/_search"
+        body: |
+          {
+            "runtime_mappings": {
+              "price_range": {
+                "type": "keyword",
+                "script": {
+                  "source": "\n           def bucket_start = (long) Math.floor(doc['taxful_total_price'].value / 50) * 50;\n           def bucket_end = bucket_start + 50;\n           emit(bucket_start.toString() + \"-\" + bucket_end.toString());\n        "
+                }
+              }
+            },
+            "size": 0,
+            "aggs": {
+              "my_agg": {
+                "frequent_item_sets": {
+                  "minimum_set_size": 4,
+                  "fields": [
+                    {
+                      "field": "category.keyword"
+                    },
+                    {
+                      "field": "price_range"
+                    },
+                    {
+                      "field": "geoip.city_name"
+                    }
+                  ],
+                  "size": 3
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

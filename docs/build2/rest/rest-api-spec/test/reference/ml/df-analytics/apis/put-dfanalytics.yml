@@ -1,0 +1,380 @@
+---
+"line_574":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: setup kibana sample data
+  - do:
+      raw:
+        method: PUT
+        path: "_ml/data_frame/analytics/model-flight-delays-pre"
+        body: |
+          {
+            "source": {
+              "index": [
+                "kibana_sample_data_flights"
+              ],
+              "query": {
+                "range": {
+                  "DistanceKilometers": {
+                    "gt": 0
+                  }
+                }
+              },
+              "_source": {
+                "includes": [],
+                "excludes": [
+                  "FlightDelay",
+                  "FlightDelayType"
+                ]
+              }
+            },
+            "dest": {
+              "index": "df-flight-delays",
+              "results_field": "ml-results"
+            },
+            "analysis": {
+            "regression": {
+              "dependent_variable": "FlightDelayMin",
+              "training_percent": 90
+              }
+            },
+            "analyzed_fields": {
+              "includes": [],
+              "excludes": [
+                "FlightNum"
+              ]
+            },
+            "model_memory_limit": "100mb"
+          }
+  - is_false: _shards.failures
+---
+"line_644":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup setup_logdata
+
+  - do:
+        indices.create:
+          index: logdata
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                grade:
+                  type: byte
+  - do:
+        bulk:
+          index: logdata
+          refresh: true
+          body: |
+            {"index":{}}
+            {"grade": 100, "weight": 2}
+            {"index":{}}
+            {"grade": 50, "weight": 3}
+
+  - do:
+      raw:
+        method: PUT
+        path: "_ml/data_frame/analytics/loganalytics"
+        body: |
+          {
+            "description": "Outlier detection on log data",
+            "source": {
+              "index": "logdata"
+            },
+            "dest": {
+              "index": "logdata_out"
+            },
+            "analysis": {
+              "outlier_detection": {
+                "compute_feature_influence": true,
+                "outlier_fraction": 0.05,
+                "standardization_enabled": true
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "id" : "loganalytics",
+          "create_time" : $body.$_path,
+          "version": $body.version,
+          "authorization" : {
+            "roles" : [
+              "_es_test_root"
+            ]
+          },
+          "description" : "Outlier detection on log data",
+          "source" : {
+            "index" : [
+              "logdata"
+            ],
+            "query" : {
+              "match_all" : { }
+            }
+          },
+          "dest" : {
+            "index" : "logdata_out",
+            "results_field" : "ml"
+          },
+          "analysis" : {
+            "outlier_detection" : {
+              "compute_feature_influence" : true,
+              "outlier_fraction" : 0.05,
+              "standardization_enabled" : true
+            }
+          },
+          "model_memory_limit" : "1gb",
+          "allow_lazy_start" : false,
+          "max_num_threads" : 1
+        }
+        
+---
+"line_717":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup setup_houseprices
+
+  - do:
+        indices.create:
+          index: houses_sold_last_10_yrs
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+
+  - do:
+      raw:
+        method: PUT
+        path: "_ml/data_frame/analytics/house_price_regression_analysis"
+        body: |
+          {
+            "source": {
+              "index": "houses_sold_last_10_yrs"
+            },
+            "dest": {
+              "index": "house_price_predictions"
+            },
+            "analysis":
+              {
+                "regression": {
+                  "dependent_variable": "price"
+                }
+              }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "id" : "house_price_regression_analysis",
+          "create_time" : $body.$_path,
+          "version": $body.version,
+          "authorization" : {
+            "roles" : [
+              "_es_test_root"
+            ]
+          },
+          "source" : {
+            "index" : [
+              "houses_sold_last_10_yrs"
+            ],
+            "query" : {
+              "match_all" : { }
+            }
+          },
+          "dest" : {
+            "index" : "house_price_predictions",
+            "results_field" : "ml"
+          },
+          "analysis" : {
+            "regression" : {
+              "dependent_variable" : "price",
+              "prediction_field_name" : "price_prediction",
+              "training_percent" : 100.0,
+              "randomize_seed" : $body.$_path,
+              "loss_function" : "mse",
+              "early_stopping_enabled" : true
+            }
+          },
+          "model_memory_limit" : "1gb",
+          "allow_lazy_start" : false,
+          "max_num_threads" : 1
+        }
+        
+---
+"line_787":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TBD
+  - do:
+      raw:
+        method: PUT
+        path: "_ml/data_frame/analytics/student_performance_mathematics_0.3"
+        body: |
+          {
+           "source": {
+             "index": "student_performance_mathematics"
+           },
+           "dest": {
+             "index":"student_performance_mathematics_reg"
+           },
+           "analysis":
+             {
+               "regression": {
+                 "dependent_variable": "G3",
+                 "training_percent": 70,
+                 "randomize_seed": 19673948271
+               }
+             }
+          }
+  - is_false: _shards.failures
+---
+"line_816":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TBD
+  - do:
+      raw:
+        method: PUT
+        path: "_ml/data_frame/analytics/flight_prices"
+        body: |
+          {
+            "source": {
+              "index": [
+                "kibana_sample_data_flights"
+              ]
+            },
+            "dest": {
+              "index": "kibana_sample_flight_prices"
+            },
+            "analysis": {
+              "regression": {
+                "dependent_variable": "AvgTicketPrice",
+                "num_top_feature_importance_values": 2,
+                "feature_processors": [
+                  {
+                    "frequency_encoding": {
+                      "field": "DestWeather",
+                      "feature_name": "DestWeather_frequency",
+                      "frequency_map": {
+                        "Rain": 0.14604811155570188,
+                        "Heavy Fog": 0.14604811155570188,
+                        "Thunder & Lightning": 0.14604811155570188,
+                        "Cloudy": 0.14604811155570188,
+                        "Damaging Wind": 0.14604811155570188,
+                        "Hail": 0.14604811155570188,
+                        "Sunny": 0.14604811155570188,
+                        "Clear": 0.14604811155570188
+                      }
+                    }
+                  },
+                  {
+                    "target_mean_encoding": {
+                      "field": "DestWeather",
+                      "feature_name": "DestWeather_targetmean",
+                      "target_map": {
+                        "Rain": 626.5588814585794,
+                        "Heavy Fog": 626.5588814585794,
+                        "Thunder & Lightning": 626.5588814585794,
+                        "Hail": 626.5588814585794,
+                        "Damaging Wind": 626.5588814585794,
+                        "Cloudy": 626.5588814585794,
+                        "Clear": 626.5588814585794,
+                        "Sunny": 626.5588814585794
+                      },
+                      "default_value": 624.0249512020454
+                    }
+                  },
+                  {
+                    "one_hot_encoding": {
+                      "field": "DestWeather",
+                      "hot_map": {
+                        "Rain": "DestWeather_Rain",
+                        "Heavy Fog": "DestWeather_Heavy Fog",
+                        "Thunder & Lightning": "DestWeather_Thunder & Lightning",
+                        "Cloudy": "DestWeather_Cloudy",
+                        "Damaging Wind": "DestWeather_Damaging Wind",
+                        "Hail": "DestWeather_Hail",
+                        "Clear": "DestWeather_Clear",
+                        "Sunny": "DestWeather_Sunny"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "analyzed_fields": {
+              "includes": [
+                "AvgTicketPrice",
+                "Cancelled",
+                "DestWeather",
+                "FlightDelayMin",
+                "DistanceMiles"
+              ]
+            },
+            "model_memory_limit": "30mb"
+          }
+  - is_false: _shards.failures
+---
+"line_908":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TBD
+  - do:
+      raw:
+        method: PUT
+        path: "_ml/data_frame/analytics/loan_classification"
+        body: |
+          {
+            "source" : {
+              "index": "loan-applicants"
+            },
+            "dest" : {
+              "index": "loan-applicants-classified"
+            },
+            "analysis" : {
+              "classification": {
+                "dependent_variable": "label",
+                "training_percent": 75,
+                "num_top_classes": 2
+              }
+            }
+          }
+  - is_false: _shards.failures

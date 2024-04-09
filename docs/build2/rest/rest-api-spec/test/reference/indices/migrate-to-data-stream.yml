@@ -1,0 +1,77 @@
+---
+"line_12":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "idx1/_doc/"
+        body: |
+          {
+              "message" : "testing",
+              "@timestamp" : "2020-01-01"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "idx2/_doc/"
+        body: |
+          {
+              "message" : "testing2",
+              "@timestamp" : "2020-01-01"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_aliases"
+        body: |
+          {
+            "actions": [
+              {
+                "add": {
+                  "index": "idx1",
+                  "alias": "my-logs",
+                  "is_write_index": true
+                }
+              },
+              {
+                "add": {
+                  "index": "idx2",
+                  "alias": "my-logs"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_index_template/template"
+        body: |
+          {
+            "index_patterns": ["my-logs*"],
+            "data_stream": { }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_data_stream/_migrate/my-logs"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_data_stream/my-logs"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_index_template/template"
+  - is_false: _shards.failures

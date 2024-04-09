@@ -1,0 +1,175 @@
+---
+"line_26":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "my_field": {
+                  "type": "annotated_text"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_113":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/1"
+        body: |
+          {
+            "my_field": "[Beck](Beck) announced a new tour"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/2"
+        body: |
+          {
+            "my_field": "[Jeff Beck](Jeff+Beck&Guitarist) plays a strat"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "query": {
+              "term": {
+                  "my_field": "Beck"
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_166":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "my_unstructured_text_field": {
+                  "type": "annotated_text"
+                },
+                "my_structured_people_field": {
+                  "type": "text",
+                  "fields": {
+                    "keyword" : {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_190":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/1"
+        body: |
+          {
+            "my_unstructured_text_field": "[Shay](%40kimchy) created elasticsearch",
+            "my_twitter_handles": ["@kimchy"]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "query": {
+              "query_string": {
+                  "query": "elasticsearch OR logstash OR kibana",
+                  "default_field": "my_unstructured_text_field"
+              }
+            },
+            "aggregations": {
+            	"top_people" :{
+            	    "significant_terms" : {
+          	       "field" : "my_twitter_handles.keyword"
+            	    }
+            	}
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_265":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/1"
+        body: |
+          {
+            "my_field": "The cat sat on the [mat](sku3578)"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "query": {
+              "query_string": {
+                  "query": "cats"
+              }
+            },
+            "highlight": {
+              "fields": {
+                "my_field": {
+                  "type": "annotated",
+                  "require_field_match": false
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

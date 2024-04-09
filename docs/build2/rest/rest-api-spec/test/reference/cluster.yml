@@ -1,0 +1,84 @@
+---
+"line_53":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_nodes"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/_all"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/_local"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/_master"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/node_name_goes_here"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/node_name_goes_*"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/10.0.0.3,10.0.0.4"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/10.0.0.*"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/_all,master:false"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/data:true,ingest:true"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/coordinating_only:true"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/master:true,voting_only:false"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/rack:2"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/ra*:2"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/ra*:2*"
+  - is_false: _shards.failures

@@ -1,0 +1,80 @@
+---
+"line_24":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_cluster/settings"
+        flat_settings: "true"
+        filter_path: "persistent.archived*"
+  - is_false: _shards.failures
+---
+"line_32":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_cluster/settings"
+        body: |
+          {
+            "persistent": {
+              "archived.*": null
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_64":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "*/_settings"
+        flat_settings: "true"
+        filter_path: "**.settings.archived*"
+  - is_false: _shards.failures
+---
+"line_73":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index/_settings"
+        body: |
+          {
+            "archived.*": null
+          }
+  - is_false: _shards.failures

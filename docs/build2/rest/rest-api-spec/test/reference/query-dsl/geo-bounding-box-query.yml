@@ -1,0 +1,402 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "my_locations"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "pin": {
+                  "properties": {
+                    "location": {
+                      "type": "geo_point"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - do:
+      raw:
+        method: PUT
+        path: "my_locations/_doc/1"
+        body: |
+          {
+            "pin": {
+              "location": {
+                "lat": 40.12,
+                "lon": -71.34
+              }
+            }
+          }
+  - do:
+      raw:
+        method: PUT
+        path: "my_geoshapes"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "pin": {
+                  "properties": {
+                    "location": {
+                      "type": "geo_shape"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - do:
+      raw:
+        method: PUT
+        path: "my_geoshapes/_doc/1"
+        body: |
+          {
+            "pin": {
+              "location": {
+                "type" : "polygon",
+                "coordinates" : [[[13.0 ,51.5], [15.0, 51.5], [15.0, 54.0], [13.0, 54.0], [13.0 ,51.5]]]
+              }
+            }
+          }
+---
+"line_73":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "my_locations/_search"
+        body: |
+          {
+            "query": {
+              "bool": {
+                "must": {
+                  "match_all": {}
+                },
+                "filter": {
+                  "geo_bounding_box": {
+                    "pin.location": {
+                      "top_left": {
+                        "lat": 40.73,
+                        "lon": -74.1
+                      },
+                      "bottom_right": {
+                        "lat": 40.01,
+                        "lon": -71.12
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_103":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "my_geoshapes/_search"
+        body: |
+          {
+            "query": {
+              "bool": {
+                "must": {
+                  "match_all": {}
+                },
+                "filter": {
+                  "geo_bounding_box": {
+                    "pin.location": {
+                      "top_left": {
+                        "lat": 40.73,
+                        "lon": -74.1
+                      },
+                      "bottom_right": {
+                        "lat": 40.01,
+                        "lon": -71.12
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_133":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "my_locations,my_geoshapes/_search"
+        body: |
+          {
+            "query": {
+              "bool": {
+                "must": {
+                  "match_all": {}
+                },
+                "filter": {
+                  "geo_bounding_box": {
+                    "pin.location": {
+                      "top_left": {
+                        "lat": 40.73,
+                        "lon": -74.1
+                      },
+                      "bottom_right": {
+                        "lat": 40.01,
+                        "lon": -71.12
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_185":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "my_locations/_search"
+        body: |
+          {
+            "query": {
+              "bool": {
+                "must": {
+                  "match_all": {}
+                },
+                "filter": {
+                  "geo_bounding_box": {
+                    "pin.location": {
+                      "top_left": {
+                        "lat": 40.73,
+                        "lon": -74.1
+                      },
+                      "bottom_right": {
+                        "lat": 40.01,
+                        "lon": -71.12
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_219":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "my_locations/_search"
+        body: |
+          {
+            "query": {
+              "bool": {
+                "must": {
+                  "match_all": {}
+                },
+                "filter": {
+                  "geo_bounding_box": {
+                    "pin.location": {
+                      "top_left": [ -74.1, 40.73 ],
+                      "bottom_right": [ -71.12, 40.01 ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_246":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "my_locations/_search"
+        body: |
+          {
+            "query": {
+              "bool": {
+                "must": {
+                  "match_all": {}
+                },
+                "filter": {
+                  "geo_bounding_box": {
+                    "pin.location": {
+                      "top_left": "POINT (-74.1 40.73)",
+                      "bottom_right": "POINT (-71.12 40.01)"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_271":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "my_locations/_search"
+        body: |
+          {
+            "query": {
+              "bool": {
+                "must": {
+                  "match_all": {}
+                },
+                "filter": {
+                  "geo_bounding_box": {
+                    "pin.location": {
+                      "wkt": "BBOX (-74.1, -71.12, 40.73, 40.01)"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_295":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "my_locations/_search"
+        body: |
+          {
+            "query": {
+              "bool": {
+                "must": {
+                  "match_all": {}
+                },
+                "filter": {
+                  "geo_bounding_box": {
+                    "pin.location": {
+                      "top_left": "dr5r9ydj2y73",
+                      "bottom_right": "drj7teegpus6"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_329":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "my_locations/_search"
+        body: |
+          {
+            "query": {
+              "geo_bounding_box": {
+                "pin.location": {
+                  "top_left": "dr",
+                  "bottom_right": "dr"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_356":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "my_locations/_search"
+        body: |
+          {
+            "query": {
+              "bool": {
+                "must": {
+                  "match_all": {}
+                },
+                "filter": {
+                  "geo_bounding_box": {
+                    "pin.location": {
+                      "top": 40.73,
+                      "left": -74.1,
+                      "bottom": 40.01,
+                      "right": -71.12
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

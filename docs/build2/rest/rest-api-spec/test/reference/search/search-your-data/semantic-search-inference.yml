@@ -1,0 +1,32 @@
+---
+"line_88":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TBD
+  - do:
+      raw:
+        method: GET
+        path: "_tasks/%3Ctask_id%3E"
+  - is_false: _shards.failures
+---
+"line_97":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TBD
+  - do:
+      raw:
+        method: POST
+        path: "_tasks/%3Ctask_id%3E/_cancel"
+  - is_false: _shards.failures

@@ -1,0 +1,26 @@
+---
+"line_45":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ilm/policy/my_policy"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "hot": {
+                  "actions": {
+                    "unfollow" : {}
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

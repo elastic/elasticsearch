@@ -1,0 +1,73 @@
+---
+"line_36":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ingest/pipeline/pipelineA"
+        body: |
+          {
+            "description" : "inner pipeline",
+            "processors" : [
+              {
+                "set" : {
+                  "field": "inner_pipeline_set",
+                  "value": "inner"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_ingest/pipeline/pipelineB"
+        body: |
+          {
+            "description" : "outer pipeline",
+            "processors" : [
+              {
+                "pipeline" : {
+                  "name": "pipelineA"
+                }
+              },
+              {
+                "set" : {
+                  "field": "outer_pipeline_set",
+                  "value": "outer"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/1"
+        pipeline: "pipelineB"
+        body: |
+          {
+            "field": "value"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "_index": "my-index-000001",
+          "_id": "1",
+          "_version": 1,
+          "result": "created",
+          "_shards": {
+            "total": 2,
+            "successful": 1,
+            "failed": 0
+          },
+          "_seq_no" : $body._seq_no,
+          "_primary_term": 1
+        }

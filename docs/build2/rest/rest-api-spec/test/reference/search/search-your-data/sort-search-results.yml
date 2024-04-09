@@ -1,0 +1,567 @@
+---
+"line_11":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "post_date": { "type": "date" },
+                "user": {
+                  "type": "keyword"
+                },
+                "name": {
+                  "type": "keyword"
+                },
+                "age": { "type": "integer" }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "sort" : [
+              { "post_date" : {"order" : "asc", "format": "strict_date_optional_time_nanos"}},
+              "user",
+              { "name" : "desc" },
+              { "age" : "desc" },
+              "_score"
+            ],
+            "query" : {
+              "term" : { "user" : "kimchy" }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "sort" : [
+              { "post_date" : {"format": "strict_date_optional_time_nanos"}}
+            ],
+            "query" : {
+              "term" : { "user" : "kimchy" }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_115":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/1"
+        refresh: ""
+        body: |
+          {
+             "product": "chocolate",
+             "price": [20, 4]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_search"
+        body: |
+          {
+             "query" : {
+                "term" : { "product" : "chocolate" }
+             },
+             "sort" : [
+                {"price" : {"order" : "asc", "mode" : "avg"}}
+             ]
+          }
+  - is_false: _shards.failures
+---
+"line_144":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "index_double"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "field": { "type": "double" }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "index_long"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "field": { "type": "long" }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "index_long,index_double/_search"
+        body: |
+          {
+             "sort" : [
+                {
+                  "field" : {
+                      "numeric_type" : "double"
+                  }
+                }
+             ]
+          }
+  - is_false: _shards.failures
+---
+"line_202":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "index_double"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "field": { "type": "date" }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "index_long"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "field": { "type": "date_nanos" }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "index_long,index_double/_search"
+        body: |
+          {
+             "sort" : [
+                {
+                  "field" : {
+                      "numeric_type" : "date_nanos"
+                  }
+                }
+             ]
+          }
+  - is_false: _shards.failures
+---
+"line_286":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_search"
+        body: |
+          {
+             "query" : {
+                "term" : { "product" : "chocolate" }
+             },
+             "sort" : [
+                 {
+                    "offer.price" : {
+                       "mode" :  "avg",
+                       "order" : "asc",
+                       "nested": {
+                          "path": "offer",
+                          "filter": {
+                             "term" : { "offer.color" : "blue" }
+                          }
+                       }
+                    }
+                 }
+              ]
+          }
+  - is_false: _shards.failures
+---
+"line_313":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_search"
+        body: |
+          {
+             "query": {
+                "nested": {
+                   "path": "parent",
+                   "query": {
+                      "bool": {
+                          "must": {"range": {"parent.age": {"gte": 21}}},
+                          "filter": {
+                              "nested": {
+                                  "path": "parent.child",
+                                  "query": {"match": {"parent.child.name": "matt"}}
+                              }
+                          }
+                      }
+                   }
+                }
+             },
+             "sort" : [
+                {
+                   "parent.child.age" : {
+                      "mode" :  "min",
+                      "order" : "asc",
+                      "nested": {
+                         "path": "parent",
+                         "filter": {
+                            "range": {"parent.age": {"gte": 21}}
+                         },
+                         "nested": {
+                            "path": "parent.child",
+                            "filter": {
+                               "match": {"parent.child.name": "matt"}
+                            }
+                         }
+                      }
+                   }
+                }
+             ]
+          }
+  - is_false: _shards.failures
+---
+"line_370":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "sort" : [
+              { "price" : {"missing" : "_last"} }
+            ],
+            "query" : {
+              "term" : { "product" : "chocolate" }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_395":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "sort" : [
+              { "price" : {"unmapped_type" : "long"} }
+            ],
+            "query" : {
+              "term" : { "product" : "chocolate" }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_418":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "sort" : [
+              {
+                "_geo_distance" : {
+                    "pin.location" : [-70, 40],
+                    "order" : "asc",
+                    "unit" : "km",
+                    "mode" : "min",
+                    "distance_type" : "arc",
+                    "ignore_unmapped": true
+                }
+              }
+            ],
+            "query" : {
+              "term" : { "user" : "kimchy" }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_472":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "sort" : [
+              {
+                "_geo_distance" : {
+                  "pin.location" : {
+                    "lat" : 40,
+                    "lon" : -70
+                  },
+                  "order" : "asc",
+                  "unit" : "km"
+                }
+              }
+            ],
+            "query" : {
+              "term" : { "user" : "kimchy" }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_499":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "sort": [
+              {
+                "_geo_distance": {
+                  "pin.location": "POINT (-70 40)",
+                  "order": "asc",
+                  "unit": "km"
+                }
+              }
+            ],
+            "query": {
+              "term": { "user": "kimchy" }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_521":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "sort": [
+              {
+                "_geo_distance": {
+                  "pin.location": "drm3btev3e86",
+                  "order": "asc",
+                  "unit": "km"
+                }
+              }
+            ],
+            "query": {
+              "term": { "user": "kimchy" }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_546":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "sort": [
+              {
+                "_geo_distance": {
+                  "pin.location": [ -70, 40 ],
+                  "order": "asc",
+                  "unit": "km"
+                }
+              }
+            ],
+            "query": {
+              "term": { "user": "kimchy" }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_570":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "sort": [
+              {
+                "_geo_distance": {
+                  "pin.location": [ [ -70, 40 ], [ -71, 42 ] ],
+                  "order": "asc",
+                  "unit": "km"
+                }
+              }
+            ],
+            "query": {
+              "term": { "user": "kimchy" }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_600":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "term": { "user": "kimchy" }
+            },
+            "sort": {
+              "_script": {
+                "type": "number",
+                "script": {
+                  "lang": "painless",
+                  "source": "doc['field_name'].value * params.factor",
+                  "params": {
+                    "factor": 1.1
+                  }
+                },
+                "order": "asc"
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_629":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "track_scores": true,
+            "sort" : [
+              { "post_date" : {"order" : "desc"} },
+              { "name" : "desc" },
+              { "age" : "desc" }
+            ],
+            "query" : {
+              "term" : { "user" : "kimchy" }
+            }
+          }
+  - is_false: _shards.failures

@@ -17,11 +17,14 @@ import org.elasticsearch.gradle.testclusters.TestDistribution;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.file.Directory;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.internal.file.FileOperations;
+import org.gradle.api.plugins.JavaPluginExtension;
+import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.TaskProvider;
 
 import java.util.Map;
-
 import javax.inject.Inject;
 
 public class Docs2Plugin implements Plugin<Project> {
@@ -85,6 +88,18 @@ public class Docs2Plugin implements Plugin<Project> {
                 }
             });
         });
+
+        Provider<Directory> restRootDir = projectLayout.getBuildDirectory().dir("rest");
+        TaskProvider<RestTestsFromDocSnippetTask> buildRestTests = project.getTasks()
+            .register("buildRestTests", RestTestsFromDocSnippetTask.class, task -> {
+                task.setDefaultSubstitutions(commonDefaultSubstitutions);
+                task.getTestRoot().convention(restRootDir);
+                task.doFirst(task1 -> fileOperations.delete(restRootDir.get()));
+            });
+
+        // TODO: This effectively makes testRoot not customizable, which we don't do anyway atm
+        JavaPluginExtension byType = project.getExtensions().getByType(JavaPluginExtension.class);
+        byType.getSourceSets().getByName("yamlRestTest").getOutput().dir(Map.of("builtBy", buildRestTests), restRootDir);
     }
 
 }

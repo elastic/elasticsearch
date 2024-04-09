@@ -1,0 +1,81 @@
+---
+"line_30":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer" : "standard",
+            "filter" : ["uppercase"],
+            "text" : "the Quick FoX JUMPs"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens" : [
+            {
+              "token" : "THE",
+              "start_offset" : 0,
+              "end_offset" : 3,
+              "type" : "<ALPHANUM>",
+              "position" : 0
+            },
+            {
+              "token" : "QUICK",
+              "start_offset" : 4,
+              "end_offset" : 9,
+              "type" : "<ALPHANUM>",
+              "position" : 1
+            },
+            {
+              "token" : "FOX",
+              "start_offset" : 10,
+              "end_offset" : 13,
+              "type" : "<ALPHANUM>",
+              "position" : 2
+            },
+            {
+              "token" : "JUMPS",
+              "start_offset" : 14,
+              "end_offset" : 19,
+              "type" : "<ALPHANUM>",
+              "position" : 3
+            }
+          ]
+        }
+---
+"line_92":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "uppercase_example"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "whitespace_uppercase": {
+                    "tokenizer": "whitespace",
+                    "filter": [ "uppercase" ]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

@@ -1,0 +1,62 @@
+---
+"line_99":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup setup-repository
+
+  - do:
+      snapshot.create_repository:
+        repository: my_repository
+        body:
+          type: fs
+          settings:
+            location: buildDir/cluster/shared/repo
+
+  - do:
+      raw:
+        method: PUT
+        path: "my_docs"
+        body: |
+          {
+            "settings" : {
+              "index.number_of_shards" : 1,
+              "index.number_of_replicas" : 0
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_repository/my_snapshot"
+        wait_for_completion: "true"
+        body: |
+          {
+            "include_global_state": false,
+            "indices": "my_docs"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "my_docs"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_snapshot/my_repository/my_snapshot/_mount"
+        wait_for_completion: "true"
+        body: |
+          {
+            "index": "my_docs",
+            "renamed_index": "docs",
+            "index_settings": {
+              "index.number_of_replicas": 0
+            },
+            "ignore_index_settings": [ "index.refresh_interval" ]
+          }
+  - is_false: _shards.failures

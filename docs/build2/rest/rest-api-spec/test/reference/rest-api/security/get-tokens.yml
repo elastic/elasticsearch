@@ -1,0 +1,128 @@
+---
+"line_111":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/oauth2/token"
+        body: |
+          {
+            "grant_type" : "client_credentials"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "access_token" : "$body.access_token",
+          "type" : "Bearer",
+          "expires_in" : 1200,
+          "authentication" : {
+            "username" : "test_admin",
+            "roles" : [
+              "_es_test_root"
+            ],
+            "full_name" : null,
+            "email" : null,
+            "metadata" : { },
+            "enabled" : true,
+            "authentication_realm" : {
+              "name" : "file",
+              "type" : "file"
+            },
+            "lookup_realm" : {
+              "name" : "file",
+              "type" : "file"
+            },
+            "authentication_type" : "realm"
+          }
+        }
+---
+"line_166":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/oauth2/token"
+        body: |
+          {
+            "grant_type" : "password",
+            "username" : "test_admin",
+            "password" : "x-pack-test-password"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "access_token" : "$body.access_token",
+          "type" : "Bearer",
+          "expires_in" : 1200,
+          "refresh_token": "$body.refresh_token",
+          "authentication" : {
+            "username" : "test_admin",
+            "roles" : [
+              "_es_test_root"
+            ],
+            "full_name" : null,
+            "email" : null,
+            "metadata" : { },
+            "enabled" : true,
+            "authentication_realm" : {
+              "name" : "file",
+              "type" : "file"
+            },
+            "lookup_realm" : {
+              "name" : "file",
+              "type" : "file"
+            },
+            "authentication_type" : "realm"
+          }
+        }
+  - do:
+      raw:
+        method: POST
+        path: "_security/oauth2/token"
+        body: |
+          {
+            "grant_type": "refresh_token",
+            "refresh_token": "$body.refresh_token"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "access_token" : "$body.access_token",
+          "type" : "Bearer",
+          "expires_in" : 1200,
+          "refresh_token": "$body.refresh_token",
+          "authentication" : {
+            "username" : "test_admin",
+            "roles" : [
+              "_es_test_root"
+            ],
+            "full_name" : null,
+            "email" : null,
+            "metadata" : { },
+            "enabled" : true,
+            "authentication_realm" : {
+              "name" : "file",
+              "type" : "file"
+            },
+            "lookup_realm" : {
+              "name" : "file",
+              "type" : "file"
+            },
+            "authentication_type" : "token"
+          }
+        }

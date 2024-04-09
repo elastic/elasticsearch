@@ -1,0 +1,29 @@
+---
+"line_63":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TBD
+  - do:
+      raw:
+        method: PUT
+        path: "_ml/trained_models/elastic__distilbert-base-uncased-finetuned-conll03-english/vocabulary"
+        body: |
+          {
+            "vocabulary": [
+              "[PAD]",
+              "[unused0]",
+              "[PAD]"
+            ]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+            "acknowledged": true
+        }

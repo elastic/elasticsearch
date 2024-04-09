@@ -1,0 +1,17 @@
+---
+"line_278":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: kibana sample data
+  - do:
+      raw:
+        method: GET
+        path: "_cat/ml/anomaly_detectors"
+        h: "id,s,dpr,mb"
+        v: "true"

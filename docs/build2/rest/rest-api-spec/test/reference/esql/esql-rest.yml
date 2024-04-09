@@ -1,0 +1,865 @@
+---
+"line_16":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup library
+
+  - do:
+        indices.create:
+          index: library
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+                properties:
+                  name:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                  author:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                  release_date:
+                    type: date
+                  page_count:
+                    type: short
+  - do:
+        bulk:
+          index: library
+          refresh: true
+          body: |
+            {"index":{"_id": "Leviathan Wakes"}}
+            {"name": "Leviathan Wakes", "author": "James S.A. Corey", "release_date": "2011-06-02", "page_count": 561}
+            {"index":{"_id": "Hyperion"}}
+            {"name": "Hyperion", "author": "Dan Simmons", "release_date": "1989-05-26", "page_count": 482}
+            {"index":{"_id": "Dune"}}
+            {"name": "Dune", "author": "Frank Herbert", "release_date": "1965-06-01", "page_count": 604}
+            {"index":{"_id": "Dune Messiah"}}
+            {"name": "Dune Messiah", "author": "Frank Herbert", "release_date": "1969-10-15", "page_count": 331}
+            {"index":{"_id": "Children of Dune"}}
+            {"name": "Children of Dune", "author": "Frank Herbert", "release_date": "1976-04-21", "page_count": 408}
+            {"index":{"_id": "God Emperor of Dune"}}
+            {"name": "God Emperor of Dune", "author": "Frank Herbert", "release_date": "1981-05-28", "page_count": 454}
+            {"index":{"_id": "Consider Phlebas"}}
+            {"name": "Consider Phlebas", "author": "Iain M. Banks", "release_date": "1987-04-23", "page_count": 471}
+            {"index":{"_id": "Pandora's Star"}}
+            {"name": "Pandora's Star", "author": "Peter F. Hamilton", "release_date": "2004-03-02", "page_count": 768}
+            {"index":{"_id": "Revelation Space"}}
+            {"name": "Revelation Space", "author": "Alastair Reynolds", "release_date": "2000-03-15", "page_count": 585}
+            {"index":{"_id": "A Fire Upon the Deep"}}
+            {"name": "A Fire Upon the Deep", "author": "Vernor Vinge", "release_date": "1992-06-01", "page_count": 613}
+            {"index":{"_id": "Ender's Game"}}
+            {"name": "Ender's Game", "author": "Orson Scott Card", "release_date": "1985-06-01", "page_count": 324}
+            {"index":{"_id": "1984"}}
+            {"name": "1984", "author": "George Orwell", "release_date": "1985-06-01", "page_count": 328}
+            {"index":{"_id": "Fahrenheit 451"}}
+            {"name": "Fahrenheit 451", "author": "Ray Bradbury", "release_date": "1953-10-15", "page_count": 227}
+            {"index":{"_id": "Brave New World"}}
+            {"name": "Brave New World", "author": "Aldous Huxley", "release_date": "1932-06-01", "page_count": 268}
+            {"index":{"_id": "Foundation"}}
+            {"name": "Foundation", "author": "Isaac Asimov", "release_date": "1951-06-01", "page_count": 224}
+            {"index":{"_id": "The Giver"}}
+            {"name": "The Giver", "author": "Lois Lowry", "release_date": "1993-04-26", "page_count": 208}
+            {"index":{"_id": "Slaughterhouse-Five"}}
+            {"name": "Slaughterhouse-Five", "author": "Kurt Vonnegut", "release_date": "1969-06-01", "page_count": 275}
+            {"index":{"_id": "The Hitchhiker's Guide to the Galaxy"}}
+            {"name": "The Hitchhiker's Guide to the Galaxy", "author": "Douglas Adams", "release_date": "1979-10-12", "page_count": 180}
+            {"index":{"_id": "Snow Crash"}}
+            {"name": "Snow Crash", "author": "Neal Stephenson", "release_date": "1992-06-01", "page_count": 470}
+            {"index":{"_id": "Neuromancer"}}
+            {"name": "Neuromancer", "author": "William Gibson", "release_date": "1984-07-01", "page_count": 271}
+            {"index":{"_id": "The Handmaid's Tale"}}
+            {"name": "The Handmaid's Tale", "author": "Margaret Atwood", "release_date": "1985-06-01", "page_count": 311}
+            {"index":{"_id": "Starship Troopers"}}
+            {"name": "Starship Troopers", "author": "Robert A. Heinlein", "release_date": "1959-12-01", "page_count": 335}
+            {"index":{"_id": "The Left Hand of Darkness"}}
+            {"name": "The Left Hand of Darkness", "author": "Ursula K. Le Guin", "release_date": "1969-06-01", "page_count": 304}
+            {"index":{"_id": "The Moon is a Harsh Mistress"}}
+            {"name": "The Moon is a Harsh Mistress", "author": "Robert A. Heinlein", "release_date": "1966-04-01", "page_count": 288}
+
+
+  - do:
+      raw:
+        method: POST
+        path: "_query"
+        format: "txt"
+        body: |
+          {
+            "query": "FROM library | KEEP author, name, page_count, release_date | SORT page_count DESC | LIMIT 5"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        /     \s+author      \s+\|        \s+name        \s+\|  \s+page_count   \s+\| \s+release_date\s*
+         -----------------\+--------------------\+---------------\+------------------------\s*
+         Peter \s+F. \s+Hamilton\|Pandora's \s+Star      \s+\|768            \s+\|2004-03-02T00:00:00.000Z\s*
+         Vernor \s+Vinge     \s+\|A \s+Fire \s+Upon \s+the \s+Deep\|613            \s+\|1992-06-01T00:00:00.000Z\s*
+         Frank \s+Herbert    \s+\|Dune                \s+\|604            \s+\|1965-06-01T00:00:00.000Z\s*
+         Alastair \s+Reynolds\|Revelation \s+Space    \s+\|585            \s+\|2000-03-15T00:00:00.000Z\s*
+         James \s+S.A. \s+Corey \s+\|Leviathan \s+Wakes     \s+\|561            \s+\|2011-06-02T00:00:00.000Z\s*/
+---
+"line_50":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup library
+
+  - do:
+        indices.create:
+          index: library
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+                properties:
+                  name:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                  author:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                  release_date:
+                    type: date
+                  page_count:
+                    type: short
+  - do:
+        bulk:
+          index: library
+          refresh: true
+          body: |
+            {"index":{"_id": "Leviathan Wakes"}}
+            {"name": "Leviathan Wakes", "author": "James S.A. Corey", "release_date": "2011-06-02", "page_count": 561}
+            {"index":{"_id": "Hyperion"}}
+            {"name": "Hyperion", "author": "Dan Simmons", "release_date": "1989-05-26", "page_count": 482}
+            {"index":{"_id": "Dune"}}
+            {"name": "Dune", "author": "Frank Herbert", "release_date": "1965-06-01", "page_count": 604}
+            {"index":{"_id": "Dune Messiah"}}
+            {"name": "Dune Messiah", "author": "Frank Herbert", "release_date": "1969-10-15", "page_count": 331}
+            {"index":{"_id": "Children of Dune"}}
+            {"name": "Children of Dune", "author": "Frank Herbert", "release_date": "1976-04-21", "page_count": 408}
+            {"index":{"_id": "God Emperor of Dune"}}
+            {"name": "God Emperor of Dune", "author": "Frank Herbert", "release_date": "1981-05-28", "page_count": 454}
+            {"index":{"_id": "Consider Phlebas"}}
+            {"name": "Consider Phlebas", "author": "Iain M. Banks", "release_date": "1987-04-23", "page_count": 471}
+            {"index":{"_id": "Pandora's Star"}}
+            {"name": "Pandora's Star", "author": "Peter F. Hamilton", "release_date": "2004-03-02", "page_count": 768}
+            {"index":{"_id": "Revelation Space"}}
+            {"name": "Revelation Space", "author": "Alastair Reynolds", "release_date": "2000-03-15", "page_count": 585}
+            {"index":{"_id": "A Fire Upon the Deep"}}
+            {"name": "A Fire Upon the Deep", "author": "Vernor Vinge", "release_date": "1992-06-01", "page_count": 613}
+            {"index":{"_id": "Ender's Game"}}
+            {"name": "Ender's Game", "author": "Orson Scott Card", "release_date": "1985-06-01", "page_count": 324}
+            {"index":{"_id": "1984"}}
+            {"name": "1984", "author": "George Orwell", "release_date": "1985-06-01", "page_count": 328}
+            {"index":{"_id": "Fahrenheit 451"}}
+            {"name": "Fahrenheit 451", "author": "Ray Bradbury", "release_date": "1953-10-15", "page_count": 227}
+            {"index":{"_id": "Brave New World"}}
+            {"name": "Brave New World", "author": "Aldous Huxley", "release_date": "1932-06-01", "page_count": 268}
+            {"index":{"_id": "Foundation"}}
+            {"name": "Foundation", "author": "Isaac Asimov", "release_date": "1951-06-01", "page_count": 224}
+            {"index":{"_id": "The Giver"}}
+            {"name": "The Giver", "author": "Lois Lowry", "release_date": "1993-04-26", "page_count": 208}
+            {"index":{"_id": "Slaughterhouse-Five"}}
+            {"name": "Slaughterhouse-Five", "author": "Kurt Vonnegut", "release_date": "1969-06-01", "page_count": 275}
+            {"index":{"_id": "The Hitchhiker's Guide to the Galaxy"}}
+            {"name": "The Hitchhiker's Guide to the Galaxy", "author": "Douglas Adams", "release_date": "1979-10-12", "page_count": 180}
+            {"index":{"_id": "Snow Crash"}}
+            {"name": "Snow Crash", "author": "Neal Stephenson", "release_date": "1992-06-01", "page_count": 470}
+            {"index":{"_id": "Neuromancer"}}
+            {"name": "Neuromancer", "author": "William Gibson", "release_date": "1984-07-01", "page_count": 271}
+            {"index":{"_id": "The Handmaid's Tale"}}
+            {"name": "The Handmaid's Tale", "author": "Margaret Atwood", "release_date": "1985-06-01", "page_count": 311}
+            {"index":{"_id": "Starship Troopers"}}
+            {"name": "Starship Troopers", "author": "Robert A. Heinlein", "release_date": "1959-12-01", "page_count": 335}
+            {"index":{"_id": "The Left Hand of Darkness"}}
+            {"name": "The Left Hand of Darkness", "author": "Ursula K. Le Guin", "release_date": "1969-06-01", "page_count": 304}
+            {"index":{"_id": "The Moon is a Harsh Mistress"}}
+            {"name": "The Moon is a Harsh Mistress", "author": "Robert A. Heinlein", "release_date": "1966-04-01", "page_count": 288}
+
+
+  - do:
+      raw:
+        method: POST
+        path: "_query"
+        format: "txt"
+        body: |
+          {
+            "query": "\n    FROM library\n    | KEEP author, name, page_count, release_date\n    | SORT page_count DESC\n    | LIMIT 5\n  "
+          }
+  - is_false: _shards.failures
+---
+"line_130":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup library
+
+  - do:
+        indices.create:
+          index: library
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+                properties:
+                  name:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                  author:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                  release_date:
+                    type: date
+                  page_count:
+                    type: short
+  - do:
+        bulk:
+          index: library
+          refresh: true
+          body: |
+            {"index":{"_id": "Leviathan Wakes"}}
+            {"name": "Leviathan Wakes", "author": "James S.A. Corey", "release_date": "2011-06-02", "page_count": 561}
+            {"index":{"_id": "Hyperion"}}
+            {"name": "Hyperion", "author": "Dan Simmons", "release_date": "1989-05-26", "page_count": 482}
+            {"index":{"_id": "Dune"}}
+            {"name": "Dune", "author": "Frank Herbert", "release_date": "1965-06-01", "page_count": 604}
+            {"index":{"_id": "Dune Messiah"}}
+            {"name": "Dune Messiah", "author": "Frank Herbert", "release_date": "1969-10-15", "page_count": 331}
+            {"index":{"_id": "Children of Dune"}}
+            {"name": "Children of Dune", "author": "Frank Herbert", "release_date": "1976-04-21", "page_count": 408}
+            {"index":{"_id": "God Emperor of Dune"}}
+            {"name": "God Emperor of Dune", "author": "Frank Herbert", "release_date": "1981-05-28", "page_count": 454}
+            {"index":{"_id": "Consider Phlebas"}}
+            {"name": "Consider Phlebas", "author": "Iain M. Banks", "release_date": "1987-04-23", "page_count": 471}
+            {"index":{"_id": "Pandora's Star"}}
+            {"name": "Pandora's Star", "author": "Peter F. Hamilton", "release_date": "2004-03-02", "page_count": 768}
+            {"index":{"_id": "Revelation Space"}}
+            {"name": "Revelation Space", "author": "Alastair Reynolds", "release_date": "2000-03-15", "page_count": 585}
+            {"index":{"_id": "A Fire Upon the Deep"}}
+            {"name": "A Fire Upon the Deep", "author": "Vernor Vinge", "release_date": "1992-06-01", "page_count": 613}
+            {"index":{"_id": "Ender's Game"}}
+            {"name": "Ender's Game", "author": "Orson Scott Card", "release_date": "1985-06-01", "page_count": 324}
+            {"index":{"_id": "1984"}}
+            {"name": "1984", "author": "George Orwell", "release_date": "1985-06-01", "page_count": 328}
+            {"index":{"_id": "Fahrenheit 451"}}
+            {"name": "Fahrenheit 451", "author": "Ray Bradbury", "release_date": "1953-10-15", "page_count": 227}
+            {"index":{"_id": "Brave New World"}}
+            {"name": "Brave New World", "author": "Aldous Huxley", "release_date": "1932-06-01", "page_count": 268}
+            {"index":{"_id": "Foundation"}}
+            {"name": "Foundation", "author": "Isaac Asimov", "release_date": "1951-06-01", "page_count": 224}
+            {"index":{"_id": "The Giver"}}
+            {"name": "The Giver", "author": "Lois Lowry", "release_date": "1993-04-26", "page_count": 208}
+            {"index":{"_id": "Slaughterhouse-Five"}}
+            {"name": "Slaughterhouse-Five", "author": "Kurt Vonnegut", "release_date": "1969-06-01", "page_count": 275}
+            {"index":{"_id": "The Hitchhiker's Guide to the Galaxy"}}
+            {"name": "The Hitchhiker's Guide to the Galaxy", "author": "Douglas Adams", "release_date": "1979-10-12", "page_count": 180}
+            {"index":{"_id": "Snow Crash"}}
+            {"name": "Snow Crash", "author": "Neal Stephenson", "release_date": "1992-06-01", "page_count": 470}
+            {"index":{"_id": "Neuromancer"}}
+            {"name": "Neuromancer", "author": "William Gibson", "release_date": "1984-07-01", "page_count": 271}
+            {"index":{"_id": "The Handmaid's Tale"}}
+            {"name": "The Handmaid's Tale", "author": "Margaret Atwood", "release_date": "1985-06-01", "page_count": 311}
+            {"index":{"_id": "Starship Troopers"}}
+            {"name": "Starship Troopers", "author": "Robert A. Heinlein", "release_date": "1959-12-01", "page_count": 335}
+            {"index":{"_id": "The Left Hand of Darkness"}}
+            {"name": "The Left Hand of Darkness", "author": "Ursula K. Le Guin", "release_date": "1969-06-01", "page_count": 304}
+            {"index":{"_id": "The Moon is a Harsh Mistress"}}
+            {"name": "The Moon is a Harsh Mistress", "author": "Robert A. Heinlein", "release_date": "1966-04-01", "page_count": 288}
+
+
+  - do:
+      raw:
+        method: POST
+        path: "_query"
+        format: "txt"
+        body: |
+          {
+            "query": "\n    FROM library\n    | KEEP author, name, page_count, release_date\n    | SORT page_count DESC\n    | LIMIT 5\n  ",
+            "filter": {
+              "range": {
+                "page_count": {
+                  "gte": 100,
+                  "lte": 200
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        /    \s+author     \s+\|                \s+name                \s+\|  \s+page_count   \s+\| \s+release_date\s*
+         ---------------\+------------------------------------\+---------------\+------------------------\s*
+         Douglas \s+Adams  \s+\|The \s+Hitchhiker's \s+Guide \s+to \s+the \s+Galaxy\|180            \s+\|1979-10-12T00:00:00.000Z\s*/
+---
+"line_173":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup library
+
+  - do:
+        indices.create:
+          index: library
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+                properties:
+                  name:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                  author:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                  release_date:
+                    type: date
+                  page_count:
+                    type: short
+  - do:
+        bulk:
+          index: library
+          refresh: true
+          body: |
+            {"index":{"_id": "Leviathan Wakes"}}
+            {"name": "Leviathan Wakes", "author": "James S.A. Corey", "release_date": "2011-06-02", "page_count": 561}
+            {"index":{"_id": "Hyperion"}}
+            {"name": "Hyperion", "author": "Dan Simmons", "release_date": "1989-05-26", "page_count": 482}
+            {"index":{"_id": "Dune"}}
+            {"name": "Dune", "author": "Frank Herbert", "release_date": "1965-06-01", "page_count": 604}
+            {"index":{"_id": "Dune Messiah"}}
+            {"name": "Dune Messiah", "author": "Frank Herbert", "release_date": "1969-10-15", "page_count": 331}
+            {"index":{"_id": "Children of Dune"}}
+            {"name": "Children of Dune", "author": "Frank Herbert", "release_date": "1976-04-21", "page_count": 408}
+            {"index":{"_id": "God Emperor of Dune"}}
+            {"name": "God Emperor of Dune", "author": "Frank Herbert", "release_date": "1981-05-28", "page_count": 454}
+            {"index":{"_id": "Consider Phlebas"}}
+            {"name": "Consider Phlebas", "author": "Iain M. Banks", "release_date": "1987-04-23", "page_count": 471}
+            {"index":{"_id": "Pandora's Star"}}
+            {"name": "Pandora's Star", "author": "Peter F. Hamilton", "release_date": "2004-03-02", "page_count": 768}
+            {"index":{"_id": "Revelation Space"}}
+            {"name": "Revelation Space", "author": "Alastair Reynolds", "release_date": "2000-03-15", "page_count": 585}
+            {"index":{"_id": "A Fire Upon the Deep"}}
+            {"name": "A Fire Upon the Deep", "author": "Vernor Vinge", "release_date": "1992-06-01", "page_count": 613}
+            {"index":{"_id": "Ender's Game"}}
+            {"name": "Ender's Game", "author": "Orson Scott Card", "release_date": "1985-06-01", "page_count": 324}
+            {"index":{"_id": "1984"}}
+            {"name": "1984", "author": "George Orwell", "release_date": "1985-06-01", "page_count": 328}
+            {"index":{"_id": "Fahrenheit 451"}}
+            {"name": "Fahrenheit 451", "author": "Ray Bradbury", "release_date": "1953-10-15", "page_count": 227}
+            {"index":{"_id": "Brave New World"}}
+            {"name": "Brave New World", "author": "Aldous Huxley", "release_date": "1932-06-01", "page_count": 268}
+            {"index":{"_id": "Foundation"}}
+            {"name": "Foundation", "author": "Isaac Asimov", "release_date": "1951-06-01", "page_count": 224}
+            {"index":{"_id": "The Giver"}}
+            {"name": "The Giver", "author": "Lois Lowry", "release_date": "1993-04-26", "page_count": 208}
+            {"index":{"_id": "Slaughterhouse-Five"}}
+            {"name": "Slaughterhouse-Five", "author": "Kurt Vonnegut", "release_date": "1969-06-01", "page_count": 275}
+            {"index":{"_id": "The Hitchhiker's Guide to the Galaxy"}}
+            {"name": "The Hitchhiker's Guide to the Galaxy", "author": "Douglas Adams", "release_date": "1979-10-12", "page_count": 180}
+            {"index":{"_id": "Snow Crash"}}
+            {"name": "Snow Crash", "author": "Neal Stephenson", "release_date": "1992-06-01", "page_count": 470}
+            {"index":{"_id": "Neuromancer"}}
+            {"name": "Neuromancer", "author": "William Gibson", "release_date": "1984-07-01", "page_count": 271}
+            {"index":{"_id": "The Handmaid's Tale"}}
+            {"name": "The Handmaid's Tale", "author": "Margaret Atwood", "release_date": "1985-06-01", "page_count": 311}
+            {"index":{"_id": "Starship Troopers"}}
+            {"name": "Starship Troopers", "author": "Robert A. Heinlein", "release_date": "1959-12-01", "page_count": 335}
+            {"index":{"_id": "The Left Hand of Darkness"}}
+            {"name": "The Left Hand of Darkness", "author": "Ursula K. Le Guin", "release_date": "1969-06-01", "page_count": 304}
+            {"index":{"_id": "The Moon is a Harsh Mistress"}}
+            {"name": "The Moon is a Harsh Mistress", "author": "Robert A. Heinlein", "release_date": "1966-04-01", "page_count": 288}
+
+
+  - do:
+      raw:
+        method: POST
+        path: "_query"
+        format: "json"
+        body: |
+          {
+            "query": "\n    FROM library\n    | KEEP author, name, page_count, release_date\n    | SORT page_count DESC\n    | LIMIT 5\n  ",
+            "columnar": true
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "columns": [
+            {"name": "author", "type": "text"},
+            {"name": "name", "type": "text"},
+            {"name": "page_count", "type": "integer"},
+            {"name": "release_date", "type": "date"}
+          ],
+          "values": [
+            ["Peter F. Hamilton", "Vernor Vinge", "Frank Herbert", "Alastair Reynolds", "James S.A. Corey"],
+            ["Pandora's Star", "A Fire Upon the Deep", "Dune", "Revelation Space", "Leviathan Wakes"],
+            [768, 613, 604, 585, 561],
+            ["2004-03-02T00:00:00.000Z", "1992-06-01T00:00:00.000Z", "1965-06-01T00:00:00.000Z", "2000-03-15T00:00:00.000Z", "2011-06-02T00:00:00.000Z"]
+          ]
+        }
+---
+"line_220":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup library
+
+  - do:
+        indices.create:
+          index: library
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+                properties:
+                  name:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                  author:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                  release_date:
+                    type: date
+                  page_count:
+                    type: short
+  - do:
+        bulk:
+          index: library
+          refresh: true
+          body: |
+            {"index":{"_id": "Leviathan Wakes"}}
+            {"name": "Leviathan Wakes", "author": "James S.A. Corey", "release_date": "2011-06-02", "page_count": 561}
+            {"index":{"_id": "Hyperion"}}
+            {"name": "Hyperion", "author": "Dan Simmons", "release_date": "1989-05-26", "page_count": 482}
+            {"index":{"_id": "Dune"}}
+            {"name": "Dune", "author": "Frank Herbert", "release_date": "1965-06-01", "page_count": 604}
+            {"index":{"_id": "Dune Messiah"}}
+            {"name": "Dune Messiah", "author": "Frank Herbert", "release_date": "1969-10-15", "page_count": 331}
+            {"index":{"_id": "Children of Dune"}}
+            {"name": "Children of Dune", "author": "Frank Herbert", "release_date": "1976-04-21", "page_count": 408}
+            {"index":{"_id": "God Emperor of Dune"}}
+            {"name": "God Emperor of Dune", "author": "Frank Herbert", "release_date": "1981-05-28", "page_count": 454}
+            {"index":{"_id": "Consider Phlebas"}}
+            {"name": "Consider Phlebas", "author": "Iain M. Banks", "release_date": "1987-04-23", "page_count": 471}
+            {"index":{"_id": "Pandora's Star"}}
+            {"name": "Pandora's Star", "author": "Peter F. Hamilton", "release_date": "2004-03-02", "page_count": 768}
+            {"index":{"_id": "Revelation Space"}}
+            {"name": "Revelation Space", "author": "Alastair Reynolds", "release_date": "2000-03-15", "page_count": 585}
+            {"index":{"_id": "A Fire Upon the Deep"}}
+            {"name": "A Fire Upon the Deep", "author": "Vernor Vinge", "release_date": "1992-06-01", "page_count": 613}
+            {"index":{"_id": "Ender's Game"}}
+            {"name": "Ender's Game", "author": "Orson Scott Card", "release_date": "1985-06-01", "page_count": 324}
+            {"index":{"_id": "1984"}}
+            {"name": "1984", "author": "George Orwell", "release_date": "1985-06-01", "page_count": 328}
+            {"index":{"_id": "Fahrenheit 451"}}
+            {"name": "Fahrenheit 451", "author": "Ray Bradbury", "release_date": "1953-10-15", "page_count": 227}
+            {"index":{"_id": "Brave New World"}}
+            {"name": "Brave New World", "author": "Aldous Huxley", "release_date": "1932-06-01", "page_count": 268}
+            {"index":{"_id": "Foundation"}}
+            {"name": "Foundation", "author": "Isaac Asimov", "release_date": "1951-06-01", "page_count": 224}
+            {"index":{"_id": "The Giver"}}
+            {"name": "The Giver", "author": "Lois Lowry", "release_date": "1993-04-26", "page_count": 208}
+            {"index":{"_id": "Slaughterhouse-Five"}}
+            {"name": "Slaughterhouse-Five", "author": "Kurt Vonnegut", "release_date": "1969-06-01", "page_count": 275}
+            {"index":{"_id": "The Hitchhiker's Guide to the Galaxy"}}
+            {"name": "The Hitchhiker's Guide to the Galaxy", "author": "Douglas Adams", "release_date": "1979-10-12", "page_count": 180}
+            {"index":{"_id": "Snow Crash"}}
+            {"name": "Snow Crash", "author": "Neal Stephenson", "release_date": "1992-06-01", "page_count": 470}
+            {"index":{"_id": "Neuromancer"}}
+            {"name": "Neuromancer", "author": "William Gibson", "release_date": "1984-07-01", "page_count": 271}
+            {"index":{"_id": "The Handmaid's Tale"}}
+            {"name": "The Handmaid's Tale", "author": "Margaret Atwood", "release_date": "1985-06-01", "page_count": 311}
+            {"index":{"_id": "Starship Troopers"}}
+            {"name": "Starship Troopers", "author": "Robert A. Heinlein", "release_date": "1959-12-01", "page_count": 335}
+            {"index":{"_id": "The Left Hand of Darkness"}}
+            {"name": "The Left Hand of Darkness", "author": "Ursula K. Le Guin", "release_date": "1969-06-01", "page_count": 304}
+            {"index":{"_id": "The Moon is a Harsh Mistress"}}
+            {"name": "The Moon is a Harsh Mistress", "author": "Robert A. Heinlein", "release_date": "1966-04-01", "page_count": 288}
+
+
+  - do:
+      raw:
+        method: POST
+        path: "_query"
+        body: |
+          {
+            "locale": "fr-FR",
+            "query": "\n          ROW birth_date_string = \"2023-01-15T00:00:00.000Z\"\n          | EVAL birth_date = date_parse(birth_date_string)\n          | EVAL month_of_birth = DATE_FORMAT(\"MMMM\",birth_date)\n          | LIMIT 5\n   "
+          }
+  - is_false: _shards.failures
+---
+"line_242":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup library
+
+  - do:
+        indices.create:
+          index: library
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+                properties:
+                  name:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                  author:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                  release_date:
+                    type: date
+                  page_count:
+                    type: short
+  - do:
+        bulk:
+          index: library
+          refresh: true
+          body: |
+            {"index":{"_id": "Leviathan Wakes"}}
+            {"name": "Leviathan Wakes", "author": "James S.A. Corey", "release_date": "2011-06-02", "page_count": 561}
+            {"index":{"_id": "Hyperion"}}
+            {"name": "Hyperion", "author": "Dan Simmons", "release_date": "1989-05-26", "page_count": 482}
+            {"index":{"_id": "Dune"}}
+            {"name": "Dune", "author": "Frank Herbert", "release_date": "1965-06-01", "page_count": 604}
+            {"index":{"_id": "Dune Messiah"}}
+            {"name": "Dune Messiah", "author": "Frank Herbert", "release_date": "1969-10-15", "page_count": 331}
+            {"index":{"_id": "Children of Dune"}}
+            {"name": "Children of Dune", "author": "Frank Herbert", "release_date": "1976-04-21", "page_count": 408}
+            {"index":{"_id": "God Emperor of Dune"}}
+            {"name": "God Emperor of Dune", "author": "Frank Herbert", "release_date": "1981-05-28", "page_count": 454}
+            {"index":{"_id": "Consider Phlebas"}}
+            {"name": "Consider Phlebas", "author": "Iain M. Banks", "release_date": "1987-04-23", "page_count": 471}
+            {"index":{"_id": "Pandora's Star"}}
+            {"name": "Pandora's Star", "author": "Peter F. Hamilton", "release_date": "2004-03-02", "page_count": 768}
+            {"index":{"_id": "Revelation Space"}}
+            {"name": "Revelation Space", "author": "Alastair Reynolds", "release_date": "2000-03-15", "page_count": 585}
+            {"index":{"_id": "A Fire Upon the Deep"}}
+            {"name": "A Fire Upon the Deep", "author": "Vernor Vinge", "release_date": "1992-06-01", "page_count": 613}
+            {"index":{"_id": "Ender's Game"}}
+            {"name": "Ender's Game", "author": "Orson Scott Card", "release_date": "1985-06-01", "page_count": 324}
+            {"index":{"_id": "1984"}}
+            {"name": "1984", "author": "George Orwell", "release_date": "1985-06-01", "page_count": 328}
+            {"index":{"_id": "Fahrenheit 451"}}
+            {"name": "Fahrenheit 451", "author": "Ray Bradbury", "release_date": "1953-10-15", "page_count": 227}
+            {"index":{"_id": "Brave New World"}}
+            {"name": "Brave New World", "author": "Aldous Huxley", "release_date": "1932-06-01", "page_count": 268}
+            {"index":{"_id": "Foundation"}}
+            {"name": "Foundation", "author": "Isaac Asimov", "release_date": "1951-06-01", "page_count": 224}
+            {"index":{"_id": "The Giver"}}
+            {"name": "The Giver", "author": "Lois Lowry", "release_date": "1993-04-26", "page_count": 208}
+            {"index":{"_id": "Slaughterhouse-Five"}}
+            {"name": "Slaughterhouse-Five", "author": "Kurt Vonnegut", "release_date": "1969-06-01", "page_count": 275}
+            {"index":{"_id": "The Hitchhiker's Guide to the Galaxy"}}
+            {"name": "The Hitchhiker's Guide to the Galaxy", "author": "Douglas Adams", "release_date": "1979-10-12", "page_count": 180}
+            {"index":{"_id": "Snow Crash"}}
+            {"name": "Snow Crash", "author": "Neal Stephenson", "release_date": "1992-06-01", "page_count": 470}
+            {"index":{"_id": "Neuromancer"}}
+            {"name": "Neuromancer", "author": "William Gibson", "release_date": "1984-07-01", "page_count": 271}
+            {"index":{"_id": "The Handmaid's Tale"}}
+            {"name": "The Handmaid's Tale", "author": "Margaret Atwood", "release_date": "1985-06-01", "page_count": 311}
+            {"index":{"_id": "Starship Troopers"}}
+            {"name": "Starship Troopers", "author": "Robert A. Heinlein", "release_date": "1959-12-01", "page_count": 335}
+            {"index":{"_id": "The Left Hand of Darkness"}}
+            {"name": "The Left Hand of Darkness", "author": "Ursula K. Le Guin", "release_date": "1969-06-01", "page_count": 304}
+            {"index":{"_id": "The Moon is a Harsh Mistress"}}
+            {"name": "The Moon is a Harsh Mistress", "author": "Robert A. Heinlein", "release_date": "1966-04-01", "page_count": 288}
+
+
+  - do:
+      raw:
+        method: POST
+        path: "_query"
+        body: |
+          {
+            "query": "\n    FROM library\n    | EVAL year = DATE_EXTRACT(\"year\", release_date)\n    | WHERE page_count > 300 AND author == \"Frank Herbert\"\n    | STATS count = COUNT(*) by year\n    | WHERE count > 0\n    | LIMIT 5\n  "
+          }
+  - is_false: _shards.failures
+---
+"line_262":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup library
+
+  - do:
+        indices.create:
+          index: library
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+                properties:
+                  name:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                  author:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                  release_date:
+                    type: date
+                  page_count:
+                    type: short
+  - do:
+        bulk:
+          index: library
+          refresh: true
+          body: |
+            {"index":{"_id": "Leviathan Wakes"}}
+            {"name": "Leviathan Wakes", "author": "James S.A. Corey", "release_date": "2011-06-02", "page_count": 561}
+            {"index":{"_id": "Hyperion"}}
+            {"name": "Hyperion", "author": "Dan Simmons", "release_date": "1989-05-26", "page_count": 482}
+            {"index":{"_id": "Dune"}}
+            {"name": "Dune", "author": "Frank Herbert", "release_date": "1965-06-01", "page_count": 604}
+            {"index":{"_id": "Dune Messiah"}}
+            {"name": "Dune Messiah", "author": "Frank Herbert", "release_date": "1969-10-15", "page_count": 331}
+            {"index":{"_id": "Children of Dune"}}
+            {"name": "Children of Dune", "author": "Frank Herbert", "release_date": "1976-04-21", "page_count": 408}
+            {"index":{"_id": "God Emperor of Dune"}}
+            {"name": "God Emperor of Dune", "author": "Frank Herbert", "release_date": "1981-05-28", "page_count": 454}
+            {"index":{"_id": "Consider Phlebas"}}
+            {"name": "Consider Phlebas", "author": "Iain M. Banks", "release_date": "1987-04-23", "page_count": 471}
+            {"index":{"_id": "Pandora's Star"}}
+            {"name": "Pandora's Star", "author": "Peter F. Hamilton", "release_date": "2004-03-02", "page_count": 768}
+            {"index":{"_id": "Revelation Space"}}
+            {"name": "Revelation Space", "author": "Alastair Reynolds", "release_date": "2000-03-15", "page_count": 585}
+            {"index":{"_id": "A Fire Upon the Deep"}}
+            {"name": "A Fire Upon the Deep", "author": "Vernor Vinge", "release_date": "1992-06-01", "page_count": 613}
+            {"index":{"_id": "Ender's Game"}}
+            {"name": "Ender's Game", "author": "Orson Scott Card", "release_date": "1985-06-01", "page_count": 324}
+            {"index":{"_id": "1984"}}
+            {"name": "1984", "author": "George Orwell", "release_date": "1985-06-01", "page_count": 328}
+            {"index":{"_id": "Fahrenheit 451"}}
+            {"name": "Fahrenheit 451", "author": "Ray Bradbury", "release_date": "1953-10-15", "page_count": 227}
+            {"index":{"_id": "Brave New World"}}
+            {"name": "Brave New World", "author": "Aldous Huxley", "release_date": "1932-06-01", "page_count": 268}
+            {"index":{"_id": "Foundation"}}
+            {"name": "Foundation", "author": "Isaac Asimov", "release_date": "1951-06-01", "page_count": 224}
+            {"index":{"_id": "The Giver"}}
+            {"name": "The Giver", "author": "Lois Lowry", "release_date": "1993-04-26", "page_count": 208}
+            {"index":{"_id": "Slaughterhouse-Five"}}
+            {"name": "Slaughterhouse-Five", "author": "Kurt Vonnegut", "release_date": "1969-06-01", "page_count": 275}
+            {"index":{"_id": "The Hitchhiker's Guide to the Galaxy"}}
+            {"name": "The Hitchhiker's Guide to the Galaxy", "author": "Douglas Adams", "release_date": "1979-10-12", "page_count": 180}
+            {"index":{"_id": "Snow Crash"}}
+            {"name": "Snow Crash", "author": "Neal Stephenson", "release_date": "1992-06-01", "page_count": 470}
+            {"index":{"_id": "Neuromancer"}}
+            {"name": "Neuromancer", "author": "William Gibson", "release_date": "1984-07-01", "page_count": 271}
+            {"index":{"_id": "The Handmaid's Tale"}}
+            {"name": "The Handmaid's Tale", "author": "Margaret Atwood", "release_date": "1985-06-01", "page_count": 311}
+            {"index":{"_id": "Starship Troopers"}}
+            {"name": "Starship Troopers", "author": "Robert A. Heinlein", "release_date": "1959-12-01", "page_count": 335}
+            {"index":{"_id": "The Left Hand of Darkness"}}
+            {"name": "The Left Hand of Darkness", "author": "Ursula K. Le Guin", "release_date": "1969-06-01", "page_count": 304}
+            {"index":{"_id": "The Moon is a Harsh Mistress"}}
+            {"name": "The Moon is a Harsh Mistress", "author": "Robert A. Heinlein", "release_date": "1966-04-01", "page_count": 288}
+
+
+  - do:
+      raw:
+        method: POST
+        path: "_query"
+        body: |
+          {
+            "query": "\n    FROM library\n    | EVAL year = DATE_EXTRACT(\"year\", release_date)\n    | WHERE page_count > ? AND author == ?\n    | STATS count = COUNT(*) by year\n    | WHERE count > ?\n    | LIMIT 5\n  ",
+            "params": [300, "Frank Herbert", 0]
+          }
+  - is_false: _shards.failures
+---
+"line_297":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: awaitsfix https://github.com/elastic/elasticsearch/issues/104013
+# Named setup library
+
+  - do:
+        indices.create:
+          index: library
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+                properties:
+                  name:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                  author:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                  release_date:
+                    type: date
+                  page_count:
+                    type: short
+  - do:
+        bulk:
+          index: library
+          refresh: true
+          body: |
+            {"index":{"_id": "Leviathan Wakes"}}
+            {"name": "Leviathan Wakes", "author": "James S.A. Corey", "release_date": "2011-06-02", "page_count": 561}
+            {"index":{"_id": "Hyperion"}}
+            {"name": "Hyperion", "author": "Dan Simmons", "release_date": "1989-05-26", "page_count": 482}
+            {"index":{"_id": "Dune"}}
+            {"name": "Dune", "author": "Frank Herbert", "release_date": "1965-06-01", "page_count": 604}
+            {"index":{"_id": "Dune Messiah"}}
+            {"name": "Dune Messiah", "author": "Frank Herbert", "release_date": "1969-10-15", "page_count": 331}
+            {"index":{"_id": "Children of Dune"}}
+            {"name": "Children of Dune", "author": "Frank Herbert", "release_date": "1976-04-21", "page_count": 408}
+            {"index":{"_id": "God Emperor of Dune"}}
+            {"name": "God Emperor of Dune", "author": "Frank Herbert", "release_date": "1981-05-28", "page_count": 454}
+            {"index":{"_id": "Consider Phlebas"}}
+            {"name": "Consider Phlebas", "author": "Iain M. Banks", "release_date": "1987-04-23", "page_count": 471}
+            {"index":{"_id": "Pandora's Star"}}
+            {"name": "Pandora's Star", "author": "Peter F. Hamilton", "release_date": "2004-03-02", "page_count": 768}
+            {"index":{"_id": "Revelation Space"}}
+            {"name": "Revelation Space", "author": "Alastair Reynolds", "release_date": "2000-03-15", "page_count": 585}
+            {"index":{"_id": "A Fire Upon the Deep"}}
+            {"name": "A Fire Upon the Deep", "author": "Vernor Vinge", "release_date": "1992-06-01", "page_count": 613}
+            {"index":{"_id": "Ender's Game"}}
+            {"name": "Ender's Game", "author": "Orson Scott Card", "release_date": "1985-06-01", "page_count": 324}
+            {"index":{"_id": "1984"}}
+            {"name": "1984", "author": "George Orwell", "release_date": "1985-06-01", "page_count": 328}
+            {"index":{"_id": "Fahrenheit 451"}}
+            {"name": "Fahrenheit 451", "author": "Ray Bradbury", "release_date": "1953-10-15", "page_count": 227}
+            {"index":{"_id": "Brave New World"}}
+            {"name": "Brave New World", "author": "Aldous Huxley", "release_date": "1932-06-01", "page_count": 268}
+            {"index":{"_id": "Foundation"}}
+            {"name": "Foundation", "author": "Isaac Asimov", "release_date": "1951-06-01", "page_count": 224}
+            {"index":{"_id": "The Giver"}}
+            {"name": "The Giver", "author": "Lois Lowry", "release_date": "1993-04-26", "page_count": 208}
+            {"index":{"_id": "Slaughterhouse-Five"}}
+            {"name": "Slaughterhouse-Five", "author": "Kurt Vonnegut", "release_date": "1969-06-01", "page_count": 275}
+            {"index":{"_id": "The Hitchhiker's Guide to the Galaxy"}}
+            {"name": "The Hitchhiker's Guide to the Galaxy", "author": "Douglas Adams", "release_date": "1979-10-12", "page_count": 180}
+            {"index":{"_id": "Snow Crash"}}
+            {"name": "Snow Crash", "author": "Neal Stephenson", "release_date": "1992-06-01", "page_count": 470}
+            {"index":{"_id": "Neuromancer"}}
+            {"name": "Neuromancer", "author": "William Gibson", "release_date": "1984-07-01", "page_count": 271}
+            {"index":{"_id": "The Handmaid's Tale"}}
+            {"name": "The Handmaid's Tale", "author": "Margaret Atwood", "release_date": "1985-06-01", "page_count": 311}
+            {"index":{"_id": "Starship Troopers"}}
+            {"name": "Starship Troopers", "author": "Robert A. Heinlein", "release_date": "1959-12-01", "page_count": 335}
+            {"index":{"_id": "The Left Hand of Darkness"}}
+            {"name": "The Left Hand of Darkness", "author": "Ursula K. Le Guin", "release_date": "1969-06-01", "page_count": 304}
+            {"index":{"_id": "The Moon is a Harsh Mistress"}}
+            {"name": "The Moon is a Harsh Mistress", "author": "Robert A. Heinlein", "release_date": "1966-04-01", "page_count": 288}
+
+
+  - do:
+      raw:
+        method: POST
+        path: "_query/async"
+        body: |
+          {
+            "query": "\n    FROM library\n    | EVAL year = DATE_TRUNC(1 YEARS, release_date)\n    | STATS MAX(page_count) BY year\n    | SORT year\n    | LIMIT 5\n  ",
+            "wait_for_completion_timeout": "2s"
+          }
+  - is_false: _shards.failures
+---
+"line_337":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason:  no access to query ID - may return response values
+  - do:
+      raw:
+        method: GET
+        path: "_query/async/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE="
+        wait_for_completion_timeout: "30s"
+  - is_false: _shards.failures
+---
+"line_359":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason:  no access to query ID
+  - do:
+      raw:
+        method: DELETE
+        path: "_query/async/FmdMX2pIang3UWhLRU5QS0lqdlppYncaMUpYQ05oSkpTc3kwZ21EdC1tbFJXQToxOTI="
+  - is_false: _shards.failures

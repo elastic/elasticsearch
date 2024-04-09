@@ -1,0 +1,57 @@
+---
+"line_18":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_connector/my-connector"
+        body: |
+          {
+            "index_name": "search-google-drive",
+            "name": "My Connector",
+            "service_type": "google_drive"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_connector/my-connector"
+  - is_false: _shards.failures
+---
+"line_109":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_connector/my-connector"
+        body: |
+          {
+            "index_name": "search-google-drive",
+            "name": "My Connector",
+            "description": "My Connector to sync data to Elastic index from Google Drive",
+            "service_type": "google_drive",
+            "language": "english"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "result": "created"
+        }
+  - do:
+      raw:
+        method: DELETE
+        path: "_connector/my-connector"
+  - is_false: _shards.failures

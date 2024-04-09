@@ -1,0 +1,57 @@
+---
+"line_84":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_watcher/stats"
+  - is_false: _shards.failures
+---
+"line_112":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_watcher/stats"
+        metric: "current_watches"
+  - is_false: _shards.failures
+---
+"line_119":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_watcher/stats/current_watches"
+  - is_false: _shards.failures
+---
+"line_163":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_watcher/stats/queued_watches"
+  - is_false: _shards.failures

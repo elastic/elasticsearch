@@ -1,0 +1,42 @@
+---
+"line_55":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/service/elastic/fleet-server/credential/token/token1/_clear_cache"
+  - is_false: _shards.failures
+---
+"line_62":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/service/elastic/fleet-server/credential/token/token1,token2/_clear_cache"
+  - is_false: _shards.failures
+---
+"line_70":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/service/elastic/fleet-server/credential/token/*/_clear_cache"
+  - is_false: _shards.failures

@@ -1,0 +1,16 @@
+---
+"line_51":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: setup kibana sample data
+  - do:
+      raw:
+        method: DELETE
+        path: "_ml/trained_models/flight-delay-prediction-1574775339910/model_aliases/flight_delay_model"
+  - is_false: _shards.failures

@@ -1,0 +1,21 @@
+---
+"line_81":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: set up kibana samples
+  - do:
+      raw:
+        method: POST
+        path: "_transform/ecommerce_transform/_stop"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "acknowledged" : true
+        }

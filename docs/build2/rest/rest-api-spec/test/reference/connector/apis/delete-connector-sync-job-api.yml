@@ -1,0 +1,21 @@
+---
+"line_43":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: there's no way to clean up after this code snippet, as we don't know the ids of sync jobs ahead of time
+  - do:
+      raw:
+        method: DELETE
+        path: "_connector/_sync_job/my-connector-sync-job-id"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+            "acknowledged": true
+        }

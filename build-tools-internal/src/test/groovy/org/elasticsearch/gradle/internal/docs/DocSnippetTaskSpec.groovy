@@ -192,7 +192,7 @@ class DocSnippetTaskSpec extends Specification {
         def task = project.tasks.create("docSnippetTask", DocSnippetTask)
         when:
         def substitutions = []
-        def snippets = task.parseDocFile(
+        def snippets = task.parseDocFiles(
             tempDir, docFile(
             """
 [[mapper-annotated-text]]
@@ -529,7 +529,7 @@ but with the following exceptions:
         def task = project.tasks.create("docSnippetTask", DocSnippetTask)
         when:
         def substitutions = []
-        def snippets = task.parseDocFile(
+        def snippets = task.parseDocFiles(
             tempDir, docFile(
             """
 [source,console]
@@ -548,7 +548,7 @@ POST logs-my_app-default/_rollover/
 
         when:
         substitutions = []
-        snippets = task.parseDocFile(
+        snippets = task.parseDocFiles(
             tempDir, docFile(
             """
 
@@ -578,14 +578,14 @@ PUT _snapshot/my_hdfs_repository
         def task = project.tasks.create("docSnippetTask", DocSnippetTask)
         when:
         def substitutions = []
-        def snippets = task.parseDocFile(
+        def snippets = task.parseDocFiles(
             tempDir, docFile(
             """
 [source,console]
 ----
 POST logs-my_app-default/_rollover/
 ----
-// TESTRESPONSE[s/"root_cause": \\.\\.\\./"root_cause": \$body.error.root_cause/]
+// TESTRESPONSE[s/\\.\\.\\./"script_stack": \$body.error.caused_by.script_stack, "script": \$body.error.caused_by.script, "lang": \$body.error.caused_by.lang, "position": \$body.error.caused_by.position, "caused_by": \$body.error.caused_by.caused_by, "reason": \$body.error.caused_by.reason/]
 """
         ), substitutions)
         then:
@@ -596,7 +596,7 @@ POST logs-my_app-default/_rollover/
         substitutions[0].value == "\"root_cause\": \$body.error.root_cause"
 
         when:
-        snippets = task.parseDocFile(
+        snippets = task.parseDocFiles(
             tempDir, docFile(
             """
 [source,console]
@@ -613,7 +613,7 @@ POST logs-my_app-default/_rollover/
 
         when:
         substitutions = []
-        snippets = task.parseDocFile(
+        snippets = task.parseDocFiles(
             tempDir, docFile(
             """
 [source,txt]
@@ -635,7 +635,7 @@ my-index-000001 0 p RELOCATING 3014 31.1mb 192.168.56.10 H5dfFeA -> -> 192.168.5
         def project = ProjectBuilder.builder().build()
         def task = project.tasks.create("docSnippetTask", DocSnippetTask)
         when:
-        def snippets = task.parseDocFile(
+        def snippets = task.parseDocFiles(
             tempDir, docFile(
             """
 [source,console]
@@ -650,7 +650,7 @@ my-index-000001 0 p RELOCATING 3014 31.1mb 192.168.56.10 H5dfFeA -> -> 192.168.5
 
 
         when:
-        task.parseDocFile(
+        task.parseDocFiles(
             tempDir, docFile(
             """
 [source,console]
@@ -665,7 +665,7 @@ my-index-000001 0 p RELOCATING 3014 31.1mb 192.168.56.10 H5dfFeA -> -> 192.168.5
         e.message == "mapping-charfilter.asciidoc:4: Can't be both CONSOLE and NOTCONSOLE"
 
         when:
-        task.parseDocFile(
+        task.parseDocFiles(
             tempDir, docFile(
             """
 // $firstToken
@@ -708,7 +708,7 @@ GET /_analyze
 ----
 """
         )
-        def snippets = task.parseDocFile(tempDir, doc, [])
+        def snippets = task.parseDocFiles(tempDir, doc, [])
         expect:
         snippets*.start == [3]
         snippets*.language == ["console"]
@@ -726,6 +726,110 @@ GET /_analyze
     }
   ],
   "text": "My license plate is ٢٥٠١٥"
+}
+"""]
+    }
+
+    def "test parsing snippet from doc2"() {
+        given:
+        def project = ProjectBuilder.builder().build()
+        def task = project.tasks.create("docSnippetTask", DocSnippetTask)
+        def doc = docFile(
+            """
+[role="xpack"]
+[[ml-update-snapshot]]
+= Update model snapshots API
+++++
+<titleabbrev>Update model snapshots</titleabbrev>
+++++
+
+Updates certain properties of a snapshot.
+
+[[ml-update-snapshot-request]]
+== {api-request-title}
+
+`POST _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>/_update`
+
+[[ml-update-snapshot-prereqs]]
+== {api-prereq-title}
+
+Requires the `manage_ml` cluster privilege. This privilege is included in the
+`machine_learning_admin` built-in role.
+
+[[ml-update-snapshot-path-parms]]
+== {api-path-parms-title}
+
+`<job_id>`::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+
+`<snapshot_id>`::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
+
+[[ml-update-snapshot-request-body]]
+== {api-request-body-title}
+
+The following properties can be updated after the model snapshot is created:
+
+`description`::
+(Optional, string) A description of the model snapshot.
+
+`retain`::
+(Optional, Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=retain]
+
+
+[[ml-update-snapshot-example]]
+== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+POST
+_ml/anomaly_detectors/it_ops_new_logs/model_snapshots/1491852978/_update
+{
+  "description": "Snapshot 1",
+  "retain": true
+}
+--------------------------------------------------
+// TEST[skip:todo]
+
+When the snapshot is updated, you receive the following results:
+[source,js]
+----
+{
+  "acknowledged": true,
+  "model": {
+    "job_id": "it_ops_new_logs",
+    "timestamp": 1491852978000,
+    "description": "Snapshot 1",
+...
+    "retain": true
+  }
+}
+----
+
+"""
+        )
+        def snippets = task.parseDocFiles(tempDir, doc, [])
+        expect:
+        snippets*.start == [50, 62]
+        snippets*.language == ["console", "js"]
+        snippets*.contents == ["""POST
+_ml/anomaly_detectors/it_ops_new_logs/model_snapshots/1491852978/_update
+{
+  "description": "Snapshot 1",
+  "retain": true
+}
+""", """{
+  "acknowledged": true,
+  "model": {
+    "job_id": "it_ops_new_logs",
+    "timestamp": 1491852978000,
+    "description": "Snapshot 1",
+...
+    "retain": true
+  }
 }
 """]
     }

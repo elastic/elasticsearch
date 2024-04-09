@@ -1,0 +1,98 @@
+---
+"line_22":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer": "standard",
+            "filter": [
+              {
+                "type": "condition",
+                "filter": [ "lowercase" ],
+                "script": {
+                  "source": "token.getTerm().length() < 5"
+                }
+              }
+            ],
+            "text": "THE QUICK BROWN FOX"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens" : [
+            {
+              "token" : "the",
+              "start_offset" : 0,
+              "end_offset" : 3,
+              "type" : "<ALPHANUM>",
+              "position" : 0
+            },
+            {
+              "token" : "QUICK",
+              "start_offset" : 4,
+              "end_offset" : 9,
+              "type" : "<ALPHANUM>",
+              "position" : 1
+            },
+            {
+              "token" : "BROWN",
+              "start_offset" : 10,
+              "end_offset" : 15,
+              "type" : "<ALPHANUM>",
+              "position" : 2
+            },
+            {
+              "token" : "fox",
+              "start_offset" : 16,
+              "end_offset" : 19,
+              "type" : "<ALPHANUM>",
+              "position" : 3
+            }
+          ]
+        }
+---
+"line_125":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "palindrome_list"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "whitespace_reverse_first_token": {
+                    "tokenizer": "whitespace",
+                    "filter": [ "reverse_first_token" ]
+                  }
+                },
+                "filter": {
+                  "reverse_first_token": {
+                    "type": "condition",
+                    "filter": [ "reverse" ],
+                    "script": {
+                      "source": "token.getPosition() === 0"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

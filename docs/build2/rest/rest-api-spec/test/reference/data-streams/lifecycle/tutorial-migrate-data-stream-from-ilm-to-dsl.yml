@@ -1,0 +1,330 @@
+---
+"line_36":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ilm/policy/pre-dsl-ilm-policy"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "hot": {
+                  "actions": {
+                    "rollover": {
+                      "max_primary_shard_size": "50gb"
+                    }
+                  }
+                },
+                "delete": {
+                  "min_age": "7d",
+                  "actions": {
+                    "delete": {}
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_index_template/dsl-data-stream-template"
+        body: |
+          {
+            "index_patterns": ["dsl-data-stream*"],
+            "data_stream": { },
+            "priority": 500,
+            "template": {
+              "settings": {
+                "index.lifecycle.name": "pre-dsl-ilm-policy"
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "dsl-data-stream/_doc"
+        body: |
+          {
+            "@timestamp": "2023-10-18T16:21:15.000Z",
+            "message": "192.0.2.42 - - [06/May/2099:16:21:15 +0000] \"GET /images/bg.jpg HTTP/1.0\" 200 24736"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "dsl-data-stream/_rollover"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_data_stream/dsl-data-stream"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "data_streams": [
+            {
+              "name": "dsl-data-stream",
+              "timestamp_field": {
+                "name": "@timestamp"
+              },
+              "indices": [
+                {
+                  "index_name": $body.data_streams.0.indices.0.index_name,
+                  "index_uuid": $body.data_streams.0.indices.0.index_uuid,
+                  "prefer_ilm": true,
+                  "ilm_policy": "pre-dsl-ilm-policy",
+                  "managed_by": "Index Lifecycle Management"
+                },
+                {
+                  "index_name": $body.data_streams.0.indices.1.index_name,
+                  "index_uuid": $body.data_streams.0.indices.1.index_uuid,
+                  "prefer_ilm": true,
+                  "ilm_policy": "pre-dsl-ilm-policy",
+                  "managed_by": "Index Lifecycle Management"
+                }
+              ],
+              "generation": 2,
+              "status": "YELLOW","failure_indices":[],"failure_store":false,
+              "template": "dsl-data-stream-template",
+              "next_generation_managed_by": "Index Lifecycle Management",
+              "prefer_ilm": true,
+              "ilm_policy": "pre-dsl-ilm-policy",
+              "hidden": false,
+              "system": false,
+              "allow_custom_routing": false,
+              "replicated": false,
+              "rollover_on_write": false
+            }
+          ]
+        }
+  - do:
+      raw:
+        method: PUT
+        path: "_index_template/dsl-data-stream-template"
+        body: |
+          {
+            "index_patterns": ["dsl-data-stream*"],
+            "data_stream": { },
+            "priority": 500,
+            "template": {
+              "settings": {
+                "index.lifecycle.name": "pre-dsl-ilm-policy",
+                "index.lifecycle.prefer_ilm": false
+              },
+              "lifecycle": {
+                "data_retention": "7d"
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_data_stream/dsl-data-stream/_lifecycle"
+        body: |
+          {
+              "data_retention": "7d"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_data_stream/dsl-data-stream"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "data_streams": [
+            {
+              "name": "dsl-data-stream",
+              "timestamp_field": {
+                "name": "@timestamp"
+              },
+              "indices": [
+                {
+                  "index_name": $body.data_streams.0.indices.0.index_name,
+                  "index_uuid": $body.data_streams.0.indices.0.index_uuid,
+                  "prefer_ilm": true,
+                  "ilm_policy": "pre-dsl-ilm-policy",
+                  "managed_by": "Index Lifecycle Management"
+                },
+                {
+                  "index_name": $body.data_streams.0.indices.1.index_name,
+                  "index_uuid": $body.data_streams.0.indices.1.index_uuid,
+                  "prefer_ilm": true,
+                  "ilm_policy": "pre-dsl-ilm-policy",
+                  "managed_by": "Index Lifecycle Management"
+                }
+              ],
+              "generation": 2,
+              "status": "YELLOW","failure_indices":[],"failure_store":false,
+              "template": "dsl-data-stream-template",
+              "lifecycle": {
+                "enabled": true,
+                "data_retention": "7d",
+                "effective_retention": "7d",
+                "retention_determined_by": "data_stream_configuration"
+              },
+              "ilm_policy": "pre-dsl-ilm-policy",
+              "next_generation_managed_by": "Data stream lifecycle",
+              "prefer_ilm": false,
+              "hidden": false,
+              "system": false,
+              "allow_custom_routing": false,
+              "replicated": false,
+              "rollover_on_write": false
+            }
+          ]
+        }
+  - do:
+      raw:
+        method: POST
+        path: "dsl-data-stream/_rollover"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_data_stream/dsl-data-stream"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "data_streams": [
+            {
+              "name": "dsl-data-stream",
+              "timestamp_field": {
+                "name": "@timestamp"
+              },
+              "indices": [
+                {
+                  "index_name": $body.data_streams.0.indices.0.index_name,
+                  "index_uuid": $body.data_streams.0.indices.0.index_uuid,
+                  "prefer_ilm": true,
+                  "ilm_policy": "pre-dsl-ilm-policy",
+                  "managed_by": "Index Lifecycle Management"
+                },
+                {
+                  "index_name": $body.data_streams.0.indices.1.index_name,
+                  "index_uuid": $body.data_streams.0.indices.1.index_uuid,
+                  "prefer_ilm": true,
+                  "ilm_policy": "pre-dsl-ilm-policy",
+                  "managed_by": "Index Lifecycle Management"
+                },
+                {
+                  "index_name": $body.data_streams.0.indices.2.index_name,
+                  "index_uuid": $body.data_streams.0.indices.2.index_uuid,
+                  "prefer_ilm": false,
+                  "ilm_policy": "pre-dsl-ilm-policy",
+                  "managed_by": "Data stream lifecycle"
+                }
+              ],
+              "generation": 3,
+              "status": "YELLOW","failure_indices":[],"failure_store":false,
+              "template": "dsl-data-stream-template",
+              "lifecycle": {
+                "enabled": true,
+                "data_retention": "7d",
+                "effective_retention": "7d",
+                "retention_determined_by": "data_stream_configuration"
+              },
+              "ilm_policy": "pre-dsl-ilm-policy",
+              "next_generation_managed_by": "Data stream lifecycle",
+              "prefer_ilm": false,
+              "hidden": false,
+              "system": false,
+              "allow_custom_routing": false,
+              "replicated": false,
+              "rollover_on_write": false
+            }
+          ]
+        }
+  - do:
+      raw:
+        method: PUT
+        path: "_data_stream/dsl-data-stream/_lifecycle"
+        body: |
+          {
+              "data_retention": "7d",
+              "enabled": false
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_data_stream/dsl-data-stream"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "data_streams": [
+            {
+              "name": "dsl-data-stream",
+              "timestamp_field": {
+                "name": "@timestamp"
+              },
+              "indices": [
+                {
+                  "index_name": $body.data_streams.0.indices.0.index_name,
+                  "index_uuid": $body.data_streams.0.indices.0.index_uuid,
+                  "prefer_ilm": true,
+                  "ilm_policy": "pre-dsl-ilm-policy",
+                  "managed_by": "Index Lifecycle Management"
+                },
+                {
+                  "index_name": $body.data_streams.0.indices.1.index_name,
+                  "index_uuid": $body.data_streams.0.indices.1.index_uuid,
+                  "prefer_ilm": true,
+                  "ilm_policy": "pre-dsl-ilm-policy",
+                  "managed_by": "Index Lifecycle Management"
+                },
+                {
+                  "index_name": $body.data_streams.0.indices.2.index_name,
+                  "index_uuid": $body.data_streams.0.indices.2.index_uuid,
+                  "prefer_ilm": false,
+                  "ilm_policy": "pre-dsl-ilm-policy",
+                  "managed_by": "Index Lifecycle Management"
+                }
+              ],
+              "generation": 3,
+              "status": "YELLOW","failure_indices":[],"failure_store":false,
+              "template": "dsl-data-stream-template",
+              "lifecycle": {
+                "enabled": false,
+                "data_retention": "7d"
+              },
+              "ilm_policy": "pre-dsl-ilm-policy",
+              "next_generation_managed_by": "Index Lifecycle Management",
+              "prefer_ilm": false,
+              "hidden": false,
+              "system": false,
+              "allow_custom_routing": false,
+              "replicated": false,
+              "rollover_on_write": false
+            }
+          ]
+        }
+  - do:
+      raw:
+        method: DELETE
+        path: "_data_stream/dsl-data-stream"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_index_template/dsl-data-stream-template"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_ilm/policy/pre-dsl-ilm-policy"
+  - is_false: _shards.failures

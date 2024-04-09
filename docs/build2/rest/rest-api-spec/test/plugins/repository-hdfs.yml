@@ -1,0 +1,75 @@
+---
+"line_29":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: we don't have hdfs set up while testing this
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_hdfs_repository"
+        body: |
+          {
+            "type": "hdfs",
+            "settings": {
+              "uri": "hdfs://namenode:8020/",
+              "path": "elasticsearch/repositories/my_hdfs_repository",
+              "conf.dfs.client.read.shortcircuit": "true"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_153":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: we don't have hdfs set up while testing this
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_hdfs_repository"
+        body: |
+          {
+            "type": "hdfs",
+            "settings": {
+              "uri": "hdfs://namenode:8020/",
+              "path": "/user/elasticsearch/repositories/my_hdfs_repository",
+              "security.principal": "elasticsearch@REALM"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_170":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: we don't have hdfs set up while testing this
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_hdfs_repository"
+        body: |
+          {
+            "type": "hdfs",
+            "settings": {
+              "uri": "hdfs://namenode:8020/",
+              "path": "/user/elasticsearch/repositories/my_hdfs_repository",
+              "security.principal": "elasticsearch/_HOST@REALM"
+            }
+          }
+  - is_false: _shards.failures

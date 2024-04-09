@@ -1,0 +1,72 @@
+---
+"line_107":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: we don't have gcs setup while testing this
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_gcs_repository"
+        body: |
+          {
+            "type": "gcs",
+            "settings": {
+              "bucket": "my_bucket",
+              "client": "my_alternate_client"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_138":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: we don't have gcs setup while testing this
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_gcs_repository"
+        body: |
+          {
+            "type": "gcs",
+            "settings": {
+              "bucket": "my_bucket",
+              "client": "my_alternate_client"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_213":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: we don't have gcs set up while testing this
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_gcs_repository"
+        body: |
+          {
+            "type": "gcs",
+            "settings": {
+              "bucket": "my_other_bucket",
+              "base_path": "dev"
+            }
+          }
+  - is_false: _shards.failures

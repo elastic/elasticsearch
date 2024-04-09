@@ -1,0 +1,97 @@
+---
+"line_45":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_cluster/settings"
+        body: |
+          {
+            "persistent" : {
+              "indices.recovery.max_bytes_per_sec" : "50mb"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_68":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_cluster/settings"
+        flat_settings: "true"
+        body: |
+          {
+            "transient" : {
+              "indices.recovery.max_bytes_per_sec" : "20mb"
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "acknowledged": true,
+          "persistent" : { },
+          "transient" : {
+            "indices.recovery.max_bytes_per_sec" : "20mb"
+          }
+        }
+---
+"line_96":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_cluster/settings"
+        body: |
+          {
+            "transient" : {
+              "indices.recovery.max_bytes_per_sec" : null
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "acknowledged": true,
+          "persistent" : {},
+          "transient" : {}
+        }
+---
+"line_123":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_cluster/settings"
+        body: |
+          {
+            "transient" : {
+              "indices.recovery.*" : null
+            }
+          }
+  - is_false: _shards.failures

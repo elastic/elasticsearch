@@ -1,0 +1,73 @@
+---
+"line_80":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TBD
+  - do:
+      raw:
+        method: POST
+        path: "_inference/sparse_embedding/my-elser-model"
+        body: |
+          {
+            "input": "The sky above the port was the color of television tuned to a dead channel."
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "sparse_embedding": [
+            {
+              "port": 2.1259406,
+              "sky": 1.7073475,
+              "color": 1.6922266,
+              "dead": 1.6247464,
+              "television": 1.3525393,
+              "above": 1.2425821,
+              "tuned": 1.1440028,
+              "colors": 1.1218185,
+              "tv": 1.0111054,
+              "ports": 1.0067928,
+              "poem": 1.0042328,
+              "channel": 0.99471164,
+              "tune": 0.96235967,
+              "scene": 0.9020516,
+              (...)
+            },
+            (...)
+          ]
+        }
+---
+"line_124":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TBD
+  - do:
+      raw:
+        method: POST
+        path: "_inference/completion/openai_chat_completions"
+        body: |
+          {
+            "input": "What is Elastic?"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "completion": [
+            {
+              "result": "Elastic is a company that provides a range of software solutions for search, logging, security, and analytics. Their flagship product is Elasticsearch, an open-source, distributed search engine that allows users to search, analyze, and visualize large volumes of data in real-time. Elastic also offers products such as Kibana, a data visualization tool, and Logstash, a log management and pipeline tool, as well as various other tools and solutions for data analysis and management."
+            }
+          ]
+        }

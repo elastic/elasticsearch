@@ -1,0 +1,126 @@
+---
+"line_74":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: don't want to overwrite this setting for other tests
+  - do:
+      raw:
+        method: PUT
+        path: "_cluster/settings"
+        body: |
+          {
+            "persistent": {
+              "indices.lifecycle.poll_interval": "1m"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_99":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_index_template/mylogs_template"
+        body: |
+          {
+            "index_patterns": [
+              "mylogs-*"
+            ],
+            "template": {
+              "settings": {
+                "number_of_shards": 1,
+                "number_of_replicas": 1,
+                "index": {
+                  "lifecycle": {
+                    "name": "mylogs_condensed_policy",
+                    "rollover_alias": "mylogs"
+                  }
+                }
+              },
+              "mappings": {
+                "properties": {
+                  "message": {
+                    "type": "text"
+                  },
+                  "@timestamp": {
+                    "type": "date"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "mylogs-pre-ilm-2019.06.24/_doc"
+        body: |
+          {
+            "@timestamp": "2019-06-24T10:34:00",
+            "message": "this is one log message"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "mylogs-pre-ilm-2019.06.25/_doc"
+        body: |
+          {
+            "@timestamp": "2019-06-25T17:42:00",
+            "message": "this is another log message"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_index_template/mylogs_template"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_reindex"
+        body: |
+          {
+            "source": {
+              "index": "mylogs-*"
+            },
+            "dest": {
+              "index": "mylogs",
+              "op_type": "create"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_185":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: don't want to overwrite this setting for other tests
+  - do:
+      raw:
+        method: PUT
+        path: "_cluster/settings"
+        body: |
+          {
+            "persistent": {
+              "indices.lifecycle.poll_interval": null
+            }
+          }
+  - is_false: _shards.failures

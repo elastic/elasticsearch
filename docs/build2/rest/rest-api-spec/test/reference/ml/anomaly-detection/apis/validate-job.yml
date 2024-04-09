@@ -1,0 +1,38 @@
+---
+"line_37":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: needs-licence
+  - do:
+      raw:
+        method: POST
+        path: "_ml/anomaly_detectors/_validate"
+        body: |
+          {
+            "description": "Unusual response times by airlines",
+            "analysis_config": {
+              "bucket_span": "300S",
+              "detectors": [
+                {
+                  "function": "metric",
+                  "field_name": "responsetime",
+                  "by_field_name": "airline" } ],
+              "influencers": [ "airline" ]
+            },
+            "data_description": {
+              "time_field": "time",
+              "time_format": "yyyy-MM-dd'T'HH:mm:ssX"
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "acknowledged": true
+        }

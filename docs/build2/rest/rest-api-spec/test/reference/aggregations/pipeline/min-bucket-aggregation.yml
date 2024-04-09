@@ -1,0 +1,112 @@
+---
+"line_42":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup sales
+
+  - do:
+        indices.create:
+          index: sales
+          body:
+            settings:
+              number_of_shards: 2
+              number_of_replicas: 1
+            mappings:
+              properties:
+                type:
+                  type: keyword
+  - do:
+        bulk:
+          index: sales
+          refresh: true
+          body: |
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "t-shirt"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 150, "promoted": true, "rating": 5, "type": "bag"}
+            {"index":{}}
+            {"date": "2015/02/01 00:00:00", "price": 50, "promoted": false, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/02/01 00:00:00", "price": 10, "promoted": true, "rating": 4, "type": "t-shirt"}
+            {"index":{}}
+            {"date": "2015/03/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/03/01 00:00:00", "price": 175, "promoted": false, "rating": 2, "type": "t-shirt"}
+  - do:
+      raw:
+        method: POST
+        path: "sales/_search"
+        body: |
+          {
+            "size": 0,
+            "aggs": {
+              "sales_per_month": {
+                "date_histogram": {
+                  "field": "date",
+                  "calendar_interval": "month"
+                },
+                "aggs": {
+                  "sales": {
+                    "sum": {
+                      "field": "price"
+                    }
+                  }
+                }
+              },
+              "min_monthly_sales": {
+                "min_bucket": {
+                  "buckets_path": "sales_per_month>sales"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+           "took": $body.took,
+           "timed_out": false,
+           "_shards": $body._shards,
+           "hits": $body.hits,
+           "aggregations": {
+              "sales_per_month": {
+                 "buckets": [
+                    {
+                       "key_as_string": "2015/01/01 00:00:00",
+                       "key": 1420070400000,
+                       "doc_count": 3,
+                       "sales": {
+                          "value": 550.0
+                       }
+                    },
+                    {
+                       "key_as_string": "2015/02/01 00:00:00",
+                       "key": 1422748800000,
+                       "doc_count": 2,
+                       "sales": {
+                          "value": 60.0
+                       }
+                    },
+                    {
+                       "key_as_string": "2015/03/01 00:00:00",
+                       "key": 1425168000000,
+                       "doc_count": 2,
+                       "sales": {
+                          "value": 375.0
+                       }
+                    }
+                 ]
+              },
+              "min_monthly_sales": {
+                  "keys": ["2015/02/01 00:00:00"],
+                  "value": 60.0
+              }
+           }
+        }

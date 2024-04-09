@@ -1,0 +1,49 @@
+---
+"line_10":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup my_data_stream
+
+  - do:
+      indices.put_index_template:
+        name: my-data-stream-template
+        body: |
+          {
+            "index_patterns": [ "my-data-stream*" ],
+            "data_stream": { },
+            "priority": 500
+          }
+
+  - do:
+      raw:
+        method: PUT
+        path: '_data_stream/my-data-stream'
+
+  - do:
+      raw:
+        method: PUT
+        path: "my-data-stream/_alias/my-alias"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: HEAD
+        path: "_alias/my-alias"
+  - is_false: _shards.failures
+# Named teardown data_stream_cleanup
+
+  - do:
+      raw:
+        method: DELETE
+        path: '_data_stream/*'
+  - is_true: acknowledged
+  - do:
+      raw:
+        method: DELETE
+        path: '_index_template/*'
+  - is_true: acknowledged
+

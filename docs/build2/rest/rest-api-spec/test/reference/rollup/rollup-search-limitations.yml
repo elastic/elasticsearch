@@ -1,0 +1,142 @@
+---
+"line_44":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup sensor_prefab_data
+
+  - do:
+      indices.create:
+        index: sensor-1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: float
+              node:
+                type: keyword
+  - do:
+      indices.create:
+        index: sensor_rollup
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              node.terms.value:
+                type: keyword
+              temperature.sum.value:
+                type: double
+              temperature.max.value:
+                type: double
+              temperature.min.value:
+                type: double
+              timestamp.date_histogram.time_zone:
+                type: keyword
+              timestamp.date_histogram.interval:
+                type: keyword
+              timestamp.date_histogram.timestamp:
+                type: date
+              timestamp.date_histogram._count:
+                type: long
+              voltage.avg.value:
+                type: double
+              voltage.avg._count:
+                type: long
+              _rollup.id:
+                type: keyword
+              _rollup.version:
+                type: long
+            _meta:
+              _rollup:
+                sensor:
+                  cron: "* * * * * ?"
+                  rollup_index: "sensor_rollup"
+                  index_pattern: "sensor-*"
+                  timeout: "20s"
+                  page_size: 1000
+                  groups:
+                    date_histogram:
+                      delay: "7d"
+                      field: "timestamp"
+                      fixed_interval: "60m"
+                      time_zone: "UTC"
+                    terms:
+                      fields:
+                        - "node"
+                  id: sensor
+                  metrics:
+                    - field: "temperature"
+                      metrics:
+                        - min
+                        - max
+                        - sum
+                    - field: "voltage"
+                      metrics:
+                        - avg
+
+  - do:
+      bulk:
+        index: sensor_rollup
+        refresh: true
+        body: |
+          {"index":{}}
+          {"node.terms.value":"b","temperature.sum.value":201.0,"temperature.max.value":201.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":201.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":5.800000190734863,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516640400000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+          {"index":{}}
+          {"node.terms.value":"c","temperature.sum.value":200.0,"temperature.max.value":200.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":200.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":4.199999809265137,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516381200000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+          {"index":{}}
+          {"node.terms.value":"a","temperature.sum.value":202.0,"temperature.max.value":202.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":202.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":5.099999904632568,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516554000000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+          {"index":{}}
+          {"node.terms.value":"a","temperature.sum.value":200.0,"temperature.max.value":200.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":200.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":5.199999809265137,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516726800000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+          {"index":{}}
+          {"node.terms.value":"b","temperature.sum.value":198.0,"temperature.max.value":198.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":198.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":5.599999904632568,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516467600000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+          {"index":{}}
+          {"node.terms.value":"c","temperature.sum.value":202.0,"temperature.max.value":202.0,"timestamp.date_histogram.time_zone":"UTC","temperature.min.value":202.0,"timestamp.date_histogram._count":1,"timestamp.date_histogram.interval":"1h","_rollup.computed":["temperature.sum","temperature.min","voltage.avg","temperature.max","node.terms","timestamp.date_histogram"],"voltage.avg.value":4.0,"node.terms._count":1,"_rollup.version":1,"timestamp.date_histogram.timestamp":1516294800000,"voltage.avg._count":1.0,"_rollup.id":"sensor"}
+
+
+  - do:
+      catch: /illegal_argument_exception/
+      raw:
+        method: GET
+        path: "sensor_rollup/_rollup_search"
+        body: |
+          {
+            "size": 0,
+            "aggregations": {
+              "avg_temperature": {
+                "avg": {
+                  "field": "temperature"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "There is not a rollup job that has a [avg] agg with name [avg_temperature] which also satisfies all requirements of query.",
+                "stack_trace": $body.$_path
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "There is not a rollup job that has a [avg] agg with name [avg_temperature] which also satisfies all requirements of query.",
+            "stack_trace": $body.$_path
+          },
+          "status": 400
+        }

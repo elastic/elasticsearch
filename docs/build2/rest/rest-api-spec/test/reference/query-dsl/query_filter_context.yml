@@ -1,0 +1,29 @@
+---
+"line_62":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  { "match": { "title":   "Search"        }},
+                  { "match": { "content": "Elasticsearch" }}
+                ],
+                "filter": [
+                  { "term":  { "status": "published" }},
+                  { "range": { "publish_date": { "gte": "2015-01-01" }}}
+                ]
+              }
+            }
+          }
+  - is_false: _shards.failures

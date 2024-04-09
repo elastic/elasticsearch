@@ -1,0 +1,131 @@
+---
+"line_28":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_cat/nodes"
+        v: ""
+        s: "master,name"
+        h: "name,master,node.role,heap.percent,disk.used_percent,cpu"
+---
+"line_102":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_cat/allocation"
+        v: ""
+        s: "node"
+        h: "node,shards,disk.percent,disk.indices,disk.used"
+---
+"line_142":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/stats"
+        human: ""
+        filter_path: "nodes.*.name,nodes.*.indices.indexing"
+  - is_false: _shards.failures
+---
+"line_154":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_cat/thread_pool/write,search"
+        v: "true"
+        s: "n,nn"
+        h: "n,nn,q,a,r,c"
+---
+"line_190":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_stats"
+        level: "shards"
+        human: ""
+        expand_wildcards: "all"
+        filter_path: "indices.*.total.indexing.index_total"
+  - is_false: _shards.failures
+---
+"line_200":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_stats/indexing,search"
+        level: "shards"
+        human: ""
+        expand_wildcards: "all"
+  - is_false: _shards.failures
+---
+"line_247":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_cat/tasks"
+        v: ""
+        s: "time:desc"
+        h: "type,action,running_time,node,cancellable"
+---
+"line_265":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_tasks"
+        human: ""
+        detailed: ""
+  - is_false: _shards.failures

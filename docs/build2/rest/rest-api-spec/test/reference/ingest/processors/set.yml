@@ -1,0 +1,190 @@
+---
+"line_39":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ingest/pipeline/set_os"
+        body: |
+          {
+            "description": "sets the value of host.os.name from the field os",
+            "processors": [
+              {
+                "set": {
+                  "field": "host.os.name",
+                  "value": "{{{os}}}"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_ingest/pipeline/set_os/_simulate"
+        body: |
+          {
+            "docs": [
+              {
+                "_source": {
+                  "os": "Ubuntu"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "docs" : [
+            {
+              "doc" : {
+                "_index" : "_index",
+                "_id" : "_id",
+                "_version" : "-3",
+                "_source" : {
+                  "host" : {
+                    "os" : {
+                      "name" : "Ubuntu"
+                    }
+                  },
+                  "os" : "Ubuntu"
+                },
+                "_ingest" : {
+                  "timestamp" : "$body.docs.0.doc._ingest.timestamp"
+                }
+              }
+            }
+          ]
+        }
+---
+"line_96":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_ingest/pipeline/_simulate"
+        body: |
+          {
+            "pipeline": {
+              "processors": [
+                {
+                  "set": {
+                    "field": "my_field",
+                    "value": "{{{input_field.1}}}"
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_id": "id",
+                "_source": {
+                  "input_field": [
+                    "Ubuntu",
+                    "Windows",
+                    "Ventura"
+                  ]
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "docs": [
+            {
+              "doc": {
+                "_index": "index",
+                "_id": "id",
+                "_version": "-3",
+                "_source": {
+                  "input_field": [
+                    "Ubuntu",
+                    "Windows",
+                    "Ventura"
+                  ],
+                  "my_field": "Windows"
+                },
+                "_ingest": {
+                  "timestamp": "$body.docs.0.doc._ingest.timestamp"
+                }
+              }
+            }
+          ]
+        }
+---
+"line_157":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ingest/pipeline/set_bar"
+        body: |
+          {
+            "description": "sets the value of bar from the field foo",
+            "processors": [
+              {
+                "set": {
+                  "field": "bar",
+                  "copy_from": "foo"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_ingest/pipeline/set_bar/_simulate"
+        body: |
+          {
+            "docs": [
+              {
+                "_source": {
+                  "foo": ["foo1", "foo2"]
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "docs" : [
+            {
+              "doc" : {
+                "_index" : "_index",
+                "_id" : "_id",
+                "_version" : "-3",
+                "_source" : {
+                  "bar": ["foo1", "foo2"],
+                  "foo": ["foo1", "foo2"]
+                },
+                "_ingest" : {
+                  "timestamp" : "$body.docs.0.doc._ingest.timestamp"
+                }
+              }
+            }
+          ]
+        }

@@ -1,0 +1,298 @@
+---
+"line_17":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer": "path_hierarchy",
+            "text": "/one/two/three"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens": [
+            {
+              "token": "/one",
+              "start_offset": 0,
+              "end_offset": 4,
+              "type": "word",
+              "position": 0
+            },
+            {
+              "token": "/one/two",
+              "start_offset": 0,
+              "end_offset": 8,
+              "type": "word",
+              "position": 0
+            },
+            {
+              "token": "/one/two/three",
+              "start_offset": 0,
+              "end_offset": 14,
+              "type": "word",
+              "position": 0
+            }
+          ]
+        }
+---
+"line_100":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "my_analyzer": {
+                    "tokenizer": "my_tokenizer"
+                  }
+                },
+                "tokenizer": {
+                  "my_tokenizer": {
+                    "type": "path_hierarchy",
+                    "delimiter": "-",
+                    "replacement": "/",
+                    "skip": 2
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "my-index-000001/_analyze"
+        body: |
+          {
+            "analyzer": "my_analyzer",
+            "text": "one-two-three-four-five"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens": [
+            {
+              "token": "/three",
+              "start_offset": 7,
+              "end_offset": 13,
+              "type": "word",
+              "position": 0
+            },
+            {
+              "token": "/three/four",
+              "start_offset": 7,
+              "end_offset": 18,
+              "type": "word",
+              "position": 0
+            },
+            {
+              "token": "/three/four/five",
+              "start_offset": 7,
+              "end_offset": 23,
+              "type": "word",
+              "position": 0
+            }
+          ]
+        }
+---
+"line_195":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "file-path-test"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "custom_path_tree": {
+                    "tokenizer": "custom_hierarchy"
+                  },
+                  "custom_path_tree_reversed": {
+                    "tokenizer": "custom_hierarchy_reversed"
+                  }
+                },
+                "tokenizer": {
+                  "custom_hierarchy": {
+                    "type": "path_hierarchy",
+                    "delimiter": "/"
+                  },
+                  "custom_hierarchy_reversed": {
+                    "type": "path_hierarchy",
+                    "delimiter": "/",
+                    "reverse": "true"
+                  }
+                }
+              }
+            },
+            "mappings": {
+              "properties": {
+                "file_path": {
+                  "type": "text",
+                  "fields": {
+                    "tree": {
+                      "type": "text",
+                      "analyzer": "custom_path_tree"
+                    },
+                    "tree_reversed": {
+                      "type": "text",
+                      "analyzer": "custom_path_tree_reversed"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "file-path-test/_doc/1"
+        body: |
+          {
+            "file_path": "/User/alice/photos/2017/05/16/my_photo1.jpg"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "file-path-test/_doc/2"
+        body: |
+          {
+            "file_path": "/User/alice/photos/2017/05/16/my_photo2.jpg"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "file-path-test/_doc/3"
+        body: |
+          {
+            "file_path": "/User/alice/photos/2017/05/16/my_photo3.jpg"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "file-path-test/_doc/4"
+        body: |
+          {
+            "file_path": "/User/alice/photos/2017/05/15/my_photo1.jpg"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "file-path-test/_doc/5"
+        body: |
+          {
+            "file_path": "/User/bob/photos/2017/05/16/my_photo1.jpg"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "file-path-test/_search"
+        body: |
+          {
+            "query": {
+              "match": {
+                "file_path": "/User/bob/photos/2017/05"
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "file-path-test/_search"
+        body: |
+          {
+            "query": {
+              "term": {
+                "file_path.tree": "/User/alice/photos/2017/05/16"
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "file-path-test/_search"
+        body: |
+          {
+            "query": {
+              "term": {
+                "file_path.tree_reversed": {
+                  "value": "my_photo1.jpg"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "file-path-test/_analyze"
+        body: |
+          {
+            "analyzer": "custom_path_tree",
+            "text": "/User/alice/photos/2017/05/16/my_photo1.jpg"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "file-path-test/_analyze"
+        body: |
+          {
+            "analyzer": "custom_path_tree_reversed",
+            "text": "/User/alice/photos/2017/05/16/my_photo1.jpg"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "file-path-test/_search"
+        body: |
+          {
+            "query": {
+              "bool" : {
+                "must" : {
+                  "match" : { "file_path" : "16" }
+                },
+                "filter": {
+                  "term" : { "file_path.tree" : "/User/alice" }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

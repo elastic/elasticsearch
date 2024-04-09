@@ -1,0 +1,52 @@
+---
+"line_33":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_cluster/settings"
+        flat_settings: ""
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_cluster/settings"
+        body: |
+          {
+            "persistent" : {
+              "cluster.routing.allocation.enable" : "all"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_87":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_cluster/settings"
+        flat_settings: ""
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_cluster/settings"
+        body: |
+          {
+            "persistent" : {
+              "cluster.routing.allocation.enable" : "all"
+            }
+          }
+  - is_false: _shards.failures

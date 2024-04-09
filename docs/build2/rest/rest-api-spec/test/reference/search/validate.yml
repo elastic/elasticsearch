@@ -1,0 +1,256 @@
+---
+"line_10":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup my_index
+
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                http:
+                  properties:
+                    request:
+                      properties:
+                        method:
+                          type: keyword
+                message:
+                  type: text
+                  fields:
+                    keyword:
+                      type: keyword
+                user:
+                  properties:
+                    id:
+                      type: keyword
+                      doc_values: true
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            { "index":{"_id": "0"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "127.0.0.1" }, "user": { "id": "kimchy" } }
+            { "index":{"_id": "1"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "2"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "3"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "4"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_validate/query"
+        q: "user.id:kimchy"
+  - is_false: _shards.failures
+---
+"line_87":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_bulk"
+        refresh: ""
+        body: |
+          {"index":{"_id":1}}
+          {"user" : { "id": "kimchy" }, "@timestamp" : "2099-11-15T14:12:12", "message" : "trying out Elasticsearch"}
+          {"index":{"_id":2}}
+          {"user" : { "id": "kimchi" }, "@timestamp" : "2099-11-15T14:12:13", "message" : "My user ID is similar to kimchy!"}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_validate/query"
+        q: "user.id:kimchy"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {"valid":true,"_shards":{"total":1,"successful":1,"failed":0}}
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_validate/query"
+        body: |
+          {
+            "query" : {
+              "bool" : {
+                "must" : {
+                  "query_string" : {
+                    "query" : "*:*"
+                  }
+                },
+                "filter" : {
+                  "term" : { "user.id" : "kimchy" }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_validate/query"
+        body: |
+          {
+            "query": {
+              "query_string": {
+                "query": "@timestamp:foo",
+                "lenient": false
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {"valid":false,"_shards":{"total":1,"successful":1,"failed":0}}
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_validate/query"
+        explain: "true"
+        body: |
+          {
+            "query": {
+              "query_string": {
+                "query": "@timestamp:foo",
+                "lenient": false
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "valid" : false,
+          "_shards" : {
+            "total" : 1,
+            "successful" : 1,
+            "failed" : 0
+          },
+          "explanations" : [ {
+            "index" : "my-index-000001",
+            "valid" : false,
+            "error": "$body.explanations.0.error"
+          } ]
+        }
+---
+"line_208":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: the output is randomized depending on which shard we hit
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_validate/query"
+        rewrite: "true"
+        body: |
+          {
+            "query": {
+              "more_like_this": {
+                "like": {
+                  "_id": "2"
+                },
+                "boost_terms": 1
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+           "valid": true,
+           "_shards": {
+              "total": 1,
+              "successful": 1,
+              "failed": 0
+           },
+           "explanations": [
+              {
+                 "index": "my-index-000001",
+                 "valid": true,
+                 "explanation": "((user:terminator^3.71334 plot:future^2.763601 plot:human^2.8415773 plot:sarah^3.4193945 plot:kyle^3.8244398 plot:cyborg^3.9177752 plot:connor^4.040236 plot:reese^4.7133346 ... )~6) -ConstantScore(_id:2)) #(ConstantScore(_type:_doc))^0.0"
+              }
+           ]
+        }
+---
+"line_256":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_bulk"
+        refresh: ""
+        body: |
+          {"index":{"_id":1}}
+          {"user" : { "id": "kimchy" }, "@timestamp" : "2099-11-15T14:12:12", "message" : "trying out Elasticsearch"}
+          {"index":{"_id":2}}
+          {"user" : { "id": "kimchi" }, "@timestamp" : "2099-11-15T14:12:13", "message" : "My user ID is similar to kimchy!"}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_validate/query"
+        rewrite: "true"
+        all_shards: "true"
+        body: |
+          {
+            "query": {
+              "match": {
+                "user.id": {
+                  "query": "kimchy",
+                  "fuzziness": "auto"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "valid": true,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "failed": 0
+          },
+          "explanations": [
+            {
+              "index": "my-index-000001",
+              "shard": 0,
+              "valid": true,
+              "explanation": "(user.id:kimchi)^0.8333333 user.id:kimchy"
+            }
+          ]
+        }

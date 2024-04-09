@@ -1,0 +1,37 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_data_stream/_global_retention"
+        body: |
+          {
+            "default_retention": "7d",
+            "max_retention": "90d"
+          }
+---
+teardown:
+  - do:
+      raw:
+        method: DELETE
+        path: "_data_stream/_global_retention"
+---
+"line_75":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_data_stream/_global_retention"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "default_retention": "7d",
+          "max_retention": "90d"
+        }

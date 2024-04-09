@@ -1,0 +1,34 @@
+---
+"line_13":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "span_not": {
+                "include": {
+                  "span_term": { "field1": "hoya" }
+                },
+                "exclude": {
+                  "span_near": {
+                    "clauses": [
+                      { "span_term": { "field1": "la" } },
+                      { "span_term": { "field1": "hoya" } }
+                    ],
+                    "slop": 0,
+                    "in_order": true
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

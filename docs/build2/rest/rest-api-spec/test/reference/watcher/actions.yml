@@ -1,0 +1,239 @@
+---
+"line_57":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_watcher/watch/error_logs_alert"
+        body: |
+          {
+            "metadata" : {
+              "color" : "red"
+            },
+            "trigger" : {
+              "schedule" : {
+                "interval" : "5m"
+              }
+            },
+            "input" : {
+              "search" : {
+                "request" : {
+                  "indices" : "log-events",
+                  "body" : {
+                    "size" : 0,
+                    "query" : { "match" : { "status" : "error" } }
+                  }
+                }
+              }
+            },
+            "condition" : {
+              "compare" : { "ctx.payload.hits.total" : { "gt" : 5 }}
+            },
+            "actions" : {
+              "email_administrator" : {
+                "throttle_period": "15m",
+                "email" : {
+                  "to" : "sys.admino@host.domain",
+                  "subject" : "Encountered {{ctx.payload.hits.total}} errors",
+                  "body" : "Too many error in the system, see attached data",
+                  "attachments" : {
+                    "attached_data" : {
+                      "data" : {
+                        "format" : "json"
+                      }
+                    }
+                  },
+                  "priority" : "high"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_112":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_watcher/watch/log_event_watch"
+        body: |
+          {
+            "trigger" : {
+              "schedule" : { "interval" : "5m" }
+            },
+            "input" : {
+              "search" : {
+                "request" : {
+                  "indices" : "log-events",
+                  "body" : {
+                    "size" : 0,
+                    "query" : { "match" : { "status" : "error" } }
+                  }
+                }
+              }
+            },
+            "condition" : {
+              "compare" : { "ctx.payload.hits.total" : { "gt" : 5 }}
+            },
+            "throttle_period" : "15m",
+            "actions" : {
+              "email_administrator" : {
+                "email" : {
+                  "to" : "sys.admino@host.domain",
+                  "subject" : "Encountered {{ctx.payload.hits.total}} errors",
+                  "body" : "Too many error in the system, see attached data",
+                  "attachments" : {
+                    "attached_data" : {
+                      "data" : {
+                        "format" : "json"
+                      }
+                    }
+                  },
+                  "priority" : "high"
+                }
+              },
+              "notify_pager" : {
+                "webhook" : {
+                  "method" : "POST",
+                  "host" : "pager.service.domain",
+                  "port" : 1234,
+                  "path" : "/{{watch_id}}",
+                  "body" : "Encountered {{ctx.payload.hits.total}} errors"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_186":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: https://github.com/elastic/x-plugins/issues/2513
+  - do:
+      raw:
+        method: POST
+        path: "_watcher/watch/%3Cid%3E/_ack/%3Caction_ids%3E"
+  - is_false: _shards.failures
+---
+"line_228":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_watcher/watch/log_event_watch"
+        body: |
+          {
+            "trigger" : {
+              "schedule" : { "interval" : "5m" }
+            },
+            "input" : {
+              "search" : {
+                "request" : {
+                  "indices" : "log-events",
+                  "body" : {
+                    "query" : { "match" : { "status" : "error" } }
+                  }
+                }
+              }
+            },
+            "condition" : {
+              "compare" : { "ctx.payload.hits.total" : { "gt" : 0 } }
+            },
+            "actions" : {
+              "log_hits" : {
+                "foreach" : "ctx.payload.hits.hits",
+                "max_iterations" : 500,
+                "logging" : {
+                  "text" : "Found id {{ctx.payload._id}} with field {{ctx.payload._source.my_field}}"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_276":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_watcher/watch/log_event_watch"
+        body: |
+          {
+            "trigger" : {
+              "schedule" : { "interval" : "5m" }
+            },
+            "input" : {
+              "search" : {
+                "request" : {
+                  "indices" : "log-events",
+                  "body" : {
+                    "size" : 0,
+                    "query" : { "match" : { "status" : "error" } }
+                  }
+                }
+              }
+            },
+            "condition" : {
+              "compare" : { "ctx.payload.hits.total" : { "gt" : 0 } }
+            },
+            "actions" : {
+              "email_administrator" : {
+                "email" : {
+                  "to" : "sys.admino@host.domain",
+                  "subject" : "Encountered {{ctx.payload.hits.total}} errors",
+                  "body" : "Too many error in the system, see attached data",
+                  "attachments" : {
+                    "attached_data" : {
+                      "data" : {
+                        "format" : "json"
+                      }
+                    }
+                  },
+                  "priority" : "high"
+                }
+              },
+              "notify_pager" : {
+                "condition": {
+                  "compare" : { "ctx.payload.hits.total" : { "gt" : 5 } }
+                },
+                "webhook" : {
+                  "method" : "POST",
+                  "host" : "pager.service.domain",
+                  "port" : 1234,
+                  "path" : "/{{watch_id}}",
+                  "body" : "Encountered {{ctx.payload.hits.total}} errors"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

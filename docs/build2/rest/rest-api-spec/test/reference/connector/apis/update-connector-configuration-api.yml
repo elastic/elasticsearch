@@ -1,0 +1,162 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_connector/my-spo-connector"
+        body: |
+          {
+            "index_name": "search-sharepoint-online",
+            "name": "Sharepoint Online Connector",
+            "service_type": "sharepoint_online"
+          }
+  - do:
+      raw:
+        method: PUT
+        path: "_connector/my-spo-connector/_configuration"
+        body: |
+          {
+              "configuration": {
+                  "client_id": {
+                      "default_value": null,
+                      "depends_on": [],
+                      "display": "text",
+                      "label": "Client ID",
+                      "options": [],
+                      "order": 3,
+                      "required": true,
+                      "sensitive": false,
+                      "tooltip": null,
+                      "type": "str",
+                      "ui_restrictions": [],
+                      "validations": [],
+                      "value": null
+                  },
+                  "secret_value": {
+                      "default_value": null,
+                      "depends_on": [],
+                      "display": "text",
+                      "label": "Secret value",
+                      "options": [],
+                      "order": 4,
+                      "required": true,
+                      "sensitive": true,
+                      "tooltip": null,
+                      "type": "str",
+                      "ui_restrictions": [],
+                      "validations": [],
+                      "value": null
+                  }
+              }
+          }
+---
+teardown:
+  - do:
+      raw:
+        method: DELETE
+        path: "_connector/my-spo-connector"
+---
+"line_166":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_connector/my-spo-connector/_configuration"
+        body: |
+          {
+              "configuration": {
+                  "client_id": {
+                      "default_value": null,
+                      "depends_on": [],
+                      "display": "text",
+                      "label": "Client ID",
+                      "options": [],
+                      "order": 3,
+                      "required": true,
+                      "sensitive": false,
+                      "tooltip": null,
+                      "type": "str",
+                      "ui_restrictions": [],
+                      "validations": [],
+                      "value": null
+                  },
+                  "secret_value": {
+                      "default_value": null,
+                      "depends_on": [],
+                      "display": "text",
+                      "label": "Secret value",
+                      "options": [],
+                      "order": 4,
+                      "required": true,
+                      "sensitive": true,
+                      "tooltip": null,
+                      "type": "str",
+                      "ui_restrictions": [],
+                      "validations": [],
+                      "value": null
+                  }
+              }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+            "result": "updated"
+        }
+---
+"line_214":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_connector/my-spo-connector/_configuration"
+        body: |
+          {
+              "values": {
+                  "client_id": "my-client-id",
+                  "secret_value": "super-secret-value"
+              }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+            "result": "updated"
+        }
+---
+"line_235":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_connector/my-spo-connector/_configuration"
+        body: |
+          {
+              "values": {
+                  "secret_value": "new-super-secret-value"
+              }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+            "result": "updated"
+        }

@@ -1,0 +1,89 @@
+---
+"line_20":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "age":    { "type": "integer" },
+                "email":  { "type": "keyword"  },
+                "name":   { "type": "text"  }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_mapping"
+        body: |
+          {
+            "properties": {
+              "employee-id": {
+                "type": "keyword",
+                "index": false
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_mapping"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "my-index-000001" : {
+            "mappings" : {
+              "properties" : {
+                "age" : {
+                  "type" : "integer"
+                },
+                "email" : {
+                  "type" : "keyword"
+                },
+                "employee-id" : {
+                  "type" : "keyword",
+                  "index" : false
+                },
+                "name" : {
+                  "type" : "text"
+                }
+              }
+            }
+          }
+        }
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_mapping/field/employee-id"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "my-index-000001" : {
+            "mappings" : {
+              "employee-id" : {
+                "full_name" : "employee-id",
+                "mapping" : {
+                  "employee-id" : {
+                    "type" : "keyword",
+                    "index" : false
+                  }
+                }
+              }
+            }
+          }
+        }
+        

@@ -1,0 +1,131 @@
+---
+"line_46":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: needs-licence
+  - do:
+      raw:
+        method: PUT
+        path: "_ml/anomaly_detectors/it_ops_app_logs"
+        body: |
+          {
+            "description" : "IT ops application logs",
+            "analysis_config" : {
+              "categorization_field_name": "message",
+              "bucket_span":"30m",
+              "detectors" :[{
+                "function":"count",
+                "by_field_name": "mlcategory"
+              }]
+            },
+            "data_description" : {
+              "time_field":"@timestamp"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_154":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_ml/anomaly_detectors/_validate"
+        body: |
+          {
+            "analysis_config" : {
+              "categorization_analyzer" : {
+                "char_filter" : [
+                  "first_line_with_letters"
+                ],
+                "tokenizer" : "ml_standard",
+                "filter" : [
+                  { "type" : "stop", "stopwords": [
+                    "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+                    "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
+                    "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December",
+                    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+                    "GMT", "UTC"
+                  ] }
+                ]
+              },
+              "categorization_field_name": "message",
+              "detectors" :[{
+                "function":"count",
+                "by_field_name": "mlcategory"
+              }]
+            },
+            "data_description" : {
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_193":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: needs-licence
+  - do:
+      raw:
+        method: PUT
+        path: "_ml/anomaly_detectors/it_ops_new_logs3"
+        body: |
+          {
+            "description" : "IT Ops Application Logs",
+            "analysis_config" : {
+              "categorization_field_name": "message",
+              "bucket_span":"30m",
+              "detectors" :[{
+                "function":"count",
+                "by_field_name": "mlcategory",
+                "detector_description": "Unusual message counts"
+              }],
+              "categorization_analyzer":{
+                "char_filter" : [
+                  "first_line_with_letters"
+                ],
+                "tokenizer": {
+                  "type" : "simple_pattern_split",
+                  "pattern" : "[^-0-9A-Za-z_./]+"
+                },
+                "filter": [
+                  { "type" : "pattern_replace", "pattern": "^[0-9].*" },
+                  { "type" : "pattern_replace", "pattern": "^[-0-9A-Fa-f.]+$" },
+                  { "type" : "pattern_replace", "pattern": "^[^0-9A-Za-z]+" },
+                  { "type" : "pattern_replace", "pattern": "[^0-9A-Za-z]+$" },
+                  { "type" : "stop", "stopwords": [
+                    "",
+                    "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+                    "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
+                    "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December",
+                    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+                    "GMT", "UTC"
+                  ] }
+                ]
+              }
+            },
+            "analysis_limits":{
+              "categorization_examples_limit": 5
+            },
+            "data_description" : {
+              "time_field":"time",
+              "time_format": "epoch_ms"
+            }
+          }
+  - is_false: _shards.failures

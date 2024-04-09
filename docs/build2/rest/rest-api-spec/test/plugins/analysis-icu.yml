@@ -1,0 +1,356 @@
+---
+"line_66":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "icu_sample"
+        body: |
+          {
+            "settings": {
+              "index": {
+                "analysis": {
+                  "analyzer": {
+                    "nfkc_cf_normalized": {
+                      "tokenizer": "icu_tokenizer",
+                      "char_filter": [
+                        "icu_normalizer"
+                      ]
+                    },
+                    "nfd_normalized": {
+                      "tokenizer": "icu_tokenizer",
+                      "char_filter": [
+                        "nfd_normalizer"
+                      ]
+                    }
+                  },
+                  "char_filter": {
+                    "nfd_normalizer": {
+                      "type": "icu_normalizer",
+                      "name": "nfc",
+                      "mode": "decompose"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_113":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "icu_sample"
+        body: |
+          {
+            "settings": {
+              "index": {
+                "analysis": {
+                  "analyzer": {
+                    "my_icu_analyzer": {
+                      "tokenizer": "icu_tokenizer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_153":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "icu_sample"
+        body: |
+          {
+            "settings": {
+              "index": {
+                "analysis": {
+                  "tokenizer": {
+                    "icu_user_file": {
+                      "type": "icu_tokenizer",
+                      "rule_files": "Latn:KeywordTokenizer.rbbi"
+                    }
+                  },
+                  "analyzer": {
+                    "my_analyzer": {
+                      "type": "custom",
+                      "tokenizer": "icu_user_file"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "icu_sample/_analyze"
+        body: |
+          {
+            "analyzer": "my_analyzer",
+            "text": "Elasticsearch. Wow!"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+           "tokens": [
+              {
+                 "token": "Elasticsearch. Wow!",
+                 "start_offset": 0,
+                 "end_offset": 19,
+                 "type": "<ALPHANUM>",
+                 "position": 0
+              }
+           ]
+        }
+---
+"line_220":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "icu_sample"
+        body: |
+          {
+            "settings": {
+              "index": {
+                "analysis": {
+                  "analyzer": {
+                    "nfkc_cf_normalized": {
+                      "tokenizer": "icu_tokenizer",
+                      "filter": [
+                        "icu_normalizer"
+                      ]
+                    },
+                    "nfc_normalized": {
+                      "tokenizer": "icu_tokenizer",
+                      "filter": [
+                        "nfc_normalizer"
+                      ]
+                    }
+                  },
+                  "filter": {
+                    "nfc_normalizer": {
+                      "type": "icu_normalizer",
+                      "name": "nfc"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_265":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "icu_sample"
+        body: |
+          {
+            "settings": {
+              "index": {
+                "analysis": {
+                  "analyzer": {
+                    "folded": {
+                      "tokenizer": "icu_tokenizer",
+                      "filter": [
+                        "icu_folding"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_298":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "icu_sample"
+        body: |
+          {
+            "settings": {
+              "index": {
+                "analysis": {
+                  "analyzer": {
+                    "swedish_analyzer": {
+                      "tokenizer": "icu_tokenizer",
+                      "filter": [
+                        "swedish_folding",
+                        "lowercase"
+                      ]
+                    }
+                  },
+                  "filter": {
+                    "swedish_folding": {
+                      "type": "icu_folding",
+                      "unicode_set_filter": "[^åäöÅÄÖ]"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_350":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "name": {
+                  "type": "text",
+                  "fields": {
+                    "sort": {
+                      "type": "icu_collation_keyword",
+                      "index": false,
+                      "language": "de",
+                      "country": "DE",
+                      "variant": "@collation=phonebook"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "query": {
+              "match": {
+                "name": "Fritz"
+              }
+            },
+            "sort": "name.sort"
+          }
+  - is_false: _shards.failures
+---
+"line_504":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "icu_sample"
+        body: |
+          {
+            "settings": {
+              "index": {
+                "analysis": {
+                  "analyzer": {
+                    "latin": {
+                      "tokenizer": "keyword",
+                      "filter": [
+                        "myLatinTransform"
+                      ]
+                    }
+                  },
+                  "filter": {
+                    "myLatinTransform": {
+                      "type": "icu_transform",
+                      "id": "Any-Latin; NFD; [:Nonspacing Mark:] Remove; NFC"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "icu_sample/_analyze"
+        body: |
+          {
+            "analyzer": "latin",
+            "text": "你好"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "icu_sample/_analyze"
+        body: |
+          {
+            "analyzer": "latin",
+            "text": "здравствуйте"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "icu_sample/_analyze"
+        body: |
+          {
+            "analyzer": "latin",
+            "text": "こんにちは"
+          }
+  - is_false: _shards.failures

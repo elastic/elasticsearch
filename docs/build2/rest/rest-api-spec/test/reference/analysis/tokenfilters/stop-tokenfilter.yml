@@ -1,0 +1,162 @@
+---
+"line_31":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer": "standard",
+            "filter": [ "stop" ],
+            "text": "a quick fox jumps over the lazy dog"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens": [
+            {
+              "token": "quick",
+              "start_offset": 2,
+              "end_offset": 7,
+              "type": "<ALPHANUM>",
+              "position": 1
+            },
+            {
+              "token": "fox",
+              "start_offset": 8,
+              "end_offset": 11,
+              "type": "<ALPHANUM>",
+              "position": 2
+            },
+            {
+              "token": "jumps",
+              "start_offset": 12,
+              "end_offset": 17,
+              "type": "<ALPHANUM>",
+              "position": 3
+            },
+            {
+              "token": "over",
+              "start_offset": 18,
+              "end_offset": 22,
+              "type": "<ALPHANUM>",
+              "position": 4
+            },
+            {
+              "token": "lazy",
+              "start_offset": 27,
+              "end_offset": 31,
+              "type": "<ALPHANUM>",
+              "position": 6
+            },
+            {
+              "token": "dog",
+              "start_offset": 32,
+              "end_offset": 35,
+              "type": "<ALPHANUM>",
+              "position": 7
+            }
+          ]
+        }
+---
+"line_106":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "my_analyzer": {
+                    "tokenizer": "whitespace",
+                    "filter": [ "stop" ]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_183":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "default": {
+                    "tokenizer": "whitespace",
+                    "filter": [ "my_custom_stop_words_filter" ]
+                  }
+                },
+                "filter": {
+                  "my_custom_stop_words_filter": {
+                    "type": "stop",
+                    "ignore_case": true
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_210":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "default": {
+                    "tokenizer": "whitespace",
+                    "filter": [ "my_custom_stop_words_filter" ]
+                  }
+                },
+                "filter": {
+                  "my_custom_stop_words_filter": {
+                    "type": "stop",
+                    "ignore_case": true,
+                    "stopwords": [ "and", "is", "the" ]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

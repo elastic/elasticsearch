@@ -1,0 +1,43 @@
+---
+"line_130":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: todo
+  - do:
+      raw:
+        method: GET
+        path: "_ml/anomaly_detectors/job-*/results/overall_buckets"
+        body: |
+          {
+            "overall_score": 80,
+            "start": "1403532000000"
+          }
+  - is_false: _shards.failures
+---
+"line_175":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: todo
+  - do:
+      raw:
+        method: GET
+        path: "_ml/anomaly_detectors/job-*/results/overall_buckets"
+        body: |
+          {
+            "top_n": 2,
+            "overall_score": 50.0,
+            "start": "1403532000000"
+          }
+  - is_false: _shards.failures

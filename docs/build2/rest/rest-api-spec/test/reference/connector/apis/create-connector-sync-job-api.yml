@@ -1,0 +1,22 @@
+---
+"line_13":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: there's no way to clean up after this code snippet, as we don't know the id ahead of time
+  - do:
+      raw:
+        method: POST
+        path: "_connector/_sync_job"
+        body: |
+          {
+            "id": "connector-id",
+            "job_type": "full",
+            "trigger_method": "on_demand"
+          }
+  - is_false: _shards.failures

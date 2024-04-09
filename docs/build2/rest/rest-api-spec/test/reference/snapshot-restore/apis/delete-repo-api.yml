@@ -1,0 +1,26 @@
+---
+"line_15":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_repository"
+        body: |
+          {
+            "type": "fs",
+            "settings": {
+              "location": "my_backup_location"
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_snapshot/my_repository"
+  - is_false: _shards.failures

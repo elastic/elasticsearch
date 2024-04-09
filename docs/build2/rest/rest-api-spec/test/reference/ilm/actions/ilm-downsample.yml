@@ -1,0 +1,31 @@
+---
+"line_37":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ilm/policy/datastream_policy"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "hot": {
+                  "actions": {
+                    "rollover": {
+                      "max_docs": 1
+                    },
+                    "downsample": {
+            	          "fixed_interval": "1h"
+            	      }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

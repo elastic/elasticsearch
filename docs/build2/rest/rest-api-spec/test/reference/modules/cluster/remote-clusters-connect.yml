@@ -1,0 +1,154 @@
+---
+"line_44":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup host
+
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http, transport ]
+  - set: {nodes.$master.http.publish_address: host}
+  - set: {nodes.$master.transport.publish_address: transport_host}
+
+  - do:
+      raw:
+        method: PUT
+        path: "_cluster/settings"
+        body: |
+          {
+            "persistent" : {
+              "cluster" : {
+                "remote" : {
+                  "cluster_one" : {
+                    "seeds" : [
+                      "${transport_host}"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_remote/info"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "cluster_one" : {
+            "seeds" : [
+              "$body.cluster_one.seeds.0"
+            ],
+            "connected" : $body.cluster_one.connected,
+            "num_nodes_connected" : $body.cluster_one.num_nodes_connected,
+            "max_connections_per_cluster" : 3,
+            "initial_connect_timeout" : "30s",
+            "skip_unavailable" : false,
+        
+            "mode" : "sniff"
+          }
+        }
+---
+"line_125":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup host
+
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http, transport ]
+  - set: {nodes.$master.http.publish_address: host}
+  - set: {nodes.$master.transport.publish_address: transport_host}
+
+  - do:
+      raw:
+        method: PUT
+        path: "_cluster/settings"
+        body: |
+          {
+            "persistent": {
+              "cluster": {
+                "remote": {
+                  "cluster_one": {
+                    "seeds": [
+                      "${transport_host}"
+                    ]
+                  },
+                  "cluster_two": {
+                    "mode": "sniff",
+                    "seeds": [
+                      "127.0.0.1:9301"
+                    ],
+                    "transport.compress": true,
+                    "skip_unavailable": true
+                  },
+                  "cluster_three": {
+                    "mode": "proxy",
+                    "proxy_address": "127.0.0.1:9302"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_cluster/settings"
+        body: |
+          {
+            "persistent": {
+              "cluster": {
+                "remote": {
+                  "cluster_two": {
+                    "transport.compress": false
+                  },
+                  "cluster_three": {
+                    "transport.compress": true,
+                    "transport.ping_schedule": "60s"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_cluster/settings"
+        body: |
+          {
+            "persistent": {
+              "cluster": {
+                "remote": {
+                  "cluster_two": {
+                    "mode": null,
+                    "seeds": null,
+                    "skip_unavailable": null,
+                    "transport.compress": null
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

@@ -1,0 +1,328 @@
+---
+"line_1556":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup my_index
+
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                http:
+                  properties:
+                    request:
+                      properties:
+                        method:
+                          type: keyword
+                message:
+                  type: text
+                  fields:
+                    keyword:
+                      type: keyword
+                user:
+                  properties:
+                    id:
+                      type: keyword
+                      doc_values: true
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            { "index":{"_id": "0"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "127.0.0.1" }, "user": { "id": "kimchy" } }
+            { "index":{"_id": "1"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "2"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "3"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "4"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+  - do:
+      raw:
+        method: GET
+        path: "_cluster/stats"
+        human: ""
+        pretty: ""
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+           "_nodes" : {
+              "total" : $body.$_path,
+              "successful" : $body.$_path,
+              "failed" : $body.$_path
+           },
+           "cluster_uuid": $body.$_path,
+           "cluster_name": $body.$_path,
+           "timestamp": $body.$_path,
+           "status": $body.$_path,
+           "indices": {
+              "count": $body.$_path,
+              "shards": {
+                 "total": $body.$_path,
+                 "primaries": $body.$_path,
+                 "replication": $body.$_path,
+                 "index": {
+                    "shards": {
+                       "min": $body.$_path,
+                       "max": $body.$_path,
+                       "avg": $body.$_path
+                    },
+                    "primaries": {
+                       "min": $body.$_path,
+                       "max": $body.$_path,
+                       "avg": $body.$_path
+                    },
+                    "replication": {
+                       "min": $body.$_path,
+                       "max": $body.$_path,
+                       "avg": $body.$_path
+                    }
+                 }
+              },
+              "docs": {
+                 "count": $body.$_path,
+                 "deleted": $body.$_path,
+                 "total_size_in_bytes": $body.$_path
+              },
+              "store": {
+                 "size": $body.$_path,
+                 "size_in_bytes": $body.$_path,
+                 "total_data_set_size": $body.$_path,
+                 "total_data_set_size_in_bytes": $body.$_path,
+                 "reserved": $body.$_path,
+                 "reserved_in_bytes": $body.$_path
+              },
+              "search": $body.$_path,
+              "fielddata": {
+                 "memory_size": $body.$_path,
+                 "memory_size_in_bytes": $body.$_path,
+                 "evictions": $body.$_path,
+                 "global_ordinals": {
+                    "build_time" : $body.$_path,
+                    "build_time_in_millis" : $body.$_path
+                 }
+              },
+              "query_cache": {
+                 "memory_size": $body.$_path,
+                 "memory_size_in_bytes": $body.$_path,
+                 "total_count": $body.$_path,
+                 "hit_count": $body.$_path,
+                 "miss_count": $body.$_path,
+                 "cache_size": $body.$_path,
+                 "cache_count": $body.$_path,
+                 "evictions": $body.$_path
+              },
+              "completion": {
+                 "size": $body.$_path,
+                 "size_in_bytes": $body.$_path
+              },
+              "segments": {
+                 "count": $body.$_path,
+                 "memory": $body.$_path,
+                 "memory_in_bytes": $body.$_path,
+                 "terms_memory": $body.$_path,
+                 "terms_memory_in_bytes": $body.$_path,
+                 "stored_fields_memory": $body.$_path,
+                 "stored_fields_memory_in_bytes": $body.$_path,
+                 "term_vectors_memory": $body.$_path,
+                 "term_vectors_memory_in_bytes": $body.$_path,
+                 "norms_memory": $body.$_path,
+                 "norms_memory_in_bytes": $body.$_path,
+                 "points_memory" : $body.$_path,
+                 "points_memory_in_bytes" : $body.$_path,
+                 "doc_values_memory": $body.$_path,
+                 "doc_values_memory_in_bytes": $body.$_path,
+                 "index_writer_memory": $body.$_path,
+                 "index_writer_memory_in_bytes": $body.$_path,
+                 "version_map_memory": $body.$_path,
+                 "version_map_memory_in_bytes": $body.$_path,
+                 "fixed_bit_set": $body.$_path,
+                 "fixed_bit_set_memory_in_bytes": $body.$_path,
+                 "max_unsafe_auto_id_timestamp" : $body.$_path,
+                 "file_sizes": {}
+              },
+              "mappings": {
+                "total_field_count": $body.$_path,
+                "total_deduplicated_field_count": $body.$_path,
+                "total_deduplicated_mapping_size": $body.$_path,
+                "total_deduplicated_mapping_size_in_bytes": $body.$_path,
+                "field_types": $body.$_path,
+                "runtime_field_types": $body.$_path
+              },
+              "analysis": {
+                "char_filter_types": [],
+                "tokenizer_types": [],
+                "filter_types": [],
+                "analyzer_types": [],
+                "built_in_char_filters": [],
+                "built_in_tokenizers": [],
+                "built_in_filters": [],
+                "built_in_analyzers": [],
+                "synonyms": {}
+              },
+              "versions": [
+                {
+                  "version": $body.$_path,
+                  "index_count": $body.$_path,
+                  "primary_shard_count": $body.$_path,
+                  "total_primary_size": $body.$_path,
+                  "total_primary_bytes": $body.$_path
+                }
+              ],
+              "dense_vector": {
+                  "value_count": $body.$_path
+              }
+           },
+           "nodes": {
+              "count": $body.$_path,
+              "versions": [
+                 "8.14.0"
+              ],
+              "os": {
+                 "available_processors": $body.$_path,
+                 "allocated_processors": $body.$_path,
+                 "names": [
+                    {
+                       "name": $body.$_path,
+                       "count": $body.$_path
+                    }
+                 ],
+                 "pretty_names": [
+                    {
+                       "pretty_name": $body.$_path,
+                       "count": $body.$_path
+                    }
+                 ],
+                 "architectures": [
+                    {
+                       "arch": $body.$_path,
+                       "count": $body.$_path
+                    }
+                 ],
+                 "mem" : {
+                    "total" : $body.$_path,
+                    "total_in_bytes" : $body.$_path,
+                    "adjusted_total" : $body.$_path,
+                    "adjusted_total_in_bytes" : $body.$_path,
+                    "free" : $body.$_path,
+                    "free_in_bytes" : $body.$_path,
+                    "used" : $body.$_path,
+                    "used_in_bytes" : $body.$_path,
+                    "free_percent" : $body.$_path,
+                    "used_percent" : $body.$_path
+                 }
+              },
+              "process": {
+                 "cpu": {
+                    "percent": $body.$_path
+                 },
+                 "open_file_descriptors": {
+                    "min": $body.$_path,
+                    "max": $body.$_path,
+                    "avg": $body.$_path
+                 }
+              },
+              "jvm": {
+                 "max_uptime": $body.$_path,
+                 "max_uptime_in_millis": $body.$_path,
+                 "versions": [
+                    {
+                       "version": $body.$_path,
+                       "vm_name": $body.$_path,
+                       "vm_version": $body.$_path,
+                       "vm_vendor": $body.$_path,
+                       "bundled_jdk": $body.$_path,
+                       "using_bundled_jdk": $body.$_path,
+                       "count": $body.$_path
+                    }
+                 ],
+                 "mem": {
+                    "heap_used": $body.$_path,
+                    "heap_used_in_bytes": $body.$_path,
+                    "heap_max": $body.$_path,
+                    "heap_max_in_bytes": $body.$_path
+                 },
+                 "threads": $body.$_path
+              },
+              "fs": {
+                 "total": $body.$_path,
+                 "total_in_bytes": $body.$_path,
+                 "free": $body.$_path,
+                 "free_in_bytes": $body.$_path,
+                 "available": $body.$_path,
+                 "available_in_bytes": $body.$_path
+              },
+              "plugins": $body.$_path,
+              "ingest": {
+                "number_of_pipelines" : $body.$_path,
+                "processor_stats": $body.$_path
+              },
+              "indexing_pressure": {
+                "memory": {
+                    "current": {
+                         "combined_coordinating_and_primary": $body.$_path,
+                         "combined_coordinating_and_primary_in_bytes": $body.$_path,
+                         "coordinating": $body.$_path,
+                         "coordinating_in_bytes": $body.$_path,
+                         "primary": $body.$_path,
+                         "primary_in_bytes": $body.$_path,
+                         "replica": $body.$_path,
+                         "replica_in_bytes": $body.$_path,
+                         "all": $body.$_path,
+                         "all_in_bytes": $body.$_path
+                    },
+                    "total": {
+                        "combined_coordinating_and_primary": $body.$_path,
+                        "combined_coordinating_and_primary_in_bytes": $body.$_path,
+                        "coordinating": $body.$_path,
+                        "coordinating_in_bytes": $body.$_path,
+                        "primary": $body.$_path,
+                        "primary_in_bytes": $body.$_path,
+                        "replica": $body.$_path,
+                        "replica_in_bytes": $body.$_path,
+                        "all": $body.$_path,
+                        "all_in_bytes": $body.$_path,
+                        "coordinating_rejections": $body.$_path,
+                        "primary_rejections": $body.$_path,
+                        "replica_rejections": $body.$_path,
+                        "primary_document_rejections": $body.$_path
+                    },
+                    "limit" : $body.$_path,
+                    "limit_in_bytes": $body.$_path
+                }
+              },
+              "network_types": $body.$_path,
+              "discovery_types": $body.$_path,
+              "packaging_types": $body.$_path
+           },
+           "snapshots": $body.$_path
+        }
+---
+"line_1878":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_cluster/stats/nodes/node1,node*,master:false"
+  - is_false: _shards.failures

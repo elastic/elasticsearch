@@ -1,0 +1,145 @@
+---
+"line_47":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer": "keyword",
+            "filter": [ "word_delimiter_graph" ],
+            "text": "Neil's-Super-Duper-XL500--42+AutoCoder"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens": [
+            {
+              "token": "Neil",
+              "start_offset": 0,
+              "end_offset": 4,
+              "type": "word",
+              "position": 0
+            },
+            {
+              "token": "Super",
+              "start_offset": 7,
+              "end_offset": 12,
+              "type": "word",
+              "position": 1
+            },
+            {
+              "token": "Duper",
+              "start_offset": 13,
+              "end_offset": 18,
+              "type": "word",
+              "position": 2
+            },
+            {
+              "token": "XL",
+              "start_offset": 19,
+              "end_offset": 21,
+              "type": "word",
+              "position": 3
+            },
+            {
+              "token": "500",
+              "start_offset": 21,
+              "end_offset": 24,
+              "type": "word",
+              "position": 4
+            },
+            {
+              "token": "42",
+              "start_offset": 26,
+              "end_offset": 28,
+              "type": "word",
+              "position": 5
+            },
+            {
+              "token": "Auto",
+              "start_offset": 29,
+              "end_offset": 33,
+              "type": "word",
+              "position": 6
+            },
+            {
+              "token": "Coder",
+              "start_offset": 33,
+              "end_offset": 38,
+              "type": "word",
+              "position": 7
+            }
+          ]
+        }
+---
+"line_137":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "my_analyzer": {
+                    "tokenizer": "keyword",
+                    "filter": [ "word_delimiter_graph" ]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_410":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "my_analyzer": {
+                    "tokenizer": "keyword",
+                    "filter": [ "my_custom_word_delimiter_graph_filter" ]
+                  }
+                },
+                "filter": {
+                  "my_custom_word_delimiter_graph_filter": {
+                    "type": "word_delimiter_graph",
+                    "type_table": [ "- => ALPHA" ],
+                    "split_on_case_change": false,
+                    "split_on_numerics": false,
+                    "stem_english_possessive": true
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

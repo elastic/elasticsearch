@@ -1,0 +1,22 @@
+---
+"line_280":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: Kibana sample data
+  - do:
+      raw:
+        method: GET
+        path: "_ml/anomaly_detectors/low_request_rate/results/records"
+        body: |
+          {
+            "sort": "record_score",
+            "desc": true,
+            "start": "1454944100000"
+          }
+  - is_false: _shards.failures

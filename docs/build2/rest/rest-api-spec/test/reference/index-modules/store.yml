@@ -1,0 +1,40 @@
+---
+"line_30":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "settings": {
+              "index.store.type": "hybridfs"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_122":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "settings": {
+              "index.store.preload": ["nvd", "dvd"]
+            }
+          }
+  - is_false: _shards.failures

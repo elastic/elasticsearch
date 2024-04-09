@@ -1,0 +1,187 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_query_rules/ruleset-1"
+        body: |
+          {
+              "rules": [
+                  {
+                      "rule_id": "rule-1",
+                      "type": "pinned",
+                      "criteria": [
+                          {
+                              "type": "exact",
+                              "metadata": "query_string",
+                              "values": [ "puggles" ]
+                          }
+                      ],
+                      "actions": {
+                          "ids": ["id1"]
+                      }
+                  }
+              ]
+          }
+  - do:
+      raw:
+        method: PUT
+        path: "_query_rules/ruleset-2"
+        body: |
+          {
+              "rules": [
+                  {
+                      "rule_id": "rule-1",
+                      "type": "pinned",
+                      "criteria": [
+                          {
+                              "type": "exact",
+                              "metadata": "query_string",
+                              "values": [ "puggles" ]
+                          }
+                      ],
+                      "actions": {
+                          "ids": ["id1"]
+                      }
+                  },
+                  {
+                      "rule_id": "rule-2",
+                      "type": "pinned",
+                      "criteria": [
+                          {
+                              "type": "fuzzy",
+                              "metadata": "query_string",
+                              "values": [ "pugs" ]
+                          }
+                      ],
+                      "actions": {
+                          "ids": ["id2"]
+                      }
+                  }
+              ]
+          }
+  - do:
+      raw:
+        method: PUT
+        path: "_query_rules/ruleset-3"
+        body: |
+          {
+              "rules": [
+                  {
+                      "rule_id": "rule-1",
+                      "type": "pinned",
+                      "criteria": [
+                          {
+                              "type": "exact",
+                              "metadata": "query_string",
+                              "values": [ "puggles" ]
+                          }
+                      ],
+                      "actions": {
+                          "ids": ["id1"]
+                      }
+                  },
+                  {
+                      "rule_id": "rule-2",
+                      "type": "pinned",
+                      "criteria": [
+                          {
+                              "type": "fuzzy",
+                              "metadata": "query_string",
+                              "values": [ "pugs" ]
+                          }
+                      ],
+                      "actions": {
+                          "ids": ["id2"]
+                      }
+                  },
+                  {
+                      "rule_id": "rule-3",
+                      "type": "pinned",
+                      "criteria": [
+                          {
+                              "type": "fuzzy",
+                              "metadata": "query_string",
+                              "values": [ "beagles" ]
+                          }
+                      ],
+                      "actions": {
+                          "ids": ["id2"]
+                      }
+                  }
+              ]
+          }
+---
+teardown:
+  - do:
+      raw:
+        method: DELETE
+        path: "_query_rules/ruleset-1"
+  - do:
+      raw:
+        method: DELETE
+        path: "_query_rules/ruleset-2"
+  - do:
+      raw:
+        method: DELETE
+        path: "_query_rules/ruleset-3"
+---
+"line_160":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_query_rules/"
+  - is_false: _shards.failures
+---
+"line_167":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_query_rules/"
+        from: "0"
+        size: "3"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+            "count": 3,
+            "results": [
+                {
+                    "ruleset_id": "ruleset-1",
+                    "rule_total_count": 1,
+                    "rule_criteria_types_counts": {
+                        "exact": 1
+                    }
+                },
+                {
+                    "ruleset_id": "ruleset-2",
+                    "rule_total_count": 2,
+                    "rule_criteria_types_counts": {
+                        "exact": 1,
+                        "fuzzy": 1
+                    }
+                },
+                {
+                    "ruleset_id": "ruleset-3",
+                    "rule_total_count": 3,
+                    "rule_criteria_types_counts": {
+                        "exact": 1,
+                        "fuzzy": 2
+                    }
+                }
+            ]
+        }

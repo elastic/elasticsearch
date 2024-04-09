@@ -1,0 +1,43 @@
+---
+"line_41":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup app0102_privileges
+
+  - do:
+        security.put_privileges:
+          body: >
+            {
+              "myapp": {
+                "read": {
+                  "application": "myapp",
+                  "name": "read",
+                  "actions": [
+                    "data:read/*",
+                    "action:login" ],
+                  "metadata": {
+                    "description": "Read access to myapp"
+                  }
+                }
+              }
+            }
+
+  - do:
+      raw:
+        method: DELETE
+        path: "_security/privilege/myapp/read"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "myapp": {
+            "read": {
+              "found" : true
+            }
+          }
+        }

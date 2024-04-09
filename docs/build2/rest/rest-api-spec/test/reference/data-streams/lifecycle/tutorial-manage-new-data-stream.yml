@@ -1,0 +1,78 @@
+---
+"line_31":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_index_template/my-index-template"
+        body: |
+          {
+            "index_patterns": ["my-data-stream*"],
+            "data_stream": { },
+            "priority": 500,
+            "template": {
+              "lifecycle": {
+                "data_retention": "7d"
+              }
+            },
+            "_meta": {
+              "description": "Template with data stream lifecycle"
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_data_stream/my-data-stream"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-data-stream/_bulk"
+        body: |
+          { "create":{ } }
+          { "@timestamp": "2099-05-06T16:21:15.000Z", "message": "192.0.2.42 - - [06/May/2099:16:21:15 +0000] \"GET /images/bg.jpg HTTP/1.0\" 200 24736" }
+          { "create":{ } }
+          { "@timestamp": "2099-05-06T16:25:42.000Z", "message": "192.0.2.255 - - [06/May/2099:16:25:42 +0000] \"GET /favicon.ico HTTP/1.0\" 200 3638" }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_data_stream/my-data-stream/_lifecycle"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "data_streams": [
+            {
+              "name": "my-data-stream",
+              "lifecycle": {
+                "enabled": true,
+                "data_retention": "7d",
+                "effective_retention": "7d",
+                "retention_determined_by": "data_stream_configuration"
+              }
+            }
+          ]
+        }
+  - do:
+      raw:
+        method: GET
+        path: ".ds-my-data-stream-*/_lifecycle/explain"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_data_stream/my-data-stream"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_index_template/my-index-template"
+  - is_false: _shards.failures

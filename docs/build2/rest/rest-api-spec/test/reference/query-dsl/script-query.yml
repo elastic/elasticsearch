@@ -1,0 +1,201 @@
+---
+"line_24":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup ledger
+
+  - do:
+        indices.create:
+          index: ledger
+          body:
+            settings:
+              number_of_shards: 2
+              number_of_replicas: 1
+            mappings:
+              properties:
+                type:
+                  type: keyword
+                amount:
+                  type: double
+  - do:
+        bulk:
+          index: ledger
+          refresh: true
+          body: |
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "amount": 200, "type": "sale", "description": "something"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "amount": 10, "type": "expense", "description": "another thing"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "amount": 150, "type": "sale", "description": "blah"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "amount": 50, "type": "expense", "description": "cost of blah"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "amount": 50, "type": "expense", "description": "advertisement"}
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        filter_path: "hits.hits"
+        sort: "amount"
+        body: |
+          {
+            "query": {
+              "bool": {
+                "filter": {
+                  "script": {
+                    "script": "\n            double amount = doc['amount'].value;\n            if (doc['type'].value == 'expense') {\n              amount *= -1;\n            }\n            return amount < 10;\n          "
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "hits": {
+            "hits": [
+              {
+                "_id": $body.hits.hits.0._id,
+                "_index": $body.hits.hits.0._index,
+                "_score": null,
+                "_source": $body.hits.hits.0._source,
+                "sort": [10.0]
+              },
+              {
+                "_id": $body.hits.hits.1._id,
+                "_index": $body.hits.hits.1._index,
+                "_score": null,
+                "_source": $body.hits.hits.1._source,
+                "sort": [50.0]
+              },
+              {
+                "_id": $body.hits.hits.2._id,
+                "_index": $body.hits.hits.2._index,
+                "_score": null,
+                "_source": $body.hits.hits.2._source,
+                "sort": [50.0]
+              }
+            ]
+          }
+        }
+---
+"line_87":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup ledger
+
+  - do:
+        indices.create:
+          index: ledger
+          body:
+            settings:
+              number_of_shards: 2
+              number_of_replicas: 1
+            mappings:
+              properties:
+                type:
+                  type: keyword
+                amount:
+                  type: double
+  - do:
+        bulk:
+          index: ledger
+          refresh: true
+          body: |
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "amount": 200, "type": "sale", "description": "something"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "amount": 10, "type": "expense", "description": "another thing"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "amount": 150, "type": "sale", "description": "blah"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "amount": 50, "type": "expense", "description": "cost of blah"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "amount": 50, "type": "expense", "description": "advertisement"}
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        filter_path: "hits.hits.fields"
+        sort: "amount.signed:desc"
+        body: |
+          {
+            "runtime_mappings": {
+              "amount.signed": {
+                "type": "double",
+                "script": "\n        double amount = doc['amount'].value;\n        if (doc['type'].value == 'expense') {\n          amount *= -1;\n        }\n        emit(amount);\n      "
+              }
+            },
+            "query": {
+              "bool": {
+                "filter": {
+                  "range": {
+                    "amount.signed": { "lt": 10 }
+                  }
+                }
+              }
+            },
+            "fields": [{"field": "amount.signed"}]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "hits": {
+            "hits": [
+              {
+                "fields": {"amount.signed": [-10.0]}
+              },
+              {
+                "fields": {"amount.signed": [-50.0]}
+              },
+              {
+                "fields": {"amount.signed": [-50.0]}
+              }
+            ]
+          }
+        }
+---
+"line_156":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "bool": {
+                "filter": {
+                  "script": {
+                    "script": {
+                      "source": "doc['num1'].value > params.param1",
+                      "lang": "painless",
+                      "params": {
+                        "param1": 5
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

@@ -1,0 +1,37 @@
+---
+"line_51":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup node
+
+  # Fetch the node name. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - is_true: master_node
+  - set: { master_node: node_name }
+
+  - do:
+      raw:
+        method: PUT
+        path: "_nodes/$node_name/shutdown"
+        body: |
+          {
+            "type": "restart",
+            "reason": "Demonstrating how the node shutdown API works"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_nodes/$node_name/shutdown"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+            "acknowledged": true
+        }

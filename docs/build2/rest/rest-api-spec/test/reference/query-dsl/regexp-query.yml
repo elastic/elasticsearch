@@ -1,0 +1,28 @@
+---
+"line_23":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "regexp": {
+                "user.id": {
+                  "value": "k.*y",
+                  "flags": "ALL",
+                  "case_insensitive": true,
+                  "max_determinized_states": 10000,
+                  "rewrite": "constant_score_blended"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

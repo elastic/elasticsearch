@@ -1,0 +1,332 @@
+---
+"line_27":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_cat/indices"
+        v: ""
+        health: "red"
+        h: "index,status,health"
+---
+"line_49":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: illustration purposes only
+  - do:
+      raw:
+        method: GET
+        path: "_snapshot/my_repository/*"
+        verbose: "false"
+  - is_false: _shards.failures
+---
+"line_102":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: illustration purposes only
+  - do:
+      raw:
+        method: GET
+        path: "kibana_sample_data_flights,.ds-my-data-stream-2022.06.17-000001"
+        features: "settings"
+        flat_settings: ""
+  - is_false: _shards.failures
+---
+"line_165":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: illustration purposes only
+  - do:
+      raw:
+        method: POST
+        path: "my-data-stream/_rollover"
+  - is_false: _shards.failures
+---
+"line_174":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: illustration purposes only
+  - do:
+      raw:
+        method: POST
+        path: "kibana_sample_data_flights,.ds-my-data-stream-2022.06.17-000001/_close"
+  - is_false: _shards.failures
+---
+"line_183":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: illustration purposes only
+  - do:
+      raw:
+        method: GET
+        path: "_cat/indices"
+        v: ""
+        health: "red"
+        h: "index,status,health"
+  - match:
+      $body:
+        index                                status health
+        .ds-my-data-stream-2022.06.17-000001 close   red
+        kibana_sample_data_flights           close   red
+---
+"line_201":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: illustration purposes only
+  - do:
+      raw:
+        method: POST
+        path: "_snapshot/my_repository/snapshot-20200617/_restore"
+        body: |
+          {
+            "indices": "kibana_sample_data_flights,.ds-my-data-stream-2022.06.17-000001",
+            "include_aliases": true
+          }
+  - is_false: _shards.failures
+---
+"line_219":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: illustration purposes only
+  - do:
+      raw:
+        method: POST
+        path: "_snapshot/my_repository/snapshot-20200617/_restore"
+        body: |
+          {
+            "feature_states": [ "geoip" ],
+            "indices": "kibana_sample_data_flights,.ds-my-data-stream-2022.06.17-000001",
+            "include_aliases": true
+          }
+  - is_false: _shards.failures
+---
+"line_232":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: illustration purposes only
+  - do:
+      raw:
+        method: GET
+        path: "_cat/indices"
+        v: ""
+        index: ".ds-my-data-stream-2022.06.17-000001,kibana_sample_data_flightsh"
+---
+"line_262":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_cat/indices"
+        v: ""
+        health: "red"
+        h: "index,status,health"
+---
+"line_284":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: illustration purposes only
+  - do:
+      raw:
+        method: GET
+        path: "_snapshot/my_repository/*"
+        verbose: "false"
+  - is_false: _shards.failures
+---
+"line_337":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: illustration purposes only
+  - do:
+      raw:
+        method: GET
+        path: "kibana_sample_data_flights,.ds-my-data-stream-2022.06.17-000001"
+        features: "settings"
+        flat_settings: ""
+  - is_false: _shards.failures
+---
+"line_400":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: illustration purposes only
+  - do:
+      raw:
+        method: POST
+        path: "my-data-stream/_rollover"
+  - is_false: _shards.failures
+---
+"line_409":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: illustration purposes only
+  - do:
+      raw:
+        method: POST
+        path: "kibana_sample_data_flights,.ds-my-data-stream-2022.06.17-000001/_close"
+  - is_false: _shards.failures
+---
+"line_418":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: illustration purposes only
+  - do:
+      raw:
+        method: GET
+        path: "_cat/indices"
+        v: ""
+        health: "red"
+        h: "index,status,health"
+  - match:
+      $body:
+        index                                status health
+        .ds-my-data-stream-2022.06.17-000001 close   red
+        kibana_sample_data_flights           close   red
+---
+"line_436":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: illustration purposes only
+  - do:
+      raw:
+        method: POST
+        path: "_snapshot/my_repository/snapshot-20200617/_restore"
+        body: |
+          {
+            "indices": "kibana_sample_data_flights,.ds-my-data-stream-2022.06.17-000001",
+            "include_aliases": true
+          }
+  - is_false: _shards.failures
+---
+"line_454":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: illustration purposes only
+  - do:
+      raw:
+        method: POST
+        path: "_snapshot/my_repository/snapshot-20200617/_restore"
+        body: |
+          {
+            "feature_states": [ "geoip" ],
+            "indices": "kibana_sample_data_flights,.ds-my-data-stream-2022.06.17-000001",
+            "include_aliases": true
+          }
+  - is_false: _shards.failures
+---
+"line_467":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: illustration purposes only
+  - do:
+      raw:
+        method: GET
+        path: "_cat/indices"
+        v: ""
+        index: ".ds-my-data-stream-2022.06.17-000001,kibana_sample_data_flightsh"

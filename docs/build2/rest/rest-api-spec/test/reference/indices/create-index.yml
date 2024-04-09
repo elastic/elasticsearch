@@ -1,0 +1,175 @@
+---
+"line_10":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+  - is_false: _shards.failures
+---
+"line_130":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "settings": {
+              "index": {
+                "number_of_shards": 3,
+                "number_of_replicas": 2
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_148":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "settings": {
+              "number_of_shards": 3,
+              "number_of_replicas": 2
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_172":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "test"
+        body: |
+          {
+            "settings": {
+              "number_of_shards": 1
+            },
+            "mappings": {
+              "properties": {
+                "field1": { "type": "text" }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_192":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "test"
+        body: |
+          {
+            "aliases": {
+              "alias_1": {},
+              "alias_2": {
+                "filter": {
+                  "term": { "user.id": "kimchy" }
+                },
+                "routing": "shard-1"
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_210":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "logs"
+        body: |
+          {
+            "aliases": {
+              "<logs_{now/M}>": {}
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "acknowledged": true,
+          "shards_acknowledged": true,
+          "index": "logs"
+        }
+---
+"line_251":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: requires two nodes
+  - do:
+      raw:
+        method: PUT
+        path: "test"
+        body: |
+          {
+            "settings": {
+              "index.write.wait_for_active_shards": "2"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_264":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: requires two nodes
+  - do:
+      raw:
+        method: PUT
+        path: "test"
+        wait_for_active_shards: "2"
+  - is_false: _shards.failures

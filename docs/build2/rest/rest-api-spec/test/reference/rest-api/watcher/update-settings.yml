@@ -1,0 +1,44 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_watcher/watch/test_watch"
+        body: |
+          {
+            "trigger": {
+              "schedule": {
+                "hourly": {
+                  "minute": [ 0, 5 ]
+                  }
+                }
+            },
+            "input": {
+              "simple": {
+                "payload": {
+                  "send": "yes"
+                }
+              }
+            },
+            "condition": {
+              "always": {}
+            }
+          }
+---
+"line_41":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_watcher/settings"
+        body: |
+          {
+            "index.auto_expand_replicas": "0-4"
+          }
+  - is_false: _shards.failures

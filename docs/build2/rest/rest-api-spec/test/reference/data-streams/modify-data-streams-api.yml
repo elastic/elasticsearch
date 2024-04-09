@@ -1,0 +1,33 @@
+---
+"line_11":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: cannot determine backing index name
+  - do:
+      raw:
+        method: POST
+        path: "_data_stream/_modify"
+        body: |
+          {
+            "actions": [
+              {
+                "remove_backing_index": {
+                  "data_stream": "my-logs",
+                  "index": ".ds-my-logs-2099.01.01-000001"
+                }
+              },
+              {
+                "add_backing_index": {
+                  "data_stream": "my-logs",
+                  "index": "index-to-add"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures

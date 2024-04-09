@@ -1,0 +1,37 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_connector/my-connector"
+        body: |
+          {
+            "index_name": "search-google-drive",
+            "name": "My Connector",
+            "service_type": "google_drive"
+          }
+---
+teardown:
+  - do:
+      raw:
+        method: DELETE
+        path: "_connector/my-connector"
+---
+"line_66":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_connector/my-connector/_check_in"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+            "result": "updated"
+        }

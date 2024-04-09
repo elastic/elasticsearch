@@ -1,0 +1,67 @@
+---
+"line_24":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "products/_doc/1567"
+        body: |
+          {
+            "product" : "r2d2",
+            "details" : "A resourceful astromech droid"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "_shards": {
+            "total": 2,
+            "failed": 0,
+            "successful": 1
+          },
+          "_index": "products",
+          "_id": "1567",
+          "_version": 1,
+          "_seq_no": $body._seq_no,
+          "_primary_term": $body._primary_term,
+          "result": "created"
+        }
+  - do:
+      raw:
+        method: GET
+        path: "products/_doc/1567"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "_index": "products",
+          "_id": "1567",
+          "_version": 1,
+          "_seq_no": $body._seq_no,
+          "_primary_term": $body._primary_term,
+          "found": true,
+          "_source": {
+            "product": "r2d2",
+            "details": "A resourceful astromech droid"
+          }
+        }
+  - do:
+      catch: conflict
+      raw:
+        method: PUT
+        path: "products/_doc/1567"
+        if_seq_no: "362"
+        if_primary_term: "2"
+        body: |
+          {
+            "product": "r2d2",
+            "details": "A resourceful astromech droid",
+            "tags": [ "droid" ]
+          }
+  - is_false: _shards.failures

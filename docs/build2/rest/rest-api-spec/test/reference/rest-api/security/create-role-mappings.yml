@@ -1,0 +1,291 @@
+---
+"line_113":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/role_mapping/mapping1"
+        body: |
+          {
+            "roles": [ "user"],
+            "enabled": true,
+            "rules": {
+              "field" : { "username" : "*" }
+            },
+            "metadata" : {
+              "version" : 1
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "role_mapping" : {
+            "created" : true
+          }
+        }
+---
+"line_147":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/role_mapping/mapping2"
+        body: |
+          {
+            "roles": [ "user", "admin" ],
+            "enabled": true,
+            "rules": {
+               "field" : { "username" : [ "esadmin01", "esadmin02" ] }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_160":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/role_mapping/mapping3"
+        body: |
+          {
+            "roles": [ "ldap-user" ],
+            "enabled": true,
+            "rules": {
+              "field" : { "realm.name" : "ldap1" }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_175":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/role_mapping/mapping4"
+        body: |
+          {
+            "roles": [ "superuser" ],
+            "enabled": true,
+            "rules": {
+              "any": [
+                {
+                  "field": {
+                    "username": "esadmin"
+                  }
+                },
+                {
+                  "field": {
+                    "groups": "cn=admins,dc=example,dc=com"
+                  }
+                }
+              ]
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_206":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/role_mapping/mapping4"
+        body: |
+          {
+            "roles": [ "superuser" ],
+            "enabled": true,
+            "rules": {
+              "any": [
+                {
+                  "field": {
+                    "username": "esadmin"
+                  }
+                },
+                {
+                  "field": {
+                    "groups": [
+                         "cn=admins,dc=example,dc=com",
+                         "cn=other,dc=example,dc=com"
+                      ]
+                  }
+                }
+              ]
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_246":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/role_mapping/mapping5"
+        body: |
+          {
+            "role_templates": [
+              {
+                "template": { "source": "{{#tojson}}groups{{/tojson}}" },
+                "format" : "json"
+              }
+            ],
+            "rules": {
+              "field" : { "realm.name" : "saml1" }
+            },
+            "enabled": true
+          }
+  - is_false: _shards.failures
+---
+"line_269":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/role_mapping/mapping6"
+        body: |
+          {
+            "roles": [ "example-user" ],
+            "enabled": true,
+            "rules": {
+              "field" : { "dn" : "*,ou=subtree,dc=example,dc=com" }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_284":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/role_mapping/mapping7"
+        body: |
+          {
+            "roles": [ "ldap-example-user" ],
+            "enabled": true,
+            "rules": {
+              "all": [
+                { "field" : { "dn" : "*,ou=subtree,dc=example,dc=com" } },
+                { "field" : { "realm.name" : "ldap1" } }
+              ]
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_308":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/role_mapping/mapping8"
+        body: |
+          {
+            "roles": [ "superuser" ],
+            "enabled": true,
+            "rules": {
+              "all": [
+                {
+                  "any": [
+                    {
+                      "field": {
+                        "dn": "*,ou=admin,dc=example,dc=com"
+                      }
+                    },
+                    {
+                      "field": {
+                        "username": [ "es-admin", "es-system" ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "field": {
+                    "groups": "cn=people,dc=example,dc=com"
+                  }
+                },
+                {
+                  "except": {
+                    "field": {
+                      "metadata.terminated_date": null
+                    }
+                  }
+                }
+              ]
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_358":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/role_mapping/mapping9"
+        body: |
+          {
+            "rules": { "field": { "realm.name": "cloud-saml" } },
+            "role_templates": [
+              { "template": { "source" : "saml_user" } },
+              { "template": { "source" : "_user_{{username}}" } }
+            ],
+            "enabled": true
+          }
+  - is_false: _shards.failures

@@ -1,0 +1,52 @@
+---
+"line_11":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "logs-debug"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "@timestamp": {
+                  "type": "date"
+                },
+                "message": {
+                  "type": "text"
+                },
+                "level": {
+                  "type": "constant_keyword",
+                  "value": "debug"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "logs-debug/_doc"
+        body: |
+          {
+            "date": "2019-12-12",
+            "message": "Starting up Elasticsearch",
+            "level": "debug"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "logs-debug/_doc"
+        body: |
+          {
+            "date": "2019-12-12",
+            "message": "Starting up Elasticsearch"
+          }
+  - is_false: _shards.failures

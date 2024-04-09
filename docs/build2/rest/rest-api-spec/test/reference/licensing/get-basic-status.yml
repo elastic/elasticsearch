@@ -1,0 +1,19 @@
+---
+"line_35":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_license/basic_status"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "eligible_to_start_basic": $body.eligible_to_start_basic
+        }

@@ -1,0 +1,88 @@
+---
+"line_16":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/role/example1"
+        body: |
+          {
+            "indices" : [
+              {
+                "names" : [ "my-index-000001" ],
+                "privileges" : [ "read" ],
+                "query" : {
+                  "template" : {
+                    "source" : {
+                      "term" : { "acl.username" : "{{_user.username}}" }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+---
+"line_52":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/role/example2"
+        body: |
+          {
+            "indices" : [
+              {
+                "names" : [ "my-index-000001" ],
+                "privileges" : [ "read" ],
+                "query" : {
+                  "template" : {
+                    "source" : {
+                      "term" : { "group.id" : "{{_user.metadata.group_id}}" }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+---
+"line_75":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/role/example3"
+        body: |
+          {
+            "indices" : [
+              {
+                "names" : [ "my-index-000001" ],
+                "privileges" : [ "read" ],
+                "query" : {
+                  "template" : {
+                    "source" : "{ \"terms\": { \"group.statuses\": {{#toJson}}_user.metadata.statuses{{/toJson}} }}"
+                  }
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures

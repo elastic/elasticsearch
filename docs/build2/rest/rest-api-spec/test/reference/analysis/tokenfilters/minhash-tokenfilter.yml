@@ -1,0 +1,53 @@
+---
+"line_134":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "filter": {
+                  "my_shingle_filter": {
+                    "type": "shingle",
+                    "min_shingle_size": 5,
+                    "max_shingle_size": 5,
+                    "output_unigrams": false
+                  },
+                  "my_minhash_filter": {
+                    "type": "min_hash",
+                    "hash_count": 1,
+                    "bucket_count": 512,
+                    "hash_set_size": 1,
+                    "with_rotation": true
+                  }
+                },
+                "analyzer": {
+                  "my_analyzer": {
+                    "tokenizer": "standard",
+                    "filter": [
+                      "my_shingle_filter",
+                      "my_minhash_filter"
+                    ]
+                  }
+                }
+              }
+            },
+            "mappings": {
+              "properties": {
+                "fingerprint": {
+                  "type": "text",
+                  "analyzer": "my_analyzer"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

@@ -1,0 +1,34 @@
+---
+teardown:
+  - do:
+      raw:
+        method: DELETE
+        path: "_ilm/policy/my_policy"
+---
+"line_90":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ilm/policy/my_policy"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "warm": {
+                  "actions": {
+                    "downsample" : {
+                      "fixed_interval": "1h"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

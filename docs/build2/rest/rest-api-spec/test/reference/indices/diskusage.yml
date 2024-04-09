@@ -1,0 +1,178 @@
+---
+"line_15":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup messages
+
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            {"index":{"_id": "0"}}
+            {"message": "trying out Elasticsearch", "context": "foo"}
+            {"index":{"_id": "1"}}
+            {"message": "some message with the number 1", "context": "bar"}
+            {"index":{"_id": "2"}}
+            {"message": "some message with the number 2", "context": "bar"}
+            {"index":{"_id": "3"}}
+            {"message": "some message with the number 3", "context": "bar"}
+            {"index":{"_id": "4"}}
+            {"message": "some message with the number 4", "context": "bar"}
+
+  - do:
+      raw:
+        method: POST
+        path: "my-index-000001/_disk_usage"
+        run_expensive_tasks: "true"
+  - is_false: _shards.failures
+---
+"line_69":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup messages
+
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            {"index":{"_id": "0"}}
+            {"message": "trying out Elasticsearch", "context": "foo"}
+            {"index":{"_id": "1"}}
+            {"message": "some message with the number 1", "context": "bar"}
+            {"index":{"_id": "2"}}
+            {"message": "some message with the number 2", "context": "bar"}
+            {"index":{"_id": "3"}}
+            {"message": "some message with the number 3", "context": "bar"}
+            {"index":{"_id": "4"}}
+            {"message": "some message with the number 4", "context": "bar"}
+
+  - do:
+      raw:
+        method: POST
+        path: "my-index-000001/_disk_usage"
+        run_expensive_tasks: "true"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+            "_shards": {
+                "total": $body.$_path,
+                "successful": $body.$_path,
+                "failed": $body.$_path
+            },
+            "my-index-000001": {
+                "store_size": $body.$_path,
+                "store_size_in_bytes": $body.$_path,
+                "all_fields": {
+                    "total": $body.$_path,
+                    "total_in_bytes": $body.$_path,
+                    "inverted_index": {
+                        "total": $body.$_path,
+                        "total_in_bytes": $body.$_path
+                    },
+                    "stored_fields": $body.$_path,
+                    "stored_fields_in_bytes": $body.$_path,
+                    "doc_values": $body.$_path,
+                    "doc_values_in_bytes": $body.$_path,
+                    "points": $body.$_path,
+                    "points_in_bytes": $body.$_path,
+                    "norms": $body.$_path,
+                    "norms_in_bytes": $body.$_path,
+                    "term_vectors": $body.$_path,
+                    "term_vectors_in_bytes": $body.$_path,
+                    "knn_vectors": $body.$_path,
+                    "knn_vectors_in_bytes": $body.$_path
+                },
+                "fields": {
+                    "_id": {
+                        "total": $body.$_path,
+                        "total_in_bytes": $body.$_path,
+                        "inverted_index": {
+                            "total": $body.$_path,
+                            "total_in_bytes": $body.$_path
+                        },
+                        "stored_fields": $body.$_path,
+                        "stored_fields_in_bytes": $body.$_path,
+                        "doc_values": $body.$_path,
+                        "doc_values_in_bytes": $body.$_path,
+                        "points": $body.$_path,
+                        "points_in_bytes": $body.$_path,
+                        "norms": $body.$_path,
+                        "norms_in_bytes": $body.$_path,
+                        "term_vectors": $body.$_path,
+                        "term_vectors_in_bytes": $body.$_path,
+                        "knn_vectors": $body.$_path,
+                        "knn_vectors_in_bytes": $body.$_path
+                    },
+                    "_primary_term": $body.$_path,
+                    "_seq_no": $body.$_path,
+                    "_version": $body.$_path,
+                    "_source": {
+                        "total": $body.$_path,
+                        "total_in_bytes": $body.$_path,
+                        "inverted_index": $body.$_path,
+                        "stored_fields": $body.$_path,
+                        "stored_fields_in_bytes": $body.$_path,
+                        "doc_values": $body.$_path,
+                        "doc_values_in_bytes": $body.$_path,
+                        "points": $body.$_path,
+                        "points_in_bytes": $body.$_path,
+                        "norms": $body.$_path,
+                        "norms_in_bytes": $body.$_path,
+                        "term_vectors": $body.$_path,
+                        "term_vectors_in_bytes": $body.$_path,
+                        "knn_vectors": $body.$_path,
+                        "knn_vectors_in_bytes": $body.$_path
+                    },
+                    "context": {
+                        "total": $body.$_path,
+                        "total_in_bytes": $body.$_path,
+                        "inverted_index": {
+                            "total": $body.$_path,
+                            "total_in_bytes": $body.$_path
+                        },
+                        "stored_fields": $body.$_path,
+                        "stored_fields_in_bytes": $body.$_path,
+                        "doc_values": $body.$_path,
+                        "doc_values_in_bytes": $body.$_path,
+                        "points": $body.$_path,
+                        "points_in_bytes": $body.$_path,
+                        "norms": $body.$_path,
+                        "norms_in_bytes": $body.$_path,
+                        "term_vectors": $body.$_path,
+                        "term_vectors_in_bytes": $body.$_path,
+                        "knn_vectors": $body.$_path,
+                        "knn_vectors_in_bytes": $body.$_path
+                    },
+                    "context.keyword": $body.$_path,
+                    "message": $body.$_path,
+                    "message.keyword": $body.$_path
+                }
+            }
+        }

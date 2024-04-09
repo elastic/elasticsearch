@@ -1,0 +1,63 @@
+---
+"line_57":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ilm/policy/my_policy"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "warm": {
+                  "actions": {
+                    "migrate" : {
+                    },
+                    "allocate": {
+                      "number_of_replicas": 1
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_84":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ilm/policy/my_policy"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "warm": {
+                  "actions": {
+                    "migrate" : {
+                     "enabled": false
+                    },
+                    "allocate": {
+                      "include" : {
+                        "rack_id": "one,two"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

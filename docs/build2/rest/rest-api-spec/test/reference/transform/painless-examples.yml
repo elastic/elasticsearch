@@ -1,0 +1,164 @@
+---
+"line_259":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: setup kibana sample data
+  - do:
+      raw:
+        method: POST
+        path: "_transform/_preview"
+        body: |
+          {
+            "source": {
+              "index": [
+                "kibana_sample_data_logs"
+              ]
+            },
+            "pivot": {
+              "group_by": {
+                "agent": {
+                  "terms": {
+                    "script": {
+                      "source": "String agent = doc['agent.keyword'].value;\n            if (agent.contains(\"MSIE\")) {\n              return \"internet explorer\";\n            } else if (agent.contains(\"AppleWebKit\")) {\n              return \"safari\";\n            } else if (agent.contains('Firefox')) {\n              return \"firefox\";\n            } else { return agent }",
+                      "lang": "painless"
+                    }
+                  }
+                }
+              },
+              "aggregations": {
+                "200": {
+                  "filter": {
+                    "term": {
+                      "response": "200"
+                    }
+                  }
+                },
+                "404": {
+                  "filter": {
+                    "term": {
+                      "response": "404"
+                    }
+                  }
+                },
+                "503": {
+                  "filter": {
+                    "term": {
+                      "response": "503"
+                    }
+                  }
+                }
+              }
+            },
+            "dest": {
+              "index": "pivot_logs"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_397":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: setup kibana sample data
+  - do:
+      raw:
+        method: PUT
+        path: "_transform/data_log"
+        body: |
+          {
+            "source": {
+              "index": "kibana_sample_data_logs"
+            },
+            "dest": {
+              "index": "data-logs-by-client"
+            },
+            "pivot": {
+              "group_by": {
+                "machine.os": {"terms": {"field": "machine.os.keyword"}},
+                "machine.ip": {"terms": {"field": "clientip"}}
+              },
+              "aggregations": {
+                "time_frame.lte": {
+                  "max": {
+                    "field": "timestamp"
+                  }
+                },
+                "time_frame.gte": {
+                  "min": {
+                    "field": "timestamp"
+                  }
+                },
+                "time_length": {
+                  "bucket_script": {
+                    "buckets_path": {
+                      "min": "time_frame.gte.value",
+                      "max": "time_frame.lte.value"
+                    },
+                    "script": "params.max - params.min"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_513":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: setup kibana sample data
+  - do:
+      raw:
+        method: POST
+        path: "_transform/_preview"
+        body: |
+          {
+            "id" : "index_compare",
+            "source" : {
+              "index" : [
+                "index1",
+                "index2"
+              ],
+              "query" : {
+                "match_all" : { }
+              }
+            },
+            "dest" : {
+              "index" : "compare"
+            },
+            "pivot" : {
+              "group_by" : {
+                "unique-id" : {
+                  "terms" : {
+                    "field" : "<unique-id-field>"
+                  }
+                }
+              },
+              "aggregations" : {
+                "compare" : {
+                  "scripted_metric" : {
+                    "map_script" : "state.doc = new HashMap(params['_source'])",
+                    "combine_script" : "return state",
+                    "reduce_script" : "\n            if (states.size() != 2) {\n              return \"count_mismatch\"\n            }\n            if (states.get(0).equals(states.get(1))) {\n              return \"match\"\n            } else {\n              return \"mismatch\"\n            }\n            "
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

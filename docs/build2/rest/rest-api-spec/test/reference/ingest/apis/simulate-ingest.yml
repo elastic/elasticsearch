@@ -1,0 +1,267 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_ingest/pipeline/my-pipeline"
+        body: |
+          {
+            "description" : "example pipeline to simulate",
+                "processors": [
+                {
+                  "set" : {
+                    "field" : "field1",
+                    "value" : "value1"
+                  }
+                }
+              ]
+          }
+  - do:
+      raw:
+        method: PUT
+        path: "_ingest/pipeline/my-final-pipeline"
+        body: |
+          {
+            "description" : "example final pipeline to simulate",
+                "processors": [
+                {
+                  "set" : {
+                    "field" : "field2",
+                    "value" : "value2"
+                  }
+                }
+              ]
+          }
+  - do:
+      raw:
+        method: PUT
+        path: "my-index"
+        body: |
+          {
+            "settings": {
+              "index": {
+                "default_pipeline": "my-pipeline",
+                "final_pipeline": "my-final-pipeline"
+              }
+            }
+          }
+---
+"line_56":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_ingest/_simulate"
+        body: |
+          {
+            "docs": [
+              {
+                "_index": "my-index",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              },
+              {
+                "_index": "my-index",
+                "_id": "id",
+                "_source": {
+                  "foo": "rab"
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "my-pipeline": {
+                "processors": [
+                  {
+                    "set": {
+                      "field": "field3",
+                      "value": "value3"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_201":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_ingest/_simulate"
+        body: |
+          {
+            "docs": [
+              {
+                "_index": "my-index",
+                "_id": "123",
+                "_source": {
+                  "foo": "bar"
+                }
+              },
+              {
+                "_index": "my-index",
+                "_id": "456",
+                "_source": {
+                  "foo": "rab"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+           "docs": [
+              {
+                 "doc": {
+                    "_id": "123",
+                    "_index": "my-index",
+                    "_version": -3,
+                    "_source": {
+                       "field1": "value1",
+                       "field2": "value2",
+                       "foo": "bar"
+                    },
+                    "executed_pipelines": [
+                       "my-pipeline",
+                       "my-final-pipeline"
+                    ]
+                 }
+              },
+              {
+                 "doc": {
+                    "_id": "456",
+                    "_index": "my-index",
+                    "_version": -3,
+                    "_source": {
+                       "field1": "value1",
+                       "field2": "value2",
+                       "foo": "rab"
+                    },
+                    "executed_pipelines": [
+                       "my-pipeline",
+                       "my-final-pipeline"
+                    ]
+                 }
+              }
+           ]
+        }
+---
+"line_274":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_ingest/_simulate"
+        body: |
+          {
+            "docs": [
+              {
+                "_index": "my-index",
+                "_id": "123",
+                "_source": {
+                  "foo": "bar"
+                }
+              },
+              {
+                "_index": "my-index",
+                "_id": "456",
+                "_source": {
+                  "foo": "rab"
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "my-pipeline": {
+                "processors": [
+                  {
+                    "uppercase": {
+                      "field": "foo"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+           "docs": [
+              {
+                 "doc": {
+                    "_id": "123",
+                    "_index": "my-index",
+                    "_version": -3,
+                    "_source": {
+                       "field2": "value2",
+                       "foo": "BAR"
+                    },
+                    "executed_pipelines": [
+                       "my-pipeline",
+                       "my-final-pipeline"
+                    ]
+                 }
+              },
+              {
+                 "doc": {
+                    "_id": "456",
+                    "_index": "my-index",
+                    "_version": -3,
+                    "_source": {
+                       "field2": "value2",
+                       "foo": "RAB"
+                    },
+                    "executed_pipelines": [
+                       "my-pipeline",
+                       "my-final-pipeline"
+                    ]
+                 }
+              }
+           ]
+        }
+---
+"line_349":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: DELETE
+        path: "my-index"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_ingest/pipeline/*"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "acknowledged": true
+        }

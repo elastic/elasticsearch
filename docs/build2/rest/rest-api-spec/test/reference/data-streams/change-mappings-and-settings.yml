@@ -1,0 +1,580 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_ilm/policy/my-data-stream-policy"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "hot": {
+                  "actions": {
+                    "rollover": {
+                      "max_primary_shard_size": "25GB"
+                    }
+                  }
+                },
+                "delete": {
+                  "min_age": "30d",
+                  "actions": {
+                    "delete": {}
+                  }
+                }
+              }
+            }
+          }
+  - do:
+      raw:
+        method: PUT
+        path: "_index_template/my-data-stream-template"
+        body: |
+          {
+            "index_patterns": [ "my-data-stream*" ],
+            "data_stream": { }
+          }
+  - do:
+      raw:
+        method: PUT
+        path: "_index_template/new-data-stream-template"
+        body: |
+          {
+            "index_patterns": [ "new-data-stream*" ],
+            "data_stream": { }
+          }
+  - do:
+      raw:
+        method: PUT
+        path: "_data_stream/my-data-stream"
+  - do:
+      raw:
+        method: POST
+        path: "my-data-stream/_rollover/"
+  - do:
+      raw:
+        method: PUT
+        path: "_data_stream/new-data-stream"
+  - do:
+      raw:
+        method: DELETE
+        path: "_data_stream/*/_lifecycle"
+---
+teardown:
+  - do:
+      raw:
+        method: DELETE
+        path: "_data_stream/my-data-stream*,new-data-stream*"
+  - do:
+      raw:
+        method: DELETE
+        path: "_index_template/my-data-stream-template,new-data-stream-template"
+  - do:
+      raw:
+        method: DELETE
+        path: "_ilm/policy/my-data-stream-policy"
+---
+"line_105":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_index_template/my-data-stream-template"
+        body: |
+          {
+            "index_patterns": [ "my-data-stream*" ],
+            "data_stream": { },
+            "priority": 500,
+            "template": {
+              "mappings": {
+                "properties": {
+                  "message": {
+                    "type": "text"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_134":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-data-stream/_mapping"
+        body: |
+          {
+            "properties": {
+              "message": {
+                "type": "text"
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_155":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-data-stream/_mapping"
+        write_index_only: "true"
+        body: |
+          {
+            "properties": {
+              "message": {
+                "type": "text"
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_188":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_index_template/my-data-stream-template"
+        body: |
+          {
+            "index_patterns": [ "my-data-stream*" ],
+            "data_stream": { },
+            "priority": 500,
+            "template": {
+              "mappings": {
+                "properties": {
+                  "host": {
+                    "properties": {
+                      "ip": {
+                        "type": "ip",
+                        "ignore_malformed": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_223":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-data-stream/_mapping"
+        body: |
+          {
+            "properties": {
+              "host": {
+                "properties": {
+                  "ip": {
+                    "type": "ip",
+                    "ignore_malformed": true
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_249":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-data-stream/_mapping"
+        write_index_only: "true"
+        body: |
+          {
+            "properties": {
+              "host": {
+                "properties": {
+                  "ip": {
+                    "type": "ip",
+                    "ignore_malformed": true
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_293":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_index_template/my-data-stream-template"
+        body: |
+          {
+            "index_patterns": [ "my-data-stream*" ],
+            "data_stream": { },
+            "priority": 500,
+            "template": {
+              "settings": {
+                "index.refresh_interval": "30s"
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_318":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-data-stream/_settings"
+        body: |
+          {
+            "index": {
+              "refresh_interval": "30s"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_351":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_index_template/my-data-stream-template"
+        body: |
+          {
+            "index_patterns": [ "my-data-stream*" ],
+            "data_stream": { },
+            "priority": 500,
+            "template": {
+              "settings": {
+                "sort.field": [ "@timestamp"],
+                "sort.order": [ "desc"]
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_407":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_resolve/index/new-data-stream*"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "indices": [ ],
+          "aliases": [ ],
+          "data_streams": $body.data_streams
+        }
+---
+"line_454":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_index_template/new-data-stream-template"
+        body: |
+          {
+            "index_patterns": [ "new-data-stream*" ],
+            "data_stream": { },
+            "priority": 500,
+            "template": {
+              "mappings": {
+                "properties": {
+                  "@timestamp": {
+                    "type": "date_nanos"
+                  }
+                }
+              },
+              "settings": {
+                "sort.field": [ "@timestamp"],
+                "sort.order": [ "desc"]
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_507":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_data_stream/new-data-stream-two"
+  - is_false: _shards.failures
+---
+"line_528":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_cluster/settings"
+        body: |
+          {
+            "persistent": {
+              "indices.lifecycle.poll_interval": "1m"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_556":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_data_stream/my-data-stream"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "data_streams": [
+            {
+              "name": "my-data-stream",
+              "timestamp_field": {
+                "name": "@timestamp"
+              },
+              "indices": [
+                {
+                  "index_name": $body.data_streams.0.indices.0.index_name,
+                  "index_uuid": $body.data_streams.0.indices.0.index_uuid,
+                  "prefer_ilm": true,
+                  "managed_by": "Unmanaged"
+                },
+                {
+                  "index_name": $body.data_streams.0.indices.1.index_name,
+                  "index_uuid": $body.data_streams.0.indices.1.index_uuid,
+                  "prefer_ilm": true,
+                  "managed_by": "Unmanaged"
+                }
+              ],
+              "generation": 2,
+              "status": "YELLOW","failure_indices":[],"failure_store":false,
+              "next_generation_managed_by": "Unmanaged",
+              "prefer_ilm": true,
+              "template": "my-data-stream-template",
+              "hidden": false,
+              "system": false,
+              "allow_custom_routing": false,
+              "replicated": false,
+              "rollover_on_write": false
+            }
+          ]
+        }
+---
+"line_616":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup my_index
+
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                http:
+                  properties:
+                    request:
+                      properties:
+                        method:
+                          type: keyword
+                message:
+                  type: text
+                  fields:
+                    keyword:
+                      type: keyword
+                user:
+                  properties:
+                    id:
+                      type: keyword
+                      doc_values: true
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            { "index":{"_id": "0"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "127.0.0.1" }, "user": { "id": "kimchy" } }
+            { "index":{"_id": "1"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "2"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "3"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "4"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+  - do:
+      raw:
+        method: POST
+        path: "_reindex"
+        body: |
+          {
+            "source": {
+              "index": "my-index-000001"
+            },
+            "dest": {
+              "index": "new-data-stream",
+              "op_type": "create"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_642":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_reindex"
+        body: |
+          {
+            "source": {
+              "index": "my-data-stream",
+              "query": {
+                "range": {
+                  "@timestamp": {
+                    "gte": "now-7d/d",
+                    "lte": "now/d"
+                  }
+                }
+              }
+            },
+            "dest": {
+              "index": "new-data-stream",
+              "op_type": "create"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_673":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_cluster/settings"
+        body: |
+          {
+            "persistent": {
+              "indices.lifecycle.poll_interval": null
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_695":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: DELETE
+        path: "_data_stream/my-data-stream"
+  - is_false: _shards.failures

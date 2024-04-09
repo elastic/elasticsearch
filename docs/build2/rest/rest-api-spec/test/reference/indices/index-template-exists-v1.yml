@@ -1,0 +1,14 @@
+---
+"line_17":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: HEAD
+        path: "_template/template_1"
+  - is_false: _shards.failures

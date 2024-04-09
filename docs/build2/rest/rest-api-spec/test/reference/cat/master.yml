@@ -1,0 +1,18 @@
+---
+"line_51":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_cat/master"
+        v: "true"
+  - match:
+      $body:
+        /id                     \s+host      \s+ip        \s+node\s*
+         .+\s*/

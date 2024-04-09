@@ -1,0 +1,45 @@
+---
+"line_27":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "index"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "char_filter": {
+                  "quote": {
+                    "type": "mapping",
+                    "mappings": [
+                      "« => \"",
+                      "» => \""
+                    ]
+                  }
+                },
+                "normalizer": {
+                  "my_normalizer": {
+                    "type": "custom",
+                    "char_filter": ["quote"],
+                    "filter": ["lowercase", "asciifolding"]
+                  }
+                }
+              }
+            },
+            "mappings": {
+              "properties": {
+                "foo": {
+                  "type": "keyword",
+                  "normalizer": "my_normalizer"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

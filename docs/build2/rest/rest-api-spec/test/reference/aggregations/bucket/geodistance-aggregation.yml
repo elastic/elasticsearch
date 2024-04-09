@@ -1,0 +1,236 @@
+---
+"geodistance-aggregation-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "museums"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "location": {
+                  "type": "geo_point"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "museums/_bulk"
+        refresh: ""
+        body: |
+          {"index":{"_id":1}}
+          {"location": "POINT (4.912350 52.374081)", "name": "NEMO Science Museum"}
+          {"index":{"_id":2}}
+          {"location": "POINT (4.901618 52.369219)", "name": "Museum Het Rembrandthuis"}
+          {"index":{"_id":3}}
+          {"location": "POINT (4.914722 52.371667)", "name": "Nederlands Scheepvaartmuseum"}
+          {"index":{"_id":4}}
+          {"location": "POINT (4.405200 51.222900)", "name": "Letterenhuis"}
+          {"index":{"_id":5}}
+          {"location": "POINT (2.336389 48.861111)", "name": "Musée du Louvre"}
+          {"index":{"_id":6}}
+          {"location": "POINT (2.327000 48.860000)", "name": "Musée d'Orsay"}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "museums/_search"
+        size: "0"
+        body: |
+          {
+            "aggs": {
+              "rings_around_amsterdam": {
+                "geo_distance": {
+                  "field": "location",
+                  "origin": "POINT (4.894 52.3760)",
+                  "ranges": [
+                    { "to": 100000 },
+                    { "from": 100000, "to": 300000 },
+                    { "from": 300000 }
+                  ]
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,
+          "aggregations": {
+            "rings_around_amsterdam": {
+              "buckets": [
+                {
+                  "key": "*-100000.0",
+                  "from": 0.0,
+                  "to": 100000.0,
+                  "doc_count": 3
+                },
+                {
+                  "key": "100000.0-300000.0",
+                  "from": 100000.0,
+                  "to": 300000.0,
+                  "doc_count": 1
+                },
+                {
+                  "key": "300000.0-*",
+                  "from": 300000.0,
+                  "doc_count": 2
+                }
+              ]
+            }
+          }
+        }
+  - do:
+      raw:
+        method: POST
+        path: "museums/_search"
+        size: "0"
+        body: |
+          {
+            "aggs": {
+              "rings": {
+                "geo_distance": {
+                  "field": "location",
+                  "origin": "POINT (4.894 52.3760)",
+                  "unit": "km",
+                  "ranges": [
+                    { "to": 100 },
+                    { "from": 100, "to": 300 },
+                    { "from": 300 }
+                  ]
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "museums/_search"
+        size: "0"
+        body: |
+          {
+            "aggs": {
+              "rings": {
+                "geo_distance": {
+                  "field": "location",
+                  "origin": "POINT (4.894 52.3760)",
+                  "unit": "km",
+                  "distance_type": "plane",
+                  "ranges": [
+                    { "to": 100 },
+                    { "from": 100, "to": 300 },
+                    { "from": 300 }
+                  ]
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "museums/_search"
+        size: "0"
+        body: |
+          {
+            "aggs": {
+              "rings_around_amsterdam": {
+                "geo_distance": {
+                  "field": "location",
+                  "origin": "POINT (4.894 52.3760)",
+                  "ranges": [
+                    { "to": 100000 },
+                    { "from": 100000, "to": 300000 },
+                    { "from": 300000 }
+                  ],
+                  "keyed": true
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,
+          "aggregations": {
+            "rings_around_amsterdam": {
+              "buckets": {
+                "*-100000.0": {
+                  "from": 0.0,
+                  "to": 100000.0,
+                  "doc_count": 3
+                },
+                "100000.0-300000.0": {
+                  "from": 100000.0,
+                  "to": 300000.0,
+                  "doc_count": 1
+                },
+                "300000.0-*": {
+                  "from": 300000.0,
+                  "doc_count": 2
+                }
+              }
+            }
+          }
+        }
+  - do:
+      raw:
+        method: POST
+        path: "museums/_search"
+        size: "0"
+        body: |
+          {
+            "aggs": {
+              "rings_around_amsterdam": {
+                "geo_distance": {
+                  "field": "location",
+                  "origin": "POINT (4.894 52.3760)",
+                  "ranges": [
+                    { "to": 100000, "key": "first_ring" },
+                    { "from": 100000, "to": 300000, "key": "second_ring" },
+                    { "from": 300000, "key": "third_ring" }
+                  ],
+                  "keyed": true
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": $body.took,"_shards": $body._shards,"hits":$body.hits,"timed_out":false,
+          "aggregations": {
+            "rings_around_amsterdam": {
+              "buckets": {
+                "first_ring": {
+                  "from": 0.0,
+                  "to": 100000.0,
+                  "doc_count": 3
+                },
+                "second_ring": {
+                  "from": 100000.0,
+                  "to": 300000.0,
+                  "doc_count": 1
+                },
+                "third_ring": {
+                  "from": 300000.0,
+                  "doc_count": 2
+                }
+              }
+            }
+          }
+        }

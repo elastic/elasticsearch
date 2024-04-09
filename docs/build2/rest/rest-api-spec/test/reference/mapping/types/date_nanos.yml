@@ -1,0 +1,152 @@
+---
+"line_30":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "date": {
+                  "type": "date_nanos"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_bulk"
+        refresh: ""
+        body: |
+          { "index" : { "_id" : "1" } }
+          { "date": "2015-01-01" }
+          { "index" : { "_id" : "2" } }
+          { "date": "2015-01-01T12:10:30.123456789Z" }
+          { "index" : { "_id" : "3" } }
+          { "date": 1420070400000 }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        filter_path: "hits.hits"
+        body: |
+          {
+            "sort": { "date": "asc"},
+            "runtime_mappings": {
+              "date_has_nanos": {
+                "type": "boolean",
+                "script": "emit(doc['date'].value.nano != 0)"
+              }
+            },
+            "fields": [
+              {
+                "field": "date",
+                "format": "strict_date_optional_time_nanos"
+              },
+              {
+                "field": "date_has_nanos"
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "hits": {
+            "hits": [
+              {
+                "_id": "1",
+                "_index": "my-index-000001",
+                "_score": null,
+                "_source": {"date": "2015-01-01"},
+                "fields": {
+                  "date": ["2015-01-01T00:00:00.000Z"],
+                  "date_has_nanos": [false]
+                },
+                "sort": [1420070400000000000]
+              },
+              {
+                "_id": "3",
+                "_index": "my-index-000001",
+                "_score": null,
+                "_source": {"date": 1420070400000},
+                "fields": {
+                  "date": ["2015-01-01T00:00:00.000Z"],
+                  "date_has_nanos": [false]
+                },
+                "sort": [1420070400000000000]
+              },
+              {
+                "_id": "2",
+                "_index": "my-index-000001",
+                "_score": null,
+                "_source": {"date": "2015-01-01T12:10:30.123456789Z"},
+                "fields": {
+                  "date": ["2015-01-01T12:10:30.123456789Z"],
+                  "date_has_nanos": [true]
+                },
+                "sort": [1420114230123456789]
+              }
+            ]
+          }
+        }
+---
+"synthetic-source-date-nanos-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "idx"
+        body: |
+          {
+            "mappings": {
+              "_source": { "mode": "synthetic" },
+              "properties": {
+                "date": { "type": "date_nanos" }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "idx/_doc/1"
+        body: |
+          {
+            "date": ["2015-01-01T12:10:30.000Z", "2014-01-01T12:10:30.000Z"]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "idx/_doc/1"
+        filter_path: "_source"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "idx/_doc/1"
+        filter_path: "_source"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {"_source":{
+          "date": ["2014-01-01T12:10:30.000Z", "2015-01-01T12:10:30.000Z"]
+        }}

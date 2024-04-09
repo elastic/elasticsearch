@@ -1,0 +1,27 @@
+---
+"line_47":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup service_token42
+
+  - do:
+      security.create_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: token42
+
+  - do:
+      raw:
+        method: DELETE
+        path: "_security/service/elastic/fleet-server/credential/token/token42"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "found" : true
+        }

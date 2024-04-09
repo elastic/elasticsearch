@@ -1,0 +1,20 @@
+---
+"line_47":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      catch: request
+      raw:
+        method: POST
+        path: "_security/oidc/logout"
+        body: |
+          {
+            "token" : "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==",
+            "refresh_token": "vLBPvmAB6KvwvJZr27cS"
+          }
+  - is_false: _shards.failures

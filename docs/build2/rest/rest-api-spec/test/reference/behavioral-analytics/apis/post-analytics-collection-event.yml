@@ -1,0 +1,57 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_application/analytics/my_analytics_collection"
+---
+teardown:
+  - do:
+      raw:
+        method: DELETE
+        path: "_application/analytics/my_analytics_collection"
+---
+"line_69":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_application/analytics/my_analytics_collection/event/search_click"
+        body: |
+          {
+            "session": {
+              "id": "1797ca95-91c9-4e2e-b1bd-9c38e6f386a9"
+            },
+            "user": {
+              "id": "5f26f01a-bbee-4202-9298-81261067abbd"
+            },
+            "search":{
+              "query": "search term",
+              "results": {
+                "items": [
+                  {
+                    "document": {
+                      "id": "123",
+                      "index": "products"
+                    }
+                  }
+                ],
+                "total_results": 10
+              },
+              "sort": {
+                "name": "relevance"
+              },
+              "search_application": "website"
+            },
+            "document":{
+              "id": "123",
+              "index": "products"
+            }
+          }
+  - is_false: _shards.failures

@@ -1,0 +1,248 @@
+---
+"line_17":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_analyze"
+        body: |
+          {
+            "analyzer": "standard",
+            "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens": [
+            {
+              "token": "the",
+              "start_offset": 0,
+              "end_offset": 3,
+              "type": "<ALPHANUM>",
+              "position": 0
+            },
+            {
+              "token": "2",
+              "start_offset": 4,
+              "end_offset": 5,
+              "type": "<NUM>",
+              "position": 1
+            },
+            {
+              "token": "quick",
+              "start_offset": 6,
+              "end_offset": 11,
+              "type": "<ALPHANUM>",
+              "position": 2
+            },
+            {
+              "token": "brown",
+              "start_offset": 12,
+              "end_offset": 17,
+              "type": "<ALPHANUM>",
+              "position": 3
+            },
+            {
+              "token": "foxes",
+              "start_offset": 18,
+              "end_offset": 23,
+              "type": "<ALPHANUM>",
+              "position": 4
+            },
+            {
+              "token": "jumped",
+              "start_offset": 24,
+              "end_offset": 30,
+              "type": "<ALPHANUM>",
+              "position": 5
+            },
+            {
+              "token": "over",
+              "start_offset": 31,
+              "end_offset": 35,
+              "type": "<ALPHANUM>",
+              "position": 6
+            },
+            {
+              "token": "the",
+              "start_offset": 36,
+              "end_offset": 39,
+              "type": "<ALPHANUM>",
+              "position": 7
+            },
+            {
+              "token": "lazy",
+              "start_offset": 40,
+              "end_offset": 44,
+              "type": "<ALPHANUM>",
+              "position": 8
+            },
+            {
+              "token": "dog's",
+              "start_offset": 45,
+              "end_offset": 50,
+              "type": "<ALPHANUM>",
+              "position": 9
+            },
+            {
+              "token": "bone",
+              "start_offset": 51,
+              "end_offset": 55,
+              "type": "<ALPHANUM>",
+              "position": 10
+            }
+          ]
+        }
+---
+"line_154":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "my_english_analyzer": {
+                    "type": "standard",
+                    "max_token_length": 5,
+                    "stopwords": "_english_"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "my-index-000001/_analyze"
+        body: |
+          {
+            "analyzer": "my_english_analyzer",
+            "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens": [
+            {
+              "token": "2",
+              "start_offset": 4,
+              "end_offset": 5,
+              "type": "<NUM>",
+              "position": 1
+            },
+            {
+              "token": "quick",
+              "start_offset": 6,
+              "end_offset": 11,
+              "type": "<ALPHANUM>",
+              "position": 2
+            },
+            {
+              "token": "brown",
+              "start_offset": 12,
+              "end_offset": 17,
+              "type": "<ALPHANUM>",
+              "position": 3
+            },
+            {
+              "token": "foxes",
+              "start_offset": 18,
+              "end_offset": 23,
+              "type": "<ALPHANUM>",
+              "position": 4
+            },
+            {
+              "token": "jumpe",
+              "start_offset": 24,
+              "end_offset": 29,
+              "type": "<ALPHANUM>",
+              "position": 5
+            },
+            {
+              "token": "d",
+              "start_offset": 29,
+              "end_offset": 30,
+              "type": "<ALPHANUM>",
+              "position": 6
+            },
+            {
+              "token": "over",
+              "start_offset": 31,
+              "end_offset": 35,
+              "type": "<ALPHANUM>",
+              "position": 7
+            },
+            {
+              "token": "lazy",
+              "start_offset": 40,
+              "end_offset": 44,
+              "type": "<ALPHANUM>",
+              "position": 9
+            },
+            {
+              "token": "dog's",
+              "start_offset": 45,
+              "end_offset": 50,
+              "type": "<ALPHANUM>",
+              "position": 10
+            },
+            {
+              "token": "bone",
+              "start_offset": 51,
+              "end_offset": 55,
+              "type": "<ALPHANUM>",
+              "position": 11
+            }
+          ]
+        }
+---
+"line_284":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "standard_example"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "rebuilt_standard": {
+                    "tokenizer": "standard",
+                    "filter": [
+                      "lowercase"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+
+  - compare_analyzers: {index: standard_example, first: standard, second: rebuilt_standard}
+

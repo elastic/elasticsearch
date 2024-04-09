@@ -1,0 +1,14 @@
+---
+"line_10":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_cluster/settings"
+  - is_false: _shards.failures

@@ -1,0 +1,39 @@
+---
+"line_121":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: it will be too difficult to get a reliable response in docs tests
+  - do:
+      raw:
+        method: GET
+        path: "_ml/anomaly_detectors/low_request_rate/model_snapshots/_all/_upgrade/_stats"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "count" : 1,
+          "model_snapshot_upgrades" : [
+            {
+              "job_id" : "low_request_rate",
+              "snapshot_id" : "1828371",
+              "state" : "saving_new_state",
+              "node" : {
+                "id" : $body.$_path,
+                "name" : $body.$_path,
+                "ephemeral_id" : $body.$_path,
+                "transport_address" : $body.$_path,
+                "attributes" : {
+                  "ml.machine_memory" : $body.datafeeds.0.node.attributes.ml\.machine_memory,
+                  "ml.max_open_jobs" : "512"
+                }
+              },
+              "assignment_explanation" : ""
+            }
+          ]
+        }

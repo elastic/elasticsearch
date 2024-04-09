@@ -1,0 +1,126 @@
+---
+"line_21":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "terms": {
+                "user.id": [ "kimchy", "elkbee" ],
+                "boost": 1.0
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_134":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "color": { "type": "keyword" }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/1"
+        body: |
+          {
+            "color":   ["blue", "green"]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/2"
+        body: |
+          {
+            "color":   "blue"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "my-index-000001/_refresh"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        pretty: ""
+        body: |
+          {
+            "query": {
+              "terms": {
+                  "color" : {
+                      "index" : "my-index-000001",
+                      "id" : "2",
+                      "path" : "color"
+                  }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took" : $body.took,
+          "timed_out" : false,
+          "_shards" : {
+            "total" : 1,
+            "successful" : 1,
+            "skipped" : 0,
+            "failed" : 0
+          },
+          "hits" : {
+            "total" : {
+              "value" : 2,
+              "relation" : "eq"
+            },
+            "max_score" : 1.0,
+            "hits" : [
+              {
+                "_index" : "my-index-000001",
+                "_id" : "1",
+                "_score" : 1.0,
+                "_source" : {
+                  "color" : [
+                    "blue",
+                    "green"
+                  ]
+                }
+              },
+              {
+                "_index" : "my-index-000001",
+                "_id" : "2",
+                "_score" : 1.0,
+                "_source" : {
+                  "color" : "blue"
+                }
+              }
+            ]
+          }
+        }

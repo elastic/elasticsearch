@@ -1,0 +1,44 @@
+---
+"line_98":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TODO setup and tests will be possible once the profile uid is predictable
+  - do:
+      raw:
+        method: POST
+        path: "_security/profile/_has_privileges"
+        body: |
+          {
+            "uids": [
+              "u_LQPnxDxEjIH0GOUoFkZr5Y57YUwSkL9Joiq-g4OCbPc_0",
+              "u_rzRnxDgEHIH0GOUoFkZr5Y27YUwSk19Joiq=g4OCxxB_1",
+              "u_does-not-exist_0"
+            ],
+            "privileges": {
+              "cluster": [ "monitor", "create_snapshot", "manage_ml" ],
+              "index" : [
+                {
+                  "names": [ "suppliers", "products" ],
+                  "privileges": [ "create_doc"]
+                },
+                {
+                  "names": [ "inventory" ],
+                  "privileges" : [ "read", "write" ]
+                }
+              ],
+              "application": [
+                {
+                  "application": "inventory_manager",
+                  "privileges" : [ "read", "data:write/inventory" ],
+                  "resources" : [ "product/1852563" ]
+                }
+              ]
+            }
+          }
+  - is_false: _shards.failures

@@ -1,0 +1,15 @@
+---
+"line_22":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      catch: missing
+      raw:
+        method: POST
+        path: "_data_stream/_promote/my-data-stream"
+  - is_false: _shards.failures

@@ -1,0 +1,105 @@
+---
+"line_23":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "stempel_example"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "rebuilt_stempel": {
+                    "tokenizer":  "standard",
+                    "filter": [
+                      "lowercase",
+                      "polish_stop",
+                      "polish_stem"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+
+  - compare_analyzers: {index: stempel_example, first: polish, second: rebuilt_stempel}
+
+---
+"line_54":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "polish_stop_example"
+        body: |
+          {
+            "settings": {
+              "index": {
+                "analysis": {
+                  "analyzer": {
+                    "analyzer_with_stop": {
+                      "tokenizer": "standard",
+                      "filter": [
+                        "lowercase",
+                        "polish_stop"
+                      ]
+                    }
+                  },
+                  "filter": {
+                    "polish_stop": {
+                      "type": "polish_stop",
+                      "stopwords": [
+                        "_polish_",
+                        "jeść"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "polish_stop_example/_analyze"
+        body: |
+          {
+            "analyzer": "analyzer_with_stop",
+            "text": "Gdzie kucharek sześć, tam nie ma co jeść."
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens" : [
+            {
+              "token" : "kucharek",
+              "start_offset" : 6,
+              "end_offset" : 14,
+              "type" : "<ALPHANUM>",
+              "position" : 1
+            },
+            {
+              "token" : "sześć",
+              "start_offset" : 15,
+              "end_offset" : 20,
+              "type" : "<ALPHANUM>",
+              "position" : 2
+            }
+          ]
+        }

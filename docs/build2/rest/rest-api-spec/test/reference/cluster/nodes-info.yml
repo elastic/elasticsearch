@@ -1,0 +1,129 @@
+---
+"line_194":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/process"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/_all/process"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/nodeId1,nodeId2/jvm,process"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/nodeId1,nodeId2/info/jvm,process"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/nodeId1,nodeId2/_all"
+  - is_false: _shards.failures
+---
+"line_221":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup node
+
+  # Fetch the node name. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - is_true: master_node
+  - set: { master_node: node_name }
+
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/plugins"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "_nodes": $body.$_path,
+          "cluster_name": $body.cluster_name,
+          "nodes": {
+            $node_name: {
+              "name": $body.$_path,
+              "transport_address": $body.$_path,
+              "host": $body.$_path,
+              "ip": $body.$_path,
+              "version": "8.14.0",
+              "transport_version": $body.$_path,
+              "index_version": $body.$_path,
+              "component_versions": $body.$_path,
+              "build_flavor": "default",
+              "build_type": "tar",
+              "build_hash": $body.$_path,
+              "roles": $body.$_path,
+              "attributes": $body.$_path,
+              "plugins": $body.$_path,
+              "modules": $body.$_path
+            }
+          }
+        }
+---
+"line_301":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup node
+
+  # Fetch the node name. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - is_true: master_node
+  - set: { master_node: node_name }
+
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/ingest"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "_nodes": $body.$_path,
+          "cluster_name": $body.cluster_name,
+          "nodes": {
+            $node_name: {
+              "name": $body.$_path,
+              "transport_address": $body.$_path,
+              "host": $body.$_path,
+              "ip": $body.$_path,
+              "version": "8.14.0",
+              "transport_version": $body.$_path,
+              "index_version": $body.$_path,
+              "component_versions": $body.$_path,
+              "build_flavor": "default",
+              "build_type": "tar",
+              "build_hash": $body.$_path,
+              "roles": $body.$_path,
+              "attributes": $body.$_path,
+              "ingest": {
+                "processors": $body.$_path
+              }
+            }
+          }
+        }

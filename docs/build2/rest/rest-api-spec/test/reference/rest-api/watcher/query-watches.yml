@@ -1,0 +1,105 @@
+---
+"line_67":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup my_active_watch
+
+  - do:
+      watcher.put_watch:
+        id: "my_watch"
+        active: true
+        body:  >
+          {
+            "trigger": {
+              "schedule": {
+                "hourly": {
+                  "minute": [ 0, 5 ]
+                }
+              }
+            },
+            "input": {
+              "simple": {
+                "payload": {
+                  "send": "yes"
+                }
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "test_index": {
+                "index": {
+                  "index": "test"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch" }
+
+  - do:
+      raw:
+        method: GET
+        path: "_watcher/_query/watches"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+            "count": 1,
+            "watches": [
+                {
+                    "_id": "my_watch",
+                    "watch": {
+                        "trigger": {
+                            "schedule": {
+                                "hourly": {
+                                    "minute": [
+                                        0,
+                                        5
+                                    ]
+                                }
+                            }
+                        },
+                        "input": {
+                            "simple": {
+                                "payload": {
+                                    "send": "yes"
+                                }
+                            }
+                        },
+                        "condition": {
+                            "always": {}
+                        },
+                        "actions": {
+                            "test_index": {
+                                "index": {
+                                    "index": "test"
+                                }
+                            }
+                        }
+                    },
+                    "status": {
+                        "state": {
+                            "active": true,
+                            "timestamp": "$body.watches.0.status.state.timestamp"
+                        },
+                        "actions": {
+                            "test_index": {
+                                "ack": {
+                                    "timestamp": "$body.watches.0.status.state.timestamp",
+                                    "state": "awaits_successful_execution"
+                                }
+                            }
+                        },
+                        "version": -1
+                    },
+                    "_seq_no": 0,
+                    "_primary_term": 1
+                }
+            ]
+        }

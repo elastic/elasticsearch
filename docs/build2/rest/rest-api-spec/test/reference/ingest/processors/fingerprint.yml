@@ -1,0 +1,58 @@
+---
+"line_39":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_ingest/pipeline/_simulate"
+        body: |
+          {
+            "pipeline": {
+              "processors": [
+                {
+                  "fingerprint": {
+                    "fields": ["user"]
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_source": {
+                  "user": {
+                    "last_name": "Smith",
+                    "first_name": "John",
+                    "date_of_birth": "1980-01-15",
+                    "is_active": true
+                  }
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "docs": [
+            {
+              "doc": {
+                "_index":"_index","_id":"_id","_version":"-3","_ingest":{"timestamp":$body.docs.0.doc._ingest.timestamp},
+                "_source": {
+                  "fingerprint" : "WbSUPW4zY1PBPehh2AA/sSxiRjw=",
+                  "user" : {
+                    "last_name" : "Smith",
+                    "first_name" : "John",
+                    "date_of_birth" : "1980-01-15",
+                    "is_active" : true
+                  }
+                }
+              }
+            }
+          ]
+        }

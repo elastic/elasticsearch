@@ -1,0 +1,85 @@
+---
+"line_48":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: there's no way to clean up after this code snippet, as we don't know the ids of sync jobs ahead of time
+  - do:
+      raw:
+        method: GET
+        path: "_connector/_sync_job"
+  - is_false: _shards.failures
+---
+"line_56":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: there's no way to clean up after this code snippet, as we don't know the ids of sync jobs ahead of time
+  - do:
+      raw:
+        method: GET
+        path: "_connector/_sync_job"
+        from: "0"
+        size: "2"
+  - is_false: _shards.failures
+---
+"line_63":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: there's no way to clean up after this code snippet, as we don't know the ids of sync jobs ahead of time
+  - do:
+      raw:
+        method: GET
+        path: "_connector/_sync_job"
+        status: "pending"
+  - is_false: _shards.failures
+---
+"line_70":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: there's no way to clean up after this code snippet, as we don't know the ids of sync jobs ahead of time
+  - do:
+      raw:
+        method: GET
+        path: "_connector/_sync_job"
+        connector_id: "connector-1"
+  - is_false: _shards.failures
+---
+"line_77":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: there's no way to clean up after this code snippet, as we don't know the ids of sync jobs ahead of time
+  - do:
+      raw:
+        method: GET
+        path: "_connector/_sync_job"
+        job_type: "full,incremental"
+  - is_false: _shards.failures

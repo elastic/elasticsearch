@@ -1,0 +1,127 @@
+---
+"nodes-stats-limit":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/stats/indices"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/stats/os,process"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/10.0.0.1/stats/process"
+  - is_false: _shards.failures
+---
+"nodes-stats-indices":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/stats/indices/fielddata"
+        fields: "field1,field2"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/stats/indices/fielddata"
+        level: "indices"
+        fields: "field1,field2"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/stats/indices/fielddata"
+        level: "shards"
+        fields: "field1,field2"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/stats/indices/fielddata"
+        fields: "field*"
+  - is_false: _shards.failures
+---
+"nodes-stats-groups":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/stats"
+        groups: "_all"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/stats/indices"
+        groups: "foo,bar"
+  - is_false: _shards.failures
+---
+"nodes-stats-filter-path":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/stats/ingest"
+        filter_path: "nodes.*.ingest"
+  - is_false: _shards.failures
+---
+"nodes-stats-metric-filter-path":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/stats"
+        metric: "ingest"
+        filter_path: "nodes.*.ingest"
+  - is_false: _shards.failures
+---
+"nodes-stats-metric-filter-path-refined":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/stats"
+        metric: "ingest"
+        filter_path: "nodes.*.ingest.pipelines"
+  - is_false: _shards.failures

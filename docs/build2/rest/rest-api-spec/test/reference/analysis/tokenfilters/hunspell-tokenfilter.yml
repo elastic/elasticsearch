@@ -1,0 +1,93 @@
+---
+"line_73":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer": "standard",
+            "filter": [
+              {
+                "type": "hunspell",
+                "locale": "en_US"
+              }
+            ],
+            "text": "the foxes jumping quickly"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens": [
+            {
+              "token": "the",
+              "start_offset": 0,
+              "end_offset": 3,
+              "type": "<ALPHANUM>",
+              "position": 0
+            },
+            {
+              "token": "fox",
+              "start_offset": 4,
+              "end_offset": 9,
+              "type": "<ALPHANUM>",
+              "position": 1
+            },
+            {
+              "token": "jump",
+              "start_offset": 10,
+              "end_offset": 17,
+              "type": "<ALPHANUM>",
+              "position": 2
+            },
+            {
+              "token": "quick",
+              "start_offset": 18,
+              "end_offset": 25,
+              "type": "<ALPHANUM>",
+              "position": 3
+            }
+          ]
+        }
+---
+"line_199":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "en": {
+                    "tokenizer": "standard",
+                    "filter": [ "my_en_US_dict_stemmer" ]
+                  }
+                },
+                "filter": {
+                  "my_en_US_dict_stemmer": {
+                    "type": "hunspell",
+                    "locale": "en_US",
+                    "dedup": false
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

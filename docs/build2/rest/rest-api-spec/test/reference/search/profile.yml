@@ -1,0 +1,959 @@
+---
+"line_35":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup my_index
+
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                http:
+                  properties:
+                    request:
+                      properties:
+                        method:
+                          type: keyword
+                message:
+                  type: text
+                  fields:
+                    keyword:
+                      type: keyword
+                user:
+                  properties:
+                    id:
+                      type: keyword
+                      doc_values: true
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            { "index":{"_id": "0"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "127.0.0.1" }, "user": { "id": "kimchy" } }
+            { "index":{"_id": "1"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "2"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "3"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "4"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "profile": true,
+            "query" : {
+              "match" : { "message" : "GET /search" }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": $body.took,
+          "timed_out": false,
+          "_shards": {
+            "total": $body.$_path,
+            "successful": $body.$_path,
+            "skipped": $body.$_path,
+            "failed": $body.$_path
+          },
+          "hits": {
+            "total": {
+              "value": $body.$_path,
+              "relation": "eq"
+            },
+            "max_score": $body.$_path,
+            "hits": $body.$_path
+          },
+          "profile": {
+            "shards": [
+              {
+                "id": $body.profile.shards.0.id,
+                "node_id": "$body.profile.shards.0.node_id",
+                "shard_id": $body.$_path,
+                "index": "my-index-000001",
+                "cluster": "(local)",
+                "searches": [
+                  {
+                    "query": [
+                      {
+                        "type": "BooleanQuery",
+                        "description": "message:get message:search",
+                        "time_in_nanos" : $body.$_path,
+                        "breakdown" : {
+                          "set_min_competitive_score_count": $body.$_path,
+                          "match_count": $body.$_path,
+                          "shallow_advance_count": $body.$_path,
+                          "set_min_competitive_score": $body.$_path,
+                          "next_doc": $body.$_path,
+                          "match": $body.$_path,
+                          "next_doc_count": $body.$_path,
+                          "score_count": $body.$_path,
+                          "compute_max_score_count": $body.$_path,
+                          "compute_max_score": $body.$_path,
+                          "advance": $body.$_path,
+                          "advance_count": $body.$_path,
+                          "score": $body.$_path,
+                          "build_scorer_count": $body.$_path,
+                          "create_weight": $body.$_path,
+                          "shallow_advance": $body.$_path,
+                          "create_weight_count": $body.$_path,
+                          "build_scorer": $body.$_path,
+                          "count_weight": $body.$_path,
+                          "count_weight_count": $body.$_path
+                        },
+                        "children": [
+                          {
+                            "type": "TermQuery",
+                            "description": "message:get",
+                            "time_in_nanos": $body.$_path,
+                            "breakdown": {
+                              "set_min_competitive_score_count": $body.$_path,
+                              "match_count": $body.$_path,
+                              "shallow_advance_count": $body.$_path,
+                              "set_min_competitive_score": $body.$_path,
+                              "next_doc": $body.$_path,
+                              "match": $body.$_path,
+                              "next_doc_count": $body.$_path,
+                              "score_count": $body.$_path,
+                              "compute_max_score_count": $body.$_path,
+                              "compute_max_score": $body.$_path,
+                              "advance": $body.$_path,
+                              "advance_count": $body.$_path,
+                              "score": $body.$_path,
+                              "build_scorer_count": $body.$_path,
+                              "create_weight": $body.$_path,
+                              "shallow_advance": $body.$_path,
+                              "create_weight_count": $body.$_path,
+                              "build_scorer": $body.$_path,
+                              "count_weight": $body.$_path,
+                              "count_weight_count": $body.$_path
+                            }
+                          },
+                          {
+                            "type": "TermQuery",
+                            "description": "message:search",
+                            "time_in_nanos": $body.$_path,
+                            "breakdown": {
+                              "set_min_competitive_score_count": $body.$_path,
+                              "match_count": $body.$_path,
+                              "shallow_advance_count": $body.$_path,
+                              "set_min_competitive_score": $body.$_path,
+                              "next_doc": $body.$_path,
+                              "match": $body.$_path,
+                              "next_doc_count": $body.$_path,
+                              "score_count": $body.$_path,
+                              "compute_max_score_count": $body.$_path,
+                              "compute_max_score": $body.$_path,
+                              "advance": $body.$_path,
+                              "advance_count": $body.$_path,
+                              "score": $body.$_path,
+                              "build_scorer_count": $body.$_path,
+                              "create_weight": $body.$_path,
+                              "shallow_advance": $body.$_path,
+                              "create_weight_count": $body.$_path,
+                              "build_scorer": $body.$_path,
+                              "count_weight": $body.$_path,
+                              "count_weight_count": $body.$_path
+                            }
+                          }
+                        ]
+                      }
+                    ],
+                    "rewrite_time": $body.$_path,
+                    "collector": [
+                      {
+                        "name": "QueryPhaseCollector",
+                        "reason": "search_query_phase",
+                        "time_in_nanos": $body.$_path,
+                        "children" : [
+                          {
+                            "name": "SimpleTopScoreDocCollector",
+                            "reason": "search_top_hits",
+                            "time_in_nanos": $body.$_path
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "aggregations": [],
+                "fetch": {
+                  "type": "fetch",
+                  "description": "",
+                  "time_in_nanos": $body.$_path,
+                  "breakdown": {
+                    "next_reader": $body.$_path,
+                    "next_reader_count": $body.$_path,
+                    "load_stored_fields": $body.$_path,
+                    "load_stored_fields_count": $body.$_path,
+                    "load_source": $body.$_path,
+                    "load_source_count": $body.$_path
+                  },
+                  "debug": {
+                    "stored_fields": ["_id", "_routing", "_source"]
+                  },
+                  "children": [
+                    {
+                      "type": "FetchSourcePhase",
+                      "description": "",
+                      "time_in_nanos": $body.$_path,
+                      "breakdown": {
+                        "next_reader": $body.$_path,
+                        "next_reader_count": $body.$_path,
+                        "process": $body.$_path,
+                        "process_count": $body.$_path
+                      },
+                      "debug": {
+                        "fast_path": $body.$_path
+                      }
+                    },
+                    {
+                      "type": "StoredFieldsPhase",
+                      "description": "",
+                      "time_in_nanos": $body.$_path,
+                      "breakdown": {
+                        "next_reader": $body.$_path,
+                        "next_reader_count": $body.$_path,
+                        "process": $body.$_path,
+                        "process_count": $body.$_path
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+  - match:
+      $body:
+        {
+           "took": $body.took, "timed_out": $body.timed_out, "_shards": $body._shards, "hits": $body.hits, "profile": {
+                "shards": [
+                   {
+                      "id": $body.profile.shards.0.id,
+                      "node_id": "$body.profile.shards.0.node_id",
+                      "shard_id": $body.$_path,
+                      "index": "my-index-000001",
+                      "cluster": "(local)",
+                      "searches": [
+                         {
+                            "query": $body.$_path,
+                            "rewrite_time": $body.$_path,
+                            "collector": $body.$_path
+                         }
+                      ],
+                      "aggregations": [],
+                      "fetch": $body.$_path
+                   }
+                ]
+             }
+        }
+  - match:
+      $body:
+        {
+        "took": $body.took,
+        "timed_out": $body.timed_out,
+        "_shards": $body._shards,
+        "hits": $body.hits,
+        "profile": {
+        "shards": [ {
+        "id": "$body.profile.shards.0.id",
+        "node_id": "$body.profile.shards.0.node_id",
+        "shard_id": $body.profile.shards.0.shard_id,
+        "index": "$body.profile.shards.0.index",
+        "cluster": "(local)",
+        "searches": [{
+        "query": [
+            {
+               "type": "BooleanQuery",
+               "description": "message:get message:search",
+               "time_in_nanos": "$body.$_path",
+               "breakdown": $body.$_path,
+               "children": [
+                  {
+                     "type": "TermQuery",
+                     "description": "message:get",
+                     "time_in_nanos": "$body.$_path",
+                     "breakdown": $body.$_path
+                  },
+                  {
+                     "type": "TermQuery",
+                     "description": "message:search",
+                     "time_in_nanos": "$body.$_path",
+                     "breakdown": $body.$_path
+                  }
+               ]
+            }
+        ],"rewrite_time": $body.$_path, "collector": $body.$_path}], "aggregations": [], "fetch": $body.$_path}]}}
+  - match:
+      $body:
+        {
+        "took": $body.took,
+        "timed_out": $body.timed_out,
+        "_shards": $body._shards,
+        "hits": $body.hits,
+        "profile": {
+        "shards": [ {
+        "id": "$body.profile.shards.0.id",
+        "node_id": "$body.profile.shards.0.node_id",
+        "shard_id": $body.profile.shards.0.shard_id,
+        "index": "$body.profile.shards.0.index",
+        "cluster": "(local)",
+        "searches": [{
+        "query": [{
+        "type": "BooleanQuery",
+        "description": "message:get message:search",
+        "time_in_nanos": $body.$_path,"breakdown": {
+          "set_min_competitive_score_count": $body.$_path,
+          "match_count": $body.$_path,
+          "shallow_advance_count": $body.$_path,
+          "set_min_competitive_score": $body.$_path,
+          "next_doc": $body.$_path,
+          "match": $body.$_path,
+          "next_doc_count": $body.$_path,
+          "score_count": $body.$_path,
+          "compute_max_score_count": $body.$_path,
+          "compute_max_score": $body.$_path,
+          "advance": $body.$_path,
+          "advance_count": $body.$_path,
+          "score": $body.$_path,
+          "build_scorer_count": $body.$_path,
+          "create_weight": $body.$_path,
+          "shallow_advance": $body.$_path,
+          "create_weight_count": $body.$_path,
+          "build_scorer": $body.$_path,
+          "count_weight": $body.$_path,
+          "count_weight_count": $body.$_path
+        },
+        "children": $body.$_path}],
+        "rewrite_time": $body.$_path, "collector": $body.$_path}], "aggregations": [], "fetch": $body.$_path}]}}
+  - match:
+      $body:
+        {
+        "took": $body.took,
+        "timed_out": $body.timed_out,
+        "_shards": $body._shards,
+        "hits": $body.hits,
+        "profile": {
+        "shards": [ {
+        "id": "$body.profile.shards.0.id",
+        "node_id": "$body.profile.shards.0.node_id",
+        "shard_id": $body.profile.shards.0.shard_id,
+        "index": "$body.profile.shards.0.index",
+        "cluster": "(local)",
+        "searches": [{
+        "query": $body.$_path,
+        "rewrite_time": $body.$_path,"collector": [
+          {
+            "name": "QueryPhaseCollector",
+            "reason": "search_query_phase",
+            "time_in_nanos": $body.$_path,
+            "children" : [
+              {
+                "name": "SimpleTopScoreDocCollector",
+                "reason": "search_top_hits",
+                "time_in_nanos": $body.$_path
+              }
+            ]
+          }
+        ]}], "aggregations": [], "fetch": $body.$_path}]}}
+---
+"line_611":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup my_index
+
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                http:
+                  properties:
+                    request:
+                      properties:
+                        method:
+                          type: keyword
+                message:
+                  type: text
+                  fields:
+                    keyword:
+                      type: keyword
+                user:
+                  properties:
+                    id:
+                      type: keyword
+                      doc_values: true
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            { "index":{"_id": "0"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "127.0.0.1" }, "user": { "id": "kimchy" } }
+            { "index":{"_id": "1"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "2"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "3"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+            { "index":{"_id": "4"} }
+            { "@timestamp": "2099-11-15T14:12:12", "http": { "request": { "method": "get" }, "response": { "bytes": 1070000, "status_code": 200 }, "version": "1.1" }, "message": "GET /search HTTP/1.1 200 1070000", "source": { "ip": "10.42.42.42" }, "user": { "id": "elkbee" } }
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        filter_path: "profile.shards.id,profile.shards.node_id,profile.shards.shard_id,profile.shards.index,profile.shards.cluster,profile.shards.searches,profile.shards.aggregations,profile.shards.fetch"
+        body: |
+          {
+            "profile": true,
+            "query": {
+              "term": {
+                "user.id": {
+                  "value": "elkbee"
+                }
+              }
+            },
+            "aggs": {
+              "my_scoped_agg": {
+                "terms": {
+                  "field": "http.response.status_code"
+                }
+              },
+              "my_global_agg": {
+                "global": {},
+                "aggs": {
+                  "my_level_agg": {
+                    "terms": {
+                      "field": "http.response.status_code"
+                    }
+                  }
+                }
+              }
+            },
+            "post_filter": {
+              "match": {
+                "message": "search"
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          
+          "profile": {
+            "shards": [
+              {
+                "id": $body.profile.shards.0.id,
+                "node_id": "$body.profile.shards.0.node_id",
+                "shard_id": $body.$_path,
+                "index": "my-index-000001",
+                "cluster": "(local)",
+                "searches": [
+                  {
+                    "query": [
+                      {
+                        "type": "TermQuery",
+                        "description": "message:search",
+                        "time_in_nanos": $body.$_path,
+                        "breakdown": {
+                          "set_min_competitive_score_count": $body.$_path,
+                          "match_count": $body.$_path,
+                          "shallow_advance_count": $body.$_path,
+                          "set_min_competitive_score": $body.$_path,
+                          "next_doc": $body.$_path,
+                          "match": $body.$_path,
+                          "next_doc_count": $body.$_path,
+                          "score_count": $body.$_path,
+                          "compute_max_score_count": $body.$_path,
+                          "compute_max_score": $body.$_path,
+                          "advance": $body.$_path,
+                          "advance_count": $body.$_path,
+                          "count_weight_count": $body.$_path,
+                          "score": $body.$_path,
+                          "build_scorer_count": $body.$_path,
+                          "create_weight": $body.$_path,
+                          "shallow_advance": $body.$_path,
+                          "count_weight": $body.$_path,
+                          "create_weight_count": $body.$_path,
+                          "build_scorer": $body.$_path
+                        }
+                      },
+                      {
+                        "type": "TermQuery",
+                        "description": "user.id:elkbee",
+                        "time_in_nanos": $body.$_path,
+                        "breakdown": {
+                          "set_min_competitive_score_count": $body.$_path,
+                          "match_count": $body.$_path,
+                          "shallow_advance_count": $body.$_path,
+                          "set_min_competitive_score": $body.$_path,
+                          "next_doc": $body.$_path,
+                          "match": $body.$_path,
+                          "next_doc_count": $body.$_path,
+                          "score_count": $body.$_path,
+                          "compute_max_score_count": $body.$_path,
+                          "compute_max_score": $body.$_path,
+                          "advance": $body.$_path,
+                          "advance_count": $body.$_path,
+                          "score": $body.$_path,
+                          "count_weight_count": $body.$_path,
+                          "build_scorer_count": $body.$_path,
+                          "create_weight": $body.$_path,
+                          "shallow_advance": $body.$_path,
+                          "count_weight": $body.$_path,
+                          "create_weight_count": $body.$_path,
+                          "build_scorer": $body.$_path
+                        }
+                      }
+                    ],
+                    "rewrite_time": $body.$_path,
+                    "collector": [
+                      {
+                        "name": "QueryPhaseCollector",
+                        "reason": "search_query_phase",
+                        "time_in_nanos": $body.$_path,
+                        "children": [
+                          {
+                            "name": "SimpleTopScoreDocCollector",
+                            "reason": "search_top_hits",
+                            "time_in_nanos": $body.$_path
+                          },
+                          {
+                            "name": "AggregatorCollector: [my_scoped_agg, my_global_agg]",
+                            "reason": "aggregation",
+                            "time_in_nanos": $body.$_path
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "aggregations": $body.$_path,
+                "fetch": $body.$_path
+              }
+            ]
+          }
+        }
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        filter_path: "profile.shards.aggregations"
+        body: |
+          {
+            "profile": true,
+            "query": {
+              "term": {
+                "user.id": {
+                  "value": "elkbee"
+                }
+              }
+            },
+            "aggs": {
+              "my_scoped_agg": {
+                "terms": {
+                  "field": "http.response.status_code"
+                }
+              },
+              "my_global_agg": {
+                "global": {},
+                "aggs": {
+                  "my_level_agg": {
+                    "terms": {
+                      "field": "http.response.status_code"
+                    }
+                  }
+                }
+              }
+            },
+            "post_filter": {
+              "match": {
+                "message": "search"
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "profile": {
+            "shards": [
+              {
+                "aggregations": [
+                  {
+                    "type": "NumericTermsAggregator",
+                    "description": "my_scoped_agg",
+                    "time_in_nanos": $body.$_path,
+                    "breakdown": {
+                      "reduce": $body.$_path,
+                      "build_aggregation": $body.$_path,
+                      "build_aggregation_count": $body.$_path,
+                      "initialize": $body.$_path,
+                      "initialize_count": $body.$_path,
+                      "reduce_count": $body.$_path,
+                      "collect": $body.$_path,
+                      "collect_count": $body.$_path,
+                      "build_leaf_collector": $body.$_path,
+                      "build_leaf_collector_count": $body.$_path,
+                      "post_collection": $body.$_path,
+                      "post_collection_count": $body.$_path
+                    },
+                    "debug": {
+                      "total_buckets": $body.$_path,
+                      "result_strategy": "long_terms",
+                      "built_buckets": $body.$_path
+                    }
+                  },
+                  {
+                    "type": "GlobalAggregator",
+                    "description": "my_global_agg",
+                    "time_in_nanos": $body.$_path,
+                    "breakdown": {
+                      "reduce": $body.$_path,
+                      "build_aggregation": $body.$_path,
+                      "build_aggregation_count": $body.$_path,
+                      "initialize": $body.$_path,
+                      "initialize_count": $body.$_path,
+                      "reduce_count": $body.$_path,
+                      "collect": $body.$_path,
+                      "collect_count": $body.$_path,
+                      "build_leaf_collector": $body.$_path,
+                      "build_leaf_collector_count": $body.$_path,
+                      "post_collection": $body.$_path,
+                      "post_collection_count": $body.$_path
+                    },
+                    "debug": {
+                      "built_buckets": $body.$_path
+                    },
+                    "children": [
+                      {
+                        "type": "NumericTermsAggregator",
+                        "description": "my_level_agg",
+                        "time_in_nanos": $body.$_path,
+                        "breakdown": {
+                          "reduce": $body.$_path,
+                          "build_aggregation": $body.$_path,
+                          "build_aggregation_count": $body.$_path,
+                          "initialize": $body.$_path,
+                          "initialize_count": $body.$_path,
+                          "reduce_count": $body.$_path,
+                          "collect": $body.$_path,
+                          "collect_count": $body.$_path,
+                          "build_leaf_collector": $body.$_path,
+                          "build_leaf_collector_count": $body.$_path,
+                          "post_collection": $body.$_path,
+                          "post_collection_count": $body.$_path
+                        },
+                        "debug": {
+                          "total_buckets": $body.$_path,
+                          "result_strategy": "long_terms",
+                          "built_buckets": $body.$_path
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        filter_path: "profile.shards.fetch"
+        body: |
+          {
+            "profile": true,
+            "query": {
+              "term": {
+                "user.id": {
+                  "value": "elkbee"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "profile": {
+            "shards": [
+              {
+                "fetch": {
+                  "type": "fetch",
+                  "description": "",
+                  "time_in_nanos": $body.$_path,
+                  "breakdown": {
+                    "next_reader": $body.$_path,
+                    "next_reader_count": $body.$_path,
+                    "load_stored_fields": $body.$_path,
+                    "load_stored_fields_count": $body.$_path,
+                    "load_source": $body.$_path,
+                    "load_source_count": $body.$_path
+                  },
+                  "debug": {
+                    "stored_fields": ["_id", "_routing", "_source"]
+                  },
+                  "children": [
+                    {
+                      "type": "FetchSourcePhase",
+                      "description": "",
+                      "time_in_nanos": $body.$_path,
+                      "breakdown": {
+                        "next_reader": $body.$_path,
+                        "next_reader_count": $body.$_path,
+                        "process": $body.$_path,
+                        "process_count": $body.$_path
+                      },
+                      "debug": {
+                        "fast_path": $body.$_path
+                      }
+                    },
+                    {
+                      "type": "StoredFieldsPhase",
+                      "description": "",
+                      "time_in_nanos": $body.$_path,
+                      "breakdown": {
+                        "next_reader": $body.$_path,
+                        "next_reader_count": $body.$_path,
+                        "process": $body.$_path,
+                        "process_count": $body.$_path
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+---
+"profile_dfs":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-dfs-index"
+        body: |
+          {
+            "settings": {
+              "number_of_shards": 2,
+              "number_of_replicas": 1
+            },
+            "mappings": {
+                "properties": {
+                  "my-keyword": { "type": "keyword" }
+                }
+              }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "my-dfs-index/_bulk"
+        refresh: "true"
+        body: |
+          { "index" : { "_id" : "1" } }
+          { "my-keyword" : "a" }
+          { "index" : { "_id" : "2" } }
+          { "my-keyword" : "b" }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-dfs-index/_search"
+        search_type: "dfs_query_then_fetch"
+        pretty: ""
+        size: "0"
+        body: |
+          {
+            "profile": true,
+            "query": {
+              "term": {
+                "my-keyword": {
+                  "value": "a"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+        "took": $body.took,
+        "timed_out": $body.timed_out,
+        "_shards": $body._shards,
+        "hits": $body.hits,
+        "profile": {
+        "shards": [ "$body.$_path", {
+        "id": "$body.$_path",
+        "node_id": "$body.$_path",
+        "shard_id": "$body.$_path",
+        "index": "$body.$_path",
+        "cluster": "$body.$_path",
+        "dfs" : {
+            "statistics" : {
+                "type" : "statistics",
+                "description" : "collect term statistics",
+                "time_in_nanos" :  $body.$_path,
+                "breakdown" : {
+                    "term_statistics" :  $body.$_path,
+                    "collection_statistics" :  $body.$_path,
+                    "collection_statistics_count" :  $body.$_path,
+                    "create_weight" :  $body.$_path,
+                    "term_statistics_count" :  $body.$_path,
+                    "rewrite_count" :  $body.$_path,
+                    "create_weight_count" :  $body.$_path,
+                    "rewrite" :  $body.$_path
+                }
+            }
+        }, "aggregations": [], "searches": $body.$_path}]}}
+---
+"profile_knn":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-knn-index"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "my-vector": {
+                  "type": "dense_vector",
+                  "dims": 3,
+                  "index": true,
+                  "similarity": "l2_norm"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "my-knn-index/_bulk"
+        refresh: "true"
+        body: |
+          { "index": { "_id": "1" } }
+          { "my-vector": [1, 5, -20] }
+          { "index": { "_id": "2" } }
+          { "my-vector": [42, 8, -15] }
+          { "index": { "_id": "3" } }
+          { "my-vector": [15, 11, 23] }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "my-knn-index/_search"
+        body: |
+          {
+            "profile": true,
+            "knn": {
+              "field": "my-vector",
+              "query_vector": [-5, 9, -12],
+              "k": 3,
+              "num_candidates": 100
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+        "took": $body.took,
+        "timed_out": $body.timed_out,
+        "_shards": $body._shards,
+        "hits": $body.hits,
+        "profile": {
+        "shards": [ {
+        "id": "$body.$_path",
+        "node_id": "$body.$_path",
+        "shard_id": "$body.$_path",
+        "index": "$body.$_path",
+        "cluster": "$body.$_path",
+        "dfs" : {"statistics": $body.$_path,
+            "knn" : [
+                {
+                "vector_operations_count" : $body.$_path,
+                "query" : [
+                    {
+                        "type" : "DocAndScoreQuery",
+                        "description" : "DocAndScore[100]",
+                        "time_in_nanos" : $body.$_path,
+                        "breakdown" : {
+                          "set_min_competitive_score_count" : $body.$_path,
+                          "match_count" : $body.$_path,
+                          "shallow_advance_count" : $body.$_path,
+                          "set_min_competitive_score" : $body.$_path,
+                          "next_doc" : $body.$_path,
+                          "match" : $body.$_path,
+                          "next_doc_count" : $body.$_path,
+                          "score_count" : $body.$_path,
+                          "compute_max_score_count" : $body.$_path,
+                          "compute_max_score" : $body.$_path,
+                          "advance" : $body.$_path,
+                          "advance_count" : $body.$_path,
+                          "score" : $body.$_path,
+                          "build_scorer_count" : $body.$_path,
+                          "create_weight" : $body.$_path,
+                          "shallow_advance" : $body.$_path,
+                          "create_weight_count" : $body.$_path,
+                          "build_scorer" : $body.$_path,
+                          "count_weight": $body.$_path,
+                          "count_weight_count": $body.$_path
+                        }
+                    }
+                ],
+                "rewrite_time" : $body.$_path,
+                "collector" : [
+                    {
+                        "name" : "SimpleTopScoreDocCollector",
+                        "reason" : "search_top_hits",
+                        "time_in_nanos" : $body.$_path
+                    }
+                ]
+            }   ]
+        }, "aggregations": [], "searches": $body.$_path, "fetch": $body.$_path}]}}

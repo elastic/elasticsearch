@@ -1,0 +1,28 @@
+---
+"line_64":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: setup:sample_job
+  - do:
+      raw:
+        method: POST
+        path: "_ml/anomaly_detectors/sample_job/_update"
+        body: |
+          {
+            "custom_settings": {
+                  "custom_urls": [
+                    {
+                      "url_name": "test-link1",
+                      "time_range": "1h",
+                      "url_value": "discover#/?_g=(time:(from:'$earliest$',mode:quick,to:'$latest$'))&_a=(index:'90943e30-9a47-11e8-b64d-95841ca0b247',query:(language:lucene,query_string:(analyze_wildcard:!t,query:'$mlcategoryterms$')),sort:!(time,desc))"
+                    }
+                  ]
+                }
+          }
+  - is_false: _shards.failures

@@ -1,0 +1,33 @@
+---
+"line_23":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: ""
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "name" : "$body.name",
+          "cluster_name" : "$body.cluster_name",
+          "cluster_uuid" : "$body.cluster_uuid",
+          "version" : {
+            "number" : "8.14.0-SNAPSHOT",
+            "build_type" : "tar",
+            "build_hash" : "$body.version.build_hash",
+            "build_flavor" : "default",
+            "build_date" : $body.version.build_date,
+            "build_snapshot" : $body.version.build_snapshot,
+            "lucene_version" : "9.10.0",
+            "minimum_wire_compatibility_version" : $body.version.minimum_wire_compatibility_version,
+            "minimum_index_compatibility_version" : $body.version.minimum_index_compatibility_version
+          },
+          "tagline" : "You Know, for Search"
+        }

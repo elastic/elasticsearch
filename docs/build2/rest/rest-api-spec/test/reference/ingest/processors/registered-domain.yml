@@ -1,0 +1,54 @@
+---
+"line_35":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_ingest/pipeline/_simulate"
+        body: |
+          {
+            "pipeline": {
+              "processors": [
+                {
+                  "registered_domain": {
+                    "field": "fqdn",
+                    "target_field": "url"
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_source": {
+                  "fqdn": "www.example.ac.uk"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "docs": [
+            {
+              "doc": {
+                "_index":"_index","_id":"_id","_version":"-3","_ingest":{"timestamp":$body.docs.0.doc._ingest.timestamp},
+                "_source": {
+                  "fqdn": "www.example.ac.uk",
+                  "url": {
+                    "subdomain": "www",
+                    "registered_domain": "example.ac.uk",
+                    "top_level_domain": "ac.uk",
+                    "domain": "www.example.ac.uk"
+                  }
+                }
+              }
+            }
+          ]
+        }

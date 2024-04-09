@@ -1,0 +1,84 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_repository"
+        body: |
+          {
+            "type": "fs",
+            "settings": {
+              "location": "my_backup_location"
+            }
+          }
+---
+"line_25":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_repository/my_snapshot"
+        wait_for_completion: "true"
+  - is_false: _shards.failures
+---
+"line_160":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_repository/snapshot_2"
+        wait_for_completion: "true"
+        body: |
+          {
+            "indices": "index_1,index_2",
+            "ignore_unavailable": true,
+            "include_global_state": false,
+            "metadata": {
+              "taken_by": "user123",
+              "taken_because": "backup before upgrading"
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "snapshot": {
+            "snapshot": "snapshot_2",
+            "uuid": $body.snapshot.uuid,
+            "repository": "my_repository",
+            "version_id": $body.snapshot.version_id,
+            "version": $body.snapshot.version,
+            "indices": [],
+            "data_streams": [],
+            "feature_states": [],
+            "include_global_state": false,
+            "metadata": {
+              "taken_by": "user123",
+              "taken_because": "backup before upgrading"
+            },
+            "state": "SUCCESS",
+            "start_time": $body.snapshot.start_time,
+            "start_time_in_millis": $body.snapshot.start_time_in_millis,
+            "end_time": $body.snapshot.end_time,
+            "end_time_in_millis": $body.snapshot.end_time_in_millis,
+            "duration_in_millis": $body.snapshot.duration_in_millis,
+            "failures": [],
+            "shards": {
+              "total": 0,
+              "failed": 0,
+              "successful": 0
+            }
+          }
+        }

@@ -1,0 +1,80 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "index1"
+  - do:
+      raw:
+        method: PUT
+        path: "_application/search_application/my-app"
+        body: |
+          {
+            "indices": ["index1"],
+            "template": {
+              "script": {
+                "lang": "mustache",
+                "source": "\n      {\n        \"query\": {\n          \"multi_match\": {\n            \"query\": \"{{query_string}}\",\n            \"fields\": [{{#text_fields}}\"{{name}}^{{boost}}\",{{/text_fields}}]\n          }\n        },\n        \"explain\": \"{{explain}}\",\n        \"from\": \"{{from}}\",\n        \"size\": \"{{size}}\"\n      }\n      ",
+                "params": {
+                  "query_string": "*",
+                  "text_fields": [
+                    {"name": "title", "boost": 10},
+                    {"name": "description", "boost": 5}
+                  ],
+                  "explain": false,
+                  "from": 0,
+                  "size": 10
+                }
+              }
+            }
+          }
+---
+teardown:
+  - do:
+      raw:
+        method: DELETE
+        path: "_application/search_application/my-app"
+  - do:
+      raw:
+        method: DELETE
+        path: "index1"
+---
+"line_114":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_application/search_application/my-app/_render_query"
+        body: |
+          {
+            "params": {
+              "query_string": "my first query",
+              "text_fields": [
+                {"name": "title", "boost": 5},
+                {"name": "description", "boost": 1}
+              ]
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "from": 0,
+          "size": 10,
+          "query": {
+            "multi_match": {
+              "query": "my first query",
+              "fields": [
+                "description^1.0",
+                "title^5.0"
+              ]
+            }
+          },
+          "explain": false
+        }

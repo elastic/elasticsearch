@@ -1,0 +1,35 @@
+---
+"line_69":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_settings"
+        body: |
+          {
+            "index.max_result_window": 5000
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_cluster/settings"
+        body: |
+          {
+            "persistent": {
+              "search.max_buckets": 20000,
+              "search.allow_expensive_queries": false
+            }
+          }
+  - is_false: _shards.failures

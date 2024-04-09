@@ -1,0 +1,83 @@
+---
+"line_54":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: we don't have azure setup while testing this
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_backup"
+        body: |
+          {
+            "type": "azure",
+            "settings": {
+              "client": "secondary"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_197":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: we don't have azure setup while testing this
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_backup1"
+        body: |
+          {
+            "type": "azure"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_backup2"
+        body: |
+          {
+            "type": "azure",
+            "settings": {
+              "container": "backup-container",
+              "base_path": "backups",
+              "chunk_size": "32MB",
+              "compress": true
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_backup3"
+        body: |
+          {
+            "type": "azure",
+            "settings": {
+              "client": "secondary"
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_backup4"
+        body: |
+          {
+            "type": "azure",
+            "settings": {
+              "client": "secondary",
+              "location_mode": "primary_only"
+            }
+          }
+  - is_false: _shards.failures

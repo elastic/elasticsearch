@@ -1,0 +1,642 @@
+---
+"line_103":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup correlate_latency
+
+  - do:
+        indices.create:
+          index: correlate_latency
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                latency:
+                  type: double
+                version:
+                  type: keyword
+  - do:
+        bulk:
+          index: correlate_latency
+          refresh: true
+          body: |
+            {"index":{}}
+            {"latency": "100", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1010", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1020", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1030", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1040", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1050", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1060", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1070", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1080", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1090", "version": "1.0"}
+            {"index":{}}
+            {"latency": "110", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1110", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1120", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1130", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1140", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1150", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1160", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1170", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1180", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1190", "version": "1.0"}
+            {"index":{}}
+            {"latency": "120", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1210", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1220", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1230", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1240", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1250", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1260", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1270", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1280", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1290", "version": "1.0"}
+            {"index":{}}
+            {"latency": "130", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1310", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1320", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1330", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1340", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1350", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1360", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1370", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1380", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1390", "version": "1.0"}
+            {"index":{}}
+            {"latency": "140", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1410", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1420", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1430", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1440", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1450", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1460", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1470", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1480", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1490", "version": "1.0"}
+            {"index":{}}
+            {"latency": "150", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1510", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1520", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1530", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1540", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1550", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1560", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1570", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1580", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1590", "version": "1.0"}
+            {"index":{}}
+            {"latency": "160", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1610", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1620", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1630", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1640", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1650", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1660", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1670", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1680", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1690", "version": "1.0"}
+            {"index":{}}
+            {"latency": "170", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1710", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1720", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1730", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1740", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1750", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1760", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1770", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1780", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1790", "version": "1.0"}
+            {"index":{}}
+            {"latency": "180", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1810", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1820", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1830", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1840", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1850", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1860", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1870", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1880", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1890", "version": "1.0"}
+            {"index":{}}
+            {"latency": "190", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1910", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1920", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1930", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1940", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1950", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1960", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1970", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1980", "version": "1.0"}
+            {"index":{}}
+            {"latency": "1990", "version": "1.0"}
+            {"index":{}}
+            {"latency": "0", "version": "2.0"}
+            {"index":{}}
+            {"latency": "10", "version": "2.0"}
+            {"index":{}}
+            {"latency": "20", "version": "2.0"}
+            {"index":{}}
+            {"latency": "30", "version": "2.0"}
+            {"index":{}}
+            {"latency": "40", "version": "2.0"}
+            {"index":{}}
+            {"latency": "50", "version": "2.0"}
+            {"index":{}}
+            {"latency": "60", "version": "2.0"}
+            {"index":{}}
+            {"latency": "70", "version": "2.0"}
+            {"index":{}}
+            {"latency": "80", "version": "2.0"}
+            {"index":{}}
+            {"latency": "90", "version": "2.0"}
+            {"index":{}}
+            {"latency": "10", "version": "2.0"}
+            {"index":{}}
+            {"latency": "110", "version": "2.0"}
+            {"index":{}}
+            {"latency": "120", "version": "2.0"}
+            {"index":{}}
+            {"latency": "130", "version": "2.0"}
+            {"index":{}}
+            {"latency": "140", "version": "2.0"}
+            {"index":{}}
+            {"latency": "150", "version": "2.0"}
+            {"index":{}}
+            {"latency": "160", "version": "2.0"}
+            {"index":{}}
+            {"latency": "170", "version": "2.0"}
+            {"index":{}}
+            {"latency": "180", "version": "2.0"}
+            {"index":{}}
+            {"latency": "190", "version": "2.0"}
+            {"index":{}}
+            {"latency": "20", "version": "2.0"}
+            {"index":{}}
+            {"latency": "210", "version": "2.0"}
+            {"index":{}}
+            {"latency": "220", "version": "2.0"}
+            {"index":{}}
+            {"latency": "230", "version": "2.0"}
+            {"index":{}}
+            {"latency": "240", "version": "2.0"}
+            {"index":{}}
+            {"latency": "250", "version": "2.0"}
+            {"index":{}}
+            {"latency": "260", "version": "2.0"}
+            {"index":{}}
+            {"latency": "270", "version": "2.0"}
+            {"index":{}}
+            {"latency": "280", "version": "2.0"}
+            {"index":{}}
+            {"latency": "290", "version": "2.0"}
+            {"index":{}}
+            {"latency": "30", "version": "2.0"}
+            {"index":{}}
+            {"latency": "310", "version": "2.0"}
+            {"index":{}}
+            {"latency": "320", "version": "2.0"}
+            {"index":{}}
+            {"latency": "330", "version": "2.0"}
+            {"index":{}}
+            {"latency": "340", "version": "2.0"}
+            {"index":{}}
+            {"latency": "350", "version": "2.0"}
+            {"index":{}}
+            {"latency": "360", "version": "2.0"}
+            {"index":{}}
+            {"latency": "370", "version": "2.0"}
+            {"index":{}}
+            {"latency": "380", "version": "2.0"}
+            {"index":{}}
+            {"latency": "390", "version": "2.0"}
+            {"index":{}}
+            {"latency": "40", "version": "2.0"}
+            {"index":{}}
+            {"latency": "410", "version": "2.0"}
+            {"index":{}}
+            {"latency": "420", "version": "2.0"}
+            {"index":{}}
+            {"latency": "430", "version": "2.0"}
+            {"index":{}}
+            {"latency": "440", "version": "2.0"}
+            {"index":{}}
+            {"latency": "450", "version": "2.0"}
+            {"index":{}}
+            {"latency": "460", "version": "2.0"}
+            {"index":{}}
+            {"latency": "470", "version": "2.0"}
+            {"index":{}}
+            {"latency": "480", "version": "2.0"}
+            {"index":{}}
+            {"latency": "490", "version": "2.0"}
+            {"index":{}}
+            {"latency": "50", "version": "2.0"}
+            {"index":{}}
+            {"latency": "510", "version": "2.0"}
+            {"index":{}}
+            {"latency": "520", "version": "2.0"}
+            {"index":{}}
+            {"latency": "530", "version": "2.0"}
+            {"index":{}}
+            {"latency": "540", "version": "2.0"}
+            {"index":{}}
+            {"latency": "550", "version": "2.0"}
+            {"index":{}}
+            {"latency": "560", "version": "2.0"}
+            {"index":{}}
+            {"latency": "570", "version": "2.0"}
+            {"index":{}}
+            {"latency": "580", "version": "2.0"}
+            {"index":{}}
+            {"latency": "590", "version": "2.0"}
+            {"index":{}}
+            {"latency": "60", "version": "2.0"}
+            {"index":{}}
+            {"latency": "610", "version": "2.0"}
+            {"index":{}}
+            {"latency": "620", "version": "2.0"}
+            {"index":{}}
+            {"latency": "630", "version": "2.0"}
+            {"index":{}}
+            {"latency": "640", "version": "2.0"}
+            {"index":{}}
+            {"latency": "650", "version": "2.0"}
+            {"index":{}}
+            {"latency": "660", "version": "2.0"}
+            {"index":{}}
+            {"latency": "670", "version": "2.0"}
+            {"index":{}}
+            {"latency": "680", "version": "2.0"}
+            {"index":{}}
+            {"latency": "690", "version": "2.0"}
+            {"index":{}}
+            {"latency": "70", "version": "2.0"}
+            {"index":{}}
+            {"latency": "710", "version": "2.0"}
+            {"index":{}}
+            {"latency": "720", "version": "2.0"}
+            {"index":{}}
+            {"latency": "730", "version": "2.0"}
+            {"index":{}}
+            {"latency": "740", "version": "2.0"}
+            {"index":{}}
+            {"latency": "750", "version": "2.0"}
+            {"index":{}}
+            {"latency": "760", "version": "2.0"}
+            {"index":{}}
+            {"latency": "770", "version": "2.0"}
+            {"index":{}}
+            {"latency": "780", "version": "2.0"}
+            {"index":{}}
+            {"latency": "790", "version": "2.0"}
+            {"index":{}}
+            {"latency": "80", "version": "2.0"}
+            {"index":{}}
+            {"latency": "810", "version": "2.0"}
+            {"index":{}}
+            {"latency": "820", "version": "2.0"}
+            {"index":{}}
+            {"latency": "830", "version": "2.0"}
+            {"index":{}}
+            {"latency": "840", "version": "2.0"}
+            {"index":{}}
+            {"latency": "850", "version": "2.0"}
+            {"index":{}}
+            {"latency": "860", "version": "2.0"}
+            {"index":{}}
+            {"latency": "870", "version": "2.0"}
+            {"index":{}}
+            {"latency": "880", "version": "2.0"}
+            {"index":{}}
+            {"latency": "890", "version": "2.0"}
+            {"index":{}}
+            {"latency": "90", "version": "2.0"}
+            {"index":{}}
+            {"latency": "910", "version": "2.0"}
+            {"index":{}}
+            {"latency": "920", "version": "2.0"}
+            {"index":{}}
+            {"latency": "930", "version": "2.0"}
+            {"index":{}}
+            {"latency": "940", "version": "2.0"}
+            {"index":{}}
+            {"latency": "950", "version": "2.0"}
+            {"index":{}}
+            {"latency": "960", "version": "2.0"}
+            {"index":{}}
+            {"latency": "970", "version": "2.0"}
+            {"index":{}}
+            {"latency": "980", "version": "2.0"}
+            {"index":{}}
+            {"latency": "990", "version": "2.0"}
+  - do:
+      raw:
+        method: POST
+        path: "correlate_latency/_search"
+        size: "0"
+        filter_path: "aggregations"
+        body: |
+          {
+            "aggs": {
+              "buckets": {
+                "terms": {
+                  "field": "version",
+                  "size": 2
+                },
+                "aggs": {
+                  "latency_ranges": {
+                    "range": {
+                      "field": "latency",
+                      "ranges": [
+                        { "to": 0.0 },
+                        { "from": 0, "to": 105 },
+                        { "from": 105, "to": 225 },
+                        { "from": 225, "to": 445 },
+                        { "from": 445, "to": 665 },
+                        { "from": 665, "to": 885 },
+                        { "from": 885, "to": 1115 },
+                        { "from": 1115, "to": 1335 },
+                        { "from": 1335, "to": 1555 },
+                        { "from": 1555, "to": 1775 },
+                        { "from": 1775 }
+                      ]
+                    }
+                  },
+                  "bucket_correlation": {
+                    "bucket_correlation": {
+                      "buckets_path": "latency_ranges>_count",
+                      "function": {
+                        "count_correlation": {
+                          "indicator": {
+                             "expectations": [0, 52.5, 165, 335, 555, 775, 1000, 1225, 1445, 1665, 1775],
+                             "doc_count": 200
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "aggregations" : {
+            "buckets" : {
+              "doc_count_error_upper_bound" : 0,
+              "sum_other_doc_count" : 0,
+              "buckets" : [
+                {
+                  "key" : "1.0",
+                  "doc_count" : 100,
+                  "latency_ranges" : {
+                    "buckets" : [
+                      {
+                        "key" : "*-0.0",
+                        "to" : 0.0,
+                        "doc_count" : 0
+                      },
+                      {
+                        "key" : "0.0-105.0",
+                        "from" : 0.0,
+                        "to" : 105.0,
+                        "doc_count" : 1
+                      },
+                      {
+                        "key" : "105.0-225.0",
+                        "from" : 105.0,
+                        "to" : 225.0,
+                        "doc_count" : 9
+                      },
+                      {
+                        "key" : "225.0-445.0",
+                        "from" : 225.0,
+                        "to" : 445.0,
+                        "doc_count" : 0
+                      },
+                      {
+                        "key" : "445.0-665.0",
+                        "from" : 445.0,
+                        "to" : 665.0,
+                        "doc_count" : 0
+                      },
+                      {
+                        "key" : "665.0-885.0",
+                        "from" : 665.0,
+                        "to" : 885.0,
+                        "doc_count" : 0
+                      },
+                      {
+                        "key" : "885.0-1115.0",
+                        "from" : 885.0,
+                        "to" : 1115.0,
+                        "doc_count" : 10
+                      },
+                      {
+                        "key" : "1115.0-1335.0",
+                        "from" : 1115.0,
+                        "to" : 1335.0,
+                        "doc_count" : 20
+                      },
+                      {
+                        "key" : "1335.0-1555.0",
+                        "from" : 1335.0,
+                        "to" : 1555.0,
+                        "doc_count" : 20
+                      },
+                      {
+                        "key" : "1555.0-1775.0",
+                        "from" : 1555.0,
+                        "to" : 1775.0,
+                        "doc_count" : 20
+                      },
+                      {
+                        "key" : "1775.0-*",
+                        "from" : 1775.0,
+                        "doc_count" : 20
+                      }
+                    ]
+                  },
+                  "bucket_correlation" : {
+                    "value" : 0.8402398981360937
+                  }
+                },
+                {
+                  "key" : "2.0",
+                  "doc_count" : 100,
+                  "latency_ranges" : {
+                    "buckets" : [
+                      {
+                        "key" : "*-0.0",
+                        "to" : 0.0,
+                        "doc_count" : 0
+                      },
+                      {
+                        "key" : "0.0-105.0",
+                        "from" : 0.0,
+                        "to" : 105.0,
+                        "doc_count" : 19
+                      },
+                      {
+                        "key" : "105.0-225.0",
+                        "from" : 105.0,
+                        "to" : 225.0,
+                        "doc_count" : 11
+                      },
+                      {
+                        "key" : "225.0-445.0",
+                        "from" : 225.0,
+                        "to" : 445.0,
+                        "doc_count" : 20
+                      },
+                      {
+                        "key" : "445.0-665.0",
+                        "from" : 445.0,
+                        "to" : 665.0,
+                        "doc_count" : 20
+                      },
+                      {
+                        "key" : "665.0-885.0",
+                        "from" : 665.0,
+                        "to" : 885.0,
+                        "doc_count" : 20
+                      },
+                      {
+                        "key" : "885.0-1115.0",
+                        "from" : 885.0,
+                        "to" : 1115.0,
+                        "doc_count" : 10
+                      },
+                      {
+                        "key" : "1115.0-1335.0",
+                        "from" : 1115.0,
+                        "to" : 1335.0,
+                        "doc_count" : 0
+                      },
+                      {
+                        "key" : "1335.0-1555.0",
+                        "from" : 1335.0,
+                        "to" : 1555.0,
+                        "doc_count" : 0
+                      },
+                      {
+                        "key" : "1555.0-1775.0",
+                        "from" : 1555.0,
+                        "to" : 1775.0,
+                        "doc_count" : 0
+                      },
+                      {
+                        "key" : "1775.0-*",
+                        "from" : 1775.0,
+                        "doc_count" : 0
+                      }
+                    ]
+                  },
+                  "bucket_correlation" : {
+                    "value" : -0.5759855613334943
+                  }
+                }
+              ]
+            }
+          }
+        }

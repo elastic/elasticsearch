@@ -1,0 +1,580 @@
+---
+"line_33":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup sales
+
+  - do:
+        indices.create:
+          index: sales
+          body:
+            settings:
+              number_of_shards: 2
+              number_of_replicas: 1
+            mappings:
+              properties:
+                type:
+                  type: keyword
+  - do:
+        bulk:
+          index: sales
+          refresh: true
+          body: |
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "t-shirt"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 150, "promoted": true, "rating": 5, "type": "bag"}
+            {"index":{}}
+            {"date": "2015/02/01 00:00:00", "price": 50, "promoted": false, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/02/01 00:00:00", "price": 10, "promoted": true, "rating": 4, "type": "t-shirt"}
+            {"index":{}}
+            {"date": "2015/03/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/03/01 00:00:00", "price": 175, "promoted": false, "rating": 2, "type": "t-shirt"}
+  - do:
+      raw:
+        method: GET
+        path: "sales/_search"
+        body: |
+          {
+            "size": 0,
+            "aggs": {
+              "by_date": {
+                "date_histogram": {
+                  "field": "date",
+                  "calendar_interval": "month"
+                },
+                "aggs": {
+                  "my_rate": {
+                    "rate": {
+                      "unit": "year"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,
+          "aggregations" : {
+            "by_date" : {
+              "buckets" : [
+                {
+                  "key_as_string" : "2015/01/01 00:00:00",
+                  "key" : 1420070400000,
+                  "doc_count" : 3,
+                  "my_rate" : {
+                    "value" : 36.0
+                  }
+                },
+                {
+                  "key_as_string" : "2015/02/01 00:00:00",
+                  "key" : 1422748800000,
+                  "doc_count" : 2,
+                  "my_rate" : {
+                    "value" : 24.0
+                  }
+                },
+                {
+                  "key_as_string" : "2015/03/01 00:00:00",
+                  "key" : 1425168000000,
+                  "doc_count" : 2,
+                  "my_rate" : {
+                    "value" : 24.0
+                  }
+                }
+              ]
+            }
+          }
+        }
+---
+"line_104":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup sales
+
+  - do:
+        indices.create:
+          index: sales
+          body:
+            settings:
+              number_of_shards: 2
+              number_of_replicas: 1
+            mappings:
+              properties:
+                type:
+                  type: keyword
+  - do:
+        bulk:
+          index: sales
+          refresh: true
+          body: |
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "t-shirt"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 150, "promoted": true, "rating": 5, "type": "bag"}
+            {"index":{}}
+            {"date": "2015/02/01 00:00:00", "price": 50, "promoted": false, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/02/01 00:00:00", "price": 10, "promoted": true, "rating": 4, "type": "t-shirt"}
+            {"index":{}}
+            {"date": "2015/03/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/03/01 00:00:00", "price": 175, "promoted": false, "rating": 2, "type": "t-shirt"}
+  - do:
+      raw:
+        method: GET
+        path: "sales/_search"
+        body: |
+          {
+            "size": 0,
+            "aggs": {
+              "by_date": {
+                "date_histogram": {
+                  "field": "date",
+                  "calendar_interval": "month"
+                },
+                "aggs": {
+                  "avg_price": {
+                    "rate": {
+                      "field": "price",
+                      "unit": "day"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,
+          "aggregations" : {
+            "by_date" : {
+              "buckets" : [
+                {
+                  "key_as_string" : "2015/01/01 00:00:00",
+                  "key" : 1420070400000,
+                  "doc_count" : 3,
+                  "avg_price" : {
+                    "value" : 17.741935483870968
+                  }
+                },
+                {
+                  "key_as_string" : "2015/02/01 00:00:00",
+                  "key" : 1422748800000,
+                  "doc_count" : 2,
+                  "avg_price" : {
+                    "value" : 2.142857142857143
+                  }
+                },
+                {
+                  "key_as_string" : "2015/03/01 00:00:00",
+                  "key" : 1425168000000,
+                  "doc_count" : 2,
+                  "avg_price" : {
+                    "value" : 12.096774193548388
+                  }
+                }
+              ]
+            }
+          }
+        }
+---
+"line_175":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup sales
+
+  - do:
+        indices.create:
+          index: sales
+          body:
+            settings:
+              number_of_shards: 2
+              number_of_replicas: 1
+            mappings:
+              properties:
+                type:
+                  type: keyword
+  - do:
+        bulk:
+          index: sales
+          refresh: true
+          body: |
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "t-shirt"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 150, "promoted": true, "rating": 5, "type": "bag"}
+            {"index":{}}
+            {"date": "2015/02/01 00:00:00", "price": 50, "promoted": false, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/02/01 00:00:00", "price": 10, "promoted": true, "rating": 4, "type": "t-shirt"}
+            {"index":{}}
+            {"date": "2015/03/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/03/01 00:00:00", "price": 175, "promoted": false, "rating": 2, "type": "t-shirt"}
+  - do:
+      raw:
+        method: GET
+        path: "sales/_search"
+        filter_path: "aggregations"
+        size: "0"
+        body: |
+          {
+            "aggs": {
+              "buckets": {
+                "composite": {
+                  "sources": [
+                    {
+                      "month": {
+                        "date_histogram": {
+                          "field": "date",
+                          "calendar_interval": "month"
+                        }
+                      }
+                    },
+                    {
+                      "type": {
+                        "terms": {
+                          "field": "type"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "aggs": {
+                  "avg_price": {
+                    "rate": {
+                      "field": "price",
+                      "unit": "day"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "aggregations" : {
+            "buckets" : {
+              "after_key" : {
+                "month" : 1425168000000,
+                "type" : "t-shirt"
+              },
+              "buckets" : [
+                {
+                  "key" : {
+                    "month" : 1420070400000,
+                    "type" : "bag"
+                  },
+                  "doc_count" : 1,
+                  "avg_price" : {
+                    "value" : 4.838709677419355
+                  }
+                },
+                {
+                  "key" : {
+                    "month" : 1420070400000,
+                    "type" : "hat"
+                  },
+                  "doc_count" : 1,
+                  "avg_price" : {
+                    "value" : 6.451612903225806
+                  }
+                },
+                {
+                  "key" : {
+                    "month" : 1420070400000,
+                    "type" : "t-shirt"
+                  },
+                  "doc_count" : 1,
+                  "avg_price" : {
+                    "value" : 6.451612903225806
+                  }
+                },
+                {
+                  "key" : {
+                    "month" : 1422748800000,
+                    "type" : "hat"
+                  },
+                  "doc_count" : 1,
+                  "avg_price" : {
+                    "value" : 1.7857142857142858
+                  }
+                },
+                {
+                  "key" : {
+                    "month" : 1422748800000,
+                    "type" : "t-shirt"
+                  },
+                  "doc_count" : 1,
+                  "avg_price" : {
+                    "value" : 0.35714285714285715
+                  }
+                },
+                {
+                  "key" : {
+                    "month" : 1425168000000,
+                    "type" : "hat"
+                  },
+                  "doc_count" : 1,
+                  "avg_price" : {
+                    "value" : 6.451612903225806
+                  }
+                },
+                {
+                  "key" : {
+                    "month" : 1425168000000,
+                    "type" : "t-shirt"
+                  },
+                  "doc_count" : 1,
+                  "avg_price" : {
+                    "value" : 5.645161290322581
+                  }
+                }
+              ]
+            }
+          }
+        }
+---
+"line_310":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup sales
+
+  - do:
+        indices.create:
+          index: sales
+          body:
+            settings:
+              number_of_shards: 2
+              number_of_replicas: 1
+            mappings:
+              properties:
+                type:
+                  type: keyword
+  - do:
+        bulk:
+          index: sales
+          refresh: true
+          body: |
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "t-shirt"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 150, "promoted": true, "rating": 5, "type": "bag"}
+            {"index":{}}
+            {"date": "2015/02/01 00:00:00", "price": 50, "promoted": false, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/02/01 00:00:00", "price": 10, "promoted": true, "rating": 4, "type": "t-shirt"}
+            {"index":{}}
+            {"date": "2015/03/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/03/01 00:00:00", "price": 175, "promoted": false, "rating": 2, "type": "t-shirt"}
+  - do:
+      raw:
+        method: GET
+        path: "sales/_search"
+        body: |
+          {
+            "size": 0,
+            "aggs": {
+              "by_date": {
+                "date_histogram": {
+                  "field": "date",
+                  "calendar_interval": "month"
+                },
+                "aggs": {
+                  "avg_number_of_sales_per_year": {
+                    "rate": {
+                      "field": "price",
+                      "unit": "year",
+                      "mode": "value_count"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,
+          "aggregations" : {
+            "by_date" : {
+              "buckets" : [
+                {
+                  "key_as_string" : "2015/01/01 00:00:00",
+                  "key" : 1420070400000,
+                  "doc_count" : 3,
+                  "avg_number_of_sales_per_year" : {
+                    "value" : 36.0
+                  }
+                },
+                {
+                  "key_as_string" : "2015/02/01 00:00:00",
+                  "key" : 1422748800000,
+                  "doc_count" : 2,
+                  "avg_number_of_sales_per_year" : {
+                    "value" : 24.0
+                  }
+                },
+                {
+                  "key_as_string" : "2015/03/01 00:00:00",
+                  "key" : 1425168000000,
+                  "doc_count" : 2,
+                  "avg_number_of_sales_per_year" : {
+                    "value" : 24.0
+                  }
+                }
+              ]
+            }
+          }
+        }
+---
+"line_411":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup sales
+
+  - do:
+        indices.create:
+          index: sales
+          body:
+            settings:
+              number_of_shards: 2
+              number_of_replicas: 1
+            mappings:
+              properties:
+                type:
+                  type: keyword
+  - do:
+        bulk:
+          index: sales
+          refresh: true
+          body: |
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "t-shirt"}
+            {"index":{}}
+            {"date": "2015/01/01 00:00:00", "price": 150, "promoted": true, "rating": 5, "type": "bag"}
+            {"index":{}}
+            {"date": "2015/02/01 00:00:00", "price": 50, "promoted": false, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/02/01 00:00:00", "price": 10, "promoted": true, "rating": 4, "type": "t-shirt"}
+            {"index":{}}
+            {"date": "2015/03/01 00:00:00", "price": 200, "promoted": true, "rating": 1, "type": "hat"}
+            {"index":{}}
+            {"date": "2015/03/01 00:00:00", "price": 175, "promoted": false, "rating": 2, "type": "t-shirt"}
+  - do:
+      raw:
+        method: GET
+        path: "sales/_search"
+        body: |
+          {
+            "size": 0,
+            "runtime_mappings": {
+              "price.adjusted": {
+                "type": "double",
+                "script": {
+                  "source": "emit(doc['price'].value * params.adjustment)",
+                  "params": {
+                    "adjustment": 0.9
+                  }
+                }
+              }
+            },
+            "aggs": {
+              "by_date": {
+                "date_histogram": {
+                  "field": "date",
+                  "calendar_interval": "month"
+                },
+                "aggs": {
+                  "avg_price": {
+                    "rate": {
+                      "field": "price.adjusted"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,
+          "aggregations" : {
+            "by_date" : {
+              "buckets" : [
+                {
+                  "key_as_string" : "2015/01/01 00:00:00",
+                  "key" : 1420070400000,
+                  "doc_count" : 3,
+                  "avg_price" : {
+                    "value" : 495.0
+                  }
+                },
+                {
+                  "key_as_string" : "2015/02/01 00:00:00",
+                  "key" : 1422748800000,
+                  "doc_count" : 2,
+                  "avg_price" : {
+                    "value" : 54.0
+                  }
+                },
+                {
+                  "key_as_string" : "2015/03/01 00:00:00",
+                  "key" : 1425168000000,
+                  "doc_count" : 2,
+                  "avg_price" : {
+                    "value" : 337.5
+                  }
+                }
+              ]
+            }
+          }
+        }

@@ -1,0 +1,94 @@
+---
+"line_35":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer" : "whitespace",
+            "filter" : ["fingerprint"],
+            "text" : "zebra jumps over resting resting dog"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens" : [
+            {
+              "token" : "dog jumps over resting zebra",
+              "start_offset" : 0,
+              "end_offset" : 36,
+              "type" : "fingerprint",
+              "position" : 0
+            }
+          ]
+        }
+---
+"line_76":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "fingerprint_example"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "whitespace_fingerprint": {
+                    "tokenizer": "whitespace",
+                    "filter": [ "fingerprint" ]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_117":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "custom_fingerprint_example"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "whitespace_": {
+                    "tokenizer": "whitespace",
+                    "filter": [ "fingerprint_plus_concat" ]
+                  }
+                },
+                "filter": {
+                  "fingerprint_plus_concat": {
+                    "type": "fingerprint",
+                    "max_output_size": 100,
+                    "separator": "+"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

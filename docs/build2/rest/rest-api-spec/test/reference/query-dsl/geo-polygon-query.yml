@@ -1,0 +1,148 @@
+---
+"line_12":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      warnings:
+         - "Deprecated field [geo_polygon] used, replaced by [[geo_shape] query where polygons are defined in geojson or wkt]"
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "bool": {
+                "must": {
+                  "match_all": {}
+                },
+                "filter": {
+                  "geo_polygon": {
+                    "person.location": {
+                      "points": [
+                        { "lat": 40, "lon": -70 },
+                        { "lat": 30, "lon": -80 },
+                        { "lat": 20, "lon": -90 }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_62":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      warnings:
+         - "Deprecated field [geo_polygon] used, replaced by [[geo_shape] query where polygons are defined in geojson or wkt]"
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "bool": {
+                "must": {
+                  "match_all": {}
+                },
+                "filter": {
+                  "geo_polygon": {
+                    "person.location": {
+                      "points": [
+                        [ -70, 40 ],
+                        [ -80, 30 ],
+                        [ -90, 20 ]
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_93":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      warnings:
+         - "Deprecated field [geo_polygon] used, replaced by [[geo_shape] query where polygons are defined in geojson or wkt]"
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "bool": {
+                "must": {
+                  "match_all": {}
+                },
+                "filter": {
+                  "geo_polygon": {
+                    "person.location": {
+                      "points": [
+                        "40, -70",
+                        "30, -80",
+                        "20, -90"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_122":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      warnings:
+         - "Deprecated field [geo_polygon] used, replaced by [[geo_shape] query where polygons are defined in geojson or wkt]"
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "bool": {
+                "must": {
+                  "match_all": {}
+                },
+                "filter": {
+                  "geo_polygon": {
+                    "person.location": {
+                      "points": [
+                        "drn5x1g8cu2y",
+                        "30, -80",
+                        "20, -90"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

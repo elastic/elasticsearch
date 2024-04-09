@@ -1,0 +1,28 @@
+---
+"line_51":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: need-licence
+  - do:
+      raw:
+        method: PUT
+        path: "_ml/filters/safe_domains"
+        body: |
+          {
+            "description": "A list of safe domains",
+            "items": ["*.google.com", "wikipedia.org"]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "filter_id": "safe_domains",
+          "description": "A list of safe domains",
+          "items": ["*.google.com", "wikipedia.org"]
+        }

@@ -1,0 +1,27 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_template/my-legacy-index-template"
+        body: |
+          {
+           "index_patterns" : ["te*"],
+            "settings": {
+              "number_of_shards": 1
+            }
+          }
+---
+"line_29":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: DELETE
+        path: "_template/my-legacy-index-template"
+  - is_false: _shards.failures

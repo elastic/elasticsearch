@@ -128,20 +128,12 @@ public class DocSnippetTask extends DefaultTask {
     @TaskAction
     void executeTask() {
         for (File file : docs) {
-            String lastLanguage;
-            String name;
-            int lastLanguageLine;
-            Snippet snippet = null;
-            StringBuilder contents = null;
-            List<Map.Entry<String, String>> substitutions = new ArrayList<>();
-
-            parseDocFile(docs.getDir(), file, substitutions);
-            //
-            // emit(snippet, contents, defaultSubstitutions, substitutions);
+            System.out.println("file = " + file);
+            parseDocFiles(docs.getDir(), file, new ArrayList<>());
         }
     }
 
-    List<Snippet> parseDocFile(File rootDir, File docFile, List<Map.Entry<String, String>> substitutions) {
+    List<Snippet> parseDocFiles(File rootDir, File docFile, List<Map.Entry<String, String>> substitutions) {
         String lastLanguage = null;
         Snippet snippet = null;
         String name = null;
@@ -213,10 +205,15 @@ public class DocSnippetTask extends DefaultTask {
                     continue;
                 }
                 emit(snippet, contents.toString(), defaultSubstitutions, substitutions);
+                substitutions = new ArrayList<>();;
                 snippet = null;
+                contents = null;
             }
             if (snippet != null) {
                 emit(snippet, contents.toString(), defaultSubstitutions, substitutions);
+                contents = null;
+                snippet = null;
+                substitutions = new ArrayList<>();
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -270,7 +267,7 @@ public class DocSnippetTask extends DefaultTask {
         int lineNumber,
         String line,
         Snippet snippet,
-        final List<Map.Entry<String, String>> substitutions
+        List<Map.Entry<String, String>> substitutions
     ) {
         Matcher matcher = Pattern.compile("\\/\\/\s*TEST(\\[(.+)\\])?\s*").matcher(line);
         if (matcher.matches()) {
@@ -321,14 +318,14 @@ public class DocSnippetTask extends DefaultTask {
         return false;
     }
 
-    public void extraContent(String message, String s, int offset, String location, String pattern) {
+    public void extraContent(String message, String content, int offset, String location, String pattern) {
         StringBuilder cutOut = new StringBuilder();
-        cutOut.append(s.substring(offset - 6, offset));
+        cutOut.append(content.substring(offset - 6, offset));
         cutOut.append('*');
-        cutOut.append(s.substring(offset, Math.min(offset + 5, s.length())));
+        cutOut.append(content.substring(offset, Math.min(offset + 5, content.length())));
         String cutOutNoNl = cutOut.toString().replace("\n", "\\n");
         throw new InvalidUserDataException(
-            location + ": Extra content " + message + " ('" + cutOutNoNl + "') matching [" + pattern + "]: " + s
+            location + ": Extra content " + message + " ('" + cutOutNoNl + "') matching [" + pattern + "]: " + content
         );
     }
 
@@ -352,6 +349,7 @@ public class DocSnippetTask extends DefaultTask {
             testHandler.accept(m, offset == content.length());
         }
         if (offset == 0) {
+            System.out.println("content = " + content);
             throw new InvalidUserDataException(location + ": Didn't match " + pattern + ": " + content);
         }
         if (offset != content.length()) {

@@ -1,0 +1,169 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "kibana_sample_data_ecommerce"
+---
+teardown:
+  - do:
+      raw:
+        method: DELETE
+        path: "kibana_sample_data_ecommerce"
+---
+"line_49":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup host
+
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http, transport ]
+  - set: {nodes.$master.http.publish_address: host}
+  - set: {nodes.$master.transport.publish_address: transport_host}
+
+  - do:
+      raw:
+        method: PUT
+        path: "_cluster/settings"
+        body: |
+          {
+            "persistent": {
+              "cluster": {
+                "remote": {
+                  "remote_cluster": {
+                    "mode": "proxy",
+                    "skip_unavailable": "true",
+                    
+                    "proxy_socket_connections": "18",
+                    "proxy_address": "${transport_host}"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "kibana_sample_data_ecommerce2/_ccr/follow"
+        wait_for_active_shards: "1"
+        body: |
+          {
+            "remote_cluster": "remote_cluster",
+            "leader_index": "kibana_sample_data_ecommerce"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "kibana_sample_data_ecommerce2/_ccr/pause_follow"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "kibana_sample_data_ecommerce2/_close"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "kibana_sample_data_ecommerce2/_ccr/unfollow"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "kibana_sample_data_ecommerce2/_open"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "kibana_sample_data_ecommerce2/_doc/"
+        body: |
+          {
+            "user": "kimchy"
+          }
+  - is_false: _shards.failures
+---
+"line_133":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup host
+
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http, transport ]
+  - set: {nodes.$master.http.publish_address: host}
+  - set: {nodes.$master.transport.publish_address: transport_host}
+
+  - do:
+      raw:
+        method: PUT
+        path: "_cluster/settings"
+        body: |
+          {
+            "persistent": {
+              "cluster": {
+                "remote": {
+                  "remote_cluster": {
+                    "mode": "proxy",
+                    "skip_unavailable": "true",
+                    
+                    "proxy_socket_connections": "18",
+                    "proxy_address": "${transport_host}"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_163":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: need dual cluster setup
+  - do:
+      raw:
+        method: DELETE
+        path: "kibana_sample_data_ecommerce"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "kibana_sample_data_ecommerce/_ccr/follow"
+        wait_for_active_shards: "1"
+        body: |
+          {
+            "remote_cluster": "remote_cluster",
+            "leader_index": "kibana_sample_data_ecommerce2"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "kibana_sample_data_ecommerce/_search"
+        q: "kimchy"
+  - is_false: _shards.failures

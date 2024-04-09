@@ -1,0 +1,22 @@
+---
+"line_179":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/role_mapping/kerbrolemapping"
+        body: |
+          {
+            "roles" : [ "monitoring_user" ],
+            "enabled": true,
+            "rules" : {
+              "field" : { "username" : "user@REALM" }
+            }
+          }
+  - is_false: _shards.failures

@@ -1,0 +1,45 @@
+---
+"line_177":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: Kibana sample data started datafeed
+  - do:
+      raw:
+        method: GET
+        path: "_ml/datafeeds/datafeed-high_sum_total_sales/_stats"
+  - match:
+      $body:
+        {
+          "count" : 1,
+          "datafeeds" : [
+            {
+              "datafeed_id" : "datafeed-high_sum_total_sales",
+              "state" : "started",
+              "node" : {
+                "id" : $body.$_path,
+                "name" : $body.$_path,
+                "ephemeral_id" : $body.$_path,
+                "transport_address" : $body.$_path,
+                "attributes" : {
+                  "ml.machine_memory" : $body.datafeeds.0.node.attributes.ml\.machine_memory,
+                  "ml.max_open_jobs" : "512"
+                }
+              },
+              "assignment_explanation" : "",
+              "timing_stats" : {
+                "job_id" : "high_sum_total_sales",
+                "search_count" : 7,
+                "bucket_count" : 743,
+                "total_search_time_ms" : 134.0,
+                "average_search_time_per_bucket_ms" : 0.180349932705249,
+                "exponential_average_search_time_per_hour_ms" : 11.514712961628677
+              }
+            }
+          ]
+        }

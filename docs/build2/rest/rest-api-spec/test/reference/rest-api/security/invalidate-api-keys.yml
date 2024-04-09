@@ -1,0 +1,145 @@
+---
+"line_82":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/api_key"
+        body: |
+          {
+            "name": "my-api-key"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "id": "$body.id",
+          "name": "my-api-key",
+          "api_key": "$body.api_key",
+          "encoded": "$body.encoded"
+        }
+  - do:
+      raw:
+        method: DELETE
+        path: "_security/api_key"
+        body: |
+          {
+            "ids" : [ "$body.id" ]
+          }
+  - is_false: _shards.failures
+---
+"line_122":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: DELETE
+        path: "_security/api_key"
+        body: |
+          {
+            "name" : "my-api-key"
+          }
+  - is_false: _shards.failures
+---
+"line_133":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: DELETE
+        path: "_security/api_key"
+        body: |
+          {
+            "realm_name" : "native1"
+          }
+  - is_false: _shards.failures
+---
+"line_144":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: DELETE
+        path: "_security/api_key"
+        body: |
+          {
+            "username" : "myuser"
+          }
+  - is_false: _shards.failures
+---
+"line_155":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: DELETE
+        path: "_security/api_key"
+        body: |
+          {
+            "ids" : ["VuaCfGcBCdbkQm-e5aOx"],
+            "owner" : "true"
+          }
+  - is_false: _shards.failures
+---
+"line_167":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: DELETE
+        path: "_security/api_key"
+        body: |
+          {
+            "owner" : "true"
+          }
+  - is_false: _shards.failures
+---
+"line_178":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: DELETE
+        path: "_security/api_key"
+        body: |
+          {
+            "username" : "myuser",
+            "realm_name" : "native1"
+          }
+  - is_false: _shards.failures

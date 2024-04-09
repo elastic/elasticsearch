@@ -1,0 +1,61 @@
+---
+"line_74":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: kibana sample data
+  - do:
+      raw:
+        method: GET
+        path: "_ml/datafeeds/datafeed-high_sum_total_sales"
+  - match:
+      $body:
+        {
+          "count" : 1,
+          "datafeeds" : [
+            {
+              "datafeed_id" : "datafeed-high_sum_total_sales",
+              "job_id" : "high_sum_total_sales",
+              "authorization" : {
+                "roles" : [
+                  "superuser"
+                ]
+              },
+              "query_delay" : "93169ms",
+              "chunking_config" : {
+                "mode" : "auto"
+              },
+              "indices_options" : {
+                "expand_wildcards" : [
+                  "open"
+                ],
+                "ignore_unavailable" : false,
+                "allow_no_indices" : true,
+                "ignore_throttled" : true
+              },
+              "query" : {
+                "bool" : {
+                  "filter" : [
+                    {
+                      "term" : {
+                        "event.dataset" : "sample_ecommerce"
+                      }
+                    }
+                  ]
+                }
+              },
+              "indices" : [
+                "kibana_sample_data_ecommerce"
+              ],
+              "scroll_size" : 1000,
+              "delayed_data_check_config" : {
+                "enabled" : true
+              }
+            }
+          ]
+        }

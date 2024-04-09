@@ -1,0 +1,445 @@
+---
+"line_38":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_xpack/usage"
+        filter_path: "-watcher.execution.actions.index*,-watcher.execution.actions.logging*,-watcher.execution.actions.email*"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "security" : $body.$_path,
+          "monitoring" : {
+            "available" : $body.$_path,
+            "enabled" : $body.$_path,
+            "collection_enabled" : $body.$_path,
+            "enabled_exporters" : {
+              "local" : $body.$_path
+            }
+          },
+          "watcher" : {
+              "available" : $body.$_path,
+              "enabled" : $body.$_path,
+              "execution" : {
+                "actions" : {
+                  "_all" : {
+                    "total" : $body.$_path,
+                    "total_time_in_ms" : $body.$_path
+                  }
+                }
+              },
+            "watch" : {
+              "input" : {
+                "_all" : {
+                  "total" : $body.$_path,
+                  "active" : $body.$_path
+                }
+              },
+              "trigger" : {
+                "_all" : {
+                  "total" : $body.$_path,
+                  "active" : $body.$_path
+                }
+              }
+            },
+            "count" : {
+              "total" : $body.$_path,
+              "active" : $body.$_path
+            }
+          },
+          "graph" : {
+            "available" : $body.$_path,
+            "enabled" : $body.$_path
+          },
+          "ml" : {
+            "available" : $body.$_path,
+            "enabled" : $body.$_path,
+            "jobs" : {
+              "_all" : {
+                "count" : $body.$_path,
+                "detectors" : $body.$_path,
+                "created_by" : { },
+                "model_size" : $body.$_path,
+                "forecasts" : {
+                  "total" : $body.$_path,
+                  "forecasted_jobs" : $body.$_path
+                }
+              }
+            },
+            "datafeeds" : {
+              "_all" : {
+                "count" : $body.$_path
+              }
+            },
+            "data_frame_analytics_jobs" : {
+              "_all" : {
+                "count" : $body.$_path
+              },
+              "analysis_counts": { },
+              "memory_usage": {
+                "peak_usage_bytes": {
+                  "min": 0.0,
+                  "max": 0.0,
+                  "avg": 0.0,
+                  "total": 0.0
+                }
+              }
+            },
+            "inference" : {
+              "ingest_processors" : {
+                "_all" : {
+                  "num_docs_processed" : {
+                    "max" : $body.$_path,
+                    "sum" : $body.$_path,
+                    "min" : $body.$_path
+                  },
+                  "pipelines" : {
+                    "count" : $body.$_path
+                  },
+                  "num_failures" : {
+                    "max" : $body.$_path,
+                    "sum" : $body.$_path,
+                    "min" : $body.$_path
+                  },
+                  "time_ms" : {
+                    "max" : $body.$_path,
+                    "sum" : $body.$_path,
+                    "min" : $body.$_path
+                  }
+                }
+              },
+              "trained_models" : {
+                "_all" : {
+                  "count": 1
+                },
+                "count": {
+                  "total": 1,
+                  "prepackaged": 1,
+                  "other": 0
+                },
+                "model_size_bytes": {
+                  "min": 0.0,
+                  "max": 0.0,
+                  "avg": 0.0,
+                  "total": 0.0
+                },
+                "estimated_operations": {
+                  "min": 0.0,
+                  "max": 0.0,
+                  "avg": 0.0,
+                  "total": 0.0
+                }
+              },
+              "deployments": {
+                "count": 0,
+                "inference_counts": {
+                  "total": 0.0,
+                  "min": 0.0,
+                  "avg": 0.0,
+                  "max": 0.0
+                },
+                "stats_by_model": [],
+                "model_sizes_bytes": {
+                  "total": 0.0,
+                  "min": 0.0,
+                  "avg": 0.0,
+                  "max": 0.0
+                },
+                "time_ms": {
+                  "avg": 0.0
+                }
+              }
+            },
+            "node_count" : $body.$_path
+          },
+          "inference": {
+            "available" : $body.$_path,
+            "enabled" : $body.$_path,
+            "models" : []
+          },
+          "logstash" : {
+            "available" : $body.$_path,
+            "enabled" : $body.$_path
+          },
+          "eql" : $body.$_path,
+          "esql" : {
+            "available" : $body.$_path,
+            "enabled" : $body.$_path,
+            "features" : {
+              "eval" : $body.$_path,
+              "stats" : $body.$_path,
+              "dissect": 0,
+              "grok" : $body.$_path,
+              "limit" : $body.$_path,
+              "where" : $body.$_path,
+              "sort" : $body.$_path,
+              "drop" : $body.$_path,
+              "show" : $body.$_path,
+              "rename" : $body.$_path,
+              "mv_expand" : $body.$_path,
+              "keep" : $body.$_path,
+              "enrich" : $body.$_path,
+              "from" : $body.$_path,
+              "row" : $body.$_path,
+              "meta" : $body.$_path
+            },
+            "queries" : {
+              "rest" : {
+                "total" : $body.$_path,
+                "failed" : $body.$_path
+              },
+              "kibana" : {
+                "total" : $body.$_path,
+                "failed" : $body.$_path
+              },
+              "_all" : {
+                "total" : $body.$_path,
+                "failed" : $body.$_path
+             }
+           }
+          },
+          "sql" : {
+            "available" : $body.$_path,
+            "enabled" : $body.$_path,
+            "features" : {
+              "having" : $body.$_path,
+              "subselect" : $body.$_path,
+              "limit" : $body.$_path,
+              "orderby" : $body.$_path,
+              "where" : $body.$_path,
+              "join" : $body.$_path,
+              "groupby" : $body.$_path,
+              "command" : $body.$_path,
+              "local" : $body.$_path
+            },
+            "queries" : {
+              "rest" : {
+                "total" : $body.$_path,
+                "paging" : $body.$_path,
+                "failed" : $body.$_path
+              },
+              "cli" : {
+                "total" : $body.$_path,
+                "paging" : $body.$_path,
+                "failed" : $body.$_path
+              },
+              "canvas" : {
+                "total" : $body.$_path,
+                "paging" : $body.$_path,
+                "failed" : $body.$_path
+              },
+              "odbc" : {
+                "total" : $body.$_path,
+                "paging" : $body.$_path,
+                "failed" : $body.$_path
+              },
+              "jdbc" : {
+                "total" : $body.$_path,
+                "paging" : $body.$_path,
+                "failed" : $body.$_path
+              },
+              "odbc32" : {
+                "total" : $body.$_path,
+                "paging" : $body.$_path,
+                "failed" : $body.$_path
+              },
+              "odbc64" : {
+                "total" : $body.$_path,
+                "paging" : $body.$_path,
+                "failed" : $body.$_path
+              },
+              "_all" : {
+                "total" : $body.$_path,
+                "paging" : $body.$_path,
+                "failed" : $body.$_path
+              },
+              "translate" : {
+                "count" : $body.$_path
+              }
+            }
+          },
+          "rollup" : {
+            "available" : $body.$_path,
+            "enabled" : $body.$_path
+          },
+          "ilm" : {
+            "policy_count" : $body.$_path,
+            "policy_stats" : $body.$_path
+          },
+          "slm" : $body.$_path,
+          "ccr" : {
+            "available" : $body.$_path,
+            "enabled" : $body.$_path,
+            "follower_indices_count" : $body.$_path,
+            "auto_follow_patterns_count" : $body.$_path
+          },
+          "transform" : {
+            "available" : $body.$_path,
+            "enabled" : $body.$_path
+          },
+          "voting_only" : {
+            "available" : $body.$_path,
+            "enabled" : $body.$_path
+          },
+          "searchable_snapshots" : {
+            "available" : $body.$_path,
+            "enabled" : $body.$_path,
+            "indices_count" : $body.$_path,
+            "full_copy_indices_count" : $body.$_path,
+            "shared_cache_indices_count" : $body.$_path
+          },
+          "frozen_indices" : {
+            "available" : $body.$_path,
+            "enabled" : $body.$_path,
+            "indices_count" : $body.$_path
+          },
+          "spatial" : {
+            "available" : $body.$_path,
+            "enabled" : $body.$_path
+          },
+          "analytics" : {
+            "available" : $body.$_path,
+            "enabled" : $body.$_path,
+            "stats": {
+              "boxplot_usage" : $body.$_path,
+              "top_metrics_usage" : $body.$_path,
+              "normalize_usage" : $body.$_path,
+              "cumulative_cardinality_usage" : $body.$_path,
+              "t_test_usage" : $body.$_path,
+              "rate_usage" : $body.$_path,
+              "string_stats_usage" : $body.$_path,
+              "moving_percentiles_usage" : $body.$_path,
+              "multi_terms_usage" : $body.$_path
+            }
+          },
+          "data_streams" : {
+            "available" : $body.$_path,
+            "enabled" : $body.$_path,
+            "data_streams" : $body.$_path,
+            "indices_count" : $body.$_path
+          },
+          "data_lifecycle" : {
+            "available": true,
+            "enabled": true,
+            "count": 0,
+            "default_rollover_used": true,
+            "retention": {
+                "minimum_millis": 0,
+                "maximum_millis": 0,
+                "average_millis": 0.0
+            }
+          },
+          "data_tiers" : {
+            "available" : $body.$_path,
+            "enabled" : $body.$_path,
+            "data_warm" : {
+              "node_count" : $body.$_path,
+              "index_count" : $body.$_path,
+              "total_shard_count" : $body.$_path,
+              "primary_shard_count" : $body.$_path,
+              "doc_count" : $body.$_path,
+              "total_size_bytes" : $body.$_path,
+              "primary_size_bytes" : $body.$_path,
+              "primary_shard_size_avg_bytes" : $body.$_path,
+              "primary_shard_size_median_bytes" : $body.$_path,
+              "primary_shard_size_mad_bytes" : $body.$_path
+            },
+            "data_frozen" : {
+              "node_count" : $body.$_path,
+              "index_count" : $body.$_path,
+              "total_shard_count" : $body.$_path,
+              "primary_shard_count" : $body.$_path,
+              "doc_count" : $body.$_path,
+              "total_size_bytes" : $body.$_path,
+              "primary_size_bytes" : $body.$_path,
+              "primary_shard_size_avg_bytes" : $body.$_path,
+              "primary_shard_size_median_bytes" : $body.$_path,
+              "primary_shard_size_mad_bytes" : $body.$_path
+            },
+            "data_cold" : {
+              "node_count" : $body.$_path,
+              "index_count" : $body.$_path,
+              "total_shard_count" : $body.$_path,
+              "primary_shard_count" : $body.$_path,
+              "doc_count" : $body.$_path,
+              "total_size_bytes" : $body.$_path,
+              "primary_size_bytes" : $body.$_path,
+              "primary_shard_size_avg_bytes" : $body.$_path,
+              "primary_shard_size_median_bytes" : $body.$_path,
+              "primary_shard_size_mad_bytes" : $body.$_path
+            },
+            "data_content" : {
+              "node_count" : $body.$_path,
+              "index_count" : $body.$_path,
+              "total_shard_count" : $body.$_path,
+              "primary_shard_count" : $body.$_path,
+              "doc_count" : $body.$_path,
+              "total_size_bytes" : $body.$_path,
+              "primary_size_bytes" : $body.$_path,
+              "primary_shard_size_avg_bytes" : $body.$_path,
+              "primary_shard_size_median_bytes" : $body.$_path,
+              "primary_shard_size_mad_bytes" : $body.$_path
+            },
+            "data_hot" : {
+              "node_count" : $body.$_path,
+              "index_count" : $body.$_path,
+              "total_shard_count" : $body.$_path,
+              "primary_shard_count" : $body.$_path,
+              "doc_count" : $body.$_path,
+              "total_size_bytes" : $body.$_path,
+              "primary_size_bytes" : $body.$_path,
+              "primary_shard_size_avg_bytes" : $body.$_path,
+              "primary_shard_size_median_bytes" : $body.$_path,
+              "primary_shard_size_mad_bytes" : $body.$_path
+            }
+          },
+          "aggregate_metric" : {
+            "available" : $body.$_path,
+            "enabled" : $body.$_path
+          },
+          "archive" : {
+            "available" : $body.$_path,
+            "enabled" : $body.$_path,
+            "indices_count" : $body.$_path
+          },
+          "health_api" : $body.$_path,
+          "remote_clusters": {
+            "size": 0,
+            "mode": {
+              "proxy": 0,
+              "sniff": 0
+            },
+            "security": {
+              "cert": 0,
+              "api_key": 0
+            }
+          },
+          "enterprise_search" : {
+            "available": true,
+            "enabled": true,
+            "search_applications" : {
+              "count": 0
+            },
+            "analytics_collections": {
+              "count": 0
+            },
+            "query_rulesets": {
+              "total_rule_count": 0,
+              "total_count": 0,
+              "min_rule_count": 0,
+              "max_rule_count": 0
+            }
+          },
+          "universal_profiling" : {
+            "available" : $body.$_path,
+            "enabled" : $body.$_path
+          }
+        }

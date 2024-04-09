@@ -1,0 +1,99 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_application/analytics/my_analytics_collection"
+  - do:
+      raw:
+        method: PUT
+        path: "_application/analytics/my_analytics_collection2"
+---
+teardown:
+  - do:
+      raw:
+        method: DELETE
+        path: "_application/analytics/my_analytics_collection"
+  - do:
+      raw:
+        method: DELETE
+        path: "_application/analytics/my_analytics_collection2"
+---
+"line_60":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_application/analytics/"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "my_analytics_collection": {
+              "event_data_stream": {
+                  "name": "behavioral_analytics-events-my_analytics_collection"
+              }
+          },
+          "my_analytics_collection2": {
+              "event_data_stream": {
+                  "name": "behavioral_analytics-events-my_analytics_collection2"
+              }
+          }
+        }
+---
+"line_85":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_application/analytics/my_analytics_collection"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "my_analytics_collection": {
+              "event_data_stream": {
+                  "name": "behavioral_analytics-events-my_analytics_collection"
+              }
+          }
+        }
+---
+"line_105":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_application/analytics/my*"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "my_analytics_collection": {
+              "event_data_stream": {
+                  "name": "behavioral_analytics-events-my_analytics_collection"
+              }
+          },
+          "my_analytics_collection2": {
+              "event_data_stream": {
+                  "name": "behavioral_analytics-events-my_analytics_collection2"
+              }
+          }
+        }

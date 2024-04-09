@@ -1,0 +1,128 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_index_template/template_1"
+        body: |
+          {
+            "index_patterns": ["my-index-*"],
+            "template": {
+              "settings": {
+                "number_of_shards": 1
+              }
+            }
+          }
+---
+teardown:
+  - do:
+      raw:
+        method: DELETE
+        path: "_index_template/*"
+---
+"line_33":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_index_template/_simulate_index/my-index-000001"
+  - is_false: _shards.failures
+---
+"line_145":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_component_template/ct1"
+        body: |
+          {
+            "template": {
+              "settings": {
+                "index.number_of_shards": 2
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_component_template/ct2"
+        body: |
+          {
+            "template": {
+              "settings": {
+                "index.number_of_replicas": 0
+              },
+              "mappings": {
+                "properties": {
+                  "@timestamp": {
+                    "type": "date"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_index_template/final-template"
+        body: |
+          {
+            "index_patterns": ["my-index-*"],
+            "composed_of": ["ct1", "ct2"],
+            "priority": 5
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_index_template/_simulate_index/my-index-000001"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "template" : {
+            "settings" : {
+              "index" : {
+                "number_of_shards" : "2",
+                "number_of_replicas" : "0",
+                "routing" : {
+                  "allocation" : {
+                    "include" : {
+                      "_tier_preference" : "data_content"
+                    }
+                  }
+                }
+              }
+            },
+            "mappings" : {
+              "properties" : {
+                "@timestamp" : {
+                  "type" : "date"
+                }
+              }
+            },
+            "aliases" : { }
+          },
+          "overlapping" : [
+            {
+              "name" : "template_1",
+              "index_patterns" : [
+                "my-index-*"
+              ]
+            }
+          ]
+        }

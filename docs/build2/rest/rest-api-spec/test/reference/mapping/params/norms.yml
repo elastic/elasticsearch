@@ -1,0 +1,28 @@
+---
+"line_21":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_mapping"
+        body: |
+          {
+            "properties": {
+              "title": {
+                "type": "text",
+                "norms": false
+              }
+            }
+          }
+  - is_false: _shards.failures

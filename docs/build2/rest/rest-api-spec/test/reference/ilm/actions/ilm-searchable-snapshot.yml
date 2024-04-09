@@ -1,0 +1,41 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/backing_repo"
+        body: |
+          {
+           "type": "fs",
+            "settings": {
+              "location": "my_backup_location"
+            }
+          }
+---
+"line_93":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ilm/policy/my_policy"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "cold": {
+                  "actions": {
+                    "searchable_snapshot" : {
+                      "snapshot_repository" : "backing_repo"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

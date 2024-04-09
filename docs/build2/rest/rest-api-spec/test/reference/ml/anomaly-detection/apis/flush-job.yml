@@ -1,0 +1,52 @@
+---
+"line_75":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: Kibana sample data
+  - do:
+      raw:
+        method: POST
+        path: "_ml/anomaly_detectors/low_request_rate/_flush"
+        body: |
+          {
+            "calc_interim": true
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "flushed": true,
+          "last_finalized_bucket_end": $body.last_finalized_bucket_end
+        }
+---
+"line_102":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: setup:server_metrics_openjob
+  - do:
+      raw:
+        method: POST
+        path: "_ml/anomaly_detectors/total-requests/_flush"
+        body: |
+          {
+            "advance_time": "1514804400000"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "flushed": true,
+          "last_finalized_bucket_end": 1514804400000
+        }

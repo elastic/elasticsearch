@@ -1,0 +1,66 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_autoscaling/policy/my_autoscaling_policy"
+        body: |
+          {
+            "roles": [],
+            "deciders": {
+              "fixed": {
+              }
+            }
+          }
+---
+"line_31":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: DELETE
+        path: "_autoscaling/policy/my_autoscaling_policy"
+  - is_false: _shards.failures
+---
+"line_57":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: DELETE
+        path: "_autoscaling/policy/my_autoscaling_policy"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "acknowledged": true
+        }
+---
+"line_74":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: DELETE
+        path: "_autoscaling/policy/*"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "acknowledged": true
+        }

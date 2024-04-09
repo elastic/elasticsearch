@@ -1,0 +1,1212 @@
+---
+"line_130":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/"
+        body: |
+          {
+            "mappings": {
+              "runtime": {
+                "day_of_week": {
+                  "type": "keyword",
+                  "script": {
+                    "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+                  }
+                }
+              },
+              "properties": {
+                "@timestamp": {"type": "date"}
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_175":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "mappings": {
+              "dynamic": "runtime",
+              "properties": {
+                "@timestamp": {
+                  "type": "date"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_197":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/"
+        body: |
+          {
+            "mappings": {
+              "runtime": {
+                "day_of_week": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_mapping"
+        body: |
+          {
+           "runtime": {
+             "day_of_week": null
+           }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "runtime_mappings": {
+              "day_of_week": {
+                "type": "keyword",
+                "script": {
+                  "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+                }
+              }
+            },
+            "aggs": {
+              "day_of_week": {
+                "terms": {
+                  "field": "day_of_week"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_316":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "my-index-000001/_bulk"
+        refresh: "true"
+        body: |
+          {"index":{}}
+          {"@timestamp":1516729294000,"model_number":"QVKC92Q","measures":{"voltage":"5.2","start": "300","end":"8675309"}}
+          {"index":{}}
+          {"@timestamp":1516642894000,"model_number":"QVKC92Q","measures":{"voltage":"5.8","start": "300","end":"8675309"}}
+          {"index":{}}
+          {"@timestamp":1516556494000,"model_number":"QVKC92Q","measures":{"voltage":"5.1","start": "300","end":"8675309"}}
+          {"index":{}}
+          {"@timestamp":1516470094000,"model_number":"QVKC92Q","measures":{"voltage":"5.6","start": "300","end":"8675309"}}
+          {"index":{}}
+          {"@timestamp":1516383694000,"model_number":"HG537PU","measures":{"voltage":"4.2","start": "400","end":"8625309"}}
+          {"index":{}}
+          {"@timestamp":1516297294000,"model_number":"HG537PU","measures":{"voltage":"4.0","start": "400","end":"8625309"}}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_mapping"
+        body: |
+          {
+            "runtime": {
+              "measures.start": {
+                "type": "long"
+              },
+              "measures.end": {
+                "type": "long"
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        filter_path: "aggregations"
+        body: |
+          {
+            "aggs": {
+              "avg_start": {
+                "avg": {
+                  "field": "measures.start"
+                }
+              },
+              "avg_end": {
+                "avg": {
+                  "field": "measures.end"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "aggregations" : {
+            "avg_start" : {
+              "value" : 333.3333333333333
+            },
+            "avg_end" : {
+              "value" : 8658642.333333334
+            }
+          }
+        }
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        filter_path: "aggregations"
+        body: |
+          {
+            "runtime_mappings": {
+              "duration": {
+                "type": "long",
+                "script": {
+                  "source": "\n          emit(doc['measures.end'].value - doc['measures.start'].value);\n          "
+                }
+              }
+            },
+            "aggs": {
+              "duration_stats": {
+                "stats": {
+                  "field": "duration"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "aggregations" : {
+            "duration_stats" : {
+              "count" : 6,
+              "min" : 8624909.0,
+              "max" : 8675009.0,
+              "avg" : 8658309.0,
+              "sum" : 5.1949854E7
+            }
+          }
+        }
+---
+"line_471":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "my-index-000001/_bulk"
+        refresh: "true"
+        body: |
+          {"index":{}}
+          {"@timestamp":1516729294000,"model_number":"QVKC92Q","measures":{"voltage":5.2}}
+          {"index":{}}
+          {"@timestamp":1516642894000,"model_number":"QVKC92Q","measures":{"voltage":5.8}}
+          {"index":{}}
+          {"@timestamp":1516556494000,"model_number":"QVKC92Q","measures":{"voltage":5.1}}
+          {"index":{}}
+          {"@timestamp":1516470094000,"model_number":"QVKC92Q","measures":{"voltage":5.6}}
+          {"index":{}}
+          {"@timestamp":1516383694000,"model_number":"HG537PU","measures":{"voltage":4.2}}
+          {"index":{}}
+          {"@timestamp":1516297294000,"model_number":"HG537PU","measures":{"voltage":4.0}}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "query": {
+              "match": {
+                "model_number": "HG537PU"
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,
+          "hits" : {
+            "total" : {
+              "value" : 2,
+              "relation" : "eq"
+            },
+            "max_score" : 1.0296195,
+            "hits" : [
+              {
+                "_index" : "my-index-000001",
+                "_id": $body.hits.hits.0._id,
+                "_score" : 1.0296195,
+                "_source" : {
+                  "@timestamp" : 1516383694000,
+                  "model_number" : "HG537PU",
+                  "measures" : {
+                    "voltage" : 4.2
+                  }
+                }
+              },
+              {
+                "_index" : "my-index-000001",
+                "_id": $body.hits.hits.1._id,
+                "_score" : 1.0296195,
+                "_source" : {
+                  "@timestamp" : 1516297294000,
+                  "model_number" : "HG537PU",
+                  "measures" : {
+                    "voltage" : 4.0
+                  }
+                }
+              }
+            ]
+          }
+        }
+  - do:
+      raw:
+        method: POST
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "runtime_mappings": {
+              "measures.voltage": {
+                "type": "double",
+                "script": {
+                  "source":
+                  "if (doc['model_number.keyword'].value.equals('HG537PU'))\n        {emit(1.7 * params._source['measures']['voltage']);}\n        else{emit(params._source['measures']['voltage']);}"
+                }
+              }
+            },
+            "query": {
+              "match": {
+                "model_number": "HG537PU"
+              }
+            },
+            "fields": ["measures.voltage"]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,
+          "hits" : {
+            "total" : {
+              "value" : 2,
+              "relation" : "eq"
+            },
+            "max_score" : 1.0296195,
+            "hits" : [
+              {
+                "_index" : "my-index-000001",
+                "_id": $body.hits.hits.0._id,
+                "_score" : 1.0296195,
+                "_source" : {
+                  "@timestamp" : 1516383694000,
+                  "model_number" : "HG537PU",
+                  "measures" : {
+                    "voltage" : 4.2
+                  }
+                },
+                "fields" : {
+                  "measures.voltage" : [
+                    7.14
+                  ]
+                }
+              },
+              {
+                "_index" : "my-index-000001",
+                "_id": $body.hits.hits.1._id,
+                "_score" : 1.0296195,
+                "_source" : {
+                  "@timestamp" : 1516297294000,
+                  "model_number" : "HG537PU",
+                  "measures" : {
+                    "voltage" : 4.0
+                  }
+                },
+                "fields" : {
+                  "measures.voltage" : [
+                    6.8
+                  ]
+                }
+              }
+            ]
+          }
+        }
+---
+"line_661":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/"
+        body: |
+          {
+            "mappings": {
+              "dynamic": "runtime",
+              "runtime": {
+                "day_of_week": {
+                  "type": "keyword",
+                  "script": {
+                    "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+                  }
+                }
+              },
+              "properties": {
+                "@timestamp": {"type": "date"}
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "my-index-000001/_bulk"
+        refresh: ""
+        body: |
+          { "index": {}}
+          { "@timestamp": "2020-06-21T15:00:01-05:00", "message" : "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"}
+          { "index": {}}
+          { "@timestamp": "2020-06-21T15:00:01-05:00", "message" : "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"}
+          { "index": {}}
+          { "@timestamp": "2020-04-30T14:30:17-05:00", "message" : "40.135.0.0 - - [2020-04-30T14:30:17-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+          { "index": {}}
+          { "@timestamp": "2020-04-30T14:30:53-05:00", "message" : "232.0.0.0 - - [2020-04-30T14:30:53-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+          { "index": {}}
+          { "@timestamp": "2020-04-30T14:31:12-05:00", "message" : "26.1.0.0 - - [2020-04-30T14:31:12-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+          { "index": {}}
+          { "@timestamp": "2020-04-30T14:31:19-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:19-05:00] \"GET /french/splash_inet.html HTTP/1.0\" 200 3781"}
+          { "index": {}}
+          { "@timestamp": "2020-04-30T14:31:27-05:00", "message" : "252.0.0.0 - - [2020-04-30T14:31:27-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+          { "index": {}}
+          { "@timestamp": "2020-04-30T14:31:29-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:29-05:00] \"GET /images/hm_brdl.gif HTTP/1.0\" 304 0"}
+          { "index": {}}
+          { "@timestamp": "2020-04-30T14:31:29-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:29-05:00] \"GET /images/hm_arw.gif HTTP/1.0\" 304 0"}
+          { "index": {}}
+          { "@timestamp": "2020-04-30T14:31:32-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:32-05:00] \"GET /images/nav_bg_top.gif HTTP/1.0\" 200 929"}
+          { "index": {}}
+          { "@timestamp": "2020-04-30T14:31:43-05:00", "message" : "247.37.0.0 - - [2020-04-30T14:31:43-05:00] \"GET /french/images/nav_venue_off.gif HTTP/1.0\" 304 0"}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "fields": [
+              "@timestamp",
+              "day_of_week"
+            ],
+            "_source": false
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_mapping"
+        body: |
+          {
+            "runtime": {
+              "client_ip": {
+                "type": "ip",
+                "script" : {
+                "source" : "String m = doc[\"message\"].value; int end = m.indexOf(\" \"); emit(m.substring(0, end));"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "size": 1,
+            "query": {
+              "match": {
+                "client_ip": "211.11.9.0"
+              }
+            },
+            "fields" : ["*"]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,
+          "hits" : {
+            "total" : {
+              "value" : 2,
+              "relation" : "eq"
+            },
+            "max_score" : 1.0,
+            "hits" : [
+              {
+                "_index" : "my-index-000001",
+                "_id": $body.hits.hits.0._id,
+                "_score" : 1.0,
+                "_source" : {
+                  "@timestamp" : "2020-06-21T15:00:01-05:00",
+                  "message" : "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"
+                },
+                "fields" : {
+                  "@timestamp" : [
+                    "2020-06-21T20:00:01.000Z"
+                  ],
+                  "client_ip" : [
+                    "211.11.9.0"
+                  ],
+                  "message" : [
+                    "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"
+                  ],
+                  "day_of_week" : [
+                    "Sunday"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+---
+"line_834":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "ip_location/_doc"
+        refresh: ""
+        body: |
+          {
+            "ip": "192.168.1.1",
+            "country": "Canada",
+            "city": "Montreal"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "logs/_doc/1"
+        refresh: ""
+        body: |
+          {
+            "host": "192.168.1.1",
+            "message": "the first message"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "logs/_doc/2"
+        refresh: ""
+        body: |
+          {
+            "host": "192.168.1.2",
+            "message": "the second message"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "logs/_search"
+        body: |
+          {
+            "runtime_mappings": {
+              "location": {
+                  "type": "lookup",
+                  "target_index": "ip_location",
+                  "input_field": "host",
+                  "target_field": "ip",
+                  "fetch_fields": ["country", "city"]
+              }
+            },
+            "fields": [
+              "host",
+              "message",
+              "location"
+            ],
+            "_source": false
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": $body.took,
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total": {
+              "value": 2,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "logs",
+                "_id": "1",
+                "_score": 1.0,
+                "fields": {
+                  "host": [ "192.168.1.1" ],
+                  "location": [
+                    {
+                      "city": [ "Montreal" ],
+                      "country": [ "Canada" ]
+                    }
+                  ],
+                  "message": [ "the first message" ]
+                }
+              },
+              {
+                "_index": "logs",
+                "_id": "2",
+                "_score": 1.0,
+                "fields": {
+                  "host": [ "192.168.1.2" ],
+                  "message": [ "the second message" ]
+                }
+              }
+            ]
+          }
+        }
+---
+"line_967":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "timestamp": {
+                  "type": "date"
+                },
+                "temperature": {
+                  "type": "long"
+                },
+                "voltage": {
+                  "type": "double"
+                },
+                "node": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "my-index-000001/_bulk"
+        refresh: "true"
+        body: |
+          {"index":{}}
+          {"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516470094000, "temperature": 198, "voltage": 5.6, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c"}
+          {"index":{}}
+          {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_mapping"
+        body: |
+          {
+            "runtime": {
+              "voltage_corrected": {
+                "type": "double",
+                "script": {
+                  "source": "\n        emit(doc['voltage'].value * params['multiplier'])\n        ",
+                  "params": {
+                    "multiplier": 2
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        filter_path: "hits"
+        body: |
+          {
+            "fields": [
+              "voltage_corrected",
+              "node"
+            ],
+            "size": 2
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "hits" : {
+            "total" : {
+              "value" : 6,
+              "relation" : "eq"
+            },
+            "max_score" : 1.0,
+            "hits" : [
+              {
+                "_index" : "my-index-000001",
+                "_id": $body.hits.hits.0._id,
+                "_score" : 1.0,
+                "_source" : {
+                  "timestamp" : 1516729294000,
+                  "temperature" : 200,
+                  "voltage" : 5.2,
+                  "node" : "a"
+                },
+                "fields" : {
+                  "voltage_corrected" : [
+                    10.4
+                  ],
+                  "node" : [
+                    "a"
+                  ]
+                }
+              },
+              {
+                "_index" : "my-index-000001",
+                "_id": $body.hits.hits.1._id,
+                "_score" : 1.0,
+                "_source" : {
+                  "timestamp" : 1516642894000,
+                  "temperature" : 201,
+                  "voltage" : 5.8,
+                  "node" : "b"
+                },
+                "fields" : {
+                  "voltage_corrected" : [
+                    11.6
+                  ],
+                  "node" : [
+                    "b"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+---
+"line_1124":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "timestamp": {
+                  "type": "date"
+                },
+                "temperature": {
+                  "type": "long"
+                },
+                "voltage": {
+                  "type": "double"
+                },
+                "node": {
+                  "type": "keyword"
+                },
+                "voltage_corrected": {
+                  "type": "double",
+                  "on_script_error": "fail",
+                  "script": {
+                    "source": "\n        emit(doc['voltage'].value * params['multiplier'])\n        ",
+                    "params": {
+                      "multiplier": 4
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "my-index-000001/_bulk"
+        refresh: "true"
+        body: |
+          { "index": {}}
+          { "timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a"}
+          { "index": {}}
+          { "timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b"}
+          { "index": {}}
+          { "timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a"}
+          { "index": {}}
+          { "timestamp": 1516470094000, "temperature": 198, "voltage": 5.6, "node": "b"}
+          { "index": {}}
+          { "timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c"}
+          { "index": {}}
+          { "timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "my-index-000001/_search"
+        filter_path: "hits"
+        body: |
+          {
+            "query": {
+              "range": {
+                "voltage_corrected": {
+                  "gte": 16,
+                  "lte": 20,
+                  "boost": 1.0
+                }
+              }
+            },
+            "fields": ["voltage_corrected", "node"]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "hits" : {
+            "total" : {
+              "value" : 2,
+              "relation" : "eq"
+            },
+            "max_score" : 1.0,
+            "hits" : [
+              {
+                "_index" : "my-index-000001",
+                "_id": $body.hits.hits.0._id,
+                "_score" : 1.0,
+                "_source" : {
+                  "timestamp" : 1516383694000,
+                  "temperature" : 200,
+                  "voltage" : 4.2,
+                  "node" : "c"
+                },
+                "fields" : {
+                  "voltage_corrected" : [
+                    16.8
+                  ],
+                  "node" : [
+                    "c"
+                  ]
+                }
+              },
+              {
+                "_index" : "my-index-000001",
+                "_id": $body.hits.hits.1._id,
+                "_score" : 1.0,
+                "_source" : {
+                  "timestamp" : 1516297294000,
+                  "temperature" : 202,
+                  "voltage" : 4.0,
+                  "node" : "c"
+                },
+                "fields" : {
+                  "voltage_corrected" : [
+                    16.0
+                  ],
+                  "node" : [
+                    "c"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+---
+"line_1283":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "@timestamp": {
+                  "format": "strict_date_optional_time||epoch_second",
+                  "type": "date"
+                },
+                "message": {
+                  "type": "wildcard"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "my-index-000001/_bulk"
+        refresh: ""
+        body: |
+          {"index":{}}
+          {"timestamp":"2020-04-30T14:30:17-05:00","message":"40.135.0.0 - - [30/Apr/2020:14:30:17 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+          {"index":{}}
+          {"timestamp":"2020-04-30T14:30:53-05:00","message":"232.0.0.0 - - [30/Apr/2020:14:30:53 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+          {"index":{}}
+          {"timestamp":"2020-04-30T14:31:12-05:00","message":"26.1.0.0 - - [30/Apr/2020:14:31:12 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+          {"index":{}}
+          {"timestamp":"2020-04-30T14:31:19-05:00","message":"247.37.0.0 - - [30/Apr/2020:14:31:19 -0500] \"GET /french/splash_inet.html HTTP/1.0\" 200 3781"}
+          {"index":{}}
+          {"timestamp":"2020-04-30T14:31:22-05:00","message":"247.37.0.0 - - [30/Apr/2020:14:31:22 -0500] \"GET /images/hm_nbg.jpg HTTP/1.0\" 304 0"}
+          {"index":{}}
+          {"timestamp":"2020-04-30T14:31:27-05:00","message":"252.0.0.0 - - [30/Apr/2020:14:31:27 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+          {"index":{}}
+          {"timestamp":"2020-04-30T14:31:28-05:00","message":"not a valid apache log"}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "my-index-000001" : {
+            "aliases" : { },
+            "mappings" : {
+              "properties" : {
+                "@timestamp" : {
+                  "type" : "date",
+                  "format" : "strict_date_optional_time||epoch_second"
+                },
+                "message" : {
+                  "type" : "wildcard"
+                },
+                "timestamp" : {
+                  "type" : "date"
+                }
+              }
+            },
+            "settings": $body.my-index-000001.settings
+          }
+        }
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_mappings"
+        body: |
+          {
+            "runtime": {
+              "http.client_ip": {
+                "type": "ip",
+                "script": "\n        String clientip=grok('%{COMMONAPACHELOG}').extract(doc[\"message\"].value)?.clientip;\n        if (clientip != null) emit(clientip);\n      "
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "runtime_mappings": {
+              "http.clientip": {
+                "type": "ip",
+                "script": "\n        String clientip=grok('%{COMMONAPACHELOG}').extract(doc[\"message\"].value)?.clientip;\n        if (clientip != null) emit(clientip);\n      "
+              }
+            },
+            "query": {
+              "match": {
+                "http.clientip": "40.135.0.0"
+              }
+            },
+            "fields" : ["http.clientip"]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_mappings"
+        body: |
+          {
+            "runtime": {
+              "http": {
+                "type": "composite",
+                "script": "emit(grok(\"%{COMMONAPACHELOG}\").extract(doc[\"message\"].value))",
+                "fields": {
+                  "clientip": {
+                    "type": "ip"
+                  },
+                  "verb": {
+                    "type": "keyword"
+                  },
+                  "response": {
+                    "type": "long"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "query": {
+              "match": {
+                "http.clientip": "40.135.0.0"
+              }
+            },
+            "fields" : ["*"]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,
+          "hits" : {
+            "total" : {
+              "value" : 1,
+              "relation" : "eq"
+            },
+            "max_score" : 1.0,
+            "hits" : [
+              {
+                "_index" : "my-index-000001",
+                "_id": $body.hits.hits.0._id,
+                "_score" : 1.0,
+                "_source" : {
+                  "timestamp" : "2020-04-30T14:30:17-05:00",
+                  "message" : "40.135.0.0 - - [30/Apr/2020:14:30:17 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"
+                },
+                "fields" : {
+                  "http.verb" : [
+                    "GET"
+                  ],
+                  "http.clientip" : [
+                    "40.135.0.0"
+                  ],
+                  "http.response" : [
+                    200
+                  ],
+                  "message" : [
+                    "40.135.0.0 - - [30/Apr/2020:14:30:17 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"
+                  ],
+                  "http.client_ip" : [
+                    "40.135.0.0"
+                  ],
+                  "timestamp" : [
+                    "2020-04-30T19:30:17.000Z"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "query": {
+              "range": {
+                "timestamp": {
+                  "gte": "2020-04-30T14:31:27-05:00"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,
+          "hits" : {
+            "total" : {
+              "value" : 2,
+              "relation" : "eq"
+            },
+            "max_score" : 1.0,
+            "hits" : [
+              {
+                "_index" : "my-index-000001",
+                "_id": $body.hits.hits.0._id,
+                "_score" : 1.0,
+                "_source" : {
+                  "timestamp" : "2020-04-30T14:31:27-05:00",
+                  "message" : "252.0.0.0 - - [30/Apr/2020:14:31:27 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"
+                }
+              },
+              {
+                "_index" : "my-index-000001",
+                "_id": $body.hits.hits.1._id,
+                "_score" : 1.0,
+                "_source" : {
+                  "timestamp" : "2020-04-30T14:31:28-05:00",
+                  "message" : "not a valid apache log"
+                }
+              }
+            ]
+          }
+        }
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_mappings"
+        body: |
+          {
+            "runtime": {
+              "http.client.ip": {
+                "type": "ip",
+                "script": "\n        String clientip=dissect('%{clientip} %{ident} %{auth} [%{@timestamp}] \"%{verb} %{request} HTTP/%{httpversion}\" %{status} %{size}').extract(doc[\"message\"].value)?.clientip;\n        if (clientip != null) emit(clientip);\n      "
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_mappings"
+        body: |
+          {
+            "runtime": {
+              "http.responses": {
+                "type": "long",
+                "script": "\n        String response=dissect('%{clientip} %{ident} %{auth} [%{@timestamp}] \"%{verb} %{request} HTTP/%{httpversion}\" %{response} %{size}').extract(doc[\"message\"].value)?.response;\n        if (response != null) emit(Integer.parseInt(response));\n      "
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "query": {
+              "match": {
+                "http.responses": "304"
+              }
+            },
+            "fields" : ["http.client_ip","timestamp","http.verb"]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,
+          "hits" : {
+            "total" : {
+              "value" : 1,
+              "relation" : "eq"
+            },
+            "max_score" : 1.0,
+            "hits" : [
+              {
+                "_index" : "my-index-000001",
+                "_id": $body.hits.hits.0._id,
+                "_score" : 1.0,
+                "_source" : {
+                  "timestamp" : "2020-04-30T14:31:22-05:00",
+                  "message" : "247.37.0.0 - - [30/Apr/2020:14:31:22 -0500] \"GET /images/hm_nbg.jpg HTTP/1.0\" 304 0"
+                },
+                "fields" : {
+                  "http.verb" : [
+                    "GET"
+                  ],
+                  "http.client_ip" : [
+                    "247.37.0.0"
+                  ],
+                  "timestamp" : [
+                    "2020-04-30T19:31:22.000Z"
+                  ]
+                }
+              }
+            ]
+          }
+        }

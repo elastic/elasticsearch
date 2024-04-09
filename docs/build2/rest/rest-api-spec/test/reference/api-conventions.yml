@@ -1,0 +1,69 @@
+---
+"line_119":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "%3Cmy-index-%7Bnow%2Fd%7D%3E"
+  - is_false: _shards.failures
+---
+"line_164":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "logstash-2016.09.20"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "logstash-2016.09.19"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "logstash-2016.09.18"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "%3Clogstash-%7B2016.09.20%7C%7C%2Fd-2d%7D%3E%2C%3Clogstash-%7B2016.09.20%7C%7C%2Fd-1d%7D%3E%2C%3Clogstash-%7B2016.09.20%7C%7C%2Fd%7D%3E/_search"
+        body: |
+          {
+            "query" : {
+              "match": {
+                "test": "data"
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_344":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_search"
+        body: |
+          {
+            "size": "1000"
+          }
+  - is_false: _shards.failures

@@ -1,0 +1,167 @@
+---
+"line_257":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup simple_kibana_continuous_pivot
+
+  - do:
+        indices.create:
+          index: kibana_sample_data_ecommerce
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                order_date:
+                  type: date
+
+  - do:
+      ingest.put_pipeline:
+        id: "add_timestamp_pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field" : "@timestamp",
+                  "value" : "{{_ingest.timestamp}}"
+                }
+              }
+            ]
+          }
+
+  - do:
+      raw:
+        method: PUT
+        path: _transform/simple-kibana-ecomm-pivot
+        body:  >
+          {
+            "source": {
+              "index": "kibana_sample_data_ecommerce",
+              "query": {
+                "term": {
+                  "geoip.continent_name": {
+                    "value": "Asia"
+                  }
+                }
+              }
+            },
+            "pivot": {
+              "group_by": {
+                "customer_id": {
+                  "terms": {
+                    "field": "customer_id"
+                  }
+                }
+              },
+              "aggregations": {
+                "max_price": {
+                  "max": {
+                    "field": "taxful_total_price"
+                  }
+                }
+              }
+            },
+            "description": "Maximum priced ecommerce data",
+            "dest": {
+              "index": "kibana_sample_data_ecommerce_transform",
+              "pipeline": "add_timestamp_pipeline"
+            },
+            "frequency": "5m",
+            "sync": {
+              "time": {
+                "field": "order_date",
+                "delay": "60s"
+              }
+            }
+          }
+
+  - do:
+      raw:
+        method: POST
+        path: "_transform/simple-kibana-ecomm-pivot/_update"
+        body: |
+          {
+            "source": {
+              "index": "kibana_sample_data_ecommerce",
+              "query": {
+                "term": {
+                  "geoip.continent_name": {
+                    "value": "Asia"
+                  }
+                }
+              }
+            },
+            "description": "Maximum priced ecommerce data by customer_id in Asia",
+            "dest": {
+              "index": "kibana_sample_data_ecommerce_transform_v2",
+              "pipeline": "add_timestamp_pipeline"
+            },
+            "frequency": "15m",
+            "sync": {
+              "time": {
+                "field": "order_date",
+                "delay": "120s"
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "id" : "simple-kibana-ecomm-pivot",
+          "authorization" : {
+            "roles" : [
+              "_es_test_root"
+            ]
+          },
+          "version" : $body.version,
+          "create_time" : $body.create_time,
+          "source" : {
+            "index" : [
+              "kibana_sample_data_ecommerce"
+            ],
+            "query" : {
+              "term" : {
+                "geoip.continent_name" : {
+                  "value" : "Asia"
+                }
+              }
+            }
+          },
+          "dest" : {
+            "index" : "kibana_sample_data_ecommerce_transform_v2",
+            "pipeline" : "add_timestamp_pipeline"
+          },
+          "frequency" : "15m",
+          "sync" : {
+            "time" : {
+              "field" : "order_date",
+              "delay" : "120s"
+            }
+          },
+          "pivot" : {
+            "group_by" : {
+              "customer_id" : {
+                "terms" : {
+                  "field" : "customer_id"
+                }
+              }
+            },
+            "aggregations" : {
+              "max_price" : {
+                "max" : {
+                  "field" : "taxful_total_price"
+                }
+              }
+            }
+          },
+          "description" : "Maximum priced ecommerce data by customer_id in Asia",
+          "settings" : { }
+        }

@@ -1,0 +1,17 @@
+---
+"line_13":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: Difficult to set up
+  - do:
+      raw:
+        method: DELETE
+        path: "_dangling/%3Cindex-uuid%3E"
+        accept_data_loss: "true"
+  - is_false: _shards.failures

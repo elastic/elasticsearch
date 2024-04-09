@@ -1,0 +1,44 @@
+---
+"line_69":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: can't test this without a valid SAML Logout Response
+  - do:
+      raw:
+        method: POST
+        path: "_security/saml/complete_logout"
+        body: |
+          {
+            "realm": "saml1",
+            "ids": [ "_1c368075e0b3..." ],
+            "query_string": "SAMLResponse=fZHLasMwEEVbfb1bf...&SigAlg=http%3A%2F%2Fwww.w3.org%2F2000%2F09%2Fxmldsig%23rsa-sha1&Signature=CuCmFn%2BLqnaZGZJqK..."
+          }
+  - is_false: _shards.failures
+---
+"line_83":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: can't test this without a valid SAML Logout Response
+  - do:
+      raw:
+        method: POST
+        path: "_security/saml/complete_logout"
+        body: |
+          {
+            "realm": "saml1",
+            "ids": [ "_1c368075e0b3..." ],
+            "content": "PHNhbWxwOkxvZ291dFJlc3BvbnNlIHhtbG5zOnNhbWxwPSJ1cm46..."
+          }
+  - is_false: _shards.failures

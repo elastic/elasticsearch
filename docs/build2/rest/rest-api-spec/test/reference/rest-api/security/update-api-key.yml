@@ -1,0 +1,121 @@
+---
+"line_86":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/api_key"
+        body: |
+          {
+            "name": "my-api-key",
+            "role_descriptors": {
+              "role-a": {
+                "cluster": ["all"],
+                "indices": [
+                  {
+                    "names": ["index-a*"],
+                    "privileges": ["read"]
+                  }
+                ]
+              }
+            },
+            "metadata": {
+              "application": "my-application",
+              "environment": {
+                 "level": 1,
+                 "trusted": true,
+                 "tags": ["dev", "staging"]
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "id": "$body.id",
+          "name": "my-api-key",
+          "api_key": "$body.api_key",
+          "encoded": "$body.encoded"
+        }
+  - do:
+      raw:
+        method: PUT
+        path: "_security/api_key/${body.id}"
+        body: |
+          {
+            "role_descriptors": {
+              "role-a": {
+                "indices": [
+                  {
+                    "names": ["*"],
+                    "privileges": ["write"]
+                  }
+                ]
+              }
+            },
+            "metadata": {
+              "environment": {
+                 "level": 2,
+                 "trusted": true,
+                 "tags": ["production"]
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "updated": true
+        }
+---
+"line_200":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: api key id not available anymore
+  - do:
+      raw:
+        method: PUT
+        path: "_security/api_key/VuaCfGcBCdbkQm-e5aOx"
+        body: |
+          {
+            "role_descriptors": {}
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "updated": true
+        }
+---
+"line_252":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: api key id not available anymore
+  - do:
+      raw:
+        method: PUT
+        path: "_security/api_key/VuaCfGcBCdbkQm-e5aOx"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "updated": true
+        }

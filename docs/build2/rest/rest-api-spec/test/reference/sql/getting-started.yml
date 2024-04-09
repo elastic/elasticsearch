@@ -1,0 +1,38 @@
+---
+"line_9":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "library/_bulk"
+        refresh: ""
+        body: |
+          {"index":{"_id": "Leviathan Wakes"}}
+          {"name": "Leviathan Wakes", "author": "James S.A. Corey", "release_date": "2011-06-02", "page_count": 561}
+          {"index":{"_id": "Hyperion"}}
+          {"name": "Hyperion", "author": "Dan Simmons", "release_date": "1989-05-26", "page_count": 482}
+          {"index":{"_id": "Dune"}}
+          {"name": "Dune", "author": "Frank Herbert", "release_date": "1965-06-01", "page_count": 604}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_sql"
+        format: "txt"
+        body: |
+          {
+            "query": "SELECT * FROM library WHERE release_date < '2000-01-01'"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        /    \s+author     \s+\|     \s+name      \s+\|  \s+page_count   \s+\| \s+release_date\s*
+         ---------------\+---------------\+---------------\+------------------------\s*
+         Dan \s+Simmons    \s+\|Hyperion       \s+\|482            \s+\|1989-05-26T00:00:00.000Z\s*
+         Frank \s+Herbert  \s+\|Dune           \s+\|604            \s+\|1965-06-01T00:00:00.000Z\s*/

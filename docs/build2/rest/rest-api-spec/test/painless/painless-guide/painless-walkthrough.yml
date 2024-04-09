@@ -1,0 +1,336 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "hockey/_bulk"
+        refresh: ""
+        body: |
+          {"index":{"_id":1}}
+          {"first":"johnny","last":"gaudreau","goals":[9,27,1],"assists":[17,46,0],"gp":[26,82,1],"born":"1993/08/13"}
+          {"index":{"_id":2}}
+          {"first":"sean","last":"monohan","goals":[7,54,26],"assists":[11,26,13],"gp":[26,82,82],"born":"1994/10/12"}
+          {"index":{"_id":3}}
+          {"first":"jiri","last":"hudler","goals":[5,34,36],"assists":[11,62,42],"gp":[24,80,79],"born":"1984/01/04"}
+          {"index":{"_id":4}}
+          {"first":"micheal","last":"frolik","goals":[4,6,15],"assists":[8,23,15],"gp":[26,82,82],"born":"1988/02/17"}
+          {"index":{"_id":5}}
+          {"first":"sam","last":"bennett","goals":[5,0,0],"assists":[8,1,0],"gp":[26,1,0],"born":"1996/06/20"}
+          {"index":{"_id":6}}
+          {"first":"dennis","last":"wideman","goals":[0,26,15],"assists":[11,30,24],"gp":[26,81,82],"born":"1983/03/20"}
+          {"index":{"_id":7}}
+          {"first":"david","last":"jones","goals":[7,19,5],"assists":[3,17,4],"gp":[26,45,34],"born":"1984/08/10"}
+          {"index":{"_id":8}}
+          {"first":"tj","last":"brodie","goals":[2,14,7],"assists":[8,42,30],"gp":[26,82,82],"born":"1990/06/07"}
+          {"index":{"_id":39}}
+          {"first":"mark","last":"giordano","goals":[6,30,15],"assists":[3,30,24],"gp":[26,60,63],"born":"1983/10/03"}
+          {"index":{"_id":10}}
+          {"first":"mikael","last":"backlund","goals":[3,15,13],"assists":[6,24,18],"gp":[26,82,82],"born":"1989/03/17"}
+          {"index":{"_id":11}}
+          {"first":"joe","last":"colborne","goals":[3,18,13],"assists":[6,20,24],"gp":[26,67,82],"born":"1990/01/30"}
+---
+"line_42":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "hockey/_search"
+        body: |
+          {
+            "query": {
+              "function_score": {
+                "script_score": {
+                  "script": {
+                    "lang": "painless",
+                    "source": "\n            int total = 0;\n            for (int i = 0; i < doc['goals'].length; ++i) {\n              total += doc['goals'][i];\n            }\n            return total;\n          "
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_67":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "hockey/_search"
+        body: |
+          {
+            "query": {
+              "match_all": {}
+            },
+            "script_fields": {
+              "total_goals": {
+                "script": {
+                  "lang": "painless",
+                  "source": "\n          int total = 0;\n          for (int i = 0; i < doc['goals'].length; ++i) {\n            total += doc['goals'][i];\n          }\n          return total;\n        "
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_94":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "hockey/_search"
+        body: |
+          {
+            "query": {
+              "match_all": {}
+            },
+            "sort": {
+              "_script": {
+                "type": "string",
+                "order": "asc",
+                "script": {
+                  "lang": "painless",
+                  "source": "doc['first.keyword'].value + ' ' + doc['last.keyword'].value"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_139":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "hockey/_search"
+        body: |
+          {
+            "query": {
+              "term": {
+                "_id": 1
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_153":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "hockey/_update/1"
+        body: |
+          {
+            "script": {
+              "lang": "painless",
+              "source": "ctx._source.last = params.last",
+              "params": {
+                "last": "hockey"
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_170":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "hockey/_update/1"
+        body: |
+          {
+            "script": {
+              "lang": "painless",
+              "source": "\n      ctx._source.last = params.last;\n      ctx._source.nick = params.nick\n    ",
+              "params": {
+                "last": "gaudreau",
+                "nick": "hockey"
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_199":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "hockey/_search"
+        body: |
+          {
+            "script_fields": {
+              "birth_year": {
+                "script": {
+                  "source": "doc.born.value.year"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_239":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "hockey/_update_by_query"
+        body: |
+          {
+            "script": {
+              "lang": "painless",
+              "source": "\n      if (ctx._source.last =~ /b/) {\n        ctx._source.last += \"matched\";\n      } else {\n        ctx.op = \"noop\";\n      }\n    "
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_259":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "hockey/_update_by_query"
+        body: |
+          {
+            "script": {
+              "lang": "painless",
+              "source": "\n      if (ctx._source.last ==~ /[^aeiou].*[aeiou]/) {\n        ctx._source.last += \"matched\";\n      } else {\n        ctx.op = \"noop\";\n      }\n    "
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_279":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "hockey/_update_by_query"
+        body: |
+          {
+            "script": {
+              "lang": "painless",
+              "source": "ctx._source.last = /[aeiou]/.matcher(ctx._source.last).replaceAll('')"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_294":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "hockey/_update_by_query"
+        body: |
+          {
+            "script": {
+              "lang": "painless",
+              "source": "ctx._source.last = /n([aeiou])/.matcher(ctx._source.last).replaceAll('$1')"
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_315":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "hockey/_update_by_query"
+        body: |
+          {
+            "script": {
+              "lang": "painless",
+              "source": "\n      ctx._source.last = ctx._source.last.replaceAll(/[aeiou]/, m ->\n        m.group().toUpperCase(Locale.ROOT))\n    "
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_332":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "hockey/_update_by_query"
+        body: |
+          {
+            "script": {
+              "lang": "painless",
+              "source": "\n      ctx._source.last = ctx._source.last.replaceFirst(/[aeiou]/, m ->\n        m.group().toUpperCase(Locale.ROOT))\n    "
+            }
+          }
+  - is_false: _shards.failures

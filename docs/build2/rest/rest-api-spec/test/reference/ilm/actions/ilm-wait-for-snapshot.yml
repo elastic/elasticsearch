@@ -1,0 +1,51 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/backing_repo"
+        body: |
+          {
+           "type": "fs",
+            "settings": {
+              "location": "my_backup_location"
+            }
+          }
+  - do:
+      raw:
+        method: PUT
+        path: "_slm/policy/slm-policy-name"
+        body: |
+          {
+            "schedule": "0 30 1 * * ?",
+            "name": "<daily-snap-{now/d}>",
+            "repository": "backing_repo"
+          }
+---
+"line_40":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ilm/policy/my_policy"
+        body: |
+          {
+            "policy": {
+              "phases": {
+                "delete": {
+                  "actions": {
+                    "wait_for_snapshot" : {
+                      "policy": "slm-policy-name"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

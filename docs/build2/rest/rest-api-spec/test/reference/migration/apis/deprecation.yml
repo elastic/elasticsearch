@@ -1,0 +1,32 @@
+---
+"line_61":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: cannot assert tests have certain deprecations
+  - do:
+      raw:
+        method: GET
+        path: "_migration/deprecations"
+  - is_false: _shards.failures
+---
+"line_140":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: cannot assert tests have certain deprecations
+  - do:
+      raw:
+        method: GET
+        path: "logstash-*/_migration/deprecations"
+  - is_false: _shards.failures

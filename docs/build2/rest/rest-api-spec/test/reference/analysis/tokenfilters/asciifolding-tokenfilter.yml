@@ -1,0 +1,114 @@
+---
+"line_21":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer" : "standard",
+            "filter" : ["asciifolding"],
+            "text" : "açaí à la carte"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens" : [
+            {
+              "token" : "acai",
+              "start_offset" : 0,
+              "end_offset" : 4,
+              "type" : "<ALPHANUM>",
+              "position" : 0
+            },
+            {
+              "token" : "a",
+              "start_offset" : 5,
+              "end_offset" : 6,
+              "type" : "<ALPHANUM>",
+              "position" : 1
+            },
+            {
+              "token" : "la",
+              "start_offset" : 7,
+              "end_offset" : 9,
+              "type" : "<ALPHANUM>",
+              "position" : 2
+            },
+            {
+              "token" : "carte",
+              "start_offset" : 10,
+              "end_offset" : 15,
+              "type" : "<ALPHANUM>",
+              "position" : 3
+            }
+          ]
+        }
+---
+"line_83":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "asciifold_example"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "standard_asciifolding": {
+                    "tokenizer": "standard",
+                    "filter": [ "asciifolding" ]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_118":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "asciifold_example"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "standard_asciifolding": {
+                    "tokenizer": "standard",
+                    "filter": [ "my_ascii_folding" ]
+                  }
+                },
+                "filter": {
+                  "my_ascii_folding": {
+                    "type": "asciifolding",
+                    "preserve_original": true
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

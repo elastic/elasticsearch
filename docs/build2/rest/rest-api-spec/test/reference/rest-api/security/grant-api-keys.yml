@@ -1,0 +1,76 @@
+---
+"line_127":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/api_key/grant"
+        body: |
+          {
+            "grant_type": "password",
+            "username" : "test_admin",
+            "password" : "x-pack-test-password",
+            "api_key" : {
+              "name": "my-api-key",
+              "expiration": "1d",
+              "role_descriptors": {
+                "role-a": {
+                  "cluster": ["all"],
+                  "indices": [
+                    {
+                    "names": ["index-a*"],
+                    "privileges": ["read"]
+                    }
+                  ]
+                },
+                "role-b": {
+                  "cluster": ["all"],
+                  "indices": [
+                    {
+                    "names": ["index-b*"],
+                    "privileges": ["all"]
+                    }
+                  ]
+                }
+              },
+              "metadata": {
+                "application": "my-application",
+                "environment": {
+                   "level": 1,
+                   "trusted": true,
+                   "tags": ["dev", "staging"]
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_172":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/api_key/grant"
+        body: |
+          {
+            "grant_type": "password",
+            "username" : "test_admin",
+            "password" : "x-pack-test-password",
+            "run_as": "test_user",
+            "api_key" : {
+              "name": "another-api-key"
+            }
+          }
+  - is_false: _shards.failures

@@ -1,0 +1,19 @@
+---
+"line_42":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_slm/status"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "operation_mode": $body.operation_mode
+        }

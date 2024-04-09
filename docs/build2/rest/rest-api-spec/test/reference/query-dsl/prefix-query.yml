@@ -1,0 +1,44 @@
+---
+"line_16":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "prefix": {
+                "user.id": {
+                  "value": "ki"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_58":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "prefix" : { "user" : "ki" }
+            }
+          }
+  - is_false: _shards.failures

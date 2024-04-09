@@ -1,0 +1,209 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "products"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "genre": {
+                  "type": "keyword"
+                },
+                "product": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+  - do:
+      raw:
+        method: POST
+        path: "products/_bulk"
+        refresh: ""
+        body: |
+          {"index":{"_id":0}}
+          {"genre": "rock", "product": "Product A"}
+          {"index":{"_id":1}}
+          {"genre": "rock"}
+          {"index":{"_id":2}}
+          {"genre": "rock"}
+          {"index":{"_id":3}}
+          {"genre": "jazz", "product": "Product Z"}
+          {"index":{"_id":4}}
+          {"genre": "jazz"}
+          {"index":{"_id":5}}
+          {"genre": "electronic"}
+          {"index":{"_id":6}}
+          {"genre": "electronic"}
+          {"index":{"_id":7}}
+          {"genre": "electronic"}
+          {"index":{"_id":8}}
+          {"genre": "electronic"}
+          {"index":{"_id":9}}
+          {"genre": "electronic"}
+          {"index":{"_id":10}}
+          {"genre": "swing"}
+---
+"rare-terms-aggregation-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        filter_path: "aggregations"
+        body: |
+          {
+            "aggs": {
+              "genres": {
+                "rare_terms": {
+                  "field": "genre"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          
+          "aggregations": {
+            "genres": {
+              "buckets": [
+                {
+                  "key": "swing",
+                  "doc_count": 1
+                }
+              ]
+            }
+          }
+        }
+---
+"rare-terms-aggregation-max-doc-count-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        filter_path: "aggregations"
+        body: |
+          {
+            "aggs": {
+              "genres": {
+                "rare_terms": {
+                  "field": "genre",
+                  "max_doc_count": 2
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          
+          "aggregations": {
+            "genres": {
+              "buckets": [
+                {
+                  "key": "swing",
+                  "doc_count": 1
+                },
+                {
+                  "key": "jazz",
+                  "doc_count": 2
+                }
+              ]
+            }
+          }
+        }
+---
+"rare-terms-aggregation-regex-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "aggs": {
+              "genres": {
+                "rare_terms": {
+                  "field": "genre",
+                  "include": "swi*",
+                  "exclude": "electro*"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"rare-terms-aggregation-exact-value-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "aggs": {
+              "genres": {
+                "rare_terms": {
+                  "field": "genre",
+                  "include": [ "swing", "rock" ],
+                  "exclude": [ "jazz" ]
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"rare-terms-aggregation-missing-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "aggs": {
+              "genres": {
+                "rare_terms": {
+                  "field": "genre",
+                  "missing": "N/A"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

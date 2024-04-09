@@ -1,0 +1,141 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_template/template_1"
+        body: |
+          {
+            "index_patterns": ["te*", "bar*"],
+            "settings": {
+              "number_of_shards": 1
+            },
+            "mappings": {
+              "_source": {
+                "enabled": false
+              },
+              "properties": {
+                "host_name": {
+                  "type": "keyword"
+                },
+                "created_at": {
+                  "type": "date",
+                  "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                }
+              }
+            }
+          }
+---
+teardown:
+  - do:
+      raw:
+        method: DELETE
+        path: "_template/template_*"
+---
+"line_149":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_template/template_1"
+        body: |
+          {
+            "index_patterns" : ["te*"],
+            "settings" : {
+              "number_of_shards" : 1
+            },
+            "aliases" : {
+              "alias1" : {},
+              "alias2" : {
+                "filter" : {
+                  "term" : {"user.id" : "kimchy" }
+                },
+                "routing" : "shard-1"
+              },
+              "{index}-alias" : {}
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_183":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_template/template_1"
+        body: |
+          {
+            "index_patterns" : ["te*"],
+            "order" : 0,
+            "settings" : {
+              "number_of_shards" : 1
+            },
+            "mappings" : {
+              "_source" : { "enabled" : false }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_template/template_2"
+        body: |
+          {
+            "index_patterns" : ["tes*"],
+            "order" : 1,
+            "settings" : {
+              "number_of_shards" : 1
+            },
+            "mappings" : {
+              "_source" : { "enabled" : true }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_234":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_template/template_1"
+        body: |
+          {
+            "index_patterns" : ["my-index-*"],
+            "order" : 0,
+            "settings" : {
+              "number_of_shards" : 1
+            },
+            "version": 123
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_template/template_1"
+        filter_path: "*.version"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "template_1" : {
+            "version" : 123
+          }
+        }

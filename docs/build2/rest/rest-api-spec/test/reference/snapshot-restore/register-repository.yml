@@ -1,0 +1,89 @@
+---
+"line_167":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup setup-repository
+
+  - do:
+      snapshot.create_repository:
+        repository: my_repository
+        body:
+          type: fs
+          settings:
+            location: buildDir/cluster/shared/repo
+
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_unverified_backup"
+        verify: "false"
+        body: |
+          {
+            "type": "fs",
+            "settings": {
+              "location": "my_repository"
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_snapshot/my_unverified_backup/_verify"
+  - is_false: _shards.failures
+---
+"line_215":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup setup-snapshots
+
+  - do:
+      snapshot.create_repository:
+        repository: my_repository
+        body:
+          type: fs
+          settings:
+            location: buildDir/cluster/shared/repo
+
+  - do:
+      bulk:
+        index: my-index
+        refresh: true
+        body: |
+          {"index":{"_id": "0"}}
+          {"message": "trying out Elasticsearch", "context": "foo"}
+  - do:
+      bulk:
+        index: logs-my_app-default
+        refresh: true
+        body: |
+          {"create":{"_id": "0"}}
+          {"message": "trying out Elasticsearch", "context": "foo"}
+  - do:
+      snapshot.create:
+        repository: my_repository
+        snapshot: my_snapshot_2099.05.06
+        wait_for_completion: true
+
+  - do:
+      raw:
+        method: POST
+        path: "_snapshot/my_repository/_cleanup"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "results": {
+            "deleted_bytes": $body.results.deleted_bytes,
+            "deleted_blobs": $body.results.deleted_bytes
+          }
+        }

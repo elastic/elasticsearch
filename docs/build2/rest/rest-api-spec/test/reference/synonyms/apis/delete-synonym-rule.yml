@@ -1,0 +1,98 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_synonyms/my-synonyms-set"
+        body: |
+          {
+            "synonyms_set": [
+              {
+                "id": "test-1",
+                "synonyms": "hello, hi"
+              },
+              {
+                "synonyms": "bye, goodbye"
+              },
+              {
+                "id": "test-2",
+                "synonyms": "test => check"
+              }
+            ]
+          }
+  - do:
+      raw:
+        method: PUT
+        path: "test-index"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "filter": {
+                  "synonyms_filter": {
+                    "type": "synonym_graph",
+                    "synonyms_set": "my-synonyms-set",
+                    "updateable": true
+                  }
+                },
+                "analyzer": {
+                  "my_index_analyzer": {
+                    "type": "custom",
+                    "tokenizer": "standard",
+                    "filter": ["lowercase"]
+                  },
+                  "my_search_analyzer": {
+                    "type": "custom",
+                    "tokenizer": "standard",
+                    "filter": ["lowercase", "synonyms_filter"]
+                  }
+                }
+              }
+            },
+            "mappings": {
+              "properties": {
+                "title": {
+                  "type": "text",
+                  "analyzer": "my_index_analyzer",
+                  "search_analyzer": "my_search_analyzer"
+                }
+              }
+            }
+          }
+---
+"line_103":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: DELETE
+        path: "_synonyms/my-synonyms-set/test-1"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "result": "deleted",
+          "reload_analyzers_details": {
+            "_shards": {
+              "total": 2,
+              "successful": 1,
+              "failed": 0
+            },
+            "reload_details": [
+              {
+                "index": "test-index",
+                "reloaded_analyzers": [
+                  "my_search_analyzer"
+                ],
+                "reloaded_node_ids": [
+                  "$body.reload_analyzers_details.reload_details.0.reloaded_node_ids.0"
+                ]
+              }
+            ]
+          }
+        }

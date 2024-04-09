@@ -1,0 +1,138 @@
+---
+"line_41":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer": "standard",
+            "filter": [
+              {
+                "type": "keep_types",
+                "types": [ "<NUM>" ]
+              }
+            ],
+            "text": "1 quick fox 2 lazy dogs"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens": [
+            {
+              "token": "1",
+              "start_offset": 0,
+              "end_offset": 1,
+              "type": "<NUM>",
+              "position": 0
+            },
+            {
+              "token": "2",
+              "start_offset": 12,
+              "end_offset": 13,
+              "type": "<NUM>",
+              "position": 3
+            }
+          ]
+        }
+---
+"line_94":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer": "standard",
+            "filter": [
+              {
+                "type": "keep_types",
+                "types": [ "<NUM>" ],
+                "mode": "exclude"
+              }
+            ],
+            "text": "1 quick fox 2 lazy dogs"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens": [
+            {
+              "token": "quick",
+              "start_offset": 2,
+              "end_offset": 7,
+              "type": "<ALPHANUM>",
+              "position": 1
+            },
+            {
+              "token": "fox",
+              "start_offset": 8,
+              "end_offset": 11,
+              "type": "<ALPHANUM>",
+              "position": 2
+            },
+            {
+              "token": "lazy",
+              "start_offset": 14,
+              "end_offset": 18,
+              "type": "<ALPHANUM>",
+              "position": 4
+            },
+            {
+              "token": "dogs",
+              "start_offset": 19,
+              "end_offset": 23,
+              "type": "<ALPHANUM>",
+              "position": 5
+            }
+          ]
+        }
+---
+"line_185":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "keep_types_example"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "my_analyzer": {
+                    "tokenizer": "standard",
+                    "filter": [ "extract_alpha" ]
+                  }
+                },
+                "filter": {
+                  "extract_alpha": {
+                    "type": "keep_types",
+                    "types": [ "<ALPHANUM>" ]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

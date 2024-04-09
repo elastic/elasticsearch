@@ -1,0 +1,109 @@
+---
+"reversed-nested-aggregation-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "issues"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "tags": { "type": "keyword" },
+                "comments": {
+                  "type": "nested",
+                  "properties": {
+                    "username": { "type": "keyword" },
+                    "comment": { "type": "text" }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "issues/_doc/0"
+        refresh: ""
+        body: |
+          {"tags": ["tag_1"], "comments": [{"username": "username_1"}]}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "issues/_search"
+        filter_path: "aggregations"
+        body: |
+          {
+            "query": {
+              "match_all": {}
+            },
+            "aggs": {
+              "comments": {
+                "nested": {
+                  "path": "comments"
+                },
+                "aggs": {
+                  "top_usernames": {
+                    "terms": {
+                      "field": "comments.username"
+                    },
+                    "aggs": {
+                      "comment_to_issue": {
+                        "reverse_nested": {},
+                        "aggs": {
+                          "top_tags_per_comment": {
+                            "terms": {
+                              "field": "tags"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "aggregations": {
+            "comments": {
+              "doc_count": 1,
+              "top_usernames": {
+                "doc_count_error_upper_bound" : 0,
+                "sum_other_doc_count" : 0,
+                "buckets": [
+                  {
+                    "key": "username_1",
+                    "doc_count": 1,
+                    "comment_to_issue": {
+                      "doc_count": 1,
+                      "top_tags_per_comment": {
+                        "doc_count_error_upper_bound" : 0,
+                        "sum_other_doc_count" : 0,
+                        "buckets": [
+                          {
+                            "key": "tag_1",
+                            "doc_count": 1
+                          }
+                          
+                        ]
+                      }
+                    }
+                  }
+                  
+                ]
+              }
+            }
+          }
+        }

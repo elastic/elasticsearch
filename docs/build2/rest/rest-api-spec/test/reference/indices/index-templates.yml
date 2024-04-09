@@ -1,0 +1,98 @@
+---
+"line_83":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_component_template/component_template1"
+        body: |
+          {
+            "template": {
+              "mappings": {
+                "properties": {
+                  "@timestamp": {
+                    "type": "date"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_component_template/runtime_component_template"
+        body: |
+          {
+            "template": {
+              "mappings": {
+                "runtime": {
+                  "day_of_week": {
+                    "type": "keyword",
+                    "script": {
+                      "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "_index_template/template_1"
+        body: |
+          {
+            "index_patterns": ["te*", "bar*"],
+            "template": {
+              "settings": {
+                "number_of_shards": 1
+              },
+              "mappings": {
+                "_source": {
+                  "enabled": true
+                },
+                "properties": {
+                  "host_name": {
+                    "type": "keyword"
+                  },
+                  "created_at": {
+                    "type": "date",
+                    "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                  }
+                }
+              },
+              "aliases": {
+                "mydata": { }
+              }
+            },
+            "priority": 500,
+            "composed_of": ["component_template1", "runtime_component_template"],
+            "version": 3,
+            "_meta": {
+              "description": "my custom"
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_index_template/template_1"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_component_template/runtime_component_template"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_component_template/component_template1"
+  - is_false: _shards.failures

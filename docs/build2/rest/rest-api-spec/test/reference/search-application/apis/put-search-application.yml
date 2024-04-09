@@ -1,0 +1,157 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "index1"
+  - do:
+      raw:
+        method: PUT
+        path: "index2"
+  - do:
+      raw:
+        method: PUT
+        path: "_application/search_application/my-app"
+        body: |
+          {
+            "indices": [ "index1", "index2" ],
+            "template": {
+              "script": {
+                "source": {
+                  "query": {
+                    "query_string": {
+                      "query": "{{query_string}}",
+                      "default_field": "{{default_field}}"
+                    }
+                  }
+                },
+                "params": {
+                  "query_string": "*",
+                  "default_field": "*"
+                }
+              },
+              "dictionary": {
+                "properties": {
+                  "query_string": {
+                    "type": "string"
+                  },
+                  "default_field": {
+                    "type": "string",
+                    "enum": [
+                      "title",
+                      "description"
+                    ]
+                  },
+                  "additionalProperties": false
+                },
+                "required": [
+                  "query_string"
+                ]
+              }
+            }
+          }
+---
+teardown:
+  - do:
+      raw:
+        method: DELETE
+        path: "_application/search_application/my-app"
+  - do:
+      raw:
+        method: DELETE
+        path: "index1"
+  - do:
+      raw:
+        method: DELETE
+        path: "index2"
+---
+"line_148":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_application/search_application/my-app"
+        body: |
+          {
+            "indices": [ "index1", "index2" ],
+            "template": {
+              "script": {
+                "source": {
+                  "query": {
+                    "query_string": {
+                      "query": "{{query_string}}",
+                      "default_field": "{{default_field}}"
+                    }
+                  }
+                },
+                "params": {
+                  "query_string": "*",
+                  "default_field": "*"
+                }
+              },
+              "dictionary": {
+                "properties": {
+                  "query_string": {
+                    "type": "string"
+                  },
+                  "default_field": {
+                    "type": "string",
+                    "enum": [
+                      "title",
+                      "description"
+                    ]
+                  },
+                  "additionalProperties": false
+                },
+                "required": [
+                  "query_string"
+                ]
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_197":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      catch: bad_request
+      raw:
+        method: POST
+        path: "_application/search_application/my-app/_search"
+        body: |
+          {
+            "params": {
+              "default_field": "author",
+              "query_string": "Jane"
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "error": {
+            "root_cause": [
+              {
+                "type": "validation_exception",
+                "reason": 'Validation Failed: 1: $.default_field: does not have a value in the enumeration [title, description];',
+                "stack_trace": $body.$_path
+              }
+            ],
+            "type": "validation_exception",
+            "reason": 'Validation Failed: 1: $.default_field: does not have a value in the enumeration [title, description];',
+            "stack_trace": $body.$_path
+          },
+          "status": 400
+        }

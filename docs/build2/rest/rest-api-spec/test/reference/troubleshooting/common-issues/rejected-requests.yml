@@ -1,0 +1,15 @@
+---
+"line_25":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_cat/thread_pool"
+        v: "true"
+        h: "id,name,active,rejected,completed"

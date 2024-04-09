@@ -1,0 +1,139 @@
+---
+"line_24":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer": "whitespace",
+            "filter": [
+              "keyword_repeat",
+              "stemmer"
+            ],
+            "text": "jumping dog"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens": [
+            {
+              "token": "jumping",
+              "start_offset": 0,
+              "end_offset": 7,
+              "type": "word",
+              "position": 0
+            },
+            {
+              "token": "jump",
+              "start_offset": 0,
+              "end_offset": 7,
+              "type": "word",
+              "position": 0
+            },
+            {
+              "token": "dog",
+              "start_offset": 8,
+              "end_offset": 11,
+              "type": "word",
+              "position": 1
+            },
+            {
+              "token": "dog",
+              "start_offset": 8,
+              "end_offset": 11,
+              "type": "word",
+              "position": 1
+            }
+          ]
+        }
+---
+"line_79":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer": "whitespace",
+            "filter": [
+              "keyword_repeat",
+              "stemmer",
+              "remove_duplicates"
+            ],
+            "text": "jumping dog"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens": [
+            {
+              "token": "jumping",
+              "start_offset": 0,
+              "end_offset": 7,
+              "type": "word",
+              "position": 0
+            },
+            {
+              "token": "jump",
+              "start_offset": 0,
+              "end_offset": 7,
+              "type": "word",
+              "position": 0
+            },
+            {
+              "token": "dog",
+              "start_offset": 8,
+              "end_offset": 11,
+              "type": "word",
+              "position": 1
+            }
+          ]
+        }
+---
+"line_136":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "my_custom_analyzer": {
+                    "tokenizer": "standard",
+                    "filter": [
+                      "keyword_repeat",
+                      "stemmer",
+                      "remove_duplicates"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

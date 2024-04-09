@@ -1,0 +1,30 @@
+---
+"line_32":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: needs-licence
+  - do:
+      raw:
+        method: PUT
+        path: "_ml/anomaly_detectors/example1"
+        body: |
+          {
+            "analysis_config": {
+              "detectors": [{
+                "function" : "lat_long",
+                "field_name" : "transaction_coordinates",
+                "by_field_name" : "credit_card_number"
+              }]
+            },
+            "data_description": {
+              "time_field":"timestamp",
+              "time_format": "epoch_ms"
+            }
+          }
+  - is_false: _shards.failures

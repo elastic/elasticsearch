@@ -1,0 +1,138 @@
+---
+"line_19":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "more_like_this" : {
+                "fields" : ["title", "description"],
+                "like" : "Once upon a time",
+                "min_term_freq" : 1,
+                "max_query_terms" : 12
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_38":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "more_like_this": {
+                "fields": [ "title", "description" ],
+                "like": [
+                  {
+                    "_index": "imdb",
+                    "_id": "1"
+                  },
+                  {
+                    "_index": "imdb",
+                    "_id": "2"
+                  },
+                  "and potentially some more text here as well"
+                ],
+                "min_term_freq": 1,
+                "max_query_terms": 12
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_67":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "more_like_this": {
+                "fields": [ "name.first", "name.last" ],
+                "like": [
+                  {
+                    "_index": "marvel",
+                    "doc": {
+                      "name": {
+                        "first": "Ben",
+                        "last": "Grimm"
+                      },
+                      "_doc": "You got no idea what I'd... what I'd give to be invisible."
+                    }
+                  },
+                  {
+                    "_index": "marvel",
+                    "_id": "2"
+                  }
+                ],
+                "min_term_freq": 1,
+                "max_query_terms": 12
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_121":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "imdb"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "title": {
+                  "type": "text",
+                  "term_vector": "yes"
+                },
+                "description": {
+                  "type": "text"
+                },
+                "tags": {
+                  "type": "text",
+                  "fields": {
+                    "raw": {
+                      "type": "text",
+                      "analyzer": "keyword",
+                      "term_vector": "yes"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

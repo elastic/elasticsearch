@@ -1,0 +1,73 @@
+---
+"line_13":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "match_bool_prefix" : {
+                "message" : "quick brown f"
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_28":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "bool" : {
+                "should": [
+                  { "term": { "message": "quick" }},
+                  { "term": { "message": "brown" }},
+                  { "prefix": { "message": "f"}}
+                ]
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_59":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "match_bool_prefix": {
+                "message": {
+                  "query": "quick brown f",
+                  "analyzer": "keyword"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

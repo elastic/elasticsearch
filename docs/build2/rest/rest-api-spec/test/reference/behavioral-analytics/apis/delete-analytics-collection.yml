@@ -1,0 +1,20 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_application/analytics/my_analytics_collection"
+---
+"line_53":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: DELETE
+        path: "_application/analytics/my_analytics_collection/"
+  - is_false: _shards.failures

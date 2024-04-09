@@ -1,0 +1,74 @@
+---
+"line_20":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer" : "whitespace",
+            "filter" : ["decimal_digit"],
+            "text" : "१-one two-२ ३"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens" : [
+            {
+              "token" : "1-one",
+              "start_offset" : 0,
+              "end_offset" : 5,
+              "type" : "word",
+              "position" : 0
+            },
+            {
+              "token" : "two-2",
+              "start_offset" : 6,
+              "end_offset" : 11,
+              "type" : "word",
+              "position" : 1
+            },
+            {
+              "token" : "3",
+              "start_offset" : 12,
+              "end_offset" : 13,
+              "type" : "word",
+              "position" : 2
+            }
+          ]
+        }
+---
+"line_75":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "decimal_digit_example"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "whitespace_decimal_digit": {
+                    "tokenizer": "whitespace",
+                    "filter": [ "decimal_digit" ]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

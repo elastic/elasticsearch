@@ -1,0 +1,29 @@
+---
+"line_89":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: setup:calendar_outages_addjob
+  - do:
+      raw:
+        method: GET
+        path: "_ml/calendars/planned-outages"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "count": 1,
+          "calendars": [
+            {
+              "calendar_id": "planned-outages",
+              "job_ids": [
+                "total-requests"
+              ]
+            }
+          ]
+        }

@@ -1,0 +1,235 @@
+---
+"line_55":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup exams
+
+  - do:
+        indices.create:
+          index: exams
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                grade:
+                  type: byte
+  - do:
+        bulk:
+          index: exams
+          refresh: true
+          body: |
+            {"index":{}}
+            {"grade": 100, "weight": 2}
+            {"index":{}}
+            {"grade": 50, "weight": 3}
+  - do:
+      raw:
+        method: POST
+        path: "exams/_search"
+        body: |
+          {
+            "size": 0,
+            "aggs": {
+              "weighted_grade": {
+                "weighted_avg": {
+                  "value": {
+                    "field": "grade"
+                  },
+                  "weight": {
+                    "field": "weight"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,
+          "aggregations": {
+            "weighted_grade": {
+              "value": 70.0
+            }
+          }
+        }
+---
+"line_101":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "exams/_doc"
+        refresh: ""
+        body: |
+          {
+            "grade": [1, 2, 3],
+            "weight": 2
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "exams/_search"
+        body: |
+          {
+            "size": 0,
+            "aggs": {
+              "weighted_grade": {
+                "weighted_avg": {
+                  "value": {
+                    "field": "grade"
+                  },
+                  "weight": {
+                    "field": "weight"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,
+          "aggregations": {
+            "weighted_grade": {
+              "value": 2.0
+            }
+          }
+        }
+---
+"line_152":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "exams/_doc"
+        refresh: ""
+        body: |
+          {
+            "grade": 100,
+            "weight": [2, 3]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "exams/_doc"
+        refresh: ""
+        body: |
+          {
+            "grade": 80,
+            "weight": 3
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "exams/_search"
+        filter_path: "aggregations"
+        body: |
+          {
+            "size": 0,
+            "runtime_mappings": {
+              "weight.combined": {
+                "type": "double",
+                "script": "\n        double s = 0;\n        for (double w : doc['weight']) {\n          s += w;\n        }\n        emit(s);\n      "
+              }
+            },
+            "aggs": {
+              "weighted_grade": {
+                "weighted_avg": {
+                  "value": {
+                    "script": "doc.grade.value + 1"
+                  },
+                  "weight": {
+                    "field": "weight.combined"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "aggregations": {
+            "weighted_grade": {
+              "value": 93.5
+            }
+          }
+        }
+---
+"line_214":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup exams
+
+  - do:
+        indices.create:
+          index: exams
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+            mappings:
+              properties:
+                grade:
+                  type: byte
+  - do:
+        bulk:
+          index: exams
+          refresh: true
+          body: |
+            {"index":{}}
+            {"grade": 100, "weight": 2}
+            {"index":{}}
+            {"grade": 50, "weight": 3}
+  - do:
+      raw:
+        method: POST
+        path: "exams/_search"
+        body: |
+          {
+            "size": 0,
+            "aggs": {
+              "weighted_grade": {
+                "weighted_avg": {
+                  "value": {
+                    "field": "grade",
+                    "missing": 2
+                  },
+                  "weight": {
+                    "field": "weight",
+                    "missing": 3
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

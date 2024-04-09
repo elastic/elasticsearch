@@ -1,0 +1,135 @@
+---
+"line_27":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer": "whitespace",
+            "filter": [
+              {
+                "type": "length",
+                "min": 0,
+                "max": 4
+              }
+            ],
+            "text": "the quick brown fox jumps over the lazy dog"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens": [
+            {
+              "token": "the",
+              "start_offset": 0,
+              "end_offset": 3,
+              "type": "word",
+              "position": 0
+            },
+            {
+              "token": "fox",
+              "start_offset": 16,
+              "end_offset": 19,
+              "type": "word",
+              "position": 3
+            },
+            {
+              "token": "over",
+              "start_offset": 26,
+              "end_offset": 30,
+              "type": "word",
+              "position": 5
+            },
+            {
+              "token": "the",
+              "start_offset": 31,
+              "end_offset": 34,
+              "type": "word",
+              "position": 6
+            },
+            {
+              "token": "lazy",
+              "start_offset": 35,
+              "end_offset": 39,
+              "type": "word",
+              "position": 7
+            },
+            {
+              "token": "dog",
+              "start_offset": 40,
+              "end_offset": 43,
+              "type": "word",
+              "position": 8
+            }
+          ]
+        }
+---
+"line_109":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "length_example"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "standard_length": {
+                    "tokenizer": "standard",
+                    "filter": [ "length" ]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_149":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "length_custom_example"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "whitespace_length_2_to_10_char": {
+                    "tokenizer": "whitespace",
+                    "filter": [ "length_2_to_10_char" ]
+                  }
+                },
+                "filter": {
+                  "length_2_to_10_char": {
+                    "type": "length",
+                    "min": 2,
+                    "max": 10
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

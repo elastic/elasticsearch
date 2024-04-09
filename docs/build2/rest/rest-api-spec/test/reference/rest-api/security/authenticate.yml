@@ -1,0 +1,35 @@
+---
+"line_35":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_security/_authenticate"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "username": "$body.username",
+          "roles": [
+            "_es_test_root"
+          ],
+          "full_name": null,
+          "email":  null,
+          "metadata": { },
+          "enabled": true,
+          "authentication_realm": {
+            "name" : "file",
+            "type" : "file"
+          },
+          "lookup_realm": {
+            "name" : "file",
+            "type" : "file"
+          },
+          "authentication_type": "realm"
+        }

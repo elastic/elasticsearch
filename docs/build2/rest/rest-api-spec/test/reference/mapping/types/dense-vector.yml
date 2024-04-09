@@ -1,0 +1,129 @@
+---
+"line_18":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "my_vector": {
+                  "type": "dense_vector",
+                  "dims": 3
+                },
+                "my_text" : {
+                  "type" : "keyword"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index/_doc/1"
+        body: |
+          {
+            "my_text" : "text1",
+            "my_vector" : [0.5, 10, 6]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index/_doc/2"
+        body: |
+          {
+            "my_text" : "text2",
+            "my_vector" : [-0.5, 10, 10]
+          }
+  - is_false: _shards.failures
+---
+"line_72":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-2"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "my_vector": {
+                  "type": "dense_vector",
+                  "dims": 3,
+                  "similarity": "dot_product"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_95":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-2"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "my_vector": {
+                  "type": "dense_vector",
+                  "dims": 3,
+                  "index": false
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_127":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-byte-quantized-index"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "my_vector": {
+                  "type": "dense_vector",
+                  "dims": 3,
+                  "index": true,
+                  "index_options": {
+                    "type": "int8_hnsw"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

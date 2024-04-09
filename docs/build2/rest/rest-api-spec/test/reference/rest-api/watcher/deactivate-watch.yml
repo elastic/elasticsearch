@@ -1,0 +1,128 @@
+---
+"line_50":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup my_active_watch
+
+  - do:
+      watcher.put_watch:
+        id: "my_watch"
+        active: true
+        body:  >
+          {
+            "trigger": {
+              "schedule": {
+                "hourly": {
+                  "minute": [ 0, 5 ]
+                }
+              }
+            },
+            "input": {
+              "simple": {
+                "payload": {
+                  "send": "yes"
+                }
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "test_index": {
+                "index": {
+                  "index": "test"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch" }
+
+  - do:
+      raw:
+        method: GET
+        path: "_watcher/watch/my_watch"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "found": true,
+          "_id": "my_watch",
+          "_version": 1,
+          "_seq_no": 0,
+          "_primary_term": 1,
+          "status": {
+            "state" : {
+              "active" : true,
+              "timestamp" : "$body.status.state.timestamp"
+            },
+            "actions": "$body.status.actions",
+            "version": $body.status.version
+          },
+          "watch": "$body.watch"
+        }
+---
+"line_82":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup my_active_watch
+
+  - do:
+      watcher.put_watch:
+        id: "my_watch"
+        active: true
+        body:  >
+          {
+            "trigger": {
+              "schedule": {
+                "hourly": {
+                  "minute": [ 0, 5 ]
+                }
+              }
+            },
+            "input": {
+              "simple": {
+                "payload": {
+                  "send": "yes"
+                }
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "test_index": {
+                "index": {
+                  "index": "test"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch" }
+
+  - do:
+      raw:
+        method: PUT
+        path: "_watcher/watch/my_watch/_deactivate"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "status": {
+            "state" : {
+              "active" : false,
+              "timestamp" : "$body.status.state.timestamp"
+            },
+            "actions": "$body.status.actions",
+            "version": $body.status.version
+          }
+        }

@@ -1,0 +1,42 @@
+---
+"line_42":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/role/my_admin_role/_clear_cache"
+  - is_false: _shards.failures
+---
+"line_49":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/role/my_admin_role,my_test_role/_clear_cache"
+  - is_false: _shards.failures
+---
+"line_56":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_security/role/*/_clear_cache"
+  - is_false: _shards.failures

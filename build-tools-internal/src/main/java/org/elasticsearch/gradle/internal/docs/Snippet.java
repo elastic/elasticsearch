@@ -74,7 +74,7 @@ public class Snippet {
 
     private void assertValidCurlInput() {
         // Try to detect snippets that contain `curl`
-        if (language == "sh" || language == "shell") {
+        if ("sh".equals(language) || "shell".equals(language)) {
             curl = contents.contains("curl");
             if (console == Boolean.FALSE && curl == false) {
                 throw new InvalidUserDataException(name + ": " + "No need for NOTCONSOLE if snippet doesn't " + "contain `curl`.");

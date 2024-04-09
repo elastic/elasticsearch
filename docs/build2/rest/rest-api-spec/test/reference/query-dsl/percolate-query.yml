@@ -1,0 +1,609 @@
+---
+"line_23":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "message": {
+                  "type": "text"
+                },
+                "query": {
+                  "type": "percolator"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/1"
+        refresh: ""
+        body: |
+          {
+            "query": {
+              "match": {
+                "message": "bonsai tree"
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "query": {
+              "percolate": {
+                "field": "query",
+                "document": {
+                  "message": "A new bonsai tree in the office"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": "$body.took",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped" : 0,
+            "failed": 0
+          },
+          "hits": {
+            "total" : {
+                "value": 1,
+                "relation": "eq"
+            },
+            "max_score": 0.26152915,
+            "hits": [
+              {
+                "_index": "my-index-000001",
+                "_id": "1",
+                "_score": 0.26152915,
+                "_source": {
+                  "query": {
+                    "match": {
+                      "message": "bonsai tree"
+                    }
+                  }
+                },
+                "fields" : {
+                  "_percolator_document_slot" : [0]
+                }
+              }
+            ]
+          }
+        }
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "query": {
+              "constant_score": {
+                "filter": {
+                  "percolate": {
+                    "field": "query",
+                    "document": {
+                      "message": "A new bonsai tree in the office"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "query": {
+              "percolate": {
+                "field": "query",
+                "documents": [
+                  {
+                    "message": "bonsai tree"
+                  },
+                  {
+                    "message": "new tree"
+                  },
+                  {
+                    "message": "the office"
+                  },
+                  {
+                    "message": "office tree"
+                  }
+                ]
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": "$body.took",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped" : 0,
+            "failed": 0
+          },
+          "hits": {
+            "total" : {
+                "value": 1,
+                "relation": "eq"
+            },
+            "max_score": 0.7093853,
+            "hits": [
+              {
+                "_index": "my-index-000001",
+                "_id": "1",
+                "_score": 0.7093853,
+                "_source": {
+                  "query": {
+                    "match": {
+                      "message": "bonsai tree"
+                    }
+                  }
+                },
+                "fields" : {
+                  "_percolator_document_slot" : [0, 1, 3]
+                }
+              }
+            ]
+          }
+        }
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/2"
+        body: |
+          {
+            "message" : "A new bonsai tree in the office"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "_index": "my-index-000001",
+          "_id": "2",
+          "_version": 1,
+          "_shards": {
+            "total": 2,
+            "successful": 1,
+            "failed": 0
+          },
+          "result": "created",
+          "_seq_no" : 1,
+          "_primary_term" : 1
+        }
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "query": {
+              "percolate": {
+                "field": "query",
+                "index": "my-index-000001",
+                "id": "2",
+                "version": 1
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/3"
+        refresh: ""
+        body: |
+          {
+            "query": {
+              "match": {
+                "message": "brown fox"
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/4"
+        refresh: ""
+        body: |
+          {
+            "query": {
+              "match": {
+                "message": "lazy dog"
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "query": {
+              "percolate": {
+                "field": "query",
+                "document": {
+                  "message": "The quick brown fox jumps over the lazy dog"
+                }
+              }
+            },
+            "highlight": {
+              "fields": {
+                "message": {}
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": "$body.took",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped" : 0,
+            "failed": 0
+          },
+          "hits": {
+            "total" : {
+                "value": 2,
+                "relation": "eq"
+            },
+            "max_score": 0.26152915,
+            "hits": [
+              {
+                "_index": "my-index-000001",
+                "_id": "3",
+                "_score": 0.26152915,
+                "_source": {
+                  "query": {
+                    "match": {
+                      "message": "brown fox"
+                    }
+                  }
+                },
+                "highlight": {
+                  "message": [
+                    "The quick <em>brown</em> <em>fox</em> jumps over the lazy dog"
+                  ]
+                },
+                "fields" : {
+                  "_percolator_document_slot" : [0]
+                }
+              },
+              {
+                "_index": "my-index-000001",
+                "_id": "4",
+                "_score": 0.26152915,
+                "_source": {
+                  "query": {
+                    "match": {
+                      "message": "lazy dog"
+                    }
+                  }
+                },
+                "highlight": {
+                  "message": [
+                    "The quick brown fox jumps over the <em>lazy</em> <em>dog</em>"
+                  ]
+                },
+                "fields" : {
+                  "_percolator_document_slot" : [0]
+                }
+              }
+            ]
+          }
+        }
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "query": {
+              "percolate": {
+                "field": "query",
+                "documents": [
+                  {
+                    "message": "bonsai tree"
+                  },
+                  {
+                    "message": "new tree"
+                  },
+                  {
+                    "message": "the office"
+                  },
+                  {
+                    "message": "office tree"
+                  }
+                ]
+              }
+            },
+            "highlight": {
+              "fields": {
+                "message": {}
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": "$body.took",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped" : 0,
+            "failed": 0
+          },
+          "hits": {
+            "total" : {
+                "value": 1,
+                "relation": "eq"
+            },
+            "max_score": 0.7093853,
+            "hits": [
+              {
+                "_index": "my-index-000001",
+                "_id": "1",
+                "_score": 0.7093853,
+                "_source": {
+                  "query": {
+                    "match": {
+                      "message": "bonsai tree"
+                    }
+                  }
+                },
+                "fields" : {
+                  "_percolator_document_slot" : [0, 1, 3]
+                },
+                "highlight" : {
+                  "0_message" : [
+                      "<em>bonsai</em> <em>tree</em>"
+                  ],
+                  "3_message" : [
+                      "office <em>tree</em>"
+                  ],
+                  "1_message" : [
+                      "new <em>tree</em>"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/5"
+        refresh: ""
+        body: |
+          {
+            "query": {
+              "bool": {
+                "should": [
+                  {
+                    "match": {
+                      "message": {
+                        "query": "Japanese art",
+                        "_name": "query1"
+                      }
+                    }
+                  },
+                  {
+                    "match": {
+                      "message": {
+                        "query": "Holand culture",
+                        "_name": "query2"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "query": {
+              "percolate": {
+                "field": "query",
+                "documents": [
+                  {
+                    "message": "Japanse art"
+                  },
+                  {
+                    "message": "Holand culture"
+                  },
+                  {
+                    "message": "Japanese art and Holand culture"
+                  },
+                  {
+                    "message": "no-match"
+                  }
+                ]
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": "$body.took",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped" : 0,
+            "failed": 0
+          },
+          "hits": {
+            "total" : {
+                "value": 1,
+                "relation": "eq"
+            },
+            "max_score": 1.1181908,
+            "hits": [
+              {
+                "_index": "my-index-000001",
+                "_id": "5",
+                "_score": 1.1181908,
+                "_source": {
+                  "query": {
+                    "bool": {
+                      "should": [
+                        {
+                          "match": {
+                            "message": {
+                              "query": "Japanese art",
+                              "_name": "query1"
+                            }
+                          }
+                        },
+                        {
+                          "match": {
+                            "message": {
+                              "query": "Holand culture",
+                              "_name": "query2"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                "fields" : {
+                  "_percolator_document_slot" : [0, 1, 2],
+                  "_percolator_document_slot_0_matched_queries" : ["query1"],
+                  "_percolator_document_slot_1_matched_queries" : ["query2"],
+                  "_percolator_document_slot_2_matched_queries" : ["query1", "query2"]
+                }
+              }
+            ]
+          }
+        }
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        body: |
+          {
+            "query": {
+              "bool": {
+                "should": [
+                  {
+                    "percolate": {
+                      "field": "query",
+                      "document": {
+                        "message": "bonsai tree"
+                      },
+                      "name": "query1"
+                    }
+                  },
+                  {
+                    "percolate": {
+                      "field": "query",
+                      "document": {
+                        "message": "tulip flower"
+                      },
+                      "name": "query2"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": "$body.took",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped" : 0,
+            "failed": 0
+          },
+          "hits": {
+            "total" : {
+                "value": 1,
+                "relation": "eq"
+            },
+            "max_score": 0.26152915,
+            "hits": [
+              {
+                "_index": "my-index-000001",
+                "_id": "1",
+                "_score": 0.26152915,
+                "_source": {
+                  "query": {
+                    "match": {
+                      "message": "bonsai tree"
+                    }
+                  }
+                },
+                "fields" : {
+                  "_percolator_document_slot_query1" : [0]
+                }
+              }
+            ]
+          }
+        }
+---
+"line_791":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "term" : {
+                "query.extraction_result" : "failed"
+              }
+            }
+          }
+  - is_false: _shards.failures

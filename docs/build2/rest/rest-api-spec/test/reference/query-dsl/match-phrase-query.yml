@@ -1,0 +1,47 @@
+---
+"line_11":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "match_phrase": {
+                "message": "this is a test"
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_30":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "match_phrase": {
+                "message": {
+                  "query": "this is a test",
+                  "analyzer": "my_analyzer"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

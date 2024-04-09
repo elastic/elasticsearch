@@ -1,0 +1,50 @@
+---
+"line_17":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "index_1"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "index_2"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "index_3"
+        body: |
+          {
+            "settings": {
+              "index.priority": 10
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "index_4"
+        body: |
+          {
+            "settings": {
+              "index.priority": 5
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "index_4/_settings"
+        body: |
+          {
+            "index.priority": 1
+          }
+  - is_false: _shards.failures

@@ -1,0 +1,224 @@
+---
+"line_26":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "my-agg-metric-field": {
+                  "type": "aggregate_metric_double",
+                  "metrics": [ "min", "max", "sum", "value_count" ],
+                  "default_metric": "max"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_114":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "stats-index"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "agg_metric": {
+                  "type": "aggregate_metric_double",
+                  "metrics": [ "min", "max", "sum", "value_count" ],
+                  "default_metric": "max"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "stats-index/_doc/1"
+        body: |
+          {
+            "agg_metric": {
+              "min": -302.50,
+              "max": 702.30,
+              "sum": 200.0,
+              "value_count": 25
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "stats-index/_doc/2"
+        refresh: "wait_for"
+        body: |
+          {
+            "agg_metric": {
+              "min": -93.00,
+              "max": 1702.30,
+              "sum": 300.00,
+              "value_count": 25
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "stats-index/_search"
+        size: "0"
+        body: |
+          {
+            "aggs": {
+              "metric_min": { "min": { "field": "agg_metric" } },
+              "metric_max": { "max": { "field": "agg_metric" } },
+              "metric_value_count": { "value_count": { "field": "agg_metric" } },
+              "metric_sum": { "sum": { "field": "agg_metric" } },
+              "metric_avg": { "avg": { "field": "agg_metric" } }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+        "took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,
+          "aggregations": {
+            "metric_min": {
+              "value": -302.5
+            },
+            "metric_max": {
+              "value": 1702.3
+            },
+            "metric_value_count": {
+              "value": 50
+            },
+            "metric_sum": {
+              "value": 500.0
+            },
+            "metric_avg": {
+              "value": 10.0
+            }
+          }
+        }
+  - do:
+      raw:
+        method: GET
+        path: "stats-index/_search"
+        body: |
+          {
+            "query": {
+              "term": {
+                "agg_metric": {
+                  "value": 702.30
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": $body.took,"timed_out": false,"_shards": $body._shards,
+            "hits": {
+            "total": {
+              "value": 1,
+              "relation": "eq"
+            },
+            "max_score": 1.0,
+            "hits": [
+              {
+                "_index": "stats-index",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                  "agg_metric": {
+                    "min": -302.5,
+                    "max": 702.3,
+                    "sum": 200.0,
+                    "value_count": 25
+                  }
+                }
+              }
+            ]
+          }
+        }
+---
+"synthetic-source-aggregate-metric-double-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "idx"
+        body: |
+          {
+            "mappings": {
+              "_source": { "mode": "synthetic" },
+              "properties": {
+                "agg_metric": {
+                  "type": "aggregate_metric_double",
+                  "metrics": [ "min", "max", "sum", "value_count" ],
+                  "default_metric": "max"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "idx/_doc/1"
+        body: |
+          {
+            "agg_metric": {
+              "min": -302.50,
+              "max": 702.30,
+              "sum": 200.0,
+              "value_count": 25
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "idx/_doc/1"
+        filter_path: "_source"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "idx/_doc/1"
+        filter_path: "_source"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {"_source":{
+          "agg_metric": {
+            "min": -302.50,
+            "max": 702.30,
+            "sum": 200.0,
+            "value_count": 25
+          }
+        }}

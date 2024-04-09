@@ -1,0 +1,80 @@
+---
+"line_16":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "number_one": {
+                  "type": "integer",
+                  "ignore_malformed": true
+                },
+                "number_two": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/1"
+        body: |
+          {
+            "text":       "Some text value",
+            "number_one": "foo"
+          }
+  - is_false: _shards.failures
+  - do:
+      catch: bad_request
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/2"
+        body: |
+          {
+            "text":       "Some text value",
+            "number_two": "foo"
+          }
+  - is_false: _shards.failures
+---
+"line_70":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "settings": {
+              "index.mapping.ignore_malformed": true
+            },
+            "mappings": {
+              "properties": {
+                "number_one": {
+                  "type": "byte"
+                },
+                "number_two": {
+                  "type": "integer",
+                  "ignore_malformed": false
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

@@ -1,0 +1,39 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "index1"
+  - do:
+      raw:
+        method: PUT
+        path: "_application/search_application/my-app"
+        body: |
+          {
+            "indices": [ "index1" ],
+            "template": {
+              "script": {
+                "source": {
+                  "query": {
+                    "query_string": {
+                      "query": "{{query_string}}"
+                    }
+                  }
+                }
+              }
+            }
+          }
+---
+"line_70":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: DELETE
+        path: "_application/search_application/my-app/"
+  - is_false: _shards.failures

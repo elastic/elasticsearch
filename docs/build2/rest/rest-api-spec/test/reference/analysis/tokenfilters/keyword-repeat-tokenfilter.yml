@@ -1,0 +1,342 @@
+---
+"line_49":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer": "whitespace",
+            "filter": [
+              "keyword_repeat"
+            ],
+            "text": "fox running and jumping",
+            "explain": true,
+            "attributes": "keyword"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "detail": {
+            "custom_analyzer": true,
+            "charfilters": [],
+            "tokenizer": $body.detail.tokenizer,
+            "tokenfilters": [
+              {
+                "name": "keyword_repeat",
+                "tokens": [
+                  {
+                    "token": "fox",
+                    "start_offset": 0,
+                    "end_offset": 3,
+                    "type": "word",
+                    "position": 0,
+                    "keyword": true
+                  },
+                  {
+                    "token": "fox",
+                    "start_offset": 0,
+                    "end_offset": 3,
+                    "type": "word",
+                    "position": 0,
+                    "keyword": false
+                  },
+                  {
+                    "token": "running",
+                    "start_offset": 4,
+                    "end_offset": 11,
+                    "type": "word",
+                    "position": 1,
+                    "keyword": true
+                  },
+                  {
+                    "token": "running",
+                    "start_offset": 4,
+                    "end_offset": 11,
+                    "type": "word",
+                    "position": 1,
+                    "keyword": false
+                  },
+                  {
+                    "token": "and",
+                    "start_offset": 12,
+                    "end_offset": 15,
+                    "type": "word",
+                    "position": 2,
+                    "keyword": true
+                  },
+                  {
+                    "token": "and",
+                    "start_offset": 12,
+                    "end_offset": 15,
+                    "type": "word",
+                    "position": 2,
+                    "keyword": false
+                  },
+                  {
+                    "token": "jumping",
+                    "start_offset": 16,
+                    "end_offset": 23,
+                    "type": "word",
+                    "position": 3,
+                    "keyword": true
+                  },
+                  {
+                    "token": "jumping",
+                    "start_offset": 16,
+                    "end_offset": 23,
+                    "type": "word",
+                    "position": 3,
+                    "keyword": false
+                  }
+                ]
+              }
+            ]
+          }
+        }
+---
+"line_156":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer": "whitespace",
+            "filter": [
+              "keyword_repeat",
+              "stemmer"
+            ],
+            "text": "fox running and jumping",
+            "explain": true,
+            "attributes": "keyword"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "detail": {
+            "custom_analyzer": true,
+            "charfilters": [],
+            "tokenizer": $body.detail.tokenizer,
+            "tokenfilters": [
+              {
+                "name": "keyword_repeat",
+                "tokens": $body.$_path
+              },
+              {
+                "name": "stemmer",
+                "tokens": [
+                  {
+                    "token": "fox",
+                    "start_offset": 0,
+                    "end_offset": 3,
+                    "type": "word",
+                    "position": 0,
+                    "keyword": true
+                  },
+                  {
+                    "token": "fox",
+                    "start_offset": 0,
+                    "end_offset": 3,
+                    "type": "word",
+                    "position": 0,
+                    "keyword": false
+                  },
+                  {
+                    "token": "running",
+                    "start_offset": 4,
+                    "end_offset": 11,
+                    "type": "word",
+                    "position": 1,
+                    "keyword": true
+                  },
+                  {
+                    "token": "run",
+                    "start_offset": 4,
+                    "end_offset": 11,
+                    "type": "word",
+                    "position": 1,
+                    "keyword": false
+                  },
+                  {
+                    "token": "and",
+                    "start_offset": 12,
+                    "end_offset": 15,
+                    "type": "word",
+                    "position": 2,
+                    "keyword": true
+                  },
+                  {
+                    "token": "and",
+                    "start_offset": 12,
+                    "end_offset": 15,
+                    "type": "word",
+                    "position": 2,
+                    "keyword": false
+                  },
+                  {
+                    "token": "jumping",
+                    "start_offset": 16,
+                    "end_offset": 23,
+                    "type": "word",
+                    "position": 3,
+                    "keyword": true
+                  },
+                  {
+                    "token": "jump",
+                    "start_offset": 16,
+                    "end_offset": 23,
+                    "type": "word",
+                    "position": 3,
+                    "keyword": false
+                  }
+                ]
+              }
+            ]
+          }
+        }
+---
+"line_274":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer": "whitespace",
+            "filter": [
+              "keyword_repeat",
+              "stemmer",
+              "remove_duplicates"
+            ],
+            "text": "fox running and jumping",
+            "explain": true,
+            "attributes": "keyword"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "detail": {
+            "custom_analyzer": true,
+            "charfilters": [],
+            "tokenizer": $body.detail.tokenizer,
+            "tokenfilters": [
+              {
+                "name": "keyword_repeat",
+                "tokens": $body.$_path
+              },
+              {
+                "name": "stemmer",
+                "tokens": $body.$_path
+              },
+              {
+                "name": "remove_duplicates",
+                "tokens": [
+                  {
+                    "token": "fox",
+                    "start_offset": 0,
+                    "end_offset": 3,
+                    "type": "word",
+                    "position": 0,
+                    "keyword": true
+                  },
+                  {
+                    "token": "running",
+                    "start_offset": 4,
+                    "end_offset": 11,
+                    "type": "word",
+                    "position": 1,
+                    "keyword": true
+                  },
+                  {
+                    "token": "run",
+                    "start_offset": 4,
+                    "end_offset": 11,
+                    "type": "word",
+                    "position": 1,
+                    "keyword": false
+                  },
+                  {
+                    "token": "and",
+                    "start_offset": 12,
+                    "end_offset": 15,
+                    "type": "word",
+                    "position": 2,
+                    "keyword": true
+                  },
+                  {
+                    "token": "jumping",
+                    "start_offset": 16,
+                    "end_offset": 23,
+                    "type": "word",
+                    "position": 3,
+                    "keyword": true
+                  },
+                  {
+                    "token": "jump",
+                    "start_offset": 16,
+                    "end_offset": 23,
+                    "type": "word",
+                    "position": 3,
+                    "keyword": false
+                  }
+                ]
+              }
+            ]
+          }
+        }
+---
+"line_384":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "my_custom_analyzer": {
+                    "tokenizer": "standard",
+                    "filter": [
+                      "keyword_repeat",
+                      "porter_stem",
+                      "remove_duplicates"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

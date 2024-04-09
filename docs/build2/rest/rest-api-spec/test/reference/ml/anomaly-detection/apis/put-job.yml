@@ -1,0 +1,146 @@
+---
+"line_400":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ml/anomaly_detectors/test-job1"
+        pretty: ""
+        body: |
+          {
+            "analysis_config": {
+              "bucket_span": "15m",
+              "detectors": [
+                {
+                  "detector_description": "Sum of bytes",
+                  "function": "sum",
+                  "field_name": "bytes"
+                }
+              ]
+            },
+            "data_description": {
+              "time_field": "timestamp",
+              "time_format": "epoch_ms"
+            },
+            "analysis_limits": {
+              "model_memory_limit": "11MB"
+            },
+            "model_plot_config": {
+              "enabled": true,
+              "annotations_enabled": true
+            },
+            "results_index_name": "test-job1",
+            "datafeed_config":
+            {
+              "indices": [
+              "kibana_sample_data_logs"
+              ],
+              "query": {
+                "bool": {
+                  "must": [
+                    {
+                      "match_all": {}
+                    }
+                  ]
+                }
+              },
+              "runtime_mappings": {
+                "hour_of_day": {
+                  "type": "long",
+                  "script": {
+                    "source": "emit(doc['timestamp'].value.getHour());"
+                  }
+                }
+              },
+              "datafeed_id": "datafeed-test-job1"
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "job_id" : "test-job1",
+          "job_type" : "anomaly_detector",
+          "job_version" : $body.job_version,
+          "create_time" : $body.$_path,
+          "datafeed_config" : {
+            "datafeed_id" : "datafeed-test-job1",
+            "job_id" : "test-job1",
+            "authorization" : {
+              "roles" : [
+                "_es_test_root"
+              ]
+            },
+            "query_delay" : "61499ms",
+            "chunking_config" : {
+              "mode" : "auto"
+            },
+            "indices_options" : {
+              "expand_wildcards" : [
+                "open"
+              ],
+              "ignore_unavailable" : false,
+              "allow_no_indices" : true,
+              "ignore_throttled" : true,"failure_store":"exclude"
+            },
+            "query" : {
+              "bool" : {
+                "must" : [
+                  {
+                    "match_all" : { }
+                  }
+                ]
+              }
+            },
+            "indices" : [
+              "kibana_sample_data_logs"
+            ],
+            "scroll_size" : 1000,
+            "delayed_data_check_config" : {
+              "enabled" : true
+            },
+            "runtime_mappings" : {
+              "hour_of_day" : {
+                "type" : "long",
+                "script" : {
+                  "source" : "emit(doc['timestamp'].value.getHour());"
+                }
+              }
+            }
+          },
+          "analysis_config" : {
+            "bucket_span" : "15m",
+            "detectors" : [
+              {
+                "detector_description" : "Sum of bytes",
+                "function" : "sum",
+                "field_name" : "bytes",
+                "detector_index" : 0
+              }
+            ],
+            "influencers" : [ ],
+            "model_prune_window" : "30d"
+          },
+          "analysis_limits" : {
+            "model_memory_limit" : "11mb",
+            "categorization_examples_limit" : 4
+          },
+          "data_description" : {
+            "time_field" : "timestamp",
+            "time_format" : "epoch_ms"
+          },
+          "model_plot_config" : {
+            "enabled" : true,
+            "annotations_enabled" : true
+          },
+          "model_snapshot_retention_days" : 10,
+          "daily_model_snapshot_retention_after_days" : 1,
+          "results_index_name" : "custom-test-job1",
+          "allow_lazy_open" : false
+        }

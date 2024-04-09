@@ -1,0 +1,404 @@
+---
+"line_11":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "analyzer" : "standard",
+            "text" : "Quick Brown Foxes!"
+          }
+  - is_false: _shards.failures
+---
+"line_143":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "analyzer" : "standard",
+            "text" : "this is a test"
+          }
+  - is_false: _shards.failures
+---
+"line_157":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "analyzer" : "standard",
+            "text" : ["this is a test", "the second text"]
+          }
+  - is_false: _shards.failures
+---
+"line_173":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer" : "keyword",
+            "filter" : ["lowercase"],
+            "text" : "this is a test"
+          }
+  - is_false: _shards.failures
+---
+"line_183":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer" : "keyword",
+            "filter" : ["lowercase"],
+            "char_filter" : ["html_strip"],
+            "text" : "this is a <b>test</b>"
+          }
+  - is_false: _shards.failures
+---
+"line_196":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer" : "whitespace",
+            "filter" : ["lowercase", {"type": "stop", "stopwords": ["a", "is", "this"]}],
+            "text" : "this is a test"
+          }
+  - is_false: _shards.failures
+---
+"line_211":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup analyze_sample
+
+  - do:
+        indices.create:
+          index: analyze_sample
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+              analysis:
+                normalizer:
+                  my_normalizer:
+                    type: custom
+                    filter: [lowercase]
+            mappings:
+              properties:
+                obj1.field1:
+                  type: text
+  - do:
+      raw:
+        method: GET
+        path: "analyze_sample/_analyze"
+        body: |
+          {
+            "text" : "this is a test"
+          }
+  - is_false: _shards.failures
+---
+"line_224":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup analyze_sample
+
+  - do:
+        indices.create:
+          index: analyze_sample
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+              analysis:
+                normalizer:
+                  my_normalizer:
+                    type: custom
+                    filter: [lowercase]
+            mappings:
+              properties:
+                obj1.field1:
+                  type: text
+  - do:
+      raw:
+        method: GET
+        path: "analyze_sample/_analyze"
+        body: |
+          {
+            "analyzer" : "whitespace",
+            "text" : "this is a test"
+          }
+  - is_false: _shards.failures
+---
+"line_239":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup analyze_sample
+
+  - do:
+        indices.create:
+          index: analyze_sample
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+              analysis:
+                normalizer:
+                  my_normalizer:
+                    type: custom
+                    filter: [lowercase]
+            mappings:
+              properties:
+                obj1.field1:
+                  type: text
+  - do:
+      raw:
+        method: GET
+        path: "analyze_sample/_analyze"
+        body: |
+          {
+            "field" : "obj1.field1",
+            "text" : "this is a test"
+          }
+  - is_false: _shards.failures
+---
+"line_257":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup analyze_sample
+
+  - do:
+        indices.create:
+          index: analyze_sample
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+              analysis:
+                normalizer:
+                  my_normalizer:
+                    type: custom
+                    filter: [lowercase]
+            mappings:
+              properties:
+                obj1.field1:
+                  type: text
+  - do:
+      raw:
+        method: GET
+        path: "analyze_sample/_analyze"
+        body: |
+          {
+            "normalizer" : "my_normalizer",
+            "text" : "BaR"
+          }
+  - is_false: _shards.failures
+---
+"line_269":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "filter" : ["lowercase"],
+            "text" : "BaR"
+          }
+  - is_false: _shards.failures
+---
+"line_286":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer" : "standard",
+            "filter" : ["snowball"],
+            "text" : "detailed output",
+            "explain" : true,
+            "attributes" : ["keyword"]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "detail" : {
+            "custom_analyzer" : true,
+            "charfilters" : [ ],
+            "tokenizer" : {
+              "name" : "standard",
+              "tokens" : [ {
+                "token" : "detailed",
+                "start_offset" : 0,
+                "end_offset" : 8,
+                "type" : "<ALPHANUM>",
+                "position" : 0
+              }, {
+                "token" : "output",
+                "start_offset" : 9,
+                "end_offset" : 15,
+                "type" : "<ALPHANUM>",
+                "position" : 1
+              } ]
+            },
+            "tokenfilters" : [ {
+              "name" : "snowball",
+              "tokens" : [ {
+                "token" : "detail",
+                "start_offset" : 0,
+                "end_offset" : 8,
+                "type" : "<ALPHANUM>",
+                "position" : 0,
+                "keyword" : false
+              }, {
+                "token" : "output",
+                "start_offset" : 9,
+                "end_offset" : 15,
+                "type" : "<ALPHANUM>",
+                "position" : 1,
+                "keyword" : false
+              } ]
+            } ]
+          }
+        }
+---
+"line_361":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "analyze_sample"
+        body: |
+          {
+            "settings" : {
+              "index.analyze.max_token_count" : 20000
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_372":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup analyze_sample
+
+  - do:
+        indices.create:
+          index: analyze_sample
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+              analysis:
+                normalizer:
+                  my_normalizer:
+                    type: custom
+                    filter: [lowercase]
+            mappings:
+              properties:
+                obj1.field1:
+                  type: text
+  - do:
+      raw:
+        method: GET
+        path: "analyze_sample/_analyze"
+        body: |
+          {
+            "text" : "this is a test"
+          }
+  - is_false: _shards.failures

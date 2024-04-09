@@ -1,0 +1,49 @@
+---
+"line_4":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TBD
+  - do:
+      raw:
+        method: PUT
+        path: "_inference/text_embedding/cohere_embeddings"
+        body: |
+          {
+              "service": "cohere",
+              "service_settings": {
+                  "api_key": "<api_key>",
+                  "model_id": "embed-english-v3.0",
+                  "embedding_type": "byte"
+              }
+          }
+  - is_false: _shards.failures
+---
+"line_39":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TBD
+  - do:
+      raw:
+        method: PUT
+        path: "_inference/text_embedding/openai_embeddings"
+        body: |
+          {
+              "service": "openai",
+              "service_settings": {
+                  "api_key": "<api_key>",
+                  "model_id": "text-embedding-ada-002"
+              }
+          }
+  - is_false: _shards.failures

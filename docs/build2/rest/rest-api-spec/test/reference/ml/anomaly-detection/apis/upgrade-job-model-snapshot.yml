@@ -1,0 +1,24 @@
+---
+"line_77":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: Kibana sample data
+  - do:
+      raw:
+        method: POST
+        path: "_ml/anomaly_detectors/low_request_rate/model_snapshots/1828371/_upgrade"
+        timeout: "45m"
+        wait_for_completion: "true"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "completed" : false,
+          "node" : "node-1"
+        }

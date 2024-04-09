@@ -1,0 +1,182 @@
+---
+"line_36":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "bool" : {
+                "must" : {
+                  "term" : { "user.id" : "kimchy" }
+                },
+                "filter": {
+                  "term" : { "tags" : "production" }
+                },
+                "must_not" : {
+                  "range" : {
+                    "age" : { "gte" : 10, "lte" : 20 }
+                  }
+                },
+                "should" : [
+                  { "term" : { "tags" : "env1" } },
+                  { "term" : { "tags" : "deployed" } }
+                ],
+                "minimum_should_match" : 1,
+                "boost" : 1.0
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_88":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "bool": {
+                "filter": {
+                  "term": {
+                    "status": "active"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_107":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "bool": {
+                "must": {
+                  "match_all": {}
+                },
+                "filter": {
+                  "term": {
+                    "status": "active"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_130":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "constant_score": {
+                "filter": {
+                  "term": {
+                    "status": "active"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_156":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "bool": {
+                "should": [
+                  { "match": { "name.first": { "query": "shay", "_name": "first" } } },
+                  { "match": { "name.last": { "query": "banon", "_name": "last" } } }
+                ],
+                "filter": {
+                  "terms": {
+                    "name.last": [ "banon", "kimchy" ],
+                    "_name": "test"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_184":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        include_named_queries_score: ""
+        body: |
+          {
+            "query": {
+              "bool": {
+                "should": [
+                  { "match": { "name.first": { "query": "shay", "_name": "first" } } },
+                  { "match": { "name.last": { "query": "banon", "_name": "last" } } }
+                ],
+                "filter": {
+                  "terms": {
+                    "name.last": [ "banon", "kimchy" ],
+                    "_name": "test"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

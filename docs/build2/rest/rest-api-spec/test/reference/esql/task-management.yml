@@ -1,0 +1,33 @@
+---
+"esql-task-management-get-all":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_tasks"
+        pretty: ""
+        detailed: ""
+        group_by: "parents"
+        human: ""
+        actions: "*data/read/esql"
+  - is_false: _shards.failures
+---
+"esql-task-management-cancelEsqlQueryRequestTests":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_tasks/2j8UKw1bRO283PMwDugNNg:5326/_cancel"
+  - is_false: _shards.failures

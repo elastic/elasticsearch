@@ -1,0 +1,80 @@
+---
+"line_21":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "location": {
+                  "type": "point"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/1"
+        body: |
+          {
+            "text": "Point as an object using GeoJSON format",
+            "location": {
+              "type": "Point",
+              "coordinates": [-71.34, 41.12]
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/2"
+        body: |
+          {
+            "text": "Point as a WKT POINT primitive",
+            "location" : "POINT (-71.34 41.12)"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/3"
+        body: |
+          {
+            "text": "Point as an object with 'x' and 'y' keys",
+            "location": {
+              "x": -71.34,
+              "y": 41.12
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/4"
+        body: |
+          {
+            "text": "Point as an array",
+            "location": [ -71.34, 41.12 ]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/5"
+        body: |
+          {
+            "text": "Point as a string",
+            "location": "-71.34,41.12"
+          }
+  - is_false: _shards.failures

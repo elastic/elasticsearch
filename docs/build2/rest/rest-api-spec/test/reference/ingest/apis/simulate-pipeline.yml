@@ -1,0 +1,352 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_ingest/pipeline/my-pipeline-id"
+        body: |
+          {
+            "description" : "example pipeline to simulate",
+                "processors": [
+                {
+                  "set" : {
+                    "field" : "field2",
+                    "value" : "_value"
+                  }
+                }
+              ]
+          }
+---
+"line_31":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_ingest/pipeline/my-pipeline-id/_simulate"
+        body: |
+          {
+            "docs": [
+              {
+                "_index": "index",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              },
+              {
+                "_index": "index",
+                "_id": "id",
+                "_source": {
+                  "foo": "rab"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+---
+"line_150":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_ingest/pipeline/my-pipeline-id/_simulate"
+        body: |
+          {
+            "docs": [
+              {
+                "_index": "index",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              },
+              {
+                "_index": "index",
+                "_id": "id",
+                "_source": {
+                  "foo": "rab"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+           "docs": [
+              {
+                 "doc": {
+                    "_id": "id",
+                    "_index": "index",
+                    "_version": "-3",
+                    "_source": {
+                       "field2": "_value",
+                       "foo": "bar"
+                    },
+                    "_ingest": {
+                       "timestamp": $body.docs.0.doc._ingest.timestamp
+                    }
+                 }
+              },
+              {
+                 "doc": {
+                    "_id": "id",
+                    "_index": "index",
+                    "_version": "-3",
+                    "_source": {
+                       "field2": "_value",
+                       "foo": "rab"
+                    },
+                    "_ingest": {
+                       "timestamp": $body.docs.1.doc._ingest.timestamp
+                    }
+                 }
+              }
+           ]
+        }
+---
+"line_217":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_ingest/pipeline/_simulate"
+        body: |
+          {
+            "pipeline" :
+            {
+              "description": "_description",
+              "processors": [
+                {
+                  "set" : {
+                    "field" : "field2",
+                    "value" : "_value"
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              },
+              {
+                "_index": "index",
+                "_id": "id",
+                "_source": {
+                  "foo": "rab"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+           "docs": [
+              {
+                 "doc": {
+                    "_id": "id",
+                    "_index": "index",
+                    "_version": "-3",
+                    "_source": {
+                       "field2": "_value",
+                       "foo": "bar"
+                    },
+                    "_ingest": {
+                       "timestamp": $body.docs.0.doc._ingest.timestamp
+                    }
+                 }
+              },
+              {
+                 "doc": {
+                    "_id": "id",
+                    "_index": "index",
+                    "_version": "-3",
+                    "_source": {
+                       "field2": "_value",
+                       "foo": "rab"
+                    },
+                    "_ingest": {
+                       "timestamp": $body.docs.1.doc._ingest.timestamp
+                    }
+                 }
+              }
+           ]
+        }
+---
+"line_303":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_ingest/pipeline/_simulate"
+        verbose: "true"
+        body: |
+          {
+            "pipeline" :
+            {
+              "description": "_description",
+              "processors": [
+                {
+                  "set" : {
+                    "field" : "field2",
+                    "value" : "_value2"
+                  }
+                },
+                {
+                  "set" : {
+                    "field" : "field3",
+                    "value" : "_value3"
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              },
+              {
+                "_index": "index",
+                "_id": "id",
+                "_source": {
+                  "foo": "rab"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "docs" : [
+            {
+              "processor_results" : [
+                {
+                  "processor_type" : "set",
+                  "status" : "success",
+                  "doc" : {
+                    "_index" : "index",
+                    "_id" : "id",
+                    "_version": "-3",
+                    "_source" : {
+                      "field2" : "_value2",
+                      "foo" : "bar"
+                    },
+                    "_ingest" : {
+                      "pipeline" : "_simulate_pipeline",
+                      "timestamp" : $body.docs.0.processor_results.0.doc._ingest.timestamp
+                    }
+                  }
+                },
+                {
+                  "processor_type" : "set",
+                  "status" : "success",
+                  "doc" : {
+                    "_index" : "index",
+                    "_id" : "id",
+                    "_version": "-3",
+                    "_source" : {
+                      "field3" : "_value3",
+                      "field2" : "_value2",
+                      "foo" : "bar"
+                    },
+                    "_ingest" : {
+                      "pipeline" : "_simulate_pipeline",
+                      "timestamp" : $body.docs.0.processor_results.0.doc._ingest.timestamp
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "processor_results" : [
+                {
+                  "processor_type" : "set",
+                  "status" : "success",
+                  "doc" : {
+                    "_index" : "index",
+                    "_id" : "id",
+                    "_version": "-3",
+                    "_source" : {
+                      "field2" : "_value2",
+                      "foo" : "rab"
+                    },
+                    "_ingest" : {
+                      "pipeline" : "_simulate_pipeline",
+                      "timestamp" : $body.docs.1.processor_results.0.doc._ingest.timestamp
+                    }
+                  }
+                },
+                {
+                  "processor_type" : "set",
+                  "status" : "success",
+                  "doc" : {
+                    "_index" : "index",
+                    "_id" : "id",
+                    "_version": "-3",
+                    "_source" : {
+                      "field3" : "_value3",
+                      "field2" : "_value2",
+                      "foo" : "rab"
+                    },
+                    "_ingest" : {
+                      "pipeline" : "_simulate_pipeline",
+                      "timestamp" : $body.docs.1.processor_results.0.doc._ingest.timestamp
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+---
+"line_437":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: DELETE
+        path: "_ingest/pipeline/*"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+        "acknowledged": true
+        }

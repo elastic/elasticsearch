@@ -1,0 +1,37 @@
+---
+"line_350":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_cat/nodes"
+        v: "true"
+  - match:
+      $body:
+        /ip        \s+heap.percent \s+ram.percent \s+cpu \s+load_1m \s+load_5m \s+load_15m \s+node.role \s+master \s+name\s*
+         127.0.0.1           \s+\d+ \s+\d+ \s+\d+    \s+(\d+\.\d+( \s+\d+\.\d+ \s+(\d+\.\d+)?)?)?                  \s+.+       \s+[*]      \s+.+\s*/
+---
+"line_378":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_cat/nodes"
+        v: "true"
+        h: "id,ip,port,v,m"
+  - match:
+      $body:
+        /id   \s+ip        \s+port  \s+v         \s+m\s*
+         .+ \s+127.0.0.1 \s+\d+ \s+8.14.0 \s+[*]\s*/

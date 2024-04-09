@@ -70,7 +70,7 @@ abstract class RestTestsFromSnippetsTask extends SnippetsTask {
     abstract FileOperations getFileOperations();
 
     @Inject
-    RestTestsFromDocSnippetsTask(ObjectFactory objectFactory) {
+    RestTestsFromSnippetsTask(ObjectFactory objectFactory) {
         testRoot = objectFactory.directoryProperty()
         TestBuilder builder = new TestBuilder()
         perSnippet = new Action<Snippet>() {
@@ -97,7 +97,7 @@ abstract class RestTestsFromSnippetsTask extends SnippetsTask {
     DirectoryProperty getTestRoot() {
         return testRoot
     }
-    /**
+/**
      * Is this snippet a candidate for conversion to `// CONSOLE`?
      */
     static isConsoleCandidate(Snippet snippet) {
@@ -202,6 +202,7 @@ abstract class RestTestsFromSnippetsTask extends SnippetsTask {
          * Called each time a snippet is encountered. Tracks the snippets and
          * calls buildTest to actually build the test.
          */
+
         void handleSnippet(Snippet snippet) {
             if (RestTestsFromSnippetsTask.isConsoleCandidate(snippet)) {
                 unconvertedCandidates.add(snippet.path.toString()
@@ -276,7 +277,7 @@ abstract class RestTestsFromSnippetsTask extends SnippetsTask {
                  * we're going to use these constructs, but we might so we
                  * output the skip just in case. */
                 current.println("  - skip:")
-                current.println("      features: ")
+                current.println("      features:")
                 current.println("        - default_shards")
                 current.println("        - stash_in_key")
                 current.println("        - stash_in_path")
@@ -332,8 +333,8 @@ abstract class RestTestsFromSnippetsTask extends SnippetsTask {
 
         private void response(Snippet response) {
             if (null == response.skip) {
-                current.println("  - match: ")
-                current.println("      \$body: ")
+                current.println("  - match:")
+                current.println("      \$body:")
                 replaceBlockQuote(response.contents).eachLine {
                     current.println("        $it")
                 }

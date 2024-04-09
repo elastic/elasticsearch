@@ -1,0 +1,20 @@
+---
+"line_242":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: Kibana sample data
+  - do:
+      raw:
+        method: GET
+        path: "_ml/anomaly_detectors/high_sum_total_sales/model_snapshots"
+        body: |
+          {
+            "start": "1575402236000"
+          }
+  - is_false: _shards.failures

@@ -1,0 +1,20 @@
+---
+"line_78":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: todo
+  - do:
+      raw:
+        method: POST
+        path: "_ml/anomaly_detectors/low_request_rate/model_snapshots/1637092688/_revert"
+        body: |
+          {
+            "delete_intervening_results": true
+          }
+  - is_false: _shards.failures

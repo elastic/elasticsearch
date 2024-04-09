@@ -1,0 +1,81 @@
+---
+"line_6":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_cluster/settings"
+        body: |
+          {
+            "transient": {
+              "cluster.indices.close.enable": false,
+              "indices.recovery.max_bytes_per_sec": "50mb"
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_cluster/settings"
+        flat_settings: "true"
+        filter_path: "transient"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          
+          "transient": {
+            "cluster.indices.close.enable": "false",
+            "indices.recovery.max_bytes_per_sec": "50mb"
+          }
+        }
+  - do:
+      raw:
+        method: PUT
+        path: "_cluster/settings"
+        body: |
+          {
+            "persistent": {
+              "cluster.indices.close.enable": false,
+              "indices.recovery.max_bytes_per_sec": "50mb"
+            },
+            "transient": {
+              "*": null
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_cluster/settings"
+        flat_settings: "true"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "persistent": {
+            "cluster.indices.close.enable": "false",
+            "indices.recovery.max_bytes_per_sec": "50mb"
+            
+          },
+          "transient": {
+          }
+        }
+  - do:
+      raw:
+        method: PUT
+        path: "_cluster/settings"
+        body: |
+          {
+            "persistent" : {
+              "cluster.indices.close.enable": null,
+              "indices.recovery.max_bytes_per_sec": null
+            }
+          }
+  - is_false: _shards.failures

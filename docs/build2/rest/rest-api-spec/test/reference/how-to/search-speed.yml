@@ -1,0 +1,327 @@
+---
+"line_84":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "movies"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "name_and_plot": {
+                  "type": "text"
+                },
+                "name": {
+                  "type": "text",
+                  "copy_to": "name_and_plot"
+                },
+                "plot": {
+                  "type": "text",
+                  "copy_to": "name_and_plot"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_118":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "index/_doc/1"
+        body: |
+          {
+            "designation": "spoon",
+            "price": 13
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "index/_search"
+        body: |
+          {
+            "aggs": {
+              "price_ranges": {
+                "range": {
+                  "field": "price",
+                  "ranges": [
+                    { "to": 10 },
+                    { "from": 10, "to": 100 },
+                    { "from": 100 }
+                  ]
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_152":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "index"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "price_range": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "index/_doc/1"
+        body: |
+          {
+            "designation": "spoon",
+            "price": 13,
+            "price_range": "10-100"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "index/_search"
+        body: |
+          {
+            "aggs": {
+              "price_ranges": {
+                "terms": {
+                  "field": "price_range"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_215":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "index/_doc/1"
+        body: |
+          {
+            "my_date": "2016-05-11T16:30:55.328Z"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "index/_search"
+        body: |
+          {
+            "query": {
+              "constant_score": {
+                "filter": {
+                  "range": {
+                    "my_date": {
+                      "gte": "now-1h",
+                      "lte": "now"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "index/_search"
+        body: |
+          {
+            "query": {
+              "constant_score": {
+                "filter": {
+                  "range": {
+                    "my_date": {
+                      "gte": "now-1h/m",
+                      "lte": "now/m"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "index/_search"
+        body: |
+          {
+            "query": {
+              "constant_score": {
+                "filter": {
+                  "bool": {
+                    "should": [
+                      {
+                        "range": {
+                          "my_date": {
+                            "gte": "now-1h",
+                            "lte": "now-1h/m"
+                          }
+                        }
+                      },
+                      {
+                        "range": {
+                          "my_date": {
+                            "gt": "now-1h/m",
+                            "lt": "now/m"
+                          }
+                        }
+                      },
+                      {
+                        "range": {
+                          "my_date": {
+                            "gte": "now/m",
+                            "lte": "now"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_347":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "index"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "foo": {
+                  "type": "keyword",
+                  "eager_global_ordinals": true
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_482":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "bicycles"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "cycle_type": {
+                  "type": "constant_keyword",
+                  "value": "bicycle"
+                },
+                "name": {
+                  "type": "text"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "other_cycles"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "cycle_type": {
+                  "type": "keyword"
+                },
+                "name": {
+                  "type": "text"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "bicycles,other_cycles/_search"
+        body: |
+          {
+            "query": {
+              "bool": {
+                "must": {
+                  "match": {
+                    "description": "dutch"
+                  }
+                },
+                "filter": {
+                  "term": {
+                    "cycle_type": "bicycle"
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "bicycles,other_cycles/_search"
+        body: |
+          {
+            "query": {
+              "match": {
+                "description": "dutch"
+              }
+            }
+          }
+  - is_false: _shards.failures

@@ -1,0 +1,173 @@
+---
+"line_20":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "metrics": {
+                  "type":  "object",
+                  "subobjects": false,
+                  "properties": {
+                    "time": { "type": "long" },
+                    "time.min": { "type": "long" },
+                    "time.max": { "type": "long" }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/metric_1"
+        body: |
+          {
+            "metrics.time" : 100,
+            "metrics.time.min" : 10,
+            "metrics.time.max" : 900
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/metric_2"
+        body: |
+          {
+            "metrics" : {
+              "time" : 100,
+              "time.min" : 10,
+              "time.max" : 900
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_mapping"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "my-index-000001" : {
+            "mappings" : {
+              "properties" : {
+                "metrics" : {
+                  "subobjects" : false,
+                  "properties" : {
+                    "time" : {
+                      "type" : "long"
+                    },
+                    "time.min" : {
+                      "type" : "long"
+                    },
+                    "time.max" : {
+                      "type" : "long"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+---
+"line_92":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "mappings": {
+              "subobjects": false
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/metric_1"
+        body: |
+          {
+            "time" : "100ms",
+            "time.min" : "10ms",
+            "time.max" : "900ms"
+          }
+  - is_false: _shards.failures
+---
+"line_130":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000002"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "metrics": {
+                  "subobjects": false,
+                  "properties": {
+                    "time": {
+                      "type": "object",
+                      "properties": {
+                        "min": { "type": "long" },
+                        "max": { "type": "long" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000002/_mapping"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "my-index-000002" : {
+            "mappings" : {
+              "properties" : {
+                "metrics" : {
+                  "subobjects" : false,
+                  "properties" : {
+                    "time.min" : {
+                      "type" : "long"
+                    },
+                    "time.max" : {
+                      "type" : "long"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }

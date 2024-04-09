@@ -1,0 +1,163 @@
+---
+"line_51":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_xpack"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+           "build" : {
+              "hash" : "$body.build.hash",
+              "date" : "$body.build.date"
+           },
+           "license" : {
+              "uid": "$body.license.uid",
+              "type" : "trial",
+              "mode" : "trial",
+              "status" : "active",
+              "expiry_date_in_millis" : "$body.license.expiry_date_in_millis"
+           },
+           "features" : {
+              "ccr" : {
+                "available" : true,
+                "enabled" : true
+              },
+             "aggregate_metric" : {
+                  "available" : true,
+                  "enabled" : true
+              },
+              "analytics" : {
+                  "available" : true,
+                  "enabled" : true
+              },
+              "archive" : {
+                  "available" : true,
+                  "enabled" : true
+              },
+              "enrich" : {
+                  "available" : true,
+                  "enabled" : true
+              },
+              "frozen_indices" : {
+                 "available" : true,
+                 "enabled" : true
+              },
+              "graph" : {
+                 "available" : true,
+                 "enabled" : true
+              },
+              "ilm" : {
+                 "available" : true,
+                 "enabled" : true
+              },
+              "logstash" : {
+                 "available" : true,
+                 "enabled" : true
+              },
+              "ml" : {
+                 "available" : true,
+                 "enabled" : true
+              },
+              "esql" : {
+                 "available" : true,
+                 "enabled" : true
+              },
+              "monitoring" : {
+                 "available" : true,
+                 "enabled" : true
+              },
+              "rollup": {
+                 "available": true,
+                 "enabled": true
+              },
+              "searchable_snapshots" : {
+                 "available" : true,
+                 "enabled" : true
+              },
+              "security" : {
+                 "available" : true,
+                 "enabled" : true
+              },
+              "slm" : {
+                 "available" : true,
+                 "enabled" : true
+              },
+              "spatial" : {
+                 "available" : true,
+                 "enabled" : true
+              },
+              "eql": $body.$_path,
+              "sql" : {
+                 "available" : true,
+                 "enabled" : true
+              },
+              "transform" : {
+                 "available" : true,
+                 "enabled" : true
+              },
+              "voting_only" : {
+                 "available" : true,
+                 "enabled" : true
+              },
+              "watcher" : {
+                 "available" : true,
+                 "enabled" : true
+              },
+              "data_streams" : {
+                 "available" : true,
+                 "enabled" : true
+              },
+              "data_tiers" : {
+                 "available" : true,
+                 "enabled" : true
+              },
+              "enterprise_search": {
+                 "available": true,
+                 "enabled": true
+              },
+              "universal_profiling": {
+                 "available": true,
+                 "enabled": true
+              }
+           },
+           "tagline" : "You know, for X"
+        }
+---
+"line_193":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_xpack"
+        categories: "build,features"
+  - is_false: _shards.failures
+---
+"line_200":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_xpack"
+        human: "false"
+  - is_false: _shards.failures

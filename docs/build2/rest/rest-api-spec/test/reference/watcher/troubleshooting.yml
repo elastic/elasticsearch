@@ -1,0 +1,32 @@
+---
+"line_14":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: deprecation warning
+  - do:
+      raw:
+        method: GET
+        path: ".watches/_mapping"
+  - is_false: _shards.failures
+---
+"line_29":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: index deletion and deprecation warning
+  - do:
+      raw:
+        method: DELETE
+        path: ".watches"
+  - is_false: _shards.failures

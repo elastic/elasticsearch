@@ -1,0 +1,20 @@
+---
+"line_43":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: setup:server_metrics_datafeed
+  - do:
+      raw:
+        method: DELETE
+        path: "_ml/datafeeds/datafeed-total-requests"
+  - match:
+      $body:
+        {
+          "acknowledged": true
+        }

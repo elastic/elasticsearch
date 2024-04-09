@@ -1,0 +1,48 @@
+---
+"line_47":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_cluster/settings"
+        include_defaults: ""
+        filter_path: "*.cluster.routing.allocation.disk.watermark.high*"
+  - is_false: _shards.failures
+---
+"line_81":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_cat/allocation"
+        v: ""
+        s: "disk.avail"
+        h: "node,disk.percent,disk.avail,disk.total,disk.used,disk.indices,shards"
+---
+"line_104":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_cat/shards"
+        v: ""
+        h: "state,node"
+        s: "state"

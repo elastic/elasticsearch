@@ -1,0 +1,56 @@
+---
+"line_38":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index/_doc/2"
+        body: |
+          {
+            "my-field": "foo"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index/_doc/2"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index/_doc/2"
+  - is_false: _shards.failures
+---
+"line_92":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "2015"
+        body: |
+          {"aliases": {"current_year": {}}}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "2015/_doc/1"
+        body: |
+          {}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "current_year/_doc/1"
+  - is_false: _shards.failures

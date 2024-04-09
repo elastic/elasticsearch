@@ -1,0 +1,15 @@
+---
+"line_19":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_nodes/ingest"
+        filter_path: "nodes.*.ingest.processors"
+  - is_false: _shards.failures

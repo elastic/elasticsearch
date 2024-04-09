@@ -1,0 +1,16 @@
+---
+"line_44":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: we can't easily handle snapshots from docs tests
+  - do:
+      raw:
+        method: POST
+        path: "_slm/policy/daily-snapshots/_execute"
+  - is_false: _shards.failures

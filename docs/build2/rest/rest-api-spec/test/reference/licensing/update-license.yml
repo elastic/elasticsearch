@@ -1,0 +1,63 @@
+---
+"line_63":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: license testing issues
+  - do:
+      raw:
+        method: PUT
+        path: "_license"
+        body: |
+          {
+            "licenses": [
+              {
+                "uid":"893361dc-9749-4997-93cb-802e3d7fa4xx",
+                "type":"basic",
+                "issue_date_in_millis":1411948800000,
+                "expiry_date_in_millis":1914278399999,
+                "max_nodes":1,
+                "issued_to":"issuedTo",
+                "issuer":"issuer",
+                "signature":"xx"
+              }
+              ]
+          }
+  - is_false: _shards.failures
+---
+"line_139":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: license testing issues
+  - do:
+      raw:
+        method: PUT
+        path: "_license"
+        acknowledge: "true"
+        body: |
+          {
+            "licenses": [
+              {
+                "uid":"893361dc-9749-4997-93cb-802e3d7fa4xx",
+                "type":"basic",
+                "issue_date_in_millis":1411948800000,
+                "expiry_date_in_millis":1914278399999,
+                "max_nodes":1,
+                "issued_to":"issuedTo",
+                "issuer":"issuer",
+                "signature":"xx"
+              }
+              ]
+          }
+  - is_false: _shards.failures

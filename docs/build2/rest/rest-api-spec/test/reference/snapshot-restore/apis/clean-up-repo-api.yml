@@ -1,0 +1,63 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_repository"
+        body: |
+          {
+            "type": "fs",
+            "settings": {
+              "location": "my_backup_location"
+            }
+          }
+---
+"line_26":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_snapshot/my_repository/_cleanup"
+  - is_false: _shards.failures
+---
+"line_79":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_snapshot/my_repository/_cleanup"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "results": {
+            "deleted_bytes": 0,
+            "deleted_blobs": 0
+          }
+        }
+---
+"line_99":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: DELETE
+        path: "_snapshot/my_repository"
+  - is_false: _shards.failures

@@ -1,0 +1,43 @@
+---
+"line_55":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TBD
+  - do:
+      raw:
+        method: POST
+        path: "_ml/trained_models/elastic__distilbert-base-uncased-finetuned-conll03-english/deployment/_update"
+        body: |
+          {
+            "number_of_allocations": 4
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+            "assignment": {
+                "task_parameters": {
+                    "model_id": "elastic__distilbert-base-uncased-finetuned-conll03-english",
+                    "model_bytes": 265632637,
+                    "threads_per_allocation" : 1,
+                    "number_of_allocations" : 4,
+                    "queue_capacity" : 1024
+                },
+                "routing_table": {
+                    "uckeG3R8TLe2MMNBQ6AGrw": {
+                        "current_allocations": 1,
+                        "target_allocations": 4,
+                        "routing_state": "started",
+                        "reason": ""
+                    }
+                },
+                "assignment_state": "started",
+                "start_time": "2022-11-02T11:50:34.766591Z"
+            }
+        }

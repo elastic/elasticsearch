@@ -1,0 +1,147 @@
+---
+"line_314":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup kibana_sample_data_ecommerce
+
+  - do:
+        indices.create:
+          index: kibana_sample_data_ecommerce
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                order_date:
+                  type: date
+
+# Named setup add_timestamp_pipeline
+
+  - do:
+      ingest.put_pipeline:
+        id: "add_timestamp_pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field" : "@timestamp",
+                  "value" : "{{_ingest.timestamp}}"
+                }
+              }
+            ]
+          }
+
+  - do:
+      raw:
+        method: PUT
+        path: "_transform/ecommerce_transform1"
+        body: |
+          {
+            "source": {
+              "index": "kibana_sample_data_ecommerce",
+              "query": {
+                "term": {
+                  "geoip.continent_name": {
+                    "value": "Asia"
+                  }
+                }
+              }
+            },
+            "pivot": {
+              "group_by": {
+                "customer_id": {
+                  "terms": {
+                    "field": "customer_id",
+                    "missing_bucket": true
+                  }
+                }
+              },
+              "aggregations": {
+                "max_price": {
+                  "max": {
+                    "field": "taxful_total_price"
+                  }
+                }
+              }
+            },
+            "description": "Maximum priced ecommerce data by customer_id in Asia",
+            "dest": {
+              "index": "kibana_sample_data_ecommerce_transform1",
+              "pipeline": "add_timestamp_pipeline"
+            },
+            "frequency": "5m",
+            "sync": {
+              "time": {
+                "field": "order_date",
+                "delay": "60s"
+              }
+            },
+            "retention_policy": {
+              "time": {
+                "field": "order_date",
+                "max_age": "30d"
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "acknowledged" : true
+        }
+---
+"line_378":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup kibana_sample_data_ecommerce
+
+  - do:
+        indices.create:
+          index: kibana_sample_data_ecommerce
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                order_date:
+                  type: date
+
+  - do:
+      raw:
+        method: PUT
+        path: "_transform/ecommerce_transform2"
+        body: |
+          {
+            "source": {
+              "index": "kibana_sample_data_ecommerce"
+            },
+            "latest": {
+              "unique_key": ["customer_id"],
+              "sort": "order_date"
+            },
+            "description": "Latest order for each customer",
+            "dest": {
+              "index": "kibana_sample_data_ecommerce_transform2"
+            },
+            "frequency": "5m",
+            "sync": {
+              "time": {
+                "field": "order_date",
+                "delay": "60s"
+              }
+            }
+          }
+  - is_false: _shards.failures

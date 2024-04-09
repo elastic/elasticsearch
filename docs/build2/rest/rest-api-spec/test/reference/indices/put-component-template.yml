@@ -1,0 +1,118 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_component_template/template_1"
+        body: |
+          {
+            "template": {
+              "settings": {
+                "number_of_shards": 1
+              },
+              "mappings": {
+                "_source": {
+                  "enabled": false
+                },
+                "properties": {
+                  "host_name": {
+                    "type": "keyword"
+                  },
+                  "created_at": {
+                    "type": "date",
+                    "format": "EEE MMM dd HH:mm:ss Z yyyy"
+                  }
+                }
+              }
+            }
+          }
+---
+teardown:
+  - do:
+      raw:
+        method: DELETE
+        path: "_component_template/template_*"
+---
+"line_186":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_component_template/template_1"
+        body: |
+          {
+            "template": {
+              "settings" : {
+                  "number_of_shards" : 1
+              },
+              "aliases" : {
+                  "alias1" : {},
+                  "alias2" : {
+                      "filter" : {
+                          "term" : {"user.id" : "kimchy" }
+                      },
+                      "routing" : "shard-1"
+                  },
+                  "{index}-alias" : {}
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_226":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_component_template/template_1"
+        body: |
+          {
+            "template": {
+              "settings" : {
+                  "number_of_shards" : 1
+              }
+            },
+            "version": 123
+          }
+  - is_false: _shards.failures
+---
+"line_252":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_component_template/template_1"
+        body: |
+          {
+            "template": {
+              "settings" : {
+                  "number_of_shards" : 1
+              }
+            },
+            "_meta": {
+              "description": "set number of shards to one",
+              "serialization": {
+                "class": "MyComponentTemplate",
+                "id": 10
+              }
+            }
+          }
+  - is_false: _shards.failures

@@ -1,0 +1,28 @@
+---
+"line_71":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: TBD
+  - do:
+      raw:
+        method: GET
+        path: "_inference/sparse_embedding/my-elser-model"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "inference_id": "my-elser-model",
+          "task_type": "sparse_embedding",
+          "service": "elser",
+          "service_settings": {
+            "num_allocations": 1,
+            "num_threads": 1
+          },
+          "task_settings": {}
+        }

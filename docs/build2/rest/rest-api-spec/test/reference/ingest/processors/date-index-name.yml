@@ -1,0 +1,108 @@
+---
+"line_23":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_ingest/pipeline/monthlyindex"
+        body: |
+          {
+            "description": "monthly date-time index naming",
+            "processors" : [
+              {
+                "date_index_name" : {
+                  "field" : "date1",
+                  "index_name_prefix" : "my-index-",
+                  "date_rounding" : "M"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my-index/_doc/1"
+        pipeline: "monthlyindex"
+        body: |
+          {
+            "date1" : "2016-04-25T12:02:01.789Z"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "_index" : "my-index-2016-04-01",
+          "_id" : "1",
+          "_version" : 1,
+          "result" : "created",
+          "_shards" : {
+            "total" : 2,
+            "successful" : 1,
+            "failed" : 0
+          },
+          "_seq_no" : $body._seq_no,
+          "_primary_term" : $body._primary_term
+        }
+---
+"line_78":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "_ingest/pipeline/_simulate"
+        body: |
+          {
+            "pipeline" :
+            {
+              "description": "monthly date-time index naming",
+              "processors" : [
+                {
+                  "date_index_name" : {
+                    "field" : "date1",
+                    "index_name_prefix" : "my-index-",
+                    "date_rounding" : "M"
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_source": {
+                  "date1": "2016-04-25T12:02:01.789Z"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "docs" : [
+            {
+              "doc" : {
+                "_id" : "_id",
+                "_index" : "<my-index-{2016-04-25||/M{yyyy-MM-dd|UTC}}>",
+                "_version" : "-3",
+                "_source" : {
+                  "date1" : "2016-04-25T12:02:01.789Z"
+                },
+                "_ingest" : {
+                  "timestamp" : "$body.docs.0.doc._ingest.timestamp"
+                }
+              }
+            }
+          ]
+        }

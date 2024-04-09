@@ -1,0 +1,35 @@
+---
+"line_127":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "test/_doc/1"
+        refresh: ""
+        body: |
+          {"test":"test"}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "test1/_doc/1"
+        refresh: ""
+        body: |
+          {"test":"test"}
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_cat/segments"
+        v: "true"
+  - match:
+      $body:
+        /index \s+shard \s+prirep \s+ip        \s+segment \s+generation \s+docs.count \s+docs.deleted \s+size \s+size.memory \s+committed \s+searchable \s+version \s+compound\s*
+         test  \s+0     \s+p      \s+127.0.0.1 \s+_0               \s+0          \s+1            \s+0  \s+\d+(\.\d+)?[mk]?b           \s+0 \s+false     \s+true       \s+9.10.0   \s+true\s*
+         test1 \s+0     \s+p      \s+127.0.0.1 \s+_0               \s+0          \s+1            \s+0  \s+\d+(\.\d+)?[mk]?b           \s+0 \s+false     \s+true       \s+9.10.0   \s+true\s*/

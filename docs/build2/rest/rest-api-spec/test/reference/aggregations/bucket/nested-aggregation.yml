@@ -1,0 +1,154 @@
+---
+"nested-aggregation-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "products"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "resellers": {
+                  "type": "nested",
+                  "properties": {
+                    "reseller": {
+                      "type": "keyword"
+                    },
+                    "price": {
+                      "type": "double"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "products/_doc/0"
+        refresh: ""
+        body: |
+          {
+            "name": "LED TV",
+            "resellers": [
+              {
+                "reseller": "companyA",
+                "price": 350
+              },
+              {
+                "reseller": "companyB",
+                "price": 500
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "products/_search"
+        size: "0"
+        filter_path: "aggregations"
+        body: |
+          {
+            "query": {
+              "match": {
+                "name": "led tv"
+              }
+            },
+            "aggs": {
+              "resellers": {
+                "nested": {
+                  "path": "resellers"
+                },
+                "aggs": {
+                  "min_price": {
+                    "min": {
+                      "field": "resellers.price"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          
+          "aggregations": {
+            "resellers": {
+              "doc_count": 2,
+              "min_price": {
+                "value": 350.0
+              }
+            }
+          }
+        }
+  - do:
+      raw:
+        method: GET
+        path: "products/_search"
+        size: "0"
+        filter_path: "aggregations"
+        body: |
+          {
+            "query": {
+              "match": {
+                "name": "led tv"
+              }
+            },
+            "aggs": {
+              "resellers": {
+                "nested": {
+                  "path": "resellers"
+                },
+                "aggs": {
+                  "filter_reseller": {
+                    "filter": {
+                      "bool": {
+                        "filter": [
+                          {
+                            "term": {
+                              "resellers.reseller": "companyB"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "aggs": {
+                      "min_price": {
+                        "min": {
+                          "field": "resellers.price"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          
+          "aggregations": {
+            "resellers": {
+              "doc_count": 2,
+              "filter_reseller": {
+                "doc_count": 1,
+                "min_price": {
+                  "value": 500.0
+                }
+              }
+            }
+          }
+        }

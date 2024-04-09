@@ -1,0 +1,214 @@
+---
+"line_22":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "is_published": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "my-index-000001/_doc/1"
+        refresh: ""
+        body: |
+          {
+            "is_published": "true"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        filter_path: "hits.hits"
+        body: |
+          {
+            "query": {
+              "term": {
+                "is_published": true
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "hits": {
+            "hits": [
+              {
+                "_id": "1",
+                "_index": "my-index-000001",
+                "_score": "$body.hits.hits.0._score",
+                "_source": {
+                  "is_published": "true"
+                }
+              }
+            ]
+          }
+        }
+---
+"line_78":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: POST
+        path: "my-index-000001/_doc/1"
+        refresh: ""
+        body: |
+          {
+            "is_published": true
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "my-index-000001/_doc/2"
+        refresh: ""
+        body: |
+          {
+            "is_published": false
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my-index-000001/_search"
+        filter_path: "aggregations,hits.hits"
+        body: |
+          {
+            "aggs": {
+              "publish_state": {
+                "terms": {
+                  "field": "is_published"
+                }
+              }
+            },
+            "sort": [ "is_published" ],
+            "fields": [
+              {"field": "weight"}
+            ],
+            "runtime_mappings": {
+              "weight": {
+                "type": "long",
+                "script": "emit(doc['is_published'].value ? 10 : 0)"
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "aggregations": {
+            "publish_state": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
+              "buckets": [
+                {
+                  "key": 0,
+                  "key_as_string": "false",
+                  "doc_count": 1
+                },
+                {
+                  "key": 1,
+                  "key_as_string": "true",
+                  "doc_count": 1
+                }
+              ]
+            }
+          },
+          "hits": {
+            "hits": [
+              {
+                "_id": "2",
+                "_index": "my-index-000001",
+                "_score": null,
+                "_source": {
+                  "is_published": false
+                },
+                "sort": [0],
+                "fields": {"weight": [0]}
+              },
+              {
+                "_id": "1",
+                "_index": "my-index-000001",
+                "_score": null,
+                "_source": {
+                  "is_published": true
+                },
+                "sort": [1],
+                "fields": {"weight": [10]}
+              }
+            ]
+          }
+        }
+---
+"synthetic-source-boolean-example":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "idx"
+        body: |
+          {
+            "mappings": {
+              "_source": { "mode": "synthetic" },
+              "properties": {
+                "bool": { "type": "boolean" }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "idx/_doc/1"
+        body: |
+          {
+            "bool": [true, false, true, false]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "idx/_doc/1"
+        filter_path: "_source"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "idx/_doc/1"
+        filter_path: "_source"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {"_source":{
+          "bool": [false, false, true, true]
+        }}

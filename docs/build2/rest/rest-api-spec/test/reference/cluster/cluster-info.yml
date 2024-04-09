@@ -1,0 +1,39 @@
+---
+"line_354":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_info/_all"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_info/http"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_info/ingest"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_info/thread_pool"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_info/script"
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "_info/http,ingest"
+  - is_false: _shards.failures

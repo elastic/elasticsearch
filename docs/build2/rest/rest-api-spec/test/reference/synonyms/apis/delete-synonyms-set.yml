@@ -1,0 +1,141 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "_synonyms/my-synonyms-set"
+        body: |
+          {
+            "synonyms_set": [
+              {
+                "id": "test-1",
+                "synonyms": "hello, hi"
+              }
+            ]
+          }
+---
+"line_61":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: DELETE
+        path: "_synonyms/my-synonyms-set"
+  - is_false: _shards.failures
+---
+"line_82":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "index-1"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "filter": {
+                  "synonyms_filter": {
+                    "type": "synonym_graph",
+                    "synonyms_set": "my-synonyms-set",
+                    "updateable": true
+                  }
+                },
+                "analyzer": {
+                  "my_index_analyzer": {
+                    "type": "custom",
+                    "tokenizer": "standard",
+                    "filter": ["lowercase"]
+                  },
+                  "my_search_analyzer": {
+                    "type": "custom",
+                    "tokenizer": "standard",
+                    "filter": ["lowercase", "synonyms_filter"]
+                  }
+                }
+              }
+            },
+            "mappings": {
+              "properties": {
+                "title": {
+                  "type": "text",
+                  "analyzer": "my_index_analyzer",
+                  "search_analyzer": "my_search_analyzer"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "index-2"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "filter": {
+                  "synonyms_filter": {
+                    "type": "synonym_graph",
+                    "synonyms_set": "my-synonyms-set",
+                    "updateable": true
+                  }
+                },
+                "analyzer": {
+                  "my_index_analyzer": {
+                    "type": "custom",
+                    "tokenizer": "standard",
+                    "filter": ["lowercase"]
+                  },
+                  "my_search_analyzer": {
+                    "type": "custom",
+                    "tokenizer": "standard",
+                    "filter": ["lowercase", "synonyms_filter"]
+                  }
+                }
+              }
+            },
+            "mappings": {
+              "properties": {
+                "title": {
+                  "type": "text",
+                  "analyzer": "my_index_analyzer",
+                  "search_analyzer": "my_search_analyzer"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      catch: bad_request
+      raw:
+        method: DELETE
+        path: "_synonyms/my-synonyms-set"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "error": {
+            "root_cause": [
+              {
+                "type": "illegal_argument_exception",
+                "reason": "synonyms set [my-synonyms-set] cannot be deleted as it is used in the following indices: index-1, index-2",
+                "stack_trace": $body.$_path
+              }
+            ],
+            "type": "illegal_argument_exception",
+            "reason": "synonyms set [my-synonyms-set] cannot be deleted as it is used in the following indices: index-1, index-2",
+            "stack_trace": $body.$_path
+          },
+          "status": 400
+        }

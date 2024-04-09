@@ -1,0 +1,292 @@
+---
+"line_45":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "query_string": {
+                "query": "(new york city) OR (big apple)",
+                "default_field": "content"
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_267":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "query_string": {
+                "fields": [ "content", "name" ],
+                "query": "this AND that"
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_283":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "query_string": {
+                "query": "(content:this OR name:this) AND (content:that OR name:that)"
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_299":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "query_string" : {
+                "fields" : ["content", "name^5"],
+                "query" : "this AND that OR thus",
+                "tie_breaker" : 0
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_318":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "query_string" : {
+                "fields" : ["city.*"],
+                "query" : "this AND that OR thus"
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_335":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "query_string" : {
+                "query" : "city.\\*:(this AND that OR thus)"
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_354":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "query_string" : {
+                "fields" : ["content", "name.*^5"],
+                "query" : "this AND that OR thus"
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_420":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+             "query": {
+                 "query_string" : {
+                     "default_field": "title",
+                     "query" : "ny city",
+                     "auto_generate_synonyms_phrase_query" : false
+                 }
+             }
+          }
+  - is_false: _shards.failures
+---
+"line_448":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "query_string": {
+                "fields": [
+                  "title"
+                ],
+                "query": "this that thus",
+                "minimum_should_match": 2
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_474":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "query_string": {
+                "fields": [
+                  "title",
+                  "content"
+                ],
+                "query": "this that thus",
+                "minimum_should_match": 2
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_498":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "query_string": {
+                "fields": [
+                  "title",
+                  "content"
+                ],
+                "query": "this OR that OR thus",
+                "minimum_should_match": 2
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_530":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_search"
+        body: |
+          {
+            "query": {
+              "query_string": {
+                "fields": [
+                  "title",
+                  "content"
+                ],
+                "query": "this OR that OR thus",
+                "type": "cross_fields",
+                "minimum_should_match": 2
+              }
+            }
+          }
+  - is_false: _shards.failures

@@ -1,0 +1,131 @@
+---
+"line_110":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: set up Kibana sample data
+  - do:
+      raw:
+        method: GET
+        path: "_ml/datafeeds/datafeed-high_sum_total_sales/_preview"
+  - match:
+      $body:
+        [
+          {
+            "order_date" : 1574294659000,
+            "category.keyword" : "Men's Clothing",
+            "customer_full_name.keyword" : "Sultan Al Benson",
+            "taxful_total_price" : 35.96875
+          },
+          {
+            "order_date" : 1574294918000,
+            "category.keyword" : [
+              "Women's Accessories",
+              "Women's Clothing"
+            ],
+            "customer_full_name.keyword" : "Pia Webb",
+            "taxful_total_price" : 83.0
+          },
+          {
+            "order_date" : 1574295782000,
+            "category.keyword" : [
+              "Women's Accessories",
+              "Women's Shoes"
+            ],
+            "customer_full_name.keyword" : "Brigitte Graham",
+            "taxful_total_price" : 72.0
+          }
+        ]
+---
+"line_151":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: set up Kibana sample data
+  - do:
+      raw:
+        method: POST
+        path: "_ml/datafeeds/_preview"
+        body: |
+          {
+            "datafeed_config": {
+              "indices" : [
+                "kibana_sample_data_ecommerce"
+              ],
+              "query" : {
+                "bool" : {
+                  "filter" : [
+                    {
+                      "term" : {
+                        "_index" : "kibana_sample_data_ecommerce"
+                      }
+                    }
+                  ]
+                }
+              },
+              "scroll_size" : 1000
+            },
+            "job_config": {
+              "description" : "Find customers spending an unusually high amount in an hour",
+              "analysis_config" : {
+                "bucket_span" : "1h",
+                "detectors" : [
+                  {
+                    "detector_description" : "High total sales",
+                    "function" : "high_sum",
+                    "field_name" : "taxful_total_price",
+                    "over_field_name" : "customer_full_name.keyword"
+                  }
+                ],
+                "influencers" : [
+                  "customer_full_name.keyword",
+                  "category.keyword"
+                ]
+              },
+              "analysis_limits" : {
+                "model_memory_limit" : "10mb"
+              },
+              "data_description" : {
+                "time_field" : "order_date",
+                "time_format" : "epoch_ms"
+              }
+            }
+          }
+  - match:
+      $body:
+        [
+          {
+            "order_date" : 1574294659000,
+            "category.keyword" : "Men's Clothing",
+            "customer_full_name.keyword" : "Sultan Al Benson",
+            "taxful_total_price" : 35.96875
+          },
+          {
+            "order_date" : 1574294918000,
+            "category.keyword" : [
+              "Women's Accessories",
+              "Women's Clothing"
+            ],
+            "customer_full_name.keyword" : "Pia Webb",
+            "taxful_total_price" : 83.0
+          },
+          {
+            "order_date" : 1574295782000,
+            "category.keyword" : [
+              "Women's Accessories",
+              "Women's Shoes"
+            ],
+            "customer_full_name.keyword" : "Brigitte Graham",
+            "taxful_total_price" : 72.0
+          }
+        ]

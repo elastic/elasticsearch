@@ -1,0 +1,32 @@
+---
+"line_28":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: These policies do not exist
+  - do:
+      raw:
+        method: GET
+        path: "_slm/policy/%3Caffected-policy-name%3E"
+  - is_false: _shards.failures
+---
+"line_105":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: These policies do not exist
+  - do:
+      raw:
+        method: GET
+        path: "_slm/policy/%3Caffected-policy-name%3E"
+  - is_false: _shards.failures

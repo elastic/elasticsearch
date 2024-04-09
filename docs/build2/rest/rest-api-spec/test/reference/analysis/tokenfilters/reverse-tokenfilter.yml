@@ -1,0 +1,74 @@
+---
+"line_24":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_analyze"
+        body: |
+          {
+            "tokenizer" : "standard",
+            "filter" : ["reverse"],
+            "text" : "quick fox jumps"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens" : [
+            {
+              "token" : "kciuq",
+              "start_offset" : 0,
+              "end_offset" : 5,
+              "type" : "<ALPHANUM>",
+              "position" : 0
+            },
+            {
+              "token" : "xof",
+              "start_offset" : 6,
+              "end_offset" : 9,
+              "type" : "<ALPHANUM>",
+              "position" : 1
+            },
+            {
+              "token" : "spmuj",
+              "start_offset" : 10,
+              "end_offset" : 15,
+              "type" : "<ALPHANUM>",
+              "position" : 2
+            }
+          ]
+        }
+---
+"line_79":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "reverse_example"
+        body: |
+          {
+            "settings" : {
+              "analysis" : {
+                "analyzer" : {
+                  "whitespace_reverse" : {
+                    "tokenizer" : "whitespace",
+                    "filter" : ["reverse"]
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

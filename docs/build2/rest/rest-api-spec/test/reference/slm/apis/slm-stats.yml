@@ -1,0 +1,28 @@
+---
+"line_26":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_slm/stats"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "retention_runs": $body.retention_runs,
+          "retention_failed": $body.retention_failed,
+          "retention_timed_out": $body.retention_timed_out,
+          "retention_deletion_time": $body.retention_deletion_time,
+          "retention_deletion_time_millis": $body.retention_deletion_time_millis,
+          "policy_stats": $body.policy_stats,
+          "total_snapshots_taken": $body.total_snapshots_taken,
+          "total_snapshots_failed": $body.total_snapshots_failed,
+          "total_snapshots_deleted": 0,
+          "total_snapshot_deletion_failures": 0
+        }

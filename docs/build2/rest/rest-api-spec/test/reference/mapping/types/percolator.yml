@@ -1,0 +1,526 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "query": {
+                  "type": "percolator"
+                },
+                "field": {
+                  "type": "text"
+                }
+              }
+            }
+          }
+---
+"line_40":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "my-index-000001/_doc/match_value"
+        body: |
+          {
+            "query": {
+              "match": {
+                "field": "value"
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "index"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "query" : {
+                  "type" : "percolator"
+                },
+                "body" : {
+                  "type": "text"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_aliases"
+        body: |
+          {
+            "actions": [
+              {
+                "add": {
+                  "index": "index",
+                  "alias": "queries"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "queries/_doc/1"
+        refresh: ""
+        body: |
+          {
+            "query" : {
+              "match" : {
+                "body" : "quick brown fox"
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "new_index"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "query" : {
+                  "type" : "percolator"
+                },
+                "body" : {
+                  "type": "text"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_reindex"
+        refresh: ""
+        body: |
+          {
+            "source": {
+              "index": "index"
+            },
+            "dest": {
+              "index": "new_index"
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_aliases"
+        body: |
+          {
+            "actions": [
+              {
+                "remove": {
+                  "index" : "index",
+                  "alias": "queries"
+                }
+              },
+              {
+                "add": {
+                  "index": "new_index",
+                  "alias": "queries"
+                }
+              }
+            ]
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "queries/_search"
+        body: |
+          {
+            "query": {
+              "percolate" : {
+                "field" : "query",
+                "document" : {
+                  "body" : "fox jumps over the lazy dog"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": "$body.took",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped" : 0,
+            "failed": 0
+          },
+          "hits": {
+            "total" : {
+                "value": 1,
+                "relation": "eq"
+            },
+            "max_score": 0.13076457,
+            "hits": [
+              {
+                "_index": "new_index",
+                "_id": "1",
+                "_score": 0.13076457,
+                "_source": {
+                  "query": {
+                    "match": {
+                      "body": "quick brown fox"
+                    }
+                  }
+                },
+                "fields" : {
+                  "_percolator_document_slot" : [0]
+                }
+              }
+            ]
+          }
+        }
+  - do:
+      raw:
+        method: PUT
+        path: "test_index"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "my_analyzer" : {
+                    "tokenizer": "standard",
+                    "filter" : ["lowercase", "porter_stem"]
+                  }
+                }
+              }
+            },
+            "mappings": {
+              "properties": {
+                "query" : {
+                  "type": "percolator"
+                },
+                "body" : {
+                  "type": "text",
+                  "analyzer": "my_analyzer"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "test_index/_analyze"
+        body: |
+          {
+            "analyzer" : "my_analyzer",
+            "text" : "missing bicycles"
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "tokens": [
+            {
+              "token": "miss",
+              "start_offset": 0,
+              "end_offset": 7,
+              "type": "<ALPHANUM>",
+              "position": 0
+            },
+            {
+              "token": "bicycl",
+              "start_offset": 8,
+              "end_offset": 16,
+              "type": "<ALPHANUM>",
+              "position": 1
+            }
+          ]
+        }
+  - do:
+      raw:
+        method: PUT
+        path: "test_index/_doc/1"
+        refresh: ""
+        body: |
+          {
+            "query" : {
+              "match" : {
+                "body" : {
+                  "query" : "miss bicycl",
+                  "analyzer" : "whitespace"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "test_index/_search"
+        body: |
+          {
+            "query": {
+              "percolate" : {
+                "field" : "query",
+                "document" : {
+                  "body" : "Bycicles are missing"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": "$body.took",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped" : 0,
+            "failed": 0
+          },
+          "hits": {
+            "total" : {
+                "value": 1,
+                "relation": "eq"
+            },
+            "max_score": 0.13076457,
+            "hits": [
+              {
+                "_index": "test_index",
+                "_id": "1",
+                "_score": 0.13076457,
+                "_source": {
+                  "query": {
+                    "match": {
+                      "body": {
+                        "query": "miss bicycl",
+                        "analyzer": "whitespace"
+                      }
+                    }
+                  }
+                },
+                "fields" : {
+                  "_percolator_document_slot" : [0]
+                }
+              }
+            ]
+          }
+        }
+  - do:
+      raw:
+        method: PUT
+        path: "my_queries1"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "wildcard_prefix": {
+                    "type": "custom",
+                    "tokenizer": "standard",
+                    "filter": [
+                      "lowercase",
+                      "wildcard_edge_ngram"
+                    ]
+                  }
+                },
+                "filter": {
+                  "wildcard_edge_ngram": {
+                    "type": "edge_ngram",
+                    "min_gram": 1,
+                    "max_gram": 32
+                  }
+                }
+              }
+            },
+            "mappings": {
+              "properties": {
+                "query": {
+                  "type": "percolator"
+                },
+                "my_field": {
+                  "type": "text",
+                  "fields": {
+                    "prefix": {
+                      "type": "text",
+                      "analyzer": "wildcard_prefix",
+                      "search_analyzer": "standard"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my_queries1/_doc/1"
+        refresh: ""
+        body: |
+          {
+            "query": {
+              "term": {
+                "my_field.prefix": "abc"
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my_queries1/_search"
+        body: |
+          {
+            "query": {
+              "percolate": {
+                "field": "query",
+                "document": {
+                  "my_field": "abcd"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "took": "$body.took",
+          "timed_out": false,
+          "_shards": {
+            "total": 1,
+            "successful": 1,
+            "skipped": 0,
+            "failed": 0
+          },
+          "hits": {
+            "total" : {
+                "value": 1,
+                "relation": "eq"
+            },
+            "max_score": 0.18864399,
+            "hits": [
+              {
+                "_index": "my_queries1",
+                "_id": "1",
+                "_score": 0.18864399,
+                "_source": {
+                  "query": {
+                    "term": {
+                      "my_field.prefix": "abc"
+                    }
+                  }
+                },
+                "fields": {
+                  "_percolator_document_slot": [
+                    0
+                  ]
+                }
+              }
+            ]
+          }
+        }
+  - do:
+      raw:
+        method: PUT
+        path: "my_queries2"
+        body: |
+          {
+            "settings": {
+              "analysis": {
+                "analyzer": {
+                  "wildcard_suffix": {
+                    "type": "custom",
+                    "tokenizer": "standard",
+                    "filter": [
+                      "lowercase",
+                      "reverse",
+                      "wildcard_edge_ngram"
+                    ]
+                  },
+                  "wildcard_suffix_search_time": {
+                    "type": "custom",
+                    "tokenizer": "standard",
+                    "filter": [
+                      "lowercase",
+                      "reverse"
+                    ]
+                  }
+                },
+                "filter": {
+                  "wildcard_edge_ngram": {
+                    "type": "edge_ngram",
+                    "min_gram": 1,
+                    "max_gram": 32
+                  }
+                }
+              }
+            },
+            "mappings": {
+              "properties": {
+                "query": {
+                  "type": "percolator"
+                },
+                "my_field": {
+                  "type": "text",
+                  "fields": {
+                    "suffix": {
+                      "type": "text",
+                      "analyzer": "wildcard_suffix",
+                      "search_analyzer": "wildcard_suffix_search_time"
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: PUT
+        path: "my_queries2/_doc/2"
+        refresh: ""
+        body: |
+          {
+            "query": {
+              "match": {
+                "my_field.suffix": "xyz"
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: "my_queries2/_search"
+        body: |
+          {
+            "query": {
+              "percolate": {
+                "field": "query",
+                "document": {
+                  "my_field": "wxyz"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures

@@ -1,0 +1,43 @@
+---
+"line_463":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_health_report"
+  - is_false: _shards.failures
+---
+"line_471":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_health_report/shards_availability"
+  - is_false: _shards.failures
+---
+"line_478":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_health_report"
+        verbose: "false"
+  - is_false: _shards.failures

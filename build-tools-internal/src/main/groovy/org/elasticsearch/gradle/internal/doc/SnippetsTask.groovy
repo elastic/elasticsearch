@@ -416,6 +416,7 @@ class SnippetsTask extends DefaultTask {
             throw new InvalidUserDataException("$location: Extra content "
                 + "$message ('$cutOutNoNl') matching [$pattern]: $s")
         }
+        println "s = $s"
         while (m.find()) {
             if (m.start() != offset) {
                 extraContent("between [$offset] and [${m.start()}]")

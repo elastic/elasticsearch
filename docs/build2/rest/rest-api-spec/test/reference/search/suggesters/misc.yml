@@ -1,0 +1,102 @@
+---
+"line_10":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+# Named setup messages
+
+  - do:
+        indices.create:
+          index: my-index-000001
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 1
+  - do:
+        bulk:
+          index: my-index-000001
+          refresh: true
+          body: |
+            {"index":{"_id": "0"}}
+            {"message": "trying out Elasticsearch", "context": "foo"}
+            {"index":{"_id": "1"}}
+            {"message": "some message with the number 1", "context": "bar"}
+            {"index":{"_id": "2"}}
+            {"message": "some message with the number 2", "context": "bar"}
+            {"index":{"_id": "3"}}
+            {"message": "some message with the number 3", "context": "bar"}
+            {"index":{"_id": "4"}}
+            {"message": "some message with the number 4", "context": "bar"}
+
+  - do:
+      raw:
+        method: POST
+        path: "_search"
+        typed_keys: ""
+        body: |
+          {
+            "suggest": {
+              "text" : "some test mssage",
+              "my-first-suggester" : {
+                "term" : {
+                  "field" : "message"
+                }
+              },
+              "my-second-suggester" : {
+                "phrase" : {
+                  "field" : "message"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "suggest": {
+            "term#my-first-suggester": [
+              {
+                "text": "some",
+                "offset": 0,
+                "length": 4,
+                "options": []
+              },
+              {
+                "text": "test",
+                "offset": 5,
+                "length": 4,
+                "options": []
+              },
+              {
+                "text": "mssage",
+                "offset": 10,
+                "length": 6,
+                "options": [
+                  {
+                    "text": "message",
+                    "score": $body.suggest.term#my-first-suggester.2.options.0.score,
+                    "freq": 4
+                  }
+                ]
+              }
+            ],
+            "phrase#my-second-suggester": [
+              {
+                "text": "some test mssage",
+                "offset": 0,
+                "length": 16,
+                "options": [
+                  {
+                    "text": "some test message",
+                    "score": $body.suggest.phrase#my-second-suggester.0.options.0.score
+                  }
+                ]
+              }
+            ]
+          },
+          "took": "$body.took", "timed_out": false, "_shards": "$body._shards", "hits": "$body.hits"
+        }

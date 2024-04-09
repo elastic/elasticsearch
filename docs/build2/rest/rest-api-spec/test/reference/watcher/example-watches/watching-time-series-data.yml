@@ -1,0 +1,72 @@
+---
+"line_160":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_watcher/watch/rss_watch"
+        body: |
+          {
+            "trigger" : {
+                "schedule" : {
+                  "daily" : { "at" : "12:00" }
+              }
+            },
+            "input" : {
+              "search" : {
+                "request" : {
+                  "indices" : [ "logstash*" ],
+                  "body" : {
+                    "query" : {
+                      "bool" : {
+                        "must" : { "match" : { "message": "error problem" }},
+                        "filter" : { "range" : { "@timestamp" : { "gte" : "now-1d" }}}
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "condition" : {
+              "script" : {
+                "source": "return ctx.payload.hits.total > params.threshold",
+                "params" : {
+                  "threshold" : 0
+                }
+              }
+            },
+            "actions" : {
+              "send_email" : {
+                "email" : {
+                  "to" : "username@example.org",
+                  "subject" : "Somebody needs help with the Elastic Stack",
+                  "body" : "The attached Stack Overflow posts were tagged with Elasticsearch, Logstash, Beats or Kibana and mentioned an error or problem.",
+                  "attachments" : {
+                    "attached_data" : {
+                      "data" : {}
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "_watcher/watch/rss_watch/_execute"
+        body: |
+          {
+            "ignore_condition" : true,
+            "action_modes" : {
+              "_all" : "force_execute"
+            },
+            "record_execution" : true
+          }
+  - is_false: _shards.failures

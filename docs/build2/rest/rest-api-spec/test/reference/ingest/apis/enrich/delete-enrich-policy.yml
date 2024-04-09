@@ -1,0 +1,40 @@
+---
+setup:
+  - do:
+      raw:
+        method: PUT
+        path: "users"
+        body: |
+          {
+            "mappings": {
+              "properties": {
+                "email": { "type": "keyword" }
+              }
+            }
+          }
+  - do:
+      raw:
+        method: PUT
+        path: "_enrich/policy/my-policy"
+        body: |
+          {
+            "match": {
+              "indices": "users",
+              "match_field": "email",
+              "enrich_fields": [ "first_name", "last_name", "city", "zip", "state" ]
+            }
+          }
+---
+"line_36":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: DELETE
+        path: "_enrich/policy/my-policy"
+  - is_false: _shards.failures

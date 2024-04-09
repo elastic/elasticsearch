@@ -1,0 +1,42 @@
+---
+"line_112":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_template/.monitoring-*"
+  - is_false: _shards.failures
+---
+"line_126":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_template/custom_monitoring"
+        body: |
+          {
+            "index_patterns": [".monitoring-beats-7-*", ".monitoring-es-7-*", ".monitoring-kibana-7-*", ".monitoring-logstash-7-*"],
+            "order": 1,
+            "settings": {
+              "number_of_shards": 5,
+              "number_of_replicas": 2
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_template/custom_monitoring"
+  - is_false: _shards.failures

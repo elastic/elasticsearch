@@ -1,0 +1,151 @@
+---
+"line_27":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_watcher/watch/log_error_watch"
+        body: |
+          {
+            "trigger" : {
+              "schedule" : { "interval" : "10s" }
+            },
+            "input" : {
+              "search" : {
+                "request" : {
+                  "indices" : [ "logs" ],
+                  "body" : {
+                    "query" : {
+                      "match" : { "message": "error" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: ".watcher-history*/_search"
+        pretty: ""
+        body: |
+          {
+            "sort" : [
+              { "result.execution_time" : "desc" }
+            ]
+          }
+  - is_false: _shards.failures
+---
+"line_84":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_watcher/watch/log_error_watch"
+        body: |
+          {
+            "trigger" : { "schedule" : { "interval" : "10s" }},
+            "input" : {
+              "search" : {
+                "request" : {
+                  "indices" : [ "logs" ],
+                  "body" : {
+                    "query" : {
+                      "match" : { "message": "error" }
+                    }
+                  }
+                }
+              }
+            },
+            "condition" : {
+              "compare" : { "ctx.payload.hits.total" : { "gt" : 0 }}
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: POST
+        path: "logs/_doc"
+        body: |
+          {
+            "timestamp": "2015-05-17T18:12:07.613Z",
+            "request": "GET index.html",
+            "status_code": 404,
+            "message": "Error: File not found"
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: GET
+        path: ".watcher-history*/_search"
+        pretty: ""
+        body: |
+          {
+            "query" : {
+              "bool" : {
+                "must" : [
+                  { "match" : { "result.condition.met" : true }},
+                  { "range" : { "result.execution_time" : { "from" : "now-10s" }}}
+                ]
+              }
+            }
+          }
+  - is_false: _shards.failures
+---
+"line_161":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: PUT
+        path: "_watcher/watch/log_error_watch"
+        body: |
+          {
+            "trigger" : { "schedule" : { "interval" : "10s" }},
+            "input" : {
+              "search" : {
+                "request" : {
+                  "indices" : [ "logs" ],
+                  "body" : {
+                    "query" : {
+                      "match" : { "message": "error" }
+                    }
+                  }
+                }
+              }
+            },
+            "condition" : {
+              "compare" : { "ctx.payload.hits.total" : { "gt" : 0 }}
+            },
+            "actions" : {
+              "log_error" : {
+                "logging" : {
+                  "text" : "Found {{ctx.payload.hits.total}} errors in the logs"
+                }
+              }
+            }
+          }
+  - is_false: _shards.failures
+  - do:
+      raw:
+        method: DELETE
+        path: "_watcher/watch/log_error_watch"
+  - is_false: _shards.failures

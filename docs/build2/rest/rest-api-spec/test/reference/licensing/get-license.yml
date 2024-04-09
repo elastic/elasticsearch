@@ -1,0 +1,32 @@
+---
+"line_56":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+  - do:
+      raw:
+        method: GET
+        path: "_license"
+  - is_false: _shards.failures
+  - match:
+      $body:
+        {
+          "license" : {
+            "status" : "active",
+            "uid" : $body.license.uid,
+            "type" : "trial",
+            "issue_date" : $body.license.issue_date,
+            "issue_date_in_millis" : $body.license.issue_date_in_millis,
+            "expiry_date" : $body.license.expiry_date,
+            "expiry_date_in_millis" : $body.license.expiry_date_in_millis,
+            "max_nodes" : $body.license.max_nodes,
+            "max_resource_units" : null,
+            "issued_to" : $body.license.issued_to,
+            "issuer" : $body.license.issuer,
+            "start_date_in_millis" : -1
+          }
+        }

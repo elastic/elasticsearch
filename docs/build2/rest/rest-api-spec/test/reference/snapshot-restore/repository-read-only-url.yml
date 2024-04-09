@@ -1,0 +1,23 @@
+---
+"line_14":
+  - skip:
+      features:
+        - default_shards
+        - stash_in_key
+        - stash_in_path
+        - stash_path_replace
+        - warnings
+        - always_skip
+      reason: no access to url file path
+  - do:
+      raw:
+        method: PUT
+        path: "_snapshot/my_read_only_url_repository"
+        body: |
+          {
+            "type": "url",
+            "settings": {
+              "url": "file:/mount/backups/my_fs_backup_location"
+            }
+          }
+  - is_false: _shards.failures

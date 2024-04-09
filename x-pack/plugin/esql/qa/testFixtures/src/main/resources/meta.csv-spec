@@ -7,7 +7,7 @@ synopsis:keyword
 "double asin(number:double|integer|long|unsigned_long)"
 "double atan(number:double|integer|long|unsigned_long)"
 "double atan2(y_coordinate:double|integer|long|unsigned_long, x_coordinate:double|integer|long|unsigned_long)"
-"double|date auto_bucket(field:integer|long|double|date, buckets:integer, from:integer|long|double|date|string, to:integer|long|double|date|string)"
+"double|date auto_bucket(field:integer|long|double|date, buckets:integer, from:integer|long|double|date|keyword|text, to:integer|long|double|date|keyword|text)"
 "double avg(number:double|integer|long)"
 "boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version case(condition:boolean, trueValue...:boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version)"
 "double|integer|long|unsigned_long ceil(number:double|integer|long|unsigned_long)"
@@ -117,7 +117,7 @@ acos          |number                              |"double|integer|long|unsigne
 asin          |number                              |"double|integer|long|unsigned_long"                                                                                               |Number between -1 and 1. If `null`, the function returns `null`.
 atan          |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 atan2         |[y_coordinate, x_coordinate]        |["double|integer|long|unsigned_long", "double|integer|long|unsigned_long"]                                                        |[y coordinate. If `null`\, the function returns `null`., x coordinate. If `null`\, the function returns `null`.]
-auto_bucket   |[field, buckets, from, to]          |["integer|long|double|date", integer, "integer|long|double|date|string", "integer|long|double|date|string"]                       |["", "", "", ""]
+auto_bucket   |[field, buckets, from, to]          |["integer|long|double|date", integer, "integer|long|double|date|keyword|text", "integer|long|double|date|keyword|text"]           |["", "", "", ""]
 avg           |number                              |"double|integer|long"                                                                                                             |[""]
 case          |[condition, trueValue]              |[boolean, "boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version"]                     |["", ""]
 ceil          |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.

@@ -548,7 +548,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 final var nodeEligibility = localNodeMayWinElection(getLastAcceptedState(), electionStrategy);
                 if (nodeEligibility.mayWin() == false) {
                     assert nodeEligibility.reason().isEmpty() == false;
-                    logger.info(
+                    logger.trace(
                         "skip election as local node may not win it ({}): {}",
                         nodeEligibility.reason(),
                         getLastAcceptedState().coordinationMetadata()
@@ -1781,7 +1781,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                         final var nodeEligibility = localNodeMayWinElection(lastAcceptedState, electionStrategy);
                         if (nodeEligibility.mayWin() == false) {
                             assert nodeEligibility.reason().isEmpty() == false;
-                            logger.info(
+                            logger.trace(
                                 "skip prevoting as local node may not win election ({}): {}",
                                 nodeEligibility.reason(),
                                 lastAcceptedState.coordinationMetadata()

@@ -39,6 +39,12 @@ public abstract class ElectionStrategy {
      */
     public record NodeEligibility(boolean mayWin, String reason) {}
 
+    public static final NodeEligibility NODE_MAY_WIN_ELECTION = new NodeEligibility(true, "");
+    public static final NodeEligibility NODE_MAY_NOT_WIN_ELECTION = new NodeEligibility(
+        false,
+        "node is ineligible for election, not a voting node in the voting configuration"
+    );
+
     /**
      * Whether there is an election quorum from the point of view of the given local node under the provided voting configurations
      */
@@ -112,12 +118,11 @@ public abstract class ElectionStrategy {
 
     public NodeEligibility nodeMayWinElection(ClusterState lastAcceptedState, DiscoveryNode node) {
         final String nodeId = node.getId();
-        if (lastAcceptedState.getLastCommittedConfiguration().getNodeIds().contains(nodeId) == false
-            && lastAcceptedState.getLastAcceptedConfiguration().getNodeIds().contains(nodeId) == false) {
-            if (lastAcceptedState.getVotingConfigExclusions().stream().anyMatch(vce -> vce.getNodeId().equals(nodeId))) {
-                return new NodeEligibility(false, "node is scheduled for shutdown");
-            }
+        if (lastAcceptedState.getLastCommittedConfiguration().getNodeIds().contains(nodeId)
+            || lastAcceptedState.getLastAcceptedConfiguration().getNodeIds().contains(nodeId)
+            || lastAcceptedState.getVotingConfigExclusions().stream().noneMatch(vce -> vce.getNodeId().equals(nodeId))) {
+            return NODE_MAY_WIN_ELECTION;
         }
-        return new NodeEligibility(true, "");
+        return NODE_MAY_NOT_WIN_ELECTION;
     }
 }

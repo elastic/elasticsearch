@@ -66,24 +66,15 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
 
     static ShrinkAction randomInstance() {
         if (randomBoolean()) {
-            return new ShrinkAction(randomIntBetween(1, 100), null, randomNullableBoolean());
+            return new ShrinkAction(randomIntBetween(1, 100), null, randomBoolean());
         } else {
-            return new ShrinkAction(null, ByteSizeValue.ofBytes(randomIntBetween(1, 100)), randomNullableBoolean());
+            return new ShrinkAction(null, ByteSizeValue.ofBytes(randomIntBetween(1, 100)), randomBoolean());
         }
-    }
-
-    private static Boolean randomNullableBoolean() {
-        return between(0, 2) == 0 ? null : randomBoolean();
-    }
-
-    private static Boolean cycleNullableBoolean(Boolean b) {
-        // null -> true -> false
-        return b == null ? Boolean.TRUE : (b ? Boolean.FALSE : null);
     }
 
     @Override
     protected ShrinkAction mutateInstance(ShrinkAction action) {
-        Boolean allowWritesOnTarget = cycleNullableBoolean(action.getAllowWritesOnTarget());
+        boolean allowWritesOnTarget = action.getAllowWritesOnTarget() == false;
         if (action.getNumberOfShards() != null) {
             return new ShrinkAction(action.getNumberOfShards() + randomIntBetween(1, 2), null, allowWritesOnTarget);
         } else {
@@ -97,7 +88,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
     }
 
     public void testNonPositiveShardNumber() {
-        Exception e = expectThrows(Exception.class, () -> new ShrinkAction(randomIntBetween(-100, 0), null, randomNullableBoolean()));
+        Exception e = expectThrows(Exception.class, () -> new ShrinkAction(randomIntBetween(-100, 0), null, randomBoolean()));
         assertThat(e.getMessage(), equalTo("[number_of_shards] must be greater than 0"));
     }
 
@@ -105,19 +96,19 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         ByteSizeValue maxPrimaryShardSize1 = ByteSizeValue.ofBytes(10);
         Exception e1 = expectThrows(
             Exception.class,
-            () -> new ShrinkAction(randomIntBetween(1, 100), maxPrimaryShardSize1, randomNullableBoolean())
+            () -> new ShrinkAction(randomIntBetween(1, 100), maxPrimaryShardSize1, randomBoolean())
         );
         assertThat(e1.getMessage(), equalTo("Cannot set both [number_of_shards] and [max_primary_shard_size]"));
 
         ByteSizeValue maxPrimaryShardSize2 = ByteSizeValue.ZERO;
-        Exception e2 = expectThrows(Exception.class, () -> new ShrinkAction(null, maxPrimaryShardSize2, randomNullableBoolean()));
+        Exception e2 = expectThrows(Exception.class, () -> new ShrinkAction(null, maxPrimaryShardSize2, randomBoolean()));
         assertThat(e2.getMessage(), equalTo("[max_primary_shard_size] must be greater than 0"));
     }
 
     public void testPerformActionWithSkipBecauseOfShardNumber() throws InterruptedException {
         String lifecycleName = randomAlphaOfLengthBetween(4, 10);
         int numberOfShards = randomIntBetween(1, 10);
-        ShrinkAction action = new ShrinkAction(numberOfShards, null, randomNullableBoolean());
+        ShrinkAction action = new ShrinkAction(numberOfShards, null, randomBoolean());
         StepKey nextStepKey = new StepKey(
             randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10),
@@ -134,7 +125,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
     public void testPerformActionWithSkipBecauseOfSearchableSnapshot() throws InterruptedException {
         String lifecycleName = randomAlphaOfLengthBetween(4, 10);
         int numberOfShards = randomIntBetween(1, 10);
-        ShrinkAction action = new ShrinkAction(numberOfShards, null, randomNullableBoolean());
+        ShrinkAction action = new ShrinkAction(numberOfShards, null, randomBoolean());
         StepKey nextStepKey = new StepKey(
             randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10),
@@ -156,7 +147,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         int divisor = randomFrom(2, 3, 6);
         int expectedFinalShards = numShards / divisor;
         String lifecycleName = randomAlphaOfLengthBetween(4, 10);
-        ShrinkAction action = new ShrinkAction(expectedFinalShards, null, randomNullableBoolean());
+        ShrinkAction action = new ShrinkAction(expectedFinalShards, null, randomBoolean());
         StepKey nextStepKey = new StepKey(
             randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10),
@@ -173,7 +164,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
     public void testFailureIsPropagated() throws InterruptedException {
         String lifecycleName = randomAlphaOfLengthBetween(4, 10);
         int numberOfShards = randomIntBetween(1, 10);
-        ShrinkAction action = new ShrinkAction(numberOfShards, null, randomNullableBoolean());
+        ShrinkAction action = new ShrinkAction(numberOfShards, null, randomBoolean());
         StepKey nextStepKey = new StepKey(
             randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10),

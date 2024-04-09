@@ -48,7 +48,7 @@ public class ShrinkAction implements LifecycleAction {
 
     private static final ConstructingObjectParser<ShrinkAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
-        a -> new ShrinkAction((Integer) a[0], (ByteSizeValue) a[1], (Boolean) a[2])
+        a -> new ShrinkAction((Integer) a[0], (ByteSizeValue) a[1], (a[2] != null && (Boolean) a[2]))
     );
 
     static {
@@ -64,7 +64,7 @@ public class ShrinkAction implements LifecycleAction {
 
     private Integer numberOfShards;
     private ByteSizeValue maxPrimaryShardSize;
-    private Boolean allowWritesOnTarget;
+    private boolean allowWritesOnTarget;
 
     public static ShrinkAction parse(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
@@ -73,7 +73,7 @@ public class ShrinkAction implements LifecycleAction {
     public ShrinkAction(
         @Nullable Integer numberOfShards,
         @Nullable ByteSizeValue maxPrimaryShardSize,
-        @Nullable Boolean allowWritesOnTarget
+        boolean allowWritesOnTarget
     ) {
         if (numberOfShards != null && maxPrimaryShardSize != null) {
             throw new IllegalArgumentException("Cannot set both [number_of_shards] and [max_primary_shard_size]");
@@ -103,10 +103,10 @@ public class ShrinkAction implements LifecycleAction {
             this.numberOfShards = null;
             this.maxPrimaryShardSize = ByteSizeValue.readFrom(in);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ILM_SHRINK_WRITE)) {
-            this.allowWritesOnTarget = in.readOptionalBoolean();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ILM_SHRINK_ENABLE_WRITE)) {
+            this.allowWritesOnTarget = in.readBoolean();
         } else {
-            this.allowWritesOnTarget = null;
+            this.allowWritesOnTarget = false;
         }
     }
 
@@ -131,8 +131,8 @@ public class ShrinkAction implements LifecycleAction {
         } else {
             maxPrimaryShardSize.writeTo(out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ILM_SHRINK_WRITE)) {
-            out.writeOptionalBoolean(this.allowWritesOnTarget);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ILM_SHRINK_ENABLE_WRITE)) {
+            out.writeBoolean(this.allowWritesOnTarget);
         }
     }
 
@@ -150,9 +150,7 @@ public class ShrinkAction implements LifecycleAction {
         if (maxPrimaryShardSize != null) {
             builder.field(MAX_PRIMARY_SHARD_SIZE.getPreferredName(), maxPrimaryShardSize);
         }
-        if (allowWritesOnTarget != null) {
-            builder.field(ALLOW_WRITES_ON_TARGET.getPreferredName(), allowWritesOnTarget);
-        }
+        builder.field(ALLOW_WRITES_ON_TARGET.getPreferredName(), allowWritesOnTarget);
         builder.endObject();
         return builder;
     }
@@ -303,7 +301,7 @@ public class ShrinkAction implements LifecycleAction {
         );
         DeleteStep deleteSourceIndexStep = new DeleteStep(deleteIndexKey, isShrunkIndexKey, client);
         ShrunkenIndexCheckStep waitOnShrinkTakeover = new ShrunkenIndexCheckStep(isShrunkIndexKey, allowWritesKey);
-        AllowWritesStep allowWritesStep = new AllowWritesStep(allowWritesKey, nextStepKey, client, allowWritesOnTarget != null && allowWritesOnTarget);
+        AllowWritesStep allowWritesStep = new AllowWritesStep(allowWritesKey, nextStepKey, client, allowWritesOnTarget);
 
         return Arrays.asList(
             conditionalSkipShrinkStep,

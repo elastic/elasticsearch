@@ -54,7 +54,6 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.waitAndGetShrinkIndexName;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.waitAndGetShrinkIndexNameWithExtraClusterStateChange;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -84,7 +83,7 @@ public class ShrinkActionIT extends ESRestTestCase {
             alias,
             Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numShards).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
-        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(expectedFinalShards, null, null));
+        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(expectedFinalShards, null, false));
         updatePolicy(client(), index, policy);
 
         String shrunkenIndexName = waitAndGetShrinkIndexName(client(), index);
@@ -110,7 +109,7 @@ public class ShrinkActionIT extends ESRestTestCase {
             alias,
             Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
-        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(numberOfShards, null, null));
+        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(numberOfShards, null, false));
         updatePolicy(client(), index, policy);
         assertBusy(() -> {
             assertTrue(indexExists(index));
@@ -131,7 +130,7 @@ public class ShrinkActionIT extends ESRestTestCase {
             alias,
             Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
-        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(null, ByteSizeValue.ofGb(50), null));
+        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(null, ByteSizeValue.ofGb(50), false));
         updatePolicy(client(), index, policy);
         assertBusy(() -> {
             assertTrue(indexExists(index));
@@ -162,7 +161,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         );
         assertOK(client().performRequest(request));
         // create delete policy
-        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(1, null, null), TimeValue.timeValueMillis(0));
+        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(1, null, false), TimeValue.timeValueMillis(0));
         // create index without policy
         createIndexWithSettings(
             client(),
@@ -210,7 +209,7 @@ public class ShrinkActionIT extends ESRestTestCase {
             RolloverAction.NAME,
             new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
             ShrinkAction.NAME,
-            new ShrinkAction(expectedFinalShards, null, null)
+            new ShrinkAction(expectedFinalShards, null, false)
 
         );
         Map<String, Phase> phases = Map.of("hot", new Phase("hot", TimeValue.ZERO, hotActions));
@@ -281,7 +280,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         // assign the policy that'll attempt to shrink the index (disabling the migrate action as it'll otherwise wait for
         // all shards to be active and we want that to happen as part of the shrink action)
         MigrateAction migrateAction = MigrateAction.DISABLED;
-        ShrinkAction shrinkAction = new ShrinkAction(expectedFinalShards, null, null);
+        ShrinkAction shrinkAction = new ShrinkAction(expectedFinalShards, null, false);
         Phase phase = new Phase(
             "warm",
             TimeValue.ZERO,
@@ -334,7 +333,7 @@ public class ShrinkActionIT extends ESRestTestCase {
             alias,
             Settings.builder().put(SETTING_NUMBER_OF_SHARDS, numShards).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
-        var shrinkAction = new ShrinkAction(numShards + randomIntBetween(1, numShards), null, null);
+        var shrinkAction = new ShrinkAction(numShards + randomIntBetween(1, numShards), null, false);
         createNewSingletonPolicy(client(), policy, "warm", shrinkAction);
         updatePolicy(client(), index, policy);
         assertBusy(
@@ -347,7 +346,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         );
 
         // update policy to be correct
-        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(expectedFinalShards, null, null));
+        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(expectedFinalShards, null, false));
         updatePolicy(client(), index, policy);
 
         // assert corrected policy is picked up and index is shrunken
@@ -382,7 +381,7 @@ public class ShrinkActionIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), numShards - 2)
         );
-        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(expectedFinalShards, null, null));
+        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(expectedFinalShards, null, false));
         updatePolicy(client(), index, policy);
 
         String shrunkenIndexName = waitAndGetShrinkIndexName(client(), index);

@@ -72,7 +72,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         this(nameFromTypes(types), types, supplier);
     }
 
-    static String nameFromTypes(List<DataType> types) {
+    public static String nameFromTypes(List<DataType> types) {
         return types.stream().map(t -> "<" + t.typeName() + ">").collect(Collectors.joining(", "));
     }
 
@@ -1323,6 +1323,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public TypedData forceLiteral() {
             return new TypedData(data, type, name, true);
+        }
+
+        /**
+         * Return a {@link TypedData} that always returns {@code null} for it's
+         * value without modifying anything else in the supplier.
+         */
+        public TypedData forceValueToNull() {
+            return new TypedData(null, type, name, forceLiteral);
         }
 
         @Override

@@ -47,7 +47,7 @@ public class RemoveIndexLifecyclePolicyAction extends ActionType<RemoveIndexLife
             PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), HAS_FAILURES_FIELD);
         }
 
-        private List<String> failedIndexes;
+        private final List<String> failedIndexes;
 
         public Response(StreamInput in) throws IOException {
             super(in);

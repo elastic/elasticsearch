@@ -90,8 +90,8 @@ public class AutoBucket extends EsqlScalarFunction implements Validatable {
         Source source,
         @Param(name = "field", type = { "integer", "long", "double", "date" }) Expression field,
         @Param(name = "buckets", type = { "integer" }) Expression buckets,
-        @Param(name = "from", type = { "integer", "long", "double", "date", "string" }) Expression from,
-        @Param(name = "to", type = { "integer", "long", "double", "date", "string" }) Expression to
+        @Param(name = "from", type = { "integer", "long", "double", "date", "keyword", "text" }) Expression from,
+        @Param(name = "to", type = { "integer", "long", "double", "date", "keyword", "text" }) Expression to
     ) {
         super(source, List.of(field, buckets, from, to));
         this.field = field;

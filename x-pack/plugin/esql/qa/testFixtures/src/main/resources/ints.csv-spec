@@ -692,6 +692,26 @@ FROM employees
 //end::docsBucketNumeric-result[]
 ;
 
+bucketWithSpanAndAuto#[skip:-8.13.99, reason:BUCKET extended in 8.14]
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| EVAL bs = BUCKET(salary, 20, 25324, 74999)
+| WHERE bs == BUCKET(salary, 5000.)
+| STATS c = COUNT(1)
+;
+
+c:long
+11
+;
+
+bucketMixedTypes#[skip:-8.13.99, reason:BUCKET extended in 8.14]
+ROW b1 = BUCKET(TO_LONG(100), 99.), b2 = BUCKET(99., 100.), b3 = BUCKET(100, 49.5)
+;
+
+      b1:double|      b2:double|      b3:double
+99.0           |0.0            |99.0
+;
+
 cos
 ROW a=2 | EVAL cos=COS(a);
 

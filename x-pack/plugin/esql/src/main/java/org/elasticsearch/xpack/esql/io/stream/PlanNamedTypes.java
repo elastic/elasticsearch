@@ -1394,15 +1394,21 @@ public final class PlanNamedTypes {
     }
 
     static Bucket readBucket(PlanStreamInput in) throws IOException {
-        return new Bucket(in.readSource(), in.readExpression(), in.readExpression(), in.readExpression(), in.readExpression());
+        return new Bucket(
+            in.readSource(),
+            in.readExpression(),
+            in.readExpression(),
+            in.readOptionalNamed(Expression.class),
+            in.readOptionalNamed(Expression.class)
+        );
     }
 
     static void writeBucket(PlanStreamOutput out, Bucket bucket) throws IOException {
         out.writeSource(bucket.source());
         out.writeExpression(bucket.field());
         out.writeExpression(bucket.buckets());
-        out.writeExpression(bucket.from());
-        out.writeExpression(bucket.to());
+        out.writeOptionalExpression(bucket.from());
+        out.writeOptionalExpression(bucket.to());
     }
 
     static final Map<String, TriFunction<Source, Expression, List<Expression>, ScalarFunction>> VARARG_CTORS = Map.ofEntries(

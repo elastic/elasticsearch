@@ -19,27 +19,30 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.common.Failures;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
+import org.elasticsearch.xpack.ql.expression.function.TwoOptionalArguments;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
@@ -54,7 +57,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
  *     in the above case we'll pick month long buckets, yielding 12 buckets.
  * </p>
  */
-public class Bucket extends EsqlScalarFunction implements Validatable {
+public class Bucket extends EsqlScalarFunction implements Validatable, TwoOptionalArguments {
     // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
     // That way you never end up with more than the target number of buckets.
     private static final Rounding LARGEST_HUMAN_DATE_ROUNDING = Rounding.builder(Rounding.DateTimeUnit.YEAR_OF_CENTURY).build();
@@ -78,8 +81,10 @@ public class Bucket extends EsqlScalarFunction implements Validatable {
         Rounding.builder(TimeValue.timeValueMillis(10)).build(),
         Rounding.builder(TimeValue.timeValueMillis(1)).build(), };
 
+    private static final ZoneId DEFAULT_TZ = ZoneOffset.UTC; // TODO: plug in the config
+
     private final Expression field;
-    private final Expression buckets;
+    private final Expression bucketsOrSpan;
     private final Expression from;
     private final Expression to;
 
@@ -89,41 +94,49 @@ public class Bucket extends EsqlScalarFunction implements Validatable {
     public Bucket(
         Source source,
         @Param(name = "field", type = { "integer", "long", "double", "date" }) Expression field,
-        @Param(name = "buckets", type = { "integer" }) Expression buckets,
-        @Param(name = "from", type = { "integer", "long", "double", "date", "string" }) Expression from,
-        @Param(name = "to", type = { "integer", "long", "double", "date", "string" }) Expression to
+        @Param(name = "bucketsOrSpan", type = { "integer", "double", "date_period", "time_duration" }) Expression bucketsOrSpan,
+        @Param(name = "from", type = { "integer", "long", "double", "date", "keyword", "text" }, optional = true) Expression from,
+        @Param(name = "to", type = { "integer", "long", "double", "date", "keyword", "text" }, optional = true) Expression to
     ) {
-        super(source, List.of(field, buckets, from, to));
+        super(source, from != null && to != null ? List.of(field, bucketsOrSpan, from, to) : List.of(field, bucketsOrSpan));
         this.field = field;
-        this.buckets = buckets;
+        this.bucketsOrSpan = bucketsOrSpan;
         this.from = from;
         this.to = to;
     }
 
     @Override
     public boolean foldable() {
-        return field.foldable() && buckets.foldable() && from.foldable() && to.foldable();
+        return field.foldable() && bucketsOrSpan.foldable() && (from == null || from.foldable()) && (to == null || to.foldable());
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        int b = ((Number) buckets.fold()).intValue();
-
         if (field.dataType() == DataTypes.DATETIME) {
-            long f = foldToLong(from);
-            long t = foldToLong(to);
-            return DateTrunc.evaluator(
-                source(),
-                toEvaluator.apply(field),
-                new DateRoundingPicker(b, f, t).pickRounding().prepareForUnknown()
-            );
+            Rounding.Prepared preparedRounding;
+            if (bucketsOrSpan.dataType().isInteger()) {
+                int b = ((Number) bucketsOrSpan.fold()).intValue();
+                long f = foldToLong(from);
+                long t = foldToLong(to);
+                preparedRounding = new DateRoundingPicker(b, f, t).pickRounding().prepareForUnknown();
+            } else {
+                preparedRounding = DateTrunc.createRounding(bucketsOrSpan.fold(), DEFAULT_TZ);
+            }
+            return DateTrunc.evaluator(source(), toEvaluator.apply(field), preparedRounding);
         }
         if (field.dataType().isNumeric()) {
-            double f = ((Number) from.fold()).doubleValue();
-            double t = ((Number) to.fold()).doubleValue();
+            double r;
+            if (from != null) {
+                int b = ((Number) bucketsOrSpan.fold()).intValue();
+                double f = ((Number) from.fold()).doubleValue();
+                double t = ((Number) to.fold()).doubleValue();
+                r = pickRounding(b, f, t);
+            } else {
+                r = ((Number) bucketsOrSpan.fold()).doubleValue();
+            }
+            Literal rounding = new Literal(source(), r, DataTypes.DOUBLE);
 
             // We could make this more efficient, either by generating the evaluators with byte code or hand rolling this one.
-            Literal rounding = new Literal(source(), pickRounding(b, f, t), DataTypes.DOUBLE);
             Div div = new Div(source(), field, rounding);
             Floor floor = new Floor(source(), div);
             Mul mul = new Mul(source(), floor, rounding);
@@ -170,30 +183,70 @@ public class Bucket extends EsqlScalarFunction implements Validatable {
         return precise < halfPower ? halfPower : nextPowerOfTen;
     }
 
+    // supported parameter type combinations (1st, 2nd, 3rd, 4th):
+    // datetime, integer, string/datetime, string/datetime
+    // datetime, span/duration, -, -
+    // numeric, integer, numeric, numeric
+    // numeric, double, -, -
     @Override
     protected TypeResolution resolveType() {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-
-        if (field.dataType() == DataTypes.DATETIME) {
-            return resolveType((e, o) -> isStringOrDate(e, sourceText(), o));
+        var fieldType = field.dataType();
+        var bucketsOrSpanType = bucketsOrSpan.dataType();
+        if (fieldType == DataTypes.NULL || bucketsOrSpanType == DataTypes.NULL) {
+            return TypeResolution.TYPE_RESOLVED;
         }
-        if (field.dataType().isNumeric()) {
-            return resolveType((e, o) -> isNumeric(e, sourceText(), o));
+
+        if (fieldType == DataTypes.DATETIME) {
+            TypeResolution resolution = isType(
+                bucketsOrSpan,
+                dt -> dt.isInteger() || EsqlDataTypes.isTemporalAmount(dt),
+                sourceText(),
+                SECOND,
+                "integral",
+                "date_period",
+                "time_duration"
+            );
+            return bucketsOrSpanType.isInteger()
+                ? resolution.and(checkArgsCount(4))
+                    .and(() -> isStringOrDate(from, sourceText(), THIRD))
+                    .and(() -> isStringOrDate(to, sourceText(), FOURTH))
+                : resolution.and(checkArgsCount(2)); // temporal amount
+        }
+        if (fieldType.isNumeric()) {
+            return bucketsOrSpanType.isInteger()
+                ? checkArgsCount(4).and(() -> isNumeric(from, sourceText(), THIRD)).and(() -> isNumeric(to, sourceText(), FOURTH))
+                : isNumeric(bucketsOrSpan, sourceText(), SECOND).and(checkArgsCount(2));
         }
         return isType(field, e -> false, sourceText(), FIRST, "datetime", "numeric");
     }
 
-    private TypeResolution resolveType(BiFunction<Expression, TypeResolutions.ParamOrdinal, TypeResolution> checkThirdAndForth) {
-        TypeResolution resolution = isInteger(buckets, sourceText(), SECOND);
-        if (resolution.unresolved()) {
-            return resolution;
+    private TypeResolution checkArgsCount(int expectedCount) {
+        String expected = null;
+        if (expectedCount == 2 && (from != null || to != null)) {
+            expected = "two";
+        } else if (expectedCount == 4 && (from == null || to == null)) {
+            expected = "four";
+        } else if ((from == null && to != null) || (from != null && to == null)) {
+            expected = "two or four";
         }
-        return checkThirdAndForth.apply(from, THIRD).and(checkThirdAndForth.apply(to, FOURTH));
+
+        return expected == null
+            ? TypeResolution.TYPE_RESOLVED
+            : new TypeResolution(
+                format(
+                    null,
+                    "function expects exactly {} arguments when the first one is of type [{}] and the second of type [{}]",
+                    expected,
+                    field.dataType(),
+                    bucketsOrSpan.dataType()
+                )
+            );
     }
 
-    public static TypeResolution isStringOrDate(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
+    private static TypeResolution isStringOrDate(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
         return TypeResolutions.isType(
             e,
             exp -> DataTypes.isString(exp) || DataTypes.isDateTime(exp),
@@ -208,7 +261,9 @@ public class Bucket extends EsqlScalarFunction implements Validatable {
     public void validate(Failures failures) {
         String operation = sourceText();
 
-        failures.add(isFoldable(buckets, operation, SECOND)).add(isFoldable(from, operation, THIRD)).add(isFoldable(to, operation, FOURTH));
+        failures.add(isFoldable(bucketsOrSpan, operation, SECOND))
+            .add(from != null ? isFoldable(from, operation, THIRD) : null)
+            .add(to != null ? isFoldable(to, operation, FOURTH) : null);
     }
 
     private long foldToLong(Expression e) {
@@ -226,12 +281,14 @@ public class Bucket extends EsqlScalarFunction implements Validatable {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Bucket(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+        Expression from = newChildren.size() > 2 ? newChildren.get(2) : null;
+        Expression to = newChildren.size() > 3 ? newChildren.get(3) : null;
+        return new Bucket(source(), newChildren.get(0), newChildren.get(1), from, to);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Bucket::new, field, buckets, from, to);
+        return NodeInfo.create(this, Bucket::new, field, bucketsOrSpan, from, to);
     }
 
     public Expression field() {
@@ -239,7 +296,7 @@ public class Bucket extends EsqlScalarFunction implements Validatable {
     }
 
     public Expression buckets() {
-        return buckets;
+        return bucketsOrSpan;
     }
 
     public Expression from() {
@@ -252,6 +309,6 @@ public class Bucket extends EsqlScalarFunction implements Validatable {
 
     @Override
     public String toString() {
-        return "Bucket{" + "field=" + field + ", buckets=" + buckets + ", from=" + from + ", to=" + to + '}';
+        return "Bucket{" + "field=" + field + ", bucketsOrSpan=" + bucketsOrSpan + ", from=" + from + ", to=" + to + '}';
     }
 }

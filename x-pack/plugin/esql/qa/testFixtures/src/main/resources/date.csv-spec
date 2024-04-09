@@ -1072,6 +1072,60 @@ median_duration:double | bucket:date
 1756467.0              |2023-10-23T13:00:00.000Z
 ;
 
+bucketByTimeDuration#[skip:-8.13.99, reason:BUCKET extended in 8.14]
+FROM sample_data
+| EVAL bucket = BUCKET(@timestamp, 30 minutes)
+| KEEP @timestamp, bucket
+| SORT @timestamp
+| LIMIT 4
+;
+
+       @timestamp:date  |         bucket:date
+2023-10-23T12:15:03.360Z|2023-10-23T12:00:00.000Z
+2023-10-23T12:27:28.948Z|2023-10-23T12:00:00.000Z
+2023-10-23T13:33:34.937Z|2023-10-23T13:30:00.000Z
+2023-10-23T13:51:54.732Z|2023-10-23T13:30:00.000Z
+;
+
+aggByTimeDuratinBucket#[skip:-8.13.99, reason:BUCKET extended in 8.14]
+FROM sample_data
+| STATS c = COUNT(1) BY b = BUCKET(@timestamp, 30 minutes)
+| SORT c
+;
+
+       c:long  |           b:date
+2              |2023-10-23T12:00:00.000Z
+5              |2023-10-23T13:30:00.000Z
+;
+
+bucketByDatePeriod#[skip:-8.13.99, reason:BUCKET extended in 8.14]
+FROM sample_data
+| EVAL adjusted = CASE(TO_LONG(@timestamp) % 2 == 0, @timestamp + 1 month, @timestamp + 2 years)
+| EVAL bucket = BUCKET(adjusted, 1 month)
+| KEEP @timestamp, adjusted, bucket
+| SORT @timestamp
+| LIMIT 4
+;
+
+       @timestamp:date  |        adjusted:date   |         bucket:date
+2023-10-23T12:15:03.360Z|2023-11-23T12:15:03.360Z|2023-11-01T00:00:00.000Z
+2023-10-23T12:27:28.948Z|2023-11-23T12:27:28.948Z|2023-11-01T00:00:00.000Z
+2023-10-23T13:33:34.937Z|2025-10-23T13:33:34.937Z|2025-10-01T00:00:00.000Z
+2023-10-23T13:51:54.732Z|2023-11-23T13:51:54.732Z|2023-11-01T00:00:00.000Z
+;
+
+aggByDatePeriodBucket#[skip:-8.13.99, reason:BUCKET extended in 8.14]
+FROM sample_data
+| EVAL adjusted = CASE(TO_LONG(@timestamp) % 2 == 0, @timestamp + 1 month, @timestamp + 2 years)
+| STATS c = COUNT(1) BY b = BUCKET(adjusted, 1 month)
+| SORT c DESC
+;
+
+       c:long  |           b:date
+4              |2023-11-01T00:00:00.000Z
+3              |2025-10-01T00:00:00.000Z
+;
+
 dateExtract
 // tag::dateExtract[]
 ROW date = DATE_PARSE("yyyy-MM-dd", "2022-05-06")

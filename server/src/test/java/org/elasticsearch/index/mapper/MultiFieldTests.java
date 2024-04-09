@@ -224,6 +224,9 @@ public class MultiFieldTests extends MapperServiceTestCase {
         final Set<String> fieldsUsingSourcePath = new HashSet<>();
         ((FieldMapper) mapper).sourcePathUsedBy().forEachRemaining(mapper1 -> fieldsUsingSourcePath.add(mapper1.name()));
         assertThat(fieldsUsingSourcePath, equalTo(Set.of("field.subfield1", "field.subfield2")));
+
+        assertThat(mapperService.mappingLookup().sourcePaths("field.subfield1"), equalTo(Set.of("field")));
+        assertThat(mapperService.mappingLookup().sourcePaths("field.subfield2"), equalTo(Set.of("field")));
     }
 
     public void testUnknownLegacyFieldsUnderKnownRootField() throws Exception {

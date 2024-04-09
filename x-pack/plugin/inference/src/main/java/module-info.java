@@ -17,6 +17,7 @@ module org.elasticsearch.inference {
     requires org.apache.httpcomponents.httpasyncclient;
     requires org.apache.httpcomponents.httpcore.nio;
     requires org.apache.lucene.core;
+    requires org.elasticsearch.logging;
 
     exports org.elasticsearch.xpack.inference.action;
     exports org.elasticsearch.xpack.inference.registry;

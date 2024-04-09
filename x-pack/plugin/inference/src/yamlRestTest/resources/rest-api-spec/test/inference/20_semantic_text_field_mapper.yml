@@ -1,0 +1,68 @@
+setup:
+  - skip:
+      version: " - 8.12.99"
+      reason: semantic_text introduced in 8.13.0 # TODO change when 8.13.0 is released
+
+  - do:
+      inference.put_model:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+  - do:
+      inference.put_model:
+        task_type: text_embedding
+        inference_id: dense-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "api_key": "abc64",
+              "similarity": "cosine"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          mappings:
+            properties:
+              sparse_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              dense_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+              non_inference_field:
+                type: text
+
+---
+"Sparse vector results format":
+    - do:
+        index:
+          index: test-index
+          id: doc_1
+          body:
+            sparse_field: "you know, for testing"
+
+---
+"Dense vector results format":
+    - do:
+        index:
+          index: test-index
+          id: doc_1
+          body:
+            dense_field: "you know, for testing"

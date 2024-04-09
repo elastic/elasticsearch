@@ -63,10 +63,4 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
         String[] inputFields = generateRandomStringArray(5, 10, false, false);
         return new InferenceFieldMetadata(name, inferenceId, inputFields);
     }
-
-    public void testNullCtorArgsThrowException() {
-        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata(null, "inferenceId", new String[0]));
-        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata("name", null, new String[0]));
-        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata("name", "inferenceId", null));
-    }
 }

@@ -346,7 +346,7 @@ Example response:
 ===== Hugging Face service
 
 The following example shows how to create an {infer} endpoint called
-`hugging-face_embeddings` to perform a `text_embedding` task type.
+`hugging-face-embeddings` to perform a `text_embedding` task type.
 
 [source,console]
 ------------------------------------------------------------

@@ -131,6 +131,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             return this;
         }
 
+        public RequestObjectBuilder version(String version) throws IOException {
+            builder.field("version", version);
+            return this;
+        }
+
         public RequestObjectBuilder columnar(boolean columnar) throws IOException {
             builder.field("columnar", columnar);
             return this;

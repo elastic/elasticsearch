@@ -40,6 +40,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -111,31 +112,35 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
     }
 
     public void testIndexMetadataMap_TransportSearchAction() {
-        // TODO: Test aliases
-        createIndex("test1", "test2");
-        assertIndexMetadataMapSet(prepareSearch("test1", "test2"), Set.of("test1", "test2"), r -> {});
-        assertIndexMetadataMapSet(prepareSearch("test*"), Set.of("test1", "test2"), r -> {});
+        final String[] indices = { "test1", "test2" };
+        createIndex(indices);
+        assertAcked(indicesAdmin().prepareAliases().addAlias(indices, "alias"));
+        assertIndexMetadataMapSet(prepareSearch(indices), Set.of(indices), r -> {});
+        assertIndexMetadataMapSet(prepareSearch("test*"), Set.of(indices), r -> {});
+        assertIndexMetadataMapSet(prepareSearch("alias"), Set.of(indices), r -> {});
     }
 
     public void testIndexMetadataMap_TransportExplainAction() {
-        createIndex("test");
-        assertIndexMetadataMapSet(client().prepareExplain("test", "1"), Set.of("test"), r -> {});
+        final String index = "test";
+        createIndex(index);
+        assertAcked(indicesAdmin().prepareAliases().addAlias(index, "alias"));
+        assertIndexMetadataMapSet(client().prepareExplain(index, "1"), Set.of(index), r -> {});
+        assertIndexMetadataMapSet(client().prepareExplain("alias", "1"), Set.of(index), r -> {});
     }
 
     public void testIndexMetadataMap_TransportValidateQueryAction() {
-        // TODO: Test aliases
-        createIndex("test1", "test2");
+        final String[] indices = { "test1", "test2" };
+        createIndex(indices);
+        assertAcked(indicesAdmin().prepareAliases().addAlias(indices, "alias"));
+
         Consumer<ValidateQueryResponse> responseAssertions = r -> {
             assertThat(r.getStatus(), equalTo(RestStatus.OK));
             assertThat(r.isValid(), is(true));
         };
 
-        assertIndexMetadataMapSet(
-            client().admin().indices().prepareValidateQuery("test1", "test2"),
-            Set.of("test1", "test2"),
-            responseAssertions
-        );
-        assertIndexMetadataMapSet(client().admin().indices().prepareValidateQuery("test*"), Set.of("test1", "test2"), responseAssertions);
+        assertIndexMetadataMapSet(client().admin().indices().prepareValidateQuery(indices), Set.of(indices), responseAssertions);
+        assertIndexMetadataMapSet(client().admin().indices().prepareValidateQuery("test*"), Set.of(indices), responseAssertions);
+        assertIndexMetadataMapSet(client().admin().indices().prepareValidateQuery("alias"), Set.of(indices), responseAssertions);
     }
 
     private static <Request extends ActionRequest, Response extends ActionResponse> void assertIndexMetadataMapSet(

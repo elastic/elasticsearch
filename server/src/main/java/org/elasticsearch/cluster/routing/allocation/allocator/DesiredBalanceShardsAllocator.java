@@ -62,7 +62,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final MasterServiceTaskQueue<ReconcileDesiredBalanceTask> masterServiceTaskQueue;
     private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
     private volatile boolean resetCurrentDesiredBalance = false;
-    private final ClusterService clusterService;
     private final Set<String> processedNodeShutdowns = new HashSet<>();
 
     // stats
@@ -169,7 +168,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 onNoLongerMaster();
             }
         });
-        this.clusterService = clusterService;
     }
 
     @Override

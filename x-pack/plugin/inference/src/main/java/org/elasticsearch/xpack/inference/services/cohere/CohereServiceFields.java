@@ -9,4 +9,6 @@ package org.elasticsearch.xpack.inference.services.cohere;
 
 public class CohereServiceFields {
     public static final String TRUNCATE = "truncate";
+
+    public static final int EMBEDDING_MAX_BATCH_SIZE = 96;
 }

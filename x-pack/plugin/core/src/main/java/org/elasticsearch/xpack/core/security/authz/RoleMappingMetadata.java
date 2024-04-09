@@ -33,7 +33,7 @@ public class RoleMappingMetadata extends AbstractNamedDiffable<ClusterState.Cust
 
     List<ExpressionRoleMapping> roleMappings;
 
-    RoleMappingMetadata(List<ExpressionRoleMapping> roleMappings) {
+    public RoleMappingMetadata(List<ExpressionRoleMapping> roleMappings) {
         this.roleMappings = roleMappings;
     }
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authc.support.mapper;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionParser;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -166,6 +168,34 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
      */
     public boolean isEnabled() {
         return enabled;
+    }
+
+    public ValidationException validate(boolean validateMetadata) {
+        ValidationException validationException = null;
+        if (name == null) {
+            validationException = new ValidationException().addValidationError("role-mapping name is missing");
+        }
+        if (roles.isEmpty() && roleTemplates.isEmpty()) {
+            validationException = (validationException == null ? new ValidationException() : validationException).addValidationError(
+                "role-mapping roles or role-templates are missing"
+            );
+        }
+        if (roles.size() > 0 && roleTemplates.size() > 0) {
+            validationException = (validationException == null ? new ValidationException() : validationException).addValidationError(
+                "role-mapping cannot have both roles and role-templates"
+            );
+        }
+        if (expression == null) {
+            validationException = (validationException == null ? new ValidationException() : validationException).addValidationError(
+                "role-mapping rules are missing"
+            );
+        }
+        if (validateMetadata && MetadataUtils.containsReservedMetadata(metadata)) {
+            validationException = (validationException == null ? new ValidationException() : validationException).addValidationError(
+                "metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]"
+            );
+        }
+        return validationException;
     }
 
     @Override

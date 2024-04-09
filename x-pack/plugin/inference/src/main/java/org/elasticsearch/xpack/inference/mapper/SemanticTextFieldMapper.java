@@ -62,7 +62,6 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOrig
 
 /**
  * A {@link FieldMapper} for semantic text fields.
- *
  */
 public class SemanticTextFieldMapper extends FieldMapper implements InferenceFieldMapper {
     public static final String CONTENT_TYPE = "semantic_text";

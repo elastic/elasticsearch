@@ -1,8 +1,5 @@
 ---
 setup:
-  - skip:
-      cluster_features: [] # use 9.x feature to skip
-      reason: "compatible from 8.x to 7.x"
   - requires:
       test_runner_features:
         - "headers"

@@ -26,6 +26,7 @@ public class AllowWriteStep extends UpdateSettingsStep {
         .build();
 
     private final boolean allowWriteAfterShrink;
+
     public AllowWriteStep(StepKey key, StepKey nextStepKey, Client client, boolean allowWriteAfterShrink) {
         super(key, nextStepKey, client, CLEAR_BLOCKS_WRITE_SETTING);
         this.allowWriteAfterShrink = allowWriteAfterShrink;

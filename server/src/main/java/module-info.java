@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 
+import org.elasticsearch.index.codec.Elasticsearch814Codec;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
 import org.elasticsearch.plugins.internal.RestExtension;
 
@@ -244,6 +245,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.codec;
     exports org.elasticsearch.index.codec.tsdb;
     exports org.elasticsearch.index.codec.bloomfilter;
+    exports org.elasticsearch.index.codec.zstd;
     exports org.elasticsearch.index.engine;
     exports org.elasticsearch.index.fielddata;
     exports org.elasticsearch.index.fielddata.fieldcomparator;
@@ -435,6 +437,7 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat,
             org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat,
             org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
+    provides org.apache.lucene.codecs.Codec with Elasticsearch814Codec;
 
     exports org.elasticsearch.cluster.routing.allocation.shards
         to

@@ -42,27 +42,29 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         private final NumericType numericType;
         private final ValuesSourceType valuesSourceType;
         protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;
-        private boolean indexed;
+        private final boolean indexed;
 
-        public Builder(String name, NumericType numericType, ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory) {
-            this(name, numericType, numericType.getValuesSourceType(), toScriptFieldFactory);
+        public Builder(
+            String name,
+            NumericType numericType,
+            ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory,
+            boolean indexed
+        ) {
+            this(name, numericType, numericType.getValuesSourceType(), toScriptFieldFactory, indexed);
         }
 
         public Builder(
             String name,
             NumericType numericType,
             ValuesSourceType valuesSourceType,
-            ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
+            ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory,
+            boolean indexed
         ) {
             this.name = name;
             this.numericType = numericType;
             this.valuesSourceType = valuesSourceType;
             this.toScriptFieldFactory = toScriptFieldFactory;
-        }
-
-        public Builder indexed(boolean indexed) {
             this.indexed = indexed;
-            return this;
         }
 
         @Override

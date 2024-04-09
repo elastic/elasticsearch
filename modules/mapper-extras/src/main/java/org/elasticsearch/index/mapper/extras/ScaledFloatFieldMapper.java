@@ -340,7 +340,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                         valuesSourceType,
                         (dv, n) -> {
                             throw new UnsupportedOperationException();
-                        }
+                        },
+                        isIndexed()
                     ).build(cache, breakerService);
                     return new ScaledFloatIndexFieldData(scaledValues, scalingFactor, ScaledFloatDocValuesField::new);
                 };

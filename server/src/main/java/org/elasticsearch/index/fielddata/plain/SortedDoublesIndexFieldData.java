@@ -42,23 +42,20 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         private final NumericType numericType;
         private final ValuesSourceType valuesSourceType;
         protected final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
-        private boolean indexed;
+        private final boolean indexed;
 
         public Builder(
             String name,
             NumericType numericType,
             ValuesSourceType valuesSourceType,
-            ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory
+            ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory,
+            boolean indexed
         ) {
             this.name = name;
             this.numericType = numericType;
             this.valuesSourceType = valuesSourceType;
             this.toScriptFieldFactory = toScriptFieldFactory;
-        }
-
-        public Builder indexed(boolean indexed) {
             this.indexed = indexed;
-            return this;
         }
 
         @Override

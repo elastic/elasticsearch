@@ -160,7 +160,7 @@ public class SimpleRoleTests extends ESTestCase {
                 "remote-index-a-2"
             )
             .addRemoteIndicesGroup(Set.of("remote-*-a"), FieldPermissions.DEFAULT, null, IndexPrivilege.READ, false, "remote-index-a-3")
-            // This privilege should be ignored
+            // This privilege should be ignored (wrong alias)
             .addRemoteIndicesGroup(
                 Set.of("remote-cluster-b"),
                 FieldPermissions.DEFAULT,
@@ -170,7 +170,7 @@ public class SimpleRoleTests extends ESTestCase {
                 "remote-index-b-1",
                 "remote-index-b-2"
             )
-            // This privilege should be ignored
+            // This privilege should be ignored (wrong alias)
             .addRemoteIndicesGroup(
                 Set.of(randomAlphaOfLength(8)),
                 new FieldPermissions(new FieldPermissionsDefinition(new String[] { randomAlphaOfLength(5) }, null)),
@@ -178,6 +178,20 @@ public class SimpleRoleTests extends ESTestCase {
                 IndexPrivilege.get(Set.of(randomFrom(IndexPrivilege.names()))),
                 randomBoolean(),
                 randomAlphaOfLength(9)
+            ).addRemoteClusterPermissions(
+                new RemoteClusterPermissions().addGroup(
+                        new RemoteClusterPermissionGroup(
+                            RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                            new String[] {"remote-cluster-a"}
+                        )
+                    )
+                    // this group should be ignored (wrong alias)
+                    .addGroup(
+                        new RemoteClusterPermissionGroup(
+                            RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                            new String[] { randomAlphaOfLength(3) }
+                        )
+                    )
             )
             .build();
 
@@ -190,7 +204,7 @@ public class SimpleRoleTests extends ESTestCase {
                 new RoleDescriptorsIntersection(
                     new RoleDescriptor(
                         Role.REMOTE_USER_ROLE_NAME,
-                        null,
+                        RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
                         new RoleDescriptor.IndicesPrivileges[] {
                             RoleDescriptor.IndicesPrivileges.builder()
                                 .privileges(IndexPrivilege.READ.name())

@@ -81,6 +81,11 @@ public class EsqlFeatures implements FeatureSpecification {
     private static final NodeFeature ST_CONTAINS_WITHIN = new NodeFeature("esql.st_contains_within");
 
     /**
+     * Support for spatial aggregation {@code ST_DISJOINT}. Done in #107007.
+     */
+    private static final NodeFeature ST_DISJOINT = new NodeFeature("esql.st_disjoint");
+
+    /**
      * The introduction of the {@code VALUES} agg.
      */
     private static final NodeFeature AGG_VALUES = new NodeFeature("esql.agg_values");
@@ -108,7 +113,8 @@ public class EsqlFeatures implements FeatureSpecification {
             SPATIAL_SHAPES,
             ST_CENTROID,
             ST_INTERSECTS,
-            ST_CONTAINS_WITHIN
+            ST_CONTAINS_WITHIN,
+            ST_DISJOINT
         );
     }
 

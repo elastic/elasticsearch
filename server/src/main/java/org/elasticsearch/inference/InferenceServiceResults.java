@@ -35,8 +35,6 @@ public interface InferenceServiceResults extends NamedWriteable, ToXContentFragm
 
     /**
      * Convert the result to a map to aid with test assertions
-     *
-     * @return a map
      */
     Map<String, Object> asMap();
 }

@@ -71,6 +71,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SemanticTextFieldMapperTests extends MapperTestCase {
+
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         return singletonList(new InferencePlugin(Settings.EMPTY));

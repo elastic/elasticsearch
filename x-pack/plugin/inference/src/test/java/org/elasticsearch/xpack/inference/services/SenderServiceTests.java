@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
@@ -114,8 +115,21 @@ public class SenderServiceTests extends ESTestCase {
         }
 
         @Override
+        protected void doInfer(
+            Model model,
+            @Nullable String query,
+            List<String> input,
+            Map<String, Object> taskSettings,
+            InputType inputType,
+            ActionListener<InferenceServiceResults> listener
+        ) {
+
+        }
+
+        @Override
         protected void doChunkedInfer(
             Model model,
+            @Nullable String query,
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType,

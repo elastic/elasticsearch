@@ -77,7 +77,6 @@ public class RestFleetMultiSearchAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final MultiSearchRequest multiSearchRequest = RestMultiSearchAction.parseRequest(
             request,
-            namedWriteableRegistry,
             allowExplicitIndex,
             searchUsageHolder,
             clusterSupportsFeature,

@@ -226,6 +226,12 @@ public class ConnectorSyncJobIndexServiceTests extends ESSingleNodeTestCase {
         assertEquals(0, response.getDeleted());
     }
 
+    public void testDeleteAllSyncJobsByConnectorId_NonExistentConnector() throws Exception {
+        BulkByScrollResponse response = awaitDeleteAllSyncJobsByConnectorId("non-existent-connector");
+        // 0 jobs should be deleted
+        assertEquals(0, response.getDeleted());
+    }
+
     public void testGetConnectorSyncJob() throws Exception {
         PostConnectorSyncJobAction.Request syncJobRequest = ConnectorSyncJobTestUtils.getRandomPostConnectorSyncJobActionRequest(
             connectorOneId

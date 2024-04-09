@@ -71,6 +71,7 @@ import static org.elasticsearch.cluster.routing.AllocationId.newInitializing;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -745,7 +746,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                 ClusterServiceUtils.setState(clusterService, clusterState);
                 rerouteAndWait(service, clusterState, "reroute-after-node-removed");
                 assertFalse("desired balance reset should not be called", resetCalled.get());
-                assertTrue(desiredBalanceAllocator.getProcessedNodeShutdowns().isEmpty());
+                assertThat(desiredBalanceAllocator.getProcessedNodeShutdowns(), empty());
             }
         } finally {
             clusterService.close();

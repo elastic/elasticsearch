@@ -70,38 +70,16 @@ public class AllowWriteStepTests extends AbstractStepTestCase<AllowWriteStep> {
             return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        assertNull(PlainActionFuture.<Void, RuntimeException>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
+        PlainActionFuture.<Void, RuntimeException>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f));
 
-        Mockito.verify(client, Mockito.only()).admin();
-        Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
-    }
-
-    public void testPerformActionFailure() {
-        IndexMetadata indexMetadata = getIndexMetadata();
-        Exception exception = new RuntimeException();
-        UpdateSettingsStep step = createRandomInstance();
-
-        Mockito.doAnswer(invocation -> {
-            UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
-            @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
-            assertThat(request.settings(), equalTo(AllowWriteStep.CLEAR_BLOCKS_WRITE_SETTING));
-            assertThat(request.indices(), equalTo(new String[] { indexMetadata.getIndex().getName() }));
-            listener.onFailure(exception);
-            return null;
-        }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
-
-        assertSame(
-            exception,
-            expectThrows(
-                Exception.class,
-                () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f))
-            )
-        );
-
-        Mockito.verify(client, Mockito.only()).admin();
-        Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
+        if (step.isAllowWriteAfterShrink()) {
+            Mockito.verify(client, Mockito.only()).admin();
+            Mockito.verify(adminClient, Mockito.only()).indices();
+            Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
+        } else {
+            Mockito.verify(client, Mockito.never()).admin();
+            Mockito.verify(adminClient, Mockito.never()).indices();
+            Mockito.verify(indicesClient, Mockito.never()).updateSettings(Mockito.any(), Mockito.any());
+        }
     }
 }

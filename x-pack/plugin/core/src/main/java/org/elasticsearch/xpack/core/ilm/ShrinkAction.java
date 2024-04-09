@@ -323,12 +323,14 @@ public class ShrinkAction implements LifecycleAction {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ShrinkAction that = (ShrinkAction) o;
-        return Objects.equals(numberOfShards, that.numberOfShards) && Objects.equals(maxPrimaryShardSize, that.maxPrimaryShardSize);
+        return Objects.equals(numberOfShards, that.numberOfShards)
+            && Objects.equals(maxPrimaryShardSize, that.maxPrimaryShardSize)
+            && Objects.equals(allowWriteAfterShrink, that.allowWriteAfterShrink);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(numberOfShards, maxPrimaryShardSize);
+        return Objects.hash(numberOfShards, maxPrimaryShardSize, allowWriteAfterShrink);
     }
 
     @Override

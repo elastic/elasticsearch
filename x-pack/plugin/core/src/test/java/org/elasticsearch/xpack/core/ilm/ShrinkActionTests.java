@@ -74,19 +74,16 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
 
     @Override
     protected ShrinkAction mutateInstance(ShrinkAction action) {
-        Integer numberOfShards = action.getNumberOfShards();
-        ByteSizeValue maxPrimaryShardSize = action.getMaxPrimaryShardSize();
-        boolean allowWriteAfterShrink = action.getAllowWriteAfterShrink();
-
-        switch (randomInt(2)) {
-            case 0 -> numberOfShards = randomValueOtherThan(numberOfShards, () -> randomBoolean() ? null : randomIntBetween(1, 100));
-            case 1 -> maxPrimaryShardSize = randomValueOtherThan(
-                maxPrimaryShardSize,
-                () -> randomBoolean() ? null : ByteSizeValue.ofBytes(randomIntBetween(1, 100))
-            );
-            case 2 -> allowWriteAfterShrink = allowWriteAfterShrink == false;
+        if (randomIntBetween(0, 2) == 0) {
+            boolean allowWritesOnTarget = action.getAllowWriteAfterShrink() == false;
+            return new ShrinkAction(action.getNumberOfShards(), action.getMaxPrimaryShardSize(), allowWritesOnTarget);
+        } else if (action.getNumberOfShards() != null) {
+            Integer numberOfShards = action.getNumberOfShards() + randomIntBetween(1, 2);
+            return new ShrinkAction(numberOfShards, null, action.getAllowWriteAfterShrink());
+        } else {
+            ByteSizeValue maxPrimaryShardSize = ByteSizeValue.ofBytes(action.getMaxPrimaryShardSize().getBytes() + 1);
+            return new ShrinkAction(null, maxPrimaryShardSize, action.getAllowWriteAfterShrink());
         }
-        return new ShrinkAction(numberOfShards, maxPrimaryShardSize, allowWriteAfterShrink);
     }
 
     @Override
@@ -197,6 +194,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         String phase = randomAlphaOfLengthBetween(1, 10);
         List<Step> steps = action.toSteps(client, phase, nextStepKey);
         AsyncBranchingStep step = ((AsyncBranchingStep) steps.get(0));
+        Step finalStep = steps.get(steps.size()-1);
 
         LifecyclePolicy policy = new LifecyclePolicy(
             lifecycleName,
@@ -258,10 +256,11 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         if (withError) {
             assertTrue(failurePropagated.get());
         } else if (shouldSkip) {
-            assertThat(step.getNextStepKey(), equalTo(nextStepKey));
+            assertThat(step.getNextStepKey(), equalTo(finalStep.getKey()));
         } else {
             assertThat(step.getNextStepKey(), equalTo(steps.get(1).getKey()));
         }
+        assertThat(finalStep.getNextStepKey(), equalTo(nextStepKey));
     }
 
     public void testToSteps() {
@@ -273,7 +272,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
             randomAlphaOfLengthBetween(1, 10)
         );
         List<Step> steps = action.toSteps(client, phase, nextStepKey);
-        assertThat(steps.size(), equalTo(18));
+        assertThat(steps.size(), equalTo(19));
         StepKey expectedFirstKey = new StepKey(phase, ShrinkAction.NAME, ShrinkAction.CONDITIONAL_SKIP_SHRINK_STEP);
         StepKey expectedSecondKey = new StepKey(phase, ShrinkAction.NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey expectedThirdKey = new StepKey(phase, ShrinkAction.NAME, WaitForNoFollowersStep.NAME);
@@ -292,12 +291,13 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         StepKey expectedSixteenKey = new StepKey(phase, ShrinkAction.NAME, ShrunkenIndexCheckStep.NAME);
         StepKey expectedSeventeenKey = new StepKey(phase, ShrinkAction.NAME, ReplaceDataStreamBackingIndexStep.NAME);
         StepKey expectedEighteenKey = new StepKey(phase, ShrinkAction.NAME, DeleteStep.NAME);
+        StepKey expectedNineteenthKey = new StepKey(phase, ShrinkAction.NAME, AllowWriteStep.NAME);
 
         assertTrue(steps.get(0) instanceof AsyncBranchingStep);
         assertThat(steps.get(0).getKey(), equalTo(expectedFirstKey));
         expectThrows(IllegalStateException.class, () -> steps.get(0).getNextStepKey());
         assertThat(((AsyncBranchingStep) steps.get(0)).getNextStepKeyOnFalse(), equalTo(expectedSecondKey));
-        assertThat(((AsyncBranchingStep) steps.get(0)).getNextStepKeyOnTrue(), equalTo(nextStepKey));
+        assertThat(((AsyncBranchingStep) steps.get(0)).getNextStepKeyOnTrue(), equalTo(expectedNineteenthKey));
 
         assertTrue(steps.get(1) instanceof CheckNotDataStreamWriteIndexStep);
         assertThat(steps.get(1).getKey(), equalTo(expectedSecondKey));
@@ -368,7 +368,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
 
         assertTrue(steps.get(15) instanceof ShrunkenIndexCheckStep);
         assertThat(steps.get(15).getKey(), equalTo(expectedSixteenKey));
-        assertThat(steps.get(15).getNextStepKey(), equalTo(nextStepKey));
+        assertThat(steps.get(15).getNextStepKey(), equalTo(expectedNineteenthKey));
 
         assertTrue(steps.get(16) instanceof ReplaceDataStreamBackingIndexStep);
         assertThat(steps.get(16).getKey(), equalTo(expectedSeventeenKey));
@@ -377,6 +377,10 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         assertTrue(steps.get(17) instanceof DeleteStep);
         assertThat(steps.get(17).getKey(), equalTo(expectedEighteenKey));
         assertThat(steps.get(17).getNextStepKey(), equalTo(expectedSixteenKey));
+
+        assertTrue(steps.get(18) instanceof AllowWriteStep);
+        assertThat(steps.get(18).getKey(), equalTo(expectedNineteenthKey));
+        assertThat(steps.get(18).getNextStepKey(), equalTo(nextStepKey));
     }
 
     private void setUpIndicesStatsRequestMock(String index, boolean withError) {

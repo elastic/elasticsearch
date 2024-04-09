@@ -89,6 +89,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 new DataStreamLifecycle(),
                 true,
                 failureStores,
+                false,
                 null
             );
 
@@ -199,6 +200,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 new DataStreamLifecycle(null, null, false),
                 true,
                 failureStores,
+                false,
                 null
             );
 

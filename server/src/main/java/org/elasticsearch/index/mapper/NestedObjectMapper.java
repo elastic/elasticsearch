@@ -62,8 +62,12 @@ public class NestedObjectMapper extends ObjectMapper {
                     this.includeInRoot = Explicit.IMPLICIT_FALSE;
                 }
             }
-            NestedMapperBuilderContext nestedContext = new NestedMapperBuilderContext(context.buildFullName(name), parentIncludedInRoot);
-            final String fullPath = context.buildFullName(name);
+            NestedMapperBuilderContext nestedContext = new NestedMapperBuilderContext(
+                context.buildFullName(name()),
+                parentIncludedInRoot,
+                context.getMergeReason()
+            );
+            final String fullPath = context.buildFullName(name());
             final String nestedTypePath;
             if (indexCreatedVersion.before(IndexVersions.V_8_0_0)) {
                 nestedTypePath = "__" + fullPath;
@@ -117,14 +121,14 @@ public class NestedObjectMapper extends ObjectMapper {
 
         final boolean parentIncludedInRoot;
 
-        NestedMapperBuilderContext(String path, boolean parentIncludedInRoot) {
-            super(path);
+        NestedMapperBuilderContext(String path, boolean parentIncludedInRoot, MapperService.MergeReason mergeReason) {
+            super(path, false, false, false, mergeReason);
             this.parentIncludedInRoot = parentIncludedInRoot;
         }
 
         @Override
         public MapperBuilderContext createChildContext(String name) {
-            return new NestedMapperBuilderContext(buildFullName(name), parentIncludedInRoot);
+            return new NestedMapperBuilderContext(buildFullName(name), parentIncludedInRoot, getMergeReason());
         }
     }
 
@@ -222,16 +226,14 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public ObjectMapper merge(Mapper mergeWith, MapperService.MergeReason reason, MapperMergeContext parentMergeContext) {
+    public ObjectMapper merge(Mapper mergeWith, MapperMergeContext parentMergeContext) {
         if ((mergeWith instanceof NestedObjectMapper) == false) {
             MapperErrors.throwNestedMappingConflictError(mergeWith.name());
         }
         NestedObjectMapper mergeWithObject = (NestedObjectMapper) mergeWith;
-        return merge(mergeWithObject, reason, parentMergeContext);
-    }
 
-    ObjectMapper merge(NestedObjectMapper mergeWithObject, MapperService.MergeReason reason, MapperMergeContext parentMergeContext) {
-        var mergeResult = MergeResult.build(this, mergeWithObject, reason, parentMergeContext);
+        final MapperService.MergeReason reason = parentMergeContext.getMapperBuilderContext().getMergeReason();
+        var mergeResult = MergeResult.build(this, mergeWithObject, parentMergeContext);
         Explicit<Boolean> incInParent = this.includeInParent;
         Explicit<Boolean> incInRoot = this.includeInRoot;
         if (reason == MapperService.MergeReason.INDEX_TEMPLATE) {
@@ -280,7 +282,11 @@ public class NestedObjectMapper extends ObjectMapper {
             parentIncludedInRoot |= this.includeInParent.value();
         }
         return mapperMergeContext.createChildContext(
-            new NestedMapperBuilderContext(mapperBuilderContext.buildFullName(name), parentIncludedInRoot)
+            new NestedMapperBuilderContext(
+                mapperBuilderContext.buildFullName(name),
+                parentIncludedInRoot,
+                mapperBuilderContext.getMergeReason()
+            )
         );
     }
 

@@ -1,0 +1,6 @@
+pr: 106885
+summary: "ESQL: Union Types Support (take1)"
+area: ES|QL
+type: feature
+issues:
+ - 100603

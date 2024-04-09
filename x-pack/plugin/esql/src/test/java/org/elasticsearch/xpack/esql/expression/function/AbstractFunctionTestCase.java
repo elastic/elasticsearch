@@ -618,7 +618,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         for (Map.Entry<List<DataType>, DataType> entry : signatures.entrySet()) {
             List<DataType> types = entry.getKey();
             for (int i = 0; i < args.size() && i < types.size(); i++) {
-                typesFromSignature.get(i).add(types.get(i).esType());
+                typesFromSignature.get(i).add(signatureType(types.get(i)));
             }
             returnFromSignature.add(entry.getValue().esType());
         }
@@ -635,6 +635,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Set<String> returnTypes = Arrays.stream(description.returnType()).collect(Collectors.toCollection(() -> new TreeSet<>()));
         assertEquals(returnFromSignature, returnTypes);
 
+    }
+
+    private static String signatureType(DataType type) {
+        return type.esType() != null ? type.esType() : type.typeName();
     }
 
     /**
@@ -894,6 +898,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             ),
             "numeric, date_period or time_duration"
         ),
+        Map.entry(Set.of(DataTypes.DATETIME, DataTypes.NULL), "datetime"),
         Map.entry(Set.of(DataTypes.DOUBLE, DataTypes.NULL), "double"),
         Map.entry(Set.of(DataTypes.INTEGER, DataTypes.NULL), "integer"),
         Map.entry(Set.of(DataTypes.IP, DataTypes.NULL), "ip"),
@@ -983,7 +988,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             Set.of(EsqlDataTypes.CARTESIAN_POINT, EsqlDataTypes.CARTESIAN_SHAPE, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL),
             "cartesian_point or cartesian_shape or string"
         ),
-        Map.entry(Set.of(EsqlDataTypes.GEO_POINT, EsqlDataTypes.CARTESIAN_POINT, DataTypes.NULL), "geo_point or cartesian_point")
+        Map.entry(Set.of(EsqlDataTypes.GEO_POINT, EsqlDataTypes.CARTESIAN_POINT, DataTypes.NULL), "geo_point or cartesian_point"),
+        Map.entry(Set.of(EsqlDataTypes.DATE_PERIOD, EsqlDataTypes.TIME_DURATION, DataTypes.NULL), "dateperiod or timeduration")
     );
 
     // TODO: generate this message dynamically, a la AbstractConvertFunction#supportedTypesNames()?
@@ -1183,6 +1189,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             builder.append("*Examples*\n\n");
         }
         for (Example example : info.examples()) {
+            if (example.description().length() > 0) {
+                builder.append(example.description());
+                builder.append("\n");
+            }
             builder.append("""
                 [source.merge.styled,esql]
                 ----

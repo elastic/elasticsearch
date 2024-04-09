@@ -20,7 +20,7 @@ import java.util.Objects;
  */
 public final class GetPrivilegesResponse extends ActionResponse {
 
-    private ApplicationPrivilegeDescriptor[] privileges;
+    private final ApplicationPrivilegeDescriptor[] privileges;
 
     public GetPrivilegesResponse(ApplicationPrivilegeDescriptor... privileges) {
         this.privileges = Objects.requireNonNull(privileges, "Application privileges cannot be null");

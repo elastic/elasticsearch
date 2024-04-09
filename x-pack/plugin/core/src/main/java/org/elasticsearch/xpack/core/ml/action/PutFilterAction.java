@@ -99,9 +99,7 @@ public class PutFilterAction extends ActionType<PutFilterAction.Response> {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private MlFilter filter;
-
-        Response() {}
+        private final MlFilter filter;
 
         Response(StreamInput in) throws IOException {
             super(in);

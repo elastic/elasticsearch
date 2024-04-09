@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.internal.docs
+package org.elasticsearch.gradle.internal.doc
 
 import spock.lang.Specification
 import spock.lang.TempDir
@@ -15,7 +15,7 @@ import spock.lang.Unroll
 import org.gradle.api.InvalidUserDataException
 import org.gradle.testfixtures.ProjectBuilder
 
-import static org.elasticsearch.gradle.internal.docs.DocSnippetTask.matchSource
+import static org.elasticsearch.gradle.internal.doc.DocSnippetTask.matchSource
 
 class DocSnippetTaskSpec extends Specification {
 

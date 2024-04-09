@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.internal.docs
+package org.elasticsearch.gradle.internal.doc
 
 import spock.lang.Specification
 import spock.lang.TempDir
@@ -14,8 +14,8 @@ import spock.lang.TempDir
 import org.gradle.api.InvalidUserDataException
 import org.gradle.testfixtures.ProjectBuilder
 
-import static org.elasticsearch.gradle.internal.docs.RestTestsFromDocSnippetTask.replaceBlockQuote
-import static org.elasticsearch.gradle.internal.docs.RestTestsFromDocSnippetTask.shouldAddShardFailureCheck
+import static org.elasticsearch.gradle.internal.doc.RestTestsFromDocSnippetTask.replaceBlockQuote
+import static org.elasticsearch.gradle.internal.doc.RestTestsFromDocSnippetTask.shouldAddShardFailureCheck
 
 class RestTestsFromDocSnippetTaskSpec extends Specification {
 

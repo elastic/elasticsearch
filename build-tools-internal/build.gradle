@@ -53,7 +53,7 @@ gradlePlugin {
     }
     docsTest {
       id = 'elasticsearch.docs-test'
-      implementationClass = 'org.elasticsearch.gradle.internal.docs.DocsTestPlugin'
+      implementationClass = 'org.elasticsearch.gradle.internal.doc.DocsTestPlugin'
     }
     draArtifacts {
       id = 'elasticsearch.dra-artifacts'

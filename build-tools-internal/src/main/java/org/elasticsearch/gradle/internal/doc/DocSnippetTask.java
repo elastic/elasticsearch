@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.internal.docs;
+package org.elasticsearch.gradle.internal.doc;
 
 import org.apache.commons.collections.map.HashedMap;
 import org.gradle.api.Action;

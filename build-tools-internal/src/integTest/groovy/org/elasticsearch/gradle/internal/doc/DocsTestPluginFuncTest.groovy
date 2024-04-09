@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.internal.docs
+package org.elasticsearch.gradle.internal.doc
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleInternalPluginFuncTest
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin

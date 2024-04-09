@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.telemetry.metric.Instrument;
@@ -71,13 +72,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
      * List of names that identify Java thread pools that are created in {@link ThreadPool#ThreadPool}.
      */
     public static class Names {
-        /**
-         * Specifies that the task being scheduled should run on the calling thread, not actually a different thread pool.
-         * Often used for quick operations not worth the costs of switching to another thread. Also used to avoid the cost of re-queuing
-         * work while leveraging the same interface for ease of coding. This should not be used on Netty transport threads if the task may
-         * not always complete quickly.
-         */
-        public static final String SAME = "same";
         /**
          * All the tasks that do not relate to the purpose of one of the other thread pools should use this thread pool. Try to pick one of
          * the other more specific thread pools where possible.
@@ -125,9 +119,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     public static final String THREAD_POOL_METRIC_NAME_REJECTED = ".threads.rejected.total";
 
     public enum ThreadPoolType {
+        @Deprecated(forRemoval = true)
+        @UpdateForV9 // no longer used, remove in v9
         DIRECT("direct"),
         FIXED("fixed"),
-        FIXED_AUTO_QUEUE_SIZE("fixed_auto_queue_size"), // TODO: remove in 9.0
+        @Deprecated(forRemoval = true)
+        @UpdateForV9 // no longer used, remove in v9
+        FIXED_AUTO_QUEUE_SIZE("fixed_auto_queue_size"),
         SCALING("scaling");
 
         private final String type;
@@ -153,7 +151,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     }
 
     public static final Map<String, ThreadPoolType> THREAD_POOL_TYPES = Map.ofEntries(
-        entry(Names.SAME, ThreadPoolType.DIRECT),
         entry(Names.GENERIC, ThreadPoolType.SCALING),
         entry(Names.GET, ThreadPoolType.FIXED),
         entry(Names.ANALYZE, ThreadPoolType.FIXED),
@@ -369,16 +366,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             executors.put(entry.getKey(), executorHolder);
         }
 
-        executors.put(Names.SAME, new ExecutorHolder(EsExecutors.DIRECT_EXECUTOR_SERVICE, new Info(Names.SAME, ThreadPoolType.DIRECT)));
         this.executors = Map.copyOf(executors);
         this.executors.forEach((k, v) -> instruments.put(k, setupMetrics(meterRegistry, k, v)));
         this.instruments = instruments;
-        final List<Info> infos = executors.values()
-            .stream()
-            .filter(holder -> holder.info.getName().equals("same") == false)
-            .map(holder -> holder.info)
-            .toList();
-        this.threadPoolInfo = new ThreadPoolInfo(infos);
+        this.threadPoolInfo = new ThreadPoolInfo(executors.values().stream().map(holder -> holder.info).toList());
         this.scheduler = Scheduler.initScheduler(settings, "scheduler");
         this.slowSchedulerWarnThresholdNanos = SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING.get(settings).nanos();
         this.cachedTimeThread = new CachedTimeThread(
@@ -515,10 +506,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         List<ThreadPoolStats.Stats> stats = new ArrayList<>();
         for (ExecutorHolder holder : executors.values()) {
             final String name = holder.info.getName();
-            // no need to have info on "same" thread pool
-            if ("same".equals(name)) {
-                continue;
-            }
             int threads = -1;
             int queue = -1;
             int active = -1;

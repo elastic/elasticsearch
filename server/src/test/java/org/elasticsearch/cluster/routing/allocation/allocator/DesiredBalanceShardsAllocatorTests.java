@@ -710,7 +710,6 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             clusterState = ClusterState.builder(clusterState)
                 .metadata(Metadata.builder(clusterState.metadata()).putCustom(NodesShutdownMetadata.TYPE, nodeShutdownMetadata))
                 .build();
-            ClusterServiceUtils.setState(clusterService, clusterState);
 
             assertTrue(desiredBalanceAllocator.getProcessedNodeShutdowns().isEmpty());
             rerouteAndWait(service, clusterState, "reroute-after-shutdown");
@@ -729,7 +728,6 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                 clusterStateBuilder.nodes(DiscoveryNodes.builder().add(node1).localNodeId(node1.getId()).masterNodeId(node1.getId()));
             }
             clusterState = clusterStateBuilder.build();
-            ClusterServiceUtils.setState(clusterService, clusterState);
             rerouteAndWait(service, clusterState, "random-reroute");
             if (nodeRemovedFromCluster) {
                 assertFalse("desired balance reset should not be called again for processed shutdowns", resetCalled.get());
@@ -743,7 +741,6 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                 clusterState = ClusterState.builder(clusterState)
                     .nodes(DiscoveryNodes.builder().add(node1).localNodeId(node1.getId()).masterNodeId(node1.getId()))
                     .build();
-                ClusterServiceUtils.setState(clusterService, clusterState);
                 rerouteAndWait(service, clusterState, "reroute-after-node-removed");
                 assertFalse("desired balance reset should not be called", resetCalled.get());
                 assertThat(desiredBalanceAllocator.getProcessedNodeShutdowns(), empty());

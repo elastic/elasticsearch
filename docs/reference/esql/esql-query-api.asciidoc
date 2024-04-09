@@ -16,7 +16,8 @@ POST /_query
     | STATS MAX(page_count) BY year
     | SORT year
     | LIMIT 5
-  """
+  """,
+  "version": "2024.04.01.🚀"
 }
 ----
 // TEST[setup:library]

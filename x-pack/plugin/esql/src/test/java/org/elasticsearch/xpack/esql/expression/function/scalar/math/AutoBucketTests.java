@@ -131,10 +131,6 @@ public class AutoBucketTests extends AbstractFunctionTestCase {
         return new TestCaseSupplier.TypedData(v, type, name).forceLiteral();
     }
 
-    private static TestCaseSupplier.TypedData keywordDateLiteral(String name, DataType type, String date) {
-        return new TestCaseSupplier.TypedData(date, type, name).forceLiteral();
-    }
-
     private static Matcher<Object> dateResultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
         if (typedData.get(0).type() == DataTypes.DATETIME) {
             long millis = ((Number) typedData.get(0).data()).longValue();

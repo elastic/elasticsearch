@@ -42,7 +42,7 @@ public class ShrinkAction implements LifecycleAction {
     public static final String NAME = "shrink";
     public static final ParseField NUMBER_OF_SHARDS_FIELD = new ParseField("number_of_shards");
     public static final ParseField MAX_PRIMARY_SHARD_SIZE = new ParseField("max_primary_shard_size");
-    public static final ParseField ALLOW_WRITES_ON_TARGET = new ParseField("allow_writes_on_target");
+    public static final ParseField ALLOW_WRITE_AFTER_SHRINK = new ParseField("allow_write_after_shrink");
     public static final String CONDITIONAL_SKIP_SHRINK_STEP = BranchingStep.NAME + "-check-prerequisites";
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
 
@@ -59,12 +59,12 @@ public class ShrinkAction implements LifecycleAction {
             MAX_PRIMARY_SHARD_SIZE,
             ObjectParser.ValueType.STRING
         );
-        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_WRITES_ON_TARGET);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_WRITE_AFTER_SHRINK);
     }
 
     private Integer numberOfShards;
     private ByteSizeValue maxPrimaryShardSize;
-    private boolean allowWritesOnTarget;
+    private boolean allowWriteAfterShrink;
 
     public static ShrinkAction parse(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
@@ -73,7 +73,7 @@ public class ShrinkAction implements LifecycleAction {
     public ShrinkAction(
         @Nullable Integer numberOfShards,
         @Nullable ByteSizeValue maxPrimaryShardSize,
-        boolean allowWritesOnTarget
+        boolean allowWriteAfterShrink
     ) {
         if (numberOfShards != null && maxPrimaryShardSize != null) {
             throw new IllegalArgumentException("Cannot set both [number_of_shards] and [max_primary_shard_size]");
@@ -92,7 +92,7 @@ public class ShrinkAction implements LifecycleAction {
             }
             this.numberOfShards = numberOfShards;
         }
-        this.allowWritesOnTarget = allowWritesOnTarget;
+        this.allowWriteAfterShrink = allowWriteAfterShrink;
     }
 
     public ShrinkAction(StreamInput in) throws IOException {
@@ -104,9 +104,9 @@ public class ShrinkAction implements LifecycleAction {
             this.maxPrimaryShardSize = ByteSizeValue.readFrom(in);
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.ILM_SHRINK_ENABLE_WRITE)) {
-            this.allowWritesOnTarget = in.readBoolean();
+            this.allowWriteAfterShrink = in.readBoolean();
         } else {
-            this.allowWritesOnTarget = false;
+            this.allowWriteAfterShrink = false;
         }
     }
 
@@ -118,8 +118,8 @@ public class ShrinkAction implements LifecycleAction {
         return maxPrimaryShardSize;
     }
 
-    public Boolean getAllowWritesOnTarget() {
-        return allowWritesOnTarget;
+    public Boolean getAllowWriteAfterShrink() {
+        return allowWriteAfterShrink;
     }
 
     @Override
@@ -132,7 +132,7 @@ public class ShrinkAction implements LifecycleAction {
             maxPrimaryShardSize.writeTo(out);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.ILM_SHRINK_ENABLE_WRITE)) {
-            out.writeBoolean(this.allowWritesOnTarget);
+            out.writeBoolean(this.allowWriteAfterShrink);
         }
     }
 
@@ -150,7 +150,7 @@ public class ShrinkAction implements LifecycleAction {
         if (maxPrimaryShardSize != null) {
             builder.field(MAX_PRIMARY_SHARD_SIZE.getPreferredName(), maxPrimaryShardSize);
         }
-        builder.field(ALLOW_WRITES_ON_TARGET.getPreferredName(), allowWritesOnTarget);
+        builder.field(ALLOW_WRITE_AFTER_SHRINK.getPreferredName(), allowWriteAfterShrink);
         builder.endObject();
         return builder;
     }
@@ -180,7 +180,7 @@ public class ShrinkAction implements LifecycleAction {
         StepKey isShrunkIndexKey = new StepKey(phase, NAME, ShrunkenIndexCheckStep.NAME);
         StepKey replaceDataStreamIndexKey = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
         StepKey deleteIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
-        StepKey allowWritesKey = new StepKey(phase, NAME, AllowWritesStep.NAME);
+        StepKey allowWritesKey = new StepKey(phase, NAME, AllowWriteStep.NAME);
 
         AsyncBranchingStep conditionalSkipShrinkStep = new AsyncBranchingStep(
             preShrinkBranchingKey,
@@ -301,7 +301,7 @@ public class ShrinkAction implements LifecycleAction {
         );
         DeleteStep deleteSourceIndexStep = new DeleteStep(deleteIndexKey, isShrunkIndexKey, client);
         ShrunkenIndexCheckStep waitOnShrinkTakeover = new ShrunkenIndexCheckStep(isShrunkIndexKey, allowWritesKey);
-        AllowWritesStep allowWritesStep = new AllowWritesStep(allowWritesKey, nextStepKey, client, allowWritesOnTarget);
+        AllowWriteStep allowWriteAfterShrinkStep = new AllowWriteStep(allowWritesKey, nextStepKey, client, allowWriteAfterShrink);
 
         return Arrays.asList(
             conditionalSkipShrinkStep,
@@ -322,7 +322,7 @@ public class ShrinkAction implements LifecycleAction {
             waitOnShrinkTakeover,
             replaceDataStreamBackingIndex,
             deleteSourceIndexStep,
-            allowWritesStep
+            allowWriteAfterShrinkStep
         );
     }
 

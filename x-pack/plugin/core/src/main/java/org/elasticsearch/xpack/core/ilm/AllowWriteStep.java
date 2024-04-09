@@ -18,17 +18,17 @@ import java.util.Objects;
 /**
  * Make shrunken index writable, if requested, by removing {@link IndexMetadata.APIBlock#WRITE } block on the index.
  */
-public class AllowWritesStep extends UpdateSettingsStep {
-    public static final String NAME = "allow-writes";
+public class AllowWriteStep extends UpdateSettingsStep {
+    public static final String NAME = "allow-write-after-shrink";
 
     private static final Settings CLEAR_BLOCKS_WRITE_SETTING = Settings.builder()
         .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), (String) null)
         .build();
 
-    private final boolean allowWritesOnTarget;
-    public AllowWritesStep(StepKey key, StepKey nextStepKey, Client client, boolean allowWritesOnTarget) {
+    private final boolean allowWriteAfterShrink;
+    public AllowWriteStep(StepKey key, StepKey nextStepKey, Client client, boolean allowWriteAfterShrink) {
         super(key, nextStepKey, client, CLEAR_BLOCKS_WRITE_SETTING);
-        this.allowWritesOnTarget = allowWritesOnTarget;
+        this.allowWriteAfterShrink = allowWriteAfterShrink;
     }
 
     @Override
@@ -38,7 +38,7 @@ public class AllowWritesStep extends UpdateSettingsStep {
         ClusterStateObserver observer,
         ActionListener<Void> listener
     ) {
-        if (allowWritesOnTarget) {
+        if (allowWriteAfterShrink) {
             super.performAction(indexMetadata, currentState, observer, listener);
         } else {
             listener.onResponse(null);
@@ -50,12 +50,12 @@ public class AllowWritesStep extends UpdateSettingsStep {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
-        AllowWritesStep that = (AllowWritesStep) o;
-        return allowWritesOnTarget == that.allowWritesOnTarget;
+        AllowWriteStep that = (AllowWriteStep) o;
+        return allowWriteAfterShrink == that.allowWriteAfterShrink;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), allowWritesOnTarget);
+        return Objects.hash(super.hashCode(), allowWriteAfterShrink);
     }
 }

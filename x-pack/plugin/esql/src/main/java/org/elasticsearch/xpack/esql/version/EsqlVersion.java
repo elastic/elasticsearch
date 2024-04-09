@@ -21,7 +21,8 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
      * Breaking changes go here until the next version is released.
      */
     SNAPSHOT(Integer.MAX_VALUE, 12, 99, "📷", Set.of(BehaviorFlag.MV_MEDIAN_RETURNS_DOUBLE)),
-    ROCKET(2024, 4, "🚀", Set.of());
+    ROCKET(2024, 4, "🚀", Set.of()),
+    FIRE(2024, 5, "🔥", Set.of(BehaviorFlag.MV_MEDIAN_RETURNS_DOUBLE));
 
     static final Map<String, EsqlVersion> VERSION_MAP_WITH_AND_WITHOUT_EMOJI = versionMapWithAndWithoutEmoji();
 

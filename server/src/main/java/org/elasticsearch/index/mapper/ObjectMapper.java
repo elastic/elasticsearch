@@ -515,7 +515,7 @@ public class ObjectMapper extends Mapper {
                 subObjects = existing.subobjects;
             }
             MapperMergeContext objectMergeContext = existing.createChildContext(parentMergeContext, existing.simpleName());
-            Map<String, Mapper> mergedMappers = buildMergedMappers(existing, mergeWithObject, objectMergeContext, subObjects.value());
+            Map<String, Mapper> mergedMappers = buildMergedMappers(existing, mergeWithObject, objectMergeContext);
             return new MergeResult(
                 enabled,
                 subObjects,
@@ -527,8 +527,7 @@ public class ObjectMapper extends Mapper {
         private static Map<String, Mapper> buildMergedMappers(
             ObjectMapper existing,
             ObjectMapper mergeWithObject,
-            MapperMergeContext objectMergeContext,
-            boolean subobjects
+            MapperMergeContext objectMergeContext
         ) {
             Iterator<Mapper> iterator = mergeWithObject.iterator();
             if (iterator.hasNext() == false) {

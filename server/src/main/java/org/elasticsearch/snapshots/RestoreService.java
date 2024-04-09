@@ -388,21 +388,31 @@ public final class RestoreService implements ClusterStateApplier {
         // Remove the data streams from the list of requested indices
         requestIndices.removeAll(dataStreamsToRestore.keySet());
 
-        // And add the backing indices
-        final Set<String> nonSystemDataStreamIndices;
-        final Set<String> systemDataStreamIndices;
+        // And add the backing indices and failure indices of data streams (the distinction is important for renaming)
+        final DataStreamIndices nonSystemDataStreamIndices;
+        final DataStreamIndices systemDataStreamIndices;
         {
-            Map<Boolean, Set<String>> dataStreamIndices = dataStreamsToRestore.values()
+            Map<Boolean, Set<String>> backingIndices = dataStreamsToRestore.values()
                 .stream()
                 .flatMap(ds -> ds.getIndices().stream().map(idx -> new Tuple<>(ds.isSystem(), idx.getName())))
                 .collect(Collectors.partitioningBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toSet())));
-            systemDataStreamIndices = dataStreamIndices.get(true);
-            nonSystemDataStreamIndices = dataStreamIndices.get(false);
+            Map<Boolean, Set<String>> failureIndices = Map.of();
+            if (DataStream.isFailureStoreEnabled()) {
+                failureIndices = dataStreamsToRestore.values()
+                    .stream()
+                    .flatMap(ds -> ds.getFailureIndices().stream().map(idx -> new Tuple<>(ds.isSystem(), idx.getName())))
+                    .collect(Collectors.partitioningBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toSet())));
+            }
+            systemDataStreamIndices = new DataStreamIndices(backingIndices.get(true), failureIndices.get(true));
+            nonSystemDataStreamIndices = new DataStreamIndices(backingIndices.get(false), failureIndices.get(false));
         }
-        requestIndices.addAll(nonSystemDataStreamIndices);
-        final Set<String> allSystemIndicesToRestore = Stream.of(systemDataStreamIndices, featureStateIndices)
-            .flatMap(Collection::stream)
-            .collect(Collectors.toSet());
+        requestIndices.addAll(nonSystemDataStreamIndices.backingIndices());
+        requestIndices.addAll(nonSystemDataStreamIndices.failureIndices());
+        final Set<String> allSystemIndicesToRestore = Stream.of(
+            systemDataStreamIndices.backingIndices(),
+            systemDataStreamIndices.failureIndices(),
+            featureStateIndices
+        ).flatMap(Collection::stream).collect(Collectors.toSet());
 
         // Strip system indices out of the list of "available" indices - these should only come from feature states.
         List<String> availableNonSystemIndices;
@@ -441,7 +451,8 @@ public final class RestoreService implements ClusterStateApplier {
         final List<String> requestedIndicesIncludingSystem = Stream.of(
             requestedIndicesInSnapshot,
             featureStateIndices,
-            systemDataStreamIndices
+            systemDataStreamIndices.backingIndices(),
+            systemDataStreamIndices.failureIndices()
         ).flatMap(Collection::stream).distinct().toList();
 
         final Set<String> explicitlyRequestedSystemIndices = new HashSet<>();
@@ -555,7 +566,7 @@ public final class RestoreService implements ClusterStateApplier {
         List<String> requestedDataStreams = filterIndices(
             snapshotInfo.dataStreams(),
             Stream.of(requestIndices, featureStateDataStreams).flatMap(Collection::stream).toArray(String[]::new),
-            IndicesOptions.fromOptions(true, true, true, true)
+            DataStream.isFailureStoreEnabled() ? IndicesOptions.lenientExpandIncludeFailureStore() : IndicesOptions.lenientExpand()
         );
         if (requestedDataStreams.isEmpty()) {
             dataStreams = Map.of();
@@ -702,8 +713,11 @@ public final class RestoreService implements ClusterStateApplier {
         }
         List<Index> updatedIndices = dataStream.getIndices()
             .stream()
-            .map(i -> metadata.get(renameIndex(i.getName(), request, true)).getIndex())
+            .map(i -> metadata.get(renameBackingIndex(i.getName(), request)).getIndex())
             .toList();
+        List<Index> updatedFailureIndices = DataStream.isFailureStoreEnabled()
+            ? dataStream.getFailureIndices().stream().map(i -> metadata.get(renameFailureIndex(i.getName(), request)).getIndex()).toList()
+            : List.of();
         return new DataStream(
             dataStreamName,
             updatedIndices,
@@ -715,8 +729,8 @@ public final class RestoreService implements ClusterStateApplier {
             dataStream.isAllowCustomRouting(),
             dataStream.getIndexMode(),
             dataStream.getLifecycle(),
-            dataStream.isFailureStore(),
-            dataStream.getFailureIndices(),
+            DataStream.isFailureStoreEnabled() && dataStream.isFailureStore(),
+            updatedFailureIndices,
             dataStream.rolloverOnWrite(),
             dataStream.getAutoShardingEvent()
         );
@@ -915,7 +929,7 @@ public final class RestoreService implements ClusterStateApplier {
     private static Map<String, IndexId> renamedIndices(
         RestoreSnapshotRequest request,
         List<String> filteredIndices,
-        Set<String> dataStreamIndices,
+        DataStreamIndices dataStreamIndices,
         Set<String> featureIndices,
         RepositoryData repositoryData
     ) {
@@ -926,7 +940,7 @@ public final class RestoreService implements ClusterStateApplier {
                 // Don't rename system indices
                 renamedIndex = index;
             } else {
-                renamedIndex = renameIndex(index, request, dataStreamIndices.contains(index));
+                renamedIndex = renameIndex(index, request, dataStreamIndices);
             }
             IndexId previousIndex = renamedIndices.put(renamedIndex, repositoryData.resolveIndexId(index));
             if (previousIndex != null) {
@@ -940,17 +954,41 @@ public final class RestoreService implements ClusterStateApplier {
         return Collections.unmodifiableMap(renamedIndices);
     }
 
-    private static String renameIndex(String index, RestoreSnapshotRequest request, boolean partOfDataStream) {
-        String renamedIndex = index;
-        if (request.renameReplacement() != null && request.renamePattern() != null) {
-            partOfDataStream = partOfDataStream && index.startsWith(DataStream.BACKING_INDEX_PREFIX);
-            if (partOfDataStream) {
-                index = index.substring(DataStream.BACKING_INDEX_PREFIX.length());
-            }
-            renamedIndex = index.replaceAll(request.renamePattern(), request.renameReplacement());
-            if (partOfDataStream) {
-                renamedIndex = DataStream.BACKING_INDEX_PREFIX + renamedIndex;
-            }
+    private static String renameIndex(String index, RestoreSnapshotRequest request, DataStreamIndices dataStreamIndices) {
+        if (request.renameReplacement() == null || request.renamePattern() == null) {
+            return index;
+        }
+        if (dataStreamIndices.isBackingIndex(index)) {
+            return renameBackingIndex(index, request);
+        } else if (dataStreamIndices.isFailureStore(index)) {
+            return renameFailureIndex(index, request);
+        }
+        return renameIndex(index, request, (String) null);
+    }
+
+    private static String renameBackingIndex(String index, RestoreSnapshotRequest request) {
+        if (request.renameReplacement() == null || request.renamePattern() == null) {
+            return index;
+        }
+        return renameIndex(index, request, DataStream.BACKING_INDEX_PREFIX);
+    }
+
+    private static String renameFailureIndex(String index, RestoreSnapshotRequest request) {
+        if (request.renameReplacement() == null || request.renamePattern() == null) {
+            return index;
+        }
+        return renameIndex(index, request, DataStream.FAILURE_STORE_PREFIX);
+    }
+
+    private static String renameIndex(String index, RestoreSnapshotRequest request, String prefix) {
+        String renamedIndex;
+        boolean withPrefix = prefix != null && index.startsWith(prefix);
+        if (withPrefix) {
+            index = index.substring(prefix.length());
+        }
+        renamedIndex = index.replaceAll(request.renamePattern(), request.renameReplacement());
+        if (withPrefix) {
+            renamedIndex = prefix + renamedIndex;
         }
         return renamedIndex;
     }
@@ -1822,6 +1860,21 @@ public final class RestoreService implements ClusterStateApplier {
             return Objects.equals(repositoryUuid, otherRepositoryUuid);
         } else {
             return Objects.equals(repositoryName, otherRepositoryName);
+        }
+    }
+
+    /**
+     * This record keeps track of data stream related indices, it distinguishes them to
+     * backing and failure indices. Tracking these indices is useful during data stream
+     * restoration and renaming.
+     */
+    record DataStreamIndices(Set<String> backingIndices, Set<String> failureIndices) {
+        boolean isBackingIndex(String index) {
+            return backingIndices.contains(index);
+        }
+
+        boolean isFailureStore(String index) {
+            return failureIndices.contains(index);
         }
     }
 }

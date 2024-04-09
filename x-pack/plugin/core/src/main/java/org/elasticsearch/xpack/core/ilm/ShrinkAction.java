@@ -99,11 +99,7 @@ public class ShrinkAction implements LifecycleAction {
             this.numberOfShards = null;
             this.maxPrimaryShardSize = ByteSizeValue.readFrom(in);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ILM_SHRINK_ENABLE_WRITE)) {
-            this.allowWriteAfterShrink = in.readBoolean();
-        } else {
-            this.allowWriteAfterShrink = false;
-        }
+        this.allowWriteAfterShrink = in.getTransportVersion().onOrAfter(TransportVersions.ILM_SHRINK_ENABLE_WRITE) && in.readBoolean();
     }
 
     public Integer getNumberOfShards() {
@@ -114,7 +110,7 @@ public class ShrinkAction implements LifecycleAction {
         return maxPrimaryShardSize;
     }
 
-    public Boolean getAllowWriteAfterShrink() {
+    public boolean getAllowWriteAfterShrink() {
         return allowWriteAfterShrink;
     }
 

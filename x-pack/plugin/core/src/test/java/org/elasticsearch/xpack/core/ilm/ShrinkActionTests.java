@@ -74,12 +74,19 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
 
     @Override
     protected ShrinkAction mutateInstance(ShrinkAction action) {
-        boolean allowWriteAfterShrink = action.getAllowWriteAfterShrink() == false;
-        if (action.getNumberOfShards() != null) {
-            return new ShrinkAction(action.getNumberOfShards() + randomIntBetween(1, 2), null, allowWriteAfterShrink);
-        } else {
-            return new ShrinkAction(null, ByteSizeValue.ofBytes(action.getMaxPrimaryShardSize().getBytes() + 1), allowWriteAfterShrink);
+        Integer numberOfShards = action.getNumberOfShards();
+        ByteSizeValue maxPrimaryShardSize = action.getMaxPrimaryShardSize();
+        boolean allowWriteAfterShrink = action.getAllowWriteAfterShrink();
+
+        switch (randomInt(2)) {
+            case 0 -> numberOfShards = randomValueOtherThan(numberOfShards, () -> randomBoolean() ? null : randomIntBetween(1, 100));
+            case 1 -> maxPrimaryShardSize = randomValueOtherThan(
+                maxPrimaryShardSize,
+                () -> randomBoolean() ? null : ByteSizeValue.ofBytes(randomIntBetween(1, 100))
+            );
+            case 2 -> allowWriteAfterShrink = allowWriteAfterShrink == false;
         }
+        return new ShrinkAction(numberOfShards, maxPrimaryShardSize, allowWriteAfterShrink);
     }
 
     @Override

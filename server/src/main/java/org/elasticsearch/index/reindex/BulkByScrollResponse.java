@@ -30,10 +30,10 @@ import static org.elasticsearch.core.TimeValue.timeValueNanos;
  * Response used for actions that index many documents using a scroll request.
  */
 public class BulkByScrollResponse extends ActionResponse implements ToXContentFragment {
-    private TimeValue took;
-    private BulkByScrollTask.Status status;
-    private List<Failure> bulkFailures;
-    private List<ScrollableHitSource.SearchFailure> searchFailures;
+    private final TimeValue took;
+    private final BulkByScrollTask.Status status;
+    private final List<Failure> bulkFailures;
+    private final List<ScrollableHitSource.SearchFailure> searchFailures;
     private boolean timedOut;
 
     static final String TOOK_FIELD = "took";

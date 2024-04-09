@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.InferenceResults;
@@ -32,6 +33,10 @@ public class RankedDocsResults implements InferenceServiceResults {
         this.rankedDocs = rankedDocs;
     }
 
+    public RankedDocsResults(StreamInput in) throws IOException {
+        this(in.readCollectionAsList(RankedDoc::new));
+    }
+
     /**
      * A record representing a document that has been ranked by the cohere rerank API
      * @param index the index of the document when it was passed to the cohere rerank API
@@ -44,6 +49,10 @@ public class RankedDocsResults implements InferenceServiceResults {
         public static final String INDEX = "index";
         public static final String RELEVANCE_SCORE = "relevance_score";
         public static final String TEXT = "text";
+
+        public RankedDoc(StreamInput in) throws IOException {
+            this(in.readString(), in.readString(), in.readString());
+        }
 
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();

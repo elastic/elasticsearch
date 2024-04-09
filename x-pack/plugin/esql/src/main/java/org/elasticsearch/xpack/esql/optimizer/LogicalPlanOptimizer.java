@@ -31,8 +31,8 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.esql.type.MultiTypeEsField;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.common.Failures;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunctio
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight;
@@ -566,9 +567,10 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         @Override
         protected LogicalPlan rule(Eval eval) {
             HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
+            HashMap<MultiTypeEsField.UnresolvedField, MultiTypeEsField> expressionMap = new HashMap<>();
             LogicalPlan plan = eval.transformExpressionsOnly(Alias.class, field -> {
                 if (field.child() instanceof AbstractConvertFunction convert) {
-                    return field.replaceChild(resolveConvertFunction(convert, typeResolutions));
+                    return field.replaceChild(resolveConvertFunction(convert, typeResolutions, expressionMap));
                 }
                 return field;
             });
@@ -576,48 +578,64 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 return plan;
             }
             plan = plan.transformDown(EsRelation.class, esRelation -> {
-                var relation = esRelation.transformExpressionsOnly(FieldAttribute.class, fa -> {
-                    if (fa.field() instanceof EsqlIndexResolver.MultiTypeField mtf) {
-                        Map<String, Expression> typesToConversionExpressions = new HashMap<>();
-                        mtf.getTypesToIndices().forEach((typeName, indexNames) -> {
-                            DataType type = DataTypes.fromTypeName(typeName);
-                            TypeResolutionKey key = new TypeResolutionKey(fa.name(), type);
-                            if (typeResolutions.containsKey(key)) {
-                                typesToConversionExpressions.put(typeName, typeResolutions.get(key));
-                            }
-                        });
-                        var resolved = new EsqlIndexResolver.ResolvedMultiTypeField(mtf, typesToConversionExpressions);
-                        var nfa = fieldAttribute(fa.source(), fa.name(), resolved, fa.id());
-                        return nfa;
-                    }
-                    return fa;
-                });
+                EsIndex index = esRelation.index();
+                index.mapping()
+                    .replaceAll((name, field) -> (field instanceof MultiTypeEsField.UnresolvedField mtf) ? expressionMap.get(mtf) : field);
+                var relation = esRelation.transformExpressionsOnly(
+                    FieldAttribute.class,
+                    fa -> (fa.field() instanceof MultiTypeEsField.UnresolvedField mtf)
+                        ? fieldAttribute(fa.source(), fa.name(), expressionMap.get(mtf), fa.id())
+                        : fa
+                );
                 return relation;
             });
             return plan;
         }
 
-        private Expression resolveConvertFunction(AbstractConvertFunction convert, HashMap<TypeResolutionKey, Expression> typeResolutions) {
-            if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof EsqlIndexResolver.MultiTypeField mtf) {
+        private Expression resolveConvertFunction(
+            AbstractConvertFunction convert,
+            HashMap<TypeResolutionKey, Expression> typeResolutions,
+            HashMap<MultiTypeEsField.UnresolvedField, MultiTypeEsField> expressionMap
+        ) {
+            if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField.UnresolvedField mtf) {
                 mtf.getTypesToIndices().keySet().forEach(typeName -> {
                     DataType type = DataTypes.fromTypeName(typeName);
                     TypeResolutionKey key = new TypeResolutionKey(fa.name(), type);
                     var concreteConvert = typeSpecificConvert(convert, fa.source(), type, mtf);
                     typeResolutions.put(key, concreteConvert);
                 });
+                // Add to map of unresolved to resolved expressions, so we can edit the plan to make it serializable
+                expressionMap.put(mtf, resolvedMultiTypeEsField(mtf, typeResolutions));
                 // Resolving the incoming field type as the converted type
                 return typeSpecificConvert(convert, fa.source(), convert.dataType(), mtf);
             } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
-                return convert.replaceChildren(Collections.singletonList(resolveConvertFunction(subConvert, typeResolutions)));
+                return convert.replaceChildren(
+                    Collections.singletonList(resolveConvertFunction(subConvert, typeResolutions, expressionMap))
+                );
             }
             return convert;
+        }
+
+        private MultiTypeEsField resolvedMultiTypeEsField(
+            MultiTypeEsField.UnresolvedField mtf,
+            HashMap<TypeResolutionKey, Expression> typeResolutions
+        ) {
+            Map<String, Expression> typesToConversionExpressions = new HashMap<>();
+            mtf.getTypesToIndices().forEach((typeName, indexNames) -> {
+                DataType type = DataTypes.fromTypeName(typeName);
+                TypeResolutionKey key = new TypeResolutionKey(mtf.getName(), type);
+                if (typeResolutions.containsKey(key)) {
+                    typesToConversionExpressions.put(typeName, typeResolutions.get(key));
+                }
+            });
+            return mtf.resolve(typesToConversionExpressions);
         }
 
         private Expression typeSpecificConvert(
             AbstractConvertFunction convert,
             Source source,
             DataType type,
-            EsqlIndexResolver.MultiTypeField mtf
+            MultiTypeEsField.UnresolvedField mtf
         ) {
             EsField resolvedField = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable());
             FieldAttribute resolvedAttr = fieldAttribute(source, mtf.getName(), resolvedField, ((FieldAttribute) convert.field()).id());

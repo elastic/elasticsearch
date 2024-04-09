@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
+import org.elasticsearch.xpack.esql.type.MultiTypeEsField;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -20,14 +20,9 @@ import java.util.Objects;
 
 public class EsUnionTypesQueryExec extends EsQueryExec {
 
-    private final EsqlIndexResolver.ResolvedMultiTypeField multiTypeField;
+    private final MultiTypeEsField multiTypeField;
 
-    public EsUnionTypesQueryExec(
-        Source source,
-        EsIndex index,
-        QueryBuilder query,
-        EsqlIndexResolver.ResolvedMultiTypeField multiTypeField
-    ) {
+    public EsUnionTypesQueryExec(Source source, EsIndex index, QueryBuilder query, MultiTypeEsField multiTypeField) {
         super(source, index, query);
         this.multiTypeField = multiTypeField;
     }
@@ -40,7 +35,7 @@ public class EsUnionTypesQueryExec extends EsQueryExec {
         Expression limit,
         List<FieldSort> sorts,
         Integer estimatedRowSize,
-        EsqlIndexResolver.ResolvedMultiTypeField multiTypeField
+        MultiTypeEsField multiTypeField
     ) {
         super(source, index, attrs, query, limit, sorts, estimatedRowSize);
         this.multiTypeField = multiTypeField;
@@ -91,7 +86,7 @@ public class EsUnionTypesQueryExec extends EsQueryExec {
             : new EsUnionTypesQueryExec(source(), index(), attrs(), query(), limit(), sorts, estimatedRowSize(), multiTypeField);
     }
 
-    public EsqlIndexResolver.ResolvedMultiTypeField multiTypeField() {
+    public MultiTypeEsField multiTypeField() {
         return multiTypeField;
     }
 }

@@ -56,8 +56,8 @@ import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallelism;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
-import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.esql.type.MultiTypeEsField;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -115,50 +115,44 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         var docValuesAttrs = fieldExtractExec.docValuesAttributes();
         var unionTypes = findUnionTypes(fieldExtractExec);
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
-            String fieldName = attr.name();
-            MappedFieldType.FieldExtractPreference fieldExtractPreference = PlannerUtils.extractPreference(docValuesAttrs.contains(attr));
             layout.append(attr);
-            if (unionTypes != null && unionTypes.getName().equals(fieldName)) {
-                DataType dataType = unionTypes.getDataType();
-                ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
-                boolean isSupported = EsqlDataTypes.isUnsupported(dataType);
-                for (String typeName : unionTypes.getTypesToIndices().keySet()) {
-                    // TODO: plan a type conversion into the block loader from each source type to the target type
-                }
-                IntFunction<BlockLoader> loader = s -> getBlockLoaderFor(s, fieldName, isSupported, fieldExtractPreference, unionTypes);
-                fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, loader));
-            } else {
-                DataType dataType = attr.dataType();
-                ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
-                boolean isSupported = EsqlDataTypes.isUnsupported(dataType);
-                IntFunction<BlockLoader> loader = s -> shardContexts.get(s).blockLoader(fieldName, isSupported, fieldExtractPreference);
-                fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, loader));
-            }
+            DataType dataType = dataTypeFor(attr, unionTypes);
+            MappedFieldType.FieldExtractPreference fieldExtractPreference = PlannerUtils.extractPreference(docValuesAttrs.contains(attr));
+            ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
+            String fieldName = attr.name();
+            boolean isSupported = EsqlDataTypes.isUnsupported(dataType);
+            IntFunction<BlockLoader> loader = s -> getBlockLoaderFor(s, fieldName, isSupported, fieldExtractPreference, unionTypes);
+            fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, loader));
         }
         return source.with(new ValuesSourceReaderOperator.Factory(fields, readers, docChannel), layout.build());
     }
 
-    BlockLoader getBlockLoaderFor(
+    private DataType dataTypeFor(Attribute attr, MultiTypeEsField unionTypes) {
+        if (unionTypes != null && unionTypes.getName().equals(attr.name())) {
+            return unionTypes.getDataType();
+        }
+        return attr.dataType();
+    }
+
+    private BlockLoader getBlockLoaderFor(
         int shardId,
         String fieldName,
         boolean isSupported,
         MappedFieldType.FieldExtractPreference fieldExtractPreference,
-        EsqlIndexResolver.ResolvedMultiTypeField unionTypes
+        MultiTypeEsField unionTypes
     ) {
         DefaultShardContext shardContext = (DefaultShardContext) shardContexts.get(shardId);
         if (unionTypes != null && unionTypes.getName().equals(fieldName)) {
             String indexName = shardContext.ctx.index().getName();
-            DataType type = unionTypes.typeFromIndex(indexName);
-            Expression conversion = unionTypes.getTypesToConversionExpressions().get(type.typeName());
-            // TODO get converter from unionTypes to type
+            Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
             var typeConvertingShardContext = new TypeConvertingShardContext(shardContext, (AbstractConvertFunction) conversion);
             return typeConvertingShardContext.blockLoader(fieldName, isSupported, fieldExtractPreference);
         }
         return shardContext.blockLoader(fieldName, isSupported, fieldExtractPreference);
     }
 
-    private EsqlIndexResolver.ResolvedMultiTypeField findUnionTypes(FieldExtractExec fieldExtractExec) {
-        Set<EsqlIndexResolver.ResolvedMultiTypeField> found = new HashSet<>();
+    private MultiTypeEsField findUnionTypes(FieldExtractExec fieldExtractExec) {
+        Set<MultiTypeEsField> found = new HashSet<>();
         fieldExtractExec.forEachDown(EsQueryExec.class, esQueryExec -> {
             if (esQueryExec instanceof EsUnionTypesQueryExec esUnionTypesQueryExec) {
                 var multiTypeField = esUnionTypesQueryExec.multiTypeField();

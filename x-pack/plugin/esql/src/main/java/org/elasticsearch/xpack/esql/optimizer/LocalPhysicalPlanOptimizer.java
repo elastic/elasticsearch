@@ -36,8 +36,8 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.EsqlTranslatorHandler;
-import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.elasticsearch.xpack.esql.type.MultiTypeEsField;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -155,10 +155,10 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             }
         }
 
-        static EsqlIndexResolver.ResolvedMultiTypeField findUnionTypes(EsSourceExec p) {
-            HashSet<EsqlIndexResolver.ResolvedMultiTypeField> found = new HashSet<>();
+        static MultiTypeEsField findUnionTypes(EsSourceExec p) {
+            HashSet<MultiTypeEsField> found = new HashSet<>();
             for (Attribute at : p.output()) {
-                if (at instanceof FieldAttribute fa && fa.field() instanceof EsqlIndexResolver.ResolvedMultiTypeField mft) {
+                if (at instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField mft) {
                     found.add(mft);
                 }
             }

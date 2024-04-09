@@ -21,8 +21,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.esql.type.MultiTypeEsField;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
@@ -79,6 +79,9 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
 
     /**
      * This alternative to the TypeResolution.isType method allows for a union type (collection of supported types).
+     * If any of the types in the MultiTypeEsField.UnresolvedField are supported by the function, the function is considered
+     * as supporting the field. Later the physical plan will resolve the actual type to use by performing a type conversion
+     * during field extraction.
      */
     public static TypeResolution isType(
         Expression e,
@@ -87,7 +90,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
         TypeResolutions.ParamOrdinal paramOrd,
         String... acceptedTypes
     ) {
-        if (e instanceof FieldAttribute fe && fe.field() instanceof EsqlIndexResolver.MultiTypeField mtf) {
+        if (e instanceof FieldAttribute fe && fe.field() instanceof MultiTypeEsField.UnresolvedField mtf) {
             for (String typeName : mtf.getTypesToIndices().keySet()) {
                 DataType type = DataTypes.fromTypeName(typeName);
                 if (predicate.test(type)) {

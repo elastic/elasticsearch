@@ -44,7 +44,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -57,7 +56,9 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableMap;
+import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 
@@ -182,9 +183,36 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
     }
 
     public static Set<String> parseFileForRoleNames(Path path, Logger logger) {
-        // EMPTY & default role validator are safe here because we never use namedObject as we are just parsing role names
-        return parseRoleDescriptors(path, logger, false, Settings.EMPTY, new FileRoleValidator.Default(), NamedXContentRegistry.EMPTY)
-            .keySet();
+        if (logger == null) {
+            logger = NoOpLogger.INSTANCE;
+        }
+
+        Map<String, RoleDescriptor> roles = new HashMap<>();
+        logger.trace("attempting to read roles file located at [{}]", path.toAbsolutePath());
+        if (Files.exists(path)) {
+            try {
+                List<String> roleSegments = roleSegments(path);
+                for (String segment : roleSegments) {
+                    RoleDescriptor rd = parseRoleDescriptor(
+                        segment,
+                        path,
+                        logger,
+                        false,
+                        Settings.EMPTY,
+                        NamedXContentRegistry.EMPTY,
+                        new FileRoleValidator.Default()
+                    );
+                    if (rd != null) {
+                        roles.put(rd.getName(), rd);
+                    }
+                }
+            } catch (IOException ioe) {
+                logger.error(() -> format("failed to read roles file [%s]. skipping all roles...", path.toAbsolutePath()), ioe);
+                return emptySet();
+            }
+        }
+        return unmodifiableSet(roles.keySet());
+
     }
 
     public static Map<String, RoleDescriptor> parseFile(
@@ -237,45 +265,6 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         }
 
         logger.info("parsed [{}] roles from file [{}]", roles.size(), path.toAbsolutePath());
-        return unmodifiableMap(roles);
-    }
-
-    private static Map<String, RoleDescriptor> parseRoleDescriptors(
-        Path path,
-        Logger logger,
-        boolean resolvePermission,
-        Settings settings,
-        FileRoleValidator roleValidator,
-        NamedXContentRegistry xContentRegistry
-    ) {
-        if (logger == null) {
-            logger = NoOpLogger.INSTANCE;
-        }
-
-        Map<String, RoleDescriptor> roles = new HashMap<>();
-        logger.trace("attempting to read roles file located at [{}]", path.toAbsolutePath());
-        if (Files.exists(path)) {
-            try {
-                List<String> roleSegments = roleSegments(path);
-                for (String segment : roleSegments) {
-                    RoleDescriptor rd = parseRoleDescriptor(
-                        segment,
-                        path,
-                        logger,
-                        resolvePermission,
-                        settings,
-                        xContentRegistry,
-                        roleValidator
-                    );
-                    if (rd != null) {
-                        roles.put(rd.getName(), rd);
-                    }
-                }
-            } catch (IOException ioe) {
-                logger.error(() -> format("failed to read roles file [%s]. skipping all roles...", path.toAbsolutePath()), ioe);
-                return emptyMap();
-            }
-        }
         return unmodifiableMap(roles);
     }
 
@@ -443,7 +432,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                     .map(Map.Entry::getKey)
                     .collect(Collectors.toSet());
                 final Set<String> addedRoles = Sets.difference(permissions.keySet(), previousPermissions.keySet());
-                final Set<String> changedRoles = Collections.unmodifiableSet(Sets.union(changedOrMissingRoles, addedRoles));
+                final Set<String> changedRoles = unmodifiableSet(Sets.union(changedOrMissingRoles, addedRoles));
                 if (changedRoles.isEmpty() == false) {
                     logger.info("updated roles (roles file [{}] {})", file.toAbsolutePath(), Files.exists(file) ? "changed" : "removed");
                     listeners.forEach(c -> c.accept(changedRoles));

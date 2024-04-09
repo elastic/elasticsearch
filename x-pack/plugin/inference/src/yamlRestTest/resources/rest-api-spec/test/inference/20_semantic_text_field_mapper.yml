@@ -103,8 +103,11 @@ setup:
     - match: { hits.total.value: 2 }
     - match: { hits.total.relation: eq }
     - match: { hits.hits.0.inner_hits.dense_field\.inference\.chunks.hits.total.value: 2 }
-    - exists:  hits.hits.0.inner_hits.dense_field\.inference\.chunks.hits.hits.0.fields.dense_field\.inference\.chunks.0.text
-    - exists:  hits.hits.0.inner_hits.dense_field\.inference\.chunks.hits.hits.1.fields.dense_field\.inference\.chunks.0.text
+    - match: { hits.hits.0.inner_hits.dense_field\.inference\.chunks.hits.hits.0.fields.dense_field\.inference\.chunks.0.text: ["you know, for testing"] }
+    - match: { hits.hits.0.inner_hits.dense_field\.inference\.chunks.hits.hits.1.fields.dense_field\.inference\.chunks.0.text: ["now with chunks"] }
+    - match: { hits.hits.1.inner_hits.dense_field\.inference\.chunks.hits.total.value: 2 }
+    - match: { hits.hits.1.inner_hits.dense_field\.inference\.chunks.hits.hits.0.fields.dense_field\.inference\.chunks.0.text: ["some more tests"] }
+    - match: { hits.hits.1.inner_hits.dense_field\.inference\.chunks.hits.hits.1.fields.dense_field\.inference\.chunks.0.text: ["that include chunks"] }
 
 
 ---
@@ -153,7 +156,10 @@ setup:
     - match: { hits.total.value: 2 }
     - match: { hits.total.relation: eq }
     - match: { hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.total.value: 2 }
-    - exists:  hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.hits.0.fields.sparse_field\.inference\.chunks.0.text
-    - exists:  hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.hits.1.fields.sparse_field\.inference\.chunks.0.text
+    - match: { hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.hits.0.fields.sparse_field\.inference\.chunks.0.text: ["you know, for testing"] }
+    - match: { hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.hits.1.fields.sparse_field\.inference\.chunks.0.text: ["now with chunks"] }
+    - match: { hits.hits.1.inner_hits.sparse_field\.inference\.chunks.hits.total.value: 2 }
+    - match: { hits.hits.1.inner_hits.sparse_field\.inference\.chunks.hits.hits.0.fields.sparse_field\.inference\.chunks.0.text: ["some more tests"] }
+    - match: { hits.hits.1.inner_hits.sparse_field\.inference\.chunks.hits.hits.1.fields.sparse_field\.inference\.chunks.0.text: ["that include chunks"] }
 
 

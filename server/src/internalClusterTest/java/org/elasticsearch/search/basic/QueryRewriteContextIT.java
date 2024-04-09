@@ -41,8 +41,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -121,11 +123,19 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
     }
 
     public void testIndexMetadataMap_TransportExplainAction() {
-        final String index = "test";
-        createIndex(index);
-        assertAcked(indicesAdmin().prepareAliases().addAlias(index, "alias"));
-        assertIndexMetadataMapSet(client().prepareExplain(index, "1"), Set.of(index), r -> {});
-        assertIndexMetadataMapSet(client().prepareExplain("alias", "1"), Set.of(index), r -> {});
+        final String[] indices = { "test1", "test2" };
+        createIndex(indices);
+        assertAcked(indicesAdmin().prepareAliases().addAlias("test1", "alias1"));
+        assertAcked(indicesAdmin().prepareAliases().addAlias(indices, "alias2"));
+
+        assertIndexMetadataMapSet(client().prepareExplain("test1", "1"), Set.of("test1"), r -> {});
+        assertIndexMetadataMapSet(client().prepareExplain("alias1", "1"), Set.of("test1"), r -> {});
+        assertIndexMetadataMapException(
+            client().prepareExplain("alias2", "1"),
+            IllegalArgumentException.class,
+            "alias [alias2] has more than one index associated with it [test1, test2], can't execute a single index op",
+            RestStatus.BAD_REQUEST
+        );
     }
 
     public void testIndexMetadataMap_TransportValidateQueryAction() {
@@ -165,17 +175,51 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
             }
         };
 
+        setQuery(requestBuilder, testQueryBuilder);
+        assertResponse(requestBuilder, responseAssertions);
+        assertThat(gotQueryRewriteContext.get(), is(true));
+    }
+
+    private static <Request extends ActionRequest, Response extends ActionResponse> void assertIndexMetadataMapException(
+        ActionRequestBuilder<Request, Response> requestBuilder,
+        Class<? extends Exception> expectedExceptionClass,
+        String expectedExceptionMessage,
+        RestStatus expectedRestStatus
+    ) {
+        TestQueryBuilder testQueryBuilder = new TestQueryBuilder() {
+            @Override
+            protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+                if (queryRewriteContext.getClass() == QueryRewriteContext.class) {
+                    try {
+                        queryRewriteContext.getIndexMetadataMap();
+                        throw new AssertionError("Should throw exception when getIndexMetadataMap() is called");
+                    } catch (Exception e) {
+                        assertThat(e, instanceOf(expectedExceptionClass));
+                        assertThat(e.getMessage(), equalTo(expectedExceptionMessage));
+                        throw e;
+                    }
+                }
+
+                return super.doRewrite(queryRewriteContext);
+            }
+        };
+
+        setQuery(requestBuilder, testQueryBuilder);
+        assertRequestBuilderThrows(requestBuilder, expectedExceptionClass, expectedRestStatus);
+    }
+
+    private static <Request extends ActionRequest, Response extends ActionResponse> void setQuery(
+        ActionRequestBuilder<Request, Response> requestBuilder,
+        QueryBuilder queryBuilder
+    ) {
         if (requestBuilder instanceof SearchRequestBuilder searchRequestBuilder) {
-            searchRequestBuilder.setQuery(testQueryBuilder);
+            searchRequestBuilder.setQuery(queryBuilder);
         } else if (requestBuilder instanceof ExplainRequestBuilder explainRequestBuilder) {
-            explainRequestBuilder.setQuery(testQueryBuilder);
+            explainRequestBuilder.setQuery(queryBuilder);
         } else if (requestBuilder instanceof ValidateQueryRequestBuilder validateQueryRequestBuilder) {
-            validateQueryRequestBuilder.setQuery(testQueryBuilder);
+            validateQueryRequestBuilder.setQuery(queryBuilder);
         } else {
             throw new AssertionError("Unexpected request builder type [" + requestBuilder.getClass() + "]");
         }
-
-        assertResponse(requestBuilder, responseAssertions);
-        assertThat(gotQueryRewriteContext.get(), is(true));
     }
 }

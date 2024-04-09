@@ -799,7 +799,7 @@ emp_no:integer | full_name:keyword | full_name_2:keyword | job_positions:keyword
 ;
 
 showTextFields
-from hosts | where host == "beta" | keep host, host_group, description;
+from hosts | sort description, card, ip0, ip1 | where host == "beta" | keep host, host_group, description;
 ignoreOrder:true
 
 host:keyword     | host_group:text          | description:text

@@ -217,7 +217,15 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             try {
                 conflicts.check();
             } catch (Exception exc) {
-                throw new DocumentParsingException(xContentLocation, "Incompatible model_settings", exc);
+                throw new DocumentParsingException(
+                    xContentLocation,
+                    "Incompatible model settings for field ["
+                        + name()
+                        + "]. Check that the "
+                        + INFERENCE_ID_FIELD.getPreferredName()
+                        + " is not using different model settings",
+                    exc
+                );
             }
             mapper = this;
         }

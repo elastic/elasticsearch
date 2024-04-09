@@ -40,8 +40,20 @@ public class BucketTests extends AbstractFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         dateCases(suppliers, "fixed date", () -> DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-02-17T09:00:00.00Z"));
-        dateCasesWithSpan(suppliers, "fixed date with period", () -> DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00.00Z"), EsqlDataTypes.DATE_PERIOD, Period.ofYears(1));
-        dateCasesWithSpan(suppliers, "fixed date with duration", () -> DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-02-17T09:00:00.00Z"), EsqlDataTypes.TIME_DURATION, Duration.ofDays(1L));
+        dateCasesWithSpan(
+            suppliers,
+            "fixed date with period",
+            () -> DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00.00Z"),
+            EsqlDataTypes.DATE_PERIOD,
+            Period.ofYears(1)
+        );
+        dateCasesWithSpan(
+            suppliers,
+            "fixed date with duration",
+            () -> DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-02-17T09:00:00.00Z"),
+            EsqlDataTypes.TIME_DURATION,
+            Duration.ofDays(1L)
+        );
         numberCases(suppliers, "fixed long", DataTypes.LONG, () -> 100L);
         numberCasesWithSpan(suppliers, "fixed long with span", DataTypes.LONG, () -> 100L);
         numberCases(suppliers, "fixed int", DataTypes.INTEGER, () -> 100);
@@ -94,7 +106,13 @@ public class BucketTests extends AbstractFunctionTestCase {
         return new TestCaseSupplier.TypedData(value, type, name).forceLiteral();
     }
 
-    private static void dateCasesWithSpan(List<TestCaseSupplier> suppliers, String name, LongSupplier date, DataType spanType, Object span) {
+    private static void dateCasesWithSpan(
+        List<TestCaseSupplier> suppliers,
+        String name,
+        LongSupplier date,
+        DataType spanType,
+        Object span
+    ) {
         suppliers.add(new TestCaseSupplier(name, List.of(DataTypes.DATETIME, spanType), () -> {
             List<TestCaseSupplier.TypedData> args = new ArrayList<>();
             args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataTypes.DATETIME, "field"));

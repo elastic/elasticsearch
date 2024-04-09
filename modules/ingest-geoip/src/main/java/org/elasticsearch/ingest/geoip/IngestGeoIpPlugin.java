@@ -28,8 +28,8 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStats;
-import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction;
-import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsTransportAction;
+import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction;
+import org.elasticsearch.ingest.geoip.stats.GeoIpStatsTransportAction;
 import org.elasticsearch.ingest.geoip.stats.RestGeoIpDownloaderStatsAction;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -144,7 +144,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(new ActionHandler<>(GeoIpDownloaderStatsAction.INSTANCE, GeoIpDownloaderStatsTransportAction.class));
+        return List.of(new ActionHandler<>(GeoIpStatsAction.INSTANCE, GeoIpStatsTransportAction.class));
     }
 
     @Override

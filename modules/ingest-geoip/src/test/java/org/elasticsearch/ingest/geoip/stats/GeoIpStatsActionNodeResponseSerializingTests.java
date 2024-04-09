@@ -15,30 +15,29 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.Set;
 
-public class GeoIpDownloaderStatsActionNodeResponseSerializingTests extends AbstractWireSerializingTestCase<
-    GeoIpDownloaderStatsAction.NodeResponse> {
+public class GeoIpStatsActionNodeResponseSerializingTests extends AbstractWireSerializingTestCase<GeoIpStatsAction.NodeResponse> {
 
     @Override
-    protected Writeable.Reader<GeoIpDownloaderStatsAction.NodeResponse> instanceReader() {
-        return GeoIpDownloaderStatsAction.NodeResponse::new;
+    protected Writeable.Reader<GeoIpStatsAction.NodeResponse> instanceReader() {
+        return GeoIpStatsAction.NodeResponse::new;
     }
 
     @Override
-    protected GeoIpDownloaderStatsAction.NodeResponse createTestInstance() {
+    protected GeoIpStatsAction.NodeResponse createTestInstance() {
         return createRandomInstance();
     }
 
     @Override
-    protected GeoIpDownloaderStatsAction.NodeResponse mutateInstance(GeoIpDownloaderStatsAction.NodeResponse instance) {
+    protected GeoIpStatsAction.NodeResponse mutateInstance(GeoIpStatsAction.NodeResponse instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
-    static GeoIpDownloaderStatsAction.NodeResponse createRandomInstance() {
+    static GeoIpStatsAction.NodeResponse createRandomInstance() {
         DiscoveryNode node = DiscoveryNodeUtils.create("id");
         Set<String> databases = Set.copyOf(randomList(10, () -> randomAlphaOfLengthBetween(5, 10)));
         Set<String> files = Set.copyOf(randomList(10, () -> randomAlphaOfLengthBetween(5, 10)));
         Set<String> configDatabases = Set.copyOf(randomList(10, () -> randomAlphaOfLengthBetween(5, 10)));
-        return new GeoIpDownloaderStatsAction.NodeResponse(
+        return new GeoIpStatsAction.NodeResponse(
             node,
             GeoIpDownloaderStatsSerializingTests.createRandomInstance(),
             databases,

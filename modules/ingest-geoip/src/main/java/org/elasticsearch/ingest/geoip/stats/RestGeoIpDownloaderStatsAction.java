@@ -34,10 +34,6 @@ public class RestGeoIpDownloaderStatsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        return channel -> client.execute(
-            GeoIpDownloaderStatsAction.INSTANCE,
-            new GeoIpDownloaderStatsAction.Request(),
-            new RestToXContentListener<>(channel)
-        );
+        return channel -> client.execute(GeoIpStatsAction.INSTANCE, new GeoIpStatsAction.Request(), new RestToXContentListener<>(channel));
     }
 }

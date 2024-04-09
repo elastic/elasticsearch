@@ -102,7 +102,7 @@ public class LimitedRoleTests extends ESTestCase {
                 baseAllowRestrictedIndices,
                 baseIndices
             )
-            // This privilege should be ignored
+            // This privilege should be ignored (wrong alias)
             .addRemoteIndicesGroup(
                 Set.of(randomAlphaOfLength(3)),
                 randomFlsPermissions(),
@@ -110,6 +110,20 @@ public class LimitedRoleTests extends ESTestCase {
                 randomIndexPrivilege(),
                 randomBoolean(),
                 randomAlphaOfLengthBetween(4, 6)
+            ).addRemoteClusterPermissions(
+                new RemoteClusterPermissions().addGroup(
+                        new RemoteClusterPermissionGroup(
+                            RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                            new String[] {remoteClusterAlias}
+                        )
+                    )
+                    // this group should be ignored (wrong alias)
+                    .addGroup(
+                        new RemoteClusterPermissionGroup(
+                            RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                            new String[] { randomAlphaOfLength(3) }
+                        )
+                    )
             )
             .build();
 
@@ -122,16 +136,17 @@ public class LimitedRoleTests extends ESTestCase {
             .sorted() // sorted so we can simplify assertions
             .toArray(String[]::new);
 
+        Set<String> altAliases = Set.of(remoteClusterPrefix + "-*", randomAlphaOfLength(4));
         Role limitedByRole = Role.builder(EMPTY_RESTRICTED_INDICES, "limited-role")
             .addRemoteIndicesGroup(
-                Set.of(remoteClusterPrefix + "-*", randomAlphaOfLength(4)),
+                altAliases,
                 limitedFieldPermissions,
                 limitedQuery,
                 limitedPrivilege,
                 limitedAllowRestrictedIndices,
                 limitedIndices
             )
-            // This privilege should be ignored
+            // This privilege should be ignored (wrong alias)
             .addRemoteIndicesGroup(
                 Set.of(randomAlphaOfLength(4)),
                 randomFlsPermissions(),
@@ -139,6 +154,21 @@ public class LimitedRoleTests extends ESTestCase {
                 randomIndexPrivilege(),
                 randomBoolean(),
                 randomAlphaOfLength(9)
+            )
+            .addRemoteClusterPermissions(
+                new RemoteClusterPermissions().addGroup(
+                        new RemoteClusterPermissionGroup(
+                            RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                            altAliases.toArray(new String[0])
+                        )
+                    )
+                    // this group should be ignored (wrong alias)
+                    .addGroup(
+                        new RemoteClusterPermissionGroup(
+                            RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                            new String[] { randomAlphaOfLength(4) }
+                        )
+                    )
             )
             .build();
 
@@ -148,7 +178,7 @@ public class LimitedRoleTests extends ESTestCase {
                 Set.of(
                     new RoleDescriptor(
                         Role.REMOTE_USER_ROLE_NAME,
-                        null,
+                        RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
                         new IndicesPrivileges[] {
                             RoleDescriptor.IndicesPrivileges.builder()
                                 .privileges(basePrivilege.name())
@@ -167,7 +197,7 @@ public class LimitedRoleTests extends ESTestCase {
                 Set.of(
                     new RoleDescriptor(
                         Role.REMOTE_USER_ROLE_NAME,
-                        null,
+                        RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
                         new IndicesPrivileges[] {
                             RoleDescriptor.IndicesPrivileges.builder()
                                 .privileges(limitedPrivilege.name())

@@ -1,40 +1,71 @@
 [[esql-functions-operators]]
 === {esql} functions and operators
-
 ++++
 <titleabbrev>Functions and operators</titleabbrev>
 ++++
 
 {esql} provides a comprehensive set of functions and operators for working with data.
-The functions are divided into the following categories:
+The reference documentation is divided into the following categories:
 
 [[esql-functions]]
-<<esql-agg-functions>>::
+==== Functions overview
+
+.*Aggregate functions*
+[%collapsible]
+====
 include::functions/aggregation-functions.asciidoc[tag=agg_list]
+====
 
-<<esql-math-functions>>::
+.*Math functions*
+[%collapsible]
+====
 include::functions/math-functions.asciidoc[tag=math_list]
+====
 
-<<esql-string-functions>>::
+.*String functions*
+[%collapsible]
+====
 include::functions/string-functions.asciidoc[tag=string_list]
+====
 
-<<esql-date-time-functions>>::
+.*Date and time functions*
+[%collapsible]
+====
 include::functions/date-time-functions.asciidoc[tag=date_list]
+====
 
-<<esql-spatial-functions>>::
+.*Spatial functions*
+[%collapsible]
+====
 include::functions/spatial-functions.asciidoc[tag=spatial_list]
+====
 
-<<esql-type-conversion-functions>>::
+.*Type conversion functions*
+[%collapsible]
+====
 include::functions/type-conversion-functions.asciidoc[tag=type_list]
+====
 
-<<esql-conditional-functions-and-expressions>>::
+.*Conditional functions and expressions*
+[%collapsible]
+====
 include::functions/conditional-functions-and-expressions.asciidoc[tag=cond_list]
+====
 
-<<esql-mv-functions>>::
+.*Multi value functions*
+[%collapsible]
+====
 include::functions/mv-functions.asciidoc[tag=mv_list]
+====
 
-<<esql-operators>>::
+[[esql-operators-overview]]
+==== Operators overview
+
+.*Operators*
+[%collapsible]
+====
 include::functions/operators.asciidoc[tag=op_list]
+====
 
 include::functions/aggregation-functions.asciidoc[]
 include::functions/math-functions.asciidoc[]

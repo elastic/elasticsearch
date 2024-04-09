@@ -409,9 +409,7 @@ This parameter is only returned for successful actions.
 `result`::
 (string)
 Result of the operation. Successful values are `created`, `deleted`, and
-`updated`.
-+
-This parameter is only returned for successful operations.
+`updated`. Other valid values are `noop` and `not_found`.
 
 `_shards`::
 (object)

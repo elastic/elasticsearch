@@ -1132,10 +1132,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return CONTENT_TYPE;
         }
 
-        public Integer getDims() {
-            return dims;
-        }
-
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {

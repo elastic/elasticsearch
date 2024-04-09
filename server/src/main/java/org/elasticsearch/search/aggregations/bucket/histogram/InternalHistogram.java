@@ -9,6 +9,7 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -179,6 +180,7 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
             out.writeDouble(minBound);
             out.writeDouble(maxBound);
             subAggregations.writeTo(out);
+
         }
 
         @Override
@@ -206,6 +208,7 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
     private final boolean keyed;
     private final long minDocCount;
     final EmptyBucketInfo emptyBucketInfo;
+    final boolean keySorted;
 
     public InternalHistogram(
         String name,
@@ -225,6 +228,7 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
         this.emptyBucketInfo = emptyBucketInfo;
         this.format = formatter;
         this.keyed = keyed;
+        this.keySorted = true;
     }
 
     /**
@@ -242,6 +246,8 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
         format = in.readNamedWriteable(DocValueFormat.class);
         keyed = in.readBoolean();
         buckets = in.readCollectionAsList(stream -> new Bucket(stream, keyed, format));
+        keySorted = in.getTransportVersion()
+            .between(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS, TransportVersions.HISTOGRAM_AGGS_KEY_SORTED) == false;
     }
 
     @Override
@@ -452,19 +458,20 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
             public void accept(InternalAggregation aggregation) {
                 final InternalHistogram histogram = (InternalHistogram) aggregation;
                 if (histogram.buckets.isEmpty() == false) {
-                    pq.add(new IteratorAndCurrent<>(getIterator(histogram.buckets)));
+                    pq.add(new IteratorAndCurrent<>(getIterator(histogram)));
                 }
             }
 
-            private static Iterator<Bucket> getIterator(List<Bucket> buckets) {
-                if (sortByKey(buckets) == false) {
+            private static Iterator<Bucket> getIterator(InternalHistogram histogram) {
+                if (histogram.keySorted == false) {
                     // we changed the order format in 8.13 for partial reduce so in case of CCS with
                     // that version, we need to perform this check
-                    buckets = new ArrayList<>(buckets);
+                    List<Bucket> buckets = new ArrayList<>(histogram.buckets);
                     buckets.sort(Comparator.comparingDouble(b -> b.key));
                     assert sortByKey(buckets);
+                    return buckets.iterator();
                 }
-                return buckets.iterator();
+                return histogram.buckets.iterator();
             }
 
             private static boolean sortByKey(List<Bucket> buckets) {

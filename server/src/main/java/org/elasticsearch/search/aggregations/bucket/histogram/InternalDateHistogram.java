@@ -211,6 +211,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
     private final long minDocCount;
     private final long offset;
     final EmptyBucketInfo emptyBucketInfo;
+    private final boolean keySorted;
 
     InternalDateHistogram(
         String name,
@@ -234,6 +235,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         this.format = formatter;
         this.keyed = keyed;
         this.downsampledResultsOffset = downsampledResultsOffset;
+        this.keySorted = true;
     }
 
     boolean versionSupportsDownsamplingTimezone(TransportVersion version) {
@@ -265,6 +267,8 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             downsampledResultsOffset = false;
         }
         buckets = in.readCollectionAsList(stream -> new Bucket(stream, keyed, format));
+        keySorted = in.getTransportVersion()
+            .between(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS, TransportVersions.HISTOGRAM_AGGS_KEY_SORTED) == false;
     }
 
     @Override
@@ -512,28 +516,19 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
             public void accept(InternalAggregation aggregation) {
                 final InternalDateHistogram histogram = (InternalDateHistogram) aggregation;
                 if (histogram.buckets.isEmpty() == false) {
-                    pq.add(new IteratorAndCurrent<>(getIterator(histogram.buckets)));
+                    pq.add(new IteratorAndCurrent<>(getIterator(histogram)));
                 }
             }
 
-            private static Iterator<Bucket> getIterator(List<Bucket> buckets) {
-                if (sortByKey(buckets) == false) {
+            private static Iterator<Bucket> getIterator(InternalDateHistogram histogram) {
+                if (histogram.keySorted == false) {
                     // we changed the order format in 8.13 for partial reduce so in case of CCS with
                     // that version, we need to perform this check
-                    buckets = new ArrayList<>(buckets);
+                    List<Bucket> buckets = new ArrayList<>(histogram.buckets);
                     buckets.sort(Comparator.comparingLong(b -> b.key));
-                    assert sortByKey(buckets);
+                    return buckets.iterator();
                 }
-                return buckets.iterator();
-            }
-
-            private static boolean sortByKey(List<Bucket> buckets) {
-                for (int i = 0; i < buckets.size() - 1; i++) {
-                    if (buckets.get(i).key > buckets.get(i + 1).key) {
-                        return false;
-                    }
-                }
-                return true;
+                return histogram.buckets.iterator();
             }
 
             @Override

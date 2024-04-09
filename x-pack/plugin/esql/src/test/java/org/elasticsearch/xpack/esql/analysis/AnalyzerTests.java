@@ -1118,36 +1118,36 @@ public class AnalyzerTests extends ESTestCase {
     public void testDateTruncOnInt() {
         verifyUnsupported("""
             from test
-            | eval date_trunc("1M", int)
-            """, "first argument of [date_trunc(\"1M\", int)] must be [datetime], found value [int] type [integer]");
+            | eval date_trunc(1 month, int)
+            """, "second argument of [date_trunc(1 month, int)] must be [datetime], found value [int] type [integer]");
     }
 
     public void testDateTruncOnFloat() {
         verifyUnsupported("""
             from test
-            | eval date_trunc("1M", float)
-            """, "first argument of [date_trunc(\"1M\", float)] must be [datetime], found value [float] type [double]");
+            | eval date_trunc(1 month, float)
+            """, "second argument of [date_trunc(1 month, float)] must be [datetime], found value [float] type [double]");
     }
 
     public void testDateTruncOnText() {
         verifyUnsupported("""
             from test
-            | eval date_trunc("1M", keyword)
-            """, "first argument of [date_trunc(\"1M\", keyword)] must be [datetime], found value [keyword] type [keyword]");
+            | eval date_trunc(1 month, keyword)
+            """, "second argument of [date_trunc(1 month, keyword)] must be [datetime], found value [keyword] type [keyword]");
     }
 
     public void testDateTruncWithNumericInterval() {
         verifyUnsupported("""
             from test
             | eval date_trunc(1, date)
-            """, "second argument of [date_trunc(1, date)] must be [dateperiod or timeduration], found value [1] type [integer]");
+            """, "first argument of [date_trunc(1, date)] must be [dateperiod or timeduration], found value [1] type [integer]");
     }
 
     public void testDateTruncWithDateInterval() {
         verifyUnsupported("""
             from test
             | eval date_trunc(date, date)
-            """, "second argument of [date_trunc(date, date)] must be [dateperiod or timeduration], found value [date] type [datetime]");
+            """, "first argument of [date_trunc(date, date)] must be [dateperiod or timeduration], found value [date] type [datetime]");
     }
 
     // check field declaration is validated even across duplicated declarations

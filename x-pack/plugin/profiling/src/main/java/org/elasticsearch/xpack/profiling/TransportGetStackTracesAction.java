@@ -149,8 +149,10 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
     }
 
     @Override
-    protected void doExecute(Task submitTask, GetStackTracesRequest request, ActionListener<GetStackTracesResponse> submitListener) {
+    protected void doExecute(Task task, GetStackTracesRequest request, ActionListener<GetStackTracesResponse> submitListener) {
         licenseChecker.requireSupportedLicense();
+        assert task instanceof CancellableTask;
+        final CancellableTask submitTask = (CancellableTask) task;
         GetStackTracesResponseBuilder responseBuilder = new GetStackTracesResponseBuilder(request);
         Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), submitTask);
         if (request.isUserProvidedIndices()) {
@@ -161,7 +163,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
     }
 
     private void searchProfilingEvents(
-        Task submitTask,
+        CancellableTask submitTask,
         Client client,
         GetStackTracesRequest request,
         ActionListener<GetStackTracesResponse> submitListener,
@@ -201,7 +203,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
     }
 
     private void searchGenericEvents(
-        Task submitTask,
+        CancellableTask submitTask,
         Client client,
         GetStackTracesRequest request,
         ActionListener<GetStackTracesResponse> submitListener,
@@ -240,7 +242,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
     }
 
     private void searchGenericEventGroupedByStackTrace(
-        Task submitTask,
+        CancellableTask submitTask,
         Client client,
         GetStackTracesRequest request,
         ActionListener<GetStackTracesResponse> submitListener,
@@ -320,7 +322,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
     }
 
     private void searchEventGroupedByStackTrace(
-        Task submitTask,
+        CancellableTask submitTask,
         Client client,
         GetStackTracesRequest request,
         ActionListener<GetStackTracesResponse> submitListener,
@@ -432,7 +434,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
     }
 
     private ActionListener<SearchResponse> handleEventsGroupedByStackTrace(
-        Task submitTask,
+        CancellableTask submitTask,
         Client client,
         GetStackTracesResponseBuilder responseBuilder,
         ActionListener<GetStackTracesResponse> submitListener,
@@ -471,12 +473,12 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
     }
 
     private void retrieveStackTraces(
-        Task submitTask,
+        CancellableTask submitTask,
         Client client,
         GetStackTracesResponseBuilder responseBuilder,
         ActionListener<GetStackTracesResponse> submitListener
     ) {
-        if (submitTask instanceof CancellableTask c && c.notifyIfCancelled(submitListener)) {
+        if (submitTask.notifyIfCancelled(submitListener)) {
             return;
         }
         List<String> eventIds = new ArrayList<>(responseBuilder.getStackTraceEvents().keySet());
@@ -554,7 +556,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
 
     private class StackTraceHandler {
         private final AtomicInteger expectedResponses;
-        private final Task submitTask;
+        private final CancellableTask submitTask;
         private final ClusterState clusterState;
         private final Client client;
         private final GetStackTracesResponseBuilder responseBuilder;
@@ -568,7 +570,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         private final Map<String, HostMetadata> hostMetadata;
 
         private StackTraceHandler(
-            Task submitTask,
+            CancellableTask submitTask,
             ClusterState clusterState,
             Client client,
             GetStackTracesResponseBuilder responseBuilder,
@@ -691,7 +693,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
     }
 
     private void retrieveStackTraceDetails(
-        Task submitTask,
+        CancellableTask submitTask,
         ClusterState clusterState,
         Client client,
         GetStackTracesResponseBuilder responseBuilder,
@@ -699,7 +701,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         List<String> executableIds,
         ActionListener<GetStackTracesResponse> submitListener
     ) {
-        if (submitTask instanceof CancellableTask c && c.notifyIfCancelled(submitListener)) {
+        if (submitTask.notifyIfCancelled(submitListener)) {
             return;
         }
         List<Index> stackFrameIndices = resolver.resolve(

@@ -242,18 +242,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testEvaluate() {
-        testEvaluate(false);
-    }
-
-    public final void testEvaluateFloating() {
-        testEvaluate(true);
-    }
-
-    private void testEvaluate(boolean readFloating) {
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         logger.info(
             "Test Values: " + testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","))
         );
+        boolean readFloating = randomBoolean();
         Expression expression = readFloating ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
             assertTrue("expected unresolved", expression.typeResolved().unresolved());
@@ -296,47 +289,27 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     /**
-     * Evaluates a {@link Block} of values, all copied from the input pattern, read directly from the page.
+     * Evaluates a {@link Block} of values, all copied from the input pattern..
      * <p>
      * Note that this'll sometimes be a {@link Vector} of values if the
      * input pattern contained only a single value.
      * </p>
      */
     public final void testEvaluateBlockWithoutNulls() {
-        testEvaluateBlock(driverContext().blockFactory(), driverContext(), false, false);
-    }
-
-    /**
-     * Evaluates a {@link Block} of values, all copied from the input pattern, read from an intermediate operator.
-     * <p>
-     * Note that this'll sometimes be a {@link Vector} of values if the
-     * input pattern contained only a single value.
-     * </p>
-     */
-    public final void testEvaluateBlockWithoutNullsFloating() {
-        testEvaluateBlock(driverContext().blockFactory(), driverContext(), false, true);
+        testEvaluateBlock(driverContext().blockFactory(), driverContext(), false);
     }
 
     /**
      * Evaluates a {@link Block} of values, all copied from the input pattern with
-     * some null values inserted between, read directly from the page.
+     * some null values inserted between.
      */
     public final void testEvaluateBlockWithNulls() {
-        testEvaluateBlock(driverContext().blockFactory(), driverContext(), true, false);
-    }
-
-    /**
-     * Evaluates a {@link Block} of values, all copied from the input pattern with
-     * some null values inserted between, read from an intermediate operator.
-     */
-    public final void testEvaluateBlockWithNullsFloating() {
-        testEvaluateBlock(driverContext().blockFactory(), driverContext(), true, true);
+        testEvaluateBlock(driverContext().blockFactory(), driverContext(), true);
     }
 
     /**
      * Evaluates a {@link Block} of values, all copied from the input pattern,
-     * read directly from the {@link Page}, using the
-     * {@link CrankyCircuitBreakerService} which fails randomly.
+     * using the {@link CrankyCircuitBreakerService} which fails randomly.
      * <p>
      * Note that this'll sometimes be a {@link Vector} of values if the
      * input pattern contained only a single value.
@@ -345,25 +318,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     public final void testCrankyEvaluateBlockWithoutNulls() {
         assumeTrue("sometimes the cranky breaker silences warnings, just skip these cases", testCase.getExpectedWarnings() == null);
         try {
-            testEvaluateBlock(driverContext().blockFactory(), crankyContext(), false, false);
-        } catch (CircuitBreakingException ex) {
-            assertThat(ex.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
-        }
-    }
-
-    /**
-     * Evaluates a {@link Block} of values, all copied from the input pattern,
-     * read from an intermediate operator, using the
-     * {@link CrankyCircuitBreakerService} which fails randomly.
-     * <p>
-     * Note that this'll sometimes be a {@link Vector} of values if the
-     * input pattern contained only a single value.
-     * </p>
-     */
-    public final void testCrankyEvaluateBlockWithoutNullsFloating() {
-        assumeTrue("sometimes the cranky breaker silences warnings, just skip these cases", testCase.getExpectedWarnings() == null);
-        try {
-            testEvaluateBlock(driverContext().blockFactory(), crankyContext(), false, true);
+            testEvaluateBlock(driverContext().blockFactory(), crankyContext(), false);
         } catch (CircuitBreakingException ex) {
             assertThat(ex.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
         }
@@ -371,27 +326,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     /**
      * Evaluates a {@link Block} of values, all copied from the input pattern with
-     * some null values inserted between, read directly from the page,
-     * using the {@link CrankyCircuitBreakerService} which fails randomly.
+     * some null values inserted between, using the {@link CrankyCircuitBreakerService} which fails randomly.
      */
     public final void testCrankyEvaluateBlockWithNulls() {
         assumeTrue("sometimes the cranky breaker silences warnings, just skip these cases", testCase.getExpectedWarnings() == null);
         try {
-            testEvaluateBlock(driverContext().blockFactory(), crankyContext(), true, false);
-        } catch (CircuitBreakingException ex) {
-            assertThat(ex.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
-        }
-    }
-
-    /**
-     * Evaluates a {@link Block} of values, all copied from the input pattern with
-     * some null values inserted between, read from an intermediate operator,
-     * using the {@link CrankyCircuitBreakerService} which fails randomly.
-     */
-    public final void testCrankyEvaluateBlockWithNullsFloating() {
-        assumeTrue("sometimes the cranky breaker silences warnings, just skip these cases", testCase.getExpectedWarnings() == null);
-        try {
-            testEvaluateBlock(driverContext().blockFactory(), crankyContext(), true, true);
+            testEvaluateBlock(driverContext().blockFactory(), crankyContext(), true);
         } catch (CircuitBreakingException ex) {
             assertThat(ex.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
         }
@@ -404,9 +344,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return nullValue();
     }
 
-    private void testEvaluateBlock(BlockFactory inputBlockFactory, DriverContext context, boolean insertNulls, boolean readFloating) {
+    private void testEvaluateBlock(BlockFactory inputBlockFactory, DriverContext context, boolean insertNulls) {
         assumeTrue("can only run on representable types", testCase.allTypesAreRepresentable());
         assumeTrue("must build evaluator to test sending it blocks", testCase.getExpectedTypeError() == null);
+        boolean readFloating = randomBoolean();
         int positions = between(1, 1024);
         List<TestCaseSupplier.TypedData> data = testCase.getData();
         Page onePositionPage = row(testCase.getDataValues());

@@ -58,9 +58,9 @@ setup:
           refresh: true
           body: |
             {"index":{}}
-            {"dense_field": "you know, for testing"}
+            {"dense_field": ["you know, for testing", "now with chunks"]}
             {"index":{}}
-            {"dense_field": "some more tests"}
+            {"dense_field": ["some more tests", "that include chunks"]}
 
     - do:
         search:
@@ -80,6 +80,33 @@ setup:
     - match: { hits.total.value: 2 }
     - match: { hits.total.relation: eq }
 
+    # Search with inner hits
+    - do:
+        search:
+          _source: false
+          index: test-index
+          body:
+            query:
+              nested:
+                path: dense_field.inference.chunks
+                inner_hits:
+                  _source: false
+                  fields: [dense_field.inference.chunks.text]
+                query:
+                  knn:
+                    field: dense_field.inference.chunks.embeddings
+                    query_vector_builder:
+                      text_embedding:
+                        model_id: dense-inference-id
+                        model_text: "you know, for testing"
+
+    - match: { hits.total.value: 2 }
+    - match: { hits.total.relation: eq }
+    - match: { hits.hits.0.inner_hits.dense_field\.inference\.chunks.hits.total.value: 2 }
+    - exists:  hits.hits.0.inner_hits.dense_field\.inference\.chunks.hits.hits.0.fields.dense_field\.inference\.chunks.0.text
+    - exists:  hits.hits.0.inner_hits.dense_field\.inference\.chunks.hits.hits.1.fields.dense_field\.inference\.chunks.0.text
+
+
 ---
 "Sparse vector results are indexed as nested chunks and searchable":
     - do:
@@ -88,9 +115,9 @@ setup:
           refresh: true
           body: |
             {"index":{}}
-            {"sparse_field": "you know, for testing"}
+            {"sparse_field": ["you know, for testing", "now with chunks"]}
             {"index":{}}
-            {"sparse_field": "some more tests"}
+            {"sparse_field": ["some more tests", "that include chunks"]}
 
     - do:
         search:
@@ -105,7 +132,28 @@ setup:
                       model_id: sparse-inference-id
                       model_text: "you know, for testing"
 
+    # Search with inner hits
+    - do:
+        search:
+          _source: false
+          index: test-index
+          body:
+            query:
+              nested:
+                path: sparse_field.inference.chunks
+                inner_hits:
+                  _source: false
+                  fields: [sparse_field.inference.chunks.text]
+                query:
+                  text_expansion:
+                    sparse_field.inference.chunks.embeddings:
+                      model_id: sparse-inference-id
+                      model_text: "you know, for testing"
+
     - match: { hits.total.value: 2 }
     - match: { hits.total.relation: eq }
+    - match: { hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.total.value: 2 }
+    - exists:  hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.hits.0.fields.sparse_field\.inference\.chunks.0.text
+    - exists:  hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.hits.1.fields.sparse_field\.inference\.chunks.0.text
 
 

@@ -67,7 +67,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
-
+//TODO: add remote cluster tests here too (don't rely on NONE)
 public class RoleDescriptorTests extends ESTestCase {
 
     public void testIndexGroup() throws Exception {

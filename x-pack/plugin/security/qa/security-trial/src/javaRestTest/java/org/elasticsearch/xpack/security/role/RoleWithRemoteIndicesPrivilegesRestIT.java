@@ -31,6 +31,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
+//TODO: add the remote cluster analog here too
 public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicenseRestTestCase {
 
     private static final String REMOTE_SEARCH_USER = "remote_search_user";

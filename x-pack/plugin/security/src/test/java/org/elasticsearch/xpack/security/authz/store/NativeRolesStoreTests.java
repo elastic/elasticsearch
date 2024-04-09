@@ -432,7 +432,7 @@ public class NativeRolesStoreTests extends ESTestCase {
             null,
             new RoleDescriptor.RemoteIndicesPrivileges[] {
                 RoleDescriptor.RemoteIndicesPrivileges.builder("remote").privileges("read").indices("index").build() },
-            null,
+            null, //TODO: more tests here
             null
         );
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();

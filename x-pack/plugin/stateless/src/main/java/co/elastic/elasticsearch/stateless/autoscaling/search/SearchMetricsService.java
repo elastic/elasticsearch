@@ -399,41 +399,48 @@ public class SearchMetricsService implements ClusterStateListener {
 
     Map<String, Integer> getNumberOfReplicaChanges() {
         Map<String, Integer> numReplicaChanges = new HashMap<>();
-        for (Map.Entry<Index, IndexShardsSettings> entry : indices.entrySet()) {
-            Index index = entry.getKey();
-            IndexShardsSettings settings = entry.getValue();
-            boolean isWithinBoostWindow = false;
-            for (int i = 0; i < settings.shards; i++) {
-                ShardMetrics shardMetrics = this.shardMetrics.get(new ShardId(index, i));
-                if (shardMetrics == null) {
-                    // move to the next index if shard metrics for the current index are not found: they could have been removed
-                    // because the index has been removed, or because it has now zero replicas.
-                    continue;
-                }
-                if (shardMetrics.shardSize.interactiveSizeInBytes() > 0) {
-                    // one shard has interactive data -> its index is within the boost window
-                    isWithinBoostWindow = true;
-                    break;
-                }
-            }
-            if (isWithinBoostWindow) {
-                if (searchPowerSetting >= 250) {
-                    if (settings.replicas != 2) {
-                        numReplicaChanges.put(index.getName(), 2);
-                    }
-                } else if (searchPowerSetting >= 100) {
-                    // TODO assign replicas based on index ranking, for now it's always 1, same as < 100
-                    if (settings.replicas != 1) {
-                        numReplicaChanges.put(index.getName(), 1);
-                    }
-                } else if (searchPowerSetting < 100) {
-                    if (settings.replicas != 1) {
-                        numReplicaChanges.put(index.getName(), 1);
-                    }
-                }
-            } else {
+        if (searchPowerSetting < 100) {
+            for (Map.Entry<Index, IndexShardsSettings> entry : indices.entrySet()) {
+                Index index = entry.getKey();
+                IndexShardsSettings settings = entry.getValue();
                 if (settings.replicas != 1) {
                     numReplicaChanges.put(index.getName(), 1);
+                }
+            }
+        } else {
+            for (Map.Entry<Index, IndexShardsSettings> entry : indices.entrySet()) {
+                Index index = entry.getKey();
+                IndexShardsSettings settings = entry.getValue();
+                boolean isWithinBoostWindow = false;
+                for (int i = 0; i < settings.shards; i++) {
+                    ShardMetrics shardMetrics = this.shardMetrics.get(new ShardId(index, i));
+                    if (shardMetrics == null) {
+                        // move to the next index if shard metrics for the current index are not found: they could have been removed
+                        // because the index has been removed, or because it has now zero replicas.
+                        continue;
+                    }
+                    if (shardMetrics.shardSize.interactiveSizeInBytes() > 0) {
+                        // one shard has interactive data -> its index is within the boost window
+                        isWithinBoostWindow = true;
+                        break;
+                    }
+                }
+                if (isWithinBoostWindow) {
+                    if (searchPowerSetting >= 250) {
+                        if (settings.replicas != 2) {
+                            numReplicaChanges.put(index.getName(), 2);
+                        }
+                    } else {
+                        assert searchPowerSetting >= 100 : "search power < 100 should be handled elsewhere";
+                        // TODO assign replicas based on index ranking, for now it's always 1, same as < 100
+                        if (settings.replicas != 1) {
+                            numReplicaChanges.put(index.getName(), 1);
+                        }
+                    }
+                } else {
+                    if (settings.replicas != 1) {
+                        numReplicaChanges.put(index.getName(), 1);
+                    }
                 }
             }
         }

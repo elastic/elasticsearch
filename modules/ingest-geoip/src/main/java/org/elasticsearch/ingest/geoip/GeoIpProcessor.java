@@ -359,23 +359,23 @@ public final class GeoIpProcessor extends AbstractProcessor {
         for (Property property : this.properties) {
             switch (property) {
                 case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
-                case IS_HOSTING_PROVIDER -> {
-                    geoData.put("is_hosting_provider", isHostingProvider);
+                case HOSTING_PROVIDER -> {
+                    geoData.put("hosting_provider", isHostingProvider);
                 }
-                case IS_TOR_EXIT_NODE -> {
-                    geoData.put("is_tor_exit_node", isTorExitNode);
+                case TOR_EXIT_NODE -> {
+                    geoData.put("tor_exit_node", isTorExitNode);
                 }
-                case IS_ANONYMOUS_VPN -> {
-                    geoData.put("is_anonymous_vpn", isAnonymousVpn);
+                case ANONYMOUS_VPN -> {
+                    geoData.put("anonymous_vpn", isAnonymousVpn);
                 }
-                case IS_ANONYMOUS -> {
-                    geoData.put("is_anonymous", isAnonymous);
+                case ANONYMOUS -> {
+                    geoData.put("anonymous", isAnonymous);
                 }
-                case IS_PUBLIC_PROXY -> {
-                    geoData.put("is_public_proxy", isPublicProxy);
+                case PUBLIC_PROXY -> {
+                    geoData.put("public_proxy", isPublicProxy);
                 }
-                case IS_RESIDENTIAL_PROXY -> {
-                    geoData.put("is_residential_proxy", isResidentialProxy);
+                case RESIDENTIAL_PROXY -> {
+                    geoData.put("residential_proxy", isResidentialProxy);
                 }
             }
         }

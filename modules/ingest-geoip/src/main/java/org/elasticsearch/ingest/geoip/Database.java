@@ -59,14 +59,14 @@ enum Database {
     AnonymousIp(
         Set.of(
             Property.IP,
-            Property.IS_HOSTING_PROVIDER,
-            Property.IS_TOR_EXIT_NODE,
-            Property.IS_ANONYMOUS_VPN,
-            Property.IS_ANONYMOUS,
-            Property.IS_PUBLIC_PROXY,
-            Property.IS_RESIDENTIAL_PROXY
+            Property.HOSTING_PROVIDER,
+            Property.TOR_EXIT_NODE,
+            Property.ANONYMOUS_VPN,
+            Property.ANONYMOUS,
+            Property.PUBLIC_PROXY,
+            Property.RESIDENTIAL_PROXY
         ),
-        Set.of(Property.IS_ANONYMOUS)
+        Set.of(Property.ANONYMOUS)
     );
 
     private static final String CITY_DB_SUFFIX = "-City";
@@ -163,12 +163,12 @@ enum Database {
         ASN,
         ORGANIZATION_NAME,
         NETWORK,
-        IS_HOSTING_PROVIDER,
-        IS_TOR_EXIT_NODE,
-        IS_ANONYMOUS_VPN,
-        IS_ANONYMOUS,
-        IS_PUBLIC_PROXY,
-        IS_RESIDENTIAL_PROXY;
+        HOSTING_PROVIDER,
+        TOR_EXIT_NODE,
+        ANONYMOUS_VPN,
+        ANONYMOUS,
+        PUBLIC_PROXY,
+        RESIDENTIAL_PROXY;
 
         /**
          * Parses a string representation of a property into an actual Property instance. Not all properties that exist are

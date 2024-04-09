@@ -54,7 +54,7 @@ import static org.elasticsearch.vec.VectorSimilarityType.EUCLIDEAN;
 public class VectorScorerBenchmark {
 
     static {
-        LogConfigurator.configureESLogging(); // TODO: native access requires logging to be initialized
+        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
     @Param({ "1024" })

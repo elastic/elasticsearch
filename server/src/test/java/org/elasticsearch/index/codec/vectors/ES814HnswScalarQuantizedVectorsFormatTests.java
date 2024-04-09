@@ -32,7 +32,7 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 public class ES814HnswScalarQuantizedVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     static {
-        LogConfigurator.configureESLogging(); // TODO: strange initialization issue if I don't enable this.
+        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
     @Override

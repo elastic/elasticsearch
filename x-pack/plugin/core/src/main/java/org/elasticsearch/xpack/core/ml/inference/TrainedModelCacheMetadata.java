@@ -43,7 +43,6 @@ public class TrainedModelCacheMetadata extends AbstractNamedDiffable<Metadata.Cu
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), VERSION_FIELD);
     }
 
-
     public static TrainedModelCacheMetadata fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
@@ -73,9 +72,7 @@ public class TrainedModelCacheMetadata extends AbstractNamedDiffable<Metadata.Cu
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return Iterators.single(((builder, params) -> {
-            return builder.field(VERSION_FIELD.getPreferredName(), version);
-        }));
+        return Iterators.single(((builder, params) -> { return builder.field(VERSION_FIELD.getPreferredName(), version); }));
     }
 
     @Override

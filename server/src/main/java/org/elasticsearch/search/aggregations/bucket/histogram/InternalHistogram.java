@@ -468,19 +468,9 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
                     // that version, we need to perform this check
                     List<Bucket> buckets = new ArrayList<>(histogram.buckets);
                     buckets.sort(Comparator.comparingDouble(b -> b.key));
-                    assert sortByKey(buckets);
                     return buckets.iterator();
                 }
                 return histogram.buckets.iterator();
-            }
-
-            private static boolean sortByKey(List<Bucket> buckets) {
-                for (int i = 0; i < buckets.size() - 1; i++) {
-                    if (buckets.get(i).key > buckets.get(i + 1).key) {
-                        return false;
-                    }
-                }
-                return true;
             }
 
             @Override

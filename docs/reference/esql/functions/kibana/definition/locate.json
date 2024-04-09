@@ -17,12 +17,48 @@
           "type" : "keyword",
           "optional" : false,
           "description" : "A substring to locate in the input string"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "integer"
+    },
+    {
+      "params" : [
+        {
+          "name" : "string",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "An input string"
+        },
+        {
+          "name" : "substring",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "A substring to locate in the input string"
         },
         {
           "name" : "start",
           "type" : "integer",
           "optional" : true,
           "description" : "The start index"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "integer"
+    },
+    {
+      "params" : [
+        {
+          "name" : "string",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "An input string"
+        },
+        {
+          "name" : "substring",
+          "type" : "text",
+          "optional" : false,
+          "description" : "A substring to locate in the input string"
         }
       ],
       "variadic" : false,
@@ -65,12 +101,48 @@
           "type" : "keyword",
           "optional" : false,
           "description" : "A substring to locate in the input string"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "integer"
+    },
+    {
+      "params" : [
+        {
+          "name" : "string",
+          "type" : "text",
+          "optional" : false,
+          "description" : "An input string"
+        },
+        {
+          "name" : "substring",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "A substring to locate in the input string"
         },
         {
           "name" : "start",
           "type" : "integer",
           "optional" : true,
           "description" : "The start index"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "integer"
+    },
+    {
+      "params" : [
+        {
+          "name" : "string",
+          "type" : "text",
+          "optional" : false,
+          "description" : "An input string"
+        },
+        {
+          "name" : "substring",
+          "type" : "text",
+          "optional" : false,
+          "description" : "A substring to locate in the input string"
         }
       ],
       "variadic" : false,

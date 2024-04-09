@@ -11,6 +11,24 @@
           "type" : "datetime",
           "optional" : false,
           "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "datetime",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "datetime",
+          "optional" : false,
+          "description" : ""
         }
       ],
       "variadic" : false,
@@ -20,6 +38,534 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "datetime",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "datetime",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "datetime"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "datetime",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "datetime",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "text",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "datetime"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "datetime",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "datetime",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "datetime"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "datetime",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "datetime"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "datetime",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "text",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "datetime"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "datetime",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "text",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "datetime",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "datetime"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "datetime",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "text",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "datetime"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "datetime",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "text",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "text",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "datetime"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
           "type" : "double",
           "optional" : false,
           "description" : ""
@@ -35,6 +581,24 @@
           "type" : "integer",
           "optional" : false,
           "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
         }
       ],
       "variadic" : false,
@@ -44,6 +608,474 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "double",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "double"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "buckets",
+          "type" : "integer",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "from",
+          "type" : "long",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "to",
           "type" : "long",
           "optional" : false,
           "description" : ""

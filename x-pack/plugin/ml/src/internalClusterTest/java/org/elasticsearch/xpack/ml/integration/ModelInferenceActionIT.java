@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
-import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelCacheManager;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelCacheMetadataService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.junit.Before;
 
@@ -66,11 +66,11 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
     @Before
     @SuppressWarnings("unchecked")
     public void createComponents() throws Exception {
-        TrainedModelCacheManager modelCacheMetadataService = mock(TrainedModelCacheManager.class);
+        TrainedModelCacheMetadataService modelCacheMetadataService = mock(TrainedModelCacheMetadataService.class);
         doAnswer(invocationOnMock -> {
             invocationOnMock.getArgument(1, ActionListener.class).onResponse(AcknowledgedResponse.TRUE);
             return Void.TYPE;
-        }).when(modelCacheMetadataService).saveCacheMetadataEntry(any(TrainedModelConfig.class), any(ActionListener.class));
+        }).when(modelCacheMetadataService).refreshCacheVersion(any(ActionListener.class));
         trainedModelProvider = new TrainedModelProvider(client(), modelCacheMetadataService, xContentRegistry());
         waitForMlTemplates();
     }

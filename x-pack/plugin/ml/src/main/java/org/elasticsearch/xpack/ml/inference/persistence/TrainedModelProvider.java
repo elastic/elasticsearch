@@ -127,9 +127,9 @@ public class TrainedModelProvider {
     private static final Logger logger = LogManager.getLogger(TrainedModelProvider.class);
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
-    private final TrainedModelCacheManager modelCacheMetadataService;
+    private final TrainedModelCacheMetadataService modelCacheMetadataService;
 
-    public TrainedModelProvider(Client client, TrainedModelCacheManager modelCacheMetadataService, NamedXContentRegistry xContentRegistry) {
+    public TrainedModelProvider(Client client, TrainedModelCacheMetadataService modelCacheMetadataService, NamedXContentRegistry xContentRegistry) {
         this.client = client;
         this.modelCacheMetadataService = modelCacheMetadataService;
         this.xContentRegistry = xContentRegistry;
@@ -211,10 +211,7 @@ public class TrainedModelProvider {
             TransportIndexAction.TYPE,
             request,
             ActionListener.wrap(
-                indexResponse -> modelCacheMetadataService.saveCacheMetadataEntry(
-                    trainedModelConfig,
-                    ActionListener.wrap(resp -> listener.onResponse(true), listener::onFailure)
-                ),
+                indexResponse -> refreshCacheVersion(listener),
                 e -> {
                     if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                         listener.onFailure(
@@ -530,10 +527,7 @@ public class TrainedModelProvider {
                 return;
             }
 
-            modelCacheMetadataService.saveCacheMetadataEntry(
-                trainedModelConfig,
-                ActionListener.wrap(resp -> wrappedListener.onResponse(true), wrappedListener::onFailure)
-            );
+            refreshCacheVersion(wrappedListener);
         }, wrappedListener::onFailure);
 
         executeAsyncWithOrigin(client, ML_ORIGIN, TransportBulkAction.TYPE, bulkRequest.request(), bulkResponseActionListener);
@@ -907,10 +901,7 @@ public class TrainedModelProvider {
                 return;
             }
 
-            modelCacheMetadataService.deleteCacheMetadataEntry(
-                modelId,
-                ActionListener.wrap(acknowledgedResponse -> listener.onResponse(true), listener::onFailure)
-            );
+            refreshCacheVersion(listener);
         }, e -> {
             if (e.getClass() == IndexNotFoundException.class) {
                 listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
@@ -1391,5 +1382,11 @@ public class TrainedModelProvider {
             // that is not the users fault. We did something wrong and should throw.
             throw ExceptionsHelper.serverError("Unexpected serialization exception for [" + docId + "]", ex);
         }
+    }
+
+    private void refreshCacheVersion(ActionListener<Boolean> listener) {
+        modelCacheMetadataService.refreshCacheVersion(
+            ActionListener.wrap(resp -> listener.onResponse(true), listener::onFailure)
+        );
     }
 }

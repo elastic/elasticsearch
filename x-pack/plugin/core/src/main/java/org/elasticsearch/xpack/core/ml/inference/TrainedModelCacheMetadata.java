@@ -8,54 +8,41 @@
 package org.elasticsearch.xpack.core.ml.inference;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Objects;
 
-public class TrainedModelCacheMetadata implements Metadata.Custom {
+public class TrainedModelCacheMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
 
     public static final String NAME = "trained_model_cache_metadata";
 
-    public static final TrainedModelCacheMetadata EMPTY = new TrainedModelCacheMetadata(new HashMap<>());
-    private static final ParseField ENTRIES = new ParseField("entries");
-    private static final ParseField MODEL_ID = new ParseField("model_id");
+    public static final TrainedModelCacheMetadata EMPTY = new TrainedModelCacheMetadata(0L);
+    private static final ParseField VERSION_FIELD = new ParseField("version");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<TrainedModelCacheMetadata, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        args -> new TrainedModelCacheMetadata((Map<String, TrainedModelCacheMetadataEntry>) args[0])
+        args -> new TrainedModelCacheMetadata((long) args[0])
     );
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
-            Map<String, TrainedModelCacheMetadataEntry> entries = new HashMap<>();
-            while (p.nextToken() != XContentParser.Token.END_OBJECT) {
-                String modelId = p.currentName();
-                entries.put(modelId, TrainedModelCacheMetadataEntry.fromXContent(p));
-            }
-            return entries;
-        }, ENTRIES);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), VERSION_FIELD);
     }
+
 
     public static TrainedModelCacheMetadata fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
@@ -66,27 +53,29 @@ public class TrainedModelCacheMetadata implements Metadata.Custom {
         return cacheMetadata == null ? EMPTY : cacheMetadata;
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
-        return new TrainedModelCacheMetadataDiff(in);
+    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput streamInput) throws IOException {
+        return readDiffFrom(Metadata.Custom.class, NAME, streamInput);
     }
 
-    private final Map<String, TrainedModelCacheMetadataEntry> entries;
+    private final long version;
 
-    public TrainedModelCacheMetadata(Map<String, TrainedModelCacheMetadataEntry> entries) {
-        this.entries = entries;
+    public TrainedModelCacheMetadata(long version) {
+        this.version = version;
     }
 
     public TrainedModelCacheMetadata(StreamInput in) throws IOException {
-        this.entries = in.readImmutableMap(TrainedModelCacheMetadataEntry::new);
+        this.version = in.readVLong();
     }
 
-    public Map<String, TrainedModelCacheMetadataEntry> entries() {
-        return entries;
+    public long version() {
+        return version;
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return ChunkedToXContentHelper.xContentValuesMap(ENTRIES.getPreferredName(), entries);
+        return Iterators.single(((builder, params) -> {
+            return builder.field(VERSION_FIELD.getPreferredName(), version);
+        }));
     }
 
     @Override
@@ -107,12 +96,7 @@ public class TrainedModelCacheMetadata implements Metadata.Custom {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(this.entries, StreamOutput::writeWriteable);
-    }
-
-    @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
-        return new TrainedModelCacheMetadataDiff((TrainedModelCacheMetadata) previousState, this);
+        out.writeVLong(version);
     }
 
     @Override
@@ -120,113 +104,11 @@ public class TrainedModelCacheMetadata implements Metadata.Custom {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TrainedModelCacheMetadata that = (TrainedModelCacheMetadata) o;
-        return Objects.equals(entries, that.entries);
+        return Objects.equals(version, that.version);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(entries);
-    }
-
-    public static class TrainedModelCacheMetadataDiff implements NamedDiff<Metadata.Custom> {
-        final Diff<Map<String, TrainedModelCacheMetadataEntry>> entriesDiff;
-
-        TrainedModelCacheMetadataDiff(TrainedModelCacheMetadata before, TrainedModelCacheMetadata after) {
-            this.entriesDiff = DiffableUtils.diff(before.entries, after.entries, DiffableUtils.getStringKeySerializer());
-        }
-
-        TrainedModelCacheMetadataDiff(StreamInput in) throws IOException {
-            this.entriesDiff = DiffableUtils.readJdkMapDiff(
-                in,
-                DiffableUtils.getStringKeySerializer(),
-                TrainedModelCacheMetadataEntry::new,
-                TrainedModelCacheMetadataEntry::readDiffFrom
-            );
-        }
-
-        @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
-            return new TrainedModelCacheMetadata(entriesDiff.apply(((TrainedModelCacheMetadata) part).entries));
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            entriesDiff.writeTo(out);
-        }
-
-        @Override
-        public TransportVersion getMinimalSupportedVersion() {
-            // TODO: Add a new entry in TransportVersions before merge.
-            return TransportVersion.current();
-        }
-    }
-
-    public static class TrainedModelCacheMetadataEntry implements SimpleDiffable<TrainedModelCacheMetadataEntry>, ToXContentObject {
-        private static final ConstructingObjectParser<TrainedModelCacheMetadataEntry, Void> PARSER = new ConstructingObjectParser<>(
-            "trained_model_cache_metadata_entry",
-            true,
-            args -> new TrainedModelCacheMetadataEntry((String) args[0])
-        );
-        static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), MODEL_ID);
-        }
-
-        private static Diff<TrainedModelCacheMetadataEntry> readDiffFrom(StreamInput in) throws IOException {
-            return SimpleDiffable.readDiffFrom(TrainedModelCacheMetadataEntry::new, in);
-        }
-
-        private static TrainedModelCacheMetadataEntry fromXContent(XContentParser parser) {
-            return PARSER.apply(parser, null);
-        }
-
-        private final String modelId;
-
-        public TrainedModelCacheMetadataEntry(String modelId) {
-            this.modelId = modelId;
-        }
-
-        TrainedModelCacheMetadataEntry(StreamInput in) throws IOException {
-            this.modelId = in.readString();
-        }
-
-        public String getModelId() {
-            return modelId;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(MODEL_ID.getPreferredName(), modelId);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(modelId);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            TrainedModelCacheMetadataEntry that = (TrainedModelCacheMetadataEntry) o;
-            return Objects.equals(modelId, that.modelId);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(modelId);
-        }
-
-        @Override
-        public String toString() {
-            return "TrainedModelCacheMetadataEntry{modelId='" + modelId + "'}";
-        }
+        return Objects.hash(version);
     }
 }

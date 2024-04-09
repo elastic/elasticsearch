@@ -41,7 +41,7 @@ import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfo;
 import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfoTests;
-import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelCacheManager;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelCacheMetadataService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.junit.Before;
@@ -71,11 +71,11 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
     @Before
     @SuppressWarnings("unchecked")
     public void createComponents() throws Exception {
-        TrainedModelCacheManager modelCacheMetadataService = mock(TrainedModelCacheManager.class);
+        TrainedModelCacheMetadataService modelCacheMetadataService = mock(TrainedModelCacheMetadataService.class);
         doAnswer(invocationOnMock -> {
             invocationOnMock.getArgument(1, ActionListener.class).onResponse(AcknowledgedResponse.TRUE);
             return Void.TYPE;
-        }).when(modelCacheMetadataService).saveCacheMetadataEntry(any(TrainedModelConfig.class), any(ActionListener.class));
+        }).when(modelCacheMetadataService).refreshCacheVersion(any(ActionListener.class));
         trainedModelProvider = new TrainedModelProvider(client(), modelCacheMetadataService, xContentRegistry());
         waitForMlTemplates();
     }

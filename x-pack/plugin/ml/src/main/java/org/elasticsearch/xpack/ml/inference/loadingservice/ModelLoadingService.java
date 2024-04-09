@@ -49,7 +49,6 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
-import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelCacheManager;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
@@ -219,8 +218,7 @@ public class ModelLoadingService implements ClusterStateListener {
         Settings settings,
         String localNode,
         CircuitBreaker trainedModelCircuitBreaker,
-        XPackLicenseState licenseState,
-        TrainedModelCacheManager trainedModelCacheManager
+        XPackLicenseState licenseState
     ) {
         this.provider = trainedModelProvider;
         this.threadPool = threadPool;
@@ -234,7 +232,6 @@ public class ModelLoadingService implements ClusterStateListener {
             .removalListener(this::cacheEvictionListener)
             .setExpireAfterAccess(INFERENCE_MODEL_CACHE_TTL.get(settings))
             .build();
-        trainedModelCacheManager.addManagedCache(this.localModelCache);
         clusterService.addListener(this);
         this.localNode = localNode;
         this.trainedModelCircuitBreaker = ExceptionsHelper.requireNonNull(trainedModelCircuitBreaker, "trainedModelCircuitBreaker");

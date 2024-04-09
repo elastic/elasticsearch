@@ -335,7 +335,7 @@ import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankRescorerBuilder;
 import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankService;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
-import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelCacheManager;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelCacheMetadataService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.BlackHolePyTorchProcess;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.NativePyTorchProcessFactory;
@@ -1134,8 +1134,8 @@ public class MachineLearning extends Plugin
             clusterService,
             threadPool
         );
-        final TrainedModelCacheManager trainedModelCacheManager = new TrainedModelCacheManager(clusterService);
-        final TrainedModelProvider trainedModelProvider = new TrainedModelProvider(client, trainedModelCacheManager, xContentRegistry);
+        final TrainedModelCacheMetadataService trainedModelCacheMetadataService = new TrainedModelCacheMetadataService(clusterService);
+        final TrainedModelProvider trainedModelProvider = new TrainedModelProvider(client, trainedModelCacheMetadataService, xContentRegistry);
         final ModelLoadingService modelLoadingService = new ModelLoadingService(
             trainedModelProvider,
             inferenceAuditor,
@@ -1145,8 +1145,7 @@ public class MachineLearning extends Plugin
             settings,
             clusterService.getNodeName(),
             inferenceModelBreaker.get(),
-            getLicenseState(),
-            trainedModelCacheManager
+            getLicenseState()
         );
         this.modelLoadingService.set(modelLoadingService);
 

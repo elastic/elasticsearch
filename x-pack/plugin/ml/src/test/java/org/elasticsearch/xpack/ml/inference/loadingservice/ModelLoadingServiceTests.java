@@ -51,7 +51,6 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
-import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelCacheManager;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.junit.After;
@@ -145,8 +144,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             Settings.EMPTY,
             "test-node",
             circuitBreaker,
-            mock(XPackLicenseState.class),
-            mock(TrainedModelCacheManager.class)
+            mock(XPackLicenseState.class)
         );
 
         modelLoadingService.clusterChanged(ingestChangedEvent(model1, model2, model3));
@@ -200,8 +198,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             Settings.builder().put(ModelLoadingService.INFERENCE_MODEL_CACHE_SIZE.getKey(), ByteSizeValue.ofBytes(20L)).build(),
             "test-node",
             circuitBreaker,
-            mock(XPackLicenseState.class),
-            mock(TrainedModelCacheManager.class)
+            mock(XPackLicenseState.class)
         );
 
         // We want to be notified when the models are loaded which happens in a background thread
@@ -299,8 +296,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             Settings.EMPTY,
             "test-node",
             circuitBreaker,
-            mock(XPackLicenseState.class),
-            mock(TrainedModelCacheManager.class)
+            mock(XPackLicenseState.class)
         );
 
         modelLoadingService.clusterChanged(ingestChangedEvent(false, model1));
@@ -329,8 +325,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             Settings.EMPTY,
             "test-node",
             circuitBreaker,
-            mock(XPackLicenseState.class),
-            mock(TrainedModelCacheManager.class)
+            mock(XPackLicenseState.class)
         );
         modelLoadingService.clusterChanged(ingestChangedEvent(model));
 
@@ -362,8 +357,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             Settings.EMPTY,
             "test-node",
             circuitBreaker,
-            mock(XPackLicenseState.class),
-            mock(TrainedModelCacheManager.class)
+            mock(XPackLicenseState.class)
         );
 
         PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
@@ -390,8 +384,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             Settings.EMPTY,
             "test-node",
             circuitBreaker,
-            mock(XPackLicenseState.class),
-            mock(TrainedModelCacheManager.class)
+            mock(XPackLicenseState.class)
         );
 
         for (int i = 0; i < 3; i++) {
@@ -418,8 +411,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             Settings.EMPTY,
             "test-node",
             circuitBreaker,
-            mock(XPackLicenseState.class),
-            mock(TrainedModelCacheManager.class)
+            mock(XPackLicenseState.class)
         );
 
         for (int i = 0; i < 3; i++) {
@@ -447,8 +439,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             Settings.EMPTY,
             "test-node",
             circuitBreaker,
-            mock(XPackLicenseState.class),
-            mock(TrainedModelCacheManager.class)
+            mock(XPackLicenseState.class)
         );
 
         for (int i = 0; i < 3; i++) {
@@ -480,8 +471,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             Settings.EMPTY,
             "test-node",
             circuitBreaker,
-            mock(XPackLicenseState.class),
-            mock(TrainedModelCacheManager.class)
+            mock(XPackLicenseState.class)
         );
 
         modelLoadingService.addModelLoadedListener(
@@ -525,8 +515,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             Settings.EMPTY,
             "test-node",
             circuitBreaker,
-            mock(XPackLicenseState.class),
-            mock(TrainedModelCacheManager.class)
+            mock(XPackLicenseState.class)
         );
 
         modelLoadingService.clusterChanged(ingestChangedEvent(modelId));
@@ -563,8 +552,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             Settings.EMPTY,
             "test-node",
             circuitBreaker,
-            mock(XPackLicenseState.class),
-            mock(TrainedModelCacheManager.class)
+            mock(XPackLicenseState.class)
         );
 
         modelLoadingService.clusterChanged(ingestChangedEvent(modelId));
@@ -597,8 +585,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             Settings.EMPTY,
             "test-node",
             circuitBreaker,
-            mock(XPackLicenseState.class),
-            mock(TrainedModelCacheManager.class)
+            mock(XPackLicenseState.class)
         );
 
         PlainActionFuture<LocalModel> future = new PlainActionFuture<>();
@@ -622,8 +609,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             Settings.EMPTY,
             "test-node",
             circuitBreaker,
-            mock(XPackLicenseState.class),
-            mock(TrainedModelCacheManager.class)
+            mock(XPackLicenseState.class)
         );
 
         modelLoadingService.clusterChanged(
@@ -676,8 +662,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             Settings.EMPTY,
             "test-node",
             circuitBreaker,
-            mock(XPackLicenseState.class),
-            mock(TrainedModelCacheManager.class)
+            mock(XPackLicenseState.class)
         );
 
         modelLoadingService.clusterChanged(aliasChangeEvent(false, new String[0], false, List.of(Tuple.tuple(model1, "loaded_model"))));

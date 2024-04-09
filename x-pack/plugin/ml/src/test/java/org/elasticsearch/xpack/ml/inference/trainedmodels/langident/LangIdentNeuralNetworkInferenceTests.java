@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident.LanguageExamples;
-import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelCacheManager;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelCacheMetadataService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.hamcrest.Matcher;
 
@@ -179,7 +179,7 @@ public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
     InferenceDefinition grabModel() throws IOException {
         TrainedModelProvider trainedModelProvider = new TrainedModelProvider(
             mock(Client.class),
-            mock(TrainedModelCacheManager.class),
+            mock(TrainedModelCacheMetadataService.class),
             xContentRegistry()
         );
         PlainActionFuture<TrainedModelConfig> future = new PlainActionFuture<>();

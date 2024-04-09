@@ -302,10 +302,10 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
              * the key. The formats on the InternalComposite doing the reducing are
              * just whatever formats make sense for *its* index. This can be real
              * trouble when the index doing the reducing is unmapped. */
-            final var reducedFormats = buckets.get(0).formats;
+            final var reducedFormats = reducer.getProto().formats;
             final long docCount = reducer.getDocCount();
             final InternalAggregations aggs = reducer.getAggregations();
-            return new InternalBucket(sourceNames, reducedFormats, buckets.get(0).key, reverseMuls, missingOrders, docCount, aggs);
+            return new InternalBucket(sourceNames, reducedFormats, reducer.getProto().key, reverseMuls, missingOrders, docCount, aggs);
         }
     }
 

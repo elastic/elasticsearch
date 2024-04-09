@@ -345,7 +345,7 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
             for (Bucket bucket : buckets) {
                 reducer.accept(bucket);
             }
-            return createBucket(buckets.get(0), reducer.getAggregations(), reducer.getDocCount());
+            return createBucket(reducer.getProto(), reducer.getAggregations(), reducer.getDocCount());
         }
     }
 

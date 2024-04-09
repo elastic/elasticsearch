@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
+import org.elasticsearch.search.aggregations.bucket.BucketReducer;
 import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -34,6 +35,8 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -392,13 +395,12 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
 
     private Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
         assert buckets.isEmpty() == false;
-        long docCount = 0;
-        for (Bucket bucket : buckets) {
-            docCount += bucket.docCount;
+        try (BucketReducer<Bucket> reducer = new BucketReducer<>(buckets.get(0), context, buckets.size())) {
+            for (Bucket bucket : buckets) {
+                reducer.accept(bucket);
+            }
+            return createBucket(reducer.getProto().key, reducer.getDocCount(), reducer.getAggregations());
         }
-        final List<InternalAggregations> aggregations = new BucketAggregationList<>(buckets);
-        final InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
-        return new InternalAutoDateHistogram.Bucket(buckets.get(0).key, docCount, format, aggs);
     }
 
     private record BucketReduceResult(
@@ -508,8 +510,28 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
                 if (histogram.buckets.isEmpty() == false) {
                     min = Math.min(min, histogram.buckets.get(0).key);
                     max = Math.max(max, histogram.buckets.get(histogram.buckets.size() - 1).key);
-                    pq.add(new IteratorAndCurrent<>(histogram.buckets.iterator()));
+                    pq.add(new IteratorAndCurrent<>(getIterator(histogram.buckets)));
                 }
+            }
+
+            private static Iterator<Bucket> getIterator(List<Bucket> buckets) {
+                if (sortByKey(buckets) == false) {
+                    // we changed the order format in 8.13 for partial reduce so in case of CCS with
+                    // that version, we need to perform this check
+                    buckets = new ArrayList<>(buckets);
+                    buckets.sort(Comparator.comparingLong(b -> b.key));
+                    assert sortByKey(buckets);
+                }
+                return buckets.iterator();
+            }
+
+            private static boolean sortByKey(List<Bucket> buckets) {
+                for (int i = 0; i < buckets.size() - 1; i++) {
+                    if (buckets.get(i).key > buckets.get(i + 1).key) {
+                        return false;
+                    }
+                }
+                return true;
             }
 
             @Override

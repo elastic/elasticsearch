@@ -29,6 +29,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
@@ -341,7 +343,7 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
             for (Bucket bucket : buckets) {
                 reducer.accept(bucket);
             }
-            return createBucket(buckets.get(0).key, reducer.getDocCount(), reducer.getAggregations());
+            return createBucket(reducer.getProto().key, reducer.getDocCount(), reducer.getAggregations());
         }
     }
 
@@ -450,8 +452,28 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
             public void accept(InternalAggregation aggregation) {
                 final InternalHistogram histogram = (InternalHistogram) aggregation;
                 if (histogram.buckets.isEmpty() == false) {
-                    pq.add(new IteratorAndCurrent<>(histogram.buckets.iterator()));
+                    pq.add(new IteratorAndCurrent<>(getIterator(histogram.buckets)));
                 }
+            }
+
+            private static Iterator<Bucket> getIterator(List<Bucket> buckets) {
+                if (sortByKey(buckets) == false) {
+                    // we changed the order format in 8.13 for partial reduce so in case of CCS with
+                    // that version, we need to perform this check
+                    buckets = new ArrayList<>(buckets);
+                    buckets.sort(Comparator.comparingDouble(b -> b.key));
+                    assert sortByKey(buckets);
+                }
+                return buckets.iterator();
+            }
+
+            private static boolean sortByKey(List<Bucket> buckets) {
+                for (int i = 0; i < buckets.size() - 1; i++) {
+                    if (buckets.get(i).key > buckets.get(i + 1).key) {
+                        return false;
+                    }
+                }
+                return true;
             }
 
             @Override

@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -530,8 +531,28 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             public void accept(InternalAggregation aggregation) {
                 final InternalVariableWidthHistogram histogram = (InternalVariableWidthHistogram) aggregation;
                 if (histogram.buckets.isEmpty() == false) {
-                    pq.add(new IteratorAndCurrent<>(histogram.buckets.iterator()));
+                    pq.add(new IteratorAndCurrent<>(getIterator(histogram.buckets)));
                 }
+            }
+
+            private static Iterator<Bucket> getIterator(List<Bucket> buckets) {
+                if (sortByKey(buckets) == false) {
+                    // we changed the order format in 8.13 for partial reduce so in case of CCS with
+                    // that version, we need to perform this check
+                    buckets = new ArrayList<>(buckets);
+                    buckets.sort(Comparator.comparingDouble(b -> b.centroid));
+                    assert sortByKey(buckets);
+                }
+                return buckets.iterator();
+            }
+
+            private static boolean sortByKey(List<Bucket> buckets) {
+                for (int i = 0; i < buckets.size() - 1; i++) {
+                    if (buckets.get(i).centroid > buckets.get(i + 1).centroid) {
+                        return false;
+                    }
+                }
+                return true;
             }
 
             @Override

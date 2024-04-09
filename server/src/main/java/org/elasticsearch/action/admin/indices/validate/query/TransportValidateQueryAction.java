@@ -90,6 +90,8 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         request.nowInMillis = System.currentTimeMillis();
         LongSupplier timeProvider = () -> request.nowInMillis;
 
+        // Use a supplier to resolve local indices lazily since it will be necessary only when the query rewrite context needs to build the
+        // index metadata map
         final AtomicReference<Index[]> resolvedLocalIndices = new AtomicReference<>();
         Supplier<Index[]> resolvedLocalIndicesSupplier = () -> {
             resolvedLocalIndices.compareAndSet(null, resolveLocalIndices(request));

@@ -478,7 +478,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         bulkLoadTestData(count);
 
         Request request = prepareRequest(SYNC);
-        var query = fromIndex() + " | eval asInt = to_int(case(integer % 2 == 0, to_str(integer), keyword)) | limit 1000";
+        var query = fromIndex()
+            + " | sort integer asc | eval asInt = to_int(case(integer % 2 == 0, to_str(integer), keyword)) | limit 1000";
         var mediaType = attachBody(new RequestObjectBuilder().query(query).build(), request);
 
         RequestOptions.Builder options = request.getOptions().toBuilder();
@@ -493,7 +494,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         int expectedWarnings = Math.min(count / 2, 20);
         var warnings = response.getWarnings();
         assertThat(warnings.size(), is(1 + expectedWarnings));
-        var firstHeader = "Line 1:36: evaluation of [to_int(case(integer %25 2 == 0, to_str(integer), keyword))] failed, "
+        var firstHeader = "Line 1:55: evaluation of [to_int(case(integer %25 2 == 0, to_str(integer), keyword))] failed, "
             + "treating result as null. Only first 20 failures recorded.";
         assertThat(warnings.get(0), containsString(firstHeader));
         for (int i = 1; i <= expectedWarnings; i++) {

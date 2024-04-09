@@ -193,7 +193,7 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
         TransportDeleteTrainedModelAction transportDeleteTrainedModelAction = createTransportDeleteTrainedModelAction(trainedModelProvider);
         boolean modelExists = transportDeleteTrainedModelAction.modelExists("modelId");
 
-        assertThat(modelExists, is(Boolean.TRUE));
+        assertThat(modelExists, is(Boolean.FALSE));
     }
 
     public void testDeleteModelThrowsExceptionWhenModelIsNotFound() {

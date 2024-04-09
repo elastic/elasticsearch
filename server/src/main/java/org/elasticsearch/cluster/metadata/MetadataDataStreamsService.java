@@ -213,6 +213,7 @@ public class MetadataDataStreamsService {
                     lifecycle,
                     dataStream.isFailureStore(),
                     dataStream.getFailureIndices(),
+                    dataStream.rolloverOnWrite(),
                     dataStream.getAutoShardingEvent()
                 )
             );

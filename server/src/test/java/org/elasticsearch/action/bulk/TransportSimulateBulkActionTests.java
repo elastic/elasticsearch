@@ -200,7 +200,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
         bulkAction.createMissingIndicesAndIndexData(
             task,
             bulkRequest,
-            randomAlphaOfLength(10),
+            r -> fail("executor is unused"),
             listener,
             indicesToAutoCreate,
             dataStreamsToRollover,

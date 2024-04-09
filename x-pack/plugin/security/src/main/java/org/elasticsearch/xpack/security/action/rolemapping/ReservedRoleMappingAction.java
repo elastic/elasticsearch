@@ -38,15 +38,20 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
 
     @Override
     public TransformState transform(Object source, TransformState prevState) throws Exception {
-        // We execute the prepare() call to catch any errors in the transform phase.
-        // Since we store the role mappings outside the cluster state, we do the actual save with a
-        // non cluster state transform call.
         @SuppressWarnings("unchecked")
         List<ExpressionRoleMapping> roleMappings = validate((List<ExpressionRoleMapping>) source);
-        ClusterState newState = prevState.state()
-            .copyAndUpdate(b -> b.putCustom(RoleMappingMetadata.TYPE, new RoleMappingMetadata(roleMappings)));
-        Set<String> entities = roleMappings.stream().map(ExpressionRoleMapping::getName).collect(Collectors.toSet());
-        return new TransformState(newState, entities);
+        if (roleMappings.equals(prevState.state().custom(RoleMappingMetadata.TYPE, RoleMappingMetadata.EMPTY).getRoleMappings())) {
+            return prevState;
+        } else if (roleMappings.isEmpty()) {
+            // prefer no role mapping custom metadata rather than the empty role mapping metadata
+            ClusterState newState = prevState.state().copyAndUpdate(b -> b.removeCustom(RoleMappingMetadata.TYPE));
+            return new TransformState(newState, Set.of());
+        } else {
+            ClusterState newState = prevState.state()
+                .copyAndUpdate(b -> b.putCustom(RoleMappingMetadata.TYPE, new RoleMappingMetadata(roleMappings)));
+            Set<String> entities = roleMappings.stream().map(ExpressionRoleMapping::getName).collect(Collectors.toSet());
+            return new TransformState(newState, entities);
+        }
     }
 
     @Override

@@ -66,7 +66,14 @@ enum Database {
             Property.PUBLIC_PROXY,
             Property.RESIDENTIAL_PROXY
         ),
-        Set.of(Property.ANONYMOUS)
+        Set.of(
+            Property.HOSTING_PROVIDER,
+            Property.TOR_EXIT_NODE,
+            Property.ANONYMOUS_VPN,
+            Property.ANONYMOUS,
+            Property.PUBLIC_PROXY,
+            Property.RESIDENTIAL_PROXY
+        )
     );
 
     private static final String CITY_DB_SUFFIX = "-City";

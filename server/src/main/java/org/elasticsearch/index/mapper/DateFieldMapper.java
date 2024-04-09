@@ -795,7 +795,8 @@ public final class DateFieldMapper extends FieldMapper {
                 return new SortedNumericIndexFieldData.Builder(
                     name(),
                     resolution.numericType(),
-                    resolution.getDefaultToScriptFieldFactory()
+                    resolution.getDefaultToScriptFieldFactory(),
+                    isIndexed()
                 );
             }
 

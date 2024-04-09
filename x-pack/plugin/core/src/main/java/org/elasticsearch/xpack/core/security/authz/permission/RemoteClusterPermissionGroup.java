@@ -53,7 +53,6 @@ public class RemoteClusterPermissionGroup implements Writeable, ToXContentObject
         assert remoteClusterAliasMatcher != null;
         assert clusterPrivileges.length > 0;
         assert remoteClusterAliases.length > 0;
-        assert RemoteClusterPermissions.getSupportRemoteClusterPermissions().containsAll(Arrays.asList(clusterPrivileges));
         this.clusterPrivileges = clusterPrivileges;
         this.remoteClusterAliases = remoteClusterAliases;
         this.remoteClusterAliasMatcher = remoteClusterAliasMatcher;

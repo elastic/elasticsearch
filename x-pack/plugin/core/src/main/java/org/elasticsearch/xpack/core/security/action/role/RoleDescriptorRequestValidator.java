@@ -64,6 +64,13 @@ public class RoleDescriptorRequestValidator {
                 validationException = addValidationError(ile.getMessage(), validationException);
             }
         }
+        if (roleDescriptor.hasRemoteClusterPermissions()) {
+            try {
+                roleDescriptor.getRemoteClusterPermissions().validate();
+            } catch (IllegalArgumentException e) {
+                validationException = addValidationError(e.getMessage(), validationException);
+            }
+        }
         if (roleDescriptor.getApplicationPrivileges() != null) {
             for (RoleDescriptor.ApplicationResourcePrivileges privilege : roleDescriptor.getApplicationPrivileges()) {
                 try {

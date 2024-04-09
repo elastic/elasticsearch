@@ -25,6 +25,8 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 /**
  * Represents a group of permissions for a remote cluster. This is intended to be the model for both the {@link RoleDescriptor}
  * and {@link Role}. This model is not intended to be sent to a remote cluster, but can be (wire) serialized within a single cluster
@@ -108,6 +110,11 @@ public class RemoteClusterPermissions implements Writeable, ToXContentObject {
                     + allowedRemoteClusterPermissions
                     + " is allowed"
             );
+        }
+        for (RemoteClusterPermissionGroup group : remoteClusterPermissionGroups) {
+            if (Arrays.asList(group.remoteClusterAliases()).contains("")) {
+                throw new IllegalArgumentException("remote_cluster - cluster alias cannot be an empty string");
+            }
         }
     }
 

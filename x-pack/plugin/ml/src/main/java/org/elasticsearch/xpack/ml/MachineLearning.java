@@ -1135,7 +1135,11 @@ public class MachineLearning extends Plugin
             threadPool
         );
         final TrainedModelCacheMetadataService trainedModelCacheMetadataService = new TrainedModelCacheMetadataService(clusterService);
-        final TrainedModelProvider trainedModelProvider = new TrainedModelProvider(client, trainedModelCacheMetadataService, xContentRegistry);
+        final TrainedModelProvider trainedModelProvider = new TrainedModelProvider(
+            client,
+            trainedModelCacheMetadataService,
+            xContentRegistry
+        );
         final ModelLoadingService modelLoadingService = new ModelLoadingService(
             trainedModelProvider,
             inferenceAuditor,

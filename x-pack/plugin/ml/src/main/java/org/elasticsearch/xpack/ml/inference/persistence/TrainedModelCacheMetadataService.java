@@ -99,7 +99,6 @@ public class TrainedModelCacheMetadataService implements ClusterStateListener {
         }
     }
 
-
     private static class TrainedModelCacheMetadataTaskExecutor implements ClusterStateTaskExecutor<TrainedModelCacheMetadataUpdateTask> {
         @Override
         public ClusterState execute(BatchExecutionContext<TrainedModelCacheMetadataUpdateTask> batchExecutionContext) {

@@ -129,7 +129,11 @@ public class TrainedModelProvider {
     private final NamedXContentRegistry xContentRegistry;
     private final TrainedModelCacheMetadataService modelCacheMetadataService;
 
-    public TrainedModelProvider(Client client, TrainedModelCacheMetadataService modelCacheMetadataService, NamedXContentRegistry xContentRegistry) {
+    public TrainedModelProvider(
+        Client client,
+        TrainedModelCacheMetadataService modelCacheMetadataService,
+        NamedXContentRegistry xContentRegistry
+    ) {
         this.client = client;
         this.modelCacheMetadataService = modelCacheMetadataService;
         this.xContentRegistry = xContentRegistry;
@@ -210,26 +214,23 @@ public class TrainedModelProvider {
             ML_ORIGIN,
             TransportIndexAction.TYPE,
             request,
-            ActionListener.wrap(
-                indexResponse -> refreshCacheVersion(listener),
-                e -> {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                        listener.onFailure(
-                            new ResourceAlreadyExistsException(
-                                Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelConfig.getModelId())
-                            )
-                        );
-                    } else {
-                        listener.onFailure(
-                            new ElasticsearchStatusException(
-                                Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL, trainedModelConfig.getModelId()),
-                                RestStatus.INTERNAL_SERVER_ERROR,
-                                e
-                            )
-                        );
-                    }
+            ActionListener.wrap(indexResponse -> refreshCacheVersion(listener), e -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                    listener.onFailure(
+                        new ResourceAlreadyExistsException(
+                            Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelConfig.getModelId())
+                        )
+                    );
+                } else {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL, trainedModelConfig.getModelId()),
+                            RestStatus.INTERNAL_SERVER_ERROR,
+                            e
+                        )
+                    );
                 }
-            )
+            })
         );
     }
 
@@ -1385,8 +1386,6 @@ public class TrainedModelProvider {
     }
 
     private void refreshCacheVersion(ActionListener<Boolean> listener) {
-        modelCacheMetadataService.refreshCacheVersion(
-            ActionListener.wrap(resp -> listener.onResponse(true), listener::onFailure)
-        );
+        modelCacheMetadataService.refreshCacheVersion(ActionListener.wrap(resp -> listener.onResponse(true), listener::onFailure));
     }
 }

@@ -39,9 +39,9 @@ enum Database {
             Property.LOCATION
         ),
         Set.of(
-            Property.CONTINENT_NAME,
-            Property.COUNTRY_NAME,
             Property.COUNTRY_ISO_CODE,
+            Property.COUNTRY_NAME,
+            Property.CONTINENT_NAME,
             Property.REGION_ISO_CODE,
             Property.REGION_NAME,
             Property.CITY_NAME,

@@ -214,7 +214,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
         Layout.Builder builder = new Layout.Builder();
         buildLayout(builder, e);
-        assertTrue(e.resolved());
+        Expression.TypeResolution resolution = e.typeResolved();
+        if (resolution.unresolved()) {
+            throw new AssertionError("expected resolved " + resolution.message());
+        }
         return EvalMapper.toEvaluator(e, builder.build());
     }
 
@@ -256,7 +259,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
             return;
         }
-        assertFalse("expected resolved", expression.typeResolved().unresolved());
+        Expression.TypeResolution resolution = expression.typeResolved();
+        if (resolution.unresolved()) {
+            throw new AssertionError("expected resolved " + resolution.message());
+        }
         expression = new FoldNull().rule(expression);
         assertThat(expression.dataType(), equalTo(testCase.expectedType()));
         logger.info("Result type: " + expression.dataType());
@@ -596,6 +602,28 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      *                                  on input types like {@link Greatest} or {@link Coalesce}.
      */
     protected static List<TestCaseSupplier> anyNullIsNull(boolean entirelyNullPreservesType, List<TestCaseSupplier> testCaseSuppliers) {
+        return anyNullIsNull(
+            testCaseSuppliers,
+            (nullPosition, nullValueDataType, original) -> entirelyNullPreservesType == false
+                && nullValueDataType == DataTypes.NULL
+                && original.getData().size() == 1 ? DataTypes.NULL : original.expectedType(),
+            (nullPosition, original) -> original
+        );
+    }
+
+    public interface ExpectedType {
+        DataType expectedType(int nullPosition, DataType nullValueDataType, TestCaseSupplier.TestCase original);
+    }
+
+    public interface ExpectedEvaluatorToString {
+        Matcher<String> evaluatorToString(int nullPosition, Matcher<String> original);
+    }
+
+    protected static List<TestCaseSupplier> anyNullIsNull(
+        List<TestCaseSupplier> testCaseSuppliers,
+        ExpectedType expectedType,
+        ExpectedEvaluatorToString evaluatorToString
+    ) {
         typesRequired(testCaseSuppliers);
         List<TestCaseSupplier> suppliers = new ArrayList<>(testCaseSuppliers.size());
         suppliers.addAll(testCaseSuppliers);
@@ -618,15 +646,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     TestCaseSupplier.TestCase oc = original.get();
                     List<TestCaseSupplier.TypedData> data = IntStream.range(0, oc.getData().size()).mapToObj(i -> {
                         TestCaseSupplier.TypedData od = oc.getData().get(i);
-                        if (i == finalNullPosition) {
-                            return new TestCaseSupplier.TypedData(null, od.type(), od.name());
-                        }
-                        return od;
+                        return i == finalNullPosition ? od.forceValueToNull() : od;
                     }).toList();
                     return new TestCaseSupplier.TestCase(
                         data,
-                        oc.evaluatorToString(),
-                        oc.expectedType(),
+                        evaluatorToString.evaluatorToString(finalNullPosition, oc.evaluatorToString()),
+                        expectedType.expectedType(finalNullPosition, oc.getData().get(finalNullPosition).type(), oc),
                         nullValue(),
                         null,
                         oc.getExpectedTypeError(),
@@ -649,7 +674,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                             return new TestCaseSupplier.TestCase(
                                 data,
                                 equalTo("LiteralsEvaluator[lit=null]"),
-                                entirelyNullPreservesType == false && oc.getData().size() == 1 ? DataTypes.NULL : oc.expectedType(),
+                                expectedType.expectedType(finalNullPosition, DataTypes.NULL, oc),
                                 nullValue(),
                                 null,
                                 oc.getExpectedTypeError(),
@@ -755,9 +780,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (argumentCount == 0) {
             return Stream.of(List.of());
         }
-        if (argumentCount > 4) {
-            // TODO check for a limit 4. is arbitrary.
-            throw new IllegalArgumentException("would generate too many types");
+        if (argumentCount > 3) {
+            throw new IllegalArgumentException("would generate too many combinations");
         }
         Stream<List<DataType>> stream = representable().map(t -> List.of(t));
         for (int i = 1; i < argumentCount; i++) {

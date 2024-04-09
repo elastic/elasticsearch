@@ -112,8 +112,6 @@ public class SpatialContains extends SpatialRelatesFunction {
     @FunctionInfo(
         returnType = { "boolean" },
         description = "Returns whether the first geometry contains the second geometry.",
-        note = "The second parameter must also have the same coordinate system as the first. "
-            + "This means it is not possible to combine `geo_*` and `cartesian_*` parameters.",
         examples = @Example(file = "spatial_shapes", tag = "st_contains-airport_city_boundaries")
     )
     public SpatialContains(

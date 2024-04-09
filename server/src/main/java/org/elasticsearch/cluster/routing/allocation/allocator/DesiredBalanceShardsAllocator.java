@@ -199,25 +199,12 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     private void processNodeShutdowns(ClusterState clusterState) {
-        final var nodes = clusterState.nodes();
-        final var nodeShutdowns = clusterState.metadata().nodeShutdowns();
-        // If we remove a shutdown marker from a node, but it is still in the cluster, we'd need a reset.
-        boolean reset = processedNodeShutdowns.stream()
-            .anyMatch(nodeId -> nodeShutdowns.contains(nodeId) == false && nodes.get(nodeId) != null);
-        // Clean up processed shutdowns that are removed from the cluster metadata
-        processedNodeShutdowns.removeIf(nodeId -> nodeShutdowns.contains(nodeId) == false);
-
-        Set<String> newShutdowns = new HashSet<>();
-        for (var shutdown : nodeShutdowns.getAll().entrySet()) {
-            if (shutdown.getValue().getType() != SingleNodeShutdownMetadata.Type.RESTART
-                && processedNodeShutdowns.contains(shutdown.getKey()) == false) {
-                newShutdowns.add(shutdown.getKey());
-            }
-        }
-        if (reset || newShutdowns.isEmpty() == false) {
+        final var nodeShutdowns = clusterState.metadata().nodeShutdowns().getAllNodeIds();
+        if (nodeShutdowns.equals(processedNodeShutdowns) == false) {
             resetDesiredBalance();
+            processedNodeShutdowns.clear();
+            processedNodeShutdowns.addAll(nodeShutdowns);
         }
-        processedNodeShutdowns.addAll(newShutdowns);
     }
 
     @Override

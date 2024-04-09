@@ -12,6 +12,8 @@ import org.apache.lucene.document.XYDocValuesField;
 import org.apache.lucene.document.XYPointField;
 import org.apache.lucene.document.XYShape;
 import org.apache.lucene.geo.XYGeometry;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -24,6 +26,7 @@ import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -221,7 +224,16 @@ public class SpatialRelatesQuery extends Query {
         }
 
         /**
-         * This code is based on the ShapeQueryPointProcessor.shapeQuery() method
+         * This code is based on the ShapeQueryPointProcessor.shapeQuery() method, with additional support for two special cases:
+         * <ul>
+         *     <li>
+         *         DISJOINT queries (using {@code EXISTS && !INTERSECTS}, similar to {@code LegacyGeoShapeQueryProcessor.geoShapeQuery()})
+         *     </li>
+         *     <li>
+         *         CONTAINS queries (if the shape is a point, INTERSECTS is used, otherwise a MatchNoDocsQuery is built,
+         *         similar to {@code LatLonPoint.makeContainsGeometryQuery()})
+         *     </li>
+         * </ul>
          */
         private static org.apache.lucene.search.Query pointShapeQuery(
             Geometry geometry,
@@ -231,20 +243,28 @@ public class SpatialRelatesQuery extends Query {
         ) {
             final boolean hasDocValues = context.getFieldType(fieldName).hasDocValues();
             if (geometry == null || geometry.isEmpty()) {
-                // Should never be null, but can be an empty geometry
-                return new MatchNoDocsQuery();
+                throw new QueryShardException(context, "Invalid/empty geometry");
             }
             if (geometry.type() != ShapeType.POINT && relation == ShapeField.QueryRelation.CONTAINS) {
-                // A point field can never contain a non-point geometry
-                return new MatchNoDocsQuery();
+                return new MatchNoDocsQuery("A point field can never contain a non-point geometry");
             }
             final XYGeometry[] luceneGeometries = LuceneGeometriesUtils.toXYGeometry(geometry, t -> {});
-            org.apache.lucene.search.Query query = XYPointField.newGeometryQuery(fieldName, luceneGeometries);
+            org.apache.lucene.search.Query intersects = XYPointField.newGeometryQuery(fieldName, luceneGeometries);
+            if (relation == ShapeField.QueryRelation.DISJOINT) {
+                // XYPointField does not support DISJOINT queries, so we build one as EXISTS && !INTERSECTS
+                BooleanQuery.Builder bool = new BooleanQuery.Builder();
+                org.apache.lucene.search.Query exists = ExistsQueryBuilder.newFilter(context, fieldName, false);
+                bool.add(exists, BooleanClause.Occur.MUST);
+                bool.add(intersects, BooleanClause.Occur.MUST_NOT);
+                return bool.build();
+            }
+
+            // Point-Intersects works for all cases except CONTAINS(shape) and DISJOINT, which are handled separately above
             if (hasDocValues) {
                 final org.apache.lucene.search.Query queryDocValues = XYDocValuesField.newSlowGeometryQuery(fieldName, luceneGeometries);
-                query = new IndexOrDocValuesQuery(query, queryDocValues);
+                intersects = new IndexOrDocValuesQuery(intersects, queryDocValues);
             }
-            return query;
+            return intersects;
         }
 
         /**
@@ -262,8 +282,7 @@ public class SpatialRelatesQuery extends Query {
                 throw new QueryShardException(context, relation + " query relation not supported for Field [" + fieldName + "].");
             }
             if (geometry == null || geometry.isEmpty()) {
-                // Should never be null, but can be an empty geometry
-                return new MatchNoDocsQuery();
+                throw new QueryShardException(context, "Invalid/empty geometry");
             }
             final XYGeometry[] luceneGeometries;
             try {

@@ -29,4 +29,10 @@ public class MapperMergeContextTests extends ESTestCase {
         assertTrue(context.decrementFieldBudgetIfPossible(Integer.MAX_VALUE));
     }
 
+    public void testMergeReasons() {
+        MapperService.MergeReason mergeReason = randomFrom(MapperService.MergeReason.values());
+        MapperMergeContext context = MapperMergeContext.root(false, false, mergeReason, Integer.MAX_VALUE);
+        assertEquals(mergeReason, context.getMapperBuilderContext().getMergeReason());
+    }
+
 }

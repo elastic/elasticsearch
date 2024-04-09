@@ -324,6 +324,52 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var relation = as(limit.child(), EsRelation.class);
     }
 
+    /**
+     * Expects
+     * Project[[languages{f}#12 AS f2]]
+     * \_Limit[1000[INTEGER]]
+     *   \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     */
+    public void testCombineProjectionsWithEvalAndDrop() {
+        var plan = plan("""
+            from test
+            | eval f1 = languages, f2 = f1
+            | keep f2
+            """);
+
+        var keep = as(plan, Project.class);
+        assertThat(Expressions.names(keep.projections()), contains("f2"));
+        assertThat(Expressions.name(Alias.unwrap(keep.projections().get(0))), is("languages"));
+        var limit = as(keep.child(), Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+
+    }
+
+    /**
+     * Expects
+     * Project[[last_name{f}#26, languages{f}#25 AS f2, f4{r}#13]]
+     * \_Eval[[languages{f}#25 + 3[INTEGER] AS f4]]
+     *   \_Limit[1000[INTEGER]]
+     *     \_EsRelation[test][_meta_field{f}#28, emp_no{f}#22, first_name{f}#23, ..]
+     */
+    public void testCombineProjectionsWithEval() {
+        var plan = plan("""
+            from test
+            | eval f1 = languages, f2 = f1, f3 = 1 + 2, f4 = f3 + languages
+            | keep emp_no, *name, salary, f*
+            | drop f3
+            | keep last_name, f2, f4
+            """);
+
+        var keep = as(plan, Project.class);
+        assertThat(Expressions.names(keep.projections()), contains("last_name", "f2", "f4"));
+        var eval = as(keep.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), contains("f4"));
+        var add = as(Alias.unwrap(eval.fields().get(0)), Add.class);
+        var limit = as(eval.child(), Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+    }
+
     public void testCombineProjectionWithFilterInBetween() {
         var plan = plan("""
             from test
@@ -364,6 +410,27 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var agg = as(limit.child(), Aggregate.class);
         assertThat(Expressions.names(agg.aggregates()), contains("s", "last_name", "first_name"));
         assertThat(Expressions.names(agg.groupings()), contains("last_name", "first_name"));
+    }
+
+    /**
+     * Expects
+     * Limit[1000[INTEGER]]
+     * \_Aggregate[[last_name{f}#23, first_name{f}#20, k{r}#4],[SUM(salary{f}#24) AS s, last_name{f}#23, first_name{f}#20, first_n
+     * ame{f}#20 AS k]]
+     *   \_EsRelation[test][_meta_field{f}#25, emp_no{f}#19, first_name{f}#20, ..]
+     */
+    public void testCombineProjectionWithAggregationAndEval() {
+        var plan = plan("""
+            from test
+            | eval k = first_name, k1 = k
+            | stats s = sum(salary) by last_name, first_name, k, k1
+            | keep s, last_name, first_name, k
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.aggregates()), contains("s", "last_name", "first_name", "k"));
+        assertThat(Expressions.names(agg.groupings()), contains("last_name", "first_name", "k"));
     }
 
     /**

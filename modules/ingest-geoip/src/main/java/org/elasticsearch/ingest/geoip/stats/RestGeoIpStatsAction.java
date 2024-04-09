@@ -20,7 +20,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 @ServerlessScope(Scope.INTERNAL)
-public class RestGeoIpDownloaderStatsAction extends BaseRestHandler {
+public class RestGeoIpStatsAction extends BaseRestHandler {
 
     @Override
     public String getName() {

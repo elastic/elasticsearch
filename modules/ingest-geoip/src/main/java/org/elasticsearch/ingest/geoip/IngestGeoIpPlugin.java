@@ -30,7 +30,7 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStats;
 import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction;
 import org.elasticsearch.ingest.geoip.stats.GeoIpStatsTransportAction;
-import org.elasticsearch.ingest.geoip.stats.RestGeoIpDownloaderStatsAction;
+import org.elasticsearch.ingest.geoip.stats.RestGeoIpStatsAction;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -159,7 +159,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return List.of(new RestGeoIpDownloaderStatsAction());
+        return List.of(new RestGeoIpStatsAction());
     }
 
     @Override

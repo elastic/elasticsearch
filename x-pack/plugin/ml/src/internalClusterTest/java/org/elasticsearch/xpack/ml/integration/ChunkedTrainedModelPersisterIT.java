@@ -73,7 +73,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
     public void createComponents() throws Exception {
         TrainedModelCacheMetadataService modelCacheMetadataService = mock(TrainedModelCacheMetadataService.class);
         doAnswer(invocationOnMock -> {
-            invocationOnMock.getArgument(1, ActionListener.class).onResponse(AcknowledgedResponse.TRUE);
+            invocationOnMock.getArgument(0, ActionListener.class).onResponse(AcknowledgedResponse.TRUE);
             return Void.TYPE;
         }).when(modelCacheMetadataService).refreshCacheVersion(any(ActionListener.class));
         trainedModelProvider = new TrainedModelProvider(client(), modelCacheMetadataService, xContentRegistry());

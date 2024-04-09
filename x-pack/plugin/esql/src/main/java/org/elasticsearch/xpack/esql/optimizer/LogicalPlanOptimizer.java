@@ -324,25 +324,20 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     }
 
     static class ReplaceOrderByExpressionWithEval extends OptimizerRules.OptimizerRule<OrderBy> {
+        private static int counter = 0;
 
         @Override
         protected LogicalPlan rule(OrderBy orderBy) {
-            int counter = 0;
-            List<Alias> evals = new ArrayList<>(orderBy.order().size());
-            List<Order> newOrders = new ArrayList<>(orderBy.order().size());
+            int size = orderBy.order().size();
+            List<Alias> evals = new ArrayList<>(size);
+            List<Order> newOrders = new ArrayList<>(size);
 
-            for (Order order : orderBy.order()) {
+            for (int i = 0; i < size; i++) {
+                var order = orderBy.order().get(i);
                 if (order.child() instanceof Attribute == false) {
-                    var name = rawTemporaryName("order_by", "temp_name", String.valueOf(counter++));
+                    var name = rawTemporaryName("order_by", String.valueOf(i), String.valueOf(counter++));
                     var eval = new Alias(order.child().source(), name, order.child());
-                    newOrders.add(
-                        new org.elasticsearch.xpack.esql.expression.Order(
-                            order.source(),
-                            eval.toAttribute(),
-                            order.direction(),
-                            order.nullsPosition()
-                        )
-                    );
+                    newOrders.add(order.replaceChildren(List.of(eval.toAttribute())));
                     evals.add(eval);
                 } else {
                     newOrders.add(order);

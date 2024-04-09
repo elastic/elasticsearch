@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -148,6 +149,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -155,6 +157,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -3918,9 +3921,20 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             for (Alias field : renamingEval.fields()) {
                 attributesCreatedInEval.add(field.toAttribute());
             }
-            assert (attributesCreatedInEval.contains(renamed_emp_no));
-            assert (attributesCreatedInEval.contains(renamed_salary));
-            assert (attributesCreatedInEval.contains(renamed_emp_no2));
+            assertThat(attributesCreatedInEval, allOf(hasItem(renamed_emp_no), hasItem(renamed_salary), hasItem(renamed_emp_no2)));
+
+            assertThat(renamingEval.fields().size(), anyOf(equalTo(2), equalTo(4))); // 4 for EVAL, 3 for the other overwritingCommands
+            // emp_no ASC nulls first
+            Alias empNoAsc = renamingEval.fields().get(0);
+            assertThat(empNoAsc.toAttribute(), equalTo(renamed_emp_no));
+            var emp_no = as(empNoAsc.child(), FieldAttribute.class);
+            assertThat(emp_no.name(), equalTo("emp_no"));
+
+            // salary DESC nulls last
+            Alias salaryDesc = renamingEval.fields().get(1);
+            assertThat(salaryDesc.toAttribute(), equalTo(renamed_salary));
+            var salary_desc = as(salaryDesc.child(), FieldAttribute.class);
+            assertThat(salary_desc.name(), equalTo("salary"));
 
             assertThat(renamingEval.child(), instanceOf(EsRelation.class));
         }
@@ -3950,7 +3964,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(order.direction(), equalTo(org.elasticsearch.xpack.ql.expression.Order.OrderDirection.ASC));
         assertThat(order.nullsPosition(), equalTo(org.elasticsearch.xpack.ql.expression.Order.NullsPosition.LAST));
         var expression = as(order.child(), ReferenceAttribute.class);
-        assertThat(expression.toString(), startsWith("$$order_by$temp_name$0"));
+        assertThat(expression.toString(), startsWith("$$order_by$0$"));
 
         var eval = as(topN.child(), Eval.class);
         var fields = eval.fields();
@@ -3961,6 +3975,57 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var unwrapped = Alias.unwrap(aggregates.get(0));
         var min = as(unwrapped, Min.class);
         as(aggregate.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     *
+     * Project[[salary{f}#19, languages{f}#17, emp_no{f}#14]]
+     * \_TopN[[Order[$$order_by$0$0{r}#24,ASC,LAST], Order[emp_no{f}#14,DESC,FIRST]],1000[INTEGER]]
+     *   \_Eval[[salary{f}#19 / 10000[INTEGER] + languages{f}#17 AS $$order_by$0$0]]
+     *     \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
+     */
+    public void testReplaceSortByExpressionsMultipleSorts() {
+        var plan = optimizedPlan("""
+            from test
+            | sort salary/10000 + languages, emp_no desc
+            | eval d = emp_no
+            | sort salary/10000 + languages, d desc
+            | keep salary, languages, emp_no
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("salary", "languages", "emp_no"));
+        var topN = as(project.child(), TopN.class);
+        assertThat(topN.order().size(), is(2));
+
+        var order = as(topN.order().get(0), Order.class);
+        assertThat(order.direction(), equalTo(org.elasticsearch.xpack.ql.expression.Order.OrderDirection.ASC));
+        assertThat(order.nullsPosition(), equalTo(org.elasticsearch.xpack.ql.expression.Order.NullsPosition.LAST));
+        ReferenceAttribute expression = as(order.child(), ReferenceAttribute.class);
+        assertThat(expression.toString(), startsWith("$$order_by$0$"));
+
+        order = as(topN.order().get(1), Order.class);
+        assertThat(order.direction(), equalTo(org.elasticsearch.xpack.ql.expression.Order.OrderDirection.DESC));
+        assertThat(order.nullsPosition(), equalTo(org.elasticsearch.xpack.ql.expression.Order.NullsPosition.FIRST));
+        FieldAttribute empNo = as(order.child(), FieldAttribute.class);
+        assertThat(empNo.name(), equalTo("emp_no"));
+
+        var eval = as(topN.child(), Eval.class);
+        var fields = eval.fields();
+        assertThat(fields.size(), equalTo(1));
+        assertThat(Expressions.attribute(fields.get(0)), is(Expressions.attribute(expression)));
+        Alias salaryAddLanguages = eval.fields().get(0);
+        var add = as(salaryAddLanguages.child(), Add.class);
+        var div = as(add.left(), Div.class);
+        var salary = as(div.left(), FieldAttribute.class);
+        assertThat(salary.name(), equalTo("salary"));
+        var _10000 = as(div.right(), Literal.class);
+        assertThat(_10000.value(), equalTo(10000));
+        var languages = as(add.right(), FieldAttribute.class);
+        assertThat(languages.name(), equalTo("languages"));
+
+        as(eval.child(), EsRelation.class);
     }
 
     /**
@@ -4015,13 +4080,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             assertThat(firstOrderExpr.direction(), equalTo(org.elasticsearch.xpack.ql.expression.Order.OrderDirection.ASC));
             assertThat(firstOrderExpr.nullsPosition(), equalTo(org.elasticsearch.xpack.ql.expression.Order.NullsPosition.LAST));
             var renamedEmpNoSalaryExpression = as(firstOrderExpr.child(), ReferenceAttribute.class);
-            assertThat(renamedEmpNoSalaryExpression.toString(), startsWith("$$order_by$temp_name$0"));
+            assertThat(renamedEmpNoSalaryExpression.toString(), startsWith("$$order_by$0$"));
 
             var secondOrderExpr = as(topN.order().get(1), Order.class);
             assertThat(secondOrderExpr.direction(), equalTo(org.elasticsearch.xpack.ql.expression.Order.OrderDirection.DESC));
             assertThat(secondOrderExpr.nullsPosition(), equalTo(org.elasticsearch.xpack.ql.expression.Order.NullsPosition.FIRST));
             var renamedNegatedSalaryExpression = as(secondOrderExpr.child(), ReferenceAttribute.class);
-            assertThat(renamedNegatedSalaryExpression.toString(), startsWith("$$order_by$temp_name$1"));
+            assertThat(renamedNegatedSalaryExpression.toString(), startsWith("$$order_by$1$"));
 
             Eval renamingEval = null;
             if (overwritingCommand.startsWith("EVAL")) {
@@ -4041,12 +4106,25 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 renamingEval = as(enrich.child(), Eval.class);
             }
 
-            AttributeSet attributesCreatedInEval = new AttributeSet();
-            for (Alias field : renamingEval.fields()) {
-                attributesCreatedInEval.add(field.toAttribute());
-            }
-            assert (attributesCreatedInEval.contains(renamedEmpNoSalaryExpression));
-            assert (attributesCreatedInEval.contains(renamedNegatedSalaryExpression));
+            assertThat(renamingEval.fields().size(), anyOf(equalTo(2), equalTo(4))); // 4 for EVAL, 2 for the other overwritingCommands
+
+            // 13*(emp_no+salary)
+            Alias _13empNoSalary = renamingEval.fields().get(0);
+            assertThat(_13empNoSalary.toAttribute(), equalTo(renamedEmpNoSalaryExpression));
+            var mul = as(_13empNoSalary.child(), Mul.class);
+            var add = as(mul.left(), Add.class);
+            var emp_no = as(add.left(), FieldAttribute.class);
+            assertThat(emp_no.name(), equalTo("emp_no"));
+            var salary = as(add.right(), FieldAttribute.class);
+            assertThat(salary.name(), equalTo("salary"));
+            var _13 = as(mul.right(), Literal.class);
+            assertThat(_13.value(), equalTo(13));
+
+            // -salary
+            Alias negatedSalary = renamingEval.fields().get(1);
+            assertThat(negatedSalary.toAttribute(), equalTo(renamedNegatedSalaryExpression));
+            var neg = as(negatedSalary.child(), Neg.class);
+            assertThat(neg.field(), equalTo(salary));
 
             assertThat(renamingEval.child(), instanceOf(EsRelation.class));
         }

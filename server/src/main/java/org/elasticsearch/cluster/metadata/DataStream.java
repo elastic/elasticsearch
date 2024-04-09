@@ -682,6 +682,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             lifecycle,
             failureStore,
             updatedFailureIndices,
+            rolloverOnWrite,
             autoShardingEvent
         );
     }
@@ -807,6 +808,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             lifecycle,
             failureStore,
             updatedFailureIndices,
+            rolloverOnWrite,
             autoShardingEvent
         );
     }

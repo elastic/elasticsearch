@@ -96,7 +96,11 @@ public class Locate extends EsqlScalarFunction implements OptionalArgument {
         int codePointCount = UnicodeUtil.codePointCount(str);
         int indexStart = indexStart(codePointCount, start);
         String utf8ToString = str.utf8ToString();
-        return 1 + utf8ToString.indexOf(substr.utf8ToString(), utf8ToString.offsetByCodePoints(0, indexStart));
+        int idx = utf8ToString.indexOf(substr.utf8ToString(), utf8ToString.offsetByCodePoints(0, indexStart));
+        if (idx == -1) {
+            return 0;
+        }
+        return 1 + utf8ToString.codePointCount(0, idx);
     }
 
     @Evaluator(extraName = "NoStart")

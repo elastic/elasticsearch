@@ -13,56 +13,48 @@ The reference documentation is divided into the following categories:
 .*Aggregate functions*
 [%collapsible]
 ====
-<<esql-agg-functions>>::
 include::functions/aggregation-functions.asciidoc[tag=agg_list]
 ====
 
 .*Math functions*
 [%collapsible]
 ====
-<<esql-math-functions>>::
 include::functions/math-functions.asciidoc[tag=math_list]
 ====
 
 .*String functions*
 [%collapsible]
 ====
-<<esql-string-functions>>::
 include::functions/string-functions.asciidoc[tag=string_list]
 ====
 
 .*Date and time functions*
 [%collapsible]
 ====
-<<esql-date-time-functions>>::
 include::functions/date-time-functions.asciidoc[tag=date_list]
 ====
 
 .*Spatial functions*
 [%collapsible]
 ====
-<<esql-spatial-functions>>::
 include::functions/spatial-functions.asciidoc[tag=spatial_list]
 ====
 
 .*Type conversion functions*
 [%collapsible]
 ====
-<<esql-type-conversion-functions>>::
 include::functions/type-conversion-functions.asciidoc[tag=type_list]
 ====
 
 .*Conditional functions and expressions*
 [%collapsible]
 ====
-<<esql-conditional-functions-and-expressions>>::
 include::functions/conditional-functions-and-expressions.asciidoc[tag=cond_list]
 ====
 
 .*Multi value functions*
 [%collapsible]
 ====
-<<esql-mv-functions>>::
 include::functions/mv-functions.asciidoc[tag=mv_list]
 ====
 
@@ -72,7 +64,6 @@ include::functions/mv-functions.asciidoc[tag=mv_list]
 .*Operators*
 [%collapsible]
 ====
-<<esql-operators>>::
 include::functions/operators.asciidoc[tag=op_list]
 ====
 

@@ -104,11 +104,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private final String name;
     private final List<Index> indices;
     private final long generation;
+    @Nullable
     private final Map<String, Object> metadata;
     private final boolean hidden;
     private final boolean replicated;
     private final boolean system;
     private final boolean allowCustomRouting;
+    @Nullable
     private final IndexMode indexMode;
     @Nullable
     private final DataStreamLifecycle lifecycle;
@@ -1294,11 +1296,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         private String name;
         private List<Index> indices;
         private long generation = 1;
+        @Nullable
         private Map<String, Object> metadata = null;
         private boolean hidden = false;
         private boolean replicated = false;
         private boolean system = false;
         private boolean allowCustomRouting = false;
+        @Nullable
         private IndexMode indexMode = null;
         @Nullable
         private DataStreamLifecycle lifecycle = null;

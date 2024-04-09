@@ -96,7 +96,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .build(),
                 "*"
             ) },
-        new RemoteClusterPermissions().addGroup(new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "*" })),
+        new RemoteClusterPermissions().addGroup(
+            new RemoteClusterPermissionGroup(
+                RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                new String[] { "*" }
+            )
+        ),
         null
     );
 

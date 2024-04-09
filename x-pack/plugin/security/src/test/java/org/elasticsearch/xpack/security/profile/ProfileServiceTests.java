@@ -1482,6 +1482,7 @@ public class ProfileServiceTests extends ESTestCase {
                     Map.of("_key", "value"),
                     null,
                     null,
+                    null,
                     null
                 )
             ),

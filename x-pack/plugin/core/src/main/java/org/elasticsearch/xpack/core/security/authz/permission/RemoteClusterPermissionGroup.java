@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * Represents a group of permissions for a remote cluster. For example:
@@ -83,5 +84,23 @@ public class RemoteClusterPermissionGroup implements Writeable, ToXContentObject
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(clusterPrivileges);
         out.writeStringArray(remoteClusterAliases);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RemoteClusterPermissionGroup that = (RemoteClusterPermissionGroup) o;
+        return Arrays.equals(clusterPrivileges, that.clusterPrivileges)
+            && Arrays.equals(remoteClusterAliases, that.remoteClusterAliases)
+            && Objects.equals(remoteClusterAliasMatcher, that.remoteClusterAliasMatcher);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(remoteClusterAliasMatcher);
+        result = 31 * result + Arrays.hashCode(clusterPrivileges);
+        result = 31 * result + Arrays.hashCode(remoteClusterAliases);
+        return result;
     }
 }

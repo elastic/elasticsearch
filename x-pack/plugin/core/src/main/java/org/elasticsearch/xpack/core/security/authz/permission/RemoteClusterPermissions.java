@@ -25,8 +25,6 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-
 /**
  * Represents a group of permissions for a remote cluster. This is intended to be the model for both the {@link RoleDescriptor}
  * and {@link Role}. This model is not intended to be sent to a remote cluster, but can be (wire) serialized within a single cluster
@@ -157,5 +155,18 @@ public class RemoteClusterPermissions implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(remoteClusterPermissionGroups);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RemoteClusterPermissions that = (RemoteClusterPermissions) o;
+        return Objects.equals(remoteClusterPermissionGroups, that.remoteClusterPermissionGroups);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(remoteClusterPermissionGroups);
     }
 }

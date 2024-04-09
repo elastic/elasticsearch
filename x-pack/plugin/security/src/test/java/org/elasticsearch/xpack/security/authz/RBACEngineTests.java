@@ -81,6 +81,8 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -133,6 +135,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
@@ -1301,6 +1304,20 @@ public class RBACEngineTests extends ESTestCase {
                 "remote-index-2",
                 "remote-index-3"
             )
+            .addRemoteClusterPermissions(
+                new RemoteClusterPermissions().addGroup(
+                    new RemoteClusterPermissionGroup(
+                        RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                        new String[] { "remote-1" }
+                    )
+                )
+                    .addGroup(
+                        new RemoteClusterPermissionGroup(
+                            RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                            new String[] { "remote-2", "remote-3" }
+                        )
+                    )
+            )
             .build();
 
         final GetUserPrivilegesResponse response = RBACEngine.buildUserPrivilegesResponseObject(role);
@@ -1357,6 +1374,25 @@ public class RBACEngineTests extends ESTestCase {
             containsInAnyOrder(new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "public.*" }, new String[0]))
         );
         assertThat(remoteIndex2.indices().getQueries(), containsInAnyOrder(query));
+
+        RemoteClusterPermissions remoteClusterPermissions = response.getRemoteClusterPermissions();
+        String[] allRemoteClusterPermissions = RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]);
+        assert allRemoteClusterPermissions.length == 1
+            : "if more remote cluster permissions are added this test needs to be updated to ensure the correct remotes receive the "
+                + "correct permissions. ";
+        //2 groups with 3 aliases
+        assertThat(response.getRemoteClusterPermissions().groups(), iterableWithSize(2));
+        assertEquals(
+            3,
+            response.getRemoteClusterPermissions().groups().stream()
+                .map(RemoteClusterPermissionGroup::remoteClusterAliases).flatMap(Arrays::stream).distinct().count()
+        );
+
+        for(String permission : RemoteClusterPermissions.getSupportRemoteClusterPermissions()){
+            assertThat(Arrays.asList(remoteClusterPermissions.privilegeNames("remote-1")), hasItem(permission));
+            assertThat(Arrays.asList(remoteClusterPermissions.privilegeNames("remote-2")), hasItem(permission));
+            assertThat(Arrays.asList(remoteClusterPermissions.privilegeNames("remote-3")), hasItem(permission));
+        }
     }
 
     public void testBackingIndicesAreIncludedForAuthorizedDataStreams() {
@@ -1677,7 +1713,7 @@ public class RBACEngineTests extends ESTestCase {
                     new RoleDescriptorsIntersection(
                         new RoleDescriptor(
                             Role.REMOTE_USER_ROLE_NAME,
-                            null,
+                            RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
                             new IndicesPrivileges[] {
                                 IndicesPrivileges.builder().indices("*").privileges("all").allowRestrictedIndices(false).build(),
                                 IndicesPrivileges.builder()

@@ -25,6 +25,7 @@ import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskProvider;
 
 import java.util.Map;
+
 import javax.inject.Inject;
 
 public class Docs2Plugin implements Plugin<Project> {

@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
 import javax.inject.Inject;
 
 public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
@@ -127,6 +128,48 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
             builder.finishLastTest();
             builder.checkUnconverted();
         });
+    }
+
+    /**
+     * Certain requests should not have the shard failure check because the
+     * format of the response is incompatible i.e. it is not a JSON object.
+     */
+    static boolean shouldAddShardFailureCheck(String path) {
+        return path.startsWith("_cat") == false && path.startsWith("_ml/datafeeds/") == false;
+    }
+
+    /**
+     * Converts Kibana's block quoted strings into standard JSON. These
+     * {@code """} delimited strings can be embedded in CONSOLE and can
+     * contain newlines and {@code "} without the normal JSON escaping.
+     * This has to add it.
+     */
+    @PackageScope
+    static String replaceBlockQuote(String body) {
+        int start = body.indexOf("\"\"\"");
+        if (start < 0) {
+            return body;
+        }
+        /*
+         * 1.3 is a fairly wild guess of the extra space needed to hold
+         * the escaped string.
+         */
+        StringBuilder result = new StringBuilder((int) (body.length() * 1.3));
+        int startOfNormal = 0;
+        while (start >= 0) {
+            int end = body.indexOf("\"\"\"", start + 3);
+            if (end < 0) {
+                throw new InvalidUserDataException("Invalid block quote starting at " + start + " in:\n" + body);
+            }
+            result.append(body.substring(startOfNormal, start));
+            result.append('"');
+            result.append(body.substring(start + 3, end).replace("\"", "\\\"").replace("\n", "\\n"));
+            result.append('"');
+            startOfNormal = end + 3;
+            start = body.indexOf("\"\"\"", startOfNormal);
+        }
+        result.append(body.substring(startOfNormal));
+        return result.toString();
     }
 
     private class TestBuilder {
@@ -301,40 +344,6 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
             body(snippet, true);
         }
 
-        /**
-         * Converts Kibana's block quoted strings into standard JSON. These
-         * {@code """} delimited strings can be embedded in CONSOLE and can
-         * contain newlines and {@code "} without the normal JSON escaping.
-         * This has to add it.
-         */
-        @PackageScope
-        static String replaceBlockQuote(String body) {
-            int start = body.indexOf("\"\"\"");
-            if (start < 0) {
-                return body;
-            }
-            /*
-             * 1.3 is a fairly wild guess of the extra space needed to hold
-             * the escaped string.
-             */
-            StringBuilder result = new StringBuilder((int) (body.length() * 1.3));
-            int startOfNormal = 0;
-            while (start >= 0) {
-                int end = body.indexOf("\"\"\"", start + 3);
-                if (end < 0) {
-                    throw new InvalidUserDataException("Invalid block quote starting at $start in:\n" + body);
-                }
-                result.append(body.substring(startOfNormal, start));
-                result.append('"');
-                result.append(body.substring(start + 3, end).replace("\"", "\\\"").replace("\n", "\\n"));
-                result.append('"');
-                startOfNormal = end + 3;
-                start = body.indexOf("\"\"\"", startOfNormal);
-            }
-            result.append(body.substring(startOfNormal));
-            return result.toString();
-        }
-
         void emitDo(
             String method,
             String pathAndQuery,
@@ -399,14 +408,6 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
             if (false == inSetup && skipShardFailures == false && shouldAddShardFailureCheck(path)) {
                 current.println("  - is_false: _shards.failures");
             }
-        }
-
-        /**
-         * Certain requests should not have the shard failure check because the
-         * format of the response is incompatible i.e. it is not a JSON object.
-         */
-        static boolean shouldAddShardFailureCheck(String path) {
-            return path.startsWith("_cat") == false && path.startsWith("_ml/datafeeds/") == false;
         }
 
         private void body(Snippet snippet, boolean inSetup) {

@@ -11,12 +11,49 @@ package org.elasticsearch.gradle.internal.docs
 import spock.lang.Specification
 import spock.lang.TempDir
 
+import org.gradle.api.InvalidUserDataException
 import org.gradle.testfixtures.ProjectBuilder
-import org.elasticsearch.gradle.internal.doc.RestTestsFromSnippetsTask
+
+import static org.elasticsearch.gradle.internal.doc.RestTestsFromSnippetsTask.replaceBlockQuote
+import static org.elasticsearch.gradle.internal.docs.RestTestsFromDocSnippetTask.shouldAddShardFailureCheck
+
 class RestTestsFromDocSnippetTaskSpec extends Specification {
 
     @TempDir
     File tempDir;
+
+    def "test simple block quote"() {
+        expect:
+        replaceBlockQuote("\"foo\": \"\"\"bort baz\"\"\"") == "\"foo\": \"bort baz\""
+    }
+
+    def "test multiple block quotes"() {
+        expect:
+        replaceBlockQuote("\"foo\": \"\"\"bort baz\"\"\", \"bar\": \"\"\"other\"\"\"") == "\"foo\": \"bort baz\", \"bar\": \"other\""
+    }
+
+    def "test escaping in block quote"() {
+        expect:
+        replaceBlockQuote("\"foo\": \"\"\"bort\" baz\"\"\"") == "\"foo\": \"bort\\\" baz\""
+        replaceBlockQuote("\"foo\": \"\"\"bort\n baz\"\"\"") == "\"foo\": \"bort\\n baz\""
+    }
+
+    def "test invalid block quotes"() {
+        given:
+        String input = "\"foo\": \"\"\"bar\"";
+        when:
+        RestTestsFromDocSnippetTask.replaceBlockQuote(input);
+        then:
+        def e = thrown(InvalidUserDataException)
+        e.message == "Invalid block quote starting at 7 in:\n" + input
+    }
+
+    def "test is doc write request"() {
+        expect:
+        shouldAddShardFailureCheck("doc-index/_search") == true
+        shouldAddShardFailureCheck("_cat") == false
+        shouldAddShardFailureCheck("_ml/datafeeds/datafeed-id/_preview") == false
+    }
 
     def "can create rest tests from docs"() {
         def build = ProjectBuilder.builder().build()

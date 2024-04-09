@@ -128,7 +128,6 @@ public class DocSnippetTask extends DefaultTask {
     @TaskAction
     void executeTask() {
         for (File file : docs) {
-            System.out.println("file = " + file);
             parseDocFiles(docs.getDir(), file, new ArrayList<>());
         }
     }
@@ -205,7 +204,8 @@ public class DocSnippetTask extends DefaultTask {
                     continue;
                 }
                 emit(snippet, contents.toString(), defaultSubstitutions, substitutions);
-                substitutions = new ArrayList<>();;
+                substitutions = new ArrayList<>();
+                ;
                 snippet = null;
                 contents = null;
             }
@@ -262,13 +262,7 @@ public class DocSnippetTask extends DefaultTask {
         return false;
     }
 
-    private boolean testHandled(
-        String name,
-        int lineNumber,
-        String line,
-        Snippet snippet,
-        List<Map.Entry<String, String>> substitutions
-    ) {
+    private boolean testHandled(String name, int lineNumber, String line, Snippet snippet, List<Map.Entry<String, String>> substitutions) {
         Matcher matcher = Pattern.compile("\\/\\/\s*TEST(\\[(.+)\\])?\s*").matcher(line);
         if (matcher.matches()) {
             if (snippet == null) {
@@ -412,6 +406,5 @@ public class DocSnippetTask extends DefaultTask {
             this.name = name;
         }
     }
-
 
 }

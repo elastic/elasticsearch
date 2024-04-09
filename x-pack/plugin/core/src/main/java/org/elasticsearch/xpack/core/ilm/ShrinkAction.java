@@ -176,12 +176,12 @@ public class ShrinkAction implements LifecycleAction {
         StepKey isShrunkIndexKey = new StepKey(phase, NAME, ShrunkenIndexCheckStep.NAME);
         StepKey replaceDataStreamIndexKey = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
         StepKey deleteIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
-        StepKey allowWritesKey = new StepKey(phase, NAME, AllowWriteStep.NAME);
+        StepKey allowWriteKey = new StepKey(phase, NAME, AllowWriteStep.NAME);
 
         AsyncBranchingStep conditionalSkipShrinkStep = new AsyncBranchingStep(
             preShrinkBranchingKey,
             checkNotWriteIndex,
-            allowWritesKey,
+            allowWriteKey,
             (indexMetadata, clusterState, listener) -> {
                 if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
                     logger.warn(
@@ -296,8 +296,8 @@ public class ShrinkAction implements LifecycleAction {
             ShrinkIndexNameSupplier::getShrinkIndexName
         );
         DeleteStep deleteSourceIndexStep = new DeleteStep(deleteIndexKey, isShrunkIndexKey, client);
-        ShrunkenIndexCheckStep waitOnShrinkTakeover = new ShrunkenIndexCheckStep(isShrunkIndexKey, allowWritesKey);
-        AllowWriteStep allowWriteAfterShrinkStep = new AllowWriteStep(allowWritesKey, nextStepKey, client, allowWriteAfterShrink);
+        ShrunkenIndexCheckStep waitOnShrinkTakeover = new ShrunkenIndexCheckStep(isShrunkIndexKey, allowWriteKey);
+        AllowWriteStep allowWriteAfterShrinkStep = new AllowWriteStep(allowWriteKey, nextStepKey, client, allowWriteAfterShrink);
 
         return Arrays.asList(
             conditionalSkipShrinkStep,

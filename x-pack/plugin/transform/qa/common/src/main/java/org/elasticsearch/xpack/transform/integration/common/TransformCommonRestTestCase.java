@@ -77,6 +77,11 @@ public abstract class TransformCommonRestTestCase extends ESRestTestCase {
         return tasks.stream().map(t -> (String) t.get("id")).filter(transformId::equals).toList();
     }
 
+    protected int getTotalRegisteredTransformCount() throws IOException {
+        Response response = adminClient().performRequest(new Request("GET", "/_transform/_node_stats"));
+        return (int) XContentMapValues.extractValue(entityAsMap(response), "total", "registered_transform_count");
+    }
+
     @SuppressWarnings("unchecked")
     protected void logAudits() throws Exception {
         logger.info("writing audit messages to the log");

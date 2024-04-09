@@ -270,6 +270,15 @@ public final class TransformScheduler {
         scheduledTasks.remove(transformId);
     }
 
+    /**
+     * Returns the number of transforms currently in the queue.
+     *
+     * @return number of transforms currently in the queue
+     */
+    public int getRegisteredTransformCount() {
+        return scheduledTasks.size();
+    }
+
     // Visible for testing
     /**
      * @return queue current contents

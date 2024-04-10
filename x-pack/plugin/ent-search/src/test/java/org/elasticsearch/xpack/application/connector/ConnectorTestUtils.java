@@ -57,7 +57,7 @@ public final class ConnectorTestUtils {
     public static final String NULL_STRING = null;
 
     /**
-     * Registers index templates for connectors and sync jobs with essential field mappings. This method
+     * Registers index templates for instances of {@link Connector} and {@link ConnectorSyncJob} with essential field mappings. This method
      * only includes mappings for fields relevant to test cases, specifying field types to ensure correct ES query logic behavior.
      *
      * @param indicesAdminClient The Elasticsearch indices admin client used for template registration.

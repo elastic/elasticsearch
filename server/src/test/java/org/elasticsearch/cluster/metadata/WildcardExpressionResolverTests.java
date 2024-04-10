@@ -381,6 +381,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
                 null,
                 false,
                 List.of(),
+                false,
                 null
             );
 

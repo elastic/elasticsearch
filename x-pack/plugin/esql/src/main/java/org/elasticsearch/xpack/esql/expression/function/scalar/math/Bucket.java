@@ -295,7 +295,7 @@ public class Bucket extends EsqlScalarFunction implements Validatable, TwoOption
         return field;
     }
 
-    public Expression buckets() {
+    public Expression bucketsOrSpan() {
         return bucketsOrSpan;
     }
 

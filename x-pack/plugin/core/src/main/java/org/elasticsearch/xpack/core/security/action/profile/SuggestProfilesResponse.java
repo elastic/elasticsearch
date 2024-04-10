@@ -30,13 +30,6 @@ public class SuggestProfilesResponse extends ActionResponse implements ToXConten
         this.totalHits = totalHits;
     }
 
-    public SuggestProfilesResponse(StreamInput in) throws IOException {
-        super(in);
-        this.profileHits = in.readArray(ProfileHit::new, ProfileHit[]::new);
-        this.tookInMillis = in.readVLong();
-        this.totalHits = Lucene.readTotalHits(in);
-    }
-
     public ProfileHit[] getProfileHits() {
         return profileHits;
     }

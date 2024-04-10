@@ -216,7 +216,6 @@ public class BucketTests extends AbstractFunctionTestCase {
             to = args.get(3);
         }
         return new Bucket(source, args.get(0), args.get(1), from, to);
-
     }
 
     @Override

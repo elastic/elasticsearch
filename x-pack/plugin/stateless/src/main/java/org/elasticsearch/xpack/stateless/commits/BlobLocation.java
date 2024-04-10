@@ -27,7 +27,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Objects;
 
 import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.BLOB_LOCATION_WITHOUT_BLOB_LENGTH;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -44,15 +43,15 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * @param offset the offset inside the blob file where the file is written
  * @param fileLength the length of the embedded file
  */
-public record BlobLocation(BlobFile blobFile, long blobLength, long offset, long fileLength) implements Writeable, ToXContentObject {
+public record BlobLocation(BlobFile blobFile, long offset, long fileLength) implements Writeable, ToXContentObject {
 
     public BlobLocation {
-        assert blobLength == Long.MIN_VALUE || offset + fileLength <= blobLength
-            : "(offset + file) length is greater than blobLength " + this;
+        assert offset >= 0 : "offset " + offset + " < 0";
+        assert fileLength > 0 : "fileLength " + fileLength + " <= 0";
     }
 
-    public BlobLocation(long primaryTerm, String blobName, long blobLength, long offset, long fileLength) {
-        this(new BlobFile(primaryTerm, blobName), blobLength, offset, fileLength);
+    public BlobLocation(long primaryTerm, String blobName, long offset, long fileLength) {
+        this(new BlobFile(primaryTerm, blobName), offset, fileLength);
     }
 
     public long primaryTerm() {
@@ -70,6 +69,9 @@ public record BlobLocation(BlobFile blobFile, long blobLength, long offset, long
         return StatelessCompoundCommit.parseGenerationFromBlobName(blobName());
     }
 
+    /**
+     * This method is used to read BlobLocation from the object store. Ancient commits (before xcontent) can still contain blobLength
+     */
     public static BlobLocation readFromStore(StreamInput streamInput, boolean includesBlobLength) throws IOException {
         if (includesBlobLength) {
             return readWithBlobLength(streamInput);
@@ -79,21 +81,23 @@ public record BlobLocation(BlobFile blobFile, long blobLength, long offset, long
     }
 
     public static BlobLocation readFromTransport(StreamInput streamInput) throws IOException {
+        // TODO: remove this BWC version check
         if (streamInput.getTransportVersion().before(BLOB_LOCATION_WITHOUT_BLOB_LENGTH)) {
-            return readWithBlobLength(streamInput);
+            final String message = "remote node version too low " + streamInput.getTransportVersion();
+            assert false : message;
+            throw new IllegalStateException(message);
         } else {
             return readWithoutBlobLength(streamInput);
         }
     }
 
     private static BlobLocation readWithBlobLength(StreamInput streamInput) throws IOException {
-        return new BlobLocation(
-            streamInput.readVLong(),
-            streamInput.readString(),
-            streamInput.readVLong(),
-            streamInput.readVLong(),
-            streamInput.readVLong()
-        );
+        long primaryTerm = streamInput.readVLong();
+        String blobName = streamInput.readString();
+        streamInput.readVLong(); // ignore blobLength
+        long offset = streamInput.readVLong();
+        long length = streamInput.readVLong();
+        return new BlobLocation(primaryTerm, blobName, offset, length);
     }
 
     private static BlobLocation readWithoutBlobLength(StreamInput streamInput) throws IOException {
@@ -101,17 +105,18 @@ public record BlobLocation(BlobFile blobFile, long blobLength, long offset, long
         String blobName = streamInput.readString();
         long offset = streamInput.readVLong();
         long length = streamInput.readVLong();
-        long blobLength = Long.MIN_VALUE;
-        return new BlobLocation(primaryTerm, blobName, blobLength, offset, length);
+        return new BlobLocation(primaryTerm, blobName, offset, length);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(primaryTerm());
         out.writeString(blobName());
+        // TODO: remove this BWC version check
         if (out.getTransportVersion().before(BLOB_LOCATION_WITHOUT_BLOB_LENGTH)) {
-            assert blobLength != Long.MIN_VALUE : "target node needs blobLength but this node does not have one";
-            out.writeVLong(blobLength);
+            final String message = "remote node version too low " + out.getTransportVersion();
+            assert false : message;
+            throw new IllegalStateException(message);
         }
         out.writeVLong(offset);
         out.writeVLong(fileLength);
@@ -123,7 +128,7 @@ public record BlobLocation(BlobFile blobFile, long blobLength, long offset, long
             .field("primary_term", primaryTerm())
             .field("blob_name", blobName())
             // TODO: Remove writing blobLength to object store. Need it for now since an old node may read the commit
-            .field("blob_length", blobLength)
+            .field("blob_length", Long.MIN_VALUE)
             .field("offset", offset)
             .field("file_length", fileLength)
             .endObject();
@@ -135,38 +140,20 @@ public record BlobLocation(BlobFile blobFile, long blobLength, long offset, long
         args -> {
             long primaryTerm = (long) args[0];
             String blobName = (String) args[1];
-            // TODO: Remove parsing blobLength from object store. Need it for now since it can be resent as new notification to an old node
-            long blobLength = (long) args[2];
-            long offset = (long) args[3];
-            long fileLength = (long) args[4];
-            return new BlobLocation(primaryTerm, blobName, blobLength, offset, fileLength);
+            long offset = (long) args[2];
+            long fileLength = (long) args[3];
+            return new BlobLocation(primaryTerm, blobName, offset, fileLength);
         }
     );
     static {
         PARSER.declareLong(constructorArg(), new ParseField("primary_term"));
         PARSER.declareString(constructorArg(), new ParseField("blob_name"));
-        PARSER.declareLong(constructorArg(), new ParseField("blob_length"));
         PARSER.declareLong(constructorArg(), new ParseField("offset"));
         PARSER.declareLong(constructorArg(), new ParseField("file_length"));
     }
 
     public static BlobLocation fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
-    }
-
-    // TODO: Remove the overridden equals method once blobLength is removed from the class
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        BlobLocation that = (BlobLocation) o;
-        return offset == that.offset && fileLength == that.fileLength && Objects.equals(blobFile, that.blobFile);
-    }
-
-    // TODO: Remove the overridden hashCode method once blobLength is removed from the class
-    @Override
-    public int hashCode() {
-        return Objects.hash(blobFile, offset, fileLength);
     }
 
     @Override

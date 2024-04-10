@@ -122,7 +122,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
 
     public void testStoreVersionCompatibility() throws Exception {
         StatelessCompoundCommit testInstance = createTestInstance();
-        Map<String, BlobLocation> commitFilesWithoutBlobLengths = randomCommitFiles(false);
+        Map<String, BlobLocation> commitFilesWithoutBlobLengths = randomCommitFiles();
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             PositionTrackingOutputStreamStreamOutput positionTracking = new PositionTrackingOutputStreamStreamOutput(output);
@@ -244,26 +244,14 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
     }
 
     private static Map<String, BlobLocation> randomCommitFiles() {
-        return randomCommitFiles(true);
-    }
-
-    private static Map<String, BlobLocation> randomCommitFiles(boolean blobLengths) {
         final int entries = randomInt(50);
         if (entries == 0) {
             return Map.of();
         }
         return IntStream.range(0, entries + 1).mapToObj(operand -> "file_" + operand).collect(Collectors.toMap(Function.identity(), s -> {
             long fileLength = randomLongBetween(100, 1000);
-            long blobLength;
-            long offset;
-            if (blobLengths) {
-                offset = randomLongBetween(0, 200);
-                blobLength = randomLongBetween(10000, 20000);
-            } else {
-                offset = 0;
-                blobLength = fileLength;
-            }
-            return new BlobLocation(randomLongBetween(1, 10), randomAlphaOfLength(10), blobLength, offset, fileLength);
+            long offset = randomLongBetween(0, 200);
+            return new BlobLocation(randomLongBetween(1, 10), randomAlphaOfLength(10), offset, fileLength);
         }));
     }
 }

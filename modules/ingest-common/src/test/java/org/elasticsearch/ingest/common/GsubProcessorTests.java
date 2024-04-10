@@ -8,14 +8,11 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 
 import java.util.Map;
 import java.util.regex.Pattern;
-
-import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class GsubProcessorTests extends AbstractStringProcessorTestCase<String> {
 
@@ -50,7 +47,6 @@ public class GsubProcessorTests extends AbstractStringProcessorTestCase<String> 
         badSourceBuilder.append("x".repeat(3000));
         Map<String, Object> source = Map.of("field", badSourceBuilder.toString());
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), source);
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> processor.execute(ingestDocument));
-        assertThat(exception.getRootCause(), instanceOf(ElasticsearchException.class));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
     }
 }

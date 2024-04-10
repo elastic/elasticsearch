@@ -10,7 +10,6 @@ package org.elasticsearch.ingest.common;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -65,7 +64,7 @@ public final class GsubProcessor extends AbstractStringProcessor<String> {
              */
             String message = "Caught a StackOverflowError while processing gsub pattern: [" + pattern + "]";
             logger.trace(message, e);
-            throw new ElasticsearchException(message);
+            throw new IllegalArgumentException(message);
         }
     }
 

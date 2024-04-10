@@ -428,7 +428,7 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         return loadsAfterIndexing;
     }
 
-    private void longAwait(CyclicBarrier barrier) {
+    public static void longAwait(CyclicBarrier barrier) {
         try {
             barrier.await(30, TimeUnit.SECONDS);
         } catch (BrokenBarrierException | TimeoutException e) {

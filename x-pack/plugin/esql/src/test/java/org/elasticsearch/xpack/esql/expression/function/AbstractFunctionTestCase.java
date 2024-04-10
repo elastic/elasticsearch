@@ -1105,6 +1105,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             table.add(b.toString());
         }
         Collections.sort(table);
+        if (table.isEmpty()) {
+            table.add(signatures.values().iterator().next().typeName());
+        }
 
         String rendered = DOCS_WARNING + """
             *Supported types*

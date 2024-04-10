@@ -1,0 +1,5 @@
+pr: 107333
+summary: Limit how much space some string functions can use
+area: SQL
+type: bug
+issues: []

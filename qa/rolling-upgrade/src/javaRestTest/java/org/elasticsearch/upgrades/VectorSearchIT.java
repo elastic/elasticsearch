@@ -285,6 +285,7 @@ public class VectorSearchIT extends ParameterizedRollingUpgradeTestCase {
         assertThat((double) hits.get(0).get("_score"), closeTo(0.028571429, 0.0001));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107332")
     public void testQuantizedVectorSearch() throws Exception {
         assumeTrue(
             "Quantized vector search is not supported on this version",

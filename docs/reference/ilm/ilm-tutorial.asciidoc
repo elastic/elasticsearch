@@ -184,7 +184,7 @@ stream's write index.
 This process repeats each time a rollover condition is met.
 You can search across all of the data stream's backing indices, managed by the `timeseries_policy`,
 with the `timeseries` data stream name.
-Write operations are routed to the current write index. Read operations will be handled by all
+You will point ingest towards the alias which will route write operations to its current write index. Read operations will be handled by all
 backing indices.
 
 [discrete]

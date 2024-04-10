@@ -12,6 +12,8 @@ import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
+import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequestBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 
@@ -28,7 +30,7 @@ import static org.elasticsearch.common.xcontent.XContentHelper.mapToXContentPars
  * This is used by the ReservedClusterStateService to add/update or remove role mappings.
  * Typical usage for this action is in the context of file based settings.
  */
-public class ReservedRoleMappingAction implements ReservedClusterStateHandler<List<ExpressionRoleMapping>> {
+public class ReservedRoleMappingAction implements ReservedClusterStateHandler<List<PutRoleMappingRequest>> {
     public static final String NAME = "role_mappings";
 
     @Override
@@ -39,7 +41,7 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
     @Override
     public TransformState transform(Object source, TransformState prevState) throws Exception {
         @SuppressWarnings("unchecked")
-        List<ExpressionRoleMapping> roleMappings = validate((List<ExpressionRoleMapping>) source);
+        List<ExpressionRoleMapping> roleMappings = validate((List<PutRoleMappingRequest>) source);
         if (roleMappings.equals(prevState.state().custom(RoleMappingMetadata.TYPE, RoleMappingMetadata.EMPTY).getRoleMappings())) {
             return prevState;
         } else if (roleMappings.isEmpty()) {
@@ -55,24 +57,20 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
     }
 
     @Override
-    public List<ExpressionRoleMapping> fromXContent(XContentParser parser) throws IOException {
-        List<ExpressionRoleMapping> result = new ArrayList<>();
-
+    public List<PutRoleMappingRequest> fromXContent(XContentParser parser) throws IOException {
+        List<PutRoleMappingRequest> result = new ArrayList<>();
         Map<String, ?> source = parser.map();
-
         for (String name : source.keySet()) {
             @SuppressWarnings("unchecked")
             Map<String, ?> content = (Map<String, ?>) source.get(name);
             try (XContentParser mappingParser = mapToXContentParser(XContentParserConfiguration.EMPTY, content)) {
-                ExpressionRoleMapping mapping = ExpressionRoleMapping.parse(name, mappingParser);
-                result.add(mapping);
+                result.add(new PutRoleMappingRequestBuilder(null).source(name, mappingParser).request());
             }
         }
-
         return result;
     }
 
-    private List<ExpressionRoleMapping> validate(List<ExpressionRoleMapping> roleMappings) {
+    private List<ExpressionRoleMapping> validate(List<PutRoleMappingRequest> roleMappings) {
         var exceptions = new ArrayList<Exception>();
         for (var roleMapping : roleMappings) {
             // File based defined role mappings are allowed to use MetadataUtils.RESERVED_PREFIX
@@ -86,6 +84,6 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
             exceptions.forEach(illegalArgumentException::addSuppressed);
             throw illegalArgumentException;
         }
-        return roleMappings;
+        return roleMappings.stream().map(PutRoleMappingRequest::getMapping).toList();
     }
 }

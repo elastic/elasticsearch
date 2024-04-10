@@ -14,25 +14,24 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.List;
 
-public class GeoIpDownloaderStatsActionResponseSerializingTests extends AbstractWireSerializingTestCase<
-    GeoIpDownloaderStatsAction.Response> {
+public class GeoIpStatsActionResponseSerializingTests extends AbstractWireSerializingTestCase<GeoIpStatsAction.Response> {
 
     @Override
-    protected Writeable.Reader<GeoIpDownloaderStatsAction.Response> instanceReader() {
-        return GeoIpDownloaderStatsAction.Response::new;
+    protected Writeable.Reader<GeoIpStatsAction.Response> instanceReader() {
+        return GeoIpStatsAction.Response::new;
     }
 
     @Override
-    protected GeoIpDownloaderStatsAction.Response createTestInstance() {
-        List<GeoIpDownloaderStatsAction.NodeResponse> nodeResponses = randomList(
+    protected GeoIpStatsAction.Response createTestInstance() {
+        List<GeoIpStatsAction.NodeResponse> nodeResponses = randomList(
             10,
-            GeoIpDownloaderStatsActionNodeResponseSerializingTests::createRandomInstance
+            GeoIpStatsActionNodeResponseSerializingTests::createRandomInstance
         );
-        return new GeoIpDownloaderStatsAction.Response(ClusterName.DEFAULT, nodeResponses, List.of());
+        return new GeoIpStatsAction.Response(ClusterName.DEFAULT, nodeResponses, List.of());
     }
 
     @Override
-    protected GeoIpDownloaderStatsAction.Response mutateInstance(GeoIpDownloaderStatsAction.Response instance) {
+    protected GeoIpStatsAction.Response mutateInstance(GeoIpStatsAction.Response instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

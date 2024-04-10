@@ -227,7 +227,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
         ) {
             @Override
-            protected void assertSnapshotOrGenericThread() {
+            protected void assertSnapshotOrStatelessPermittedThreadPool() {
                 // eliminate thread name check as we create repo manually
             }
         };

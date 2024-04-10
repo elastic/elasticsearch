@@ -403,8 +403,14 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public IndexFieldData.Builder getFieldDataBuilder(String name, ValuesSourceType valuesSourceType) {
-                return new SortedDoublesIndexFieldData.Builder(name, numericType(), valuesSourceType, HalfFloatDocValuesField::new);
+            public IndexFieldData.Builder getFieldDataBuilder(MappedFieldType ft, ValuesSourceType valuesSourceType) {
+                return new SortedDoublesIndexFieldData.Builder(
+                    ft.name(),
+                    numericType(),
+                    valuesSourceType,
+                    HalfFloatDocValuesField::new,
+                    ft.isIndexed()
+                );
             }
 
             @Override
@@ -577,8 +583,14 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public IndexFieldData.Builder getFieldDataBuilder(String name, ValuesSourceType valuesSourceType) {
-                return new SortedDoublesIndexFieldData.Builder(name, numericType(), valuesSourceType, FloatDocValuesField::new);
+            public IndexFieldData.Builder getFieldDataBuilder(MappedFieldType ft, ValuesSourceType valuesSourceType) {
+                return new SortedDoublesIndexFieldData.Builder(
+                    ft.name(),
+                    numericType(),
+                    valuesSourceType,
+                    FloatDocValuesField::new,
+                    ft.isIndexed()
+                );
             }
 
             @Override
@@ -717,8 +729,14 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public IndexFieldData.Builder getFieldDataBuilder(String name, ValuesSourceType valuesSourceType) {
-                return new SortedDoublesIndexFieldData.Builder(name, numericType(), valuesSourceType, DoubleDocValuesField::new);
+            public IndexFieldData.Builder getFieldDataBuilder(MappedFieldType ft, ValuesSourceType valuesSourceType) {
+                return new SortedDoublesIndexFieldData.Builder(
+                    ft.name(),
+                    numericType(),
+                    valuesSourceType,
+                    DoubleDocValuesField::new,
+                    ft.isIndexed()
+                );
             }
 
             @Override
@@ -831,8 +849,14 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public IndexFieldData.Builder getFieldDataBuilder(String name, ValuesSourceType valuesSourceType) {
-                return new SortedNumericIndexFieldData.Builder(name, numericType(), valuesSourceType, ByteDocValuesField::new);
+            public IndexFieldData.Builder getFieldDataBuilder(MappedFieldType ft, ValuesSourceType valuesSourceType) {
+                return new SortedNumericIndexFieldData.Builder(
+                    ft.name(),
+                    numericType(),
+                    valuesSourceType,
+                    ByteDocValuesField::new,
+                    ft.isIndexed()
+                );
             }
 
             @Override
@@ -930,8 +954,14 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public IndexFieldData.Builder getFieldDataBuilder(String name, ValuesSourceType valuesSourceType) {
-                return new SortedNumericIndexFieldData.Builder(name, numericType(), valuesSourceType, ShortDocValuesField::new);
+            public IndexFieldData.Builder getFieldDataBuilder(MappedFieldType ft, ValuesSourceType valuesSourceType) {
+                return new SortedNumericIndexFieldData.Builder(
+                    ft.name(),
+                    numericType(),
+                    valuesSourceType,
+                    ShortDocValuesField::new,
+                    ft.isIndexed()
+                );
             }
 
             @Override
@@ -1097,8 +1127,14 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public IndexFieldData.Builder getFieldDataBuilder(String name, ValuesSourceType valuesSourceType) {
-                return new SortedNumericIndexFieldData.Builder(name, numericType(), valuesSourceType, IntegerDocValuesField::new);
+            public IndexFieldData.Builder getFieldDataBuilder(MappedFieldType ft, ValuesSourceType valuesSourceType) {
+                return new SortedNumericIndexFieldData.Builder(
+                    ft.name(),
+                    numericType(),
+                    valuesSourceType,
+                    IntegerDocValuesField::new,
+                    ft.isIndexed()
+                );
             }
 
             @Override
@@ -1234,8 +1270,14 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public IndexFieldData.Builder getFieldDataBuilder(String name, ValuesSourceType valuesSourceType) {
-                return new SortedNumericIndexFieldData.Builder(name, numericType(), valuesSourceType, LongDocValuesField::new);
+            public IndexFieldData.Builder getFieldDataBuilder(MappedFieldType ft, ValuesSourceType valuesSourceType) {
+                return new SortedNumericIndexFieldData.Builder(
+                    ft.name(),
+                    numericType(),
+                    valuesSourceType,
+                    LongDocValuesField::new,
+                    ft.isIndexed()
+                );
             }
 
             @Override
@@ -1494,7 +1536,7 @@ public class NumberFieldMapper extends FieldMapper {
             return builder.apply(l, u);
         }
 
-        public abstract IndexFieldData.Builder getFieldDataBuilder(String name, ValuesSourceType valuesSourceType);
+        public abstract IndexFieldData.Builder getFieldDataBuilder(MappedFieldType ft, ValuesSourceType valuesSourceType);
 
         public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
             String name,
@@ -1693,7 +1735,7 @@ public class NumberFieldMapper extends FieldMapper {
                 : type.numericType.getValuesSourceType();
 
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
-                return type.getFieldDataBuilder(name(), valuesSourceType);
+                return type.getFieldDataBuilder(this, valuesSourceType);
             }
 
             if (operation == FielddataOperation.SCRIPT) {

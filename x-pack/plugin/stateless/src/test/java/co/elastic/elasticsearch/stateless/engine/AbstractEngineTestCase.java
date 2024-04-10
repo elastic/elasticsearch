@@ -480,17 +480,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             .entrySet()
             .stream()
             .collect(
-                Collectors.toMap(
-                    Map.Entry::getKey,
-                    entry -> new BlobLocation(
-                        primaryTerm,
-
-                        entry.getKey(),
-                        entry.getValue().length(),
-                        0,
-                        entry.getValue().length()
-                    )
-                )
+                Collectors.toMap(Map.Entry::getKey, entry -> new BlobLocation(primaryTerm, entry.getKey(), 0, entry.getValue().length()))
             );
     }
 

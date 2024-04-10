@@ -200,8 +200,6 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             assert headerOffset == BlobCacheUtils.toPageAlignedSize(headerOffset) : "header offset is not page-aligned: " + headerOffset;
             var previousHeaderOffset = internalDataReadersByOffset.put(headerOffset, new InternalHeaderReader(header));
             assert previousHeaderOffset == null;
-            // TODO: get rid of the blob length
-            final long blobLength = headerOffset + compoundCommitSize;
 
             long internalFileOffset = headerOffset + header.length;
 
@@ -209,7 +207,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 var fileLength = internalFile.length();
                 var previousLocation = internalLocations.put(
                     internalFile.name(),
-                    new BlobLocation(primaryTermAndGeneration.primaryTerm(), blobName, blobLength, internalFileOffset, fileLength)
+                    new BlobLocation(primaryTermAndGeneration.primaryTerm(), blobName, internalFileOffset, fileLength)
                 );
                 assert previousLocation == null;
                 var previousOffset = internalDataReadersByOffset.put(

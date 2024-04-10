@@ -422,8 +422,7 @@ public record StatelessCompoundCommit(
             internalFiles,
             referencedBlobLocations,
             internalFilesOffset,
-            headerSizeInBytes,
-            totalSizeInBytes
+            headerSizeInBytes
         );
         return new StatelessCompoundCommit(
             shardId,
@@ -443,17 +442,14 @@ public record StatelessCompoundCommit(
         List<InternalFile> internalFiles,
         Map<String, BlobLocation> referencedBlobFiles,
         long internalFilesOffset,
-        long headerSizeInBytes,
-        long totalSizeInBytes
+        long headerSizeInBytes
     ) {
-        long blobLength = internalFilesOffset + totalSizeInBytes;
-
         var commitFiles = Maps.<String, BlobLocation>newHashMapWithExpectedSize(referencedBlobFiles.size() + internalFiles.size());
         commitFiles.putAll(referencedBlobFiles);
 
         long currentOffset = internalFilesOffset + headerSizeInBytes;
         for (InternalFile internalFile : internalFiles) {
-            commitFiles.put(internalFile.name(), new BlobLocation(primaryTerm, blobName, blobLength, currentOffset, internalFile.length()));
+            commitFiles.put(internalFile.name(), new BlobLocation(primaryTerm, blobName, currentOffset, internalFile.length()));
             currentOffset += internalFile.length();
         }
 

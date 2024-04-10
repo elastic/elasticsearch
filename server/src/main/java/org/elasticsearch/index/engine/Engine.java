@@ -82,6 +82,7 @@ import org.elasticsearch.transport.Transports;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -1047,8 +1048,8 @@ public abstract class Engine implements Closeable {
                         logger.trace(() -> "failed to get size for [" + info.info.name + "]", e);
                     }
                     segment.segmentSort = info.info.getIndexSort();
-                    segment.attributes = info.info.getAttributes();
-                    segment.codec = info.info.getCodec().getName();
+                    segment.attributes = new HashMap<>();
+                    segment.attributes.putAll(info.info.getAttributes());
                     segments.put(info.info.name, segment);
                 } else {
                     segment.committed = true;
@@ -1076,28 +1077,38 @@ public abstract class Engine implements Closeable {
             logger.trace(() -> "failed to get size for [" + info.info.name + "]", e);
         }
         segment.segmentSort = info.info.getIndexSort();
-        segment.attributes = info.info.getAttributes();
+        segment.attributes = new HashMap<>();
+        segment.attributes.putAll(info.info.getAttributes());
         Codec codec = info.info.getCodec();
-        segment.codec = codec.getName();
+        segment.attributes.put("codec", codec.getName());
+        Map<String, List<String>> knnFormats = null;
         if (codec instanceof PerFieldMapperCodec) {
             try {
-                // potentially expensive with many fields
                 FieldInfos fieldInfos = segmentReader.getFieldInfos();
-                if (fieldInfos.hasVectors()) {
+                if (fieldInfos.hasVectorValues()) {
                     for (FieldInfo fieldInfo : fieldInfos) {
                         String name = fieldInfo.getName();
-                        if (fieldInfo.getVectorDimension() > 0) {
+                        if (fieldInfo.hasVectorValues()) {
                             KnnVectorsFormat knnVectorsFormatForField = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField(name);
-                            if (segment.knnFormats == null) {
-                                segment.knnFormats = new HashMap<>();
+                            if (knnFormats == null) {
+                                knnFormats = new HashMap<>();
                             }
-                            segment.knnFormats.put(name, knnVectorsFormatForField.getName());
+                            knnFormats.compute(knnVectorsFormatForField.getName(), (s, a) -> {
+                                if (a == null) {
+                                    a = new ArrayList<>();
+                                }
+                                a.add(name);
+                                return a;
+                            });
                         }
                     }
                 }
             } catch (AlreadyClosedException ace) {
-                // silently ignore ?
+                // silently ignore
             }
+        }
+        if (knnFormats != null) {
+            segment.attributes.put("knn_formats", knnFormats);
         }
         // TODO: add more fine grained mem stats values to per segment info here
         segments.put(info.info.name, segment);

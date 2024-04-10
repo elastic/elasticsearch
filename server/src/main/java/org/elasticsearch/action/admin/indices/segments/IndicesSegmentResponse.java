@@ -139,10 +139,6 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
                                                 if (segment.getMergeId() != null) {
                                                     builder.field(Fields.MERGE_ID, segment.getMergeId());
                                                 }
-                                                builder.field(Fields.CODEC, segment.getCodec());
-                                                if (segment.getKnnFormats() != null) {
-                                                    builder.field(Fields.KNN_FORMATS, segment.getKnnFormats());
-                                                }
                                                 return builder;
                                             }),
                                             getSegmentSortChunks(segment.getSegmentSort()),
@@ -195,7 +191,6 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
     }
 
     static final class Fields {
-        static final String KNN_FORMATS = "knn_formats";
         static final String INDICES = "indices";
         static final String SHARDS = "shards";
         static final String ROUTING = "routing";
@@ -210,7 +205,6 @@ public class IndicesSegmentResponse extends ChunkedBroadcastResponse {
         static final String NUM_SEARCH_SEGMENTS = "num_search_segments";
         static final String NUM_DOCS = "num_docs";
         static final String DELETED_DOCS = "deleted_docs";
-        static final String CODEC = "codec";
         static final String SIZE = "size";
         static final String SIZE_IN_BYTES = "size_in_bytes";
         static final String COMMITTED = "committed";

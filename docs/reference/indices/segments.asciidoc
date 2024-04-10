@@ -94,14 +94,6 @@ into a single file to save file descriptors.
 (Object)
 Contains information about whether high compression was enabled.
 
-`codec`::
-(String)
-The Lucene codec used by each segment.
-
-`knn_formats`::
-(Object)
-Per-field KNN format used by each segment.
-
 
 [[index-segments-api-example]]
 ==== {api-examples-title}
@@ -161,7 +153,6 @@ The API returns the following response:
                 "search": true,
                 "version": "7.0.0",
                 "compound": true,
-                "codec": "Elasticsearch814",
                 "attributes": {
                 }
               }

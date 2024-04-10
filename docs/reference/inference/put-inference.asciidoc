@@ -165,7 +165,7 @@ want to use a different API key, delete the {infer} model and recreate it with
 the same name and the updated API key.
 
 `model_id`:::
-(Optional, string)
+(Required, string)
 The name of the model to use for the {infer} task. Refer to the
 https://platform.openai.com/docs/guides/embeddings/what-are-embeddings[OpenAI documentation]
 for the list of available text embedding models.
@@ -431,4 +431,3 @@ PUT _inference/completion/openai_completion
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
-

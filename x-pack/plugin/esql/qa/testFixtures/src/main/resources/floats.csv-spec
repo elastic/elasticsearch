@@ -257,10 +257,10 @@ emp_no:integer | salary_change:double    | a1:double
 10005          | [-2.14,13.07]           | [-2.14,13.07]
 ;
 
-autoBucket
+bucket#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-| EVAL bh = auto_bucket(height, 20, 1.41, 2.10)
+| EVAL bh = bucket(height, 20, 1.41, 2.10)
 | SORT hire_date, height
 | KEEP hire_date, height, bh
 ;

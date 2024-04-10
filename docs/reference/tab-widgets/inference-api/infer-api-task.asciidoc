@@ -32,6 +32,36 @@ the `cosine` measures are equivalent.
 
 // end::cohere[]
 
+// tag::hugging-face[]
+
+First, you need to create a new {infer} endpoint on
+https://ui.endpoints.huggingface.co/[the Hugging Face endpoint page] to get an
+endpoint URL. Select the model `all-mpnet-base-v2` on the new endpoint creation
+page, then select the `Sentence Embeddings` task under the Advanced
+configuration section. Create the endpoint. Copy the URL after the endpoint
+initialization has been finished, you need the URL in the following {infer} API
+call.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/text_embedding/hugging_face_embeddings <1>
+{
+  "service": "hugging_face",
+  "service_settings": {
+    "api_key": "<access_token>", <2>
+    "url": "<url_endpoint>" <3>
+  }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+<1> The task type is `text_embedding` in the path and the `inference_id` which 
+is the unique identifier of the {infer} endpoint is `hugging_face_embeddings`.
+<2> A valid HuggingFace access token. You can find on the
+https://huggingface.co/settings/tokens[settings page of your account].
+<3> The {infer} endpoint URL you created on Hugging Face.
+
+// end::hugging-face[]
+
 
 // tag::openai[]
 

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -49,22 +50,18 @@ public class NamedWriteableRegistryTests extends ESTestCase {
     }
 
     public void testUnknownCategory() {
-        try {
-            NamedWriteableRegistry.ignoreDeserializationErrors = true;
+        try (var ignored = ignoringUnknownNamedWriteables()) {
             NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> registry.getReader(NamedWriteable.class, "test")
             );
             assertTrue(e.getMessage(), e.getMessage().contains("Unknown NamedWriteable category ["));
-        } finally {
-            NamedWriteableRegistry.ignoreDeserializationErrors = false;
         }
     }
 
     public void testUnknownName() {
-        try {
-            NamedWriteableRegistry.ignoreDeserializationErrors = true;
+        try (var ignored = ignoringUnknownNamedWriteables()) {
             NamedWriteableRegistry.Entry entry = new NamedWriteableRegistry.Entry(NamedWriteable.class, "test", DummyNamedWriteable::new);
             NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.singletonList(entry));
             IllegalArgumentException e = expectThrows(
@@ -72,8 +69,11 @@ public class NamedWriteableRegistryTests extends ESTestCase {
                 () -> registry.getReader(NamedWriteable.class, "dne")
             );
             assertTrue(e.getMessage(), e.getMessage().contains("Unknown NamedWriteable ["));
-        } finally {
-            NamedWriteableRegistry.ignoreDeserializationErrors = false;
         }
+    }
+
+    public static Releasable ignoringUnknownNamedWriteables() {
+        NamedWriteableRegistry.ignoreDeserializationErrors = true;
+        return () -> NamedWriteableRegistry.ignoreDeserializationErrors = false;
     }
 }

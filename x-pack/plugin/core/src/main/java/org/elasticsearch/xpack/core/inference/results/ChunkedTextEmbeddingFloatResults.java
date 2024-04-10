@@ -29,7 +29,6 @@ public record ChunkedTextEmbeddingFloatResults(List<EmbeddingChunk> chunks) impl
     public static final String NAME = "chunked_text_embedding_service_float_results";
     public static final String FIELD_NAME = "text_embedding_float_chunk";
 
-
     public ChunkedTextEmbeddingFloatResults(StreamInput in) throws IOException {
         this(in.readCollectionAsList(EmbeddingChunk::new));
     }

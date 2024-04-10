@@ -48,7 +48,7 @@ public class FlushStats implements Writeable, ToXContentFragment {
         this.total += total;
         this.periodic += periodic;
         this.totalTimeInMillis += totalTimeInMillis;
-        this.totalTimeExcludingWaitingInMillis = totalTimeWithoutWaitingInMillis;
+        this.totalTimeExcludingWaitingInMillis += totalTimeWithoutWaitingInMillis;
     }
 
     public void add(FlushStats flushStats) {

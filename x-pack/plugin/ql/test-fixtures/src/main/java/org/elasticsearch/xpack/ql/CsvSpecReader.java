@@ -69,17 +69,15 @@ public final class CsvSpecReader {
                 // read data
                 String lower = line.toLowerCase(Locale.ROOT);
                 if (lower.startsWith("warning:")) {
-                    if (testCase.expectedWarningsRegex.isEmpty()) {
-                        testCase.expectedWarnings.add(line.substring("warning:".length()).trim());
-                    } else {
+                    if (testCase.expectedWarningsRegex.isEmpty() == false) {
                         throw new IllegalArgumentException("Cannot mix warnings and regex warnings in CSV SPEC files: [" + line + "]");
                     }
+                    testCase.expectedWarnings.add(line.substring("warning:".length()).trim());
                 } else if (lower.startsWith("warningregex:")) {
-                    if (testCase.expectedWarnings.isEmpty()) {
-                        testCase.expectedWarningsRegex.add(Pattern.compile(".*" + line.substring("warningregex:".length()).trim() + ".*"));
-                    } else {
+                    if (testCase.expectedWarnings.isEmpty() == false) {
                         throw new IllegalArgumentException("Cannot mix warnings and regex warnings in CSV SPEC files: [" + line + "]");
                     }
+                    testCase.expectedWarningsRegex.add(Pattern.compile(".*" + line.substring("warningregex:".length()).trim() + ".*"));
                 } else if (lower.startsWith("ignoreorder:")) {
                     testCase.ignoreOrder = Boolean.parseBoolean(line.substring("ignoreOrder:".length()).trim());
                 } else if (line.startsWith(";")) {

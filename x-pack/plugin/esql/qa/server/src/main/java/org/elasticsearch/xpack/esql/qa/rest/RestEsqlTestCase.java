@@ -668,6 +668,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return runEsqlSync(requestObject, NO_WARNINGS, NO_WARNINGS_REGEX);
     }
 
+    public static Map<String, Object> runEsqlAsync(RequestObjectBuilder requestObject) throws IOException {
+        return runEsqlAsync(requestObject, NO_WARNINGS, NO_WARNINGS_REGEX);
+    }
+
     static Map<String, Object> runEsql(
         RequestObjectBuilder requestObject,
         List<String> expectedWarnings,

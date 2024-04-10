@@ -240,7 +240,7 @@ include::{esql-specs}/eval.csv-spec[tag=gs-eval-stats-backticks]
 === Create a histogram
 
 To track statistics over time, {esql} enables you to create histograms using the
-<<esql-auto_bucket>> function. `AUTO_BUCKET` creates human-friendly bucket sizes
+<<esql-bucket>> function. `BUCKET` creates human-friendly bucket sizes
 and returns a value for each row that corresponds to the resulting bucket the
 row falls into.
 
@@ -248,22 +248,22 @@ For example, to create hourly buckets for the data on October 23rd:
 
 [source,esql]
 ----
-include::{esql-specs}/date.csv-spec[tag=gs-auto_bucket]
+include::{esql-specs}/date.csv-spec[tag=gs-bucket]
 ----
 
-Combine `AUTO_BUCKET` with <<esql-stats-by>> to create a histogram. For example,
+Combine `BUCKET` with <<esql-stats-by>> to create a histogram. For example,
 to count the number of events per hour:
 
 [source,esql]
 ----
-include::{esql-specs}/date.csv-spec[tag=gs-auto_bucket-stats-by]
+include::{esql-specs}/date.csv-spec[tag=gs-bucket-stats-by]
 ----
 
 Or the median duration per hour:
 
 [source,esql]
 ----
-include::{esql-specs}/date.csv-spec[tag=gs-auto_bucket-stats-by-median]
+include::{esql-specs}/date.csv-spec[tag=gs-bucket-stats-by-median]
 ----
 
 [discrete]

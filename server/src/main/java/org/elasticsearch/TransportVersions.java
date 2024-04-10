@@ -165,6 +165,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_COHERE_RERANK = def(8_624_00_0);
     public static final TransportVersion INDEXING_PRESSURE_DOCUMENT_REJECTIONS_COUNT = def(8_625_00_0);
     public static final TransportVersion ALIAS_ACTION_RESULTS = def(8_626_00_0);
+    public static final TransportVersion HISTOGRAM_AGGS_KEY_SORTED = def(8_627_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -22,8 +22,11 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.FlushTrainedModelCacheAction;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelCacheMetadataService;
 
 public class TransportFlushTrainedModelCacheAction extends AcknowledgedTransportMasterNodeAction<FlushTrainedModelCacheAction.Request> {
+
+    private final TrainedModelCacheMetadataService modelCacheMetadataService;
 
     @Inject
     public TransportFlushTrainedModelCacheAction(
@@ -31,7 +34,8 @@ public class TransportFlushTrainedModelCacheAction extends AcknowledgedTransport
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        TrainedModelCacheMetadataService modelCacheMetadataService
     ) {
         super(
             FlushTrainedModelCacheAction.NAME,
@@ -43,6 +47,7 @@ public class TransportFlushTrainedModelCacheAction extends AcknowledgedTransport
             indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.modelCacheMetadataService = modelCacheMetadataService;
     }
 
     @Override
@@ -52,7 +57,7 @@ public class TransportFlushTrainedModelCacheAction extends AcknowledgedTransport
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        // TODO
+        modelCacheMetadataService.refreshCacheVersion(listener);
     }
 
     @Override

@@ -33,13 +33,13 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 public class TrainedModelCacheMetadataService implements ClusterStateListener {
     private static final Logger LOGGER = LogManager.getLogger(TrainedModelCacheMetadataService.class);
     private static final String TASK_QUEUE_NAME = "trained-models-cache-metadata-management";
-    private final MasterServiceTaskQueue<TrainedModelCacheMetadataUpdateTask> metadataUpdateTaskQueue;
+    private final MasterServiceTaskQueue<CacheMetadataUpdateTask> metadataUpdateTaskQueue;
     private final Client client;
     private volatile boolean isMasterNode = false;
 
     public TrainedModelCacheMetadataService(ClusterService clusterService, Client client) {
         this.client = new OriginSettingClient(client, ML_ORIGIN);
-        TrainedModelCacheMetadataUpdateTaskExecutor metadataUpdateTaskExecutor = new TrainedModelCacheMetadataUpdateTaskExecutor();
+        CacheMetadataUpdateTaskExecutor metadataUpdateTaskExecutor = new CacheMetadataUpdateTaskExecutor();
         this.metadataUpdateTaskQueue = clusterService.createTaskQueue(TASK_QUEUE_NAME, Priority.IMMEDIATE, metadataUpdateTaskExecutor);
         clusterService.addListener(this);
     }
@@ -50,7 +50,7 @@ public class TrainedModelCacheMetadataService implements ClusterStateListener {
             return;
         }
 
-        TrainedModelCacheMetadataUpdateTask updateMetadataTask = new RefreshTrainedModeCacheMetadataVersionTask(listener);
+        CacheMetadataUpdateTask updateMetadataTask = new RefreshCacheMetadataVersionTask(listener);
         this.metadataUpdateTaskQueue.submitTask(updateMetadataTask.getDescription(), updateMetadataTask, null);
     }
 
@@ -62,16 +62,16 @@ public class TrainedModelCacheMetadataService implements ClusterStateListener {
         this.isMasterNode = event.localNodeMaster();
     }
 
-    private abstract static class TrainedModelCacheMetadataUpdateTask implements ClusterStateTaskListener {
+    private abstract static class CacheMetadataUpdateTask implements ClusterStateTaskListener {
         protected final ActionListener<AcknowledgedResponse> listener;
 
-        TrainedModelCacheMetadataUpdateTask(ActionListener<AcknowledgedResponse> listener) {
+        CacheMetadataUpdateTask(ActionListener<AcknowledgedResponse> listener) {
             this.listener = listener;
         }
 
         protected abstract TrainedModelCacheMetadata execute(
             TrainedModelCacheMetadata currentCacheMetadata,
-            TaskContext<TrainedModelCacheMetadataUpdateTask> taskContext
+            TaskContext<CacheMetadataUpdateTask> taskContext
         );
 
         protected abstract String getDescription();
@@ -83,15 +83,15 @@ public class TrainedModelCacheMetadataService implements ClusterStateListener {
         }
     }
 
-    private static class RefreshTrainedModeCacheMetadataVersionTask extends TrainedModelCacheMetadataUpdateTask {
-        RefreshTrainedModeCacheMetadataVersionTask(ActionListener<AcknowledgedResponse> listener) {
+    private static class RefreshCacheMetadataVersionTask extends CacheMetadataUpdateTask {
+        RefreshCacheMetadataVersionTask(ActionListener<AcknowledgedResponse> listener) {
             super(listener);
         }
 
         @Override
         protected TrainedModelCacheMetadata execute(
             TrainedModelCacheMetadata currentCacheMetadata,
-            TaskContext<TrainedModelCacheMetadataUpdateTask> taskContext
+            TaskContext<CacheMetadataUpdateTask> taskContext
         ) {
             long newVersion = currentCacheMetadata.version() < Long.MAX_VALUE ? currentCacheMetadata.version() + 1 : 1L;
             taskContext.success(() -> listener.onResponse(AcknowledgedResponse.TRUE));
@@ -104,11 +104,9 @@ public class TrainedModelCacheMetadataService implements ClusterStateListener {
         }
     }
 
-    private static class TrainedModelCacheMetadataUpdateTaskExecutor
-        implements
-            ClusterStateTaskExecutor<TrainedModelCacheMetadataUpdateTask> {
+    private static class CacheMetadataUpdateTaskExecutor implements ClusterStateTaskExecutor<CacheMetadataUpdateTask> {
         @Override
-        public ClusterState execute(BatchExecutionContext<TrainedModelCacheMetadataUpdateTask> batchExecutionContext) {
+        public ClusterState execute(BatchExecutionContext<CacheMetadataUpdateTask> batchExecutionContext) {
             final var initialState = batchExecutionContext.initialState();
             XPackPlugin.checkReadyForXPackCustomMetadata(initialState);
 

@@ -65,9 +65,6 @@ import static org.hamcrest.core.Is.is;
 
 public abstract class TransformRestTestCase extends TransformCommonRestTestCase {
 
-    protected static final String AUTH_KEY = "Authorization";
-    protected static final String SECONDARY_AUTH_KEY = "es-secondary-authorization";
-
     private final Set<String> createdTransformIds = new HashSet<>();
 
     protected void cleanUp() throws Exception {

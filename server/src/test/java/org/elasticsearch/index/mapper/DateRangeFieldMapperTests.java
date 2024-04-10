@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
@@ -62,9 +63,9 @@ public class DateRangeFieldMapperTests extends RangeFieldMapperTests {
     @SuppressWarnings("unchecked")
     protected TestRange<Long> randomRangeForSyntheticSourceTest() {
         var includeFrom = randomBoolean();
-        var from = randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999 - 1);
+        Long from = rarely() ? null : randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999 - 1);
         var includeTo = randomBoolean();
-        var to = randomLongBetween(from + 1, DateUtils.MAX_MILLIS_BEFORE_9999);
+        Long to = rarely() ? null : randomLongBetween((from == null ? Long.MIN_VALUE : from) + 1, DateUtils.MAX_MILLIS_BEFORE_9999);
 
         return new TestRange<>(rangeType(), from, to, includeFrom, includeTo) {
             private final DateFormatter inputDateFormatter = DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss.SSS");
@@ -75,10 +76,10 @@ public class DateRangeFieldMapperTests extends RangeFieldMapperTests {
                 var fromKey = includeFrom ? "gte" : "gt";
                 var toKey = includeTo ? "lte" : "lt";
 
-                var fromFormatted = randomBoolean() ? inputDateFormatter.format(Instant.ofEpochMilli(from)) : from;
-                var toFormatted = randomBoolean() ? inputDateFormatter.format(Instant.ofEpochMilli(to)) : to;
+                var fromFormatted = from != null && randomBoolean() ? inputDateFormatter.format(Instant.ofEpochMilli(from)) : from;
+                var toFormatted = to != null && randomBoolean() ? inputDateFormatter.format(Instant.ofEpochMilli(to)) : to;
 
-                return Map.of(fromKey, fromFormatted, toKey, toFormatted);
+                return (ToXContent) (builder, params) -> builder.startObject().field(fromKey, from).field(toKey, to).endObject();
             }
 
             @Override
@@ -88,7 +89,7 @@ public class DateRangeFieldMapperTests extends RangeFieldMapperTests {
                 return expectedInMillis.entrySet()
                     .stream()
                     .collect(
-                        Collectors.toMap(e -> e.getKey(), e -> expectedDateFormatter.format(Instant.ofEpochMilli((long) e.getValue())))
+                        Collectors.toMap(Map.Entry::getKey, e -> expectedDateFormatter.format(Instant.ofEpochMilli((long) e.getValue())))
                     );
             }
         };

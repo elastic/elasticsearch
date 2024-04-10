@@ -41,18 +41,20 @@ public class FloatRangeFieldMapperTests extends RangeFieldMapperTests {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        throw new AssumptionViolatedException("not supported");
-    }
-
-    @Override
-    protected TestRange<Long> randomRangeForSyntheticSourceTest() {
+    protected TestRange<Float> randomRangeForSyntheticSourceTest() {
         var includeFrom = randomBoolean();
-        var from = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE - 1);
+        Float from = (float) randomDoubleBetween(Float.MIN_VALUE, Float.MAX_VALUE, true);
         var includeTo = randomBoolean();
-        var to = randomLongBetween(from, Long.MAX_VALUE);
+        Float to = (float) randomDoubleBetween(from, Float.MAX_VALUE, false);
 
-        return new TestRange<>(RangeType.LONG, from, to, includeFrom, includeTo);
+        if (rarely()) {
+            from = null;
+        }
+        if (rarely()) {
+            to = null;
+        }
+
+        return new TestRange<>(rangeType(), from, to, includeFrom, includeTo);
     }
 
     @Override

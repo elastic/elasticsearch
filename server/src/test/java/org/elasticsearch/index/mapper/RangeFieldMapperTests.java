@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
@@ -264,7 +265,7 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
 
                 var values = randomList(1, maxValues, () -> randomRangeForSyntheticSourceTest());
                 List<Object> in = values.stream().map(TestRange::toInput).toList();
-                List<Object> outList = values.stream().sorted(Comparator.naturalOrder()).map(r -> r.toExpectedSyntheticSource()).toList();
+                List<Object> outList = values.stream().sorted(Comparator.naturalOrder()).map(TestRange::toExpectedSyntheticSource).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
 
                 return new SyntheticSourceExample(in, out, this::mapping);
@@ -325,7 +326,7 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
             var fromKey = includeFrom ? "gte" : "gt";
             var toKey = includeTo ? "lte" : "lt";
 
-            return Map.of(fromKey, from, toKey, to);
+            return (ToXContent) (builder, params) -> builder.startObject().field(fromKey, from).field(toKey, to).endObject();
         }
 
         Object toExpectedSyntheticSource() {
@@ -333,13 +334,21 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
             // Also, "to" field always comes first.
             Map<String, Object> output = new LinkedHashMap<>();
 
-            if (includeFrom) {
+            // Range values are not properly normalized for default values
+            // which results in off by one error here.
+            // So "gte": null and "gt": null both result in "gte": MIN_VALUE.
+            // This is a bug, see #107282.
+            if (from == null) {
+                output.put("gte", rangeType().minValue());
+            } else if (includeFrom) {
                 output.put("gte", from);
             } else {
                 output.put("gte", type.nextUp(from));
             }
 
-            if (includeTo) {
+            if (to == null) {
+                output.put("lte", rangeType().maxValue());
+            } else if (includeTo) {
                 output.put("lte", to);
             } else {
                 output.put("lte", type.nextDown(to));
@@ -350,7 +359,9 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
 
         @Override
         public int compareTo(TestRange<T> o) {
-            return Comparator.comparing((TestRange<T> r) -> r.from).thenComparing(r -> r.to).compare(this, o);
+            return Comparator.comparing((TestRange<T> r) -> r.from, Comparator.nullsFirst(Comparator.naturalOrder()))
+                .thenComparing((TestRange<T> r) -> r.to)
+                .compare(this, o);
         }
     }
 

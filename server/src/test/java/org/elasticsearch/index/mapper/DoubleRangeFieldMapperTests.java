@@ -43,9 +43,16 @@ public class DoubleRangeFieldMapperTests extends RangeFieldMapperTests {
     @Override
     protected TestRange<Double> randomRangeForSyntheticSourceTest() {
         var includeFrom = randomBoolean();
-        var from = randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE - 1, true);
+        Double from = randomDoubleBetween(Double.MIN_VALUE, Double.MAX_VALUE, true);
         var includeTo = randomBoolean();
-        var to = randomDoubleBetween(from, Double.MAX_VALUE, false);
+        Double to = randomDoubleBetween(from, Double.MAX_VALUE, false);
+
+        if (rarely()) {
+            from = null;
+        }
+        if (rarely()) {
+            to = null;
+        }
 
         return new TestRange<>(rangeType(), from, to, includeFrom, includeTo);
     }

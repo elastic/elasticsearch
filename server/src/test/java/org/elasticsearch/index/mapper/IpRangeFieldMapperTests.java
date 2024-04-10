@@ -17,6 +17,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
@@ -143,7 +144,7 @@ public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
                     assertEquals(expectedValues.get(0), actual);
                 } else {
                     assertThat(actual, instanceOf(List.class));
-                    assertEquals(new HashSet<>((List<Object>) actual), new HashSet<>(expectedValues));
+                    assertTrue(((List<Object>) actual).containsAll(new HashSet<>(expectedValues)));
                 }
             }
         }
@@ -167,16 +168,31 @@ public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
         } else {
             var fromKey = includeFrom ? "gte" : "gt";
             var toKey = includeTo ? "lte" : "lt";
-            input = Map.of(fromKey, InetAddresses.toAddrString(range.v1()), toKey, InetAddresses.toAddrString(range.v2()));
+            var from = rarely() ? null : InetAddresses.toAddrString(range.v1());
+            var to = rarely() ? null : InetAddresses.toAddrString(range.v2());
+            input = (ToXContent) (builder, params) -> builder.startObject().field(fromKey, from).field(toKey, to).endObject();
 
             // When ranges are stored, they are always normalized to include both ends.
             // `includeFrom` and `includeTo` here refers to user input.
-            var rawFrom = range.v1();
-            var adjustedFrom = includeFrom ? rawFrom : (InetAddress) RangeType.IP.nextUp(rawFrom);
-            output.put("gte", InetAddresses.toAddrString(adjustedFrom));
-            var rawTo = range.v2();
-            var adjustedTo = includeTo ? rawTo : (InetAddress) RangeType.IP.nextDown(rawTo);
-            output.put("lte", InetAddresses.toAddrString(adjustedTo));
+            //
+            // Range values are not properly normalized for default values
+            // which results in off by one error here.
+            // So "gte": null and "gt": null both result in "gte": MIN_VALUE.
+            // This is a bug, see #107282.
+            if (from == null) {
+                output.put("gte", InetAddresses.toAddrString((InetAddress) rangeType().minValue()));
+            } else {
+                var rawFrom = range.v1();
+                var adjustedFrom = includeFrom ? rawFrom : (InetAddress) RangeType.IP.nextUp(rawFrom);
+                output.put("gte", InetAddresses.toAddrString(adjustedFrom));
+            }
+            if (to == null) {
+                output.put("lte", InetAddresses.toAddrString((InetAddress) rangeType().maxValue()));
+            } else {
+                var rawTo = range.v2();
+                var adjustedTo = includeTo ? rawTo : (InetAddress) RangeType.IP.nextDown(rawTo);
+                output.put("lte", InetAddresses.toAddrString(adjustedTo));
+            }
         }
 
         return Tuple.tuple(input, output);

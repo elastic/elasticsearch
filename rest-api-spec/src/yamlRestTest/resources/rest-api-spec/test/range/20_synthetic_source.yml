@@ -58,12 +58,24 @@ setup:
         body: { "integer_range" : null }
 
   - do:
+      index:
+        index: synthetic_source_test
+        id: "6"
+        body: { "integer_range": { "gte": null, "lte": 10 } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "7"
+        body: { "integer_range": { "gte": 1 } }
+
+  - do:
       indices.refresh: {}
 
   - do:
       search:
         index: synthetic_source_test
-  - match: { hits.total.value: 5 }
+  - match: { hits.total.value: 7 }
   - match:
       hits.hits.0._source:
         integer_range:  { "gte": 1, "lte": 5 }
@@ -78,6 +90,12 @@ setup:
         integer_range: [ { "gte": 5, "lte": 6 }, { "gte": 5, "lte": 7 } ]
   - match:
       hits.hits.4._source: {}
+  - match:
+      hits.hits.5._source:
+        integer_range: { "gte": -2147483648, "lte": 10 }
+  - match:
+      hits.hits.6._source:
+        integer_range: { "gte": 1, "lte": 2147483647 }
 
 ---
 "Long range":
@@ -113,12 +131,24 @@ setup:
         body: { "long_range" : null }
 
   - do:
+      index:
+        index: synthetic_source_test
+        id: "6"
+        body: { "long_range": { "gte": null, "lte": 10 } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "7"
+        body: { "long_range": { "gte": 1 } }
+
+  - do:
       indices.refresh: {}
 
   - do:
       search:
         index: synthetic_source_test
-  - match: { hits.total.value: 5 }
+  - match: { hits.total.value: 7 }
   - match:
       hits.hits.0._source:
         long_range:  { "gte": 1, "lte": 5 }
@@ -133,6 +163,12 @@ setup:
         long_range: [ { "gte": 5, "lte": 6 }, { "gte": 5, "lte": 7 } ]
   - match:
       hits.hits.4._source: {}
+  - match:
+      hits.hits.5._source:
+        long_range: { "gte": -9223372036854775808, "lte": 10 }
+  - match:
+      hits.hits.6._source:
+        long_range: { "gte": 1, "lte": 9223372036854775807 }
 
 ---
 "Float range":
@@ -162,12 +198,24 @@ setup:
         body: { "float_range" : null }
 
   - do:
+      index:
+        index: synthetic_source_test
+        id: "5"
+        body: { "float_range": { "gte": null, "lte": 10 } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "6"
+        body: { "float_range": { "gte": 1 } }
+
+  - do:
       indices.refresh: {}
 
   - do:
       search:
         index: synthetic_source_test
-  - match: { hits.total.value: 4 }
+  - match: { hits.total.value: 6 }
   - match:
       hits.hits.0._source:
         float_range:  { "gte": 1.0, "lte": 5.0 }
@@ -179,6 +227,12 @@ setup:
         float_range: [ { "gte": 4.0, "lte": 7.0 }, { "gte": 4.0, "lte": 8.0 } ]
   - match:
       hits.hits.3._source: {}
+  - match:
+      hits.hits.4._source:
+        float_range: { "gte": "-Infinity", "lte": 10.0 }
+  - match:
+      hits.hits.5._source:
+        float_range: { "gte": 1.0, "lte": "Infinity" }
 
 ---
 "Double range":
@@ -208,12 +262,24 @@ setup:
         body: { "double_range" : null }
 
   - do:
+      index:
+        index: synthetic_source_test
+        id: "5"
+        body: { "double_range": { "gte": null, "lte": 10 } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "6"
+        body: { "double_range": { "gte": 1 } }
+
+  - do:
       indices.refresh: {}
 
   - do:
       search:
         index: synthetic_source_test
-  - match: { hits.total.value: 4 }
+  - match: { hits.total.value: 6 }
   - match:
       hits.hits.0._source:
         double_range:  { "gte": 1.0, "lte": 5.0 }
@@ -225,6 +291,12 @@ setup:
         double_range: [ { "gte": 4.0, "lte": 7.0 }, { "gte": 4.0, "lte": 8.0 } ]
   - match:
       hits.hits.3._source: {}
+  - match:
+      hits.hits.4._source:
+        double_range: { "gte": "-Infinity", "lte": 10.0 }
+  - match:
+      hits.hits.5._source:
+        double_range: { "gte": 1.0, "lte": "Infinity" }
 
 ---
 "IP range":
@@ -266,12 +338,24 @@ setup:
         body: { "ip_range" : null }
 
   - do:
+      index:
+        index: synthetic_source_test
+        id: "7"
+        body: { "ip_range": { "gte": null, "lte": "10.10.10.10" } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "8"
+        body: { "ip_range": { "gte": "10.10.10.10" } }
+
+  - do:
       indices.refresh: {}
 
   - do:
       search:
         index: synthetic_source_test
-  - match: { hits.total.value: 6 }
+  - match: { hits.total.value: 8 }
   - match:
       hits.hits.0._source:
         ip_range:  { "gte": "192.168.0.1", "lte": "192.168.0.5" }
@@ -289,6 +373,12 @@ setup:
         ip_range: { "gte": "74.125.227.0", "lte": "74.125.227.127" }
   - match:
       hits.hits.5._source: {}
+  - match:
+      hits.hits.6._source:
+        ip_range: { "gte": "::", "lte": "10.10.10.10" }
+  - match:
+      hits.hits.7._source:
+        ip_range: { "gte": "10.10.10.10", "lte": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff" }
 
 ---
 "Date range":
@@ -336,12 +426,24 @@ setup:
         body: { "date_range" : null }
 
   - do:
+      index:
+        index: synthetic_source_test
+        id: "8"
+        body: { "date_range": { "gte": null, "lte": "2017-09-05" } }
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "9"
+        body: { "date_range": { "gte": "2017-09-05" } }
+
+  - do:
       indices.refresh: {}
 
   - do:
       search:
         index: synthetic_source_test
-  - match: { hits.total.value: 7 }
+  - match: { hits.total.value: 9 }
   - match:
       hits.hits.0._source:
         date_range:  { "gte": "2017-09-01T00:00:00.000Z", "lte": "2017-09-05T00:00:00.000Z" }
@@ -362,4 +464,10 @@ setup:
         date_range: { "gte": "2017-09-01T10:20:30.123Z", "lte": "2017-09-05T03:04:05.789Z" }
   - match:
       hits.hits.6._source: {}
+  - match:
+      hits.hits.7._source:
+        date_range: { "gte": "-292275055-05-16T16:47:04.192Z", "lte": "2017-09-05T00:00:00.000Z" }
+  - match:
+      hits.hits.8._source:
+        date_range: { "gte": "2017-09-05T00:00:00.000Z", "lte": "+292278994-08-17T07:12:55.807Z" }
 

@@ -11,8 +11,10 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class FlushTrainedModelCacheAction extends ActionType<AcknowledgedResponse> {
 
@@ -28,8 +30,25 @@ public class FlushTrainedModelCacheAction extends ActionType<AcknowledgedRespons
             super();
         }
 
+        Request(TimeValue timeout) {
+            super(timeout);
+        }
+
         public Request(StreamInput in) throws IOException {
             super(in);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(timeout);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (other == this) return true;
+            if (other == null || getClass() != other.getClass()) return false;
+            Request that = (Request) other;
+            return Objects.equals(that.timeout, timeout);
         }
     }
 }

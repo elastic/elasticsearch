@@ -49,6 +49,11 @@ public class InferenceNamedWriteablesProvider {
 
     private InferenceNamedWriteablesProvider() {}
 
+    /**
+     * Registers and provides the `NamedWriteable` objects.
+     * Any new classes which implements NamedWriteable should be added here.
+     * In practice, that is anything which implements TaskSettings, ServiceSettings, or InferenceServiceResults.
+     */
     @SuppressWarnings("deprecation")
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();

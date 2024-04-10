@@ -9,6 +9,8 @@
 
 package org.elasticsearch.xpack.inference.external.response.cohere;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -28,9 +30,7 @@ import static org.elasticsearch.xpack.inference.external.response.XContentUtils.
 
 public class CohereRankedResponseEntity {
 
-    private static final org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(
-        CohereRankedResponseEntity.class
-    );
+    private static final Logger logger = LogManager.getLogger(CohereRankedResponseEntity.class);
 
     /**
      * Parses the Cohere ranked response.
@@ -157,7 +157,7 @@ public class CohereRankedResponseEntity {
             logger.error("Failed to find required field [document] in Cohere embeddings response");
         }
 
-        return new RankedDocsResults.RankedDoc(index, relevanceScore, String.valueOf(documentText));
+        return new RankedDocsResults.RankedDoc(index, relevanceScore, documentText);
     }
 
     private CohereRankedResponseEntity() {}

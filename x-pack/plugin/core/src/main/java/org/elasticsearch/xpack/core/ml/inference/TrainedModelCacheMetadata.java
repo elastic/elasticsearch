@@ -88,7 +88,6 @@ public class TrainedModelCacheMetadata extends AbstractNamedDiffable<Metadata.Cu
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        // TODO: Add a new entry in TransportVersions before merge.
         return TransportVersions.ML_TRAINED_MODEL_CACHE_METADATA_ADDED;
     }
 

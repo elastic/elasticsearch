@@ -120,7 +120,7 @@
   - do:
       indices.rollover:
         alias: "data-stream-for-modification"
-        failure_store: true
+        target_failure_store: true
   - is_true: acknowledged
 
   # save index names for later use
@@ -178,11 +178,11 @@
 
   # An index that has an alias is not allowed to be added to failure store
   - do:
-      catch: /index \[.*\] not found/
+      catch: /cannot add index \[test_index2\] to data stream \[data-stream-for-modification\] until its alias \[test_index_alias\] is removed/
       indices.modify_data_stream:
         body:
           actions:
-            - remove_backing_index:
+            - add_backing_index:
                 data_stream: "data-stream-for-modification"
                 index: test_index2
                 failure_store: true

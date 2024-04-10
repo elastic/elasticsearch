@@ -838,16 +838,17 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     private void ensureNoAliasesOnIndex(Metadata clusterMetadata, Index index) {
-        // ensure that no aliases reference index
         IndexMetadata im = clusterMetadata.index(clusterMetadata.getIndicesLookup().get(index.getName()).getWriteIndex());
         if (im.getAliases().size() > 0) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
-                    "cannot add index [%s] to data stream [%s] until its alias(es) [%s] are removed",
+                    "cannot add index [%s] to data stream [%s] until its %s [%s] %s removed",
                     index.getName(),
                     getName(),
-                    Strings.collectionToCommaDelimitedString(im.getAliases().keySet().stream().sorted().toList())
+                    im.getAliases().size() > 1 ? "aliases" : "alias",
+                    Strings.collectionToCommaDelimitedString(im.getAliases().keySet().stream().sorted().toList()),
+                    im.getAliases().size() > 1 ? "are" : "is"
                 )
             );
         }

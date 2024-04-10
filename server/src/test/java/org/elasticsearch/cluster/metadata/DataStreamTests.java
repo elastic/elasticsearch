@@ -280,56 +280,35 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
     }
 
     public void testRemoveBackingIndex() {
-        int numBackingIndices = randomIntBetween(2, 32);
-        int indexToRemove = randomIntBetween(1, numBackingIndices - 1);
-        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        DataStream original = createRandomDataStream();
+        int indexToRemove = randomIntBetween(1, original.getIndices().size() - 1);
 
-        List<Index> indices = new ArrayList<>(numBackingIndices);
-        for (int k = 1; k <= numBackingIndices; k++) {
-            indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, k), UUIDs.randomBase64UUID(random())));
-        }
-        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, indices);
-        DataStream updated = original.removeBackingIndex(indices.get(indexToRemove - 1));
+        DataStream updated = original.removeBackingIndex(original.getIndices().get(indexToRemove - 1));
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration() + 1));
-        assertThat(updated.getIndices().size(), equalTo(numBackingIndices - 1));
-        for (int k = 0; k < (numBackingIndices - 1); k++) {
+        assertThat(updated.getIndices().size(), equalTo(original.getIndices().size() - 1));
+        for (int k = 0; k < (original.getIndices().size() - 1); k++) {
             assertThat(updated.getIndices().get(k), equalTo(original.getIndices().get(k < (indexToRemove - 1) ? k : k + 1)));
         }
     }
 
     public void testRemoveBackingIndexThatDoesNotExist() {
-        int numBackingIndices = randomIntBetween(2, 32);
-        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-
-        List<Index> indices = new ArrayList<>(numBackingIndices);
-        for (int k = 1; k <= numBackingIndices; k++) {
-            indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, k), UUIDs.randomBase64UUID(random())));
-        }
-        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, indices);
-
+        DataStream original = createRandomDataStream();
         final Index indexToRemove = new Index(randomAlphaOfLength(4), UUIDs.randomBase64UUID(random()));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> original.removeBackingIndex(indexToRemove));
         assertThat(
             e.getMessage(),
-            equalTo(Strings.format("index [%s] is not part of data stream [%s]", indexToRemove.getName(), dataStreamName))
+            equalTo(Strings.format("index [%s] is not part of data stream [%s]", indexToRemove.getName(), original.getName()))
         );
     }
 
     public void testRemoveBackingWriteIndex() {
-        int numBackingIndices = randomIntBetween(2, 32);
-        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-
-        List<Index> indices = new ArrayList<>(numBackingIndices);
-        for (int k = 1; k <= numBackingIndices; k++) {
-            indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, k), UUIDs.randomBase64UUID(random())));
-        }
-        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, indices);
+        DataStream original = createRandomDataStream();
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> original.removeBackingIndex(indices.get(numBackingIndices - 1))
+            () -> original.removeBackingIndex(original.getIndices().get(original.getIndices().size() - 1))
         );
         assertThat(
             e.getMessage(),
@@ -337,89 +316,44 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 String.format(
                     Locale.ROOT,
                     "cannot remove backing index [%s] of data stream [%s] because it is the write index",
-                    indices.get(numBackingIndices - 1).getName(),
-                    dataStreamName
+                    original.getIndices().get(original.getIndices().size() - 1).getName(),
+                    original.getName()
                 )
             )
         );
     }
 
     public void testRemoveFailureStoreIndex() {
-        long currentTimeMillis = System.currentTimeMillis();
-        int numBackingIndices = randomIntBetween(2, 32);
-        int numFailureIndices = randomIntBetween(2, 32);
-        int indexToRemove = randomIntBetween(1, numFailureIndices - 1);
-        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        DataStream original = createRandomDataStream();
+        int indexToRemove = randomIntBetween(1, original.getFailureIndices().size() - 1);
 
-        List<Index> indices = new ArrayList<>(numBackingIndices);
-        for (int k = 1; k <= numBackingIndices; k++) {
-            indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, k), UUIDs.randomBase64UUID(random())));
-        }
-        List<Index> failureIndices = new ArrayList<>(numFailureIndices);
-        for (int k = 1; k <= numFailureIndices; k++) {
-            failureIndices.add(
-                new Index(DataStream.getDefaultFailureStoreName(dataStreamName, k, currentTimeMillis), UUIDs.randomBase64UUID(random()))
-            );
-        }
-        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, indices, failureIndices);
-        DataStream updated = original.removeFailureStoreIndex(failureIndices.get(indexToRemove - 1));
+        DataStream updated = original.removeFailureStoreIndex(original.getFailureIndices().get(indexToRemove - 1));
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration() + 1));
-        assertThat(updated.getIndices().size(), equalTo(numBackingIndices));
-        assertThat(updated.getFailureIndices().size(), equalTo(numFailureIndices - 1));
-        for (int k = 0; k < (numFailureIndices - 1); k++) {
+        assertThat(updated.getIndices().size(), equalTo(original.getIndices().size()));
+        assertThat(updated.getFailureIndices().size(), equalTo(original.getFailureIndices().size() - 1));
+        for (int k = 0; k < (original.getFailureIndices().size() - 1); k++) {
             assertThat(updated.getFailureIndices().get(k), equalTo(original.getFailureIndices().get(k < (indexToRemove - 1) ? k : k + 1)));
         }
     }
 
     public void testRemoveFailureStoreIndexThatDoesNotExist() {
-        long currentTimeMillis = System.currentTimeMillis();
-        int numBackingIndices = randomIntBetween(2, 32);
-        int numFailureIndices = randomIntBetween(2, 32);
-        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-
-        List<Index> indices = new ArrayList<>(numBackingIndices);
-        for (int k = 1; k <= numBackingIndices; k++) {
-            indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, k), UUIDs.randomBase64UUID(random())));
-        }
-        List<Index> failureIndices = new ArrayList<>(numFailureIndices);
-        for (int k = 1; k <= numFailureIndices; k++) {
-            failureIndices.add(
-                new Index(DataStream.getDefaultFailureStoreName(dataStreamName, k, currentTimeMillis), UUIDs.randomBase64UUID(random()))
-            );
-        }
-        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, indices, failureIndices);
-
+        DataStream original = createRandomDataStream();
         final Index indexToRemove = new Index(randomAlphaOfLength(4), UUIDs.randomBase64UUID(random()));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> original.removeFailureStoreIndex(indexToRemove));
         assertThat(
             e.getMessage(),
-            equalTo(Strings.format("index [%s] is not part of data stream [%s] failure store", indexToRemove.getName(), dataStreamName))
+            equalTo(Strings.format("index [%s] is not part of data stream [%s] failure store", indexToRemove.getName(), original.getName()))
         );
     }
 
     public void testRemoveFailureStoreWriteIndex() {
-        long currentTimeMillis = System.currentTimeMillis();
-        int numBackingIndices = randomIntBetween(2, 32);
-        int numFailureIndices = randomIntBetween(2, 32);
-        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-
-        List<Index> indices = new ArrayList<>(numBackingIndices);
-        for (int k = 1; k <= numBackingIndices; k++) {
-            indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, k), UUIDs.randomBase64UUID(random())));
-        }
-        List<Index> failureIndices = new ArrayList<>(numFailureIndices);
-        for (int k = 1; k <= numFailureIndices; k++) {
-            failureIndices.add(
-                new Index(DataStream.getDefaultFailureStoreName(dataStreamName, k, currentTimeMillis), UUIDs.randomBase64UUID(random()))
-            );
-        }
-        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, indices, failureIndices);
+        DataStream original = createRandomDataStream();
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> original.removeFailureStoreIndex(failureIndices.get(numFailureIndices - 1))
+            () -> original.removeFailureStoreIndex(original.getFailureIndices().get(original.getFailureIndices().size() - 1))
         );
         assertThat(
             e.getMessage(),
@@ -427,34 +361,21 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 String.format(
                     Locale.ROOT,
                     "cannot remove backing index [%s] of data stream [%s] because it is the write index",
-                    failureIndices.get(numFailureIndices - 1).getName(),
-                    dataStreamName
+                    original.getFailureIndices().get(original.getFailureIndices().size() - 1).getName(),
+                    original.getName()
                 )
             )
         );
     }
 
     public void testAddBackingIndex() {
-        int numBackingIndices = randomIntBetween(2, 32);
-        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final long epochMillis = System.currentTimeMillis();
-
-        List<Index> indices = new ArrayList<>(numBackingIndices);
-        for (int k = 1; k <= numBackingIndices; k++) {
-            indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, k, epochMillis), UUIDs.randomBase64UUID(random())));
-        }
-
         Metadata.Builder builder = Metadata.builder();
-        for (int k = 1; k <= numBackingIndices; k++) {
-            IndexMetadata im = IndexMetadata.builder(indices.get(k - 1).getName())
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
-            builder.put(im, false);
-        }
-        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, indices);
+
+        DataStream original = createRandomDataStream();
         builder.put(original);
+
+        createMetadataForIndices(builder, original.getIndices());
+
         Index indexToAdd = new Index(randomAlphaOfLength(4), UUIDs.randomBase64UUID(random()));
         builder.put(
             IndexMetadata.builder(indexToAdd.getName())
@@ -468,48 +389,28 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         DataStream updated = original.addBackingIndex(builder.build(), indexToAdd);
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration() + 1));
-        assertThat(updated.getIndices().size(), equalTo(numBackingIndices + 1));
-        for (int k = 1; k <= numBackingIndices; k++) {
+        assertThat(updated.getIndices().size(), equalTo(original.getIndices().size() + 1));
+        for (int k = 1; k <= original.getIndices().size(); k++) {
             assertThat(updated.getIndices().get(k), equalTo(original.getIndices().get(k - 1)));
         }
         assertThat(updated.getIndices().get(0), equalTo(indexToAdd));
     }
 
     public void testAddBackingIndexThatIsPartOfAnotherDataStream() {
-        int numBackingIndices = randomIntBetween(2, 32);
-        final String dsName1 = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final String dsName2 = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-
-        final long epochMillis = System.currentTimeMillis();
-
-        List<Index> indices1 = new ArrayList<>(numBackingIndices);
-        List<Index> indices2 = new ArrayList<>(numBackingIndices);
-        for (int k = 1; k <= numBackingIndices; k++) {
-            indices1.add(new Index(DataStream.getDefaultBackingIndexName(dsName1, k, epochMillis), UUIDs.randomBase64UUID(random())));
-            indices2.add(new Index(DataStream.getDefaultBackingIndexName(dsName2, k, epochMillis), UUIDs.randomBase64UUID(random())));
-        }
-
         Metadata.Builder builder = Metadata.builder();
-        for (int k = 1; k <= numBackingIndices; k++) {
-            IndexMetadata im = IndexMetadata.builder(indices1.get(k - 1).getName())
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
-            builder.put(im, false);
-            im = IndexMetadata.builder(indices2.get(k - 1).getName())
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
-            builder.put(im, false);
-        }
-        DataStream ds1 = DataStreamTestHelper.newInstance(dsName1, indices1);
-        DataStream ds2 = DataStreamTestHelper.newInstance(dsName2, indices2);
+
+        DataStream ds1 = createRandomDataStream();
+        DataStream ds2 = createRandomDataStream();
+
         builder.put(ds1);
         builder.put(ds2);
 
-        Index indexToAdd = randomFrom(indices2.toArray(Index.EMPTY_ARRAY));
+        createMetadataForIndices(builder, ds1.getIndices());
+        createMetadataForIndices(builder, ds1.getFailureIndices());
+        createMetadataForIndices(builder, ds2.getIndices());
+        createMetadataForIndices(builder, ds2.getFailureIndices());
+
+        Index indexToAdd = randomFrom(ds2.getIndices().toArray(Index.EMPTY_ARRAY));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ds1.addBackingIndex(builder.build(), indexToAdd));
         assertThat(
@@ -527,65 +428,19 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
     }
 
     public void testAddBackingIndexThatIsPartOfDataStreamFailureStore() {
-        int numBackingIndices = randomIntBetween(2, 32);
-        int numFailureIndices = randomIntBetween(2, 32);
-        final String dsName1 = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final String dsName2 = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-
-        final long epochMillis = System.currentTimeMillis();
-
-        List<Index> indices1 = new ArrayList<>(numBackingIndices);
-        List<Index> indices2 = new ArrayList<>(numBackingIndices);
-        for (int k = 1; k <= numBackingIndices; k++) {
-            indices1.add(new Index(DataStream.getDefaultBackingIndexName(dsName1, k, epochMillis), UUIDs.randomBase64UUID(random())));
-            indices2.add(new Index(DataStream.getDefaultBackingIndexName(dsName2, k, epochMillis), UUIDs.randomBase64UUID(random())));
-        }
-        List<Index> failureIndices1 = new ArrayList<>(numFailureIndices);
-        List<Index> failureIndices2 = new ArrayList<>(numFailureIndices);
-        for (int k = 1; k <= numFailureIndices; k++) {
-            failureIndices1.add(
-                new Index(DataStream.getDefaultFailureStoreName(dsName1, k, epochMillis), UUIDs.randomBase64UUID(random()))
-            );
-            failureIndices2.add(
-                new Index(DataStream.getDefaultFailureStoreName(dsName2, k, epochMillis), UUIDs.randomBase64UUID(random()))
-            );
-        }
-
         Metadata.Builder builder = Metadata.builder();
-        for (int k = 1; k <= numBackingIndices; k++) {
-            IndexMetadata im = IndexMetadata.builder(indices1.get(k - 1).getName())
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
-            builder.put(im, false);
-            im = IndexMetadata.builder(indices2.get(k - 1).getName())
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
-            builder.put(im, false);
-        }
-        for (int k = 1; k <= numFailureIndices; k++) {
-            IndexMetadata im = IndexMetadata.builder(failureIndices1.get(k - 1).getName())
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
-            builder.put(im, false);
-            im = IndexMetadata.builder(failureIndices2.get(k - 1).getName())
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
-            builder.put(im, false);
-        }
-        DataStream ds1 = DataStreamTestHelper.newInstance(dsName1, indices1, failureIndices1);
-        DataStream ds2 = DataStreamTestHelper.newInstance(dsName2, indices2, failureIndices2);
+
+        DataStream ds1 = createRandomDataStream();
+        DataStream ds2 = createRandomDataStream();
         builder.put(ds1);
         builder.put(ds2);
 
-        Index indexToAdd = randomFrom(failureIndices2.toArray(Index.EMPTY_ARRAY));
+        createMetadataForIndices(builder, ds1.getIndices());
+        createMetadataForIndices(builder, ds1.getFailureIndices());
+        createMetadataForIndices(builder, ds2.getIndices());
+        createMetadataForIndices(builder, ds2.getFailureIndices());
+
+        Index indexToAdd = randomFrom(ds2.getFailureIndices().toArray(Index.EMPTY_ARRAY));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ds1.addBackingIndex(builder.build(), indexToAdd));
         assertThat(
@@ -603,58 +458,31 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
     }
 
     public void testAddExistingBackingIndex() {
-        int numBackingIndices = randomIntBetween(2, 32);
-        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final long epochMillis = System.currentTimeMillis();
-
-        List<Index> indices = new ArrayList<>(numBackingIndices);
-        for (int k = 1; k <= numBackingIndices; k++) {
-            indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, k, epochMillis), UUIDs.randomBase64UUID(random())));
-        }
-
         Metadata.Builder builder = Metadata.builder();
-        for (int k = 1; k <= numBackingIndices; k++) {
-            IndexMetadata im = IndexMetadata.builder(indices.get(k - 1).getName())
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
-            builder.put(im, false);
-        }
-        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, indices);
+
+        DataStream original = createRandomDataStream();
         builder.put(original);
-        Index indexToAdd = randomFrom(indices.toArray(Index.EMPTY_ARRAY));
+
+        createMetadataForIndices(builder, original.getIndices());
+
+        Index indexToAdd = randomFrom(original.getIndices().toArray(Index.EMPTY_ARRAY));
 
         DataStream updated = original.addBackingIndex(builder.build(), indexToAdd);
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration()));
-        assertThat(updated.getIndices().size(), equalTo(numBackingIndices));
-        for (int k = 0; k < numBackingIndices; k++) {
+        assertThat(updated.getIndices().size(), equalTo(original.getIndices().size()));
+        for (int k = 0; k < original.getIndices().size(); k++) {
             assertThat(updated.getIndices().get(k), equalTo(original.getIndices().get(k)));
         }
     }
 
     public void testAddBackingIndexWithAliases() {
-        int numBackingIndices = randomIntBetween(2, 32);
-        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final long epochMillis = System.currentTimeMillis();
-
-        List<Index> indices = new ArrayList<>(numBackingIndices);
-        for (int k = 1; k <= numBackingIndices; k++) {
-            indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, k, epochMillis), UUIDs.randomBase64UUID(random())));
-        }
-
         Metadata.Builder builder = Metadata.builder();
-        for (int k = 1; k <= numBackingIndices; k++) {
-            IndexMetadata im = IndexMetadata.builder(indices.get(k - 1).getName())
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
-            builder.put(im, false);
-        }
-        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, indices);
+
+        DataStream original = createRandomDataStream();
         builder.put(original);
+
+        createMetadataForIndices(builder, original.getIndices());
 
         Index indexToAdd = new Index(randomAlphaOfLength(4), UUIDs.randomBase64UUID(random()));
         IndexMetadata.Builder b = IndexMetadata.builder(indexToAdd.getName())
@@ -679,51 +507,26 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             equalTo(
                 String.format(
                     Locale.ROOT,
-                    "cannot add index [%s] to data stream [%s] until its alias(es) [%s] are removed",
+                    "cannot add index [%s] to data stream [%s] until its %s [%s] %s removed",
                     indexToAdd.getName(),
                     original.getName(),
-                    Strings.arrayToCommaDelimitedString(aliasNames)
+                    numAliases > 1 ? "aliases" : "alias",
+                    Strings.arrayToCommaDelimitedString(aliasNames),
+                    numAliases > 1 ? "are" : "is"
                 )
             )
         );
     }
 
     public void testAddFailureStoreIndex() {
-        int numBackingIndices = randomIntBetween(2, 32);
-        int numFailureIndices = randomIntBetween(2, 32);
-        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final long epochMillis = System.currentTimeMillis();
-
-        List<Index> indices = new ArrayList<>(numBackingIndices);
-        for (int k = 1; k <= numBackingIndices; k++) {
-            indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, k, epochMillis), UUIDs.randomBase64UUID(random())));
-        }
-        List<Index> failureIndices = new ArrayList<>(numFailureIndices);
-        for (int k = 1; k <= numFailureIndices; k++) {
-            failureIndices.add(
-                new Index(DataStream.getDefaultFailureStoreName(dataStreamName, k, epochMillis), UUIDs.randomBase64UUID(random()))
-            );
-        }
-
         Metadata.Builder builder = Metadata.builder();
-        for (int k = 1; k <= numBackingIndices; k++) {
-            IndexMetadata im = IndexMetadata.builder(indices.get(k - 1).getName())
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
-            builder.put(im, false);
-        }
-        for (int k = 1; k <= numFailureIndices; k++) {
-            IndexMetadata im = IndexMetadata.builder(failureIndices.get(k - 1).getName())
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
-            builder.put(im, false);
-        }
-        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, indices, failureIndices);
+
+        DataStream original = createRandomDataStream();
         builder.put(original);
+
+        createMetadataForIndices(builder, original.getIndices());
+        createMetadataForIndices(builder, original.getFailureIndices());
+
         Index indexToAdd = new Index(randomAlphaOfLength(4), UUIDs.randomBase64UUID(random()));
         builder.put(
             IndexMetadata.builder(indexToAdd.getName())
@@ -737,74 +540,28 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         DataStream updated = original.addFailureStoreIndex(builder.build(), indexToAdd);
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration() + 1));
-        assertThat(updated.getIndices().size(), equalTo(numBackingIndices));
-        assertThat(updated.getFailureIndices().size(), equalTo(numFailureIndices + 1));
-        for (int k = 1; k <= numFailureIndices; k++) {
+        assertThat(updated.getIndices().size(), equalTo(original.getIndices().size()));
+        assertThat(updated.getFailureIndices().size(), equalTo(original.getFailureIndices().size() + 1));
+        for (int k = 1; k <= original.getFailureIndices().size(); k++) {
             assertThat(updated.getFailureIndices().get(k), equalTo(original.getFailureIndices().get(k - 1)));
         }
         assertThat(updated.getFailureIndices().get(0), equalTo(indexToAdd));
     }
 
     public void testAddFailureStoreIndexThatIsPartOfAnotherDataStream() {
-        int numBackingIndices = randomIntBetween(2, 32);
-        int numFailureIndices = randomIntBetween(2, 32);
-        final String dsName1 = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final String dsName2 = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-
-        final long epochMillis = System.currentTimeMillis();
-
-        List<Index> indices1 = new ArrayList<>(numBackingIndices);
-        List<Index> indices2 = new ArrayList<>(numBackingIndices);
-        for (int k = 1; k <= numBackingIndices; k++) {
-            indices1.add(new Index(DataStream.getDefaultBackingIndexName(dsName1, k, epochMillis), UUIDs.randomBase64UUID(random())));
-            indices2.add(new Index(DataStream.getDefaultBackingIndexName(dsName2, k, epochMillis), UUIDs.randomBase64UUID(random())));
-        }
-        List<Index> failureIndices1 = new ArrayList<>(numFailureIndices);
-        List<Index> failureIndices2 = new ArrayList<>(numFailureIndices);
-        for (int k = 1; k <= numFailureIndices; k++) {
-            failureIndices1.add(
-                new Index(DataStream.getDefaultFailureStoreName(dsName1, k, epochMillis), UUIDs.randomBase64UUID(random()))
-            );
-            failureIndices2.add(
-                new Index(DataStream.getDefaultFailureStoreName(dsName2, k, epochMillis), UUIDs.randomBase64UUID(random()))
-            );
-        }
-
         Metadata.Builder builder = Metadata.builder();
-        for (int k = 1; k <= numBackingIndices; k++) {
-            IndexMetadata im = IndexMetadata.builder(indices1.get(k - 1).getName())
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
-            builder.put(im, false);
-            im = IndexMetadata.builder(indices2.get(k - 1).getName())
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
-            builder.put(im, false);
-        }
-        for (int k = 1; k <= numFailureIndices; k++) {
-            IndexMetadata im = IndexMetadata.builder(failureIndices1.get(k - 1).getName())
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
-            builder.put(im, false);
-            im = IndexMetadata.builder(failureIndices2.get(k - 1).getName())
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
-            builder.put(im, false);
-        }
-        DataStream ds1 = DataStreamTestHelper.newInstance(dsName1, indices1, failureIndices1);
-        DataStream ds2 = DataStreamTestHelper.newInstance(dsName2, indices2, failureIndices2);
+
+        DataStream ds1 = createRandomDataStream();
+        DataStream ds2 = createRandomDataStream();
         builder.put(ds1);
         builder.put(ds2);
 
-        Index indexToAdd = randomFrom(failureIndices2.toArray(Index.EMPTY_ARRAY));
+        createMetadataForIndices(builder, ds1.getIndices());
+        createMetadataForIndices(builder, ds1.getFailureIndices());
+        createMetadataForIndices(builder, ds2.getIndices());
+        createMetadataForIndices(builder, ds2.getFailureIndices());
+
+        Index indexToAdd = randomFrom(ds2.getFailureIndices().toArray(Index.EMPTY_ARRAY));
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -825,65 +582,19 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
     }
 
     public void testAddFailureStoreIndexThatIsPartOfDataStreamBackingIndices() {
-        int numBackingIndices = randomIntBetween(2, 32);
-        int numFailureIndices = randomIntBetween(2, 32);
-        final String dsName1 = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final String dsName2 = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-
-        final long epochMillis = System.currentTimeMillis();
-
-        List<Index> indices1 = new ArrayList<>(numBackingIndices);
-        List<Index> indices2 = new ArrayList<>(numBackingIndices);
-        for (int k = 1; k <= numBackingIndices; k++) {
-            indices1.add(new Index(DataStream.getDefaultBackingIndexName(dsName1, k, epochMillis), UUIDs.randomBase64UUID(random())));
-            indices2.add(new Index(DataStream.getDefaultBackingIndexName(dsName2, k, epochMillis), UUIDs.randomBase64UUID(random())));
-        }
-        List<Index> failureIndices1 = new ArrayList<>(numFailureIndices);
-        List<Index> failureIndices2 = new ArrayList<>(numFailureIndices);
-        for (int k = 1; k <= numFailureIndices; k++) {
-            failureIndices1.add(
-                new Index(DataStream.getDefaultFailureStoreName(dsName1, k, epochMillis), UUIDs.randomBase64UUID(random()))
-            );
-            failureIndices2.add(
-                new Index(DataStream.getDefaultFailureStoreName(dsName2, k, epochMillis), UUIDs.randomBase64UUID(random()))
-            );
-        }
-
         Metadata.Builder builder = Metadata.builder();
-        for (int k = 1; k <= numBackingIndices; k++) {
-            IndexMetadata im = IndexMetadata.builder(indices1.get(k - 1).getName())
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
-            builder.put(im, false);
-            im = IndexMetadata.builder(indices2.get(k - 1).getName())
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
-            builder.put(im, false);
-        }
-        for (int k = 1; k <= numFailureIndices; k++) {
-            IndexMetadata im = IndexMetadata.builder(failureIndices1.get(k - 1).getName())
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
-            builder.put(im, false);
-            im = IndexMetadata.builder(failureIndices2.get(k - 1).getName())
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
-            builder.put(im, false);
-        }
-        DataStream ds1 = DataStreamTestHelper.newInstance(dsName1, indices1, failureIndices1);
-        DataStream ds2 = DataStreamTestHelper.newInstance(dsName2, indices2, failureIndices2);
+
+        DataStream ds1 = createRandomDataStream();
+        DataStream ds2 = createRandomDataStream();
         builder.put(ds1);
         builder.put(ds2);
 
-        Index indexToAdd = randomFrom(indices2.toArray(Index.EMPTY_ARRAY));
+        createMetadataForIndices(builder, ds1.getIndices());
+        createMetadataForIndices(builder, ds1.getFailureIndices());
+        createMetadataForIndices(builder, ds2.getIndices());
+        createMetadataForIndices(builder, ds2.getFailureIndices());
+
+        Index indexToAdd = randomFrom(ds2.getIndices().toArray(Index.EMPTY_ARRAY));
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -904,87 +615,32 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
     }
 
     public void testAddExistingFailureStoreIndex() {
-        int numBackingIndices = randomIntBetween(2, 32);
-        int numFailureIndices = randomIntBetween(2, 32);
-        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final long epochMillis = System.currentTimeMillis();
-
-        List<Index> indices = new ArrayList<>(numBackingIndices);
-        for (int k = 1; k <= numBackingIndices; k++) {
-            indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, k, epochMillis), UUIDs.randomBase64UUID(random())));
-        }
-        List<Index> failureIndices = new ArrayList<>(numFailureIndices);
-        for (int k = 1; k <= numFailureIndices; k++) {
-            failureIndices.add(
-                new Index(DataStream.getDefaultFailureStoreName(dataStreamName, k, epochMillis), UUIDs.randomBase64UUID(random()))
-            );
-        }
-
         Metadata.Builder builder = Metadata.builder();
-        for (int k = 1; k <= numBackingIndices; k++) {
-            IndexMetadata im = IndexMetadata.builder(indices.get(k - 1).getName())
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
-            builder.put(im, false);
-        }
-        for (int k = 1; k <= numFailureIndices; k++) {
-            IndexMetadata im = IndexMetadata.builder(failureIndices.get(k - 1).getName())
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
-            builder.put(im, false);
-        }
-        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, indices, failureIndices);
+
+        DataStream original = createRandomDataStream();
         builder.put(original);
-        Index indexToAdd = randomFrom(failureIndices.toArray(Index.EMPTY_ARRAY));
+
+        createMetadataForIndices(builder, original.getIndices());
+        createMetadataForIndices(builder, original.getFailureIndices());
+
+        Index indexToAdd = randomFrom(original.getFailureIndices().toArray(Index.EMPTY_ARRAY));
 
         DataStream updated = original.addFailureStoreIndex(builder.build(), indexToAdd);
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration()));
-        assertThat(updated.getIndices().size(), equalTo(numBackingIndices));
-        assertThat(updated.getFailureIndices().size(), equalTo(numFailureIndices));
+        assertThat(updated.getIndices().size(), equalTo(original.getIndices().size()));
+        assertThat(updated.getFailureIndices().size(), equalTo(original.getFailureIndices().size()));
         assertThat(updated.getFailureIndices(), equalTo(original.getFailureIndices()));
     }
 
     public void testAddFailureStoreIndexWithAliases() {
-        int numBackingIndices = randomIntBetween(2, 32);
-        int numFailureIndices = randomIntBetween(2, 32);
-        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final long epochMillis = System.currentTimeMillis();
-
-        List<Index> indices = new ArrayList<>(numBackingIndices);
-        for (int k = 1; k <= numBackingIndices; k++) {
-            indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, k, epochMillis), UUIDs.randomBase64UUID(random())));
-        }
-        List<Index> failureIndices = new ArrayList<>(numFailureIndices);
-        for (int k = 1; k <= numFailureIndices; k++) {
-            failureIndices.add(
-                new Index(DataStream.getDefaultFailureStoreName(dataStreamName, k, epochMillis), UUIDs.randomBase64UUID(random()))
-            );
-        }
-
         Metadata.Builder builder = Metadata.builder();
-        for (int k = 1; k <= numBackingIndices; k++) {
-            IndexMetadata im = IndexMetadata.builder(indices.get(k - 1).getName())
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
-            builder.put(im, false);
-        }
-        for (int k = 1; k <= numFailureIndices; k++) {
-            IndexMetadata im = IndexMetadata.builder(failureIndices.get(k - 1).getName())
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build();
-            builder.put(im, false);
-        }
-        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, indices, failureIndices);
+
+        DataStream original = createRandomDataStream();
         builder.put(original);
+
+        createMetadataForIndices(builder, original.getIndices());
+        createMetadataForIndices(builder, original.getFailureIndices());
 
         Index indexToAdd = new Index(randomAlphaOfLength(4), UUIDs.randomBase64UUID(random()));
         IndexMetadata.Builder b = IndexMetadata.builder(indexToAdd.getName())
@@ -1009,10 +665,12 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             equalTo(
                 String.format(
                     Locale.ROOT,
-                    "cannot add index [%s] to data stream [%s] until its alias(es) [%s] are removed",
+                    "cannot add index [%s] to data stream [%s] until its %s [%s] %s removed",
                     indexToAdd.getName(),
                     original.getName(),
-                    Strings.arrayToCommaDelimitedString(aliasNames)
+                    numAliases > 1 ? "aliases" : "alias",
+                    Strings.arrayToCommaDelimitedString(aliasNames),
+                    numAliases > 1 ? "are" : "is"
                 )
             )
         );
@@ -1043,24 +701,17 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
     }
 
     public void testReplaceBackingIndex() {
-        int numBackingIndices = randomIntBetween(2, 32);
-        int indexToReplace = randomIntBetween(1, numBackingIndices - 1) - 1;
-        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-
-        List<Index> indices = new ArrayList<>(numBackingIndices);
-        for (int i = 1; i <= numBackingIndices; i++) {
-            indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, i), UUIDs.randomBase64UUID(random())));
-        }
-        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, indices);
+        DataStream original = createRandomDataStream();
+        int indexToReplace = randomIntBetween(1, original.getIndices().size() - 1) - 1;
 
         Index newBackingIndex = new Index("replacement-index", UUIDs.randomBase64UUID(random()));
-        DataStream updated = original.replaceBackingIndex(indices.get(indexToReplace), newBackingIndex);
+        DataStream updated = original.replaceBackingIndex(original.getIndices().get(indexToReplace), newBackingIndex);
         assertThat(updated.getName(), equalTo(original.getName()));
         assertThat(updated.getGeneration(), equalTo(original.getGeneration() + 1));
-        assertThat(updated.getIndices().size(), equalTo(numBackingIndices));
+        assertThat(updated.getIndices().size(), equalTo(original.getIndices().size()));
         assertThat(updated.getIndices().get(indexToReplace), equalTo(newBackingIndex));
 
-        for (int i = 0; i < numBackingIndices; i++) {
+        for (int i = 0; i < original.getIndices().size(); i++) {
             if (i != indexToReplace) {
                 assertThat(updated.getIndices().get(i), equalTo(original.getIndices().get(i)));
             }
@@ -1068,14 +719,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
     }
 
     public void testReplaceBackingIndexThrowsExceptionIfIndexNotPartOfDataStream() {
-        int numBackingIndices = randomIntBetween(2, 32);
-        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-
-        List<Index> indices = new ArrayList<>(numBackingIndices);
-        for (int i = 1; i <= numBackingIndices; i++) {
-            indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, i), UUIDs.randomBase64UUID(random())));
-        }
-        DataStream original = DataStreamTestHelper.newInstance(dataStreamName, indices);
+        DataStream original = createRandomDataStream();
 
         Index standaloneIndex = new Index("index-foo", UUIDs.randomBase64UUID(random()));
         Index newBackingIndex = new Index("replacement-index", UUIDs.randomBase64UUID(random()));
@@ -2575,6 +2219,36 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             Long originationTimeInMillis
         ) {
             return new DataStreamMetadata(creationTimeInMillis, rolloverTimeInMillis, originationTimeInMillis);
+        }
+    }
+
+    private static DataStream createRandomDataStream() {
+        long currentTimeMillis = System.currentTimeMillis();
+        int numBackingIndices = randomIntBetween(2, 32);
+        int numFailureIndices = randomIntBetween(2, 32);
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        List<Index> indices = new ArrayList<>(numBackingIndices);
+        for (int k = 1; k <= numBackingIndices; k++) {
+            indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, k), UUIDs.randomBase64UUID(random())));
+        }
+        List<Index> failureIndices = new ArrayList<>(numFailureIndices);
+        for (int k = 1; k <= numFailureIndices; k++) {
+            failureIndices.add(
+                new Index(DataStream.getDefaultFailureStoreName(dataStreamName, k, currentTimeMillis), UUIDs.randomBase64UUID(random()))
+            );
+        }
+        return DataStreamTestHelper.newInstance(dataStreamName, indices, failureIndices);
+    }
+
+    private static void createMetadataForIndices(Metadata.Builder builder, List<Index> indices) {
+        for (Index index : indices) {
+            IndexMetadata im = IndexMetadata.builder(index.getName())
+                .settings(settings(IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+            builder.put(im, false);
         }
     }
 }

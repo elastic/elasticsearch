@@ -170,7 +170,6 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_TIMEOUT_ADDED = def(8_629_00_0);
     public static final TransportVersion ML_INFERENCE_RERANK_NEW_RESPONSE_FORMAT = def(8_630_00_0);
 
-
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

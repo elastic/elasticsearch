@@ -22,6 +22,7 @@ import com.maxmind.geoip2.model.IpRiskResponse;
 import com.maxmind.geoip2.model.IspResponse;
 import com.maxmind.geoip2.record.MaxMind;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 
 import java.lang.reflect.Method;
@@ -41,8 +42,22 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * This test is meant to help us understand if we are falling behind on support for mmdb types and fields that get added over time. It
+ * maintains a list for each mmdb file type we support of which fields in that type we support and which we do not.
+ *
+ * This test will:
+ *
+ * - Fail if MaxMind adds a new field to one of the mmdb file types we currently support (city, country, etc) and we don't update this test
+ *   with whether or not we support that field.
+ * - Fail if we add support for a new mmdb file type (enterprise for example) but don't update the test with which fields we do and do not
+ *   support.
+ * - Fail if MaxMind adds a new mmdb file type that we don't know about
+ * - Fail if we expose a MaxMind type through GeoIpDatabase, but don't update the test to know how to handle it
+ */
 public class MaxMindSupportTests extends ESTestCase {
 
     private static final Set<String> ASN_SUPPORTED_FIELDS = Set.of("autonomousSystemNumber", "autonomousSystemOrganization", "network");
@@ -243,17 +258,15 @@ public class MaxMindSupportTests extends ESTestCase {
              * unknownSupportedFieldNames:   Fields that we document as supported that MaxMind's Response object doesn't even contain
              */
             final SortedSet<String> fieldNamesFromMaxMind = getFieldNamesUsedFromClass("", maxMindClass);
-            SortedSet<String> unusedFields = new TreeSet<>(fieldNamesFromMaxMind);
-            unusedFields.removeAll(supportedFields);
-            SortedSet<String> unknownUnsupportedFieldNames = new TreeSet<>(unsupportedFields);
-            unknownUnsupportedFieldNames.removeAll(unusedFields);
+            Set<String> unusedFields = Sets.difference(fieldNamesFromMaxMind, supportedFields);
+            Set<String> unknownUnsupportedFieldNames = Sets.difference(unsupportedFields, unusedFields);
             assertThat(
                 "We have documented fields in TYPE_TO_UNSUPPORTED_FIELDS_MAP that MaxMind does not actually support for "
                     + databaseType
                     + ": "
                     + unknownUnsupportedFieldNames,
                 unknownUnsupportedFieldNames,
-                equalTo(Set.of())
+                empty()
             );
             assertThat(
                 "New MaxMind fields have been added for "
@@ -263,12 +276,11 @@ public class MaxMindSupportTests extends ESTestCase {
                 unusedFields,
                 equalTo(new TreeSet<>(unsupportedFields))
             );
-            SortedSet<String> unknownSupportedFieldNames = new TreeSet<>(supportedFields);
-            unknownSupportedFieldNames.removeAll(fieldNamesFromMaxMind);
+            Set<String> unknownSupportedFieldNames = Sets.difference(supportedFields, fieldNamesFromMaxMind);
             assertThat(
                 "We are attempting to use fields that MaxMind does not support for " + databaseType + ": " + unknownSupportedFieldNames,
                 unknownSupportedFieldNames,
-                equalTo(Set.of())
+                empty()
             );
         }
     }
@@ -276,12 +288,14 @@ public class MaxMindSupportTests extends ESTestCase {
     public void testUnknownMaxMindResponseClassess() {
         Set<Class<? extends AbstractResponse>> supportedMaxMindClasses = new HashSet<>(TYPE_TO_MAX_MIND_CLASS.values());
         // First just a sanity check that there's no overlap between what's supported and what's not:
-        Set<Class<? extends AbstractResponse>> supportedAndUnsupportedMaxMindClasses = new HashSet<>(supportedMaxMindClasses);
-        supportedAndUnsupportedMaxMindClasses.retainAll(KNOWN_UNSUPPORTED_RESPONSE_CLASSES);
+        Set<Class<? extends AbstractResponse>> supportedAndUnsupportedMaxMindClasses = Sets.intersection(
+            supportedMaxMindClasses,
+            KNOWN_UNSUPPORTED_RESPONSE_CLASSES
+        );
         assertThat(
             "We claim both to support and not support some MaxMind response classes: " + supportedAndUnsupportedMaxMindClasses,
             supportedAndUnsupportedMaxMindClasses,
-            equalTo(Set.of())
+            empty()
         );
         Set<Class<? extends AbstractResponse>> allActualMaxMindClasses = new HashSet<>();
 
@@ -306,13 +320,15 @@ public class MaxMindSupportTests extends ESTestCase {
             }
         }
         // Now make sure that we're not claiming to support any maxmind classes that aren't ever read by DatabaseReader:
-        Set<Class<? extends AbstractResponse>> supportedMaxMindClassesThatDoNotExist = new HashSet<>(supportedMaxMindClasses);
-        supportedMaxMindClassesThatDoNotExist.removeAll(allActualMaxMindClasses);
+        Set<Class<? extends AbstractResponse>> supportedMaxMindClassesThatDoNotExist = Sets.difference(
+            supportedMaxMindClasses,
+            allActualMaxMindClasses
+        );
         assertThat(
-            "We claim both to support a MaxMind response class that MaxMind does not expose through DatabaseReader: "
+            "We claim to support a MaxMind response class that MaxMind does not expose through DatabaseReader: "
                 + supportedMaxMindClassesThatDoNotExist,
             supportedMaxMindClassesThatDoNotExist,
-            equalTo(Set.of())
+            empty()
         );
     }
 
@@ -322,23 +338,27 @@ public class MaxMindSupportTests extends ESTestCase {
     public void testUsedMaxMindResponseClassesAreAccountedFor() {
         Set<Class<? extends AbstractResponse>> usedMaxMindResponseClasses = getUsedMaxMindResponseClasses();
         Set<Class<? extends AbstractResponse>> supportedMaxMindClasses = new HashSet<>(TYPE_TO_MAX_MIND_CLASS.values());
-        Set<Class<? extends AbstractResponse>> usedButNotSupportedMaxMindResponseClasses = new HashSet<>(usedMaxMindResponseClasses);
-        usedButNotSupportedMaxMindResponseClasses.removeAll(supportedMaxMindClasses);
+        Set<Class<? extends AbstractResponse>> usedButNotSupportedMaxMindResponseClasses = Sets.difference(
+            usedMaxMindResponseClasses,
+            supportedMaxMindClasses
+        );
         assertThat(
             "GeoIpDatabase exposes MaxMind response classes that this test does not know what to do with. Add mappings to "
                 + "TYPE_TO_MAX_MIND_CLASS for the following: "
                 + usedButNotSupportedMaxMindResponseClasses,
             usedButNotSupportedMaxMindResponseClasses,
-            equalTo(Set.of())
+            empty()
         );
-        Set<Class<? extends AbstractResponse>> supportedButNotUsedMaxMindClasses = new HashSet<>(supportedMaxMindClasses);
-        supportedButNotUsedMaxMindClasses.removeAll(usedMaxMindResponseClasses);
+        Set<Class<? extends AbstractResponse>> supportedButNotUsedMaxMindClasses = Sets.difference(
+            supportedMaxMindClasses,
+            usedMaxMindResponseClasses
+        );
         assertThat(
             "This test claims to support MaxMind response classes that are not exposed in GeoIpDatabase. Remove the following from "
                 + "TYPE_TO_MAX_MIND_CLASS: "
                 + supportedButNotUsedMaxMindClasses,
             supportedButNotUsedMaxMindClasses,
-            equalTo(Set.of())
+            empty()
         );
     }
 
@@ -390,7 +410,7 @@ public class MaxMindSupportTests extends ESTestCase {
         SortedSet<String> fieldNames = new TreeSet<>();
         Method[] methods = aClass.getMethods();
         if (TERMINAL_TYPES.contains(aClass)) {
-            // We got here becaus a container type had a terminal type
+            // We got here because a container type had a terminal type
             fieldNames.add(context);
             return fieldNames;
         }
@@ -449,7 +469,8 @@ public class MaxMindSupportTests extends ESTestCase {
      */
     private static String getFormattedList(Set<String> fields) {
         StringBuilder result = new StringBuilder();
-        for (Iterator<String> it = fields.iterator(); it.hasNext();) {
+        SortedSet<String> sortedFields = new TreeSet<>(fields);
+        for (Iterator<String> it = sortedFields.iterator(); it.hasNext();) {
             result.append("\"");
             result.append(it.next());
             result.append("\"");

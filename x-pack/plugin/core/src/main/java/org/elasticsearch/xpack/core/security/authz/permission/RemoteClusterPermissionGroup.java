@@ -103,4 +103,13 @@ public class RemoteClusterPermissionGroup implements Writeable, ToXContentObject
         result = 31 * result + Arrays.hashCode(remoteClusterAliases);
         return result;
     }
+
+    @Override
+    public String toString() {
+        return "RemoteClusterPermissionGroup{" +
+            "clusterPrivileges=" + Arrays.toString(clusterPrivileges) +
+            ", remoteClusterAliases=" + Arrays.toString(remoteClusterAliases) +
+            ", remoteClusterAliasMatcher=" + remoteClusterAliasMatcher +
+            '}';
+    }
 }

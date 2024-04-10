@@ -169,4 +169,11 @@ public class RemoteClusterPermissions implements Writeable, ToXContentObject {
     public int hashCode() {
         return Objects.hash(remoteClusterPermissionGroups);
     }
+
+    @Override
+    public String toString() {
+        return "RemoteClusterPermissions{" +
+            "remoteClusterPermissionGroups=" + remoteClusterPermissionGroups +
+            '}';
+    }
 }

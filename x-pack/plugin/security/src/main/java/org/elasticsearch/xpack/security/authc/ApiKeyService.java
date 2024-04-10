@@ -544,6 +544,7 @@ public class ApiKeyService {
         if (logger.isDebugEnabled()) {
             logger.debug("Updating [{}] API keys", buildDelimitedStringWithLimit(10, apiKeyIds));
         }
+
         findVersionedApiKeyDocsForSubject(
             authentication,
             apiKeyIds,
@@ -801,6 +802,7 @@ public class ApiKeyService {
         addApiKeyHash(builder, currentApiKeyDoc.hash.toCharArray());
 
         final List<RoleDescriptor> keyRoles = request.getRoleDescriptors();
+
         if (keyRoles != null) {
             logger.trace(() -> format("Building API key doc with updated role descriptors [%s]", keyRoles));
             addRoleDescriptors(builder, keyRoles);
@@ -896,11 +898,23 @@ public class ApiKeyService {
         }
 
         final List<RoleDescriptor> newRoleDescriptors = request.getRoleDescriptors();
+
         if (newRoleDescriptors != null) {
             final List<RoleDescriptor> currentRoleDescriptors = parseRoleDescriptorsBytes(apiKeyId, apiKeyDoc.roleDescriptorsBytes, false);
             if (false == (newRoleDescriptors.size() == currentRoleDescriptors.size()
                 && Set.copyOf(newRoleDescriptors).containsAll(currentRoleDescriptors))) {
                 return false;
+            }
+
+            if(newRoleDescriptors.size() == currentRoleDescriptors.size()){
+                for(int i = 0; i < currentRoleDescriptors.size(); i++) {
+                    //if remote cluster permissions are not equal, then it is not a noop
+                    if(currentRoleDescriptors.get(i)
+                        .getRemoteClusterPermissions()
+                        .equals(newRoleDescriptors.get(i).getRemoteClusterPermissions()) == false) {
+                        return false;
+                    }
+                }
             }
         }
 

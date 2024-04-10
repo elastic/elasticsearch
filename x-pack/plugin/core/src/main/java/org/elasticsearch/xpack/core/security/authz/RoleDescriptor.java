@@ -336,7 +336,11 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         sb.append(metadata);
         sb.append("]");
         sb.append(", remoteIndicesPrivileges=[");
-        for (RemoteIndicesPrivileges group : remoteIndicesPrivileges) { // TODO: add here
+        for (RemoteIndicesPrivileges group : remoteIndicesPrivileges) {
+            sb.append(group.toString()).append(",");
+        }
+        sb.append("], remoteClusterPrivileges=[");
+        for (RemoteClusterPermissionGroup group : remoteClusterPermissions.groups()) {
             sb.append(group.toString()).append(",");
         }
         sb.append("], restriction=").append(restriction);

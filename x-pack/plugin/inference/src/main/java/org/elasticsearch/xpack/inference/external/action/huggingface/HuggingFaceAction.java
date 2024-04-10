@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.action.huggingface;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -48,10 +49,10 @@ public class HuggingFaceAction implements ExecutableAction {
     }
 
     @Override
-    public void execute(InferenceInputs inferenceInputs, ActionListener<InferenceServiceResults> listener) {
+    public void execute(InferenceInputs inferenceInputs, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         try {
             ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(errorMessage, listener);
-            sender.send(requestCreator, inferenceInputs, wrappedListener);
+            sender.send(requestCreator, inferenceInputs, timeout, wrappedListener);
         } catch (ElasticsearchException e) {
             listener.onFailure(e);
         } catch (Exception e) {

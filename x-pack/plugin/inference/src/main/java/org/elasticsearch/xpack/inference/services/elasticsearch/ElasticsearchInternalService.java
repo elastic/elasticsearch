@@ -215,6 +215,7 @@ public class ElasticsearchInternalService implements InferenceService {
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
+        TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         try {
@@ -228,7 +229,7 @@ public class ElasticsearchInternalService implements InferenceService {
             model.getConfigurations().getInferenceEntityId(),
             TextEmbeddingConfigUpdate.EMPTY_INSTANCE,
             input,
-            TimeValue.timeValueSeconds(10)  // TODO get timeout from request
+            timeout
         );
 
         client.execute(
@@ -244,10 +245,10 @@ public class ElasticsearchInternalService implements InferenceService {
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
+        TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
-
-        chunkedInfer(model, null, input, taskSettings, inputType, chunkingOptions, listener);
+        chunkedInfer(model, null, input, taskSettings, inputType, chunkingOptions, timeout, listener);
     }
 
     @Override
@@ -258,6 +259,7 @@ public class ElasticsearchInternalService implements InferenceService {
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
+        TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         try {
@@ -275,7 +277,7 @@ public class ElasticsearchInternalService implements InferenceService {
             model.getConfigurations().getInferenceEntityId(),
             configUpdate,
             input,
-            TimeValue.timeValueSeconds(10)  // TODO get timeout from request
+            timeout
         );
         request.setChunkResults(true);
 

@@ -32,6 +32,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     private final long coordinatingRejections;
     private final long primaryRejections;
     private final long replicaRejections;
+    private final long primaryDocumentRejections;
     private final long memoryLimit;
 
     // These fields will be used for additional back-pressure and metrics in the future
@@ -70,6 +71,12 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         this.currentCoordinatingOps = 0;
         this.currentPrimaryOps = 0;
         this.currentReplicaOps = 0;
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_DOCUMENT_REJECTIONS_COUNT)) {
+            primaryDocumentRejections = in.readVLong();
+        } else {
+            primaryDocumentRejections = -1L;
+        }
     }
 
     public IndexingPressureStats(
@@ -90,7 +97,8 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         long totalReplicaOps,
         long currentCoordinatingOps,
         long currentPrimaryOps,
-        long currentReplicaOps
+        long currentReplicaOps,
+        long primaryDocumentRejections
     ) {
         this.totalCombinedCoordinatingAndPrimaryBytes = totalCombinedCoordinatingAndPrimaryBytes;
         this.totalCoordinatingBytes = totalCoordinatingBytes;
@@ -111,6 +119,8 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         this.currentCoordinatingOps = currentCoordinatingOps;
         this.currentPrimaryOps = currentPrimaryOps;
         this.currentReplicaOps = currentReplicaOps;
+
+        this.primaryDocumentRejections = primaryDocumentRejections;
     }
 
     @Override
@@ -131,6 +141,10 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
             out.writeVLong(memoryLimit);
+        }
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_DOCUMENT_REJECTIONS_COUNT)) {
+            out.writeVLong(primaryDocumentRejections);
         }
     }
 
@@ -206,6 +220,10 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         return memoryLimit;
     }
 
+    public long getPrimaryDocumentRejections() {
+        return primaryDocumentRejections;
+    }
+
     private static final String COMBINED = "combined_coordinating_and_primary";
     private static final String COMBINED_IN_BYTES = "combined_coordinating_and_primary_in_bytes";
     private static final String COORDINATING = "coordinating";
@@ -219,6 +237,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     private static final String COORDINATING_REJECTIONS = "coordinating_rejections";
     private static final String PRIMARY_REJECTIONS = "primary_rejections";
     private static final String REPLICA_REJECTIONS = "replica_rejections";
+    private static final String PRIMARY_DOCUMENT_REJECTIONS = "primary_document_rejections";
     private static final String LIMIT = "limit";
     private static final String LIMIT_IN_BYTES = "limit_in_bytes";
 
@@ -246,6 +265,7 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         builder.field(COORDINATING_REJECTIONS, coordinatingRejections);
         builder.field(PRIMARY_REJECTIONS, primaryRejections);
         builder.field(REPLICA_REJECTIONS, replicaRejections);
+        builder.field(PRIMARY_DOCUMENT_REJECTIONS, primaryDocumentRejections);
         builder.endObject();
         builder.humanReadableField(LIMIT_IN_BYTES, LIMIT, ByteSizeValue.ofBytes(memoryLimit));
         builder.endObject();

@@ -1,0 +1,5 @@
+pr: 107183
+summary: ES|QL fix no-length substring with supplementary (4-byte) character
+area: ES|QL
+type: bug
+issues: []

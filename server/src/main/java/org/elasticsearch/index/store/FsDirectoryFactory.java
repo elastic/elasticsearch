@@ -36,7 +36,7 @@ import java.util.Set;
 
 public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
-    public static final FeatureFlag MADV_RANDOM_FEATURE_FLAG = new FeatureFlag("madv_random");
+    private static final FeatureFlag MADV_RANDOM_FEATURE_FLAG = new FeatureFlag("madv_random");
 
     public static final Setting<LockFactory> INDEX_LOCK_FACTOR_SETTING = new Setting<>("index.store.fs.fs_lock", "native", (s) -> {
         return switch (s) {

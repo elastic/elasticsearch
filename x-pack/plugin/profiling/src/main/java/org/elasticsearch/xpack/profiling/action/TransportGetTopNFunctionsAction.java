@@ -120,7 +120,7 @@ public class TransportGetTopNFunctionsAction extends TransportAction<GetStackTra
         return builder.build();
     }
 
-    private static class TopNFunctionsBuilder {
+    static class TopNFunctionsBuilder {
         private final Integer limit;
         private final HashMap<String, TopNFunction> topNFunctions;
 
@@ -141,7 +141,7 @@ public class TransportGetTopNFunctionsAction extends TransportAction<GetStackTra
                 sumTotalCount += topNFunction.getTotalCount();
             }
             // limit at the end so global stats are independent of the limit
-            if (limit != null && limit > 0) {
+            if (limit != null && limit > 0 && limit < functions.size()) {
                 functions = functions.subList(0, limit);
             }
             return new GetTopNFunctionsResponse(sumSelfCount, sumTotalCount, functions);

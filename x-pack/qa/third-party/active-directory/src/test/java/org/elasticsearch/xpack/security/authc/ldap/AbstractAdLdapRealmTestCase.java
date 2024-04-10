@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;

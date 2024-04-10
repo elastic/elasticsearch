@@ -48,7 +48,7 @@ field instead.
 *Depends on what is available in `database_file`:
 
 * If the GeoLite2 City database is used, then the following fields may be added under the `target_field`: `ip`,
-`country_iso_code`, `country_name`, `continent_name`, `region_iso_code`, `region_name`, `city_name`, `timezone`, `latitude`, `longitude`
+`country_iso_code`, `country_name`, `continent_name`, `region_iso_code`, `region_name`, `city_name`, `timezone`,
 and `location`. The fields actually added depend on what has been found and which properties were configured in `properties`.
 * If the GeoLite2 Country database is used, then the following fields may be added under the `target_field`: `ip`,
 `country_iso_code`, `country_name` and `continent_name`. The fields actually added depend on what has been found and which properties

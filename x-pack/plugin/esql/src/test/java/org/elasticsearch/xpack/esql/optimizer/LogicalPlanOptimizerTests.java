@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
@@ -109,6 +110,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.util.Holder;
 import org.junit.BeforeClass;
 
 import java.lang.reflect.Constructor;
@@ -3652,14 +3654,20 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     private record AggOfLiteralTestCase(
         String aggFunctionName,
-        Class<? extends Expression> substitution,
+        List<Class<? extends Expression>> substitutionChain,
         Function<int[], Object> aggMultiValue
     ) {};
 
     private static List<AggOfLiteralTestCase> AGG_OF_CONST_CASES = List.of(
-        new AggOfLiteralTestCase("avg", MvAvg.class, ints -> ((double) Arrays.stream(ints).sum()) / ints.length),
-        new AggOfLiteralTestCase("min", MvMin.class, ints -> Arrays.stream(ints).min().getAsInt()),
-        new AggOfLiteralTestCase("max", MvMax.class, ints -> Arrays.stream(ints).max().getAsInt())
+        new AggOfLiteralTestCase("avg", List.of(MvAvg.class), ints -> ((double) Arrays.stream(ints).sum()) / ints.length),
+        new AggOfLiteralTestCase("min", List.of(MvMin.class), ints -> Arrays.stream(ints).min().getAsInt()),
+        new AggOfLiteralTestCase("max", List.of(MvMax.class), ints -> Arrays.stream(ints).max().getAsInt()),
+        new AggOfLiteralTestCase("median", List.of(MvMedian.class, ToDouble.class), ints -> {
+            var sortedInts = Arrays.stream(ints).sorted().toArray();
+            int middle = ints.length / 2;
+            double result = ints.length % 2 == 1 ? sortedInts[middle] : (sortedInts[middle] + sortedInts[middle - 1]) / 2.0;
+            return result;
+        })
     );
 
     /**
@@ -3697,14 +3705,17 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
             var exprs = eval.fields();
             var s = as(exprs.get(0), Alias.class);
-            assertThat(s.child(), instanceOf(testCase.substitution));
+            assertSubstitutionChain(s.child(), testCase.substitutionChain);
             assertThat(s.child().fold(), equalTo(testCase.aggMultiValue.apply(new int[] { 1, 2 })));
             var s_expr = as(exprs.get(1), Alias.class);
-            assertThat(s_expr.child(), instanceOf(testCase.substitution));
+            assertSubstitutionChain(s_expr.child(), testCase.substitutionChain);
             assertThat(s_expr.child().fold(), equalTo(3.14));
             var s_null = as(exprs.get(2), Alias.class);
-            assertThat(s_null.child(), instanceOf(testCase.substitution));
-            assertThat(s_null.child().fold(), equalTo(null));
+            assertSubstitutionChain(s_null.child(), testCase.substitutionChain);
+            // Cannot just fold as there may be no evaluator for the NULL datatype;
+            // instead we emulate how the optimizer would fold the null value:
+            // it transforms up from the leaves; c.f. FoldNull.
+            assertTrue(allLeavesAreNull(s_null));
         }
     }
 
@@ -3744,19 +3755,46 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             var exprs = eval.fields();
 
             var s = as(exprs.get(0), Alias.class);
-            assertThat(s.child(), instanceOf(testCase.substitution));
+            assertSubstitutionChain(s.child(), testCase.substitutionChain);
             assertThat(s.child().fold(), equalTo(testCase.aggMultiValue.apply(new int[] { 1, 2 })));
             var s_expr = as(exprs.get(1), Alias.class);
-            assertThat(s_expr.child(), instanceOf(testCase.substitution));
+            assertSubstitutionChain(s_expr.child(), testCase.substitutionChain);
             assertThat(s_expr.child().fold(), equalTo(3.14));
             var s_null = as(exprs.get(2), Alias.class);
-            assertThat(s_null.child(), instanceOf(testCase.substitution));
-            assertThat(s_null.child().fold(), equalTo(null));
+            assertSubstitutionChain(s_null.child(), testCase.substitutionChain);
+            // Cannot just fold as there may be no evaluator for the NULL datatype;
+            // instead we emulate how the optimizer would fold the null value:
+            // it transforms up from the leaves; c.f. FoldNull.
+            assertTrue(allLeavesAreNull(s_null));
 
             // Assert that the aggregate only does the grouping by emp_no
             assertThat(Expressions.names(agg.groupings()), contains("emp_no"));
             assertThat(agg.aggregates().size(), equalTo(1));
         }
+    }
+
+    private static void assertSubstitutionChain(Expression e, List<Class<? extends Expression>> substitutionChain) {
+        var currentExpression = e;
+
+        for (Class<? extends Expression> currentSubstitution : substitutionChain.subList(0, substitutionChain.size() - 1)) {
+            assertThat(currentExpression, instanceOf(currentSubstitution));
+            assertEquals(currentExpression.children().size(), 1);
+            currentExpression = currentExpression.children().get(0);
+        }
+
+        assertThat(currentExpression, instanceOf(substitutionChain.get(substitutionChain.size() - 1)));
+    }
+
+    private static boolean allLeavesAreNull(Expression e) {
+        Holder<Boolean> result = new Holder<>(true);
+
+        e.forEachUp(node -> {
+            if (node.children().size() == 0) {
+                result.set(result.get() && Expressions.isNull(node));
+            }
+        });
+
+        return result.get();
     }
 
     public void testEmptyMappingIndex() {

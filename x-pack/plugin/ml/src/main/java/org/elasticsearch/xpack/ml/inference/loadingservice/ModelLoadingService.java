@@ -753,7 +753,7 @@ public class ModelLoadingService implements ClusterStateListener {
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.changedCustomMetadataSet().contains(TrainedModelCacheMetadata.NAME)) {
             // Flush all models cache since we are detecting some changes.
-            logger.debug("Trained model cache invalidated on node [{}]", event.state().nodes().getLocalNodeId());
+            logger.trace("Trained model cache invalidated on node [{}]", event.state().nodes().getLocalNodeId());
             localModelCache.invalidateAll();
         }
 

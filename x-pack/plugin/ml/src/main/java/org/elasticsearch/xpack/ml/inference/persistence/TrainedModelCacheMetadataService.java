@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.ml.inference.persistence;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -23,30 +25,34 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.ml.action.FlushTrainedModelCacheAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelCacheMetadata;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class TrainedModelCacheMetadataService implements ClusterStateListener {
     private static final Logger LOGGER = LogManager.getLogger(TrainedModelCacheMetadataService.class);
-    private final MasterServiceTaskQueue<TrainedModelCacheMetadataUpdateTask> modelCacheMetadataUpdateTaskQueue;
+    private static final String TASK_QUEUE_NAME = "trained-models-cache-metadata-management";
+    private final MasterServiceTaskQueue<TrainedModelCacheMetadataUpdateTask> metadataUpdateTaskQueue;
+    private final Client client;
     private volatile boolean isMasterNode = false;
 
-    public TrainedModelCacheMetadataService(ClusterService clusterService) {
-        this.modelCacheMetadataUpdateTaskQueue = clusterService.createTaskQueue(
-            "trained-models-cache-metadata-management",
-            Priority.IMMEDIATE,
-            new TrainedModelCacheMetadataTaskExecutor()
-        );
+    public TrainedModelCacheMetadataService(ClusterService clusterService, Client client) {
+        this.client = new OriginSettingClient(client, ML_ORIGIN);
+        ;
+        TrainedModelCacheMetadataUpdateTaskExecutor metadataUpdateTaskExecutor = new TrainedModelCacheMetadataUpdateTaskExecutor();
+        this.metadataUpdateTaskQueue = clusterService.createTaskQueue(TASK_QUEUE_NAME, Priority.IMMEDIATE, metadataUpdateTaskExecutor);
         clusterService.addListener(this);
     }
 
     public void refreshCacheVersion(ActionListener<AcknowledgedResponse> listener) {
         if (this.isMasterNode == false) {
-            // TODO: Use an internal action to update the cache version
-            listener.onResponse(AcknowledgedResponse.FALSE);
+            client.execute(FlushTrainedModelCacheAction.INSTANCE, new FlushTrainedModelCacheAction.Request(), listener);
             return;
         }
+
         TrainedModelCacheMetadataUpdateTask updateMetadataTask = new RefreshTrainedModeCacheMetadataVersionTask(listener);
-        this.modelCacheMetadataUpdateTaskQueue.submitTask(updateMetadataTask.getDescription(), updateMetadataTask, null);
+        this.metadataUpdateTaskQueue.submitTask(updateMetadataTask.getDescription(), updateMetadataTask, null);
     }
 
     @Override
@@ -99,7 +105,9 @@ public class TrainedModelCacheMetadataService implements ClusterStateListener {
         }
     }
 
-    private static class TrainedModelCacheMetadataTaskExecutor implements ClusterStateTaskExecutor<TrainedModelCacheMetadataUpdateTask> {
+    private static class TrainedModelCacheMetadataUpdateTaskExecutor
+        implements
+            ClusterStateTaskExecutor<TrainedModelCacheMetadataUpdateTask> {
         @Override
         public ClusterState execute(BatchExecutionContext<TrainedModelCacheMetadataUpdateTask> batchExecutionContext) {
             final var initialState = batchExecutionContext.initialState();

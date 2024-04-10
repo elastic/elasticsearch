@@ -207,8 +207,8 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
         AzureOpenAiEmbeddingsModel model = null;
         try {
             model = createModel(resourceName, deploymentId, apiVersion, user, apiKey, null, inferenceEntityId);
+            model.setUri(new URI(getUrl(webServer)));
             var action = new AzureOpenAiEmbeddingsAction(sender, model, createWithEmptySettings(threadPool));
-            action.setRequestUri(new URI(getUrl(webServer)));
             return action;
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);

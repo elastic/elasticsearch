@@ -15,10 +15,10 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.azureopenai.AzureOpenAiAccount;
+import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModelTests;
 
 import java.io.IOException;
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
 
@@ -29,14 +29,16 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
-    public void testCreateRequest_WithApiKeyDefined() throws URISyntaxException, IOException {
-        var request = createRequest("www.google.com", "resource", "deployment", "apiVersion", "apikey", null, "abc", "user");
+    public void testCreateRequest_WithApiKeyDefined() throws IOException, URISyntaxException {
+        var request = createRequest("resource", "deployment", "apiVersion", "apikey", null, "abc", "user");
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
-        assertThat(httpPost.getURI().toString(), is("www.google.com"));
+        var expectedUri = AzureOpenAiEmbeddingsModel.getEmbeddingsUri("resource", "deployment", "apiVersion").toString();
+        assertThat(httpPost.getURI().toString(), is(expectedUri));
+
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         assertThat(httpPost.getLastHeader(API_KEY_HEADER).getValue(), is("apikey"));
 
@@ -46,14 +48,16 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(requestMap.get("user"), is("user"));
     }
 
-    public void testCreateRequest_WithEntraIdDefined() throws URISyntaxException, IOException {
-        var request = createRequest("www.google.com", "resource", "deployment", "apiVersion", null, "entraId", "abc", "user");
+    public void testCreateRequest_WithEntraIdDefined() throws IOException, URISyntaxException {
+        var request = createRequest("resource", "deployment", "apiVersion", null, "entraId", "abc", "user");
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
-        assertThat(httpPost.getURI().toString(), is("www.google.com"));
+        var expectedUri = AzureOpenAiEmbeddingsModel.getEmbeddingsUri("resource", "deployment", "apiVersion").toString();
+        assertThat(httpPost.getURI().toString(), is(expectedUri));
+
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer entraId"));
 
@@ -63,8 +67,8 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(requestMap.get("user"), is("user"));
     }
 
-    public void testTruncate_ReducesInputTextSizeByHalf() throws URISyntaxException, IOException {
-        var request = createRequest("www.google.com", "resource", "deployment", "apiVersion", "apikey", null, "abcd", null);
+    public void testTruncate_ReducesInputTextSizeByHalf() throws IOException {
+        var request = createRequest("resource", "deployment", "apiVersion", "apikey", null, "abcd", null);
         var truncatedRequest = request.truncate();
 
         var httpRequest = truncatedRequest.createHttpRequest();
@@ -77,7 +81,7 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
     }
 
     public void testIsTruncated_ReturnsTrue() {
-        var request = createRequest("www.google.com", "resource", "deployment", "apiVersion", "apikey", null, "abcd", null);
+        var request = createRequest("resource", "deployment", "apiVersion", "apikey", null, "abcd", null);
         assertFalse(request.getTruncationInfo()[0]);
 
         var truncatedRequest = request.truncate();
@@ -85,7 +89,6 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
     }
 
     public static AzureOpenAiEmbeddingsRequest createRequest(
-        String url,
         String resourceName,
         String deploymentId,
         String apiVersion,
@@ -111,16 +114,11 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
             embeddingsModel.getSecretSettings().entraId()
         );
 
-        try {
-            return new AzureOpenAiEmbeddingsRequest(
-                TruncatorTests.createTruncator(),
-                account,
-                new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
-                embeddingsModel,
-                new URI(url)
-            );
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
+        return new AzureOpenAiEmbeddingsRequest(
+            TruncatorTests.createTruncator(),
+            account,
+            new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
+            embeddingsModel
+        );
     }
 }

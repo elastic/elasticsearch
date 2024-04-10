@@ -68,12 +68,7 @@ public class AzureOpenAiEmbeddingsTaskSettings implements TaskSettings {
     }
 
     public AzureOpenAiEmbeddingsTaskSettings(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS)) {
-            this.user = in.readOptionalString();
-        } else {
-            var discard = in.readString();
-            this.user = in.readOptionalString();
-        }
+        this.user = in.readOptionalString();
     }
 
     @Override
@@ -97,17 +92,12 @@ public class AzureOpenAiEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_12_0;
+        return TransportVersions.ML_INFERENCE_AZURE_OPENAI_EMBEDDINGS;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_MODEL_IN_SERVICE_SETTINGS)) {
-            out.writeOptionalString(user);
-        } else {
-            out.writeString("m"); // write any string
-            out.writeOptionalString(user);
-        }
+        out.writeOptionalString(user);
     }
 
     @Override

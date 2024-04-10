@@ -37,14 +37,13 @@ public class AzureOpenAiEmbeddingsRequest implements AzureOpenAiRequest {
         Truncator truncator,
         AzureOpenAiAccount account,
         Truncator.TruncationResult input,
-        AzureOpenAiEmbeddingsModel model,
-        URI embeddingsRequestUri
+        AzureOpenAiEmbeddingsModel model
     ) {
         this.truncator = Objects.requireNonNull(truncator);
         this.account = Objects.requireNonNull(account);
         this.truncationResult = Objects.requireNonNull(input);
         this.model = Objects.requireNonNull(model);
-        this.uri = embeddingsRequestUri;
+        this.uri = model.getUri();
     }
 
     public HttpRequest createHttpRequest() {
@@ -79,20 +78,20 @@ public class AzureOpenAiEmbeddingsRequest implements AzureOpenAiRequest {
     }
 
     @Override
-    public String getInferenceEntityId() {
-        return model.getInferenceEntityId();
+    public URI getURI() {
+        return this.uri;
     }
 
     @Override
-    public URI getURI() {
-        return uri;
+    public String getInferenceEntityId() {
+        return model.getInferenceEntityId();
     }
 
     @Override
     public Request truncate() {
         var truncatedInput = truncator.truncate(truncationResult.input());
 
-        return new AzureOpenAiEmbeddingsRequest(truncator, account, truncatedInput, model, uri);
+        return new AzureOpenAiEmbeddingsRequest(truncator, account, truncatedInput, model);
     }
 
     @Override

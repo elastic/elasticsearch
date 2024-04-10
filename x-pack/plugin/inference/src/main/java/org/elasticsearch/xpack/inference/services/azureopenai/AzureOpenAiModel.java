@@ -15,9 +15,12 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.azureopenai.AzureOpenAiActionVisitor;
 
+import java.net.URI;
 import java.util.Map;
 
 public abstract class AzureOpenAiModel extends Model {
+
+    protected URI uri;
 
     public AzureOpenAiModel(ModelConfigurations configurations, ModelSecrets secrets) {
         super(configurations, secrets);
@@ -25,11 +28,21 @@ public abstract class AzureOpenAiModel extends Model {
 
     protected AzureOpenAiModel(AzureOpenAiModel model, TaskSettings taskSettings) {
         super(model, taskSettings);
+        this.uri = model.getUri();
     }
 
     protected AzureOpenAiModel(AzureOpenAiModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
+        this.uri = model.getUri();
     }
 
     public abstract ExecutableAction accept(AzureOpenAiActionVisitor creator, Map<String, Object> taskSettings);
+
+    public URI getUri() {
+        return uri;
+    }
+
+    public void setUri(URI newUri) {
+        this.uri = newUri;
+    }
 }

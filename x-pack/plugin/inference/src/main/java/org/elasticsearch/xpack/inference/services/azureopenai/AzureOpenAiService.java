@@ -184,7 +184,7 @@ public class AzureOpenAiService extends SenderService {
         }
 
         AzureOpenAiModel azureOpenAiModel = (AzureOpenAiModel) model;
-        var actionCreator = new AzureOpenAiActionCreator(getSender(), getServiceComponents());
+        var actionCreator = new AzureOpenAiActionCreator(getSender(), getServiceComponents(), azureOpenAiModel);
 
         var action = azureOpenAiModel.accept(actionCreator, taskSettings);
         action.execute(new DocumentsOnlyInput(input), listener);

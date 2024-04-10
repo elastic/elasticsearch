@@ -9,11 +9,15 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai;
 
+import org.apache.http.HttpHeaders;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -21,17 +25,28 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModelTests;
+import org.hamcrest.CoreMatchers;
+import org.hamcrest.MatcherAssert;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,12 +55,20 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
+import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiUtils.API_KEY_HEADER;
+import static org.elasticsearch.xpack.inference.results.ChunkedTextEmbeddingResultsTests.asMapWithListsInsteadOfArrays;
+import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectation;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsServiceSettingsTests.getAzureOpenAiServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsTaskSettingsTests.getAzureOpenAiRequestTaskSettingsMap;
 import static org.elasticsearch.xpack.inference.services.settings.AzureOpenAiSecretSettingsTests.getAzureOpenAiSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -591,8 +614,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
         verifyNoMoreInteractions(sender);
     }
 
-    /*
-    public void testInfer_SendsRequest() throws IOException {
+    public void testInfer_SendsRequest() throws IOException, URISyntaxException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
@@ -619,10 +641,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            // TODO - override URL as Azure will define its own...
-            // TODO - override URL as Azure will define its own...
-
-            var model = AzureOpenAiEmbeddingsModelTests.createModel("resource", "deployment", "apiversion", "user", "apikey", "id");
+            var model = AzureOpenAiEmbeddingsModelTests.createModel("resource", "deployment", "apiversion", "user", "apikey", null, "id");
+            model.setUri(new URI(getUrl(webServer)));
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(model, null, List.of("abc"), new HashMap<>(), InputType.INGEST, listener);
 
@@ -635,573 +655,314 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             assertThat(webServer.requests().get(0).getHeader(API_KEY_HEADER), equalTo("apikey"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), Matchers.is(3));
+            assertThat(requestMap.size(), Matchers.is(2));
             assertThat(requestMap.get("input"), Matchers.is(List.of("abc")));
             assertThat(requestMap.get("user"), Matchers.is("user"));
         }
     }
 
-    /*
+    public void testCheckModelConfig_IncludesMaxTokens() throws IOException, URISyntaxException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-    public void testCheckModelConfig_IncludesMaxTokens() throws IOException {
-    var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
 
-    try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
+            String responseJson = """
+                {
+                    "object": "list",
+                    "data": [
+                        {
+                            "object": "embedding",
+                            "index": 0,
+                            "embedding": [
+                                0.0123,
+                                -0.0123
+                            ]
+                        }
+                    ],
+                    "model": "text-embedding-ada-002-v2",
+                    "usage": {
+                        "prompt_tokens": 8,
+                        "total_tokens": 8
+                    }
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-    String responseJson = """
-    {
-    "object": "list",
-    "data": [
-    {
-    "object": "embedding",
-    "index": 0,
-    "embedding": [
-    0.0123,
-    -0.0123
-    ]
-    }
-    ],
-    "model": "text-embedding-ada-002-v2",
-    "usage": {
-    "prompt_tokens": 8,
-    "total_tokens": 8
-    }
-    }
-    """;
-    webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            var model = AzureOpenAiEmbeddingsModelTests.createModel(
+                "resource",
+                "deployment",
+                "apiversion",
+                null,
+                false,
+                null,
+                false,
+                100,
+                "user",
+                "apikey",
+                null,
+                "id"
+            );
+            model.setUri(new URI(getUrl(webServer)));
 
-    var model = AzureOpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", 100);
-    PlainActionFuture<Model> listener = new PlainActionFuture<>();
-    service.checkModelConfig(model, listener);
+            PlainActionFuture<Model> listener = new PlainActionFuture<>();
+            service.checkModelConfig(model, listener);
 
-    var result = listener.actionGet(TIMEOUT);
-    assertThat(
-    result,
-    is(AzureOpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", 100, 2))
-    );
+            var result = listener.actionGet(TIMEOUT);
+            assertThat(
+                result,
+                is(
+                    AzureOpenAiEmbeddingsModelTests.createModel(
+                        "resource",
+                        "deployment",
+                        "apiversion",
+                        2,
+                        false,
+                        null,
+                        false,
+                        100,
+                        "user",
+                        "apikey",
+                        null,
+                        "id"
+                    )
+                )
+            );
 
-    assertThat(webServer.requests(), hasSize(1));
+            assertThat(webServer.requests(), hasSize(1));
 
-    var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-    MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "model", "model", "user", "user")));
-    }
-    }
-
-    public void testCheckModelConfig_ThrowsIfEmbeddingSizeDoesNotMatchValueSetByUser() throws IOException {
-    var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-    try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
-
-    String responseJson = """
-    {
-    "object": "list",
-    "data": [
-    {
-    "object": "embedding",
-    "index": 0,
-    "embedding": [
-    0.0123,
-    -0.0123
-    ]
-    }
-    ],
-    "model": "text-embedding-ada-002-v2",
-    "usage": {
-    "prompt_tokens": 8,
-    "total_tokens": 8
-    }
-    }
-    """;
-    webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-    var model = AzureOpenAiEmbeddingsModelTests.createModel(
-    getUrl(webServer),
-    "org",
-    "secret",
-    "model",
-    "user",
-    null,
-    100,
-    3,
-    true
-    );
-    PlainActionFuture<Model> listener = new PlainActionFuture<>();
-    service.checkModelConfig(model, listener);
-
-    var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
-    assertThat(
-    exception.getMessage(),
-    is(
-    "The retrieved embeddings size [2] does not match the size specified in the settings [3]. "
-    + "Please recreate the [id] configuration with the correct dimensions"
-    )
-    );
-
-    assertThat(webServer.requests(), hasSize(1));
-
-    var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-    MatcherAssert.assertThat(
-    requestMap,
-    Matchers.is(Map.of("input", List.of("how big"), "model", "model", "user", "user", "dimensions", 3))
-    );
-    }
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "user", "user")));
+        }
     }
 
-    public void testCheckModelConfig_ReturnsModelWithDimensionsSetTo2_AndDocProductSet_IfDimensionsSetByUser_ButSetToNull()
-    throws IOException {
-    var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+    public void testCheckModelConfig_ThrowsIfEmbeddingSizeDoesNotMatchValueSetByUser() throws IOException, URISyntaxException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-    try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
 
-    String responseJson = """
-    {
-    "object": "list",
-    "data": [
-    {
-    "object": "embedding",
-    "index": 0,
-    "embedding": [
-    0.0123,
-    -0.0123
-    ]
-    }
-    ],
-    "model": "text-embedding-ada-002-v2",
-    "usage": {
-    "prompt_tokens": 8,
-    "total_tokens": 8
-    }
-    }
-    """;
-    webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            String responseJson = """
+                {
+                    "object": "list",
+                    "data": [
+                        {
+                            "object": "embedding",
+                            "index": 0,
+                            "embedding": [
+                                0.0123,
+                                -0.0123
+                            ]
+                        }
+                    ],
+                    "model": "text-embedding-ada-002-v2",
+                    "usage": {
+                        "prompt_tokens": 8,
+                        "total_tokens": 8
+                    }
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-    var model = AzureOpenAiEmbeddingsModelTests.createModel(
-    getUrl(webServer),
-    "org",
-    "secret",
-    "model",
-    "user",
-    null,
-    100,
-    null,
-    true
-    );
-    PlainActionFuture<Model> listener = new PlainActionFuture<>();
-    service.checkModelConfig(model, listener);
+            var model = AzureOpenAiEmbeddingsModelTests.createModel(
+                "resource",
+                "deployment",
+                "apiversion",
+                3,
+                true,
+                null,
+                false,
+                100,
+                "user",
+                "apikey",
+                null,
+                "id"
+            );
+            model.setUri(new URI(getUrl(webServer)));
 
-    var returnedModel = listener.actionGet(TIMEOUT);
-    assertThat(
-    returnedModel,
-    is(
-    AzureOpenAiEmbeddingsModelTests.createModel(
-    getUrl(webServer),
-    "org",
-    "secret",
-    "model",
-    "user",
-    SimilarityMeasure.DOT_PRODUCT,
-    100,
-    2,
-    true
-    )
-    )
-    );
+            PlainActionFuture<Model> listener = new PlainActionFuture<>();
+            service.checkModelConfig(model, listener);
 
-    assertThat(webServer.requests(), hasSize(1));
+            var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(
+                exception.getMessage(),
+                is(
+                    "The retrieved embeddings size [2] does not match the size specified in the settings [3]. "
+                        + "Please recreate the [id] configuration with the correct dimensions"
+                )
+            );
 
-    var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-    // since dimensions were null they should not be sent in the request
-    MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "model", "model", "user", "user")));
-    }
+            assertThat(webServer.requests(), hasSize(1));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "user", "user", "dimensions", 3)));
+        }
     }
 
-    public void testCheckModelConfig_ReturnsModelWithSameDimensions_AndDocProductSet_IfDimensionsSetByUser_AndTheyMatchReturnedSize()
-    throws IOException {
-    var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+    public void testCheckModelConfig_ReturnsNewModelReference_AndDoesNotSendDimensionsField_WhenNotSetByUser() throws IOException,
+        URISyntaxException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-    try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
 
-    String responseJson = """
-    {
-    "object": "list",
-    "data": [
-    {
-    "object": "embedding",
-    "index": 0,
-    "embedding": [
-    0.0123,
-    -0.0123
-    ]
-    }
-    ],
-    "model": "text-embedding-ada-002-v2",
-    "usage": {
-    "prompt_tokens": 8,
-    "total_tokens": 8
-    }
-    }
-    """;
-    webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            String responseJson = """
+                {
+                    "object": "list",
+                    "data": [
+                        {
+                            "object": "embedding",
+                            "index": 0,
+                            "embedding": [
+                                0.0123,
+                                -0.0123
+                            ]
+                        }
+                    ],
+                    "model": "text-embedding-ada-002-v2",
+                    "usage": {
+                        "prompt_tokens": 8,
+                        "total_tokens": 8
+                    }
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-    var model = AzureOpenAiEmbeddingsModelTests.createModel(
-    getUrl(webServer),
-    "org",
-    "secret",
-    "model",
-    "user",
-    null,
-    100,
-    2,
-    true
-    );
-    PlainActionFuture<Model> listener = new PlainActionFuture<>();
-    service.checkModelConfig(model, listener);
+            var model = AzureOpenAiEmbeddingsModelTests.createModel(
+                "resource",
+                "deployment",
+                "apiversion",
+                100,
+                false,
+                null,
+                false,
+                100,
+                "user",
+                "apikey",
+                null,
+                "id"
+            );
+            model.setUri(new URI(getUrl(webServer)));
 
-    var returnedModel = listener.actionGet(TIMEOUT);
-    assertThat(
-    returnedModel,
-    is(
-    AzureOpenAiEmbeddingsModelTests.createModel(
-    getUrl(webServer),
-    "org",
-    "secret",
-    "model",
-    "user",
-    SimilarityMeasure.DOT_PRODUCT,
-    100,
-    2,
-    true
-    )
-    )
-    );
+            PlainActionFuture<Model> listener = new PlainActionFuture<>();
+            service.checkModelConfig(model, listener);
 
-    assertThat(webServer.requests(), hasSize(1));
+            var result = listener.actionGet(TIMEOUT);
+            assertThat(
+                result,
+                is(
+                    AzureOpenAiEmbeddingsModelTests.createModel(
+                        "resource",
+                        "deployment",
+                        "apiversion",
+                        2,
+                        false,
+                        null,
+                        false,
+                        100,
+                        "user",
+                        "apikey",
+                        null,
+                        "id"
+                    )
+                )
+            );
 
-    var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-    MatcherAssert.assertThat(
-    requestMap,
-    Matchers.is(Map.of("input", List.of("how big"), "model", "model", "user", "user", "dimensions", 2))
-    );
-    }
-    }
+            assertThat(webServer.requests(), hasSize(1));
 
-    public void testCheckModelConfig_ReturnsNewModelReference_AndDoesNotSendDimensionsField_WhenNotSetByUser() throws IOException {
-    var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-    try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
-
-    String responseJson = """
-    {
-    "object": "list",
-    "data": [
-    {
-    "object": "embedding",
-    "index": 0,
-    "embedding": [
-    0.0123,
-    -0.0123
-    ]
-    }
-    ],
-    "model": "text-embedding-ada-002-v2",
-    "usage": {
-    "prompt_tokens": 8,
-    "total_tokens": 8
-    }
-    }
-    """;
-    webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-    var model = AzureOpenAiEmbeddingsModelTests.createModel(
-    getUrl(webServer),
-    "org",
-    "secret",
-    "model",
-    "user",
-    null,
-    100,
-    100,
-    false
-    );
-    PlainActionFuture<Model> listener = new PlainActionFuture<>();
-    service.checkModelConfig(model, listener);
-
-    var returnedModel = listener.actionGet(TIMEOUT);
-    assertThat(
-    returnedModel,
-    is(
-    AzureOpenAiEmbeddingsModelTests.createModel(
-    getUrl(webServer),
-    "org",
-    "secret",
-    "model",
-    "user",
-    SimilarityMeasure.DOT_PRODUCT,
-    100,
-    2,
-    false
-    )
-    )
-    );
-
-    assertThat(webServer.requests(), hasSize(1));
-
-    var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-    MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "model", "model", "user", "user")));
-    }
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "user", "user")));
+        }
     }
 
-    public void testCheckModelConfig_ReturnsNewModelReference_SetsSimilarityToDocProduct_WhenNull() throws IOException {
-    var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+    public void testInfer_UnauthorisedResponse() throws IOException, URISyntaxException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-    try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
 
-    String responseJson = """
-    {
-    "object": "list",
-    "data": [
-    {
-    "object": "embedding",
-    "index": 0,
-    "embedding": [
-    0.0123,
-    -0.0123
-    ]
-    }
-    ],
-    "model": "text-embedding-ada-002-v2",
-    "usage": {
-    "prompt_tokens": 8,
-    "total_tokens": 8
-    }
-    }
-    """;
-    webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+            String responseJson = """
+                {
+                    "error": {
+                        "message": "Incorrect API key provided:",
+                        "type": "invalid_request_error",
+                        "param": null,
+                        "code": "invalid_api_key"
+                    }
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
 
-    var model = AzureOpenAiEmbeddingsModelTests.createModel(
-    getUrl(webServer),
-    "org",
-    "secret",
-    "model",
-    "user",
-    null,
-    100,
-    100,
-    false
-    );
-    PlainActionFuture<Model> listener = new PlainActionFuture<>();
-    service.checkModelConfig(model, listener);
+            var model = AzureOpenAiEmbeddingsModelTests.createModel("resource", "deployment", "apiversion", "user", "apikey", null, "id");
+            model.setUri(new URI(getUrl(webServer)));
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.infer(model, null, List.of("abc"), new HashMap<>(), InputType.INGEST, listener);
 
-    var returnedModel = listener.actionGet(TIMEOUT);
-    assertThat(
-    returnedModel,
-    is(
-    AzureOpenAiEmbeddingsModelTests.createModel(
-    getUrl(webServer),
-    "org",
-    "secret",
-    "model",
-    "user",
-    SimilarityMeasure.DOT_PRODUCT,
-    100,
-    2,
-    false
-    )
-    )
-    );
-
-    assertThat(webServer.requests(), hasSize(1));
-
-    var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-    MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "model", "model", "user", "user")));
-    }
+            var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));
+            assertThat(error.getMessage(), containsString("Error message: [Incorrect API key provided:]"));
+            assertThat(webServer.requests(), hasSize(1));
+        }
     }
 
-    public void testCheckModelConfig_ReturnsNewModelReference_DoesNotOverrideSimilarity_WhenNotNull() throws IOException {
-    var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+    public void testChunkedInfer_CallsInfer_ConvertsFloatResponse() throws IOException, URISyntaxException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-    try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
 
-    String responseJson = """
-    {
-    "object": "list",
-    "data": [
-    {
-    "object": "embedding",
-    "index": 0,
-    "embedding": [
-    0.0123,
-    -0.0123
-    ]
+            String responseJson = """
+                {
+                    "object": "list",
+                    "data": [
+                        {
+                            "object": "embedding",
+                            "index": 0,
+                            "embedding": [
+                                0.0123,
+                                -0.0123
+                            ]
+                        }
+                    ],
+                    "model": "text-embedding-ada-002-v2",
+                    "usage": {
+                        "prompt_tokens": 8,
+                        "total_tokens": 8
+                    }
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = AzureOpenAiEmbeddingsModelTests.createModel("resource", "deployment", "apiversion", "user", "apikey", null, "id");
+            model.setUri(new URI(getUrl(webServer)));
+            PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(model, List.of("abc"), new HashMap<>(), InputType.INGEST, new ChunkingOptions(null, null), listener);
+
+            var result = listener.actionGet(TIMEOUT).get(0);
+            assertThat(result, CoreMatchers.instanceOf(ChunkedTextEmbeddingResults.class));
+
+            assertThat(
+                asMapWithListsInsteadOfArrays((ChunkedTextEmbeddingResults) result),
+                Matchers.is(
+                    Map.of(
+                        ChunkedTextEmbeddingResults.FIELD_NAME,
+                        List.of(
+                            Map.of(
+                                ChunkedNlpInferenceResults.TEXT,
+                                "abc",
+                                ChunkedNlpInferenceResults.INFERENCE,
+                                List.of((double) 0.0123f, (double) -0.0123f)
+                            )
+                        )
+                    )
+                )
+            );
+            assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().get(0).getHeader(API_KEY_HEADER), equalTo("apikey"));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), Matchers.is(2));
+            assertThat(requestMap.get("input"), Matchers.is(List.of("abc")));
+            assertThat(requestMap.get("user"), Matchers.is("user"));
+        }
     }
-    ],
-    "model": "text-embedding-ada-002-v2",
-    "usage": {
-    "prompt_tokens": 8,
-    "total_tokens": 8
-    }
-    }
-    """;
-    webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-    var model = AzureOpenAiEmbeddingsModelTests.createModel(
-    getUrl(webServer),
-    "org",
-    "secret",
-    "model",
-    "user",
-    SimilarityMeasure.COSINE,
-    100,
-    100,
-    false
-    );
-    PlainActionFuture<Model> listener = new PlainActionFuture<>();
-    service.checkModelConfig(model, listener);
-
-    var returnedModel = listener.actionGet(TIMEOUT);
-    assertThat(
-    returnedModel,
-    is(
-    AzureOpenAiEmbeddingsModelTests.createModel(
-    getUrl(webServer),
-    "org",
-    "secret",
-    "model",
-    "user",
-    SimilarityMeasure.COSINE,
-    100,
-    2,
-    false
-    )
-    )
-    );
-
-    assertThat(webServer.requests(), hasSize(1));
-
-    var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-    MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "model", "model", "user", "user")));
-    }
-    }
-
-    public void testInfer_UnauthorisedResponse() throws IOException {
-    var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-    try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
-
-    String responseJson = """
-    {
-    "error": {
-    "message": "Incorrect API key provided:",
-    "type": "invalid_request_error",
-    "param": null,
-    "code": "invalid_api_key"
-    }
-    }
-    """;
-    webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
-
-    var model = AzureOpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user");
-    PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-    service.infer(model, null, List.of("abc"), new HashMap<>(), InputType.INGEST, listener);
-
-    var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
-    assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));
-    assertThat(error.getMessage(), containsString("Error message: [Incorrect API key provided:]"));
-    assertThat(webServer.requests(), hasSize(1));
-    }
-    }
-
-    public void testMoveModelFromTaskToServiceSettings() {
-    var taskSettings = new HashMap<String, Object>();
-    taskSettings.put(ServiceFields.MODEL_ID, "model");
-    var serviceSettings = new HashMap<String, Object>();
-    AzureOpenAiService.moveModelFromTaskToServiceSettings(taskSettings, serviceSettings);
-    assertThat(taskSettings.keySet(), empty());
-    assertEquals("model", serviceSettings.get(ServiceFields.MODEL_ID));
-    }
-
-    public void testMoveModelFromTaskToServiceSettings_OldID() {
-    var taskSettings = new HashMap<String, Object>();
-    taskSettings.put("model", "model");
-    var serviceSettings = new HashMap<String, Object>();
-    AzureOpenAiService.moveModelFromTaskToServiceSettings(taskSettings, serviceSettings);
-    assertThat(taskSettings.keySet(), empty());
-    assertEquals("model", serviceSettings.get(ServiceFields.MODEL_ID));
-    }
-
-    public void testMoveModelFromTaskToServiceSettings_AlreadyMoved() {
-    var taskSettings = new HashMap<String, Object>();
-    var serviceSettings = new HashMap<String, Object>();
-    taskSettings.put(ServiceFields.MODEL_ID, "model");
-    AzureOpenAiService.moveModelFromTaskToServiceSettings(taskSettings, serviceSettings);
-    assertThat(taskSettings.keySet(), empty());
-    assertEquals("model", serviceSettings.get(ServiceFields.MODEL_ID));
-    }
-
-    public void testChunkedInfer_CallsInfer_ConvertsFloatResponse() throws IOException {
-    var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-    try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
-
-    String responseJson = """
-    {
-    "object": "list",
-    "data": [
-    {
-    "object": "embedding",
-    "index": 0,
-    "embedding": [
-    0.123,
-    -0.123
-    ]
-    }
-    ],
-    "model": "text-embedding-ada-002-v2",
-    "usage": {
-    "prompt_tokens": 8,
-    "total_tokens": 8
-    }
-    }
-    """;
-    webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-    var model = AzureOpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user");
-    PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
-    service.chunkedInfer(model, List.of("abc"), new HashMap<>(), InputType.INGEST, new ChunkingOptions(null, null), listener);
-
-    var result = listener.actionGet(TIMEOUT).get(0);
-    assertThat(result, CoreMatchers.instanceOf(ChunkedTextEmbeddingResults.class));
-
-    assertThat(
-    asMapWithListsInsteadOfArrays((ChunkedTextEmbeddingResults) result),
-    Matchers.is(
-    Map.of(
-    ChunkedTextEmbeddingResults.FIELD_NAME,
-    List.of(
-    Map.of(
-    ChunkedNlpInferenceResults.TEXT,
-    "abc",
-    ChunkedNlpInferenceResults.INFERENCE,
-    List.of((double) 0.123f, (double) -0.123f)
-    )
-    )
-    )
-    )
-    );
-    assertThat(webServer.requests(), hasSize(1));
-    assertNull(webServer.requests().get(0).getUri().getQuery());
-    assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
-    assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
-    assertThat(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER), equalTo("org"));
-
-    var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-    assertThat(requestMap.size(), Matchers.is(3));
-    assertThat(requestMap.get("input"), Matchers.is(List.of("abc")));
-    assertThat(requestMap.get("model"), Matchers.is("model"));
-    assertThat(requestMap.get("user"), Matchers.is("user"));
-    }
-    }
-    */
 
     private AzureOpenAiService createAzureOpenAiService() {
         return new AzureOpenAiService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));

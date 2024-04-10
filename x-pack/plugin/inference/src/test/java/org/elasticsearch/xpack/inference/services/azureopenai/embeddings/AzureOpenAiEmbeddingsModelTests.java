@@ -46,6 +46,24 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
         assertThat(overriddenModel, sameInstance(model));
     }
 
+    public void testCreateModel_FromUpdatedServiceSettings() {
+        var model = createModel("resource", "deployment", "apiversion", "user", "api_key", null, "id");
+        var updatedSettings = new AzureOpenAiEmbeddingsServiceSettings(
+            "resource",
+            "deployment",
+            "override_apiversion",
+            null,
+            false,
+            null,
+            false,
+            null
+        );
+
+        var overridenModel = new AzureOpenAiEmbeddingsModel(model, updatedSettings);
+
+        assertThat(overridenModel, is(createModel("resource", "deployment", "override_apiversion", "user", "api_key", null, "id")));
+    }
+
     public static AzureOpenAiEmbeddingsModel createModel(
         String resourceName,
         String deploymentId,
@@ -102,81 +120,4 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
             new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
         );
     }
-
-    /*
-    public static AzureOpenAiEmbeddingsModel createModel(
-        String url,
-        @Nullable String org,
-        String apiKey,
-        String modelName,
-        @Nullable String user
-    ) {
-        return new AzureOpenAiEmbeddingsModel(
-            "id",
-            TaskType.TEXT_EMBEDDING,
-            "service",
-            new OpenAiEmbeddingsServiceSettings(modelName, url, org, SimilarityMeasure.DOT_PRODUCT, 1536, null, false),
-            new OpenAiEmbeddingsTaskSettings(user),
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
-        );
-    }
-
-    public static AzureOpenAiEmbeddingsModel createModel(
-        String url,
-        @Nullable String org,
-        String apiKey,
-        String modelName,
-        @Nullable String user,
-        @Nullable Integer tokenLimit
-    ) {
-        return new AzureOpenAiEmbeddingsModel(
-            "id",
-            TaskType.TEXT_EMBEDDING,
-            "service",
-            new OpenAiEmbeddingsServiceSettings(modelName, url, org, SimilarityMeasure.DOT_PRODUCT, 1536, tokenLimit, false),
-            new OpenAiEmbeddingsTaskSettings(user),
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
-        );
-    }
-
-    public static AzureOpenAiEmbeddingsModel createModel(
-        String url,
-        @Nullable String org,
-        String apiKey,
-        String modelName,
-        @Nullable String user,
-        @Nullable Integer tokenLimit,
-        @Nullable Integer dimensions
-    ) {
-        return new AzureOpenAiEmbeddingsModel(
-            "id",
-            TaskType.TEXT_EMBEDDING,
-            "service",
-            new OpenAiEmbeddingsServiceSettings(modelName, url, org, SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit, false),
-            new OpenAiEmbeddingsTaskSettings(user),
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
-        );
-    }
-
-    public static AzureOpenAiEmbeddingsModel createModel(
-        String url,
-        @Nullable String org,
-        String apiKey,
-        String modelName,
-        @Nullable String user,
-        @Nullable SimilarityMeasure similarityMeasure,
-        @Nullable Integer tokenLimit,
-        @Nullable Integer dimensions,
-        boolean dimensionsSetByUser
-    ) {
-        return new AzureOpenAiEmbeddingsModel(
-            "id",
-            TaskType.TEXT_EMBEDDING,
-            "service",
-            new OpenAiEmbeddingsServiceSettings(modelName, url, org, similarityMeasure, dimensions, tokenLimit, dimensionsSetByUser),
-            new OpenAiEmbeddingsTaskSettings(user),
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
-        );
-    }
-     */
 }

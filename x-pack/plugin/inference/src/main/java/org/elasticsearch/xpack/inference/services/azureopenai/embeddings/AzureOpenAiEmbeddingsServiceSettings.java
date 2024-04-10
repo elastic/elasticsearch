@@ -56,7 +56,7 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
     private static AzureOpenAiEmbeddingsServiceSettings fromPersistentMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
-        var commonFields = fromMap(map, validationException);
+        var settings = fromMap(map, validationException);
 
         Boolean dimensionsSetByUser = removeAsType(map, DIMENSIONS_SET_BY_USER, Boolean.class);
         if (dimensionsSetByUser == null && map.containsKey(DIMENSIONS)) {
@@ -77,7 +77,7 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
         }
 
         return new AzureOpenAiEmbeddingsServiceSettings(
-            commonFields,
+            settings,
             Boolean.TRUE.equals(dimensionsSetByUser),
             Boolean.TRUE.equals(encodingFormatSetByUser)
         );

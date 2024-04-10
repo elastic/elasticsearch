@@ -100,10 +100,10 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = createModel("resource", "deployment", "apiversion", "orig_user", "apikey", null, "id");
-            var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
+            model.setUri(new URI(getUrl(webServer)));
+            var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool), model);
             var overriddenTaskSettings = getRequestTaskSettingsMap("overridden_user");
             var action = (AzureOpenAiEmbeddingsAction) actionCreator.create(model, overriddenTaskSettings);
-            action.setRequestUri(new URI(getUrl(webServer)));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new DocumentsOnlyInput(List.of("abc")), listener);
@@ -150,10 +150,10 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = createModel("resource", "deployment", "apiversion", null, "apikey", null, "id");
-            var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
+            model.setUri(new URI(getUrl(webServer)));
+            var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool), model);
             var overriddenTaskSettings = getRequestTaskSettingsMap(null);
             var action = (AzureOpenAiEmbeddingsAction) actionCreator.create(model, overriddenTaskSettings);
-            action.setRequestUri(new URI(getUrl(webServer)));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new DocumentsOnlyInput(List.of("abc")), listener);
@@ -206,10 +206,10 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = createModel("resource", "deployment", "apiversion", null, "apikey", null, "id");
-            var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
+            model.setUri(new URI(getUrl(webServer)));
+            var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool), model);
             var overriddenTaskSettings = getRequestTaskSettingsMap("overridden_user");
             var action = (AzureOpenAiEmbeddingsAction) actionCreator.create(model, overriddenTaskSettings);
-            action.setRequestUri(new URI(getUrl(webServer)));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new DocumentsOnlyInput(List.of("abc")), listener);
@@ -281,10 +281,10 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = createModel("resource", "deployment", "apiversion", null, "apikey", null, "id");
-            var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
+            model.setUri(new URI(getUrl(webServer)));
+            var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool), model);
             var overriddenTaskSettings = getRequestTaskSettingsMap("overridden_user");
             var action = (AzureOpenAiEmbeddingsAction) actionCreator.create(model, overriddenTaskSettings);
-            action.setRequestUri(new URI(getUrl(webServer)));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new DocumentsOnlyInput(List.of("abcd")), listener);
@@ -357,10 +357,10 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = createModel("resource", "deployment", "apiversion", null, "apikey", null, "id");
-            var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
+            model.setUri(new URI(getUrl(webServer)));
+            var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool), model);
             var overriddenTaskSettings = getRequestTaskSettingsMap("overridden_user");
             var action = (AzureOpenAiEmbeddingsAction) actionCreator.create(model, overriddenTaskSettings);
-            action.setRequestUri(new URI(getUrl(webServer)));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new DocumentsOnlyInput(List.of("abcd")), listener);
@@ -416,10 +416,10 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
 
             // truncated to 1 token = 3 characters
             var model = createModel("resource", "deployment", "apiversion", null, false, null, false, 1, null, "apikey", null, "id");
-            var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
+            model.setUri(new URI(getUrl(webServer)));
+            var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool), model);
             var overriddenTaskSettings = getRequestTaskSettingsMap("overridden_user");
             var action = (AzureOpenAiEmbeddingsAction) actionCreator.create(model, overriddenTaskSettings);
-            action.setRequestUri(new URI(getUrl(webServer)));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new DocumentsOnlyInput(List.of("super long input")), listener);

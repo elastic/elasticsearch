@@ -38,11 +38,11 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
     // TODO move this constant to License.java once we move License.java to the protocol jar
 
     @Nullable
-    private BuildInfo buildInfo;
+    private final BuildInfo buildInfo;
     @Nullable
-    private LicenseInfo licenseInfo;
+    private final LicenseInfo licenseInfo;
     @Nullable
-    private FeatureSetsInfo featureSetsInfo;
+    private final FeatureSetsInfo featureSetsInfo;
 
     public XPackInfoResponse(StreamInput in) throws IOException {
         super(in);

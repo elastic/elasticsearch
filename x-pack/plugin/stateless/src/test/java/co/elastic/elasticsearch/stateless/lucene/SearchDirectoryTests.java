@@ -194,13 +194,7 @@ public class SearchDirectoryTests extends ESTestCase {
                             .collect(
                                 Collectors.toUnmodifiableMap(
                                     ChecksummedFile::fileName,
-                                    f -> new BlobLocation(
-                                        primaryTerm,
-                                        blobName,
-                                        Long.MIN_VALUE /* TODO: remove blobLength */,
-                                        f.fileOffset,
-                                        f.fileLength
-                                    )
+                                    f -> new BlobLocation(primaryTerm, blobName, f.fileOffset, f.fileLength)
                                 )
                             ),
                         blobLength

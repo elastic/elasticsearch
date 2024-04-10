@@ -140,6 +140,10 @@ public class NamedWriteableRegistry {
         return readers;
     }
 
+    public boolean hasReaders(Class<?> categoryClass) {
+        return registry.containsKey(categoryClass);
+    }
+
     private static <T> void throwOnUnknownWritable(Class<T> categoryClass, String name) {
         final var message = "Unknown NamedWriteable [" + categoryClass.getName() + "][" + name + "]";
         assert ignoreDeserializationErrors : message;

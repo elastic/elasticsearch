@@ -930,7 +930,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                     XContentTestUtils.convertToMap(
                         new RoleDescriptor(
                             "cross_cluster",
-                            new String[] { "cross_cluster_search", "cross_cluster_replication" },
+                            new String[] { "cross_cluster_search", "monitor_enrich", "cross_cluster_replication" },
                             new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices("metrics")
@@ -1126,7 +1126,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(updateResponse1.evaluate("updated"), is(true));
         final RoleDescriptor updatedRoleDescriptor1 = new RoleDescriptor(
             "cross_cluster",
-            new String[] { "cross_cluster_search", "cross_cluster_replication" },
+            new String[] { "cross_cluster_search", "monitor_enrich", "cross_cluster_replication" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("data")
@@ -1199,7 +1199,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final ObjectPath fetchResponse3 = fetchCrossClusterApiKeyById(apiKeyId);
         final RoleDescriptor updatedRoleDescriptors2 = new RoleDescriptor(
             "cross_cluster",
-            new String[] { "cross_cluster_search" },
+            new String[] { "cross_cluster_search", "monitor_enrich" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("blogs")

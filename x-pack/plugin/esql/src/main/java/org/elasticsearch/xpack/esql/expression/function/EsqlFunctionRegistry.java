@@ -293,7 +293,23 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
         return name.toLowerCase(Locale.ROOT);
     }
 
-    public record ArgSignature(String name, String[] type, String description, boolean optional, DataType targetDataType) {}
+    public record ArgSignature(String name, String[] type, String description, boolean optional, DataType targetDataType) {
+        @Override
+        public String toString() {
+            return "ArgSignature{"
+                + "name='"
+                + name
+                + "', type="
+                + Arrays.toString(type)
+                + ", description='"
+                + description
+                + "', optional="
+                + optional
+                + ", targetDataType="
+                + targetDataType
+                + '}';
+        }
+    }
 
     public record FunctionDescription(
         String name,
@@ -343,7 +359,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
         }
     }
 
-    private static DataType getTargetType(String[] names) {
+    public static DataType getTargetType(String[] names) {
         List<DataType> types = new ArrayList<>();
         for (String name : names) {
             types.add(DataTypes.fromEs(name));

@@ -23,6 +23,4 @@ public interface Sender extends Closeable {
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     );
-
-    void send(ExecutableRequestCreator requestCreator, InferenceInputs inferenceInputs, ActionListener<InferenceServiceResults> listener);
 }

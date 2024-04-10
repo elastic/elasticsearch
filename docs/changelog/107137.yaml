@@ -1,0 +1,6 @@
+pr: 107137
+summary: Downgrade JDK to JDK 21.0.2
+area: Packaging
+type: bug
+issues:
+ - 106987

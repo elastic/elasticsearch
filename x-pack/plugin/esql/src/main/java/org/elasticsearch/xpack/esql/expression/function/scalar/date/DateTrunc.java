@@ -100,6 +100,11 @@ public class DateTrunc extends EsqlScalarFunction {
         return NodeInfo.create(this, DateTrunc::new, children().get(0), children().get(1));
     }
 
+    @Override
+    public boolean foldable() {
+        return interval.foldable() && timestampField.foldable();
+    }
+
     static Rounding.Prepared createRounding(final Object interval) {
         return createRounding(interval, DEFAULT_TZ);
     }

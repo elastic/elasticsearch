@@ -13,6 +13,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -34,14 +35,26 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper {
 
-    @FunctionInfo(returnType = "date", description = "Rounds down a date to the closest interval.")
+    @FunctionInfo(
+        returnType = "date",
+        description = "Rounds down a date to the closest interval.",
+        examples = {
+            @Example(file = "date", tag = "docsDateTrunc"),
+            @Example(
+                description = "Combine `DATE_TRUNC` with <<esql-stats-by>> to create date histograms. For\n"
+                    + "example, the number of hires per year:",
+                file = "date",
+                tag = "docsDateTruncHistogram"
+            ),
+            @Example(description = "Or an hourly error rate:", file = "conditional", tag = "docsCaseHourlyErrorRate") }
+    )
     public DateTrunc(
         Source source,
         // Need to replace the commas in the description here with semi-colon as there's a bug in the CSV parser
         // used in the CSVTests and fixing it is not trivial
         @Param(
             name = "interval",
-            type = { "keyword" },
+            type = { "date_period", "time_duration" },
             description = "Interval; expressed using the timespan literal syntax."
         ) Expression interval,
         @Param(name = "date", type = { "date" }, description = "Date expression") Expression field
@@ -55,8 +68,8 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
             return new TypeResolution("Unresolved children");
         }
 
-        return isDate(timestampField(), sourceText(), FIRST).and(
-            isType(interval(), EsqlDataTypes::isTemporalAmount, sourceText(), SECOND, "dateperiod", "timeduration")
+        return isType(interval(), EsqlDataTypes::isTemporalAmount, sourceText(), FIRST, "dateperiod", "timeduration").and(
+            isDate(timestampField(), sourceText(), SECOND)
         );
     }
 
@@ -105,7 +118,7 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
 
         long periods = period.getUnits().stream().filter(unit -> period.get(unit) != 0).count();
         if (periods != 1) {
-            throw new IllegalArgumentException("Time interval is not supported");
+            throw new IllegalArgumentException("Time interval with multiple periods is not supported");
         }
 
         final Rounding.Builder rounding;

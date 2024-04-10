@@ -510,7 +510,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return new Builder(this).setGeneration(generation)
             .setReplicated(false)
             .setFailureIndices(failureIndices)
-            .setRolloverOnWrite(false)
             .build();
     }
 

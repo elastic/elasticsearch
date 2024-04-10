@@ -256,7 +256,7 @@ public class ConnectorIndexService {
     /**
      * Deletes the {@link Connector} and the related instances of {@link ConnectorSyncJob} in the underlying index.
      *
-     * @param connectorId          The id of the connector object.
+     * @param connectorId          The id of the {@link Connector}.
      * @param shouldDeleteSyncJobs The flag indicating if connector sync jobs should also be deleted.
      * @param listener             The action listener to invoke on response/failure.
      */

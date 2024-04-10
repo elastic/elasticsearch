@@ -28,8 +28,8 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AutoBucketTests extends AbstractFunctionTestCase {
-    public AutoBucketTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+public class BucketTests extends AbstractFunctionTestCase {
+    public BucketTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -141,7 +141,7 @@ public class AutoBucketTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new AutoBucket(source, args.get(0), args.get(1), args.get(2), args.get(3));
+        return new Bucket(source, args.get(0), args.get(1), args.get(2), args.get(3));
     }
 
     @Override

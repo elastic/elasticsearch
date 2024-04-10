@@ -48,13 +48,13 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
  * <p>
  *     Takes a date field and three constants and picks a bucket size based on the
  *     constants. The constants are "target bucket count", "from", and "to". It looks like:
- *     {@code auto_bucket(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")}.
+ *     {@code bucket(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")}.
  *     We have a list of "human" bucket sizes like "one month" and "four hours". We pick
  *     the largest range that covers the range in fewer than the target bucket count. So
  *     in the above case we'll pick month long buckets, yielding 12 buckets.
  * </p>
  */
-public class AutoBucket extends EsqlScalarFunction implements Validatable {
+public class Bucket extends EsqlScalarFunction implements Validatable {
     // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
     // That way you never end up with more than the target number of buckets.
     private static final Rounding LARGEST_HUMAN_DATE_ROUNDING = Rounding.builder(Rounding.DateTimeUnit.YEAR_OF_CENTURY).build();
@@ -86,7 +86,7 @@ public class AutoBucket extends EsqlScalarFunction implements Validatable {
     @FunctionInfo(returnType = { "double", "date" }, description = """
         Creates human-friendly buckets and returns a datetime value
         for each row that corresponds to the resulting bucket the row falls into.""")
-    public AutoBucket(
+    public Bucket(
         Source source,
         @Param(name = "field", type = { "integer", "long", "double", "date" }) Expression field,
         @Param(name = "buckets", type = { "integer" }) Expression buckets,
@@ -226,12 +226,12 @@ public class AutoBucket extends EsqlScalarFunction implements Validatable {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new AutoBucket(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+        return new Bucket(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, AutoBucket::new, field, buckets, from, to);
+        return NodeInfo.create(this, Bucket::new, field, buckets, from, to);
     }
 
     public Expression field() {
@@ -252,6 +252,6 @@ public class AutoBucket extends EsqlScalarFunction implements Validatable {
 
     @Override
     public String toString() {
-        return "AutoBucket{" + "field=" + field + ", buckets=" + buckets + ", from=" + from + ", to=" + to + '}';
+        return "Bucket{" + "field=" + field + ", buckets=" + buckets + ", from=" + from + ", to=" + to + '}';
     }
 }

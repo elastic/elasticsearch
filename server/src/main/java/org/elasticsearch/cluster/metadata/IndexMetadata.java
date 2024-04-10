@@ -540,7 +540,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String KEY_SHARD_SIZE_FORECAST = "shard_size_forecast";
 
-    public static final String KEY_FIELD_INFERENCE = "field_inference";
+    public static final String KEY_INFERENCE_FIELDS = "field_inference";
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
 
@@ -1569,7 +1569,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
             primaryTerms = in.readVLongArray();
             mappings = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), MAPPING_DIFF_VALUE_READER);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_FIELDS_METADATA)) {
                 inferenceFields = DiffableUtils.readImmutableOpenMapDiff(
                     in,
                     DiffableUtils.getStringKeySerializer(),
@@ -1627,7 +1627,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
             out.writeVLongArray(primaryTerms);
             mappings.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_FIELDS_METADATA)) {
                 inferenceFields.writeTo(out);
             }
             aliases.writeTo(out);
@@ -1709,7 +1709,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 builder.putMapping(new MappingMetadata(in));
             }
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_FIELDS_METADATA)) {
             var fields = in.readCollectionAsImmutableList(InferenceFieldMetadata::new);
             fields.stream().forEach(f -> builder.putInferenceField(f));
         }
@@ -1773,7 +1773,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 mapping.writeTo(out);
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_TEXT_FIELD_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_FIELDS_METADATA)) {
             out.writeCollection(inferenceFields.values());
         }
         out.writeCollection(aliases.values());
@@ -2437,7 +2437,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             if (indexMetadata.getInferenceFields().isEmpty() == false) {
-                builder.startObject(KEY_FIELD_INFERENCE);
+                builder.startObject(KEY_INFERENCE_FIELDS);
                 for (InferenceFieldMetadata field : indexMetadata.getInferenceFields().values()) {
                     field.toXContent(builder, params);
                 }
@@ -2521,7 +2521,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         case KEY_STATS:
                             builder.stats(IndexMetadataStats.fromXContent(parser));
                             break;
-                        case KEY_FIELD_INFERENCE:
+                        case KEY_INFERENCE_FIELDS:
                             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                                 builder.putInferenceField(InferenceFieldMetadata.fromXContent(parser));
                             }

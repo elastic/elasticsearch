@@ -22,6 +22,13 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Contains inference field data for fields.
+ * As inference is done in the coordinator node to avoid re-doing it at shard / replica level, the coordinator needs to check for the need
+ * to perform inference for specific fields in an index.
+ * Given that the coordinator node does not necessarily have mapping information for all indices (only for those that have shards
+ * in the node), the field inference information must be stored in the IndexMetadata and broadcasted to all nodes.
+ */
 public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFieldMetadata>, ToXContentFragment {
     private static final String INFERENCE_ID_FIELD = "inference_id";
     private static final String SOURCE_FIELDS_FIELD = "source_fields";
@@ -94,10 +101,8 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         final String name = parser.currentName();
 
         XContentParser.Token token = parser.nextToken();
-        if (token == null) {
-            // no data...
-            return null;
-        }
+        Objects.requireNonNull(token, "Expected InferenceFieldMetadata but got EOF");
+
         String currentFieldName = null;
         String inferenceId = null;
         List<String> inputFields = new ArrayList<>();

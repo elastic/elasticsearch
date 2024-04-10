@@ -103,6 +103,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvZip;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialWithin;
@@ -398,6 +399,7 @@ public final class PlanNamedTypes {
             of(ScalarFunction.class, StartsWith.class, PlanNamedTypes::writeStartsWith, PlanNamedTypes::readStartsWith),
             of(ScalarFunction.class, EndsWith.class, PlanNamedTypes::writeEndsWith, PlanNamedTypes::readEndsWith),
             of(ScalarFunction.class, SpatialIntersects.class, PlanNamedTypes::writeSpatialRelatesFunction, PlanNamedTypes::readIntersects),
+            of(ScalarFunction.class, SpatialDisjoint.class, PlanNamedTypes::writeSpatialRelatesFunction, PlanNamedTypes::readDisjoint),
             of(ScalarFunction.class, SpatialContains.class, PlanNamedTypes::writeSpatialRelatesFunction, PlanNamedTypes::readContains),
             of(ScalarFunction.class, SpatialWithin.class, PlanNamedTypes::writeSpatialRelatesFunction, PlanNamedTypes::readWithin),
             of(ScalarFunction.class, Substring.class, PlanNamedTypes::writeSubstring, PlanNamedTypes::readSubstring),
@@ -1502,6 +1504,10 @@ public final class PlanNamedTypes {
 
     static SpatialIntersects readIntersects(PlanStreamInput in) throws IOException {
         return new SpatialIntersects(Source.EMPTY, in.readExpression(), in.readExpression());
+    }
+
+    static SpatialDisjoint readDisjoint(PlanStreamInput in) throws IOException {
+        return new SpatialDisjoint(Source.EMPTY, in.readExpression(), in.readExpression());
     }
 
     static SpatialContains readContains(PlanStreamInput in) throws IOException {

@@ -52,7 +52,7 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
         return readFrom((BlockStreamInput) in);
     }
 
-    private static BooleanBlock readFrom(BlockStreamInput in) throws IOException {
+    static BooleanBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
         return switch (serializationType) {
             case SERIALIZE_BLOCK_VALUES -> BooleanBlock.readValues(in);
@@ -222,19 +222,6 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
 
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        @Override
-        Builder appendAllValuesToCurrentPosition(Block block);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition(BooleanBlock block);
 
         @Override
         BooleanBlock build();

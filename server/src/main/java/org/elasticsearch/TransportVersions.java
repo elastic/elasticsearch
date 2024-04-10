@@ -160,6 +160,12 @@ public class TransportVersions {
     public static final TransportVersion ADD_PERSISTENT_TASK_EXCEPTIONS = def(8_619_00_0);
     public static final TransportVersion ESQL_REDUCER_NODE_FRAGMENT = def(8_620_00_0);
     public static final TransportVersion FAILURE_STORE_ROLLOVER = def(8_621_00_0);
+    public static final TransportVersion CCR_STATS_API_TIMEOUT_PARAM = def(8_622_00_0);
+    public static final TransportVersion ESQL_ORDINAL_BLOCK = def(8_623_00_0);
+    public static final TransportVersion ML_INFERENCE_COHERE_RERANK = def(8_624_00_0);
+    public static final TransportVersion INDEXING_PRESSURE_DOCUMENT_REJECTIONS_COUNT = def(8_625_00_0);
+    public static final TransportVersion ALIAS_ACTION_RESULTS = def(8_626_00_0);
+    public static final TransportVersion HISTOGRAM_AGGS_KEY_SORTED = def(8_627_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

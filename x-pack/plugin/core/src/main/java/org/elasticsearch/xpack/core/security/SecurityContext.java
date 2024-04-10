@@ -35,6 +35,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.core.security.authc.Authentication.getAuthenticationFromCrossClusterAccessMetadata;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
 
@@ -71,6 +72,11 @@ public class SecurityContext {
     @Nullable
     public User getUser() {
         Authentication authentication = getAuthentication();
+        if (authentication != null) {
+            if (authentication.isCrossClusterAccess()) {
+                authentication = getAuthenticationFromCrossClusterAccessMetadata(authentication);
+            }
+        }
         return authentication == null ? null : authentication.getEffectiveSubject().getUser();
     }
 

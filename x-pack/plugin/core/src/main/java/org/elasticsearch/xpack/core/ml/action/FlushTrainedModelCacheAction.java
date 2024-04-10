@@ -17,7 +17,7 @@ import java.io.IOException;
 public class FlushTrainedModelCacheAction extends ActionType<AcknowledgedResponse> {
 
     public static final FlushTrainedModelCacheAction INSTANCE = new FlushTrainedModelCacheAction();
-    public static final String NAME = "cluster:admin/xpack/ml/inference/clear_model_cache";
+    public static final String NAME = "internal:admin/xpack/ml/inference/clear_model_cache";
 
     private FlushTrainedModelCacheAction() {
         super(NAME);

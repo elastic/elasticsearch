@@ -603,6 +603,7 @@ public class Constants {
         "internal:cluster/coordination_diagnostics/info",
         "internal:cluster/formation/info",
         "internal:gateway/local/started_shards",
-        "internal:admin/indices/prevalidate_shard_path"
+        "internal:admin/indices/prevalidate_shard_path",
+        "internal:admin/xpack/ml/inference/clear_model_cache"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 }

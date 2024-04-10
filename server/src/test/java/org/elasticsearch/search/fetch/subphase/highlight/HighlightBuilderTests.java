@@ -509,7 +509,7 @@ public class HighlightBuilderTests extends ESTestCase {
             Field styledStringField = getFieldBuilderByName(highlightBuilder, "styled_string");
             assertNotNull(styledStringField);
             assertArrayEquals(
-                "setting tags_schema 'default' at the field level should alter pre_tags for that that field",
+                "setting tags_schema 'styled' at the field level should alter pre_tags for that that field",
                 HighlightBuilder.DEFAULT_STYLED_PRE_TAG,
                 styledStringField.preTags()
             );

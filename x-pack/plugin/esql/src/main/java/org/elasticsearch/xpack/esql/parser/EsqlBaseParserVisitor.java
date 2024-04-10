@@ -190,6 +190,24 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitFromCommand(EsqlBaseParser.FromCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fromIdentifier}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFromIdentifier(EsqlBaseParser.FromIdentifierContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#fromOptions}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitFromOptions(EsqlBaseParser.FromOptionsContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#configOption}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitConfigOption(EsqlBaseParser.ConfigOptionContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#metadata}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -225,12 +243,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#fromIdentifier}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitFromIdentifier(EsqlBaseParser.FromIdentifierContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#qualifiedName}.
    * @param ctx the parse tree

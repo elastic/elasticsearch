@@ -127,8 +127,6 @@ import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
-import org.elasticsearch.inference.InferenceServiceRegistry;
-import org.elasticsearch.inference.ModelRegistry;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
@@ -147,7 +145,6 @@ import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
-import org.elasticsearch.plugins.InferenceRegistryPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.MetadataUpgrader;
@@ -1113,18 +1110,6 @@ class NodeConstruction {
                 serviceProvider.newReadinessService(pluginsService, clusterService, environment)
             );
         }
-
-        // Register noop versions of inference services if Inference plugin is not available
-        Optional<InferenceRegistryPlugin> inferenceRegistryPlugin = getSinglePlugin(InferenceRegistryPlugin.class);
-        modules.bindToInstance(
-            InferenceServiceRegistry.class,
-            inferenceRegistryPlugin.map(InferenceRegistryPlugin::getInferenceServiceRegistry)
-                .orElse(new InferenceServiceRegistry.NoopInferenceServiceRegistry())
-        );
-        modules.bindToInstance(
-            ModelRegistry.class,
-            inferenceRegistryPlugin.map(InferenceRegistryPlugin::getModelRegistry).orElse(new ModelRegistry.NoopModelRegistry())
-        );
 
         injector = modules.createInjector();
 

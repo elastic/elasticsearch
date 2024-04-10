@@ -8,14 +8,15 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsqlAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -27,9 +28,11 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.BaseAnalyzerRule;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.ParameterizedAnalyzerRule;
+import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -40,6 +43,8 @@ import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
+import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -53,6 +58,7 @@ import org.elasticsearch.xpack.ql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -60,6 +66,7 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
+import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
@@ -70,7 +77,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -85,7 +91,6 @@ import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
-import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
@@ -105,14 +110,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
     static {
-        var resolution = new Batch<>(
-            "Resolution",
-            new ResolveTable(),
-            new ResolveEnrich(),
-            new ResolveRefs(),
-            new ResolveFunctions(),
-            new RemoveDuplicateProjections()
-        );
+        var resolution = new Batch<>("Resolution", new ResolveTable(), new ResolveEnrich(), new ResolveFunctions(), new ResolveRefs());
         var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new PromoteStringsInDateComparisons());
         rules = List.of(resolution, finish);
     }
@@ -153,6 +151,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             TableIdentifier table = plan.table();
             if (context.indexResolution().matches(table.index()) == false) {
+                // TODO: fix this (and tests), or drop check (seems SQL-inherited, where's also defective)
                 new EsqlUnresolvedRelation(
                     plan.source(),
                     plan.table(),
@@ -164,7 +163,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             EsIndex esIndex = context.indexResolution().get();
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             attributes.addAll(plan.metadataFields());
-            return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes);
+            return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes, plan.esSourceOptions());
         }
 
     }
@@ -312,6 +311,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 childrenOutput.addAll(output);
             }
 
+            if (plan instanceof Aggregate agg) {
+                return resolveAggregate(agg, childrenOutput);
+            }
+
             if (plan instanceof Drop d) {
                 return resolveDrop(d, childrenOutput);
             }
@@ -336,7 +339,60 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveMvExpand(p, childrenOutput);
             }
 
-            return plan.transformExpressionsUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+            return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+        }
+
+        private LogicalPlan resolveAggregate(Aggregate a, List<Attribute> childrenOutput) {
+            // if the grouping is resolved but the aggs are not, use the former to resolve the latter
+            // e.g. STATS a ... GROUP BY a = x + 1
+            Holder<Boolean> changed = new Holder<>(false);
+            List<Expression> groupings = a.groupings();
+            // first resolve groupings since the aggs might refer to them
+            // trying to globally resolve unresolved attributes will lead to some being marked as unresolvable
+            if (Resolvables.resolved(groupings) == false) {
+                List<Expression> newGroupings = new ArrayList<>(groupings.size());
+                for (Expression g : groupings) {
+                    Expression resolved = g.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+                    if (resolved != g) {
+                        changed.set(true);
+                    }
+                    newGroupings.add(resolved);
+                }
+                groupings = newGroupings;
+                if (changed.get()) {
+                    a = new EsqlAggregate(a.source(), a.child(), newGroupings, a.aggregates());
+                    changed.set(false);
+                }
+            }
+
+            if (a.expressionsResolved() == false && Resolvables.resolved(groupings)) {
+                AttributeMap<Expression> resolved = new AttributeMap<>();
+                for (Expression e : groupings) {
+                    Attribute attr = Expressions.attribute(e);
+                    if (attr != null) {
+                        resolved.put(attr, attr);
+                    }
+                }
+                List<Attribute> resolvedList = NamedExpressions.mergeOutputAttributes(new ArrayList<>(resolved.keySet()), childrenOutput);
+                List<NamedExpression> newAggregates = new ArrayList<>();
+
+                for (NamedExpression aggregate : a.aggregates()) {
+                    var agg = (NamedExpression) aggregate.transformUp(UnresolvedAttribute.class, ua -> {
+                        Expression ne = ua;
+                        Attribute maybeResolved = maybeResolveAttribute(ua, resolvedList);
+                        if (maybeResolved != null) {
+                            changed.set(true);
+                            ne = maybeResolved;
+                        }
+                        return ne;
+                    });
+                    newAggregates.add(agg);
+                }
+
+                a = changed.get() ? new EsqlAggregate(a.source(), a.child(), groupings, newAggregates) : a;
+            }
+
+            return a;
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {
@@ -663,59 +719,30 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
-            return plan.transformExpressionsUp(
+            return plan.transformExpressionsOnly(
                 UnresolvedFunction.class,
                 uf -> resolveFunction(uf, context.configuration(), context.functionRegistry())
             );
         }
-    }
 
-    /**
-     * Rule that removes duplicate projects - this is done as a separate rule to allow
-     * full validation of the node before looking at the duplication.
-     * The duplication needs to be addressed to avoid ambiguity errors from commands further down
-     * the line.
-     */
-    private static class RemoveDuplicateProjections extends BaseAnalyzerRule {
-
-        @Override
-        protected boolean skipResolved() {
-            return false;
-        }
-
-        @Override
-        protected LogicalPlan doRule(LogicalPlan plan) {
-            if (plan.resolved()) {
-                if (plan instanceof Aggregate agg) {
-                    plan = removeAggDuplicates(agg);
+        public static org.elasticsearch.xpack.ql.expression.function.Function resolveFunction(
+            UnresolvedFunction uf,
+            Configuration configuration,
+            FunctionRegistry functionRegistry
+        ) {
+            org.elasticsearch.xpack.ql.expression.function.Function f = null;
+            if (uf.analyzed()) {
+                f = uf;
+            } else {
+                String functionName = functionRegistry.resolveAlias(uf.name());
+                if (functionRegistry.functionExists(functionName) == false) {
+                    f = uf.missing(functionName, functionRegistry.listFunctions());
+                } else {
+                    FunctionDefinition def = functionRegistry.resolveFunction(functionName);
+                    f = uf.buildResolved(configuration, def);
                 }
             }
-            return plan;
-        }
-
-        private static LogicalPlan removeAggDuplicates(Aggregate agg) {
-            var groupings = agg.groupings();
-            var newGroupings = new LinkedHashSet<>(groupings);
-            // reuse existing objects
-            groupings = newGroupings.size() == groupings.size() ? groupings : new ArrayList<>(newGroupings);
-
-            var aggregates = agg.aggregates();
-            var newAggregates = new ArrayList<>(aggregates);
-            var nameSet = Sets.newHashSetWithExpectedSize(newAggregates.size());
-            // remove duplicates in reverse to preserve the last one appearing
-            for (int i = newAggregates.size() - 1; i >= 0; i--) {
-                var aggregate = newAggregates.get(i);
-                if (nameSet.add(aggregate.name()) == false) {
-                    newAggregates.remove(i);
-                }
-            }
-            // reuse existing objects
-            aggregates = newAggregates.size() == aggregates.size() ? aggregates : newAggregates;
-            // replace aggregate if needed
-            agg = (groupings == agg.groupings() && newAggregates == agg.aggregates())
-                ? agg
-                : new Aggregate(agg.source(), agg.child(), groupings, aggregates);
-            return agg;
+            return f;
         }
     }
 

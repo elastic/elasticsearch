@@ -42,6 +42,7 @@ public class CohereEmbeddingsExecutableRequestCreator implements ExecutableReque
 
     @Override
     public Runnable create(
+        String query,
         List<String> input,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,

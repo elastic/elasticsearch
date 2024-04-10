@@ -37,6 +37,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
@@ -67,7 +68,6 @@ public class QueryRewriteContext {
         final MapperService mapperService,
         final MappingLookup mappingLookup,
         final Map<String, MappedFieldType> runtimeMappings,
-        final Predicate<String> allowedFields,
         final IndexSettings indexSettings,
         final Index fullyQualifiedIndex,
         final Predicate<String> indexNameMatcher,
@@ -84,7 +84,6 @@ public class QueryRewriteContext {
         this.mappingLookup = Objects.requireNonNull(mappingLookup);
         this.allowUnmappedFields = indexSettings == null || indexSettings.isDefaultAllowUnmappedFields();
         this.runtimeMappings = runtimeMappings;
-        this.allowedFields = allowedFields;
         this.indexSettings = indexSettings;
         this.fullyQualifiedIndex = fullyQualifiedIndex;
         this.indexNameMatcher = indexNameMatcher;
@@ -102,7 +101,6 @@ public class QueryRewriteContext {
             null,
             MappingLookup.EMPTY,
             Collections.emptyMap(),
-            null,
             null,
             null,
             null,
@@ -318,35 +316,45 @@ public class QueryRewriteContext {
      * @param pattern the field name pattern
      */
     public Set<String> getMatchingFieldNames(String pattern) {
+        Set<String> matches;
         if (runtimeMappings.isEmpty()) {
-            return mappingLookup.getMatchingFieldNames(pattern);
-        }
-        Set<String> matches = new HashSet<>(mappingLookup.getMatchingFieldNames(pattern));
-        if ("*".equals(pattern)) {
-            matches.addAll(runtimeMappings.keySet());
-        } else if (Regex.isSimpleMatchPattern(pattern) == false) {
-            // no wildcard
-            if (runtimeMappings.containsKey(pattern)) {
-                matches.add(pattern);
-            }
+            matches = mappingLookup.getMatchingFieldNames(pattern);
         } else {
-            for (String name : runtimeMappings.keySet()) {
-                if (Regex.simpleMatch(pattern, name)) {
-                    matches.add(name);
+            matches = new HashSet<>(mappingLookup.getMatchingFieldNames(pattern));
+            if ("*".equals(pattern)) {
+                matches.addAll(runtimeMappings.keySet());
+            } else if (Regex.isSimpleMatchPattern(pattern) == false) {
+                // no wildcard
+                if (runtimeMappings.containsKey(pattern)) {
+                    matches.add(pattern);
+                }
+            } else {
+                for (String name : runtimeMappings.keySet()) {
+                    if (Regex.simpleMatch(pattern, name)) {
+                        matches.add(name);
+                    }
                 }
             }
         }
-        return matches;
+        // If the field is not allowed, behave as if it is not mapped
+        return allowedFields == null ? matches : matches.stream().filter(allowedFields).collect(Collectors.toSet());
     }
 
     /**
      * @return An {@link Iterable} with key the field name and value the MappedFieldType
      */
     public Iterable<Map.Entry<String, MappedFieldType>> getAllFields() {
-        var allFromMapping = mappingLookup.getFullNameToFieldType();
-        // runtime mappings and non-runtime fields don't overlap, so we can simply concatenate the iterables here
-        return runtimeMappings.isEmpty()
+        Map<String, MappedFieldType> allFromMapping = mappingLookup.getFullNameToFieldType();
+        Set<Map.Entry<String, MappedFieldType>> allEntrySet = allowedFields == null
             ? allFromMapping.entrySet()
-            : () -> Iterators.concat(allFromMapping.entrySet().iterator(), runtimeMappings.entrySet().iterator());
+            : allFromMapping.entrySet().stream().filter(entry -> allowedFields.test(entry.getKey())).collect(Collectors.toSet());
+        if (runtimeMappings.isEmpty()) {
+            return allEntrySet;
+        }
+        Set<Map.Entry<String, MappedFieldType>> runtimeEntrySet = allowedFields == null
+            ? runtimeMappings.entrySet()
+            : runtimeMappings.entrySet().stream().filter(entry -> allowedFields.test(entry.getKey())).collect(Collectors.toSet());
+        // runtime mappings and non-runtime fields don't overlap, so we can simply concatenate the iterables here
+        return () -> Iterators.concat(allEntrySet.iterator(), runtimeEntrySet.iterator());
     }
 }

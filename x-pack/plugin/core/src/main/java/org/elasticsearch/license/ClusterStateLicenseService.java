@@ -9,7 +9,6 @@ package org.elasticsearch.license;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.internal.MutableLicenseService;
 import org.elasticsearch.license.internal.TrialLicenseVersion;
@@ -65,6 +65,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
     private final Settings settings;
 
     private final ClusterService clusterService;
+    private final FeatureService featureService;
 
     /**
      * The xpack feature state to update when license changes are made.
@@ -103,10 +104,12 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         ThreadPool threadPool,
         ClusterService clusterService,
         Clock clock,
-        XPackLicenseState xPacklicenseState
+        XPackLicenseState xPacklicenseState,
+        FeatureService featureService
     ) {
         this.settings = settings;
         this.clusterService = clusterService;
+        this.featureService = featureService;
         this.startTrialTaskQueue = clusterService.createTaskQueue(
             "license-service-start-trial",
             Priority.NORMAL,
@@ -242,10 +245,15 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
-                    final Version oldestNodeVersion = currentState.nodes().getSmallestNonClientNodeVersion();
-                    if (licenseIsCompatible(newLicense, oldestNodeVersion) == false) {
+                    int maxCompatibleLicenseVersion = LicenseUtils.getMaxCompatibleLicenseVersion();
+                    if (maxCompatibleLicenseVersion < newLicense.version()) {
                         throw new IllegalStateException(
-                            "The provided license is not compatible with node version [" + oldestNodeVersion + "]"
+                            LoggerMessageFormat.format(
+                                "The provided license is of version [{}] but this node is only compatible with version [{}] "
+                                    + "licences or older",
+                                newLicense.version(),
+                                maxCompatibleLicenseVersion
+                            )
                         );
                     }
                     Metadata currentMetadata = currentState.metadata();
@@ -265,11 +273,6 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
     private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
         clusterService.submitUnbatchedStateUpdateTask(source, task);
-    }
-
-    private static boolean licenseIsCompatible(License license, Version version) {
-        final int maxVersion = LicenseUtils.getMaxLicenseVersion(version);
-        return license.version() <= maxVersion;
     }
 
     private boolean isAllowedLicenseType(License.LicenseType type) {
@@ -341,7 +344,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         }
         startTrialTaskQueue.submitTask(
             StartTrialClusterTask.TASK_SOURCE,
-            new StartTrialClusterTask(logger, clusterService.getClusterName().value(), clock, request, listener),
+            new StartTrialClusterTask(logger, clusterService.getClusterName().value(), clock, featureService, request, listener),
             null             // TODO should pass in request.masterNodeTimeout() here
         );
     }
@@ -468,9 +471,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         // auto-generate license if no licenses ever existed or if the current license is basic and
         // needs extended or if the license signature needs to be updated. this will trigger a subsequent cluster changed event
         if (currentClusterState.getNodes().isLocalNodeElectedMaster()
-            && (noLicense
-                || LicenseUtils.licenseNeedsExtended(currentLicense)
-                || LicenseUtils.signatureNeedsUpdate(currentLicense, currentClusterState.nodes()))) {
+            && (noLicense || LicenseUtils.licenseNeedsExtended(currentLicense) || LicenseUtils.signatureNeedsUpdate(currentLicense))) {
             registerOrUpdateSelfGeneratedLicense();
         }
     }

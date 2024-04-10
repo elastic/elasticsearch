@@ -120,12 +120,7 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private List<ScheduledEvent> scheduledEvents;
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            in.readCollectionAsList(ScheduledEvent::new);
-        }
+        private final List<ScheduledEvent> scheduledEvents;
 
         public Response(List<ScheduledEvent> scheduledEvents) {
             this.scheduledEvents = scheduledEvents;

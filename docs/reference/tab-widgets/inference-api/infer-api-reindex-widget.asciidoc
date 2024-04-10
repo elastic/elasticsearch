@@ -26,6 +26,17 @@ include::infer-api-reindex.asciidoc[tag=cohere]
   </div>
   <div tabindex="0"
        role="tabpanel"
+       id="infer-api-reindex-hf-tab"
+       aria-labelledby="infer-api-reindex-hf"
+       hidden="">
+++++
+
+include::infer-api-reindex.asciidoc[tag=hugging-face]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
        id="infer-api-reindex-openai-tab"
        aria-labelledby="infer-api-reindex-openai"
        hidden="">

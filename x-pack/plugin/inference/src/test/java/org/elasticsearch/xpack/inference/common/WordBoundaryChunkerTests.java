@@ -109,7 +109,7 @@ public class WordBoundaryChunkerTests extends ESTestCase {
     }
 
     public void testWindowSpanningWords() {
-        int numWords = randomIntBetween(4, 50);
+        int numWords = randomIntBetween(4, 120);
         var input = new StringBuilder();
         for (int i = 0; i < numWords; i++) {
             input.append(i).append(' ');

@@ -64,7 +64,8 @@ public class WordBoundaryChunker {
 
         var chunks = new ArrayList<String>();
 
-        final int notOverlappingSize = chunkSize - overlap;
+        // This position in the chunk is where the next overlapping chunk will start
+        final int chunkSizeLessOverlap = chunkSize - overlap;
         int wordInChunkCount = 0;
         int nextWindowStart = 0;
 
@@ -77,7 +78,7 @@ public class WordBoundaryChunker {
             if (wordIterator.getRuleStatus() != BreakIterator.WORD_NONE) {
                 wordInChunkCount++;
 
-                if (wordInChunkCount == notOverlappingSize) {
+                if (wordInChunkCount == chunkSizeLessOverlap) {
                     nextWindowStart = boundary;
                 }
                 if (wordInChunkCount >= chunkSize) {
@@ -95,28 +96,33 @@ public class WordBoundaryChunker {
 
         wordInChunkCount = 0;
         int windowStart = nextWindowStart;
+
+        // this check is explicitly for the case where overlap == chunkSize / 2
+        // meaning the next window start occurs now before any new words are seen
+        if (chunkSizeLessOverlap - overlap == 0) {
+            nextWindowStart = boundary;
+        }
+
         boundary = wordIterator.next();
 
         // Split the remaining text into chunkSize strings.
         // Due to overlap the next chunk starting point is inside
         // the current chunk and must be track
         while (boundary != BreakIterator.DONE) {
-            // this check is explicitly for the case where overlap == chunkSize / 2
-            // meaning the next window start occurs before any new words are seen
-            if (notOverlappingSize - overlap == 0 && wordInChunkCount == 0) {
-                nextWindowStart = boundary;
-            }
-
             if (wordIterator.getRuleStatus() != BreakIterator.WORD_NONE) {
                 wordInChunkCount++;
 
-                if (wordInChunkCount == notOverlappingSize - overlap) {
+                if (wordInChunkCount == chunkSizeLessOverlap - overlap) {
                     nextWindowStart = boundary;
                 }
-                if (wordInChunkCount == notOverlappingSize) {
+                if (wordInChunkCount == chunkSizeLessOverlap) {
                     chunks.add(input.substring(windowStart, boundary));
                     wordInChunkCount = 0;
                     windowStart = nextWindowStart;
+
+                    if (chunkSizeLessOverlap - overlap == 0) {
+                        nextWindowStart = boundary;
+                    }
                 }
             }
 

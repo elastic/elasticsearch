@@ -142,8 +142,8 @@ public final class IndexPrivilege extends Privilege {
         TransportFieldCapabilitiesAction.NAME + "*",
         GetRollupIndexCapsAction.NAME + "*",
         GetCheckpointAction.NAME + "*", // transform internal action
-        "indices:monitor/get/metering/stats", //serverless only
-        "indices:admin/get/metering/stats" //serverless only
+        "indices:monitor/get/metering/stats", // serverless only
+        "indices:admin/get/metering/stats" // serverless only
     );
     private static final Automaton MANAGE_FOLLOW_INDEX_AUTOMATON = patterns(
         PutFollowAction.NAME,

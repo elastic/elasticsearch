@@ -651,6 +651,27 @@ public class NodeMetrics extends AbstractLifecycleComponent {
             )
         );
 
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.flush.total_time",
+                "The total time flushes have been executed excluding waiting time on locks",
+                "milliseconds",
+                () -> new LongWithAttributes(
+                    stats.getOrRefresh() != null ? stats.getOrRefresh().getIndices().getFlush().getTotalTimeInMillis() : 0L
+                )
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.flush.total_time_excluding_waiting",
+                "The total time flushes have been executed excluding waiting time on locks",
+                "milliseconds",
+                () -> new LongWithAttributes(
+                    stats.getOrRefresh() != null ? stats.getOrRefresh().getIndices().getFlush().getTotalTimeExcludingWaitingMillis() : 0L
+                )
+            )
+        );
     }
 
     /**
@@ -680,6 +701,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
     private NodeStats getNodeStats() {
         CommonStatsFlags flags = new CommonStatsFlags(
             CommonStatsFlags.Flag.Indexing,
+            CommonStatsFlags.Flag.Flush,
             CommonStatsFlags.Flag.Get,
             CommonStatsFlags.Flag.Search,
             CommonStatsFlags.Flag.Merge,

@@ -94,10 +94,10 @@ public class FlushStats implements Writeable, ToXContentFragment {
     }
 
     /**
-     * The total time flushes have been executed excluding waiting time on locks.
+     * The total time flushes have been executed excluding waiting time on locks (in milliseconds).
      */
-    public TimeValue getTotalTimeExcludingWaiting() {
-        return new TimeValue(totalTimeExcludingWaitingInMillis);
+    public long getTotalTimeExcludingWaitingMillis() {
+        return totalTimeExcludingWaitingInMillis;
     }
 
     @Override
@@ -109,7 +109,7 @@ public class FlushStats implements Writeable, ToXContentFragment {
         builder.humanReadableField(
             Fields.TOTAL_TIME_EXCLUDING_WAITING_IN_MILLIS,
             Fields.TOTAL_TIME_EXCLUDING_WAITING,
-            getTotalTimeExcludingWaiting()
+            new TimeValue(getTotalTimeExcludingWaitingMillis())
         );
         builder.endObject();
         return builder;

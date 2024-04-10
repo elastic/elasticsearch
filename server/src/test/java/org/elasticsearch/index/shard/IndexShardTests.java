@@ -3997,12 +3997,12 @@ public class IndexShardTests extends IndexShardTestCase {
         FlushStats flushStats = shard.flushStats();
         assertThat(
             "Flush time excluding waiting should be captured",
-            flushStats.getTotalTimeExcludingWaiting().getMillis(),
+            flushStats.getTotalTimeExcludingWaitingMillis(),
             greaterThan(0L)
         );
         assertThat(
             "Flush time excluding waiting should less than flush time with waiting",
-            flushStats.getTotalTimeExcludingWaiting().getMillis(),
+            flushStats.getTotalTimeExcludingWaitingMillis(),
             lessThan(flushStats.getTotalTime().millis())
         );
 

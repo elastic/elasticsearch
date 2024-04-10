@@ -39,6 +39,10 @@ import co.elastic.elasticsearch.stateless.autoscaling.search.SearchShardSizeColl
 import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizeCollector;
 import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizesPublisher;
 import co.elastic.elasticsearch.stateless.autoscaling.search.TransportPublishShardSizes;
+import co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler;
+import co.elastic.elasticsearch.stateless.autoscaling.search.load.SearchLoadProbe;
+import co.elastic.elasticsearch.stateless.autoscaling.search.load.SearchLoadSampler;
+import co.elastic.elasticsearch.stateless.autoscaling.search.load.TransportPublishSearchLoads;
 import co.elastic.elasticsearch.stateless.cache.ClearBlobCacheRestHandler;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
@@ -312,6 +316,7 @@ public class Stateless extends Plugin
             new ActionHandler<>(TransportPublishHeapMemoryMetrics.INSTANCE, TransportPublishHeapMemoryMetrics.class),
             new ActionHandler<>(GetAllShardSizesAction.INSTANCE, GetAllShardSizesAction.TransportGetAllShardSizes.class),
             new ActionHandler<>(GetShardSizeAction.INSTANCE, GetShardSizeAction.TransportGetShardSize.class),
+            new ActionHandler<>(TransportPublishSearchLoads.INSTANCE, TransportPublishSearchLoads.class),
 
             new ActionHandler<>(CLEAR_BLOB_CACHE_ACTION, TransportClearBlobCacheAction.class),
             new ActionHandler<>(GET_BLOB_STORE_STATS_ACTION, TransportGetBlobStoreStatsAction.class),
@@ -477,6 +482,21 @@ public class Stateless extends Plugin
 
         final ShardSizeCollector shardSizeCollector;
         if (hasSearchRole) {
+            var averageSearchLoadSampler = AverageSearchLoadSampler.create(threadPool, settings, clusterService.getClusterSettings());
+            var searchLoadProbe = new SearchLoadProbe(
+                clusterService.getClusterSettings(),
+                averageSearchLoadSampler::getSearchExecutorStats
+            );
+            var searchLoadSampler = new SearchLoadSampler(
+                client,
+                averageSearchLoadSampler,
+                searchLoadProbe::getSearchLoad,
+                EsExecutors.nodeProcessors(settings).count(),
+                clusterService.getClusterSettings(),
+                clusterService
+            );
+            clusterService.addListener(searchLoadSampler);
+            components.add(searchLoadSampler);
             var searchShardSizeCollector = new SearchShardSizeCollector(
                 clusterService.getClusterSettings(),
                 threadPool,
@@ -719,8 +739,14 @@ public class Stateless extends Plugin
             AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING,
             SearchShardSizeCollector.PUSH_INTERVAL_SETTING,
             SearchShardSizeCollector.PUSH_DELTA_THRESHOLD_SETTING,
+            SearchLoadSampler.MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING,
+            SearchLoadSampler.SAMPLING_FREQUENCY_SETTING,
+            SearchLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING,
+            AverageSearchLoadSampler.SEARCH_LOAD_SAMPLER_EWMA_ALPHA_SETTING,
             SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING,
             SearchMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING,
+            SearchLoadProbe.MAX_TIME_TO_CLEAR_QUEUE,
+            SearchLoadProbe.MAX_QUEUE_CONTRIBUTION_FACTOR,
             StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING,
             StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING,
             IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING,

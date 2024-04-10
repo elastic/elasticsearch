@@ -274,13 +274,10 @@ Autoscaling's current implementation is based on storage capacity. It does not y
 to search load. Paired with ES Cloud, autoscaling only scales upward, not downward, except for ML nodes
 that do get scaled up _and_ down.
 
-The external autoscaler, external to ES, can be found in the [elasticsearch-autoscaler][] repository.
-
 [based on user defined policies]: https://www.elastic.co/guide/en/elasticsearch/reference/current/xpack-autoscaling.html
 [deciders]: https://www.elastic.co/guide/en/elasticsearch/reference/current/autoscaling-deciders.html
 [webinar on autoscaling]: https://www.elastic.co/webinars/autoscaling-from-zero-to-production-seamlessly
 [Autoscaling APIs]: https://www.elastic.co/guide/en/elasticsearch/reference/current/autoscaling-apis.html
-[elasticsearch-autoscaler]: https://github.com/elastic/elasticsearch-autoscaler
 
 ### Plugin REST and TransportAction entrypoints
 

@@ -451,7 +451,6 @@ public class RestNodesAction extends AbstractCatAction {
             FlushStats flushStats = indicesStats == null ? null : indicesStats.getFlush();
             table.addCell(flushStats == null ? null : flushStats.getTotal());
             table.addCell(flushStats == null ? null : flushStats.getTotalTime());
-            table.addCell(flushStats == null ? null : flushStats.getTotalTimeExcludingWaiting());
 
             GetStats getStats = indicesStats == null ? null : indicesStats.getGet();
             table.addCell(getStats == null ? null : getStats.current());

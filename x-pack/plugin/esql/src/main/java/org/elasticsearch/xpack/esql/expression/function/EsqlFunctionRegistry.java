@@ -189,7 +189,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Now.class, Now::new, "now") },
             // spatial
             new FunctionDefinition[] {
-                def(SpatialCentroid.class, SpatialCentroid::new, "st_centroid"),
+                def(SpatialCentroid.class, SpatialCentroid::new, "st_centroid_agg"),
                 def(SpatialContains.class, SpatialContains::new, "st_contains"),
                 def(SpatialDisjoint.class, SpatialDisjoint::new, "st_disjoint"),
                 def(SpatialIntersects.class, SpatialIntersects::new, "st_intersects"),

@@ -2791,6 +2791,27 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * Expects
+     * Limit[1000[INTEGER]]
+     * \_Aggregate[[salary{f}#12],[salary{f}#12, salary{f}#12 AS x]]
+     *   \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     */
+    public void testEliminateDuplicateRenamedGroupings() {
+        var plan = plan("""
+            from test
+            | eval x = salary
+            | stats by salary, x
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var relation = as(agg.child(), EsRelation.class);
+
+        assertThat(Expressions.names(agg.groupings()), contains("salary"));
+        assertThat(Expressions.names(agg.aggregates()), contains("salary", "x"));
+    }
+
+    /**
      * Expected
      * Limit[2[INTEGER]]
      * \_Filter[a{r}#6 > 2[INTEGER]]

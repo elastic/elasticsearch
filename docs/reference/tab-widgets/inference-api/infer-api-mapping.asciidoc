@@ -42,7 +42,7 @@ PUT hugging-face-embeddings
       "content_embedding": { <1>
         "type": "dense_vector", <2>
         "dims": 768, <3>
-        "element_type": "byte"
+        "element_type": "float"
       },
       "content": { <4>
         "type": "text" <5>

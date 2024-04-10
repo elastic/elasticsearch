@@ -83,7 +83,7 @@ GET hugging-face-embeddings/_search
     "query_vector_builder": {
       "text_embedding": {
         "model_id": "hugging_face_embeddings",
-        "model_text": "Muscles in human body"
+        "model_text": "What's margin of error?"
       }
     },
     "k": 10,
@@ -104,39 +104,39 @@ query from the `cohere-embeddings` index sorted by their proximity to the query:
 --------------------------------------------------
 "hits": [
       {
-        "_index": "cohere-embeddings",
-        "_id": "-eFWCY4BECzWLnMZuI78",
-        "_score": 0.737484,
+        "_index": "hugging-face-embeddings",
+        "_id": "ljEfo44BiUQvMpPgT20E",
+        "_score": 0.8522128,
         "_source": {
-          "id": 1690948,
-          "content": "Oxygen is supplied to the muscles via red blood cells. Red blood cells carry hemoglobin which oxygen bonds with as the hemoglobin rich blood cells pass through the blood vessels of the lungs.The now oxygen rich blood cells carry that oxygen to the cells that are demanding it, in this case skeletal muscle cells.ther ways in which muscles are supplied with oxygen include: 1  Blood flow from the heart is increased. 2  Blood flow to your muscles in increased. 3  Blood flow from nonessential organs is transported to working muscles."
+          "id": 7960255,
+          "content": "The margin of error can be defined by either of the following equations. Margin of error = Critical value x Standard deviation of the statistic. Margin of error = Critical value x Standard error of the statistic. If you know the standard deviation of the statistic, use the first equation to compute the margin of error. Otherwise, use the second equation. Previously, we described how to compute the standard deviation and standard error."
         }
       },
       {
-        "_index": "cohere-embeddings",
-        "_id": "HuFWCY4BECzWLnMZuI_8",
-        "_score": 0.7176013,
+        "_index": "hugging-face-embeddings",
+        "_id": "lzEfo44BiUQvMpPgT20E",
+        "_score": 0.7865497,
         "_source": {
-          "id": 1692482,
-          "content": "The thoracic cavity is separated from the abdominal cavity by the  diaphragm. This is a broad flat muscle.    (muscular) diaphragm The diaphragm is a muscle that separat…e the thoracic from the abdominal cavity. The pelvis is the lowest part of the abdominal cavity and it has no physical separation from it    Diaphragm."
+          "id": 7960259,
+          "content": "1 y ou are told only the size of the sample and are asked to provide the margin of error for percentages which are not (yet) known. 2  This is typically the case when you are computing the margin of error for a survey which is going to be conducted in the future."
         }
       },
       {
-        "_index": "cohere-embeddings",
-        "_id": "IOFWCY4BECzWLnMZuI_8",
-        "_score": 0.7154432,
+        "_index": "hugging-face-embeddings1",
+        "_id": "DjEfo44BiUQvMpPgT20E",
+        "_score": 0.6229427,
         "_source": {
-          "id": 1692489,
-          "content": "Muscular Wall Separating the Abdominal and Thoracic Cavities; Thoracic Cavity of a Fetal Pig; In Mammals the Diaphragm Separates the Abdominal Cavity from the"
+          "id": 2166183,
+          "content": "1. In general, the point at which gains equal losses. 2. In options, the market price that a stock must reach for option buyers to avoid a loss if they exercise. For a call, it is the strike price plus the premium paid. For a put, it is the strike price minus the premium paid."
         }
       },
       {
-        "_index": "cohere-embeddings",
-        "_id": "C-FWCY4BECzWLnMZuI_8",
-        "_score": 0.695313,
+        "_index": "hugging-face-embeddings1",
+        "_id": "VzEfo44BiUQvMpPgT20E",
+        "_score": 0.6034223,
         "_source": {
-          "id": 1691493,
-          "content": "Burning, aching, tenderness and stiffness are just some descriptors of the discomfort you may feel in the muscles you exercised one to two days ago.For the most part, these sensations you experience after exercise are collectively known as delayed onset muscle soreness.urning, aching, tenderness and stiffness are just some descriptors of the discomfort you may feel in the muscles you exercised one to two days ago."
+          "id": 2173417,
+          "content": "How do you find the area of a circle? Can you measure the area of a circle and use that to find a value for Pi?"
         }
       },
       (...)

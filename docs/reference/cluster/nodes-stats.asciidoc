@@ -627,16 +627,6 @@ Total time spent performing flush operations.
 Total time in milliseconds
 spent performing flush operations.
 
-`total_time_excluding_waiting`::
-(<<time-units,time value>>)
-Total time spent performing flush operations excluding waiting time on locks.
-
-`total_time_excluding_waiting_in_millis`::
-(integer)
-Total time in milliseconds
-spent performing flush operations excluding waiting time on locks.
-
-
 =======
 
 `warmer`::

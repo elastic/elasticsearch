@@ -597,7 +597,7 @@ public class ConnectorSyncJobIndexService {
      * Deletes all {@link ConnectorSyncJob} documents that match a specific {@link Connector} id in the underlying index.
      * Gracefully handles non-existent sync job index.
      *
-     * @param connectorId The id of the connector to match in the sync job documents.
+     * @param connectorId The id of the {@link Connector} to match in the sync job documents.
      * @param listener    The action listener to invoke on response/failure.
      */
     public void deleteAllSyncJobsByConnectorId(String connectorId, ActionListener<BulkByScrollResponse> listener) {

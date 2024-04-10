@@ -1325,6 +1325,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             return new TypedData(data, type, name, true);
         }
 
+        /**
+         * Return a {@link TypedData} that always returns {@code null} for it's
+         * value without modifying anything else in the supplier.
+         */
+        public TypedData forceValueToNull() {
+            return new TypedData(null, type, name, forceLiteral);
+        }
+
         @Override
         public String toString() {
             if (type == DataTypes.UNSIGNED_LONG && data instanceof Long longData) {

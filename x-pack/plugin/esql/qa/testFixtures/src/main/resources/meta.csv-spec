@@ -22,7 +22,7 @@ synopsis:keyword
 "long date_extract(datePart:keyword|text, date:date)"
 "keyword date_format(?dateFormat:keyword|text, date:date)"
 "date date_parse(?datePattern:keyword|text, dateString:keyword|text)"
-"date date_trunc(interval:keyword, date:date)"
+"date date_trunc(interval:date_period|time_duration, date:date)"
 double e()
 "boolean ends_with(str:keyword|text, suffix:keyword|text)"
 "double|integer|long|unsigned_long floor(number:double|integer|long|unsigned_long)"
@@ -132,7 +132,7 @@ date_diff     |[unit, startTimestamp, endTimestamp]|["keyword|text", date, date]
 date_extract  |[datePart, date]                    |["keyword|text", date]                                                                                                            |[Part of the date to extract. Can be: aligned_day_of_week_in_month; aligned_day_of_week_in_year; aligned_week_of_month; aligned_week_of_year; ampm_of_day; clock_hour_of_ampm; clock_hour_of_day; day_of_month; day_of_week; day_of_year; epoch_day; era; hour_of_ampm; hour_of_day; instant_seconds; micro_of_day; micro_of_second; milli_of_day; milli_of_second; minute_of_day; minute_of_hour; month_of_year; nano_of_day; nano_of_second; offset_seconds; proleptic_month; second_of_day; second_of_minute; year; or year_of_era., Date expression]
 date_format   |[dateFormat, date]                  |["keyword|text", date]                                                                                                            |[A valid date pattern, Date expression]
 date_parse    |[datePattern, dateString]           |["keyword|text", "keyword|text"]                                                                                                  |[A valid date pattern, A string representing a date]
-date_trunc    |[interval, date]                    |[keyword, date]                                                                                                                   |[Interval; expressed using the timespan literal syntax., Date expression]
+date_trunc    |[interval, date]                    |["date_period|time_duration", date]                                                                                               |[Interval; expressed using the timespan literal syntax., Date expression]
 e             |null                                |null                                                                                                                              |null
 ends_with     |[str, suffix]                       |["keyword|text", "keyword|text"]                                                                                                  |[, ]
 floor         |number                              |"double|integer|long|unsigned_long"                                                                                               |[""]

@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless.cluster.coordination;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -46,6 +48,8 @@ import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
 public class StatelessElectionStrategy extends ElectionStrategy {
+    private static final Logger logger = LogManager.getLogger(StatelessElectionStrategy.class);
+
     public static final String NAME = "stateless_election_strategy";
     private static final String LEASE_BLOB = "lease";
     static final TimeValue READ_CURRENT_LEASE_TERM_RETRY_DELAY = TimeValue.timeValueMillis(200);
@@ -290,7 +294,7 @@ public class StatelessElectionStrategy extends ElectionStrategy {
     }
 
     @Override
-    public boolean nodeMayWinElection(ClusterState lastAcceptedState, DiscoveryNode node) {
+    public NodeEligibility nodeMayWinElection(ClusterState lastAcceptedState, DiscoveryNode node) {
         /*
          * Refuse to participate in elections if we are marked for shutdown.
          *
@@ -300,7 +304,9 @@ public class StatelessElectionStrategy extends ElectionStrategy {
          * want something similar in stateful ES then we'd need to allow the shutting-down nodes to win elections if there are no other
          * viable nodes.
          */
-        return super.nodeMayWinElection(lastAcceptedState, node)
-            && PluginShutdownService.shutdownNodes(lastAcceptedState).contains(node.getId()) == false;
+        if (PluginShutdownService.shutdownNodes(lastAcceptedState).contains(node.getId())) {
+            return new NodeEligibility(false, "node is ineligible for election during shutdown");
+        }
+        return super.nodeMayWinElection(lastAcceptedState, node);
     }
 }

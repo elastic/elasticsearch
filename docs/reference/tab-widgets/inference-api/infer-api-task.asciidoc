@@ -56,7 +56,7 @@ PUT _inference/text_embedding/hugging_face_embeddings <1>
 // TEST[skip:TBD]
 <1> The task type is `text_embedding` in the path and the `inference_id` which 
 is the unique identifier of the {infer} endpoint is `hugging_face_embeddings`.
-<2> A valid Hugging Face access token. You can find on the
+<2> A valid HuggingFace access token. You can find on the
 https://huggingface.co/settings/tokens[settings page of your account].
 <3> The {infer} endpoint URL you created on Hugging Face.
 

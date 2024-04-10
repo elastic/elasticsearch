@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
@@ -111,6 +112,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.Holder;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.junit.BeforeClass;
 
 import java.lang.reflect.Constructor;
@@ -3596,6 +3598,76 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * Limit[1000[INTEGER]]
      * \_EsqlProject[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
      *   \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
+     *     \_Eval[[COALESCE(MVCOUNT([1, 2][INTEGER]),0[INTEGER]) * $$COUNT$s$0{r}#26 AS s, COALESCE(MVCOUNT(314.0[DOUBLE] / 100[
+     * INTEGER]),0[INTEGER]) * $$COUNT$s$0{r}#26 AS s_expr, COALESCE(MVCOUNT(null[NULL]),0[INTEGER]) * $$COUNT$s$0{r}#26 AS s_null]]
+     *       \_Aggregate[[w{r}#10],[COUNT(*[KEYWORD]) AS $$COUNT$s$0, w{r}#10]]
+     *         \_Eval[[emp_no{f}#16 % 2[INTEGER] AS w]]
+     *           \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     */
+    public void testCountOfLiteral() {
+        var plan = plan("""
+            from test
+            | stats s = count([1,2]),
+                    s_expr = count(314.0/100),
+                    s_null = count(null)
+                    by w = emp_no % 2
+            | keep s, s_expr, s_null, w
+            """, SubstitutionOnlyOptimizer.INSTANCE);
+
+        var limit = as(plan, Limit.class);
+        var esqlProject = as(limit.child(), EsqlProject.class);
+        var project = as(esqlProject.child(), Project.class);
+        var eval = as(project.child(), Eval.class);
+        var agg = as(eval.child(), Aggregate.class);
+
+        assertThat(Expressions.names(agg.aggregates()), contains("$$COUNT$s$0", "w"));
+        var countAggLiteral = as(as(Alias.unwrap(agg.aggregates().get(0)), Count.class).field(), Literal.class);
+        assertTrue(countAggLiteral.semanticEquals(new Literal(EMPTY, StringUtils.WILDCARD, DataTypes.KEYWORD)));
+
+        var exprs = eval.fields();
+        // s == mv_count([1,2]) * count(*)
+        var s = as(exprs.get(0), Alias.class);
+        assertThat(s.name(), equalTo("s"));
+        var mul = as(s.child(), Mul.class);
+        var mvCoalesce = as(mul.left(), Coalesce.class);
+        assertThat(mvCoalesce.children().size(), equalTo(2));
+        var mvCount = as(mvCoalesce.children().get(0), MvCount.class);
+        assertThat(mvCount.fold(), equalTo(2));
+        assertThat(mvCoalesce.children().get(1).fold(), equalTo(0));
+        var count = as(mul.right(), ReferenceAttribute.class);
+        assertThat(count.name(), equalTo("$$COUNT$s$0"));
+
+        // s_expr == mv_count(314.0/100) * count(*)
+        var s_expr = as(exprs.get(1), Alias.class);
+        assertThat(s_expr.name(), equalTo("s_expr"));
+        var mul_expr = as(s_expr.child(), Mul.class);
+        var mvCoalesce_expr = as(mul_expr.left(), Coalesce.class);
+        assertThat(mvCoalesce_expr.children().size(), equalTo(2));
+        var mvCount_expr = as(mvCoalesce_expr.children().get(0), MvCount.class);
+        assertThat(mvCount_expr.fold(), equalTo(1));
+        assertThat(mvCoalesce_expr.children().get(1).fold(), equalTo(0));
+        var count_expr = as(mul_expr.right(), ReferenceAttribute.class);
+        assertThat(count_expr.name(), equalTo("$$COUNT$s$0"));
+
+        // s_null == mv_count(null) * count(*)
+        var s_null = as(exprs.get(2), Alias.class);
+        assertThat(s_null.name(), equalTo("s_null"));
+        var mul_null = as(s_null.child(), Mul.class);
+        var mvCoalesce_null = as(mul_null.left(), Coalesce.class);
+        assertThat(mvCoalesce_null.children().size(), equalTo(2));
+        var mvCount_null = as(mvCoalesce_null.children().get(0), MvCount.class);
+        assertThat(mvCount_null.field(), equalTo(NULL));
+        assertThat(mvCoalesce_null.children().get(1).fold(), equalTo(0));
+        var count_null = as(mul_null.right(), ReferenceAttribute.class);
+        assertThat(count_null.name(), equalTo("$$COUNT$s$0"));
+    }
+
+    /**
+     * Expects after running the {@link LogicalPlanOptimizer#substitutions()}:
+     *
+     * Limit[1000[INTEGER]]
+     * \_EsqlProject[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
+     *   \_Project[[s{r}#3, s_expr{r}#5, s_null{r}#7, w{r}#10]]
      *     \_Eval[[MVSUM([1, 2][INTEGER]) * $$COUNT$s$0{r}#25 AS s, MVSUM(314.0[DOUBLE] / 100[INTEGER]) * $$COUNT$s$0{r}#25 AS s
      * _expr, MVSUM(null[NULL]) * $$COUNT$s$0{r}#25 AS s_null]]
      *       \_Aggregate[[w{r}#10],[COUNT(*[KEYWORD]) AS $$COUNT$s$0, w{r}#10]]
@@ -3619,7 +3691,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var agg = as(eval.child(), Aggregate.class);
 
         var exprs = eval.fields();
-        // s = count(*) * 3
+        // s == mv_sum([1,2]) * count(*)
         var s = as(exprs.get(0), Alias.class);
         assertThat(s.name(), equalTo("s"));
         var mul = as(s.child(), Mul.class);
@@ -3628,7 +3700,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var count = as(mul.right(), ReferenceAttribute.class);
         assertThat(count.name(), equalTo("$$COUNT$s$0"));
 
-        // s_expr = count(*) * 3.14
+        // s_expr == mv_sum(314.0/100) * count(*)
         var s_expr = as(exprs.get(1), Alias.class);
         assertThat(s_expr.name(), equalTo("s_expr"));
         var mul_expr = as(s_expr.child(), Mul.class);
@@ -3637,7 +3709,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var count_expr = as(mul_expr.right(), ReferenceAttribute.class);
         assertThat(count_expr.name(), equalTo("$$COUNT$s$0"));
 
-        // s_null = null
+        // s_null == mv_sum(null) * count(*)
         var s_null = as(exprs.get(2), Alias.class);
         assertThat(s_null.name(), equalTo("s_null"));
         var mul_null = as(s_null.child(), Mul.class);
@@ -3646,8 +3718,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var count_null = as(mul_null.right(), ReferenceAttribute.class);
         assertThat(count_null.name(), equalTo("$$COUNT$s$0"));
 
-        var count_agg = as(Alias.unwrap(agg.aggregates().get(0)), Count.class);
-        assertThat(count_agg.children().get(0), instanceOf(Literal.class));
+        var countAgg = as(Alias.unwrap(agg.aggregates().get(0)), Count.class);
+        assertThat(countAgg.children().get(0), instanceOf(Literal.class));
         var w = as(Alias.unwrap(agg.groupings().get(0)), ReferenceAttribute.class);
         assertThat(w.name(), equalTo("w"));
     }

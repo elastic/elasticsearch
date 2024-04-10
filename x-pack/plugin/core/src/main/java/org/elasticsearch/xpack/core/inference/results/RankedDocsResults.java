@@ -192,6 +192,9 @@ public class RankedDocsResults implements InferenceServiceResults {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
+        sb.append("RankedDocsResults@");
+        sb.append(Integer.toHexString(hashCode()));
+        sb.append("\n");
         for (RankedDoc rankedDoc : rankedDocs) {
             sb.append(rankedDoc.toString());
         }

@@ -12,9 +12,12 @@ import com.maxmind.geoip2.model.AbstractResponse;
 
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.ingest.geoip.stats.CacheStats;
 
 import java.net.InetAddress;
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 /**
@@ -39,6 +42,9 @@ final class GeoIpCache {
     };
 
     private final Cache<CacheKey, AbstractResponse> cache;
+    private final AtomicLong hitsTimeInNanos = new AtomicLong(0);
+    private final AtomicLong missesTimeInNanos = new AtomicLong(0);
+    private final AtomicLong storeQueryTimeInNanos = new AtomicLong(0);
 
     // package private for testing
     GeoIpCache(long maxSize) {
@@ -56,18 +62,27 @@ final class GeoIpCache {
     ) {
         // can't use cache.computeIfAbsent due to the elevated permissions for the jackson (run via the cache loader)
         CacheKey cacheKey = new CacheKey(ip, databasePath);
+        long cacheStart = System.nanoTime();
         // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
         AbstractResponse response = cache.get(cacheKey);
+        long cacheRequestTime = System.nanoTime() - cacheStart;
 
         // populate the cache for this key, if necessary
         if (response == null) {
+            long start = System.nanoTime();
             response = retrieveFunction.apply(ip);
+            long databaseRequestTime = System.nanoTime() - start;
+            storeQueryTimeInNanos.addAndGet(databaseRequestTime);
+            missesTimeInNanos.addAndGet(cacheRequestTime);
+            missesTimeInNanos.addAndGet(databaseRequestTime);
             // if the response from the database was null, then use the no-result sentinel value
             if (response == null) {
                 response = NO_RESULT;
             }
             // store the result or no-result in the cache
             cache.put(cacheKey, response);
+        } else {
+            hitsTimeInNanos.addAndGet(cacheRequestTime);
         }
 
         if (response == NO_RESULT) {
@@ -97,6 +112,24 @@ final class GeoIpCache {
 
     public int count() {
         return cache.count();
+    }
+
+    /**
+     * Returns stats about this cache as of this moment. There is no guarantee that the counts reconcile (for example hits + misses = count)
+     * because no locking is performed when requesting these stats.
+     * @return Current stats about this cache
+     */
+    public CacheStats getCacheStats() {
+        Cache.CacheStats stats = cache.stats();
+        return new CacheStats(
+            cache.count(),
+            stats.getHits(),
+            stats.getMisses(),
+            stats.getEvictions(),
+            TimeValue.nsecToMSec(hitsTimeInNanos.get()),
+            TimeValue.nsecToMSec(missesTimeInNanos.get()),
+            TimeValue.nsecToMSec(storeQueryTimeInNanos.get())
+        );
     }
 
     /**

@@ -8,6 +8,12 @@
       Cohere
     </button>
     <button role="tab"
+            aria-selected="true"
+            aria-controls="infer-api-reindex-hf-tab"
+            id="infer-api-reindex-hf">
+      HuggingFace
+    </button>
+    <button role="tab"
             aria-selected="false"
             aria-controls="infer-api-reindex-openai-tab"
             id="infer-api-reindex-openai">

@@ -8,6 +8,12 @@
       Cohere
     </button>
     <button role="tab"
+            aria-selected="true"
+            aria-controls="infer-api-ingest-hf-tab"
+            id="infer-api-ingest-hf">
+      HuggingFace
+    </button>
+    <button role="tab"
             aria-selected="false"
             aria-controls="infer-api-ingest-openai-tab"
             id="infer-api-ingest-openai">

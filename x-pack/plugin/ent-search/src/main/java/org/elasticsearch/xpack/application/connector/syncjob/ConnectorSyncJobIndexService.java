@@ -594,7 +594,7 @@ public class ConnectorSyncJobIndexService {
     }
 
     /**
-     * Deletes all {@link ConnectorSyncJob} documents that match a specific connector id in the underlying index.
+     * Deletes all {@link ConnectorSyncJob} documents that match a specific {@link Connector} id in the underlying index.
      * Gracefully handles non-existent sync job index.
      *
      * @param connectorId The id of the connector to match in the sync job documents.

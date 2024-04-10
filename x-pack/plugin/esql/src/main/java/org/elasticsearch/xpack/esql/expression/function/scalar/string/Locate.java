@@ -28,8 +28,8 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 /**
  * Locate function, given a string 'a' and a substring 'b', it returns the index of the first occurrence of the substring 'b' in 'a'.
@@ -80,7 +80,7 @@ public class Locate extends EsqlScalarFunction implements OptionalArgument {
             return resolution;
         }
 
-        return start == null ? TypeResolution.TYPE_RESOLVED : isInteger(start, sourceText(), THIRD);
+        return start == null ? TypeResolution.TYPE_RESOLVED : isType(start, dt -> dt == DataTypes.INTEGER, sourceText(), THIRD, "integer");
     }
 
     @Override

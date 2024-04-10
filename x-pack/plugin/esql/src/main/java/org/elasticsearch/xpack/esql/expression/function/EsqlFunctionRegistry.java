@@ -108,6 +108,7 @@ import org.elasticsearch.xpack.ql.session.Configuration;
 
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
@@ -245,7 +246,21 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
         return name.toLowerCase(Locale.ROOT);
     }
 
-    public record ArgSignature(String name, String[] type, String description, boolean optional) {}
+    public record ArgSignature(String name, String[] type, String description, boolean optional) {
+        @Override
+        public String toString() {
+            return "ArgSignature{"
+                + "name='"
+                + name
+                + "', type="
+                + Arrays.toString(type)
+                + ", description='"
+                + description
+                + "', optional="
+                + optional
+                + '}';
+        }
+    }
 
     public record FunctionDescription(
         String name,

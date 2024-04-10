@@ -117,6 +117,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.CARTESIAN_SHAPE;
@@ -136,7 +137,8 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 
 public final class EsqlFunctionRegistry extends FunctionRegistry {
 
-    private static Map<Class<? extends Function>, FunctionDefinition> resolvedFunctions = new LinkedHashMap<>();
+    private static final Map<Class<? extends Function>, List<DataType>> dataTypesForStringLiteralConversion = new LinkedHashMap<>();
+
     private static final Map<DataType, Integer> dataTypeCastingPriority;
 
     static {
@@ -163,6 +165,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
 
     public EsqlFunctionRegistry() {
         register(functions());
+        buildDataTypesForStringLiteralConversion(functions());
     }
 
     EsqlFunctionRegistry(FunctionDefinition... functions) {
@@ -411,15 +414,19 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
         return constructor.getAnnotation(FunctionInfo.class);
     }
 
-    @Override
-    public FunctionDefinition getResolvedFunctionDefinition(Class<? extends Function> clazz) {
-        return resolvedFunctions.get(clazz);
+    private void buildDataTypesForStringLiteralConversion(FunctionDefinition[]... groupFunctions) {
+        for (FunctionDefinition[] group : groupFunctions) {
+            for (FunctionDefinition def : group) {
+                FunctionDescription signature = description(def);
+                dataTypesForStringLiteralConversion.put(
+                    def.clazz(),
+                    signature.args().stream().map(EsqlFunctionRegistry.ArgSignature::targetDataType).collect(Collectors.toList())
+                );
+            }
+        }
     }
 
-    @Override
-    public void addResolvedFunction(FunctionDefinition def) {
-        if (resolvedFunctions.containsKey(def.clazz()) == false) {
-            resolvedFunctions.put(def.clazz(), def);
-        }
+    public List<DataType> getDataTypeForStringLiteralConversion(Class<? extends Function> clazz) {
+        return dataTypesForStringLiteralConversion.get(clazz);
     }
 }

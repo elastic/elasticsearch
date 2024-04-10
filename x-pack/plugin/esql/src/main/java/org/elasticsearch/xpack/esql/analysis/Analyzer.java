@@ -753,7 +753,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 } else {
                     FunctionDefinition def = functionRegistry.resolveFunction(functionName);
                     f = uf.buildResolved(configuration, def);
-                    functionRegistry.addResolvedFunction(def);
                 }
             }
             return f;
@@ -843,10 +842,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class ImplicitCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
-            return plan.transformExpressionsUp(ScalarFunction.class, e -> ImplicitCasting.cast(e, context.functionRegistry()));
+            return plan.transformExpressionsUp(
+                ScalarFunction.class,
+                e -> ImplicitCasting.cast(e, (EsqlFunctionRegistry) context.functionRegistry())
+            );
         }
 
-        private static Expression cast(ScalarFunction f, FunctionRegistry registry) {
+        private static Expression cast(ScalarFunction f, EsqlFunctionRegistry registry) {
             if (f instanceof EsqlScalarFunction esf) {
                 return processScalarFunction(esf, registry);
             }
@@ -858,19 +860,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return f;
         }
 
-        private static List<DataType> dataTypeOfStringLiteralConversion(EsqlScalarFunction f, FunctionRegistry registry) {
-            FunctionDefinition def = registry.getResolvedFunctionDefinition(f.getClass());
-            if (def == null) {
-                return new ArrayList<>();
-            }
-            EsqlFunctionRegistry.FunctionDescription signature = EsqlFunctionRegistry.description(def);
-            return signature.args().stream().map(EsqlFunctionRegistry.ArgSignature::targetDataType).collect(Collectors.toList());
-        }
-
-        private static Expression processScalarFunction(EsqlScalarFunction f, FunctionRegistry registry) {
+        private static Expression processScalarFunction(EsqlScalarFunction f, EsqlFunctionRegistry registry) {
             List<Expression> args = f.arguments();
-            List<DataType> targetDataTypes = dataTypeOfStringLiteralConversion(f, registry);
-            if (targetDataTypes.isEmpty()) {
+            List<DataType> targetDataTypes = registry.getDataTypeForStringLiteralConversion(f.getClass());
+            if (targetDataTypes == null || targetDataTypes.isEmpty()) {
                 return f;
             }
             List<Expression> newChildren = new ArrayList<>(args.size());

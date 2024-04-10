@@ -460,10 +460,4 @@ public class FunctionRegistry {
         }
         return (Boolean) extras[0];
     }
-
-    public void addResolvedFunction(FunctionDefinition def) {}
-
-    public FunctionDefinition getResolvedFunctionDefinition(Class<? extends Function> clazz) {
-        return null;
-    }
 }

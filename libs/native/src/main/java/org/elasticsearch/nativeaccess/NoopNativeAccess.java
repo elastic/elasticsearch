@@ -32,12 +32,12 @@ class NoopNativeAccess implements NativeAccess {
     @Override
     public Zstd getZstd() {
         logger.warn("cannot compress with zstd because native access is not available");
-        return null;
+        throw new NoopNativeAccessException("Cannot compress with zstd because native access is not available");
     }
 
     @Override
     public CloseableByteBuffer newBuffer(int len) {
         logger.warn("cannot allocate buffer because native access is not available");
-        return null;
+        throw new NoopNativeAccessException("Cannot allocate buffer because native access is not available");
     }
 }

@@ -2176,9 +2176,10 @@ public class Security extends Plugin
     List<ReservedClusterStateHandler<?>> reservedClusterStateHandlers() {
         // If security is disabled we never call the plugin createComponents
         if (enabled == false) {
-            return Collections.emptyList();
+            return List.of();
+        } else {
+            return List.of(reservedRoleMappingAction.get());
         }
-        return List.of(reservedRoleMappingAction.get());
     }
 
     // visible for testing

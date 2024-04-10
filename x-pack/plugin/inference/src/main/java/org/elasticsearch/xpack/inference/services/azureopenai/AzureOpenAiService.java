@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -171,11 +172,12 @@ public class AzureOpenAiService extends SenderService {
     }
 
     @Override
-    public void doInfer(
+    protected void doInfer(
         Model model,
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
+        TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         if (model instanceof AzureOpenAiModel == false) {
@@ -187,7 +189,7 @@ public class AzureOpenAiService extends SenderService {
         var actionCreator = new AzureOpenAiActionCreator(getSender(), getServiceComponents(), azureOpenAiModel);
 
         var action = azureOpenAiModel.accept(actionCreator, taskSettings);
-        action.execute(new DocumentsOnlyInput(input), listener);
+        action.execute(new DocumentsOnlyInput(input), timeout, listener);
     }
 
     @Override
@@ -197,6 +199,7 @@ public class AzureOpenAiService extends SenderService {
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
+        TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         throw new UnsupportedOperationException("Azure OpenAI service does not support inference with query input");
@@ -205,18 +208,19 @@ public class AzureOpenAiService extends SenderService {
     @Override
     protected void doChunkedInfer(
         Model model,
-        @Nullable String query,
+        String query,
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
+        TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         ActionListener<InferenceServiceResults> inferListener = listener.delegateFailureAndWrap(
             (delegate, response) -> delegate.onResponse(translateToChunkedResults(input, response))
         );
 
-        doInfer(model, input, taskSettings, inputType, inferListener);
+        doInfer(model, input, taskSettings, inputType, timeout, inferListener);
     }
 
     private static List<ChunkedInferenceServiceResults> translateToChunkedResults(

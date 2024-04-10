@@ -92,6 +92,11 @@ public final class LongScriptFieldData extends IndexNumericFieldData {
         return true;
     }
 
+    @Override
+    protected boolean isIndexed() {
+        return false;
+    }
+
     public static class LongScriptLeafFieldData extends LeafLongFieldData {
         private final LongScriptDocValues longScriptDocValues;
         protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;

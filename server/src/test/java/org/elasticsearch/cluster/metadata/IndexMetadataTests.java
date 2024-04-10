@@ -83,7 +83,7 @@ public class IndexMetadataTests extends ESTestCase {
         IndexMetadataStats indexStats = randomBoolean() ? randomIndexStats(numShard) : null;
         Double indexWriteLoadForecast = randomBoolean() ? randomDoubleBetween(0.0, 128, true) : null;
         Long shardSizeInBytesForecast = randomBoolean() ? randomLongBetween(1024, 10240) : null;
-        Map<String, InferenceFieldMetadata> dynamicFields = randomInferenceFields();
+        Map<String, InferenceFieldMetadata> inferenceFields = randomInferenceFields();
 
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(indexSettings(numShard, numberOfReplicas).put("index.version.created", 1))
@@ -109,7 +109,7 @@ public class IndexMetadataTests extends ESTestCase {
             .stats(indexStats)
             .indexWriteLoadForecast(indexWriteLoadForecast)
             .shardSizeInBytesForecast(shardSizeInBytesForecast)
-            .putInferenceFields(dynamicFields)
+            .putInferenceFields(inferenceFields)
             .build();
         assertEquals(system, metadata.isSystem());
 

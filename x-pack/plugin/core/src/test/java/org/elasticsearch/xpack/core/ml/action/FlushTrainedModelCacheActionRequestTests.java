@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
@@ -31,7 +30,6 @@ public class FlushTrainedModelCacheActionRequestTests extends AbstractBWCWireSer
     protected Writeable.Reader<Request> instanceReader() {
         return Request::new;
     }
-
 
     @Override
     protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {

@@ -199,6 +199,7 @@ public class Constants {
         "cluster:admin/xpack/ml/inference/put",
         "cluster:admin/xpack/ml/inference/model_aliases/put",
         "cluster:admin/xpack/ml/inference/model_aliases/delete",
+        "cluster:admin/xpack/ml/inference/clear_model_cache",
         "cluster:admin/xpack/ml/job/close",
         "cluster:admin/xpack/ml/job/data/post",
         "cluster:admin/xpack/ml/job/delete",
@@ -603,7 +604,6 @@ public class Constants {
         "internal:cluster/coordination_diagnostics/info",
         "internal:cluster/formation/info",
         "internal:gateway/local/started_shards",
-        "internal:admin/indices/prevalidate_shard_path",
-        "internal:admin/xpack/ml/inference/clear_model_cache"
+        "internal:admin/indices/prevalidate_shard_path"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
 }

@@ -41,17 +41,16 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
     @Override
     public TransformState transform(Object source, TransformState prevState) throws Exception {
         @SuppressWarnings("unchecked")
-        List<ExpressionRoleMapping> roleMappings = validate((List<PutRoleMappingRequest>) source);
-        if (roleMappings.equals(prevState.state().custom(RoleMappingMetadata.TYPE, RoleMappingMetadata.EMPTY).getRoleMappings())) {
+        Set<ExpressionRoleMapping> roleMappings = validate((List<PutRoleMappingRequest>) source);
+        RoleMappingMetadata newRoleMappingMetadata = new RoleMappingMetadata(roleMappings);
+        if (newRoleMappingMetadata.equals(RoleMappingMetadata.getFromClusterState(prevState.state()))) {
             return prevState;
-        } else if (roleMappings.isEmpty()) {
-            // prefer no role mapping custom metadata rather than the empty role mapping metadata
-            ClusterState newState = prevState.state().copyAndUpdate(b -> b.removeCustom(RoleMappingMetadata.TYPE));
-            return new TransformState(newState, Set.of());
         } else {
-            ClusterState newState = prevState.state()
-                .copyAndUpdate(b -> b.putCustom(RoleMappingMetadata.TYPE, new RoleMappingMetadata(roleMappings)));
-            Set<String> entities = roleMappings.stream().map(ExpressionRoleMapping::getName).collect(Collectors.toSet());
+            ClusterState newState = newRoleMappingMetadata.updateClusterState(prevState.state());
+            Set<String> entities = newRoleMappingMetadata.getRoleMappings()
+                .stream()
+                .map(ExpressionRoleMapping::getName)
+                .collect(Collectors.toSet());
             return new TransformState(newState, entities);
         }
     }
@@ -70,7 +69,7 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
         return result;
     }
 
-    private List<ExpressionRoleMapping> validate(List<PutRoleMappingRequest> roleMappings) {
+    private Set<ExpressionRoleMapping> validate(List<PutRoleMappingRequest> roleMappings) {
         var exceptions = new ArrayList<Exception>();
         for (var roleMapping : roleMappings) {
             // File based defined role mappings are allowed to use MetadataUtils.RESERVED_PREFIX
@@ -84,6 +83,6 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
             exceptions.forEach(illegalArgumentException::addSuppressed);
             throw illegalArgumentException;
         }
-        return roleMappings.stream().map(PutRoleMappingRequest::getMapping).toList();
+        return roleMappings.stream().map(PutRoleMappingRequest::getMapping).collect(Collectors.toUnmodifiableSet());
     }
 }

@@ -298,7 +298,7 @@ public class XPackPlugin extends XPackClientPlugin
         return metadata.custom(LicensesMetadata.TYPE) != null
             || metadata.custom(MlMetadata.TYPE) != null
             || metadata.custom(WatcherMetadata.TYPE) != null
-            || clusterState.custom(RoleMappingMetadata.TYPE) != null
+            || RoleMappingMetadata.getFromClusterState(clusterState).isEmpty() == false
             || clusterState.custom(TokenMetadata.TYPE) != null
             || metadata.custom(TransformMetadata.TYPE) != null;
     }

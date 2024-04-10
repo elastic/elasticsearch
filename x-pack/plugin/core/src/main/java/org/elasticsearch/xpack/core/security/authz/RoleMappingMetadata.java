@@ -22,27 +22,44 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRole
 
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
-public class RoleMappingMetadata extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
-
-    public static final RoleMappingMetadata EMPTY = new RoleMappingMetadata(List.of());
+public final class RoleMappingMetadata extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
 
     public static final String TYPE = "role_mappings";
 
-    List<ExpressionRoleMapping> roleMappings;
+    private static final RoleMappingMetadata EMPTY = new RoleMappingMetadata(Set.of());
 
-    public RoleMappingMetadata(List<ExpressionRoleMapping> roleMappings) {
+    public static RoleMappingMetadata getFromClusterState(ClusterState clusterState) {
+        return clusterState.custom(RoleMappingMetadata.TYPE, RoleMappingMetadata.EMPTY);
+    }
+
+    private final Set<ExpressionRoleMapping> roleMappings;
+
+    public RoleMappingMetadata(Set<ExpressionRoleMapping> roleMappings) {
         this.roleMappings = roleMappings;
     }
 
     public RoleMappingMetadata(StreamInput input) throws IOException {
-        this.roleMappings = input.readCollectionAsList(ExpressionRoleMapping::new);
+        this.roleMappings = input.readCollectionAsSet(ExpressionRoleMapping::new);
     }
 
-    public List<ExpressionRoleMapping> getRoleMappings() {
+    public Set<ExpressionRoleMapping> getRoleMappings() {
         return this.roleMappings;
+    }
+
+    public boolean isEmpty() {
+        return roleMappings.isEmpty();
+    }
+
+    public ClusterState updateClusterState(ClusterState clusterState) {
+        if (isEmpty()) {
+            // prefer no role mapping custom metadata to the empty role mapping metadata
+            return clusterState.copyAndUpdate(b -> b.removeCustom(RoleMappingMetadata.TYPE));
+        } else {
+            return clusterState.copyAndUpdate(b -> b.putCustom(RoleMappingMetadata.TYPE, this));
+        }
     }
 
     public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput streamInput) throws IOException {

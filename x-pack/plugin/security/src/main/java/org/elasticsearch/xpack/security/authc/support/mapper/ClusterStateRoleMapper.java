@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRole
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -60,8 +59,8 @@ public class ClusterStateRoleMapper implements UserRoleMapper, ClusterStateListe
         clearCacheListeners.add(realm::expireAll);
     }
 
-    private List<ExpressionRoleMapping> getMappings() {
-        return clusterService.state().custom(RoleMappingMetadata.TYPE, RoleMappingMetadata.EMPTY).getRoleMappings();
+    private Set<ExpressionRoleMapping> getMappings() {
+        return RoleMappingMetadata.getFromClusterState(clusterService.state()).getRoleMappings();
     }
 
     private void notifyClearCache() {
@@ -71,8 +70,8 @@ public class ClusterStateRoleMapper implements UserRoleMapper, ClusterStateListe
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (false == Objects.equals(
-            event.previousState().custom(RoleMappingMetadata.TYPE, RoleMappingMetadata.EMPTY),
-            event.state().custom(RoleMappingMetadata.TYPE, RoleMappingMetadata.EMPTY)
+            RoleMappingMetadata.getFromClusterState(event.previousState()),
+            RoleMappingMetadata.getFromClusterState(event.state())
         )) {
             notifyClearCache();
         }

@@ -39,7 +39,6 @@ public class TrainedModelCacheMetadataService implements ClusterStateListener {
 
     public TrainedModelCacheMetadataService(ClusterService clusterService, Client client) {
         this.client = new OriginSettingClient(client, ML_ORIGIN);
-        ;
         TrainedModelCacheMetadataUpdateTaskExecutor metadataUpdateTaskExecutor = new TrainedModelCacheMetadataUpdateTaskExecutor();
         this.metadataUpdateTaskQueue = clusterService.createTaskQueue(TASK_QUEUE_NAME, Priority.IMMEDIATE, metadataUpdateTaskExecutor);
         clusterService.addListener(this);

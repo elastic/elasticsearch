@@ -30,6 +30,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.junit.After;
 import org.junit.Before;
 
@@ -79,12 +80,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     private static final String MAPPING_ALL_TYPES;
 
     static {
-        try (InputStream mappingPropertiesStream = RestEsqlTestCase.class.getResourceAsStream("/mapping-all-types.json")) {
-            String properties = new String(mappingPropertiesStream.readAllBytes(), StandardCharsets.UTF_8);
-            MAPPING_ALL_TYPES = "{\"mappings\": " + properties + "}";
-        } catch (IOException ex) {
-            throw new RuntimeException(ex);
-        }
+        String properties = EsqlTestUtils.loadUtf8TextFile("/mapping-all-types.json");
+        MAPPING_ALL_TYPES = "{\"mappings\": " + properties + "}";
     }
 
     private static final String DOCUMENT_TEMPLATE = """
@@ -325,7 +322,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             matchesMap().entry("values", List.of(List.of(1))).entry("columns", List.of(Map.of("name", "min(value)", "type", "long")))
         );
 
-        builder = new RequestObjectBuilder().query(fromIndex() + " | stats min(value) by group");
+        builder = new RequestObjectBuilder().query(fromIndex() + " | stats min(value) by group | sort group, `min(value)`");
         result = runEsql(builder);
         assertMap(
             result,
@@ -481,7 +478,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         bulkLoadTestData(count);
 
         Request request = prepareRequest(SYNC);
-        var query = fromIndex() + " | eval asInt = to_int(case(integer % 2 == 0, to_str(integer), keyword)) | limit 1000";
+        var query = fromIndex()
+            + " | sort integer asc | eval asInt = to_int(case(integer % 2 == 0, to_str(integer), keyword)) | limit 1000";
         var mediaType = attachBody(new RequestObjectBuilder().query(query).build(), request);
 
         RequestOptions.Builder options = request.getOptions().toBuilder();
@@ -496,7 +494,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         int expectedWarnings = Math.min(count / 2, 20);
         var warnings = response.getWarnings();
         assertThat(warnings.size(), is(1 + expectedWarnings));
-        var firstHeader = "Line 1:36: evaluation of [to_int(case(integer %25 2 == 0, to_str(integer), keyword))] failed, "
+        var firstHeader = "Line 1:55: evaluation of [to_int(case(integer %25 2 == 0, to_str(integer), keyword))] failed, "
             + "treating result as null. Only first 20 failures recorded.";
         assertThat(warnings.get(0), containsString(firstHeader));
         for (int i = 1; i <= expectedWarnings; i++) {

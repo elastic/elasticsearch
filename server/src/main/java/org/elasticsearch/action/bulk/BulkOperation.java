@@ -49,6 +49,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -74,16 +75,16 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final long startTimeNanos;
     private final ClusterStateObserver observer;
     private final Map<String, IndexNotFoundException> indicesThatCannotBeCreated;
-    private final String executorName;
+    private final Executor executor;
     private final LongSupplier relativeTimeProvider;
     private final FailureStoreDocumentConverter failureStoreDocumentConverter;
-    private IndexNameExpressionResolver indexNameExpressionResolver;
-    private NodeClient client;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final NodeClient client;
 
     BulkOperation(
         Task task,
         ThreadPool threadPool,
-        String executorName,
+        Executor executor,
         ClusterService clusterService,
         BulkRequest bulkRequest,
         NodeClient client,
@@ -97,7 +98,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this(
             task,
             threadPool,
-            executorName,
+            executor,
             clusterService,
             bulkRequest,
             client,
@@ -115,7 +116,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     BulkOperation(
         Task task,
         ThreadPool threadPool,
-        String executorName,
+        Executor executor,
         ClusterService clusterService,
         BulkRequest bulkRequest,
         NodeClient client,
@@ -137,7 +138,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.listener = listener;
         this.startTimeNanos = startTimeNanos;
         this.indicesThatCannotBeCreated = indicesThatCannotBeCreated;
-        this.executorName = executorName;
+        this.executor = executor;
         this.relativeTimeProvider = relativeTimeProvider;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
@@ -543,7 +544,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             }
 
             private void dispatchRetry() {
-                threadPool.executor(executorName).submit(operation);
+                executor.execute(operation);
             }
         });
     }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.results;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingFloatResults;
 
 import java.io.IOException;

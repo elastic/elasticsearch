@@ -25,7 +25,7 @@ public class NamedWriteableRegistryTests extends ESTestCase {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {}
+        public void writeTo(StreamOutput out) {}
     }
 
     public void testEmpty() throws IOException {
@@ -39,7 +39,7 @@ public class NamedWriteableRegistryTests extends ESTestCase {
         assertNotNull(reader.read(null));
     }
 
-    public void testDuplicates() throws IOException {
+    public void testDuplicates() {
         NamedWriteableRegistry.Entry entry = new NamedWriteableRegistry.Entry(NamedWriteable.class, "test", DummyNamedWriteable::new);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -48,16 +48,32 @@ public class NamedWriteableRegistryTests extends ESTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains("is already registered"));
     }
 
-    public void testUnknownCategory() throws IOException {
-        NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> registry.getReader(NamedWriteable.class, "test"));
-        assertTrue(e.getMessage(), e.getMessage().contains("Unknown NamedWriteable category ["));
+    public void testUnknownCategory() {
+        try {
+            NamedWriteableRegistry.ignoreDeserializationErrors = true;
+            NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.emptyList());
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> registry.getReader(NamedWriteable.class, "test")
+            );
+            assertTrue(e.getMessage(), e.getMessage().contains("Unknown NamedWriteable category ["));
+        } finally {
+            NamedWriteableRegistry.ignoreDeserializationErrors = false;
+        }
     }
 
-    public void testUnknownName() throws IOException {
-        NamedWriteableRegistry.Entry entry = new NamedWriteableRegistry.Entry(NamedWriteable.class, "test", DummyNamedWriteable::new);
-        NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.singletonList(entry));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> registry.getReader(NamedWriteable.class, "dne"));
-        assertTrue(e.getMessage(), e.getMessage().contains("Unknown NamedWriteable ["));
+    public void testUnknownName() {
+        try {
+            NamedWriteableRegistry.ignoreDeserializationErrors = true;
+            NamedWriteableRegistry.Entry entry = new NamedWriteableRegistry.Entry(NamedWriteable.class, "test", DummyNamedWriteable::new);
+            NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.singletonList(entry));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> registry.getReader(NamedWriteable.class, "dne")
+            );
+            assertTrue(e.getMessage(), e.getMessage().contains("Unknown NamedWriteable ["));
+        } finally {
+            NamedWriteableRegistry.ignoreDeserializationErrors = false;
+        }
     }
 }

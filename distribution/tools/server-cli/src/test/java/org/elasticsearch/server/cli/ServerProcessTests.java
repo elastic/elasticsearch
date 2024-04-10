@@ -381,7 +381,7 @@ public class ServerProcessTests extends ESTestCase {
         forceStopCallback = blockMain::countDown;
         server.forceStop();
 
-        assertThat(process.main.isDone(), is(true)); // stop should have waited
+        assertThat(process.main.isCancelled(), is(true)); // stop should have waited
     }
 
     public void testWaitFor() throws Exception {

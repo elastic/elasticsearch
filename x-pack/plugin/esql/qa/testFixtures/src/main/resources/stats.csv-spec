@@ -1585,3 +1585,27 @@ c:l | k1:i | languages:i
 21  | 5    | 5
 10  | null | null
 ;
+
+minWithSortExpression1#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees | STATS min = min(salary) by languages | SORT min + languages;
+
+     min:i     |   languages:i   
+25324          |5              
+25976          |1              
+26436          |3              
+27215          |4              
+29175          |2              
+28336          |null           
+;
+
+minWithSortExpression2#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees | STATS min = min(salary) by languages | SORT min + CASE(languages == 5, 655, languages);
+
+     min:i     |   languages:i   
+25976          |1              
+25324          |5              
+26436          |3              
+27215          |4              
+29175          |2              
+28336          |null           
+;

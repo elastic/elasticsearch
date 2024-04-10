@@ -4,8 +4,8 @@
 <titleabbrev>GeoIP stats</titleabbrev>
 ++++
 
-Gets download statistics for GeoIP2 databases used with the
-<<geoip-processor,`geoip` processor>>.
+Gets statistics about the <<geoip-processor,`geoip` processor>>, including
+download statistics for GeoIP2 databases used with it.
 
 [source,console]
 ----
@@ -60,7 +60,7 @@ Total number of database updates skipped.
 
 `nodes`::
 (object)
-Downloaded GeoIP2 databases for each node.
+Statistics for each node.
 +
 .Properties of `nodes`
 [%collapsible%open]

@@ -42,6 +42,8 @@ dependencies {
 
 tasks.named("compileJava").configure {
   options.compilerArgs.addAll(["-s", "${projectDir}/src/main/generated"])
+  // IntelliJ sticks generated files here and we can't stop it....
+  exclude { it.file.toString().startsWith("${projectDir}/src/main/generated-src/generated") }
 }
 
 tasks.named("test").configure {
@@ -111,7 +113,7 @@ pluginManager.withPlugin('com.diffplug.spotless') {
       // for some reason "${outputPath}/EsqlBaseParser*.java" does not match the same files...
       targetExclude "src/main/java/org/elasticsearch/xpack/esql/parser/EsqlBaseLexer*.java",
         "src/main/java/org/elasticsearch/xpack/esql/parser/EsqlBaseParser*.java",
-        "src/main/java/generated/**/*.java"
+        "src/main/generated/**/*.java"
     }
   }
 }

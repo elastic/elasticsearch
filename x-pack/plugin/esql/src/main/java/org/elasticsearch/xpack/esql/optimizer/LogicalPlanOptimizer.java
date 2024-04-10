@@ -419,7 +419,12 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // Agg with underlying Project (group by on sub-queries)
             if (plan instanceof Aggregate a) {
                 if (child instanceof Project p) {
-                    plan = new Aggregate(a.source(), p.child(), a.groupings(), combineProjections(a.aggregates(), p.projections()));
+                    plan = new Aggregate(
+                        a.source(),
+                        p.child(),
+                        combineUpperGroupingsAndLowerProjections(a.groupings(), p.projections()),
+                        combineProjections(a.aggregates(), p.projections())
+                    );
                 }
             }
 
@@ -480,6 +485,27 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 replaced.add((NamedExpression) trimNonTopLevelAliases(replacedExp));
             }
             return replaced;
+        }
+
+        private static List<Expression> combineUpperGroupingsAndLowerProjections(
+            List<? extends Expression> upperGroupings,
+            List<? extends NamedExpression> lowerProjections
+        ) {
+            // Collect the alias map for resolving the source (f1 = 1, f2 = f1, etc..)
+            AttributeMap<Expression> aliases = new AttributeMap<>();
+            for (NamedExpression ne : lowerProjections) {
+                // record the alias
+                aliases.put(ne.toAttribute(), Alias.unwrap(ne));
+            }
+
+            // Replace any matching attribute directly with the aliased attribute from the projection.
+            AttributeSet replaced = new AttributeSet();
+            for (Expression expr : upperGroupings) {
+                // All substitutions happen before; groupings must be attributes at this point.
+                Attribute attr = (Attribute) expr;
+                replaced.add((Attribute) aliases.resolve(attr, attr));
+            }
+            return replaced.stream().map(attr -> (Expression) attr).toList();
         }
 
         /**

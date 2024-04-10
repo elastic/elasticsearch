@@ -101,10 +101,8 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         final String name = parser.currentName();
 
         XContentParser.Token token = parser.nextToken();
-        if (token == null) {
-            // no data...
-            return null;
-        }
+        Objects.requireNonNull(token, "Expected InferenceFieldMetadata but got EOF");
+
         String currentFieldName = null;
         String inferenceId = null;
         List<String> inputFields = new ArrayList<>();

@@ -21,7 +21,6 @@
                     searchable   .+   \n
                     version      .+   \n
                     compound     .+   \n
-                    codec        .+   \n
                $/
 ---
 "Test cat segments output":

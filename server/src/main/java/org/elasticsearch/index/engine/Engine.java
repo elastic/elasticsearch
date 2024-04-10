@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -1081,14 +1082,17 @@ public abstract class Engine implements Closeable {
         if (codec instanceof PerFieldMapperCodec) {
             try {
                 // potentially expensive with many fields
-                for (FieldInfo fieldInfos : segmentReader.getFieldInfos()) {
-                    String name = fieldInfos.getName();
-                    if (fieldInfos.getVectorDimension() > 0) {
-                        KnnVectorsFormat knnVectorsFormatForField = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField(name);
-                        if (segment.knnFormats == null) {
-                            segment.knnFormats = new HashMap<>();
+                FieldInfos fieldInfos = segmentReader.getFieldInfos();
+                if (fieldInfos.hasVectors()) {
+                    for (FieldInfo fieldInfo : fieldInfos) {
+                        String name = fieldInfo.getName();
+                        if (fieldInfo.getVectorDimension() > 0) {
+                            KnnVectorsFormat knnVectorsFormatForField = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField(name);
+                            if (segment.knnFormats == null) {
+                                segment.knnFormats = new HashMap<>();
+                            }
+                            segment.knnFormats.put(name, knnVectorsFormatForField.getName());
                         }
-                        segment.knnFormats.put(name, knnVectorsFormatForField.getName());
                     }
                 }
             } catch (AlreadyClosedException ace) {

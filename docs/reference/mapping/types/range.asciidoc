@@ -262,6 +262,7 @@ PUT idx
     }
   }
 }
+
 PUT idx/_doc/1
 {
   "my_range": [
@@ -323,6 +324,7 @@ PUT idx
     }
   }
 }
+
 PUT idx/_doc/1
 {
   "my_range": [
@@ -341,12 +343,11 @@ Will become:
 [source,console-result]
 ----
 {
-  "my_range": [
-    {
+  "my_range": {
       "gte": "10.0.0.0",
       "lte": "10.0.0.255"
     }
-  ]
+
 }
 ----
 // TEST[s/^/{"_source":/ s/\n$/}/]
@@ -363,6 +364,7 @@ PUT idx
     }
   }
 }
+
 PUT idx/_doc/1
 {
   "my_range": {
@@ -398,6 +400,7 @@ PUT idx
     }
   }
 }
+
 PUT idx/_doc/1
 {
   "my_range": [

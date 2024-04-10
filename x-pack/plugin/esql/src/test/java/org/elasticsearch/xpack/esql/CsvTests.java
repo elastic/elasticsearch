@@ -471,13 +471,6 @@ public class CsvTests extends ESTestCase {
                 normalized.add(normW);
             }
         }
-        List<Pattern> expectedWarningsRegex = testCase.expectedWarningsRegex();
-        if (expectedWarningsRegex.isEmpty()) {
-            assertMap(normalized.stream().sorted().toList(), matchesList(testCase.expectedWarnings(true).stream().sorted().toList()));
-        } else {
-            for (String warning : normalized) {
-                assertTrue("Unexpected warning: " + warning, expectedWarningsRegex.stream().anyMatch(x -> x.matcher(warning).matches()));
-            }
-        }
+        EsqlTestUtils.assertWarnings(normalized, testCase.expectedWarnings(true), testCase.expectedWarningsRegex());
     }
 }

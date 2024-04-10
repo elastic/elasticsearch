@@ -209,8 +209,8 @@ The same, using regular expressions:
 addLongOverflow
 row max = 9223372036854775807 | eval sum = max + 1 | keep sum;
 
-warningRegex:Line 1:44: evaluation of \[max + 1\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 1:44: java.lang.ArithmeticException: long overflow
+warningRegex:Line \d+:\d+: evaluation of \[max + 1\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line \d+:\d+: java.lang.ArithmeticException: long overflow
 
 sum:long
 null

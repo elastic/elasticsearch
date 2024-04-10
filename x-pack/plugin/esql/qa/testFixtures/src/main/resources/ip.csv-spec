@@ -172,8 +172,8 @@ required_feature: esql.mv_warn
 
 from hosts | eval eq=case(ip0==ip1, ip0, ip1) | where eq in (ip0, ip1) | keep card, host, ip0, ip1, eq;
 ignoreOrder:true
-warningRegex:Line .*: evaluation of \[ip0==ip1\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line .*: evaluation of \[eq in \(ip0, ip1\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line \d+:\d+: evaluation of \[ip0==ip1\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line \d+:\d+: evaluation of \[eq in \(ip0, ip1\)\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 card:keyword   |host:keyword   |ip0:ip                                                                           |ip1:ip                   |eq:ip

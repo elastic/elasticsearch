@@ -905,13 +905,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         if (shouldLog()) {
             LOGGER.info("RESPONSE warnings (after muted)={}", warnings);
         }
-        if (allowedWarningsRegex.isEmpty()) {
-            assertMap(warnings.stream().sorted().toList(), matchesList(allowedWarnings.stream().sorted().toList()));
-        } else {
-            for (String warning : warnings) {
-                assertTrue("Unexpected warning: " + warning, allowedWarningsRegex.stream().anyMatch(x -> x.matcher(warning).matches()));
-            }
-        }
+        EsqlTestUtils.assertWarnings(warnings, allowedWarnings, allowedWarningsRegex);
         return response.getEntity();
     }
 

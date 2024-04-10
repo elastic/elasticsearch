@@ -38,6 +38,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelCacheMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
@@ -750,6 +751,12 @@ public class ModelLoadingService implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        if (event.changedCustomMetadataSet().contains(TrainedModelCacheMetadata.NAME)) {
+            // Flush all models cache since we are detecting some changes.
+            logger.debug("Trained model cache invalidated on node [{}]", event.state().nodes().getLocalNodeId());
+            localModelCache.invalidateAll();
+        }
+
         final boolean prefetchModels = event.state().nodes().getLocalNode().isIngestNode();
         // If we are not prefetching models and there were no model alias changes, don't bother handling the changes
         if ((prefetchModels == false)

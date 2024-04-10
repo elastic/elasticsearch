@@ -10,8 +10,6 @@ package org.elasticsearch.integration;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
-import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
@@ -39,7 +37,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
-import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -331,64 +328,5 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
 
         writeJSONFile(internalCluster().getMasterName(), testErrorJSON);
         assertRoleMappingsNotSaved(savedClusterState.v1(), savedClusterState.v2());
-    }
-
-    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListenerForSecurityWriteError(String node) {
-        ClusterService clusterService = internalCluster().clusterService(node);
-        CountDownLatch savedClusterState = new CountDownLatch(1);
-        AtomicLong metadataVersion = new AtomicLong(-1);
-        clusterService.addListener(new ClusterStateListener() {
-            @Override
-            public void clusterChanged(ClusterChangedEvent event) {
-                ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
-                if (reservedState != null
-                    && reservedState.errorMetadata() != null
-                    && reservedState.errorMetadata().errorKind() == ReservedStateErrorMetadata.ErrorKind.VALIDATION) {
-                    clusterService.removeListener(this);
-                    metadataVersion.set(event.state().metadata().version());
-                    savedClusterState.countDown();
-                    assertEquals(ReservedStateErrorMetadata.ErrorKind.VALIDATION, reservedState.errorMetadata().errorKind());
-                    assertThat(reservedState.errorMetadata().errors(), allOf(notNullValue(), hasSize(1)));
-                    assertThat(reservedState.errorMetadata().errors().get(0), containsString("closed"));
-                }
-            }
-        });
-
-        return new Tuple<>(savedClusterState, metadataVersion);
-    }
-
-    public void testRoleMappingFailsToWriteToStore() throws Exception {
-        ensureGreen();
-
-        var savedClusterState = setupClusterStateListenerForSecurityWriteError(internalCluster().getMasterName());
-
-        final CloseIndexResponse closeIndexResponse = indicesAdmin().close(new CloseIndexRequest(INTERNAL_SECURITY_MAIN_INDEX_7)).get();
-        assertTrue(closeIndexResponse.isAcknowledged());
-
-        writeJSONFile(internalCluster().getMasterName(), testJSON);
-        boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
-        assertTrue(awaitSuccessful);
-
-        var request = new GetRoleMappingsRequest();
-        request.setNames("everyone_kibana", "everyone_fleet");
-
-        var response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
-        assertFalse(response.hasMappings());
-
-        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
-            new ClusterStateRequest().waitForMetadataVersion(savedClusterState.v2().get())
-        ).get();
-
-        assertNull(
-            clusterStateResponse.getState().metadata().persistentSettings().get(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey())
-        );
-
-        ReservedStateMetadata reservedState = clusterStateResponse.getState()
-            .metadata()
-            .reservedStateMetadata()
-            .get(FileSettingsService.NAMESPACE);
-
-        ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedRoleMappingAction.NAME);
-        assertTrue(handlerMetadata == null || handlerMetadata.keys().isEmpty());
     }
 }

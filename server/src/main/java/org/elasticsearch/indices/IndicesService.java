@@ -1724,23 +1724,7 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, Supplier<Index[]> resolvedLocalIndicesSupplier) {
-        Objects.requireNonNull(resolvedLocalIndicesSupplier);
-
-        Supplier<Map<String, IndexMetadata>> indexMetadataMapSupplier = () -> {
-            Map<String, IndexMetadata> indexMetadataMap = new HashMap<>();
-            for (Index index : resolvedLocalIndicesSupplier.get()) {
-                IndexMetadata indexMetadata = clusterService.state().metadata().index(index);
-                if (indexMetadata == null) {
-                    throw new IndexNotFoundException(index);
-                }
-
-                indexMetadataMap.put(index.getName(), indexMetadata);
-            }
-
-            return indexMetadataMap;
-        };
-
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, Supplier<Map<Index, IndexMetadata>> indexMetadataMapSupplier) {
         return new QueryRewriteContext(parserConfig, client, nowInMillis, indexMetadataMapSupplier);
     }
 

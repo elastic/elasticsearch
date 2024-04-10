@@ -12,6 +12,7 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -21,7 +22,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
@@ -37,6 +37,7 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -54,6 +55,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
     public static final ActionType<ExplainResponse> TYPE = new ActionType<>("indices:data/read/explain");
     private final SearchService searchService;
+    private final RemoteClusterService remoteClusterService;
 
     @Inject
     public TransportExplainAction(
@@ -75,22 +77,16 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             threadPool.executor(ThreadPool.Names.GET)
         );
         this.searchService = searchService;
+        this.remoteClusterService = transportService.getRemoteClusterService();
     }
 
     @Override
     protected void doExecute(Task task, ExplainRequest request, ActionListener<ExplainResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
 
-        // Use a supplier to resolve local indices (in this case, index) lazily since it will be necessary only when the query rewrite
-        // context needs to build the index metadata map
-        final AtomicReference<Index[]> resolvedLocalIndices = new AtomicReference<>();
-        Supplier<Index[]> resolvedLocalIndicesSupplier = () -> {
-            resolvedLocalIndices.compareAndSet(
-                null,
-                new Index[] { indexNameExpressionResolver.concreteSingleIndex(clusterService.state(), request) }
-            );
-            return resolvedLocalIndices.get();
-        };
+        // Use a supplier to create the ResolvedIndices instance as necessary since it is only used to build the index metadata map for
+        // the query rewrite context
+        Supplier<ResolvedIndices> resolvedIndicesSupplier = createResolvedIndicesSupplier(request);
 
         ActionListener<QueryBuilder> rewriteListener = listener.delegateFailureAndWrap((l, rewrittenQuery) -> {
             request.query(rewrittenQuery);
@@ -101,7 +97,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         LongSupplier timeProvider = () -> request.nowInMillis;
         Rewriteable.rewriteAndFetch(
             request.query(),
-            searchService.getRewriteContext(timeProvider, resolvedLocalIndicesSupplier),
+            searchService.getRewriteContext(timeProvider, () -> resolvedIndicesSupplier.get().getLocalIndexMetadata()),
             rewriteListener
         );
     }
@@ -192,5 +188,22 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         return indexService.getIndexSettings().isSearchThrottled()
             ? threadPool.executor(ThreadPool.Names.SEARCH_THROTTLED)
             : super.getExecutor(request, shardId);
+    }
+
+    private Supplier<ResolvedIndices> createResolvedIndicesSupplier(ExplainRequest request) {
+        final AtomicReference<ResolvedIndices> resolvedIndices = new AtomicReference<>();
+        return () -> {
+            resolvedIndices.compareAndSet(
+                null,
+                ResolvedIndices.resolveWithIndicesRequest(
+                    request,
+                    clusterService.state(),
+                    indexNameExpressionResolver,
+                    remoteClusterService,
+                    request.nowInMillis
+                )
+            );
+            return resolvedIndices.get();
+        };
     }
 }

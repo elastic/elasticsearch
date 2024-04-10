@@ -14,7 +14,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -26,18 +28,30 @@ import java.util.Map;
 import java.util.Set;
 
 public class ResolvedIndices {
+    @Nullable
+    private final SearchContextId searchContextId;
     private final Map<String, OriginalIndices> remoteClusterIndices;
     private final OriginalIndices localIndices;
     private final Map<Index, IndexMetadata> localIndexMetadata;
 
-    public ResolvedIndices(
+    private ResolvedIndices(
         Map<String, OriginalIndices> remoteClusterIndices,
         OriginalIndices localIndices,
-        Map<Index, IndexMetadata> localIndexMetadata
+        Map<Index, IndexMetadata> localIndexMetadata,
+        @Nullable SearchContextId searchContextId
     ) {
         this.remoteClusterIndices = Collections.unmodifiableMap(remoteClusterIndices);
         this.localIndices = localIndices;
         this.localIndexMetadata = Collections.unmodifiableMap(localIndexMetadata);
+        this.searchContextId = searchContextId;
+    }
+
+    private ResolvedIndices(
+        Map<String, OriginalIndices> remoteClusterIndices,
+        OriginalIndices localIndices,
+        Map<Index, IndexMetadata> localIndexMetadata
+    ) {
+        this(remoteClusterIndices, localIndices, localIndexMetadata, null);
     }
 
     public Map<String, OriginalIndices> getRemoteClusterIndices() {
@@ -50,6 +64,15 @@ public class ResolvedIndices {
 
     public Map<Index, IndexMetadata> getLocalIndexMetadata() {
         return localIndexMetadata;
+    }
+
+    public Index[] getConcreteLocalIndices() {
+        return localIndexMetadata.keySet().toArray(Index[]::new);
+    }
+
+    @Nullable
+    public SearchContextId getSearchContextId() {
+        return searchContextId;
     }
 
     public static ResolvedIndices resolveWithIndicesRequest(
@@ -69,7 +92,7 @@ public class ResolvedIndices {
             ? Index.EMPTY_ARRAY
             : indexNameExpressionResolver.concreteIndices(clusterState, localIndices, startTimeInMillis);
 
-        return new ResolvedIndices(remoteClusterIndices, localIndices, resolveLocalIndexMetadata(concreteLocalIndices, clusterState));
+        return new ResolvedIndices(remoteClusterIndices, localIndices, resolveLocalIndexMetadata(concreteLocalIndices, clusterState, true));
     }
 
     public static ResolvedIndices resolveWithPIT(
@@ -97,7 +120,9 @@ public class ResolvedIndices {
             localIndices = new OriginalIndices(localIndicesSet.stream().map(Index::getName).toArray(String[]::new), indicesOptions);
         } else {
             concreteLocalIndices = Index.EMPTY_ARRAY;
-            localIndices = OriginalIndices.NONE;
+            // Set localIndices to null because a non-null value with a null or 0-length indices array will be resolved to all indices by
+            // IndexNameExpressionResolver
+            localIndices = null;
         }
 
         Map<String, OriginalIndices> remoteClusterIndices = new HashMap<>();
@@ -109,13 +134,30 @@ public class ResolvedIndices {
             remoteClusterIndices.put(entry.getKey(), originalIndices);
         }
 
-        return new ResolvedIndices(remoteClusterIndices, localIndices, resolveLocalIndexMetadata(concreteLocalIndices, clusterState));
+        // Don't fail on missing indices to handle point-in-time requests that reference deleted indices
+        return new ResolvedIndices(
+            remoteClusterIndices,
+            localIndices,
+            resolveLocalIndexMetadata(concreteLocalIndices, clusterState, false),
+            searchContextId
+        );
     }
 
-    private static Map<Index, IndexMetadata> resolveLocalIndexMetadata(Index[] concreteLocalIndices, ClusterState clusterState) {
+    private static Map<Index, IndexMetadata> resolveLocalIndexMetadata(
+        Index[] concreteLocalIndices,
+        ClusterState clusterState,
+        boolean failOnMissingIndex
+    ) {
         Map<Index, IndexMetadata> localIndexMetadata = new HashMap<>();
         for (Index index : concreteLocalIndices) {
             IndexMetadata indexMetadata = clusterState.metadata().index(index);
+            if (indexMetadata == null) {
+                if (failOnMissingIndex) {
+                    throw new IndexNotFoundException(index);
+                }
+                continue;
+            }
+
             localIndexMetadata.put(index, indexMetadata);
         }
 

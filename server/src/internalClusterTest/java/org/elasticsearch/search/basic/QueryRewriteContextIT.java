@@ -21,6 +21,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -39,6 +40,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
@@ -120,6 +122,8 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
         assertIndexMetadataMapSet(prepareSearch(indices), Set.of(indices), r -> {});
         assertIndexMetadataMapSet(prepareSearch("test*"), Set.of(indices), r -> {});
         assertIndexMetadataMapSet(prepareSearch("alias"), Set.of(indices), r -> {});
+
+        // TODO: Test with point-in-time request
     }
 
     public void testIndexMetadataMap_TransportExplainAction() {
@@ -166,9 +170,12 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
                 // Later QueryRewriteContext instances received, such as the one generated in the can-match phase, will have an empty index
                 // metadata map.
                 if (queryRewriteContext.getClass() == QueryRewriteContext.class && gotQueryRewriteContext.getAndSet(true) == false) {
-                    Map<String, IndexMetadata> indexMetadataMap = queryRewriteContext.getIndexMetadataMap();
+                    Map<Index, IndexMetadata> indexMetadataMap = queryRewriteContext.getIndexMetadataMap();
                     assertThat(indexMetadataMap, notNullValue());
-                    assertThat(indexMetadataMap.keySet(), equalTo(expectedIndices));
+                    assertThat(
+                        indexMetadataMap.keySet().stream().map(Index::getName).collect(Collectors.toSet()),
+                        equalTo(expectedIndices)
+                    );
                 }
 
                 return super.doRewrite(queryRewriteContext);

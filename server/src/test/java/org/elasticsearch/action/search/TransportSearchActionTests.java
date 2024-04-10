@@ -18,6 +18,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.OriginalIndicesTests;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.ActionFilter;
@@ -148,6 +149,16 @@ public class TransportSearchActionTests extends ESTestCase {
         ShardId shardId = new ShardId(index, id);
         List<ShardRouting> shardRoutings = GroupShardsIteratorTests.randomShardRoutings(shardId);
         return new SearchShardIterator(clusterAlias, shardId, shardRoutings, originalIndices);
+    }
+
+    private static ResolvedIndices createMockResolvedIndices(
+        OriginalIndices localIndices,
+        Map<String, OriginalIndices> remoteIndicesByCluster
+    ) {
+        ResolvedIndices mockResolvedIndices = mock(ResolvedIndices.class);
+        when(mockResolvedIndices.getLocalIndices()).thenReturn(localIndices);
+        when(mockResolvedIndices.getRemoteClusterIndices()).thenReturn(remoteIndicesByCluster);
+        return mockResolvedIndices;
     }
 
     public void testMergeShardsIterators() {
@@ -492,6 +503,8 @@ public class TransportSearchActionTests extends ESTestCase {
         boolean local = randomBoolean();
         OriginalIndices localIndices = local ? new OriginalIndices(new String[] { "index" }, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
+        ResolvedIndices mockResolvedIndices = createMockResolvedIndices(localIndices, remoteIndicesByCluster);
+
         try (
             MockTransportService service = MockTransportService.createNewService(
                 settings,
@@ -520,8 +533,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 task,
                 parentTaskId,
                 searchRequest,
-                localIndices,
-                remoteIndicesByCluster,
+                mockResolvedIndices,
                 new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true, alias -> randomBoolean()),
                 timeProvider,
                 emptyReduceContextBuilder(),
@@ -562,6 +574,8 @@ public class TransportSearchActionTests extends ESTestCase {
         OriginalIndices localIndices = local ? new OriginalIndices(new String[] { "index" }, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
         int totalClusters = numClusters + (local ? 1 : 0);
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
+        ResolvedIndices mockResolvedIndices = createMockResolvedIndices(localIndices, remoteIndicesByCluster);
+
         try (
             MockTransportService service = MockTransportService.createNewService(
                 settings,
@@ -593,8 +607,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     task,
                     parentTaskId,
                     searchRequest,
-                    localIndices,
-                    remoteIndicesByCluster,
+                    mockResolvedIndices,
                     new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true, alias -> randomBoolean()),
                     timeProvider,
                     emptyReduceContextBuilder(),
@@ -650,8 +663,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     task,
                     parentTaskId,
                     searchRequest,
-                    localIndices,
-                    remoteIndicesByCluster,
+                    mockResolvedIndices,
                     new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true, alias -> randomBoolean()),
                     timeProvider,
                     emptyReduceContextBuilder(),
@@ -704,6 +716,8 @@ public class TransportSearchActionTests extends ESTestCase {
         boolean local = randomBoolean();
         OriginalIndices localIndices = local ? new OriginalIndices(new String[] { "index" }, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
+        ResolvedIndices mockResolvedIndices = createMockResolvedIndices(localIndices, remoteIndicesByCluster);
+
         try (
             MockTransportService service = MockTransportService.createNewService(
                 settings,
@@ -733,8 +747,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     task,
                     parentTaskId,
                     searchRequest,
-                    localIndices,
-                    remoteIndicesByCluster,
+                    mockResolvedIndices,
                     new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true, alias -> randomBoolean()),
                     timeProvider,
                     emptyReduceContextBuilder(),
@@ -776,6 +789,8 @@ public class TransportSearchActionTests extends ESTestCase {
         OriginalIndices localIndices = local ? new OriginalIndices(new String[] { "index" }, SearchRequest.DEFAULT_INDICES_OPTIONS) : null;
         int totalClusters = numClusters + (local ? 1 : 0);
         TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
+        ResolvedIndices mockResolvedIndices = createMockResolvedIndices(localIndices, remoteIndicesByCluster);
+
         try (
             MockTransportService service = MockTransportService.createNewService(
                 settings,
@@ -827,8 +842,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     task,
                     parentTaskId,
                     searchRequest,
-                    localIndices,
-                    remoteIndicesByCluster,
+                    mockResolvedIndices,
                     new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true, alias -> randomBoolean()),
                     timeProvider,
                     emptyReduceContextBuilder(),
@@ -879,8 +893,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     task,
                     parentTaskId,
                     searchRequest,
-                    localIndices,
-                    remoteIndicesByCluster,
+                    mockResolvedIndices,
                     new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true, alias -> randomBoolean()),
                     timeProvider,
                     emptyReduceContextBuilder(),
@@ -953,8 +966,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     task,
                     parentTaskId,
                     searchRequest,
-                    localIndices,
-                    remoteIndicesByCluster,
+                    mockResolvedIndices,
                     new SearchResponse.Clusters(localIndices, remoteIndicesByCluster, true, alias -> randomBoolean()),
                     timeProvider,
                     emptyReduceContextBuilder(),

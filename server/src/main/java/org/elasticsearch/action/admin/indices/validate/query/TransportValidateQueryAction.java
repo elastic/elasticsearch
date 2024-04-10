@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.indices.validate.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -28,7 +28,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
@@ -40,7 +39,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 
@@ -90,13 +88,9 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         request.nowInMillis = System.currentTimeMillis();
         LongSupplier timeProvider = () -> request.nowInMillis;
 
-        // Use a supplier to resolve local indices lazily since it will be necessary only when the query rewrite context needs to build the
-        // index metadata map
-        final AtomicReference<Index[]> resolvedLocalIndices = new AtomicReference<>();
-        Supplier<Index[]> resolvedLocalIndicesSupplier = () -> {
-            resolvedLocalIndices.compareAndSet(null, resolveLocalIndices(request));
-            return resolvedLocalIndices.get();
-        };
+        // Use a supplier to create the ResolvedIndices instance as necessary since it is only used to build the index metadata map for
+        // the query rewrite context
+        Supplier<ResolvedIndices> resolvedIndicesSupplier = createResolvedIndicesSupplier(request);
 
         ActionListener<org.elasticsearch.index.query.QueryBuilder> rewriteListener = ActionListener.wrap(rewrittenQuery -> {
             request.query(rewrittenQuery);
@@ -126,7 +120,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         } else {
             Rewriteable.rewriteAndFetch(
                 request.query(),
-                searchService.getRewriteContext(timeProvider, resolvedLocalIndicesSupplier),
+                searchService.getRewriteContext(timeProvider, () -> resolvedIndicesSupplier.get().getLocalIndexMetadata()),
                 rewriteListener
             );
         }
@@ -248,15 +242,20 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         }
     }
 
-    private Index[] resolveLocalIndices(ValidateQueryRequest request) {
-        OriginalIndices localIndices = remoteClusterService.groupIndices(request.indicesOptions(), request.indices())
-            .get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-
-        if (localIndices == null) {
-            return Index.EMPTY_ARRAY;
-        }
-
-        // TODO: Need to provide start time?
-        return indexNameExpressionResolver.concreteIndices(clusterService.state(), localIndices);
+    private Supplier<ResolvedIndices> createResolvedIndicesSupplier(ValidateQueryRequest request) {
+        final AtomicReference<ResolvedIndices> resolvedIndices = new AtomicReference<>();
+        return () -> {
+            resolvedIndices.compareAndSet(
+                null,
+                ResolvedIndices.resolveWithIndicesRequest(
+                    request,
+                    clusterService.state(),
+                    indexNameExpressionResolver,
+                    remoteClusterService,
+                    request.nowInMillis
+                )
+            );
+            return resolvedIndices.get();
+        };
     }
 }

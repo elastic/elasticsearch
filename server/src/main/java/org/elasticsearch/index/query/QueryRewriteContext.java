@@ -62,7 +62,7 @@ public class QueryRewriteContext {
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
-    private final Supplier<Map<String, IndexMetadata>> indexMetadataMapSupplier;
+    private final Supplier<Map<Index, IndexMetadata>> indexMetadataMapSupplier;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -78,7 +78,7 @@ public class QueryRewriteContext {
         final ValuesSourceRegistry valuesSourceRegistry,
         final BooleanSupplier allowExpensiveQueries,
         final ScriptCompiler scriptService,
-        final Supplier<Map<String, IndexMetadata>> indexMetadataMapSupplier
+        final Supplier<Map<Index, IndexMetadata>> indexMetadataMapSupplier
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -121,7 +121,7 @@ public class QueryRewriteContext {
         final XContentParserConfiguration parserConfiguration,
         final Client client,
         final LongSupplier nowInMillis,
-        final Supplier<Map<String, IndexMetadata>> indexMetadataMapSupplier
+        final Supplier<Map<Index, IndexMetadata>> indexMetadataMapSupplier
     ) {
         this(
             parserConfiguration,
@@ -388,8 +388,8 @@ public class QueryRewriteContext {
         return () -> Iterators.concat(allEntrySet.iterator(), runtimeEntrySet.iterator());
     }
 
-    public Map<String, IndexMetadata> getIndexMetadataMap() {
-        Map<String, IndexMetadata> indexMetadataMap = indexMetadataMapSupplier != null ? indexMetadataMapSupplier.get() : null;
+    public Map<Index, IndexMetadata> getIndexMetadataMap() {
+        Map<Index, IndexMetadata> indexMetadataMap = indexMetadataMapSupplier != null ? indexMetadataMapSupplier.get() : null;
         return indexMetadataMap != null ? Collections.unmodifiableMap(indexMetadataMap) : Collections.emptyMap();
     }
 }

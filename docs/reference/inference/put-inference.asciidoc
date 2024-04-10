@@ -100,7 +100,7 @@ the same name and the updated API key.
 (Optional, string)
 Specifies the types of embeddings you want to get back. Defaults to `float`.
 Valid values are:
-  * `byte`: use it for signed int8 embeddings (this is a synonym of `int8`). 
+  * `byte`: use it for signed int8 embeddings (this is a synonym of `int8`).
   * `float`: use it for the default float embeddings.
   * `int8`: use it for signed int8 embeddings.
 
@@ -163,7 +163,7 @@ want to use a different API key, delete the {infer} model and recreate it with
 the same name and the updated API key.
 
 `model_id`:::
-(Optional, string)
+(Required, string)
 The name of the model to use for the {infer} task. Refer to the
 https://platform.openai.com/docs/guides/embeddings/what-are-embeddings[OpenAI documentation]
 for the list of available text embedding models.

@@ -68,4 +68,6 @@ testfixtures_shared/
 
 # Generated
 checkstyle_ide.xml
-x-pack/plugin/esql/gen/
+# IntelliJ can't be convinced to generate java files in the right spot.
+# So we ignore the ones it makes.
+x-pack/plugin/esql/src/main/generated-src/generated/

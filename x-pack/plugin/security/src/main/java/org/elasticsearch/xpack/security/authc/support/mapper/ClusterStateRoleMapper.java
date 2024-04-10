@@ -36,6 +36,7 @@ public class ClusterStateRoleMapper implements UserRoleMapper, ClusterStateListe
     public ClusterStateRoleMapper(ScriptService scriptService, ClusterService clusterService) {
         this.scriptService = scriptService;
         this.clusterService = clusterService;
+        clusterService.addListener(this);
     }
 
     @Override

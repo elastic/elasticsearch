@@ -328,7 +328,8 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         if (localDataStream == null) {
             // The data stream and the backing indices have been created and validated in the remote cluster,
             // just copying the data stream is in this case safe.
-            return new DataStream.Builder(remoteDataStream).setName(localDataStreamName)
+            return remoteDataStream.copy()
+                .setName(localDataStreamName)
                 .setIndices(List.of(backingIndexToFollow))
                 .setReplicated(true)
                 // Replicated data streams can't be rolled over, so having the `rolloverOnWrite` flag set to `true` wouldn't make sense
@@ -374,7 +375,8 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 backingIndices = localDataStream.getIndices();
             }
 
-            return new DataStream.Builder(localDataStream).setIndices(backingIndices)
+            return localDataStream.copy()
+                .setIndices(backingIndices)
                 .setGeneration(remoteDataStream.getGeneration())
                 .setMetadata(remoteDataStream.getMetadata())
                 .build();

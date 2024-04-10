@@ -781,7 +781,8 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             builder.put(indexMetadata, false);
             backingIndices.add(indexMetadata.getIndex());
         }
-        return new DataStream.Builder(dataStreamName, backingIndices).setGeneration(backingIndicesCount)
+        return DataStream.builder(dataStreamName, backingIndices)
+            .setGeneration(backingIndicesCount)
             .setAutoShardingEvent(autoShardingEvent)
             .build();
     }

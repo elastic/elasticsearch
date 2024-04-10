@@ -344,9 +344,9 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         var dataStreamName = "my-logs";
         var state = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), List.of());
         var original = state.getMetadata().dataStreams().get(dataStreamName);
-        var broken = new DataStream.Builder(original).setIndices(
-            List.of(new Index(original.getIndices().get(0).getName(), "broken"), original.getIndices().get(1))
-        ).build();
+        var broken = original.copy()
+            .setIndices(List.of(new Index(original.getIndices().get(0).getName(), "broken"), original.getIndices().get(1)))
+            .build();
         var brokenState = ClusterState.builder(state).metadata(Metadata.builder(state.getMetadata()).put(broken).build()).build();
 
         var result = MetadataDataStreamsService.modifyDataStream(

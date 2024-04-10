@@ -130,7 +130,8 @@ public final class DataStreamTestHelper {
         @Nullable DataStreamLifecycle lifecycle,
         @Nullable DataStreamAutoShardingEvent autoShardingEvent
     ) {
-        return new DataStream.Builder(name, indices).setGeneration(generation)
+        return DataStream.builder(name, indices)
+            .setGeneration(generation)
             .setMetadata(metadata)
             .setReplicated(replicated)
             .setLifecycle(lifecycle)
@@ -147,7 +148,8 @@ public final class DataStreamTestHelper {
         @Nullable DataStreamLifecycle lifecycle,
         List<Index> failureStores
     ) {
-        return new DataStream.Builder(name, indices).setGeneration(generation)
+        return DataStream.builder(name, indices)
+            .setGeneration(generation)
             .setMetadata(metadata)
             .setReplicated(replicated)
             .setLifecycle(lifecycle)

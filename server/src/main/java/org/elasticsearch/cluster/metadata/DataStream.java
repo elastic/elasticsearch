@@ -478,7 +478,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(writeIndex);
-        return new Builder(this).setIndices(backingIndices)
+        return copy().setIndices(backingIndices)
             .setGeneration(generation)
             .setReplicated(false)
             .setIndexMode(indexMode)
@@ -507,10 +507,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public DataStream unsafeRolloverFailureStore(Index writeIndex, long generation) {
         List<Index> failureIndices = new ArrayList<>(this.failureIndices);
         failureIndices.add(writeIndex);
-        return new Builder(this).setGeneration(generation)
-            .setReplicated(false)
-            .setFailureIndices(failureIndices)
-            .build();
+        return copy().setGeneration(generation).setReplicated(false).setFailureIndices(failureIndices).build();
     }
 
     /**
@@ -598,7 +595,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.remove(index);
         assert backingIndices.size() == indices.size() - 1;
-        return new Builder(this).setIndices(backingIndices).setGeneration(generation + 1).build();
+        return copy().setIndices(backingIndices).setGeneration(generation + 1).build();
     }
 
     /**
@@ -630,7 +627,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             );
         }
         backingIndices.set(backingIndexPosition, newBackingIndex);
-        return new Builder(this).setIndices(backingIndices).setGeneration(generation + 1).build();
+        return copy().setIndices(backingIndices).setGeneration(generation + 1).build();
     }
 
     /**
@@ -677,11 +674,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(0, index);
         assert backingIndices.size() == indices.size() + 1;
-        return new Builder(this).setIndices(backingIndices).setGeneration(generation + 1).build();
+        return copy().setIndices(backingIndices).setGeneration(generation + 1).build();
     }
 
     public DataStream promoteDataStream() {
-        return new Builder(this).setReplicated(false).build();
+        return copy().setReplicated(false).build();
     }
 
     /**
@@ -704,7 +701,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             return null;
         }
 
-        return new Builder(this).setIndices(reconciledIndices).setMetadata(metadata == null ? null : new HashMap<>(metadata)).build();
+        return copy().setIndices(reconciledIndices).setMetadata(metadata == null ? null : new HashMap<>(metadata)).build();
     }
 
     /**
@@ -1288,6 +1285,14 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     public static Instant getCanonicalTimestampBound(Instant time) {
         return time.truncatedTo(ChronoUnit.SECONDS);
+    }
+
+    public static Builder builder(String name, List<Index> indices) {
+        return new Builder(name, indices);
+    }
+
+    public Builder copy() {
+        return new Builder(this);
     }
 
     public static class Builder {

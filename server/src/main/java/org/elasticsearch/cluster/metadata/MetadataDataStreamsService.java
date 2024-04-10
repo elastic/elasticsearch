@@ -199,7 +199,7 @@ public class MetadataDataStreamsService {
         Metadata.Builder builder = Metadata.builder(metadata);
         for (var dataStreamName : dataStreamNames) {
             var dataStream = validateDataStream(metadata, dataStreamName);
-            builder.put(new DataStream.Builder(dataStream).setLifecycle(lifecycle).build());
+            builder.put(dataStream.copy().setLifecycle(lifecycle).build());
         }
         return ClusterState.builder(currentState).metadata(builder.build()).build();
     }
@@ -220,7 +220,7 @@ public class MetadataDataStreamsService {
             return currentState;
         }
         Metadata.Builder builder = Metadata.builder(metadata);
-        builder.put(new DataStream.Builder(dataStream).setRolloverOnWrite(rolloverOnWrite).build());
+        builder.put(dataStream.copy().setRolloverOnWrite(rolloverOnWrite).build());
         return ClusterState.builder(currentState).metadata(builder.build()).build();
     }
 

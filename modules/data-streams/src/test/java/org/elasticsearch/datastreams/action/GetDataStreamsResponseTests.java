@@ -76,7 +76,8 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
         List<Index> failureStores = List.of(failureStoreIndex);
         {
             // data stream has an enabled lifecycle
-            DataStream logs = new DataStream.Builder("logs", indices).setGeneration(3)
+            DataStream logs = DataStream.builder("logs", indices)
+                .setGeneration(3)
                 .setAllowCustomRouting(true)
                 .setIndexMode(IndexMode.STANDARD)
                 .setLifecycle(new DataStreamLifecycle())
@@ -178,7 +179,8 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
 
         {
             // data stream has a lifecycle that's not enabled
-            DataStream logs = new DataStream.Builder("logs", indices).setGeneration(3)
+            DataStream logs = DataStream.builder("logs", indices)
+                .setGeneration(3)
                 .setAllowCustomRouting(true)
                 .setIndexMode(IndexMode.STANDARD)
                 .setLifecycle(new DataStreamLifecycle(null, null, false))

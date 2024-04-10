@@ -89,9 +89,9 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
                     String brokenIndexName = shouldBreakIndexName
                         ? original.getIndices().get(0).getName() + "-broken"
                         : original.getIndices().get(0).getName();
-                    DataStream broken = new DataStream.Builder(original).setIndices(
-                        List.of(new Index(brokenIndexName, "broken"), original.getIndices().get(1))
-                    ).build();
+                    DataStream broken = original.copy()
+                        .setIndices(List.of(new Index(brokenIndexName, "broken"), original.getIndices().get(1)))
+                        .build();
                     brokenDataStreamHolder.set(broken);
                     return ClusterState.builder(currentState)
                         .metadata(Metadata.builder(currentState.getMetadata()).put(broken).build())

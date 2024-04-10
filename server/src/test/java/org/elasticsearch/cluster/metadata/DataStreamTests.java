@@ -208,7 +208,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
     }
 
     public void testRolloverUpgradeToTsdbDataStream() {
-        DataStream ds = new DataStream.Builder(DataStreamTestHelper.randomInstance()).setReplicated(false)
+        DataStream ds = DataStreamTestHelper.randomInstance()
+            .copy()
+            .setReplicated(false)
             .setIndexMode(randomBoolean() ? IndexMode.STANDARD : null)
             .build();
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
@@ -223,9 +225,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
     }
 
     public void testRolloverDowngradeToRegularDataStream() {
-        DataStream ds = new DataStream.Builder(DataStreamTestHelper.randomInstance()).setReplicated(false)
-            .setIndexMode(IndexMode.TIME_SERIES)
-            .build();
+        DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(IndexMode.TIME_SERIES).build();
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
         var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), false, null);
@@ -603,7 +603,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         postSnapshotIndices.addAll(indicesToAdd);
 
         var replicated = preSnapshotDataStream.isReplicated() && randomBoolean();
-        var postSnapshotDataStream = new DataStream.Builder(preSnapshotDataStream).setIndices(postSnapshotIndices)
+        var postSnapshotDataStream = preSnapshotDataStream.copy()
+            .setIndices(postSnapshotIndices)
             .setGeneration(preSnapshotDataStream.getGeneration() + randomIntBetween(0, 5))
             .setMetadata(preSnapshotDataStream.getMetadata() == null ? null : new HashMap<>(preSnapshotDataStream.getMetadata()))
             .setReplicated(replicated)
@@ -635,7 +636,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var preSnapshotDataStream = DataStreamTestHelper.randomInstance();
         var indicesToAdd = randomNonEmptyIndexInstances();
 
-        var postSnapshotDataStream = new DataStream.Builder(preSnapshotDataStream).setIndices(indicesToAdd).build();
+        var postSnapshotDataStream = preSnapshotDataStream.copy().setIndices(indicesToAdd).build();
 
         assertNull(postSnapshotDataStream.snapshot(preSnapshotDataStream.getIndices().stream().map(Index::getName).toList()));
     }

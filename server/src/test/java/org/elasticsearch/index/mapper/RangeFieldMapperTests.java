@@ -8,9 +8,14 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
@@ -367,6 +372,36 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
 
     protected TestRange<?> randomRangeForSyntheticSourceTest() {
         throw new AssumptionViolatedException("Should only be called for specific range types");
+    }
+
+    protected Source getSourceFor(CheckedConsumer<XContentBuilder, IOException> mapping, List<?> inputValues) throws IOException {
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(mapping));
+
+        CheckedConsumer<XContentBuilder, IOException> input = b -> {
+            b.field("field");
+            if (inputValues.size() == 1) {
+                b.value(inputValues.get(0));
+            } else {
+                b.startArray();
+                for (var range : inputValues) {
+                    b.value(range);
+                }
+                b.endArray();
+            }
+        };
+
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            LuceneDocument doc = mapper.parse(source(input)).rootDoc();
+            iw.addDocument(doc);
+            iw.close();
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                SourceProvider provider = SourceProvider.fromSyntheticSource(mapper.mapping());
+                Source syntheticSource = provider.getSource(getOnlyLeafReader(reader).getContext(), 0);
+
+                return syntheticSource;
+            }
+        }
     }
 
     protected abstract RangeType rangeType();

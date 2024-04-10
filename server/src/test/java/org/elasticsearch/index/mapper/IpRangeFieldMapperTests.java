@@ -7,16 +7,11 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.search.lookup.Source;
-import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
@@ -106,47 +101,23 @@ public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
             b.endObject();
         };
 
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(mapping));
-
         var values = randomList(1, 5, this::generateValue);
         var inputValues = values.stream().map(Tuple::v1).toList();
         var expectedValues = values.stream().map(Tuple::v2).toList();
 
-        CheckedConsumer<XContentBuilder, IOException> input = b -> {
-            b.field("field");
-            if (inputValues.size() == 1) {
-                b.value(inputValues.get(0));
-            } else {
-                b.startArray();
-                for (var range : inputValues) {
-                    b.value(range);
-                }
-                b.endArray();
-            }
-        };
+        var source = getSourceFor(mapping, inputValues);
 
-        try (Directory directory = newDirectory()) {
-            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
-            LuceneDocument doc = mapper.parse(source(input)).rootDoc();
-            iw.addDocument(doc);
-            iw.close();
-            try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                SourceProvider provider = SourceProvider.fromSyntheticSource(mapper.mapping());
-                Source synthetic = provider.getSource(getOnlyLeafReader(reader).getContext(), 0);
-
-                // This is the main reason why we need custom logic.
-                // IP ranges are serialized into binary doc values in unpredictable order
-                // because API uses a set.
-                // So this assert needs to be not sensitive to order and in "reference"
-                // implementation of tests from MapperTestCase it is.
-                var actual = synthetic.source().get("field");
-                if (inputValues.size() == 1) {
-                    assertEquals(expectedValues.get(0), actual);
-                } else {
-                    assertThat(actual, instanceOf(List.class));
-                    assertTrue(((List<Object>) actual).containsAll(new HashSet<>(expectedValues)));
-                }
-            }
+        // This is the main reason why we need custom logic.
+        // IP ranges are serialized into binary doc values in unpredictable order
+        // because API uses a set.
+        // So this assert needs to be not sensitive to order and in "reference"
+        // implementation of tests from MapperTestCase it is.
+        var actual = source.source().get("field");
+        if (inputValues.size() == 1) {
+            assertEquals(expectedValues.get(0), actual);
+        } else {
+            assertThat(actual, instanceOf(List.class));
+            assertTrue(((List<Object>) actual).containsAll(new HashSet<>(expectedValues)));
         }
     }
 

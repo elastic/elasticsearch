@@ -373,7 +373,7 @@ after the endpoint initialization has been finished.
 
 [discrete]
 [[inference-example-hugging-face-supported-models]]
-The list of supported models for the Hugging Face service:
+The list of recommended models for the Hugging Face service:
 
 * https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2[all-MiniLM-L6-v2]
 * https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2[all-MiniLM-L12-v2]

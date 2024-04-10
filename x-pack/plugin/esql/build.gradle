@@ -70,27 +70,50 @@ tasks.named("test").configure {
     doLast {
       List signatures = file("${projectDir}/build/testrun/test/temp/esql/functions/signature").list().findAll {it.endsWith("svg")}
       List types = file("${projectDir}/build/testrun/test/temp/esql/functions/types").list().findAll {it.endsWith("asciidoc")}
-      int count = signatures == null ? 0 : signatures.size()
+      int count = types == null ? 0 : types.size()
+      Closure readExample = line -> {
+        line.replaceAll(/read-example::([^\[]+)\[tag=([^,\]]+)(, ?json)?\]/, {
+          String file = it[1]
+          String tag = it[2]
+          boolean isJson = it[3]
+          String allExamples = new File("${projectDir}/qa/testFixtures/src/main/resources/${file}").text
+          int start = allExamples.indexOf("tag::${tag}[]")
+          int end = allExamples.indexOf("end::${tag}[]", start)
+          if (start < 0 || end < 0) {
+              throw new IllegalAccessException("can't find example ${file}::${tag}")
+          }
+          // Slice out the newlines
+          start = allExamples.indexOf('\n', start) + 1
+          end = allExamples.lastIndexOf('\n', end)
+          String example = allExamples.substring(start, end)
+          if (isJson) {
+            example = example.replace("\"", "\\\"").replace("\n", "\\n")
+          }
+          return example;
+        })
+      }
       if (count == 0) {
         logger.quiet("ESQL Docs: No function signatures created. Skipping sync.")
       } else if (count == 1) {
-        logger.quiet("ESQL Docs: Only updated $signatures and $types, patching them into place")
+        logger.quiet("ESQL Docs: Only files related to $types, patching them into place")
         project.sync {
           from "${projectDir}/build/testrun/test/temp/esql/functions"
           into "${rootDir}/docs/reference/esql/functions"
-          include '**/*.asciidoc', '**/*.svg'
+          include '**/*.asciidoc', '**/*.svg', '**/*.md', '**/*.json'
           preserve {
-            include '/*.asciidoc', '**/*.asciidoc', '**/*.svg', 'README.md'
+            include '/*.asciidoc', '**/*.asciidoc', '**/*.md', '**/*.json', '**/*.svg', 'README.md'
           }
+          filter readExample
         }
       } else {
         project.sync {
           from "${projectDir}/build/testrun/test/temp/esql/functions"
           into "${rootDir}/docs/reference/esql/functions"
-          include '**/*.asciidoc', '**/*.svg'
+          include '**/*.asciidoc', '**/*.svg', '**/*.md', '**/*.json'
           preserve {
             include '/*.asciidoc', 'README.md'
           }
+          filter readExample
         }
       }
     }

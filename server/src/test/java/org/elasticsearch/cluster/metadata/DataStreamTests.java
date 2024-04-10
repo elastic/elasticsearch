@@ -177,6 +177,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
         assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
+        // Irrespective of whether the rollover was performed lazily, rolloverOnWrite should always be set to false after rollover.
+        assertFalse(rolledDs.rolloverOnWrite());
     }
 
     public void testRolloverWithConflictingBackingIndexName() {
@@ -272,6 +274,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size()));
+        // Ensure that the rolloverOnWrite flag hasn't changed when rolling over a failure store.
+        assertThat(rolledDs.rolloverOnWrite(), equalTo(ds.rolloverOnWrite()));
         assertThat(rolledDs.getFailureIndices().size(), equalTo(ds.getFailureIndices().size() + 1));
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
         assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));

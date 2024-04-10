@@ -527,7 +527,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             lifecycle,
             failureStore,
             failureIndices,
-            false,
+            rolloverOnWrite,
             autoShardingEvent
         );
     }

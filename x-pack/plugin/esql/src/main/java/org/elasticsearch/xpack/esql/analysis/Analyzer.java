@@ -753,6 +753,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 } else {
                     FunctionDefinition def = functionRegistry.resolveFunction(functionName);
                     f = uf.buildResolved(configuration, def);
+                    functionRegistry.addResolvedFunction(def);
                 }
             }
             return f;
@@ -839,9 +840,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         return b;
     }
 
-    private static class ImplicitCasting extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
+    private static class ImplicitCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
-        protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
+        public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
             return plan.transformExpressionsUp(ScalarFunction.class, e -> ImplicitCasting.cast(e, context.functionRegistry()));
         }
 
@@ -857,21 +858,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return f;
         }
 
-        private static List<DataType> getTargetDataType(String name, FunctionRegistry registry) {
-            List<FunctionDefinition> defs = registry.listFunctions()
-                .stream()
-                .filter(f -> f.clazz().getSimpleName().equalsIgnoreCase(name))
-                .toList();
-            if (defs.isEmpty()) {
+        private static List<DataType> dataTypeOfStringLiteralConversion(EsqlScalarFunction f, FunctionRegistry registry) {
+            FunctionDefinition def = registry.getResolvedFunctionDefinition(f.getClass());
+            if (def == null) {
                 return new ArrayList<>();
             }
-            EsqlFunctionRegistry.FunctionDescription signature = EsqlFunctionRegistry.description(defs.get(0));
+            EsqlFunctionRegistry.FunctionDescription signature = EsqlFunctionRegistry.description(def);
             return signature.args().stream().map(EsqlFunctionRegistry.ArgSignature::targetDataType).collect(Collectors.toList());
         }
 
         private static Expression processScalarFunction(EsqlScalarFunction f, FunctionRegistry registry) {
             List<Expression> args = f.arguments();
-            List<DataType> targetDataTypes = getTargetDataType(f.functionName(), registry);
+            List<DataType> targetDataTypes = dataTypeOfStringLiteralConversion(f, registry);
             if (targetDataTypes.isEmpty()) {
                 return f;
             }

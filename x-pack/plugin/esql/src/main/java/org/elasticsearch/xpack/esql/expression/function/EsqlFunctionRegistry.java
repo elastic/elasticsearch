@@ -102,6 +102,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
+import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.session.Configuration;
@@ -112,6 +113,7 @@ import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -134,7 +136,8 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 
 public final class EsqlFunctionRegistry extends FunctionRegistry {
 
-    public static final Map<DataType, Integer> dataTypeCastingPriority;
+    private static Map<Class<? extends Function>, FunctionDefinition> resolvedFunctions = new LinkedHashMap<>();
+    private static final Map<DataType, Integer> dataTypeCastingPriority;
 
     static {
         List<DataType> typePriorityList = Arrays.asList(
@@ -346,12 +349,12 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
             types.add(DataTypes.fromEs(name));
         }
         if (types.contains(KEYWORD) || types.contains(TEXT)) {
-            return DataTypes.NULL;
+            return UNSUPPORTED;
         }
 
         return types.stream()
             .min((dt1, dt2) -> dataTypeCastingPriority.get(dt1).compareTo(dataTypeCastingPriority.get(dt2)))
-            .orElse(DataTypes.NULL);
+            .orElse(UNSUPPORTED);
     }
 
     public static FunctionDescription description(FunctionDefinition def) {
@@ -390,5 +393,17 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
         }
         Constructor<?> constructor = constructors[0];
         return constructor.getAnnotation(FunctionInfo.class);
+    }
+
+    @Override
+    public FunctionDefinition getResolvedFunctionDefinition(Class<? extends Function> clazz) {
+        return resolvedFunctions.get(clazz);
+    }
+
+    @Override
+    public void addResolvedFunction(FunctionDefinition def) {
+        if (resolvedFunctions.containsKey(def.clazz()) == false) {
+            resolvedFunctions.put(def.clazz(), def);
+        }
     }
 }

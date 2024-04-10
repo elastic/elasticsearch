@@ -117,8 +117,8 @@ public class RankedDocsResults implements InferenceServiceResults {
                 out.writeFloat(relevanceScore);
                 out.writeString(text);
             } else {
-                out.writeString(String.valueOf(index));
-                out.writeString(String.valueOf(relevanceScore));
+                out.writeString(Integer.toString(index));
+                out.writeString(Float.toString(relevanceScore));
                 out.writeString(text);
             }
         }

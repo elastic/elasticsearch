@@ -1,13 +1,15 @@
-# Distributed Area Team Internals
+# Distributed Area Internals
 
-The Distributed Area team is responsible for both distributed and indexing components of Elasticsearch. The index path stretches
-from the user REST command through shard routing down to the translog and storage engine: this includes reindexing. The
-Distributed team is also responsible for networking, the discovery plugin system, the snapshot/restore logic, and shard recovery.
-The more obvious topics include cluster coordination, shard allocation, cluster autoscaling stats, task management, and cross
-cluster replication.
+The Distributed Area is split into Coordination and Indexing.
+
+Indexing covers the index path, stretching from the user REST command through shard routing down to the translog and storage
+engine. It includes reindexing: copying from a source index to a destination index. Shard recovery and cross cluster replication
+also fall under indexing.
+
+Coordination encompasses the distributed components relating to cluster coordination, networking, shard allocation decisions
+(i.e. the balancer algorithms), cluster autoscaling stats, the discovery plugin system, task management, and snapshot/restore.
 
 A guide to the general Elasticsearch components can be found [here](https://github.com/elastic/elasticsearch/blob/main/docs/internal/GeneralArchitectureGuide.md).
-The equivalent Stateless component architecture guide can be found in the stateless code repository.
 
 # Networking
 

@@ -113,6 +113,7 @@ public class ObjectStoreGCTaskExecutor extends PersistentTasksExecutor<ObjectSto
             ObjectStoreGCTask.TASK_NAME,
             ObjectStoreGCTask.TASK_NAME,
             new ObjectStoreGCTaskParams(),
+            null,
             ActionListener.wrap(r -> logger.debug("Created the blob store gc task executor"), e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException == false) {
                     logger.error("Failed to create the blob store gc task", e);

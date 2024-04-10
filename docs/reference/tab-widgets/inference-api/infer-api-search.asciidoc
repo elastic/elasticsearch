@@ -24,7 +24,7 @@ GET cohere-embeddings/_search
 // TEST[skip:TBD]
 
 As a result, you receive the top 10 documents that are closest in meaning to the
-query from the `hugging-face-embeddings` index sorted by their proximity to the
+query from the `cohere-embeddings` index sorted by their proximity to the
 query:
 
 [source,consol-result]
@@ -99,7 +99,7 @@ GET hugging-face-embeddings/_search
 // TEST[skip:TBD]
 
 As a result, you receive the top 10 documents that are closest in meaning to the
-query from the `cohere-embeddings` index sorted by their proximity to the query:
+query from the `hugging-face-embeddings` index sorted by their proximity to the query:
 
 [source,consol-result]
 --------------------------------------------------

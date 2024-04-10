@@ -64,7 +64,7 @@ double pi()
 "double sinh(angle:double|integer|long|unsigned_long)"
 "keyword split(string:keyword|text, delim:keyword|text)"
 "double sqrt(number:double|integer|long|unsigned_long)"
-"geo_point|cartesian_point st_centroid(field:geo_point|cartesian_point)"
+"geo_point|cartesian_point st_centroid_agg(field:geo_point|cartesian_point)"
 "boolean st_contains(geomA:geo_point|cartesian_point|geo_shape|cartesian_shape, geomB:geo_point|cartesian_point|geo_shape|cartesian_shape)"
 "boolean st_disjoint(geomA:geo_point|cartesian_point|geo_shape|cartesian_shape, geomB:geo_point|cartesian_point|geo_shape|cartesian_shape)"
 "boolean st_intersects(geomA:geo_point|cartesian_point|geo_shape|cartesian_shape, geomB:geo_point|cartesian_point|geo_shape|cartesian_shape)"
@@ -174,7 +174,7 @@ sin           |angle                               |"double|integer|long|unsigne
 sinh          |angle                               |"double|integer|long|unsigned_long"                                                                                               |An angle, in radians. If `null`, the function returns `null`.
 split         |[string, delim]                     |["keyword|text", "keyword|text"]                                                                                                  |[, ]
 sqrt          |number                              |"double|integer|long|unsigned_long"                                                                                               |[""]
-st_centroid   |field                               |"geo_point|cartesian_point"                                                                                                       |[""]
+st_centroid_ag|field                               |"geo_point|cartesian_point"                                                                                                       |[""]
 st_contains   |[geomA, geomB]                      |["geo_point|cartesian_point|geo_shape|cartesian_shape", "geo_point|cartesian_point|geo_shape|cartesian_shape"]                    |[Geometry column name or variable of geometry type, Geometry column name or variable of geometry type]
 st_disjoint   |[geomA, geomB]                      |["geo_point|cartesian_point|geo_shape|cartesian_shape", "geo_point|cartesian_point|geo_shape|cartesian_shape"]                    |[Geometry column name or variable of geometry type, Geometry column name or variable of geometry type]
 st_intersects |[geomA, geomB]                      |["geo_point|cartesian_point|geo_shape|cartesian_shape", "geo_point|cartesian_point|geo_shape|cartesian_shape"]                    |[Geometry column name or variable of geometry type, Geometry column name or variable of geometry type]
@@ -285,7 +285,7 @@ sin           |Returns ths {wikipedia}/Sine_and_cosine[Sine] trigonometric funct
 sinh          |Returns the {wikipedia}/Hyperbolic_functions[hyperbolic sine] of an angle.
 split         |Split a single valued string into multiple strings.
 sqrt          |Returns the square root of a number.
-st_centroid   |The centroid of a spatial field.
+st_centroid_ag|The centroid of a spatial field.
 st_contains   |Returns whether the first geometry contains the second geometry.
 st_disjoint   |Returns whether the two geometries or geometry columns are disjoint.
 st_intersects |Returns whether the two geometries or geometry columns intersect.
@@ -397,7 +397,7 @@ sin           |double                                                           
 sinh          |double                                                                                                                      |false                       |false           |false
 split         |keyword                                                                                                                     |[false, false]              |false           |false
 sqrt          |double                                                                                                                      |false                       |false           |false
-st_centroid   |"geo_point|cartesian_point"                                                                                                 |false                       |false           |true
+st_centroid_ag|"geo_point|cartesian_point"                                                                                                 |false                       |false           |true
 st_contains   |boolean                                                                                                                     |[false, false]              |false           |false
 st_disjoint   |boolean                                                                                                                     |[false, false]              |false           |false
 st_intersects |boolean                                                                                                                     |[false, false]              |false           |false

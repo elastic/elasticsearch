@@ -33,20 +33,20 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -235,33 +235,13 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         var request = new GetRoleMappingsRequest();
         request.setNames("everyone_kibana", "everyone_fleet");
         var response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
-        assertTrue(response.hasMappings());
-        assertThat(
-            Arrays.stream(response.mappings()).map(r -> r.getName()).collect(Collectors.toSet()),
-            allOf(notNullValue(), containsInAnyOrder("everyone_kibana", "everyone_fleet"))
-        );
+        // the native role mappings are not influenced by the cluster-state ones
+        assertThat(response.hasMappings(), is(false));
+        assertThat(response.mappings(), emptyArray());
 
         // TODO
-        // Try using the REST API to update the everyone_kibana role mapping
-        // This should fail, we have reserved certain role mappings in operator mode
-        // assertEquals(
-        // "Failed to process request "
-        // + "[org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest/unset] "
-        // + "with errors: [[everyone_kibana] set as read-only by [file_settings]]",
-        // expectThrows(
-        // IllegalArgumentException.class,
-        // () -> client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_kibana")).actionGet()
-        // ).getMessage()
-        // );
-        // assertEquals(
-        // "Failed to process request "
-        // + "[org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest/unset] "
-        // + "with errors: [[everyone_fleet] set as read-only by [file_settings]]",
-        // expectThrows(
-        // IllegalArgumentException.class,
-        // () -> client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_fleet")).actionGet()
-        // ).getMessage()
-        // );
+        // 1. assert role mapping is effective
+        // 2. native role mappings can be created
     }
 
     public void testRoleMappingsApplied() throws Exception {
@@ -325,9 +305,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         assertTrue(awaitSuccessful);
 
         // TODO
-        // This should succeed, nothing was reserved
-        // client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_kibana_bad")).get();
-        // client().execute(PutRoleMappingAction.INSTANCE, sampleRestRequest("everyone_fleet_ok")).get();
+        // assert role mapping are not effective
     }
 
     public void testErrorSaved() throws Exception {
@@ -413,25 +391,4 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedRoleMappingAction.NAME);
         assertTrue(handlerMetadata == null || handlerMetadata.keys().isEmpty());
     }
-
-    // TODO
-    // private PutRoleMappingRequest sampleRestRequest(String name) throws Exception {
-    // var json = """
-    // {
-    // "enabled": false,
-    // "roles": [ "kibana_user" ],
-    // "rules": { "field": { "username": "*" } },
-    // "metadata": {
-    // "uuid" : "b9a59ba9-6b92-4be2-bb8d-02bb270cb3a7"
-    // }
-    // }""";
-    //
-    // try (
-    // var bis = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
-    // var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
-    // ) {
-    // ExpressionRoleMapping mapping = ExpressionRoleMapping.parse(name, parser);
-    // return PutRoleMappingRequest.fromMapping(mapping);
-    // }
-    // }
 }

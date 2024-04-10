@@ -93,8 +93,7 @@ GET _tasks/<task_id>
 // TEST[skip:TBD]
 
 You can also cancel the reindexing process if you don't want to wait until the
-reindexing process is fully complete which might take hours for data sets this
-large:
+reindexing process is fully complete which might take hours for large data sets:
 
 [source,console]
 ----

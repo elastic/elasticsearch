@@ -372,6 +372,19 @@ task under the Advanced configuration section. Create the endpoint. Copy the URL
 after the endpoint initialization has been finished.
 
 [discrete]
+[[inference-example-hugging-face-supported-models]]
+The list of supported models for the Hugging Face service:
+
+* https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2[all-MiniLM-L6-v2]
+* https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2[all-MiniLM-L12-v2]
+* https://huggingface.co/sentence-transformers/all-mpnet-base-v2[all-mpnet-base-v2]
+* https://huggingface.co/intfloat/e5-base-v2[e5-base-v2]
+* https://huggingface.co/intfloat/e5-small-v2[e5-small-v2]
+* https://huggingface.co/intfloat/multilingual-e5-base[multilingual-e5-base]
+* https://huggingface.co/intfloat/multilingual-e5-small[multilingual-e5-small]
+
+
+[discrete]
 [[inference-example-eland]]
 ===== Models uploaded by Eland via the elasticsearch service
 

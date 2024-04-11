@@ -31,12 +31,13 @@ public class ResolvedIndices {
     @Nullable
     private final SearchContextId searchContextId;
     private final Map<String, OriginalIndices> remoteClusterIndices;
+    @Nullable
     private final OriginalIndices localIndices;
     private final Map<Index, IndexMetadata> localIndexMetadata;
 
     private ResolvedIndices(
         Map<String, OriginalIndices> remoteClusterIndices,
-        OriginalIndices localIndices,
+        @Nullable OriginalIndices localIndices,
         Map<Index, IndexMetadata> localIndexMetadata,
         @Nullable SearchContextId searchContextId
     ) {
@@ -48,33 +49,95 @@ public class ResolvedIndices {
 
     private ResolvedIndices(
         Map<String, OriginalIndices> remoteClusterIndices,
-        OriginalIndices localIndices,
+        @Nullable OriginalIndices localIndices,
         Map<Index, IndexMetadata> localIndexMetadata
     ) {
         this(remoteClusterIndices, localIndices, localIndexMetadata, null);
     }
 
+    /**
+     * Get the remote cluster indices, structured as a map where the key is the remote cluster alias.
+     * <br/>
+     * <br/>
+     * NOTE: The returned indices are *not* guaranteed to be concrete indices that exist.
+     * In addition to simple concrete index names, returned index names can be any combination of the following:
+     * <ul>
+     *     <li>Aliases</li>
+     *     <li>Wildcards</li>
+     *     <li>Invalid index/alias names</li>
+     * </ul>
+     *
+     * @return The remote cluster indices map
+     */
     public Map<String, OriginalIndices> getRemoteClusterIndices() {
         return remoteClusterIndices;
     }
 
+    /**
+     * Get the local cluster indices.
+     * If the returned value is null, no local cluster indices are referenced.
+     * If the returned value is an {@link OriginalIndices} instance with an empty or null {@link OriginalIndices#indices()} array,
+     * potentially all local cluster indices are referenced, depending on if {@link OriginalIndices#indicesOptions()} is configured to
+     * expand wildcards.
+     * <br/>
+     * <br/>
+     * NOTE: The returned indices are *not* guaranteed to be concrete indices that exist.
+     * In addition to simple concrete index names, returned index names can be any combination of the following:
+     * <ul>
+     *     <li>Aliases</li>
+     *     <li>Wildcards</li>
+     *     <li>Invalid index/alias names</li>
+     * </ul>
+     *
+     * @return The local cluster indices
+     */
+    @Nullable
     public OriginalIndices getLocalIndices() {
         return localIndices;
     }
 
+    /**
+     * Get metadata for concrete local cluster indices.
+     * All indices returned are guaranteed to be concrete indices that exist.
+     *
+     * @return Metadata for concrete local cluster indices
+     */
     public Map<Index, IndexMetadata> getLocalIndexMetadata() {
         return localIndexMetadata;
     }
 
+    /**
+     * Get the concrete local cluster indices.
+     * All indices returned are guaranteed to be concrete indices that exist.
+     *
+     * @return The concrete local cluster indices
+     */
     public Index[] getConcreteLocalIndices() {
         return localIndexMetadata.keySet().toArray(Index[]::new);
     }
 
+    /**
+     * Get the search context ID.
+     * Returns a non-null value only when the instance is created using
+     * {@link ResolvedIndices#resolveWithPIT(PointInTimeBuilder, IndicesOptions, ClusterState, NamedWriteableRegistry)}.
+     *
+     * @return The search context ID
+     */
     @Nullable
     public SearchContextId getSearchContextId() {
         return searchContextId;
     }
 
+    /**
+     * Create a new {@link ResolvedIndices} instance from an {@link IndicesRequest}.
+     *
+     * @param request The indices request
+     * @param clusterState The cluster state
+     * @param indexNameExpressionResolver The index name expression resolver used to resolve concrete local indices
+     * @param remoteClusterService The remote cluster service used to group remote cluster indices
+     * @param startTimeInMillis The request start time in milliseconds
+     * @return a new {@link ResolvedIndices} instance
+     */
     public static ResolvedIndices resolveWithIndicesRequest(
         IndicesRequest request,
         ClusterState clusterState,
@@ -95,6 +158,15 @@ public class ResolvedIndices {
         return new ResolvedIndices(remoteClusterIndices, localIndices, resolveLocalIndexMetadata(concreteLocalIndices, clusterState, true));
     }
 
+    /**
+     * Create a new {@link ResolvedIndices} instance from a {@link PointInTimeBuilder}.
+     *
+     * @param pit The point-in-time builder
+     * @param indicesOptions The indices options to propagate to the new {@link ResolvedIndices} instance
+     * @param clusterState The cluster state
+     * @param namedWriteableRegistry The named writeable registry used to decode the search context ID
+     * @return a new {@link ResolvedIndices} instance
+     */
     public static ResolvedIndices resolveWithPIT(
         PointInTimeBuilder pit,
         IndicesOptions indicesOptions,

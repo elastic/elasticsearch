@@ -1318,6 +1318,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
         public Builder(String name, List<Index> indices) {
             this.name = name;
+            assert indices.isEmpty() == false : "Cannot create data stream with empty backing indices";
             this.indices = indices;
         }
 
@@ -1350,6 +1351,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
 
         public Builder setIndices(List<Index> indices) {
+            assert indices.isEmpty() == false : "Cannot create data stream with empty backing indices";
             this.indices = indices;
             return this;
         }

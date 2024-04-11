@@ -51,7 +51,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractC
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.FieldSort;
-import org.elasticsearch.xpack.esql.plan.physical.EsUnionTypesQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.DriverParallelism;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
@@ -65,7 +64,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -113,9 +111,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>();
         int docChannel = source.layout.get(sourceAttr.id()).channel();
         var docValuesAttrs = fieldExtractExec.docValuesAttributes();
-        var unionTypes = findUnionTypes(fieldExtractExec);
         for (Attribute attr : fieldExtractExec.attributesToExtract()) {
             layout.append(attr);
+            var unionTypes = findUnionTypes(attr);
             DataType dataType = dataTypeFor(attr, unionTypes);
             MappedFieldType.FieldExtractPreference fieldExtractPreference = PlannerUtils.extractPreference(docValuesAttrs.contains(attr));
             ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
@@ -151,21 +149,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         return shardContext.blockLoader(fieldName, isSupported, fieldExtractPreference);
     }
 
-    private MultiTypeEsField findUnionTypes(FieldExtractExec fieldExtractExec) {
-        Set<MultiTypeEsField> found = new HashSet<>();
-        fieldExtractExec.forEachDown(EsQueryExec.class, esQueryExec -> {
-            if (esQueryExec instanceof EsUnionTypesQueryExec esUnionTypesQueryExec) {
-                var multiTypeField = esUnionTypesQueryExec.multiTypeField();
-                if (multiTypeField != null) {
-                    for (Attribute attr : fieldExtractExec.attributesToExtract()) {
-                        if (attr instanceof FieldAttribute fa && fa.field().getName().equals(multiTypeField.getName())) {
-                            found.add(multiTypeField);
-                        }
-                    }
-                }
-            }
-        });
-        return found.isEmpty() ? null : found.stream().iterator().next();
+    private MultiTypeEsField findUnionTypes(Attribute attr) {
+        if (attr instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField multiTypeEsField) {
+            return multiTypeEsField;
+        }
+        return null;
     }
 
     public Function<org.elasticsearch.compute.lucene.ShardContext, Query> querySupplier(QueryBuilder builder) {

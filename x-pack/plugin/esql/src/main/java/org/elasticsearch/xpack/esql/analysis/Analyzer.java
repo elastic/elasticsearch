@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
@@ -80,6 +82,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -123,7 +126,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveEnrich(),
             new ResolveFunctions(),
             new ResolveRefs(),
-            new ImplicitCasting()
+            new ImplicitCasting(),
+            new ResolveUnionTypes()
         );
         var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new PromoteStringsInDateComparisons());
         rules = List.of(resolution, finish);
@@ -942,6 +946,103 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     message
                 );
             }
+        }
+    }
+
+    private static class ResolveUnionTypes extends BaseAnalyzerRule {
+
+        record TypeResolutionKey(String fieldName, DataType fieldType) {}
+
+        @Override
+        protected LogicalPlan doRule(LogicalPlan plan) {
+            if (plan instanceof Eval eval) {
+                HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
+                HashMap<MultiTypeEsField.UnresolvedField, MultiTypeEsField> expressionMap = new HashMap<>();
+                // See if the eval function has an unresolved MultiTypeEsField field
+                plan = eval.transformExpressionsOnly(Alias.class, field -> {
+                    if (field.child() instanceof AbstractConvertFunction convert) {
+                        return field.replaceChild(resolveConvertFunction(convert, typeResolutions, expressionMap));
+                    }
+                    return field;
+                });
+                // If no unresolved multi-type fields were found, return the plan
+                if (expressionMap.isEmpty()) {
+                    return plan;
+                }
+                // Otherwise, resolve the multi-type fields and update the plan
+                plan = plan.transformDown(EsRelation.class, esRelation -> {
+                    EsIndex index = esRelation.index();
+                    index.mapping()
+                        .replaceAll(
+                            (name, field) -> (field instanceof MultiTypeEsField.UnresolvedField mtf) ? expressionMap.get(mtf) : field
+                        );
+                    return esRelation.transformExpressionsOnly(
+                        FieldAttribute.class,
+                        fa -> (fa.field() instanceof MultiTypeEsField.UnresolvedField mtf)
+                            ? fieldAttribute(fa.source(), fa.name(), expressionMap.get(mtf), fa.id())
+                            : fa
+                    );
+                });
+            }
+            return plan;
+        }
+
+        private Expression resolveConvertFunction(
+            AbstractConvertFunction convert,
+            HashMap<TypeResolutionKey, Expression> typeResolutions,
+            HashMap<MultiTypeEsField.UnresolvedField, MultiTypeEsField> expressionMap
+        ) {
+            if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField.UnresolvedField mtf) {
+                mtf.getTypesToIndices().keySet().forEach(typeName -> {
+                    DataType type = DataTypes.fromTypeName(typeName);
+                    TypeResolutionKey key = new TypeResolutionKey(fa.name(), type);
+                    var concreteConvert = typeSpecificConvert(convert, fa.source(), type, mtf);
+                    typeResolutions.put(key, concreteConvert);
+                });
+                // Add to map of unresolved to resolved expressions, so we can edit the plan to make it serializable
+                var resolvedField = resolvedMultiTypeEsField(mtf, typeResolutions);
+                expressionMap.put(mtf, resolvedField);
+                // Resolving the incoming field type as the converted type
+                return typeSpecificConvert(convert, fa.source(), resolvedField);
+            } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
+                return convert.replaceChildren(
+                    Collections.singletonList(resolveConvertFunction(subConvert, typeResolutions, expressionMap))
+                );
+            }
+            return convert;
+        }
+
+        private MultiTypeEsField resolvedMultiTypeEsField(
+            MultiTypeEsField.UnresolvedField mtf,
+            HashMap<TypeResolutionKey, Expression> typeResolutions
+        ) {
+            Map<String, Expression> typesToConversionExpressions = new HashMap<>();
+            mtf.getTypesToIndices().forEach((typeName, indexNames) -> {
+                DataType type = DataTypes.fromTypeName(typeName);
+                TypeResolutionKey key = new TypeResolutionKey(mtf.getName(), type);
+                if (typeResolutions.containsKey(key)) {
+                    typesToConversionExpressions.put(typeName, typeResolutions.get(key));
+                }
+            });
+            return mtf.resolve(typesToConversionExpressions);
+        }
+
+        private Expression typeSpecificConvert(
+            AbstractConvertFunction convert,
+            Source source,
+            DataType type,
+            MultiTypeEsField.UnresolvedField mtf
+        ) {
+            return typeSpecificConvert(convert, source, new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable()));
+        }
+
+        private Expression typeSpecificConvert(AbstractConvertFunction convert, Source source, EsField field) {
+            FieldAttribute resolvedAttr = fieldAttribute(source, field.getName(), field, ((FieldAttribute) convert.field()).id());
+            return convert.replaceChildren(Collections.singletonList(resolvedAttr));
+        }
+
+        private FieldAttribute fieldAttribute(Source source, String name, EsField resolvedField, NameId id) {
+            return new FieldAttribute(source, null, name, resolvedField, null, Nullability.TRUE, id, false);
         }
     }
 }

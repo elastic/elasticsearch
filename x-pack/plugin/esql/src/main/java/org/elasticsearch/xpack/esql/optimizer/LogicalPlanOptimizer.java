@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equa
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -32,7 +31,6 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.esql.type.MultiTypeEsField;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules;
 import org.elasticsearch.xpack.ql.common.Failures;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -43,18 +41,14 @@ import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.ExpressionSet;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
-import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight;
@@ -73,9 +67,7 @@ import org.elasticsearch.xpack.ql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
@@ -174,8 +166,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PushDownEnrich(),
             new PushDownAndCombineOrderBy(),
             new PruneOrderByBeforeStats(),
-            new PruneRedundantSortClauses(),
-            new ResolveUnionTypes()
+            new PruneRedundantSortClauses()
         );
     }
 
@@ -553,97 +544,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 plan = new Eval(eval.source(), subEval.child(), CollectionUtils.combine(subEval.fields(), eval.fields()));
             }
             return plan;
-        }
-    }
-
-    /**
-     * If there are EVAL expressions that resolve union types, extract the type resolution functions and inject them into the EsRelation.
-     * The type resolution functions are then used to convert the incoming fields to the correct type at field extraction time.
-     */
-    static class ResolveUnionTypes extends OptimizerRules.OptimizerRule<Eval> {
-
-        record TypeResolutionKey(String fieldName, DataType fieldType) {}
-
-        @Override
-        protected LogicalPlan rule(Eval eval) {
-            HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
-            HashMap<MultiTypeEsField.UnresolvedField, MultiTypeEsField> expressionMap = new HashMap<>();
-            LogicalPlan plan = eval.transformExpressionsOnly(Alias.class, field -> {
-                if (field.child() instanceof AbstractConvertFunction convert) {
-                    return field.replaceChild(resolveConvertFunction(convert, typeResolutions, expressionMap));
-                }
-                return field;
-            });
-            if (typeResolutions.isEmpty()) {
-                return plan;
-            }
-            plan = plan.transformDown(EsRelation.class, esRelation -> {
-                EsIndex index = esRelation.index();
-                index.mapping()
-                    .replaceAll((name, field) -> (field instanceof MultiTypeEsField.UnresolvedField mtf) ? expressionMap.get(mtf) : field);
-                var relation = esRelation.transformExpressionsOnly(
-                    FieldAttribute.class,
-                    fa -> (fa.field() instanceof MultiTypeEsField.UnresolvedField mtf)
-                        ? fieldAttribute(fa.source(), fa.name(), expressionMap.get(mtf), fa.id())
-                        : fa
-                );
-                return relation;
-            });
-            return plan;
-        }
-
-        private Expression resolveConvertFunction(
-            AbstractConvertFunction convert,
-            HashMap<TypeResolutionKey, Expression> typeResolutions,
-            HashMap<MultiTypeEsField.UnresolvedField, MultiTypeEsField> expressionMap
-        ) {
-            if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField.UnresolvedField mtf) {
-                mtf.getTypesToIndices().keySet().forEach(typeName -> {
-                    DataType type = DataTypes.fromTypeName(typeName);
-                    TypeResolutionKey key = new TypeResolutionKey(fa.name(), type);
-                    var concreteConvert = typeSpecificConvert(convert, fa.source(), type, mtf);
-                    typeResolutions.put(key, concreteConvert);
-                });
-                // Add to map of unresolved to resolved expressions, so we can edit the plan to make it serializable
-                expressionMap.put(mtf, resolvedMultiTypeEsField(mtf, typeResolutions));
-                // Resolving the incoming field type as the converted type
-                return typeSpecificConvert(convert, fa.source(), convert.dataType(), mtf);
-            } else if (convert.field() instanceof AbstractConvertFunction subConvert) {
-                return convert.replaceChildren(
-                    Collections.singletonList(resolveConvertFunction(subConvert, typeResolutions, expressionMap))
-                );
-            }
-            return convert;
-        }
-
-        private MultiTypeEsField resolvedMultiTypeEsField(
-            MultiTypeEsField.UnresolvedField mtf,
-            HashMap<TypeResolutionKey, Expression> typeResolutions
-        ) {
-            Map<String, Expression> typesToConversionExpressions = new HashMap<>();
-            mtf.getTypesToIndices().forEach((typeName, indexNames) -> {
-                DataType type = DataTypes.fromTypeName(typeName);
-                TypeResolutionKey key = new TypeResolutionKey(mtf.getName(), type);
-                if (typeResolutions.containsKey(key)) {
-                    typesToConversionExpressions.put(typeName, typeResolutions.get(key));
-                }
-            });
-            return mtf.resolve(typesToConversionExpressions);
-        }
-
-        private Expression typeSpecificConvert(
-            AbstractConvertFunction convert,
-            Source source,
-            DataType type,
-            MultiTypeEsField.UnresolvedField mtf
-        ) {
-            EsField resolvedField = new EsField(mtf.getName(), type, mtf.getProperties(), mtf.isAggregatable());
-            FieldAttribute resolvedAttr = fieldAttribute(source, mtf.getName(), resolvedField, ((FieldAttribute) convert.field()).id());
-            return convert.replaceChildren(Collections.singletonList(resolvedAttr));
-        }
-
-        private FieldAttribute fieldAttribute(Source source, String name, EsField resolvedField, NameId id) {
-            return new FieldAttribute(source, null, name, resolvedField, null, Nullability.TRUE, id, false);
         }
     }
 

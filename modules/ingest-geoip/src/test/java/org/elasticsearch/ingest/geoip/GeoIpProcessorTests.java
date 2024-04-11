@@ -303,6 +303,39 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("network"), equalTo("82.168.0.0/14"));
     }
 
+    public void testAnonymmousIp() throws Exception {
+        String ip = "81.2.69.1";
+        GeoIpProcessor processor = new GeoIpProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            loader("/GeoIP2-Anonymous-IP-Test.mmdb"),
+            () -> true,
+            "target_field",
+            ALL_PROPERTIES,
+            false,
+            false,
+            "filename"
+        );
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", ip);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(geoData.size(), equalTo(7));
+        assertThat(geoData.get("ip"), equalTo(ip));
+        assertThat(geoData.get("hosting_provider"), equalTo(true));
+        assertThat(geoData.get("tor_exit_node"), equalTo(true));
+        assertThat(geoData.get("anonymous_vpn"), equalTo(true));
+        assertThat(geoData.get("anonymous"), equalTo(true));
+        assertThat(geoData.get("public_proxy"), equalTo(true));
+        assertThat(geoData.get("residential_proxy"), equalTo(true));
+    }
+
     public void testAddressIsNotInTheDatabase() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
             randomAlphaOfLength(10),

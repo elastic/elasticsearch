@@ -232,7 +232,7 @@ simply mentioning `metadata` (not followed by any dot and sub-field name).
 NOTE: You cannot query the role descriptors of an API key.
 ====
 
-`aggs`::
+`aggs` or `aggregations`::
 (Optional, object) Any <<search-aggregations,aggregations>> to run over the corpus of returned API keys.
 Aggregations and queries work together. Aggregations are computed only on the API keys that match the query.
 This supports only a subset of aggregation types, namely: <<search-aggregations-bucket-terms-aggregation,terms>>,

@@ -16,7 +16,7 @@ public class CleanupRepositoryRequestBuilder extends MasterNodeOperationRequestB
     CleanupRepositoryRequestBuilder> {
 
     public CleanupRepositoryRequestBuilder(ElasticsearchClient client, String repository) {
-        super(client, CleanupRepositoryAction.INSTANCE, new CleanupRepositoryRequest(repository));
+        super(client, TransportCleanupRepositoryAction.TYPE, new CleanupRepositoryRequest(repository));
     }
 
     public CleanupRepositoryRequestBuilder setName(String repository) {

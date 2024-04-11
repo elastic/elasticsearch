@@ -1,9 +1,9 @@
 ---
 setup:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "Exact subfields fixed in v 8.13"
-      features: allowed_warnings_regex
+      test_runner_features: allowed_warnings_regex
   - do:
       indices.create:
         index: test

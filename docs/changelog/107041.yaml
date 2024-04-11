@@ -1,0 +1,6 @@
+pr: 107041
+summary: '`DocumentParsingObserver` to accept an `indexName` to allow skipping system
+  indices'
+area: Infra/Metrics
+type: enhancement
+issues: []

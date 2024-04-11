@@ -126,8 +126,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveEnrich(),
             new ResolveFunctions(),
             new ResolveRefs(),
-            new ImplicitCasting(),
-            new ResolveUnionTypes()  // Must be after ResolveRefs, so union types can be found
+            new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
+            new ImplicitCasting()
         );
         var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new PromoteStringsInDateComparisons());
         rules = List.of(resolution, finish);
@@ -952,6 +952,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class ResolveUnionTypes extends BaseAnalyzerRule {
 
         record TypeResolutionKey(String fieldName, DataType fieldType) {}
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
 
         @Override
         protected LogicalPlan doRule(LogicalPlan plan) {

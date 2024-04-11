@@ -469,8 +469,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
         SortedSet<String> osPrettyNames = new TreeSet<>();
 
-        @SuppressWarnings("unchecked")
-        final Map<String, Object> nodes = (Map<String, Object>) restTestResponse.evaluate("nodes");
+        final Map<String, Object> nodes = restTestResponse.evaluate("nodes");
 
         for (Entry<String, Object> node : nodes.entrySet()) {
             @SuppressWarnings("unchecked")

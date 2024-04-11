@@ -477,6 +477,9 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
     public void testMasterBecomesAvailable() throws ExecutionException, InterruptedException {
         Request request = new Request();
+        if (randomBoolean()) {
+            request.masterNodeTimeout(TimeValue.MINUS_ONE);
+        }
         setState(clusterService, ClusterStateCreationUtils.state(localNode, null, allNodes));
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool), null, request, listener);

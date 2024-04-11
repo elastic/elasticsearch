@@ -66,7 +66,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, VersionDocValuesField::new);
+            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, VersionDocValuesField::new, isIndexed());
         }
     }
 

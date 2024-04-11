@@ -7,7 +7,6 @@
 package org.elasticsearch.protocol.xpack.watcher;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -27,13 +26,6 @@ public class DeleteWatchResponse extends ActionResponse implements ToXContentObj
         this.id = id;
         this.version = version;
         this.found = found;
-    }
-
-    public DeleteWatchResponse(StreamInput in) throws IOException {
-        super(in);
-        id = in.readString();
-        version = in.readVLong();
-        found = in.readBoolean();
     }
 
     public String getId() {

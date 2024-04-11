@@ -21,5 +21,13 @@ steps:
           machineType: custom-32-98304
           diskType: pd-ssd
           diskSizeGb: 350
+          preemptible: true
         env:
           PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3

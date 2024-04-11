@@ -1,3 +1,12 @@
+x-spot-retry: &spot-retry
+  retry:
+    automatic:
+      - exit_status: "-1"
+        limit: 3
+        signal_reason: none
+      - signal_reason: agent_stop
+        limit: 3
+
 steps:
   - group: packaging-tests-unix
     steps:
@@ -47,7 +56,9 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
-          machineType: custom-32-98304
+          machineType: n1-standard-32
           diskType: pd-ssd
           diskSizeGb: 350
+          preemptible: true
         env: {}
+        <<: *spot-retry

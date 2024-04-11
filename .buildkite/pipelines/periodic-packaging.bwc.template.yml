@@ -9,7 +9,15 @@
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
-          machineType: custom-16-32768
+          machineType: n1-standard-16
           buildDirectory: /dev/shm/bk
+          preemptible: true
         env:
           BWC_VERSION: $BWC_VERSION
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3

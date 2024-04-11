@@ -5,13 +5,13 @@
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
           machineType: n1-standard-32
-          preemptible: true
           buildDirectory: /dev/shm/bk
+          preemptible: true
         env:
           BWC_VERSION: $BWC_VERSION
         retry:
           automatic:
-            - exit_status: '-1'
+            - exit_status: "-1"
               limit: 3
               signal_reason: none
             - signal_reason: agent_stop

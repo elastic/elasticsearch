@@ -54,8 +54,16 @@ steps:
           machineType: n1-standard-32
           diskType: pd-ssd
           diskSizeGb: 350
+          preemptible: true
         env:
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
   - group: platform-support-arm
     steps:
       - label: "{{matrix.image}} / {{matrix.GRADLE_TASK}} / platform-support-arm"

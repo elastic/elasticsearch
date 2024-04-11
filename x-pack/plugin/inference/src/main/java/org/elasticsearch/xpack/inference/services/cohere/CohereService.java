@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -176,6 +177,7 @@ public class CohereService extends SenderService {
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
+        TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         if (model instanceof CohereModel == false) {
@@ -187,7 +189,7 @@ public class CohereService extends SenderService {
         var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
 
         var action = cohereModel.accept(actionCreator, taskSettings, inputType);
-        action.execute(new QueryAndDocsInputs(query, input), listener);
+        action.execute(new QueryAndDocsInputs(query, input), timeout, listener);
     }
 
     @Override
@@ -196,6 +198,7 @@ public class CohereService extends SenderService {
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
+        TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         if (model instanceof CohereModel == false) {
@@ -207,7 +210,7 @@ public class CohereService extends SenderService {
         var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
 
         var action = cohereModel.accept(actionCreator, taskSettings, inputType);
-        action.execute(new DocumentsOnlyInput(input), listener);
+        action.execute(new DocumentsOnlyInput(input), timeout, listener);
     }
 
     @Override
@@ -218,6 +221,7 @@ public class CohereService extends SenderService {
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
+        TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         if (model instanceof CohereModel == false) {
@@ -231,7 +235,7 @@ public class CohereService extends SenderService {
         var batchedRequests = new EmbeddingRequestChunker(input, EMBEDDING_MAX_BATCH_SIZE).batchRequestsWithListeners(listener);
         for (var request : batchedRequests) {
             var action = cohereModel.accept(actionCreator, taskSettings, inputType);
-            action.execute(new DocumentsOnlyInput(request.batch().inputs()), request.listener());
+            action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
         }
     }
 

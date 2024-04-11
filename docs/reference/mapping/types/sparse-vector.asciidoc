@@ -26,6 +26,8 @@ PUT my-index
 See <<semantic-search-elser, semantic search with ELSER>> for a complete example on adding documents
  to a `sparse_vector` mapped field using ELSER.
 
+NOTE: `sparse_vector` fields can not be included in indices that were *created* on {es} versions between 8.0 and 8.10
+
 NOTE: `sparse_vector` fields only support single-valued fields and strictly positive
 values. Multi-valued fields and negative values will be rejected.
 

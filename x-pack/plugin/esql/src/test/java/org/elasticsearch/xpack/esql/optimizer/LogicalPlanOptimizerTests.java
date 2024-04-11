@@ -3102,7 +3102,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testSpatialTypesAndStatsUseDocValues() {
         var plan = planAirports("""
             from test
-            | stats centroid = st_centroid(location)
+            | stats centroid = st_centroid_agg(location)
             """);
 
         var limit = as(plan, Limit.class);

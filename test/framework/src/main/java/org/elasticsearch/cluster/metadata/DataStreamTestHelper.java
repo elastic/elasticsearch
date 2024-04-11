@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -431,18 +432,7 @@ public final class DataStreamTestHelper {
         Settings settings,
         int replicas
     ) {
-        return getClusterStateWithDataStreams(dataStreams, indexNames, currentTime, settings, replicas, false);
-    }
-
-    public static ClusterState getClusterStateWithDataStreams(
-        List<Tuple<String, Integer>> dataStreams,
-        List<String> indexNames,
-        long currentTime,
-        Settings settings,
-        int replicas,
-        boolean replicated
-    ) {
-        return getClusterStateWithDataStreams(dataStreams, indexNames, currentTime, settings, replicas, replicated, false);
+        return getClusterStateWithDataStreams(dataStreams, indexNames, currentTime, settings, replicas, false,null);
     }
 
     public static ClusterState getClusterStateWithDataStreams(
@@ -452,10 +442,23 @@ public final class DataStreamTestHelper {
         Settings settings,
         int replicas,
         boolean replicated,
-        boolean storeFailures
+        String state
+    ) {
+        return getClusterStateWithDataStreams(dataStreams, indexNames, currentTime, settings, replicas, replicated, false,state);
+    }
+
+    public static ClusterState getClusterStateWithDataStreams(
+        List<Tuple<String, Integer>> dataStreams,
+        List<String> indexNames,
+        long currentTime,
+        Settings settings,
+        int replicas,
+        boolean replicated,
+        boolean storeFailures,
+        String state
     ) {
         Metadata.Builder builder = Metadata.builder();
-        getClusterStateWithDataStreams(builder, dataStreams, indexNames, currentTime, settings, replicas, replicated, storeFailures);
+        getClusterStateWithDataStreams(builder, dataStreams, indexNames, currentTime, settings, replicas, replicated, storeFailures,state);
         return ClusterState.builder(new ClusterName("_name")).metadata(builder).build();
     }
 
@@ -467,7 +470,8 @@ public final class DataStreamTestHelper {
         Settings settings,
         int replicas,
         boolean replicated,
-        boolean storeFailures
+        boolean storeFailures,
+        String state
     ) {
         builder.put(
             "template_1",
@@ -484,7 +488,7 @@ public final class DataStreamTestHelper {
             List<IndexMetadata> backingIndices = new ArrayList<>();
             for (int backingIndexNumber = 1; backingIndexNumber <= dsTuple.v2(); backingIndexNumber++) {
                 backingIndices.add(
-                    createIndexMetadata(getDefaultBackingIndexName(dsTuple.v1(), backingIndexNumber, currentTime), true, settings, replicas)
+                    createIndexMetadata(getDefaultBackingIndexName(dsTuple.v1(), backingIndexNumber, currentTime), true, settings, replicas,state)
                 );
             }
             allIndices.addAll(backingIndices);
@@ -497,7 +501,8 @@ public final class DataStreamTestHelper {
                             getDefaultFailureStoreName(dsTuple.v1(), failureStoreNumber, currentTime),
                             true,
                             settings,
-                            replicas
+                            replicas,
+                            null
                         )
                     );
                 }
@@ -517,7 +522,7 @@ public final class DataStreamTestHelper {
         }
 
         for (String indexName : indexNames) {
-            allIndices.add(createIndexMetadata(indexName, false, settings, replicas));
+            allIndices.add(createIndexMetadata(indexName, false, settings, replicas,state));
         }
 
         for (IndexMetadata index : allIndices) {
@@ -553,7 +558,7 @@ public final class DataStreamTestHelper {
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(start))
                 .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(end))
                 .build();
-            var im = createIndexMetadata(getDefaultBackingIndexName(dataStreamName, generation, start.toEpochMilli()), true, settings, 0);
+            var im = createIndexMetadata(getDefaultBackingIndexName(dataStreamName, generation, start.toEpochMilli()), true, settings, 0,null);
             builder.put(im, true);
             backingIndices.add(im);
             generation++;
@@ -572,13 +577,14 @@ public final class DataStreamTestHelper {
         builder.put(ds);
     }
 
-    private static IndexMetadata createIndexMetadata(String name, boolean hidden, Settings settings, int replicas) {
+    private static IndexMetadata createIndexMetadata(String name, boolean hidden, Settings settings, int replicas,String state) {
         Settings.Builder b = Settings.builder()
             .put(settings)
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.hidden", hidden);
 
-        return IndexMetadata.builder(name).settings(b).numberOfShards(1).numberOfReplicas(replicas).build();
+        IndexMetadata.State indexState = Strings.isNullOrBlank(state) ? IndexMetadata.State.OPEN : IndexMetadata.State.fromString(state);
+        return IndexMetadata.builder(name).settings(b).numberOfShards(1).numberOfReplicas(replicas).state(indexState).build();
     }
 
     public static String backingIndexPattern(String dataStreamName, long generation) {

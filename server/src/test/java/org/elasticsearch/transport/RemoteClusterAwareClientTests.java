@@ -10,7 +10,9 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
@@ -197,16 +199,33 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                 remoteCluster.stop();
                 var responseThread = randomFrom(ThreadPool.Names.SEARCH_COORDINATION, ThreadPool.Names.SEARCH);
                 var responseExecutor = service.threadPool.executor(responseThread);
-                var remoteClient = new RemoteClusterAwareClient(service, "cluster1", responseExecutor, randomBoolean());
                 var request = new FieldCapabilitiesRequest();
                 request.indices("test-index");
                 request.fields("*");
-                CountDownLatch latch = new CountDownLatch(1);
-                remoteClient.execute(TransportFieldCapabilitiesAction.REMOTE_TYPE, request, ActionListener.running(() -> {
-                    assertThat(Thread.currentThread().getName(), containsString("[" + responseThread + "]"));
-                    latch.countDown();
-                }));
-                assertTrue(latch.await(30, TimeUnit.SECONDS));
+                // failed to open connections
+                {
+                    CountDownLatch latch = new CountDownLatch(1);
+                    var remoteClient = new RemoteClusterAwareClient(service, "cluster1", responseExecutor, randomBoolean());
+                    remoteClient.execute(TransportFieldCapabilitiesAction.REMOTE_TYPE, request, ActionListener.running(() -> {
+                        assertThat(Thread.currentThread().getName(), containsString("[" + responseThread + "]"));
+                        latch.countDown();
+                    }));
+                    assertTrue(latch.await(30, TimeUnit.SECONDS));
+                }
+                // failed to send requests
+                {
+                    CountDownLatch latch = new CountDownLatch(1);
+                    service.sendRequest(
+                        remoteCluster.getLocalDiscoNode(),
+                        TransportFieldCapabilitiesAction.NAME,
+                        request,
+                        new ActionListenerResponseHandler<>(ActionListener.running(() -> {
+                            assertThat(Thread.currentThread().getName(), containsString("[" + responseThread + "]"));
+                            latch.countDown();
+                        }), FieldCapabilitiesResponse::new, responseExecutor)
+                    );
+                    assertTrue(latch.await(30, TimeUnit.SECONDS));
+                }
             }
         }
     }

@@ -84,6 +84,7 @@ import java.util.function.Predicate;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
+import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.SubstituteSurrogates.rawTemporaryName;
 import static org.elasticsearch.xpack.ql.expression.Expressions.asAttributes;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.DOWN;
@@ -125,7 +126,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceRegexMatch(),
             new ReplaceAliasingEvalWithProject(),
             new SkipQueryOnEmptyMappings(),
-            new SubstituteSpatialSurrogates()
+            new SubstituteSpatialSurrogates(),
+            new ReplaceOrderByExpressionWithEval()
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
         );
     }
@@ -321,6 +323,35 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
     }
 
+    static class ReplaceOrderByExpressionWithEval extends OptimizerRules.OptimizerRule<OrderBy> {
+        private static int counter = 0;
+
+        @Override
+        protected LogicalPlan rule(OrderBy orderBy) {
+            int size = orderBy.order().size();
+            List<Alias> evals = new ArrayList<>(size);
+            List<Order> newOrders = new ArrayList<>(size);
+
+            for (int i = 0; i < size; i++) {
+                var order = orderBy.order().get(i);
+                if (order.child() instanceof Attribute == false) {
+                    var name = rawTemporaryName("order_by", String.valueOf(i), String.valueOf(counter++));
+                    var eval = new Alias(order.child().source(), name, order.child());
+                    newOrders.add(order.replaceChildren(List.of(eval.toAttribute())));
+                    evals.add(eval);
+                } else {
+                    newOrders.add(order);
+                }
+            }
+            if (evals.isEmpty()) {
+                return orderBy;
+            } else {
+                var newOrderBy = new OrderBy(orderBy.source(), new Eval(orderBy.source(), orderBy.child(), evals), newOrders);
+                return new Project(orderBy.source(), newOrderBy, orderBy.output());
+            }
+        }
+    }
+
     static class ConvertStringToByteRef extends OptimizerRules.OptimizerExpressionRule<Literal> {
 
         ConvertStringToByteRef() {
@@ -403,11 +434,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             List<? extends NamedExpression> upperProjection,
             List<? extends NamedExpression> lowerAggregations
         ) {
-            AttributeMap<Expression> lowerAliases = new AttributeMap<>();
-            for (NamedExpression ne : lowerAggregations) {
-                lowerAliases.put(ne.toAttribute(), Alias.unwrap(ne));
-            }
-
             AttributeSet seen = new AttributeSet();
             for (NamedExpression upper : upperProjection) {
                 Expression unwrapped = Alias.unwrap(upper);
@@ -431,11 +457,18 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             List<? extends NamedExpression> lower
         ) {
 
-            // collect aliases in the lower list
-            AttributeMap<NamedExpression> aliases = new AttributeMap<>();
+            // collect named expressions declaration in the lower list
+            AttributeMap<NamedExpression> namedExpressions = new AttributeMap<>();
+            // while also collecting the alias map for resolving the source (f1 = 1, f2 = f1, etc..)
+            AttributeMap<Expression> aliases = new AttributeMap<>();
             for (NamedExpression ne : lower) {
-                if ((ne instanceof Attribute) == false) {
-                    aliases.put(ne.toAttribute(), ne);
+                // record the alias
+                aliases.put(ne.toAttribute(), Alias.unwrap(ne));
+
+                // record named expression as is
+                if (ne instanceof Alias as) {
+                    Expression child = as.child();
+                    namedExpressions.put(ne.toAttribute(), as.replaceChild(aliases.resolve(child, child)));
                 }
             }
             List<NamedExpression> replaced = new ArrayList<>();
@@ -443,7 +476,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // replace any matching attribute with a lower alias (if there's a match)
             // but clean-up non-top aliases at the end
             for (NamedExpression ne : upper) {
-                NamedExpression replacedExp = (NamedExpression) ne.transformUp(Attribute.class, a -> aliases.resolve(a, a));
+                NamedExpression replacedExp = (NamedExpression) ne.transformUp(Attribute.class, a -> namedExpressions.resolve(a, a));
                 replaced.add((NamedExpression) trimNonTopLevelAliases(replacedExp));
             }
             return replaced;
@@ -476,7 +509,10 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
             var newGroupings = new ArrayList<Expression>(groupings.size());
             for (Expression group : groupings) {
-                newGroupings.add(group.transformUp(Attribute.class, a -> removedAliases.resolve(a, a)));
+                var transformed = group.transformUp(Attribute.class, a -> removedAliases.resolve(a, a));
+                if (Expressions.anyMatch(newGroupings, g -> Expressions.equalsAsAttribute(g, transformed)) == false) {
+                    newGroupings.add(transformed);
+                }
             }
 
             return newGroupings;

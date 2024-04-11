@@ -25,6 +25,7 @@ import org.hamcrest.Matcher;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -161,6 +162,19 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
         assert s.length() == 8 && s.codePointCount(0, s.length()) == 7;
         assertThat(process(s, 3, 1000), equalTo("tiger"));
         assertThat(process(s, -6, 1000), equalTo("\ud83c\udf09tiger"));
+        assert "🐱".length() == 2 && "🐶".length() == 2;
+        assert "🐱".codePointCount(0, 2) == 1 && "🐶".codePointCount(0, 2) == 1;
+        assert "🐱".getBytes(UTF_8).length == 4 && "🐶".getBytes(UTF_8).length == 4;
+
+        for (Integer len : new Integer[] { null, 100, 100000 }) {
+            assertThat(process(s, 3, len), equalTo("tiger"));
+            assertThat(process(s, -6, len), equalTo("\ud83c\udf09tiger"));
+
+            assertThat(process("🐱Meow!🐶Woof!", 0, len), equalTo("🐱Meow!🐶Woof!"));
+            assertThat(process("🐱Meow!🐶Woof!", 1, len), equalTo("🐱Meow!🐶Woof!"));
+            assertThat(process("🐱Meow!🐶Woof!", 2, len), equalTo("Meow!🐶Woof!"));
+            assertThat(process("🐱Meow!🐶Woof!", 3, len), equalTo("eow!🐶Woof!"));
+        }
     }
 
     public void testNegativeLength() {

@@ -2121,19 +2121,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     transportService,
                     Collections.singletonMap(
                         FsRepository.TYPE,
-                        metadata -> new FsRepository(
-                            metadata,
-                            environment,
-                            xContentRegistry(),
-                            clusterService,
-                            bigArrays,
-                            recoverySettings
-                        ) {
-                            @Override
-                            protected void assertSnapshotOrGenericThread() {
-                                // eliminate thread name check as we create repo in the test thread
-                            }
-                        }
+                        metadata -> new FsRepository(metadata, environment, xContentRegistry(), clusterService, bigArrays, recoverySettings)
                     ),
                     emptyMap(),
                     threadPool,

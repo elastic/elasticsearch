@@ -8,6 +8,12 @@
       Cohere
     </button>
     <button role="tab"
+            aria-selected="true"
+            aria-controls="infer-api-ingest-hf-tab"
+            id="infer-api-ingest-hf">
+      HuggingFace
+    </button>
+    <button role="tab"
             aria-selected="false"
             aria-controls="infer-api-ingest-openai-tab"
             id="infer-api-ingest-openai">
@@ -21,6 +27,17 @@
 ++++
 
 include::infer-api-ingest-pipeline.asciidoc[tag=cohere]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-ingest-hf-tab"
+       aria-labelledby="infer-api-ingest-hf"
+       hidden="">
+++++
+
+include::infer-api-ingest-pipeline.asciidoc[tag=hugging-face]
 
 ++++
   </div>

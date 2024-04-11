@@ -8,12 +8,19 @@
 package org.elasticsearch.xpack.security.authz.store;
 
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
 import java.util.ArrayList;
@@ -22,6 +29,7 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 public class DisableNativeRoleMappingsStoreTests extends SecurityIntegTestCase {
 
@@ -32,20 +40,55 @@ public class DisableNativeRoleMappingsStoreTests extends SecurityIntegTestCase {
         return plugins;
     }
 
+    @Override
+    protected boolean addMockHttpTransport() {
+        return false; // need real http
+    }
+
     public void testPutRoleMappingDisallowed() {
+        // transport action
         NativeRoleMappingStore nativeRoleMappingStore = internalCluster().getInstance(NativeRoleMappingStore.class);
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         nativeRoleMappingStore.putRoleMapping(new PutRoleMappingRequest(), future);
         ExecutionException e = expectThrows(ExecutionException.class, future::get);
         assertThat(e.getMessage(), containsString("Native role mapping management is disabled"));
+        // rest request
+        Request request = new Request("POST", "_security/role_mapping/" + randomAlphaOfLength(8));
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader(
+            "Authorization",
+            UsernamePasswordToken.basicAuthHeaderValue(
+                SecuritySettingsSource.TEST_USER_NAME,
+                new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())
+            )
+        );
+        request.setOptions(options);
+        ResponseException e2 = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+        assertThat(e2.getMessage(), containsString("Native role mapping management is not enabled in this Elasticsearch instance"));
+        assertThat(e2.getResponse().getStatusLine().getStatusCode(), is(410)); // gone
     }
 
     public void testDeleteRoleMappingDisallowed() {
+        // transport action
         NativeRoleMappingStore nativeRoleMappingStore = internalCluster().getInstance(NativeRoleMappingStore.class);
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         nativeRoleMappingStore.deleteRoleMapping(new DeleteRoleMappingRequest(), future);
         ExecutionException e = expectThrows(ExecutionException.class, future::get);
         assertThat(e.getMessage(), containsString("Native role mapping management is disabled"));
+        // rest request
+        Request request = new Request("DELETE", "_security/role_mapping/" + randomAlphaOfLength(8));
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader(
+            "Authorization",
+            UsernamePasswordToken.basicAuthHeaderValue(
+                SecuritySettingsSource.TEST_USER_NAME,
+                new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())
+            )
+        );
+        request.setOptions(options);
+        ResponseException e2 = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
+        assertThat(e2.getMessage(), containsString("Native role mapping management is not enabled in this Elasticsearch instance"));
+        assertThat(e2.getResponse().getStatusLine().getStatusCode(), is(410)); // gone
     }
 
     public static class PrivateCustomPlugin extends Plugin {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -158,8 +159,13 @@ public class EsqlQueryRequestTests extends ESTestCase {
             }""", "unknown field [asdf]");
     }
 
-    public void testKnownVersionIsValid() throws IOException {
+    public void testKnownStableVersionIsValid() throws IOException {
         for (EsqlVersion version : EsqlVersion.values()) {
+            if (version == EsqlVersion.SNAPSHOT) {
+                // Not stable, skip. Also avoids breaking the CI as this is invalid for non-SNAPSHOT builds.
+                continue;
+            }
+
             String validVersionString = randomBoolean() ? version.versionStringWithoutEmoji() : version.toString();
 
             String json = String.format(Locale.ROOT, """
@@ -209,23 +215,27 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 "query": "ROW x = 1"
             }
             """, esqlVersion);
-
         EsqlQueryRequest request = parseEsqlQueryRequest(json, randomBoolean());
+
+        String errorOnNonSnapshotBuilds = "[version] with value ["
+            + esqlVersion
+            + "] only allowed in snapshot builds, latest available version is ["
+            + EsqlVersion.latestReleased().versionStringWithoutEmoji()
+            + "]";
+
+        if (Build.current().isSnapshot()) {
+            assertNull(request.validate());
+        } else {
+            assertNotNull(request.validate());
+            assertThat(request.validate().getMessage(), containsString(errorOnNonSnapshotBuilds));
+        }
+
         request.onSnapshotBuild(true);
         assertNull(request.validate());
 
         request.onSnapshotBuild(false);
         assertNotNull(request.validate());
-        assertThat(
-            request.validate().getMessage(),
-            containsString(
-                "[version] with value ["
-                    + esqlVersion
-                    + "] only allowed in snapshot builds, latest available version is ["
-                    + EsqlVersion.latestReleased().versionStringWithoutEmoji()
-                    + "]"
-            )
-        );
+        assertThat(request.validate().getMessage(), containsString(errorOnNonSnapshotBuilds));
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/104890")

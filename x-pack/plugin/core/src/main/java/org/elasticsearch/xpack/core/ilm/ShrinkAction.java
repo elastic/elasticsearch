@@ -301,26 +301,28 @@ public class ShrinkAction implements LifecycleAction {
         DeleteStep deleteSourceIndexStep = new DeleteStep(deleteIndexKey, isShrunkIndexKey, client);
         ShrunkenIndexCheckStep waitOnShrinkTakeover = new ShrunkenIndexCheckStep(isShrunkIndexKey, lastOrNextStep);
 
-        List<Step> steps = new ArrayList<>(List.of(
-            conditionalSkipShrinkStep,
-            checkNotWriteIndexStep,
-            waitForNoFollowersStep,
-            waitUntilTimeSeriesEndTimeStep,
-            readOnlyStep,
-            checkTargetShardsCountStep,
-            cleanupShrinkIndexStep,
-            generateUniqueIndexNameStep,
-            setSingleNodeStep,
-            checkShrinkReadyStep,
-            shrink,
-            allocated,
-            copyMetadata,
-            isDataStreamBranchingStep,
-            aliasSwapAndDelete,
-            waitOnShrinkTakeover,
-            replaceDataStreamBackingIndex,
-            deleteSourceIndexStep
-        ));
+        List<Step> steps = new ArrayList<>(
+            List.of(
+                conditionalSkipShrinkStep,
+                checkNotWriteIndexStep,
+                waitForNoFollowersStep,
+                waitUntilTimeSeriesEndTimeStep,
+                readOnlyStep,
+                checkTargetShardsCountStep,
+                cleanupShrinkIndexStep,
+                generateUniqueIndexNameStep,
+                setSingleNodeStep,
+                checkShrinkReadyStep,
+                shrink,
+                allocated,
+                copyMetadata,
+                isDataStreamBranchingStep,
+                aliasSwapAndDelete,
+                waitOnShrinkTakeover,
+                replaceDataStreamBackingIndex,
+                deleteSourceIndexStep
+            )
+        );
 
         if (allowWriteAfterShrink) {
             UpdateSettingsStep allowWriteAfterShrinkStep =

@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.RefCountingRunnable;
-import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -253,7 +252,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 remoteClusterClient.execute(
                     TransportFieldCapabilitiesAction.REMOTE_TYPE,
                     remoteRequest,
-                    new ThreadedActionListener<>(searchCoordinationExecutor, ActionListener.releaseAfter(remoteListener, refs.acquire()))
+                    ActionListener.releaseAfter(remoteListener, refs.acquire())
                 );
             }
         }

@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 
 import java.util.concurrent.Executor;
 
@@ -38,7 +39,7 @@ final class RemoteClusterAwareClient implements RemoteClusterClient {
         Request request,
         ActionListener<Response> listener
     ) {
-        maybeEnsureConnected(listener.delegateFailureAndWrap((delegateListener, v) -> {
+        maybeEnsureConnected(ActionListener.wrap(unused -> {
             final Transport.Connection connection;
             try {
                 if (request instanceof RemoteClusterAwareRequest) {
@@ -59,8 +60,25 @@ final class RemoteClusterAwareClient implements RemoteClusterClient {
                 action.name(),
                 request,
                 TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(delegateListener, action.getResponseReader(), responseExecutor)
+                new ActionListenerResponseHandler<>(listener, action.getResponseReader(), responseExecutor)
             );
+        }, e -> {
+            responseExecutor.execute(new AbstractRunnable() {
+                @Override
+                public boolean isForceExecution() {
+                    return true; // we must complete every pending listener
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assert false : new AssertionError(e);
+                }
+
+                @Override
+                protected void doRun() {
+                    listener.onFailure(e);
+                }
+            });
         }));
     }
 

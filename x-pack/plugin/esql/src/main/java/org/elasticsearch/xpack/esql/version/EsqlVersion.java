@@ -23,6 +23,7 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
     ROCKET(2024, 4, "🚀");
 
     static final Map<String, EsqlVersion> VERSION_MAP_WITH_AND_WITHOUT_EMOJI = versionMapWithAndWithoutEmoji();
+    private static final EsqlVersion[] RELEASED_ASCENDING = createReleasedAscending();
 
     private static Map<String, EsqlVersion> versionMapWithAndWithoutEmoji() {
         Map<String, EsqlVersion> stringToVersion = new LinkedHashMap<>(EsqlVersion.values().length * 2);
@@ -33,6 +34,13 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
         }
 
         return stringToVersion;
+    }
+
+    private static EsqlVersion[] createReleasedAscending() {
+        return Arrays.stream(EsqlVersion.values())
+            .filter(v -> v != SNAPSHOT)
+            .sorted(Comparator.comparingInt(EsqlVersion::id))
+            .toArray(EsqlVersion[]::new);
     }
 
     private static void putVersionCheckNoDups(Map<String, EsqlVersion> stringToVersion, String versionString, EsqlVersion version) {
@@ -50,8 +58,15 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
         return VERSION_MAP_WITH_AND_WITHOUT_EMOJI.get(versionString);
     }
 
+    /**
+     * Return the released versions in ascending order.
+     */
+    public static EsqlVersion[] releasedAscending() {
+        return RELEASED_ASCENDING;
+    }
+
     public static EsqlVersion latestReleased() {
-        return Arrays.stream(EsqlVersion.values()).filter(v -> v != SNAPSHOT).max(Comparator.comparingInt(EsqlVersion::id)).get();
+        return RELEASED_ASCENDING[RELEASED_ASCENDING.length - 1];
     }
 
     private int year;

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.action.openai;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
@@ -42,7 +43,7 @@ public class OpenAiChatCompletionAction implements ExecutableAction {
     }
 
     @Override
-    public void execute(InferenceInputs inferenceInputs, ActionListener<InferenceServiceResults> listener) {
+    public void execute(InferenceInputs inferenceInputs, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         if (inferenceInputs instanceof DocumentsOnlyInput docsOnlyInput) {
             if (docsOnlyInput.getInputs().size() > 1) {
                 listener.onFailure(new ElasticsearchStatusException("OpenAI completions only accepts 1 input", RestStatus.BAD_REQUEST));
@@ -56,7 +57,7 @@ public class OpenAiChatCompletionAction implements ExecutableAction {
         try {
             ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(errorMessage, listener);
 
-            sender.send(requestCreator, inferenceInputs, wrappedListener);
+            sender.send(requestCreator, inferenceInputs, timeout, wrappedListener);
         } catch (ElasticsearchException e) {
             listener.onFailure(e);
         } catch (Exception e) {

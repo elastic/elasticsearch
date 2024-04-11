@@ -141,7 +141,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             client.executeLocally(
                 TransportNodesSnapshotsStatus.TYPE,
                 new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(Strings.EMPTY_ARRAY)).snapshots(snapshots)
-                    .timeout(request.masterNodeTimeout()),
+                    .timeout(request.masterNodeTimeout().millis() < 0 ? null : request.masterNodeTimeout()),
                 // fork to snapshot meta since building the response is expensive for large snapshots
                 new RefCountAwareThreadedActionListener<>(
                     threadPool.executor(ThreadPool.Names.SNAPSHOT_META),

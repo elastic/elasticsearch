@@ -1073,7 +1073,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 args = List.of(
                     args.get(0),
                     falseValue,
-                    new EsqlFunctionRegistry.ArgSignature("falseValue", falseValue.type(), falseValue.description(), true)
+                    new EsqlFunctionRegistry.ArgSignature(
+                        "falseValue",
+                        falseValue.type(),
+                        falseValue.description(),
+                        true,
+                        EsqlFunctionRegistry.getTargetType(falseValue.type())
+                    )
                 );
             }
             renderKibanaFunctionDefinition(name, info, args, description.variadic());
@@ -1105,6 +1111,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             table.add(b.toString());
         }
         Collections.sort(table);
+        if (table.isEmpty()) {
+            table.add(signatures.values().iterator().next().typeName());
+        }
 
         String rendered = DOCS_WARNING + """
             *Supported types*
@@ -1205,7 +1214,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
             """);
         builder.append("### ").append(name.toUpperCase(Locale.ROOT)).append("\n");
-        builder.append(info.description()).append("\n\n");
+        builder.append(removeAsciidocLinks(info.description())).append("\n\n");
 
         if (info.examples().length > 0) {
             Example example = info.examples()[0];
@@ -1214,7 +1223,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             builder.append("```\n");
         }
         if (Strings.isNullOrEmpty(info.note()) == false) {
-            builder.append("Note: ").append(info.note()).append("\n");
+            builder.append("Note: ").append(removeAsciidocLinks(info.note())).append("\n");
         }
         String rendered = builder.toString();
         LogManager.getLogger(getTestClass()).info("Writing kibana inline docs for [{}]:\n{}", functionName(), rendered);

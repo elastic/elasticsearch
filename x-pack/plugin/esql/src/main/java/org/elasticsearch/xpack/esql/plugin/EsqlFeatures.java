@@ -68,7 +68,7 @@ public class EsqlFeatures implements FeatureSpecification {
     /**
      * Support for spatial aggregation {@code ST_CENTROID}. Done in #104269.
      */
-    private static final NodeFeature ST_CENTROID = new NodeFeature("esql.st_centroid");
+    private static final NodeFeature ST_CENTROID_AGG = new NodeFeature("esql.st_centroid_agg");
 
     /**
      * Support for spatial aggregation {@code ST_INTERSECTS}. Done in #104907.
@@ -100,6 +100,11 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature FROM_OPTIONS = new NodeFeature("esql.from_options");
 
+    /**
+     * Cast string literals to a desired data type.
+     */
+    public static final NodeFeature STRING_LITERAL_AUTO_CASTING = new NodeFeature("esql.string_literal_auto_casting");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
@@ -111,10 +116,11 @@ public class EsqlFeatures implements FeatureSpecification {
             FROM_OPTIONS,
             SPATIAL_POINTS_FROM_SOURCE,
             SPATIAL_SHAPES,
-            ST_CENTROID,
+            ST_CENTROID_AGG,
             ST_INTERSECTS,
             ST_CONTAINS_WITHIN,
-            ST_DISJOINT
+            ST_DISJOINT,
+            STRING_LITERAL_AUTO_CASTING
         );
     }
 

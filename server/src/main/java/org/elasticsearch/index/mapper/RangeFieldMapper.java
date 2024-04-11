@@ -444,8 +444,8 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     private static Range parseIpRangeFromCidr(final XContentParser parser) throws IOException {
-        final Tuple<InetAddress, InetAddress> range = InetAddresses.parseIpRangeFromCidr(parser.text());
-        return new Range(RangeType.IP, range.v1(), range.v2(), true, true);
+        final InetAddresses.IpRange range = InetAddresses.parseIpRangeFromCidr(parser.text());
+        return new Range(RangeType.IP, range.lowerBound(), range.upperBound(), true, true);
     }
 
     @Override

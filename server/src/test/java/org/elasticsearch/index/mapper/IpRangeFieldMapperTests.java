@@ -123,7 +123,7 @@ public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
 
     private Tuple<Object, Object> generateValue() {
         String cidr = randomCidrBlock();
-        Tuple<InetAddress, InetAddress> range = InetAddresses.parseIpRangeFromCidr(cidr);
+        InetAddresses.IpRange range = InetAddresses.parseIpRangeFromCidr(cidr);
 
         var includeFrom = randomBoolean();
         var includeTo = randomBoolean();
@@ -134,13 +134,13 @@ public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
         if (randomBoolean()) {
             // CIDRs are always inclusive ranges.
             input = cidr;
-            output.put("gte", InetAddresses.toAddrString(range.v1()));
-            output.put("lte", InetAddresses.toAddrString(range.v2()));
+            output.put("gte", InetAddresses.toAddrString(range.lowerBound()));
+            output.put("lte", InetAddresses.toAddrString(range.upperBound()));
         } else {
             var fromKey = includeFrom ? "gte" : "gt";
             var toKey = includeTo ? "lte" : "lt";
-            var from = rarely() ? null : InetAddresses.toAddrString(range.v1());
-            var to = rarely() ? null : InetAddresses.toAddrString(range.v2());
+            var from = rarely() ? null : InetAddresses.toAddrString(range.lowerBound());
+            var to = rarely() ? null : InetAddresses.toAddrString(range.upperBound());
             input = (ToXContent) (builder, params) -> builder.startObject().field(fromKey, from).field(toKey, to).endObject();
 
             // When ranges are stored, they are always normalized to include both ends.
@@ -153,14 +153,14 @@ public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
             if (from == null) {
                 output.put("gte", InetAddresses.toAddrString((InetAddress) rangeType().minValue()));
             } else {
-                var rawFrom = range.v1();
+                var rawFrom = range.lowerBound();
                 var adjustedFrom = includeFrom ? rawFrom : (InetAddress) RangeType.IP.nextUp(rawFrom);
                 output.put("gte", InetAddresses.toAddrString(adjustedFrom));
             }
             if (to == null) {
                 output.put("lte", InetAddresses.toAddrString((InetAddress) rangeType().maxValue()));
             } else {
-                var rawTo = range.v2();
+                var rawTo = range.upperBound();
                 var adjustedTo = includeTo ? rawTo : (InetAddress) RangeType.IP.nextDown(rawTo);
                 output.put("lte", InetAddresses.toAddrString(adjustedTo));
             }

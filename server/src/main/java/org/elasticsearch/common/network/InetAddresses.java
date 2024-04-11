@@ -419,14 +419,22 @@ public class InetAddresses {
     }
 
     /**
+     * Represents a range of IP addresses
+     * @param lowerBound start of the ip range (inclusive)
+     * @param upperBound end of the ip range (inclusive)
+     */
+    public record IpRange(InetAddress lowerBound, InetAddress upperBound) {}
+
+    /**
      * Parse an IP address and its prefix length using the CIDR notation
      * into a range of ip addresses corresponding to it.
+     * @param maskedAddress ip address range in a CIDR notation
      * @throws IllegalArgumentException if the string is not formatted as {@code ip_address/prefix_length}
      * @throws IllegalArgumentException if the IP address is an IPv6-mapped ipv4 address
      * @throws IllegalArgumentException if the prefix length is not in 0-32 for IPv4 addresses and 0-128 for IPv6 addresses
      * @throws NumberFormatException if the prefix length is not an integer
      */
-    public static Tuple<InetAddress, InetAddress> parseIpRangeFromCidr(String maskedAddress) {
+    public static IpRange parseIpRangeFromCidr(String maskedAddress) {
         final Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(maskedAddress);
         // create the lower value by zeroing out the host portion, upper value by filling it with all ones.
         byte[] lower = cidr.v1().getAddress();
@@ -437,7 +445,7 @@ public class InetAddresses {
             upper[i >> 3] |= (byte) m;
         }
         try {
-            return Tuple.tuple(InetAddress.getByAddress(lower), InetAddress.getByAddress(upper));
+            return new IpRange(InetAddress.getByAddress(lower), InetAddress.getByAddress(upper));
         } catch (UnknownHostException bogus) {
             throw new AssertionError(bogus);
         }

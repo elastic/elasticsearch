@@ -20,10 +20,27 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Parses datetimes in ISO8601 format (and subsequences thereof)
+ * Parses datetimes in ISO8601 format (and subsequences thereof).
+ * <p>
+ * Various libraries provide their own variant of this mechanism. We have our own here for a few reasons:
+ * <ul>
+ *     <li>
+ *         We are a bit more lenient with strings that are invalid according to the strict specification
+ *         (eg using a zone region instead of offset for timezone)
+ *     </li>
+ *     <li>Various built-in formats specify some fields as mandatory and some as optional</li>
+ *     <li>Callers can specify defaults for fields that are not present</li>
+ * </ul>
+ * We also do not use exceptions here, instead returning {@code null} for any invalid values, that are then
+ * checked and propagated as appropriate.
  */
 class Iso8601Parser {
 
+    /**
+     * The result of the parse. If successful, {@code result} will be non-null.
+     * If parse failed, {@code errorIndex} specifies the index into the parsed string
+     * that the first invalid data was encountered.
+     */
     record Result(@Nullable DateTime result, int errorIndex) {
         Result(DateTime result) {
             this(result, -1);
@@ -108,6 +125,13 @@ class Iso8601Parser {
         return defaults.getOrDefault(field, 0);
     }
 
+    /**
+     * Attempts to parse {@code str} as an ISO-8601 datetime, returning a {@link Result} indicating if the parse
+     * was successful or not, and what fields were present.
+     * @param str             The string to parse
+     * @param defaultTimezone The default timezone to return, if no timezone is present in the string
+     * @return                The {@link Result} of the parse.
+     */
     Result tryParse(CharSequence str, @Nullable ZoneId defaultTimezone) {
         if (str.charAt(0) == '-') {
             // the year is negative. This is most unusual.
@@ -143,6 +167,16 @@ class Iso8601Parser {
      */
     private static final int[] NANO_MULTIPLICANDS = new int[] { 1, 10, 100, 1_000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000 };
 
+    /**
+     * Parses {@code str} in ISO8601 format.
+     * <p>
+     * This parses the string using fixed offsets (it does not support variable-width fields) and separators,
+     * sequentially parsing each field and looking for the correct separator.
+     * This enables it to be very fast, as all the fields are in fixed places in the string.
+     * The only variable aspect comes from the timezone, which (fortunately) is only present at the end of the string,
+     * at any point after a time field.
+     * It also does not use exceptions, instead returning {@code null} where a value cannot be parsed.
+     */
     private Result parse(CharSequence str, @Nullable ZoneId defaultTimezone) {
         int len = str.length();
 
@@ -450,7 +484,7 @@ class Iso8601Parser {
     }
 
     /**
-     * Specify ZoneOffset when we can
+     * Create a {@code DateTime} object, with the ZoneOffset field set when the zone is an offset, not just an id.
      */
     private static DateTime withZoneOffset(
         int years,

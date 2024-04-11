@@ -139,6 +139,10 @@ public class ServiceUtils {
         );
     }
 
+    public static String invalidSettingError(String settingName, String scope) {
+        return Strings.format("[%s] does not allow the setting [%s]", scope, settingName);
+    }
+
     // TODO improve URI validation logic
     public static URI convertToUri(@Nullable String url, String settingName, String settingScope, ValidationException validationException) {
         try {

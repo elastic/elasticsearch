@@ -75,6 +75,11 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
 
         switch (context) {
             case REQUEST -> {
+                if (dimensionsSetByUser != null) {
+                    validationException.addValidationError(
+                        ServiceUtils.invalidSettingError(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                    );
+                }
                 dimensionsSetByUser = dims != null;
             }
             case PERSISTENT -> {

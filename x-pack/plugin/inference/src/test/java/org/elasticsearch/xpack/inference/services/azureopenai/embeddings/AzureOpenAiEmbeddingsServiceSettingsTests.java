@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields;
 import org.hamcrest.CoreMatchers;
+import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -96,32 +97,39 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         );
     }
 
-    public void testFromMap_Request_DimensionsSetByUser_ShouldNotThrowWhenPresentWithoutDimensions() {
+    public void testFromMap_Request_DimensionsSetByUser_ShouldThrowWhenPresent() {
         var resourceName = "this-resource";
         var deploymentId = "this-deployment";
         var apiVersion = "2024-01-01";
         var maxInputTokens = 512;
-        var serviceSettings = AzureOpenAiEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    AzureOpenAiServiceFields.RESOURCE_NAME,
-                    resourceName,
-                    AzureOpenAiServiceFields.DEPLOYMENT_ID,
-                    deploymentId,
-                    AzureOpenAiServiceFields.API_VERSION,
-                    apiVersion,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    DIMENSIONS_SET_BY_USER,
-                    false
-                )
-            ),
-            ConfigurationParseContext.REQUEST
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> AzureOpenAiEmbeddingsServiceSettings.fromMap(
+                new HashMap<>(
+                    Map.of(
+                        AzureOpenAiServiceFields.RESOURCE_NAME,
+                        resourceName,
+                        AzureOpenAiServiceFields.DEPLOYMENT_ID,
+                        deploymentId,
+                        AzureOpenAiServiceFields.API_VERSION,
+                        apiVersion,
+                        ServiceFields.MAX_INPUT_TOKENS,
+                        maxInputTokens,
+                        ServiceFields.DIMENSIONS,
+                        1024,
+                        DIMENSIONS_SET_BY_USER,
+                        false
+                    )
+                ),
+                ConfigurationParseContext.REQUEST
+            )
         );
 
-        assertThat(
-            serviceSettings,
-            is(new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, null, false, maxInputTokens))
+        MatcherAssert.assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format("Validation Failed: 1: [service_settings] does not allow the setting [%s];", DIMENSIONS_SET_BY_USER)
+            )
         );
     }
 
@@ -265,7 +273,7 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         return createRandom();
     }
 
-    public static Map<String, Object> getAzureOpenAiServiceSettingsMap(
+    public static Map<String, Object> getPersistentAzureOpenAiServiceSettingsMap(
         String resourceName,
         String deploymentId,
         String apiVersion,
@@ -283,6 +291,30 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             map.put(DIMENSIONS_SET_BY_USER, true);
         } else {
             map.put(DIMENSIONS_SET_BY_USER, false);
+        }
+
+        if (maxInputTokens != null) {
+            map.put(ServiceFields.MAX_INPUT_TOKENS, maxInputTokens);
+        }
+
+        return map;
+    }
+
+    public static Map<String, Object> getRequestAzureOpenAiServiceSettingsMap(
+        String resourceName,
+        String deploymentId,
+        String apiVersion,
+        @Nullable Integer dimensions,
+        @Nullable Integer maxInputTokens
+    ) {
+        var map = new HashMap<String, Object>();
+
+        map.put(AzureOpenAiServiceFields.RESOURCE_NAME, resourceName);
+        map.put(AzureOpenAiServiceFields.DEPLOYMENT_ID, deploymentId);
+        map.put(AzureOpenAiServiceFields.API_VERSION, apiVersion);
+
+        if (dimensions != null) {
+            map.put(ServiceFields.DIMENSIONS, dimensions);
         }
 
         if (maxInputTokens != null) {

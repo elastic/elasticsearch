@@ -21,14 +21,14 @@ import java.util.Objects;
 public class AllowWriteStep extends UpdateSettingsStep {
     public static final String NAME = "allow-write-after-shrink";
 
-    public static final Settings CLEAR_BLOCKS_WRITE_SETTING = Settings.builder()
+    public static final Settings CLEAR_WRITE_BLOCK_SETTINGS = Settings.builder()
         .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), (String) null)
         .build();
 
     private final boolean allowWriteAfterShrink;
 
     public AllowWriteStep(StepKey key, StepKey nextStepKey, Client client, boolean allowWriteAfterShrink) {
-        super(key, nextStepKey, client, CLEAR_BLOCKS_WRITE_SETTING);
+        super(key, nextStepKey, client, CLEAR_WRITE_BLOCK_SETTINGS);
         this.allowWriteAfterShrink = allowWriteAfterShrink;
     }
 

@@ -1,5 +1,6 @@
 pr: 107121
-summary: Allow writes to ILM shrink action target index
+summary: Add a flag to re-enable writes on the final index after an ILM shrink action.
 area: ILM+SLM
 type: enhancement
-issues: []
+issues:
+  - 106599

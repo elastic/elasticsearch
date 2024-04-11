@@ -400,7 +400,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         expectThrows(ResponseException.class, () -> indexDocument(client(), index));
     }
 
-    public void testAllowWritesActualShrink() throws Exception {
+    public void testAllowWritesInShrunkIndex() throws Exception {
         int numShards = 4;
         int divisor = randomFrom(2, 4);
         int expectedFinalShards = numShards / divisor;
@@ -437,7 +437,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         assertBusy(() -> assertDocCount(client(), index, 1));
     }
 
-    public void testAllowWritesShardsWithNumberOfShards() throws Exception {
+    public void testAllowWritesWhenShrinkIsSkipped() throws Exception {
         int numberOfShards = randomFrom(1, 2);
         boolean initialIndexIsReadOnly = randomBoolean();
         createIndexWithSettings(

@@ -398,7 +398,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         populateData();
 
         // Query cluster
-        final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
+        var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest.setJsonEntity("""
             {
               "indices": [{"names": [""], "privileges": ["read_cross_cluster"]}],
@@ -412,7 +412,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             }""");
         assertOK(adminClient().performRequest(putRoleRequest));
 
-        // Query cluster
+        // query appropriate privs
         Response response = performRequestWithRemoteSearchUser(esqlRequest("""
             FROM my_remote_cluster:employees
             | SORT emp_id ASC
@@ -420,6 +420,28 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             | KEEP emp_id, department"""));
         assertOK(response);
         assertRemoteOnlyResults(response);
+
+        // without the remote index priv
+        putRoleRequest.setJsonEntity("""
+            {
+              "indices": [{"names": [""], "privileges": ["read_cross_cluster"]}],
+              "remote_indices": [
+                {
+                  "names": ["idontexist"],
+                  "privileges": ["read"],
+                  "clusters": ["my_remote_cluster"]
+                }
+              ]
+            }""");
+        assertOK(adminClient().performRequest(putRoleRequest));
+
+        ResponseException error = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(esqlRequest("""
+            FROM my_remote_cluster:employees
+            | SORT emp_id ASC
+            | LIMIT 2
+            | KEEP emp_id, department""")));
+        assertThat(error.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        assertThat(error.getMessage(), containsString("Unknown index [my_remote_cluster:employees]"));
 
         // no local privs at all will fail
         final var putRoleNoLocalPrivs = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
@@ -436,7 +458,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             }""");
         assertOK(adminClient().performRequest(putRoleNoLocalPrivs));
 
-        ResponseException error = expectThrows(ResponseException.class, () -> { performRequestWithRemoteSearchUser(esqlRequest("""
+        error = expectThrows(ResponseException.class, () -> { performRequestWithRemoteSearchUser(esqlRequest("""
             FROM my_remote_cluster:employees
             | SORT emp_id ASC
             | LIMIT 2

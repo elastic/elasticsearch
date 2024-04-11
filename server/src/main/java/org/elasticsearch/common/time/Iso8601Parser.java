@@ -22,14 +22,15 @@ import java.util.Set;
 /**
  * Parses datetimes in ISO8601 format (and subsequences thereof).
  * <p>
- * Various libraries provide their own variant of this mechanism. We have our own here for a few reasons:
+ * This is faster than the generic parsing in {@link java.time.format.DateTimeFormatter}, as this is hard-coded and specific to ISO-8601.
+ * Various public libraries provide their own variant of this mechanism. We use our own for a few reasons:
  * <ul>
  *     <li>
- *         We are a bit more lenient with strings that are invalid according to the strict specification
+ *         We are historically a bit more lenient with strings that are invalid according to the strict specification
  *         (eg using a zone region instead of offset for timezone)
  *     </li>
  *     <li>Various built-in formats specify some fields as mandatory and some as optional</li>
- *     <li>Callers can specify defaults for fields that are not present</li>
+ *     <li>Callers can specify defaults for fields that are not present (eg for roundup parsers)</li>
  * </ul>
  * We also do not use exceptions here, instead returning {@code null} for any invalid values, that are then
  * checked and propagated as appropriate.

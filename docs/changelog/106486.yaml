@@ -1,0 +1,14 @@
+pr: 106486
+summary: Create custom parser for ISO-8601 datetimes
+area: Infra/Core
+type: enhancement
+issues:
+  - 102063
+highlight:
+  title: New custom parser for ISO-8601 datetimes
+  body: |-
+    This introduces a new custom parser for ISO-8601 datetimes, for the `iso8601`, `strict_date_optional_time`, and
+    `strict_date_optional_time_nanos` built-in date formats. This provides a performance improvement over the
+    default Java date-time parsing. Note that this will cause some nonsensical date-time values
+    (those with multiple fractional seconds fields, or with multiple timezones) that were previously accepted
+    to be rejected as invalid.

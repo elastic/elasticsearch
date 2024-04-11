@@ -142,10 +142,11 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         Files.createDirectories(fileSettingsService.watchedFileDir());
         Path tempFilePath = createTempFile();
 
-        logger.info("--> writing JSON config to node {} with path {}", node, tempFilePath);
+        logger.info("--> BEFORE writing JSON config to node {} with path {}", node, tempFilePath);
         logger.info(Strings.format(json, version));
         Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
         Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
+        logger.info("--> AFTER writing JSON config to node {} with path {}", node, tempFilePath);
     }
 
     private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node, String expectedKey) {

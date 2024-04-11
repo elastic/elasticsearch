@@ -181,8 +181,8 @@ setup:
 
 ---
 "Get index template always shows composed_of":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "A bug was fixed in 8.13.0 to make `composed_of` always returned"
 
   - do:

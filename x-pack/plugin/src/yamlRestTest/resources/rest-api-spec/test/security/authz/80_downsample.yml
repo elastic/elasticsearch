@@ -1,8 +1,8 @@
 setup:
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "downsample introduced in 8.5.0"
-      features: headers
+      test_runner_features: headers
 
   - do:
       indices.create:
@@ -77,10 +77,10 @@ setup:
 
 ---
 "Downsample user missing admin permissions to run the downsample operation":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "downsample introduced in 8.5.0"
-      features: headers
+      test_runner_features: headers
 
   - do:
       security.put_role:
@@ -122,10 +122,10 @@ setup:
 
 ---
 "Downsample admin user with field level security settings defined on the source index":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "downsample introduced in 8.5.0"
-      features: headers
+      test_runner_features: headers
 
   - do:
       security.put_role:
@@ -166,10 +166,10 @@ setup:
 
 ---
 "Downsample admin user with document level security settings defined on the source index":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "downsample introduced in 8.5.0"
-      features: headers
+      test_runner_features: headers
 
   - do:
       security.put_role:
@@ -210,10 +210,10 @@ setup:
 
 ---
 "Downsample admin user without document level or field level security settings defined on the source index":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "downsample introduced in 8.5.0"
-      features: headers
+      test_runner_features: headers
 
   - do:
       security.put_role:

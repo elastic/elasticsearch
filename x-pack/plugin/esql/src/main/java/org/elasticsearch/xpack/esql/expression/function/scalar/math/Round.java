@@ -48,9 +48,10 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
     @FunctionInfo(
         returnType = { "double", "integer", "long", "unsigned_long" },
         description = """
-            Rounds a number to the closest number with the specified number of digits.
-            Defaults to 0 digits if no number of digits is provided. If the specified number
-            of digits is negative, rounds to the number of digits left of the decimal point.""",
+            Rounds a number to the specified number of decimal places.
+            Defaults to 0, which returns the nearest integer. If the 
+            precision is a negative number, rounds to the number of digits left 
+            of the decimal point.""",
         examples = @Example(file = "docs", tag = "round")
     )
     public Round(

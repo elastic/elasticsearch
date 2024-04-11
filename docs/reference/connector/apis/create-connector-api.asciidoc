@@ -68,16 +68,18 @@ Creates a connector document in the internal index and initializes its configura
 
 `index_name`::
 (Required, string) The target index for syncing data by the connector.
-//// making this required does not align with the BYOI for connectors. Is there another way to create a connector without an attached index?
-
+// making this required does not align with the BYOI for connectors. I believe we discussed we're making this optional. 
+In Kibana, attaching an index also creates the index, if we specify an index here, will it be created? When? 
 `name`::
 (Optional, string) The name of the connector.
+// having an optional name Killed my Kibana experience. Without an index or a name, there is no way for me to go to connector Overview.
 
 `is_native`::
 (Optional, boolean) Indicates if it's a native connector. Defaults to `false`.
 
 `language`::
 (Optional, string) Language analyzer for the data. Limited to supported languages.
+// Is the connector doing anything with the language analyzer? Shouldn't this be specific for the index?
 
 `service_type`::
 (Optional, string) Connector service type. Can reference Elastic-supported connector types or a custom connector type.

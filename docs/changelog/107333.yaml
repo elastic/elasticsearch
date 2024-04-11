@@ -1,5 +1,12 @@
 pr: 107333
 summary: Limit how much space some string functions can use
 area: SQL
-type: bug
+type: "breaking, bug"
 issues: []
+breaking:
+  title: Limit how much space some string functions can use
+  area: SQL
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

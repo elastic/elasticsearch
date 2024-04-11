@@ -52,6 +52,7 @@ public class IndexingPressure {
     private final AtomicLong coordinatingRejections = new AtomicLong(0);
     private final AtomicLong primaryRejections = new AtomicLong(0);
     private final AtomicLong replicaRejections = new AtomicLong(0);
+    private final AtomicLong primaryDocumentRejections = new AtomicLong(0);
 
     private final long primaryAndCoordinatingLimits;
     private final long replicaLimits;
@@ -136,6 +137,7 @@ public class IndexingPressure {
             long totalBytesWithoutOperation = totalBytes - bytes;
             this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
             this.primaryRejections.getAndIncrement();
+            this.primaryDocumentRejections.addAndGet(operations);
             throw new EsRejectedExecutionException(
                 "rejected execution of primary operation ["
                     + "coordinating_and_primary_bytes="
@@ -218,7 +220,8 @@ public class IndexingPressure {
             totalReplicaOps.get(),
             currentCoordinatingOps.get(),
             currentPrimaryOps.get(),
-            currentReplicaOps.get()
+            currentReplicaOps.get(),
+            primaryDocumentRejections.get()
         );
     }
 }

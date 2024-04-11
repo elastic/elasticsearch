@@ -43,9 +43,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  */
 public class ConnectorFiltering implements Writeable, ToXContentObject {
 
-    private final FilteringRules active;
+    private FilteringRules active;
     private final String domain;
-    private final FilteringRules draft;
+    private FilteringRules draft;
 
     /**
      * Constructs a new ConnectorFiltering instance.
@@ -76,6 +76,16 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
 
     public FilteringRules getDraft() {
         return draft;
+    }
+
+    public ConnectorFiltering setActive(FilteringRules active) {
+        this.active = active;
+        return this;
+    }
+
+    public ConnectorFiltering setDraft(FilteringRules draft) {
+        this.draft = draft;
+        return this;
     }
 
     private static final ParseField ACTIVE_FIELD = new ParseField("active");
@@ -116,6 +126,38 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
     public static ConnectorFiltering fromXContentBytes(BytesReference source, XContentType xContentType) {
         try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
             return ConnectorFiltering.fromXContent(parser);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("Failed to parse a connector filtering.", e);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<List<ConnectorFiltering>, Void> CONNECTOR_FILTERING_PARSER =
+        new ConstructingObjectParser<>(
+            "connector_filtering_parser",
+            true,
+            args -> (List<ConnectorFiltering>) args[0]
+
+        );
+
+    static {
+        CONNECTOR_FILTERING_PARSER.declareObjectArray(
+            constructorArg(),
+            (p, c) -> ConnectorFiltering.fromXContent(p),
+            Connector.FILTERING_FIELD
+        );
+    }
+
+    /**
+     * Deserializes the 'filtering' field from a connector's byte representation.
+     *
+     * @param source       Byte representation of the connector.
+     * @param xContentType Type of the content (e.g., JSON).
+     * @return             List of {@link ConnectorFiltering} objects.
+     */
+    public static List<ConnectorFiltering> fromXContentBytesConnectorFiltering(BytesReference source, XContentType xContentType) {
+        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
+            return CONNECTOR_FILTERING_PARSER.parse(parser, null);
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse a connector filtering.", e);
         }

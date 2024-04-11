@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.explain.ExplainRequestBuilder;
@@ -46,7 +47,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -115,34 +115,29 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
         return List.of(TestPlugin.class);
     }
 
-    public void testIndexMetadataMap_TransportSearchAction() {
+    public void testResolvedIndices_TransportSearchAction() {
         final String[] indices = { "test1", "test2" };
         createIndex(indices);
         assertAcked(indicesAdmin().prepareAliases().addAlias(indices, "alias"));
-        assertIndexMetadataMapSet(prepareSearch(indices), Set.of(indices), r -> {});
-        assertIndexMetadataMapSet(prepareSearch("test*"), Set.of(indices), r -> {});
-        assertIndexMetadataMapSet(prepareSearch("alias"), Set.of(indices), r -> {});
+        assertResolvedIndices(prepareSearch(indices), Set.of(indices), r -> {});
+        assertResolvedIndices(prepareSearch("test*"), Set.of(indices), r -> {});
+        assertResolvedIndices(prepareSearch("alias"), Set.of(indices), r -> {});
 
         // TODO: Test with point-in-time request
     }
 
-    public void testIndexMetadataMap_TransportExplainAction() {
+    public void testResolvedIndices_TransportExplainAction() {
         final String[] indices = { "test1", "test2" };
         createIndex(indices);
         assertAcked(indicesAdmin().prepareAliases().addAlias("test1", "alias1"));
         assertAcked(indicesAdmin().prepareAliases().addAlias(indices, "alias2"));
 
-        assertIndexMetadataMapSet(client().prepareExplain("test1", "1"), Set.of("test1"), r -> {});
-        assertIndexMetadataMapSet(client().prepareExplain("alias1", "1"), Set.of("test1"), r -> {});
-        assertIndexMetadataMapException(
-            client().prepareExplain("alias2", "1"),
-            IllegalArgumentException.class,
-            "alias [alias2] has more than one index associated with it [test1, test2], can't execute a single index op",
-            RestStatus.BAD_REQUEST
-        );
+        assertResolvedIndices(client().prepareExplain("test1", "1"), Set.of("test1"), r -> {});
+        assertResolvedIndices(client().prepareExplain("alias1", "1"), Set.of("test1"), r -> {});
+        assertRequestBuilderThrows(client().prepareExplain("alias2", "1"), IllegalArgumentException.class, RestStatus.BAD_REQUEST);
     }
 
-    public void testIndexMetadataMap_TransportValidateQueryAction() {
+    public void testResolvedIndices_TransportValidateQueryAction() {
         final String[] indices = { "test1", "test2" };
         createIndex(indices);
         assertAcked(indicesAdmin().prepareAliases().addAlias(indices, "alias"));
@@ -152,12 +147,12 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
             assertThat(r.isValid(), is(true));
         };
 
-        assertIndexMetadataMapSet(client().admin().indices().prepareValidateQuery(indices), Set.of(indices), responseAssertions);
-        assertIndexMetadataMapSet(client().admin().indices().prepareValidateQuery("test*"), Set.of(indices), responseAssertions);
-        assertIndexMetadataMapSet(client().admin().indices().prepareValidateQuery("alias"), Set.of(indices), responseAssertions);
+        assertResolvedIndices(client().admin().indices().prepareValidateQuery(indices), Set.of(indices), responseAssertions);
+        assertResolvedIndices(client().admin().indices().prepareValidateQuery("test*"), Set.of(indices), responseAssertions);
+        assertResolvedIndices(client().admin().indices().prepareValidateQuery("alias"), Set.of(indices), responseAssertions);
     }
 
-    private static <Request extends ActionRequest, Response extends ActionResponse> void assertIndexMetadataMapSet(
+    private static <Request extends ActionRequest, Response extends ActionResponse> void assertResolvedIndices(
         ActionRequestBuilder<Request, Response> requestBuilder,
         Set<String> expectedIndices,
         Consumer<Response> responseAssertions
@@ -166,12 +161,14 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
         TestQueryBuilder testQueryBuilder = new TestQueryBuilder() {
             @Override
             protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-                // Check that the first QueryRewriteContext received has a non-empty index metadata map.
-                // Later QueryRewriteContext instances received, such as the one generated in the can-match phase, will have an empty index
-                // metadata map.
+                // Check that the first QueryRewriteContext received has the expected resolved indices.
+                // Later QueryRewriteContext instances received, such as the one generated in the can-match phase, will have resolved
+                // indices set to null.
                 if (queryRewriteContext.getClass() == QueryRewriteContext.class && gotQueryRewriteContext.getAndSet(true) == false) {
-                    Map<Index, IndexMetadata> indexMetadataMap = queryRewriteContext.getIndexMetadataMap();
-                    assertThat(indexMetadataMap, notNullValue());
+                    ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
+                    assertThat(resolvedIndices, notNullValue());
+
+                    Map<Index, IndexMetadata> indexMetadataMap = resolvedIndices.getConcreteLocalIndicesMetadata();
                     assertThat(
                         indexMetadataMap.keySet().stream().map(Index::getName).collect(Collectors.toSet()),
                         equalTo(expectedIndices)
@@ -185,34 +182,6 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
         setQuery(requestBuilder, testQueryBuilder);
         assertResponse(requestBuilder, responseAssertions);
         assertThat(gotQueryRewriteContext.get(), is(true));
-    }
-
-    private static <Request extends ActionRequest, Response extends ActionResponse> void assertIndexMetadataMapException(
-        ActionRequestBuilder<Request, Response> requestBuilder,
-        Class<? extends Exception> expectedExceptionClass,
-        String expectedExceptionMessage,
-        RestStatus expectedRestStatus
-    ) {
-        TestQueryBuilder testQueryBuilder = new TestQueryBuilder() {
-            @Override
-            protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-                if (queryRewriteContext.getClass() == QueryRewriteContext.class) {
-                    try {
-                        queryRewriteContext.getIndexMetadataMap();
-                        throw new AssertionError("Should throw exception when getIndexMetadataMap() is called");
-                    } catch (Exception e) {
-                        assertThat(e, instanceOf(expectedExceptionClass));
-                        assertThat(e.getMessage(), equalTo(expectedExceptionMessage));
-                        throw e;
-                    }
-                }
-
-                return super.doRewrite(queryRewriteContext);
-            }
-        };
-
-        setQuery(requestBuilder, testQueryBuilder);
-        assertRequestBuilderThrows(requestBuilder, expectedExceptionClass, expectedRestStatus);
     }
 
     private static <Request extends ActionRequest, Response extends ActionResponse> void setQuery(

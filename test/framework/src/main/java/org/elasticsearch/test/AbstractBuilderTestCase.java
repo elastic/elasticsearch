@@ -14,9 +14,12 @@ import com.carrotsearch.randomizedtesting.SeedUtils;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
@@ -106,6 +109,8 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public abstract class AbstractBuilderTestCase extends ESTestCase {
 
@@ -612,7 +617,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 null,
                 () -> true,
                 scriptService,
-                () -> Map.of(index, indexMetadata)
+                createMockResolvedIndices()
             );
         }
 
@@ -640,6 +645,17 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 }));
             }
             return new ScriptModule(Settings.EMPTY, scriptPlugins);
+        }
+
+        private ResolvedIndices createMockResolvedIndices() {
+            ResolvedIndices resolvedIndices = mock(ResolvedIndices.class);
+            when(resolvedIndices.getRemoteClusterIndices()).thenReturn(Map.of());
+            when(resolvedIndices.getLocalIndices()).thenReturn(
+                new OriginalIndices(new String[] { index.getName() }, IndicesOptions.DEFAULT)
+            );
+            when(resolvedIndices.getConcreteLocalIndicesMetadata()).thenReturn(Map.of(index, indexMetadata));
+            when(resolvedIndices.getConcreteLocalIndices()).thenReturn(new Index[] { index });
+            return resolvedIndices;
         }
     }
 }

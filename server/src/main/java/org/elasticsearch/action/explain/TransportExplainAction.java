@@ -43,9 +43,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 
 /**
  * Explain transport action. Computes the explain on the targeted shard.
@@ -84,9 +82,14 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     protected void doExecute(Task task, ExplainRequest request, ActionListener<ExplainResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
 
-        // Use a supplier to create the ResolvedIndices instance as necessary since it is only used to build the index metadata map for
-        // the query rewrite context
-        Supplier<ResolvedIndices> resolvedIndicesSupplier = createResolvedIndicesSupplier(request);
+        // Indices are resolved twice (they are resolved again later by the base class), but that's ok for this action type
+        ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndicesRequest(
+            request,
+            clusterService.state(),
+            indexNameExpressionResolver,
+            remoteClusterService,
+            request.nowInMillis
+        );
 
         ActionListener<QueryBuilder> rewriteListener = listener.delegateFailureAndWrap((l, rewrittenQuery) -> {
             request.query(rewrittenQuery);
@@ -95,11 +98,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
         assert request.query() != null;
         LongSupplier timeProvider = () -> request.nowInMillis;
-        Rewriteable.rewriteAndFetch(
-            request.query(),
-            searchService.getRewriteContext(timeProvider, () -> resolvedIndicesSupplier.get().getConcreteLocalIndicesMetadata()),
-            rewriteListener
-        );
+        Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(timeProvider, resolvedIndices), rewriteListener);
     }
 
     @Override
@@ -188,22 +187,5 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         return indexService.getIndexSettings().isSearchThrottled()
             ? threadPool.executor(ThreadPool.Names.SEARCH_THROTTLED)
             : super.getExecutor(request, shardId);
-    }
-
-    private Supplier<ResolvedIndices> createResolvedIndicesSupplier(ExplainRequest request) {
-        final AtomicReference<ResolvedIndices> resolvedIndices = new AtomicReference<>();
-        return () -> {
-            resolvedIndices.compareAndSet(
-                null,
-                ResolvedIndices.resolveWithIndicesRequest(
-                    request,
-                    clusterService.state(),
-                    indexNameExpressionResolver,
-                    remoteClusterService,
-                    request.nowInMillis
-                )
-            );
-            return resolvedIndices.get();
-        };
     }
 }

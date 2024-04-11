@@ -47,10 +47,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 
 public class TransportValidateQueryAction extends TransportBroadcastAction<
     ValidateQueryRequest,
@@ -88,9 +86,14 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         request.nowInMillis = System.currentTimeMillis();
         LongSupplier timeProvider = () -> request.nowInMillis;
 
-        // Use a supplier to create the ResolvedIndices instance as necessary since it is only used to build the index metadata map for
-        // the query rewrite context
-        Supplier<ResolvedIndices> resolvedIndicesSupplier = createResolvedIndicesSupplier(request);
+        // Indices are resolved twice (they are resolved again later by the base class), but that's ok for this action type
+        ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndicesRequest(
+            request,
+            clusterService.state(),
+            indexNameExpressionResolver,
+            remoteClusterService,
+            request.nowInMillis
+        );
 
         ActionListener<org.elasticsearch.index.query.QueryBuilder> rewriteListener = ActionListener.wrap(rewrittenQuery -> {
             request.query(rewrittenQuery);
@@ -118,11 +121,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         if (request.query() == null) {
             rewriteListener.onResponse(request.query());
         } else {
-            Rewriteable.rewriteAndFetch(
-                request.query(),
-                searchService.getRewriteContext(timeProvider, () -> resolvedIndicesSupplier.get().getConcreteLocalIndicesMetadata()),
-                rewriteListener
-            );
+            Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(timeProvider, resolvedIndices), rewriteListener);
         }
     }
 
@@ -240,22 +239,5 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         } else {
             return query.toString();
         }
-    }
-
-    private Supplier<ResolvedIndices> createResolvedIndicesSupplier(ValidateQueryRequest request) {
-        final AtomicReference<ResolvedIndices> resolvedIndices = new AtomicReference<>();
-        return () -> {
-            resolvedIndices.compareAndSet(
-                null,
-                ResolvedIndices.resolveWithIndicesRequest(
-                    request,
-                    clusterService.state(),
-                    indexNameExpressionResolver,
-                    remoteClusterService,
-                    request.nowInMillis
-                )
-            );
-            return resolvedIndices.get();
-        };
     }
 }

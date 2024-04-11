@@ -102,7 +102,7 @@ public class ResolvedIndices {
      *
      * @return Metadata for concrete local cluster indices
      */
-    public Map<Index, IndexMetadata> getLocalIndexMetadata() {
+    public Map<Index, IndexMetadata> getConcreteLocalIndicesMetadata() {
         return localIndexMetadata;
     }
 

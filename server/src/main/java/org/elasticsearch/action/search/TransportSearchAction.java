@@ -462,7 +462,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         Rewriteable.rewriteAndFetch(
             original,
-            searchService.getRewriteContext(timeProvider::absoluteStartMillis, resolvedIndices::getLocalIndexMetadata),
+            searchService.getRewriteContext(timeProvider::absoluteStartMillis, resolvedIndices::getConcreteLocalIndicesMetadata),
             rewriteListener
         );
     }
@@ -1059,7 +1059,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     void frozenIndexCheck(ResolvedIndices resolvedIndices) {
         List<String> frozenIndices = new ArrayList<>();
-        Map<Index, IndexMetadata> indexMetadataMap = resolvedIndices.getLocalIndexMetadata();
+        Map<Index, IndexMetadata> indexMetadataMap = resolvedIndices.getConcreteLocalIndicesMetadata();
         for (var entry : indexMetadataMap.entrySet()) {
             if (entry.getValue().getSettings().getAsBoolean("index.frozen", false)) {
                 frozenIndices.add(entry.getKey().getName());

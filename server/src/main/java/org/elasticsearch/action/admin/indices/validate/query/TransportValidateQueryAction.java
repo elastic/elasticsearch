@@ -120,7 +120,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         } else {
             Rewriteable.rewriteAndFetch(
                 request.query(),
-                searchService.getRewriteContext(timeProvider, () -> resolvedIndicesSupplier.get().getLocalIndexMetadata()),
+                searchService.getRewriteContext(timeProvider, () -> resolvedIndicesSupplier.get().getConcreteLocalIndicesMetadata()),
                 rewriteListener
             );
         }

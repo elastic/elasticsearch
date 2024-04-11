@@ -97,7 +97,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         LongSupplier timeProvider = () -> request.nowInMillis;
         Rewriteable.rewriteAndFetch(
             request.query(),
-            searchService.getRewriteContext(timeProvider, () -> resolvedIndicesSupplier.get().getLocalIndexMetadata()),
+            searchService.getRewriteContext(timeProvider, () -> resolvedIndicesSupplier.get().getConcreteLocalIndicesMetadata()),
             rewriteListener
         );
     }

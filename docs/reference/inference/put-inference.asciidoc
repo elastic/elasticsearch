@@ -165,7 +165,7 @@ want to use a different API key, delete the {infer} model and recreate it with
 the same name and the updated API key.
 
 `model_id`:::
-(Optional, string)
+(Required, string)
 The name of the model to use for the {infer} task. Refer to the
 https://platform.openai.com/docs/guides/embeddings/what-are-embeddings[OpenAI documentation]
 for the list of available text embedding models.
@@ -346,7 +346,7 @@ Example response:
 ===== Hugging Face service
 
 The following example shows how to create an {infer} endpoint called
-`hugging-face_embeddings` to perform a `text_embedding` task type.
+`hugging-face-embeddings` to perform a `text_embedding` task type.
 
 [source,console]
 ------------------------------------------------------------
@@ -370,6 +370,19 @@ endpoint URL. Select the model you want to use on the new endpoint creation page
 - for example `intfloat/e5-small-v2` - then select the `Sentence Embeddings`
 task under the Advanced configuration section. Create the endpoint. Copy the URL
 after the endpoint initialization has been finished.
+
+[discrete]
+[[inference-example-hugging-face-supported-models]]
+The list of recommended models for the Hugging Face service:
+
+* https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2[all-MiniLM-L6-v2]
+* https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2[all-MiniLM-L12-v2]
+* https://huggingface.co/sentence-transformers/all-mpnet-base-v2[all-mpnet-base-v2]
+* https://huggingface.co/intfloat/e5-base-v2[e5-base-v2]
+* https://huggingface.co/intfloat/e5-small-v2[e5-small-v2]
+* https://huggingface.co/intfloat/multilingual-e5-base[multilingual-e5-base]
+* https://huggingface.co/intfloat/multilingual-e5-small[multilingual-e5-small]
+
 
 [discrete]
 [[inference-example-eland]]
@@ -431,4 +444,3 @@ PUT _inference/completion/openai_completion
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
-

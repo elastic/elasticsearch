@@ -25,6 +25,29 @@ may affect the throughput of the reindexing process.
 
 // end::cohere[]
 
+// tag::hugging-face[]
+
+[source,console]
+----
+POST _reindex?wait_for_completion=false
+{
+  "source": {
+    "index": "test-data",
+    "size": 50 <1>
+  },
+  "dest": {
+    "index": "hugging-face-embeddings",
+    "pipeline": "hugging_face_embeddings"
+  }
+}
+----
+// TEST[skip:TBD]
+<1> The default batch size for reindexing is 1000. Reducing `size` to a smaller
+number makes the update of the reindexing process quicker which enables you to
+follow the progress closely and detect errors early.
+
+// end::hugging-face[]
+
 
 // tag::openai[]
 

@@ -18,10 +18,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.ingest.geoip.DatabaseNodeService;
 import org.elasticsearch.ingest.geoip.GeoIpDownloader;
 import org.elasticsearch.ingest.geoip.GeoIpDownloaderTaskExecutor;
-import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction.NodeRequest;
-import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction.NodeResponse;
-import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction.Request;
-import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction.Response;
+import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction.NodeRequest;
+import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction.NodeResponse;
+import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction.Request;
+import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction.Response;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -29,14 +29,14 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
-public class GeoIpDownloaderStatsTransportAction extends TransportNodesAction<Request, Response, NodeRequest, NodeResponse> {
+public class GeoIpStatsTransportAction extends TransportNodesAction<Request, Response, NodeRequest, NodeResponse> {
 
     private final TransportService transportService;
     private final DatabaseNodeService registry;
     private final GeoIpDownloaderTaskExecutor geoIpDownloaderTaskExecutor;
 
     @Inject
-    public GeoIpDownloaderStatsTransportAction(
+    public GeoIpStatsTransportAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -45,7 +45,7 @@ public class GeoIpDownloaderStatsTransportAction extends TransportNodesAction<Re
         GeoIpDownloaderTaskExecutor geoIpDownloaderTaskExecutor
     ) {
         super(
-            GeoIpDownloaderStatsAction.INSTANCE.name(),
+            GeoIpStatsAction.INSTANCE.name(),
             clusterService,
             transportService,
             actionFilters,
@@ -75,10 +75,10 @@ public class GeoIpDownloaderStatsTransportAction extends TransportNodesAction<Re
     @Override
     protected NodeResponse nodeOperation(NodeRequest request, Task task) {
         GeoIpDownloader geoIpTask = geoIpDownloaderTaskExecutor.getCurrentTask();
-        GeoIpDownloaderStats stats = geoIpTask == null || geoIpTask.getStatus() == null ? null : geoIpTask.getStatus();
+        GeoIpDownloaderStats downloaderStats = geoIpTask == null || geoIpTask.getStatus() == null ? null : geoIpTask.getStatus();
         return new NodeResponse(
             transportService.getLocalNode(),
-            stats,
+            downloaderStats,
             registry.getAvailableDatabases(),
             registry.getFilesInTemp(),
             registry.getConfigDatabases()

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.xpack.inference.external.response.cohere;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -27,6 +29,8 @@ import static org.elasticsearch.xpack.inference.external.response.XContentUtils.
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
 
 public class CohereRankedResponseEntity {
+
+    private static final Logger logger = LogManager.getLogger(CohereRankedResponseEntity.class);
 
     /**
      * Parses the Cohere ranked response.
@@ -106,8 +110,8 @@ public class CohereRankedResponseEntity {
 
     private static RankedDocsResults.RankedDoc parseRankedDocObject(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-        Integer index = null;
-        Float relevanceScore = null;
+        int index = -1;
+        float relevanceScore = -1;
         String documentText = null;
         parser.nextToken();
         while (parser.currentToken() != XContentParser.Token.END_OBJECT) {
@@ -142,7 +146,18 @@ public class CohereRankedResponseEntity {
                 parser.nextToken();
             }
         }
-        return new RankedDocsResults.RankedDoc(String.valueOf(index), String.valueOf(relevanceScore), String.valueOf(documentText));
+
+        if (index == -1) {
+            logger.error("Failed to find required field [index] in Cohere embeddings response");
+        }
+        if (relevanceScore == -1) {
+            logger.error("Failed to find required field [relevance_score] in Cohere embeddings response");
+        }
+        if (documentText == null) {
+            logger.error("Failed to find required field [document] in Cohere embeddings response");
+        }
+
+        return new RankedDocsResults.RankedDoc(index, relevanceScore, documentText);
     }
 
     private CohereRankedResponseEntity() {}

@@ -18,14 +18,14 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class GeoIpDownloaderStatsActionNodeResponseTests extends ESTestCase {
+public class GeoIpStatsActionNodeResponseTests extends ESTestCase {
 
     public void testInputsAreDefensivelyCopied() {
         DiscoveryNode node = DiscoveryNodeUtils.create("id");
         Set<String> databases = new HashSet<>(randomList(10, () -> randomAlphaOfLengthBetween(5, 10)));
         Set<String> files = new HashSet<>(randomList(10, () -> randomAlphaOfLengthBetween(5, 10)));
         Set<String> configDatabases = new HashSet<>(randomList(10, () -> randomAlphaOfLengthBetween(5, 10)));
-        GeoIpDownloaderStatsAction.NodeResponse nodeResponse = new GeoIpDownloaderStatsAction.NodeResponse(
+        GeoIpStatsAction.NodeResponse nodeResponse = new GeoIpStatsAction.NodeResponse(
             node,
             GeoIpDownloaderStatsSerializingTests.createRandomInstance(),
             databases,

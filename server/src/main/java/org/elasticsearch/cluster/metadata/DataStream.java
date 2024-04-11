@@ -636,6 +636,58 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
+     * Removes the specified failure store index and returns a new {@code DataStream} instance with
+     * the remaining failure store indices.
+     *
+     * @param index the failure store index to remove
+     * @return new {@code DataStream} instance with the remaining failure store indices
+     * @throws IllegalArgumentException if {@code index} is not a failure store index or is the current failure store write index of the
+     * data stream
+     */
+    public DataStream removeFailureStoreIndex(Index index) {
+        int failureIndexPosition = failureIndices.indexOf(index);
+
+        if (failureIndexPosition == -1) {
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "index [%s] is not part of data stream [%s] failure store", index.getName(), name)
+            );
+        }
+
+        // TODO: When failure stores are lazily created, this wont necessarily be required anymore. We can remove the failure store write
+        // index as long as we mark the data stream to lazily rollover the failure store with no conditions on its next write
+        if (failureIndices.size() == (failureIndexPosition + 1)) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "cannot remove backing index [%s] of data stream [%s] because it is the write index",
+                    index.getName(),
+                    name
+                )
+            );
+        }
+
+        List<Index> updatedFailureIndices = new ArrayList<>(failureIndices);
+        updatedFailureIndices.remove(index);
+        assert updatedFailureIndices.size() == failureIndices.size() - 1;
+        return new DataStream(
+            name,
+            indices,
+            generation + 1,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            allowCustomRouting,
+            indexMode,
+            lifecycle,
+            failureStore,
+            updatedFailureIndices,
+            rolloverOnWrite,
+            autoShardingEvent
+        );
+    }
+
+    /**
      * Replaces the specified backing index with a new index and returns a new {@code DataStream} instance with
      * the modified backing indices. An {@code IllegalArgumentException} is thrown if the index to be replaced
      * is not a backing index for this data stream or if it is the {@code DataStream}'s write index.
@@ -694,34 +746,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         // validate that index is not part of another data stream
         final var parentDataStream = clusterMetadata.getIndicesLookup().get(index.getName()).getParentDataStream();
         if (parentDataStream != null) {
-            if (parentDataStream.equals(this)) {
-                return this;
-            } else {
-                throw new IllegalArgumentException(
-                    String.format(
-                        Locale.ROOT,
-                        "cannot add index [%s] to data stream [%s] because it is already a backing index on data stream [%s]",
-                        index.getName(),
-                        getName(),
-                        parentDataStream.getName()
-                    )
-                );
-            }
+            validateDataStreamAlreadyContainsIndex(index, parentDataStream, false);
+            return this;
         }
 
         // ensure that no aliases reference index
-        IndexMetadata im = clusterMetadata.index(clusterMetadata.getIndicesLookup().get(index.getName()).getWriteIndex());
-        if (im.getAliases().size() > 0) {
-            throw new IllegalArgumentException(
-                String.format(
-                    Locale.ROOT,
-                    "cannot add index [%s] to data stream [%s] until its alias(es) [%s] are removed",
-                    index.getName(),
-                    getName(),
-                    Strings.collectionToCommaDelimitedString(im.getAliases().keySet().stream().sorted().toList())
-                )
-            );
-        }
+        ensureNoAliasesOnIndex(clusterMetadata, index);
 
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.add(0, index);
@@ -742,6 +772,86 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             rolloverOnWrite,
             autoShardingEvent
         );
+    }
+
+    /**
+     * Adds the specified index as a failure store index and returns a new {@code DataStream} instance with the new combination
+     * of failure store indices.
+     *
+     * @param index index to add to the data stream's failure store
+     * @return new {@code DataStream} instance with the added failure store index
+     * @throws IllegalArgumentException if {@code index} is ineligible to be a failure store index for the data stream
+     */
+    public DataStream addFailureStoreIndex(Metadata clusterMetadata, Index index) {
+        // validate that index is not part of another data stream
+        final var parentDataStream = clusterMetadata.getIndicesLookup().get(index.getName()).getParentDataStream();
+        if (parentDataStream != null) {
+            validateDataStreamAlreadyContainsIndex(index, parentDataStream, true);
+            return this;
+        }
+
+        ensureNoAliasesOnIndex(clusterMetadata, index);
+
+        List<Index> updatedFailureIndices = new ArrayList<>(failureIndices);
+        updatedFailureIndices.add(0, index);
+        assert updatedFailureIndices.size() == failureIndices.size() + 1;
+        return new DataStream(
+            name,
+            indices,
+            generation + 1,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            allowCustomRouting,
+            indexMode,
+            lifecycle,
+            failureStore,
+            updatedFailureIndices,
+            rolloverOnWrite,
+            autoShardingEvent
+        );
+    }
+
+    /**
+     * Given an index and its parent data stream, determine if the parent data stream is the same as this one, and if it is, check if the
+     * index is already in the correct indices list.
+     *
+     * @param index The index to check for
+     * @param parentDataStream The data stream the index already belongs to
+     * @param targetFailureStore true if the index should be added to the failure store, false if it should be added to the backing indices
+     * @throws IllegalArgumentException if the index belongs to a different data stream, or if it is in the wrong index set
+     */
+    private void validateDataStreamAlreadyContainsIndex(Index index, DataStream parentDataStream, boolean targetFailureStore) {
+        if (parentDataStream.equals(this) == false || (parentDataStream.isFailureStoreIndex(index.getName()) != targetFailureStore)) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "cannot add index [%s] to data stream [%s] because it is already a %s index on data stream [%s]",
+                    index.getName(),
+                    getName(),
+                    parentDataStream.isFailureStoreIndex(index.getName()) ? "failure store" : "backing",
+                    parentDataStream.getName()
+                )
+            );
+        }
+    }
+
+    private void ensureNoAliasesOnIndex(Metadata clusterMetadata, Index index) {
+        IndexMetadata im = clusterMetadata.index(clusterMetadata.getIndicesLookup().get(index.getName()).getWriteIndex());
+        if (im.getAliases().size() > 0) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "cannot add index [%s] to data stream [%s] until its %s [%s] %s removed",
+                    index.getName(),
+                    getName(),
+                    im.getAliases().size() > 1 ? "aliases" : "alias",
+                    Strings.collectionToCommaDelimitedString(im.getAliases().keySet().stream().sorted().toList()),
+                    im.getAliases().size() > 1 ? "are" : "is"
+                )
+            );
+        }
     }
 
     public DataStream promoteDataStream() {

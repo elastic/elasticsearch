@@ -53,7 +53,7 @@ public class BucketTests extends AbstractFunctionTestCase {
     }
 
     // TODO once we cast above the functions we can drop these
-    private static final DataType[] DATE_BOUNDS_TYPE = new DataType[] { DataTypes.DATETIME, DataTypes.KEYWORD, DataTypes.TEXT };
+    private static final DataType[] DATE_BOUNDS_TYPE = new DataType[] { DataTypes.DATETIME };
 
     private static void dateCases(List<TestCaseSupplier> suppliers, String name, LongSupplier date) {
         for (DataType fromType : DATE_BOUNDS_TYPE) {

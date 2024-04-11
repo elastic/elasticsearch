@@ -7,7 +7,7 @@
 preview::[]
 
 Creates an Elastic connector.
-Connectors are third-party {es} integrations which can be deployed on {ecloud} or hosted on your own infrastructure:
+Connectors are {es} integrations that bring content from third-party data sources, which can be deployed on {ecloud} or hosted on your own infrastructure:
 
 * *Native connectors* are a managed service on {ecloud}
 * *Connector clients* are self-managed on your infrastructure
@@ -43,6 +43,8 @@ DELETE _connector/my-connector
 
 * To sync data using connectors, it's essential to have the Elastic connectors service running.
 * The `service_type` parameter should reference an existing connector service type.
+//// the restrictions of service_type should be better explained
+
 
 
 [[create-connector-api-desc]]

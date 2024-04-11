@@ -42,6 +42,7 @@ public abstract class AzureOpenAiModel extends Model {
         return uri;
     }
 
+    // Needed for testing
     public void setUri(URI newUri) {
         this.uri = newUri;
     }

@@ -106,13 +106,7 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
             entraId,
             "id"
         );
-        var account = new AzureOpenAiAccount(
-            embeddingsModel.getServiceSettings().resourceName(),
-            embeddingsModel.getServiceSettings().deploymentId(),
-            embeddingsModel.getServiceSettings().apiVersion(),
-            embeddingsModel.getSecretSettings().apiKey(),
-            embeddingsModel.getSecretSettings().entraId()
-        );
+        var account = AzureOpenAiAccount.fromModel(embeddingsModel);
 
         return new AzureOpenAiEmbeddingsRequest(
             TruncatorTests.createTruncator(),

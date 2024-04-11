@@ -186,7 +186,7 @@ public class AzureOpenAiService extends SenderService {
         }
 
         AzureOpenAiModel azureOpenAiModel = (AzureOpenAiModel) model;
-        var actionCreator = new AzureOpenAiActionCreator(getSender(), getServiceComponents(), azureOpenAiModel);
+        var actionCreator = new AzureOpenAiActionCreator(getSender(), getServiceComponents());
 
         var action = azureOpenAiModel.accept(actionCreator, taskSettings);
         action.execute(new DocumentsOnlyInput(input), timeout, listener);
@@ -278,8 +278,6 @@ public class AzureOpenAiService extends SenderService {
             model.getServiceSettings().apiVersion(),
             embeddingSize,
             model.getServiceSettings().dimensionsSetByUser(),
-            model.getServiceSettings().encodingFormat(),
-            model.getServiceSettings().encodingFormatSetByUser(),
             model.getServiceSettings().maxInputTokens()
         );
 

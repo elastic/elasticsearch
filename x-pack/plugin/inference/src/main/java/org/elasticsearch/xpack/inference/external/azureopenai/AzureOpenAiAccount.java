@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.azureopenai;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
 
 import java.util.Objects;
 
@@ -25,5 +26,15 @@ public record AzureOpenAiAccount(
         Objects.requireNonNull(deploymentId);
         Objects.requireNonNull(apiVersion);
         Objects.requireNonNullElse(apiKey, entraId);
+    }
+
+    public static AzureOpenAiAccount fromModel(AzureOpenAiEmbeddingsModel model) {
+        return new AzureOpenAiAccount(
+            model.getServiceSettings().resourceName(),
+            model.getServiceSettings().deploymentId(),
+            model.getServiceSettings().apiVersion(),
+            model.getSecretSettings().apiKey(),
+            model.getSecretSettings().entraId()
+        );
     }
 }

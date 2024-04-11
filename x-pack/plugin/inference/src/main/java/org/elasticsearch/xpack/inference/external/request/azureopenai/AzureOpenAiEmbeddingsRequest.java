@@ -12,6 +12,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.azureopenai.AzureOpenAiAccount;
@@ -25,8 +26,13 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 import static org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiUtils.API_KEY_HEADER;
+import static org.elasticsearch.xpack.inference.services.settings.AzureOpenAiSecretSettings.API_KEY;
+import static org.elasticsearch.xpack.inference.services.settings.AzureOpenAiSecretSettings.ENTRA_ID;
 
 public class AzureOpenAiEmbeddingsRequest implements AzureOpenAiRequest {
+    private static final String MISSING_AUTHENTICATION_ERROR_MESSAGE =
+        "The request does not have any authentication methods set. One of [%s] or [%s] is required.";
+
     private final Truncator truncator;
     private final AzureOpenAiAccount account;
     private final Truncator.TruncationResult truncationResult;
@@ -54,9 +60,7 @@ public class AzureOpenAiEmbeddingsRequest implements AzureOpenAiRequest {
                 truncationResult.input(),
                 model.getTaskSettings().user(),
                 model.getServiceSettings().dimensions(),
-                model.getServiceSettings().dimensionsSetByUser(),
-                model.getServiceSettings().encodingFormat(),
-                model.getServiceSettings().encodingFormatSetByUser()
+                model.getServiceSettings().dimensionsSetByUser()
             )
         );
 
@@ -72,6 +76,11 @@ public class AzureOpenAiEmbeddingsRequest implements AzureOpenAiRequest {
             httpPost.setHeader(createAuthBearerHeader(entraId));
         } else if (apiKey != null && apiKey.isEmpty() == false) {
             httpPost.setHeader(new BasicHeader(API_KEY_HEADER, apiKey.toString()));
+        } else {
+            // should never happen due to the checks on the secret settings, but just in case
+            ValidationException validationException = new ValidationException();
+            validationException.addValidationError(Strings.format(MISSING_AUTHENTICATION_ERROR_MESSAGE, API_KEY, ENTRA_ID));
+            throw validationException;
         }
 
         return new HttpRequest(httpPost, getInferenceEntityId());

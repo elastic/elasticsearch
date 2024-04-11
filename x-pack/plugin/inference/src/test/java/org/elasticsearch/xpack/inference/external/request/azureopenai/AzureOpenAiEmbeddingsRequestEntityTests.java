@@ -21,7 +21,7 @@ import static org.hamcrest.CoreMatchers.is;
 public class AzureOpenAiEmbeddingsRequestEntityTests extends ESTestCase {
 
     public void testXContent_WritesUserWhenDefined() throws IOException {
-        var entity = new AzureOpenAiEmbeddingsRequestEntity(List.of("abc"), "testuser", null, false, null, false);
+        var entity = new AzureOpenAiEmbeddingsRequestEntity(List.of("abc"), "testuser", null, false);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -32,7 +32,7 @@ public class AzureOpenAiEmbeddingsRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_DoesNotWriteUserWhenItIsNull() throws IOException {
-        var entity = new AzureOpenAiEmbeddingsRequestEntity(List.of("abc"), null, null, false, null, false);
+        var entity = new AzureOpenAiEmbeddingsRequestEntity(List.of("abc"), null, null, false);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -43,7 +43,7 @@ public class AzureOpenAiEmbeddingsRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_DoesNotWriteDimensionsWhenNotSetByUser() throws IOException {
-        var entity = new AzureOpenAiEmbeddingsRequestEntity(List.of("abc"), null, 100, false, null, false);
+        var entity = new AzureOpenAiEmbeddingsRequestEntity(List.of("abc"), null, 100, false);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -54,7 +54,7 @@ public class AzureOpenAiEmbeddingsRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_DoesNotWriteDimensionsWhenNull_EvenIfSetByUserIsTrue() throws IOException {
-        var entity = new AzureOpenAiEmbeddingsRequestEntity(List.of("abc"), null, null, true, null, false);
+        var entity = new AzureOpenAiEmbeddingsRequestEntity(List.of("abc"), null, null, true);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -65,7 +65,7 @@ public class AzureOpenAiEmbeddingsRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_WritesDimensionsWhenNonNull_AndSetByUserIsTrue() throws IOException {
-        var entity = new AzureOpenAiEmbeddingsRequestEntity(List.of("abc"), null, 100, true, null, false);
+        var entity = new AzureOpenAiEmbeddingsRequestEntity(List.of("abc"), null, 100, true);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -73,38 +73,5 @@ public class AzureOpenAiEmbeddingsRequestEntityTests extends ESTestCase {
 
         assertThat(xContentResult, is("""
             {"input":["abc"],"dimensions":100}"""));
-    }
-
-    public void testXContent_DoesNotWriteEncodingFormatWhenNotSetByUser() throws IOException {
-        var entity = new AzureOpenAiEmbeddingsRequestEntity(List.of("abc"), null, null, false, "false", false);
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        entity.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, is("""
-            {"input":["abc"]}"""));
-    }
-
-    public void testXContent_DoesNotWriteEncodingFormatWhenNull_EvenIfSetByUserIsTrue() throws IOException {
-        var entity = new AzureOpenAiEmbeddingsRequestEntity(List.of("abc"), null, null, false, null, true);
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        entity.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, is("""
-            {"input":["abc"]}"""));
-    }
-
-    public void testXContent_WritesEncodingFormatWhenNonNull_AndSetByUserIsTrue() throws IOException {
-        var entity = new AzureOpenAiEmbeddingsRequestEntity(List.of("abc"), null, null, false, "float", true);
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        entity.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, is("""
-            {"input":["abc"],"encoding_format":"float"}"""));
     }
 }

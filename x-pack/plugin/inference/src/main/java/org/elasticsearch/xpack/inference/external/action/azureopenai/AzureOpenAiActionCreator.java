@@ -10,10 +10,8 @@ package org.elasticsearch.xpack.inference.external.action.azureopenai;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
 
-import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
@@ -23,12 +21,10 @@ import java.util.Objects;
 public class AzureOpenAiActionCreator implements AzureOpenAiActionVisitor {
     private final Sender sender;
     private final ServiceComponents serviceComponents;
-    private URI uri;
 
-    public AzureOpenAiActionCreator(Sender sender, ServiceComponents serviceComponents, AzureOpenAiModel model) {
+    public AzureOpenAiActionCreator(Sender sender, ServiceComponents serviceComponents) {
         this.sender = Objects.requireNonNull(sender);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
-        this.uri = model.getUri();
     }
 
     @Override

@@ -13,5 +13,4 @@ public class AzureOpenAiServiceFields {
     public static final String DEPLOYMENT_ID = "deployment_id";
     public static final String API_VERSION = "api_version";
     public static final String USER = "user";
-    public static final String ENCODING_FORMAT = "encoding_format";
 }

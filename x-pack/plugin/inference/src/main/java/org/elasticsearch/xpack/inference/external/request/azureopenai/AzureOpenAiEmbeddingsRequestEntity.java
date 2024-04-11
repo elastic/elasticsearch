@@ -19,13 +19,10 @@ public record AzureOpenAiEmbeddingsRequestEntity(
     List<String> input,
     @Nullable String user,
     @Nullable Integer dimensions,
-    boolean dimensionsSetByUser,
-    @Nullable String encodingFormat,
-    boolean encodingFormatSetByUser
+    boolean dimensionsSetByUser
 ) implements ToXContentObject {
 
     private static final String INPUT_FIELD = "input";
-    private static final String ENCODING_FORMAT_FIELD = "encoding_format";
     private static final String USER_FIELD = "user";
     private static final String DIMENSIONS_FIELD = "dimensions";
 
@@ -44,10 +41,6 @@ public record AzureOpenAiEmbeddingsRequestEntity(
 
         if (dimensionsSetByUser && dimensions != null) {
             builder.field(DIMENSIONS_FIELD, dimensions);
-        }
-
-        if (encodingFormatSetByUser && encodingFormat != null) {
-            builder.field(ENCODING_FORMAT_FIELD, encodingFormat);
         }
 
         builder.endObject();

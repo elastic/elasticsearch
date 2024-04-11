@@ -12,7 +12,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields;
 import org.hamcrest.MatcherAssert;
 
@@ -39,20 +38,14 @@ public class AzureOpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializ
     public void testFromMap_WithUser() {
         assertEquals(
             new AzureOpenAiEmbeddingsTaskSettings("user"),
-            AzureOpenAiEmbeddingsTaskSettings.fromMap(
-                new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, "user")),
-                ConfigurationParseContext.REQUEST
-            )
+            AzureOpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, "user")))
         );
     }
 
     public void testFromMap_UserIsEmptyString() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> AzureOpenAiEmbeddingsTaskSettings.fromMap(
-                new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, "")),
-                ConfigurationParseContext.REQUEST
-            )
+            () -> AzureOpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, "")))
         );
 
         MatcherAssert.assertThat(
@@ -62,15 +55,12 @@ public class AzureOpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializ
     }
 
     public void testFromMap_MissingUser_DoesNotThrowException() {
-        var taskSettings = AzureOpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of()), ConfigurationParseContext.PERSISTENT);
+        var taskSettings = AzureOpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of()));
         assertNull(taskSettings.user());
     }
 
     public void testOverrideWith_KeepsOriginalValuesWithOverridesAreNull() {
-        var taskSettings = AzureOpenAiEmbeddingsTaskSettings.fromMap(
-            new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, "user")),
-            ConfigurationParseContext.PERSISTENT
-        );
+        var taskSettings = AzureOpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, "user")));
 
         var overriddenTaskSettings = AzureOpenAiEmbeddingsTaskSettings.of(
             taskSettings,
@@ -80,10 +70,7 @@ public class AzureOpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializ
     }
 
     public void testOverrideWith_UsesOverriddenSettings() {
-        var taskSettings = AzureOpenAiEmbeddingsTaskSettings.fromMap(
-            new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, "user")),
-            ConfigurationParseContext.PERSISTENT
-        );
+        var taskSettings = AzureOpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, "user")));
 
         var requestTaskSettings = AzureOpenAiEmbeddingsRequestTaskSettings.fromMap(
             new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, "user2"))

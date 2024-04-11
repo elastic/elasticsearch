@@ -48,16 +48,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
 
     public void testCreateModel_FromUpdatedServiceSettings() {
         var model = createModel("resource", "deployment", "apiversion", "user", "api_key", null, "id");
-        var updatedSettings = new AzureOpenAiEmbeddingsServiceSettings(
-            "resource",
-            "deployment",
-            "override_apiversion",
-            null,
-            false,
-            null,
-            false,
-            null
-        );
+        var updatedSettings = new AzureOpenAiEmbeddingsServiceSettings("resource", "deployment", "override_apiversion", null, false, null);
 
         var overridenModel = new AzureOpenAiEmbeddingsModel(model, updatedSettings);
 
@@ -79,7 +70,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
             inferenceEntityId,
             TaskType.TEXT_EMBEDDING,
             "service",
-            new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, null, false, null, false, null),
+            new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, null, false, null),
             new AzureOpenAiEmbeddingsTaskSettings(user),
             new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
         );
@@ -112,8 +103,6 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
                 apiVersion,
                 dimensions,
                 dimensionsSetByUser,
-                encodingFormat,
-                encodingFormatSetByUser,
                 maxInputTokens
             ),
             new AzureOpenAiEmbeddingsTaskSettings(user),

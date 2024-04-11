@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCo
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.settings.AzureOpenAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.ArrayList;
@@ -205,6 +206,14 @@ public class InferenceNamedWriteablesProvider {
         );
 
         // Azure OpenAI
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                AzureOpenAiSecretSettings.class,
+                AzureOpenAiSecretSettings.NAME,
+                AzureOpenAiSecretSettings::new
+            )
+        );
+
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 ServiceSettings.class,

@@ -28,12 +28,10 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.API_VERSION;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.DEPLOYMENT_ID;
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.ENCODING_FORMAT;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.RESOURCE_NAME;
 
 /**
@@ -41,102 +39,55 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAi
  */
 public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
 
-    public static final String NAME = "azure_openai_service_settings";
+    public static final String NAME = "azure_openai_embeddings_service_settings";
 
     static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";
-    static final String ENCODING_FORMAT_SET_BY_USER = "encoding_format_set_by_user";
 
     public static AzureOpenAiEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        return switch (context) {
-            case REQUEST -> fromRequestMap(map);
-            case PERSISTENT -> fromPersistentMap(map);
-        };
-    }
-
-    private static AzureOpenAiEmbeddingsServiceSettings fromPersistentMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
-        var settings = fromMap(map, validationException);
-
-        Boolean dimensionsSetByUser = removeAsType(map, DIMENSIONS_SET_BY_USER, Boolean.class);
-        if (dimensionsSetByUser == null && map.containsKey(DIMENSIONS)) {
-            validationException.addValidationError(
-                ServiceUtils.missingSettingErrorMsg(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
-            );
-        }
-
-        Boolean encodingFormatSetByUser = removeAsType(map, ENCODING_FORMAT_SET_BY_USER, Boolean.class);
-        if (encodingFormatSetByUser == null && map.containsKey(ENCODING_FORMAT)) {
-            validationException.addValidationError(
-                ServiceUtils.missingSettingErrorMsg(ENCODING_FORMAT_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
-            );
-        }
+        var settings = fromMap(map, validationException, context);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new AzureOpenAiEmbeddingsServiceSettings(
-            settings,
-            Boolean.TRUE.equals(dimensionsSetByUser),
-            Boolean.TRUE.equals(encodingFormatSetByUser)
-        );
+        return new AzureOpenAiEmbeddingsServiceSettings(settings);
     }
 
-    private static AzureOpenAiEmbeddingsServiceSettings fromRequestMap(Map<String, Object> map) {
-        ValidationException validationException = new ValidationException();
-
-        var commonFields = fromMap(map, validationException);
-
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        return new AzureOpenAiEmbeddingsServiceSettings(commonFields, commonFields.dimensions != null, commonFields.encodingFormat != null);
-    }
-
-    private static CommonFields fromMap(Map<String, Object> map, ValidationException validationException) {
+    private static CommonFields fromMap(
+        Map<String, Object> map,
+        ValidationException validationException,
+        ConfigurationParseContext context
+    ) {
         String resourceName = extractRequiredString(map, RESOURCE_NAME, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String deploymentId = extractRequiredString(map, DEPLOYMENT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String apiVersion = extractRequiredString(map, API_VERSION, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
-        String encodingFormat = extractOptionalString(map, ENCODING_FORMAT, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer maxTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
 
-        if (dims != null) {
-            Boolean hasUserSetDimensions = extractOptionalBoolean(
-                map,
-                DIMENSIONS_SET_BY_USER,
-                ModelConfigurations.SERVICE_SETTINGS,
-                validationException
-            );
+        Boolean dimensionsSetByUser = extractOptionalBoolean(
+            map,
+            DIMENSIONS_SET_BY_USER,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
 
-            if (hasUserSetDimensions == null) {
-                validationException.addValidationError(
-                    ServiceUtils.missingSettingErrorMsg(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
-                );
+        switch (context) {
+            case REQUEST -> {
+                dimensionsSetByUser = dims != null;
+            }
+            case PERSISTENT -> {
+                if (dimensionsSetByUser == null && dims != null) {
+                    validationException.addValidationError(
+                        ServiceUtils.missingSettingErrorMsg(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                    );
+                }
             }
         }
 
-        if (encodingFormat != null) {
-            Boolean hasUserSetEncodingFormat = extractOptionalBoolean(
-                map,
-                ENCODING_FORMAT_SET_BY_USER,
-                ModelConfigurations.SERVICE_SETTINGS,
-                validationException
-            );
-            if (hasUserSetEncodingFormat == null) {
-                validationException.addValidationError(
-                    ServiceUtils.missingSettingErrorMsg(ENCODING_FORMAT_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
-                );
-            }
-        }
-
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        return new CommonFields(resourceName, deploymentId, apiVersion, dims, encodingFormat, maxTokens);
+        var hasUserSetDimensions = dimensionsSetByUser != null && dimensionsSetByUser;
+        return new CommonFields(resourceName, deploymentId, apiVersion, dims, hasUserSetDimensions, maxTokens);
     }
 
     private record CommonFields(
@@ -144,7 +95,7 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
         String deploymentId,
         String apiVersion,
         @Nullable Integer dimensions,
-        @Nullable String encodingFormat,
+        Boolean dimensionsSetByUser,
         @Nullable Integer maxInputTokens
     ) {}
 
@@ -153,8 +104,6 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
     private final String apiVersion;
     private final Integer dimensions;
     private final Boolean dimensionsSetByUser;
-    private final String encodingFormat;
-    private final Boolean encodingFormatSetByUser;
     private final Integer maxInputTokens;
 
     public AzureOpenAiEmbeddingsServiceSettings(
@@ -163,8 +112,6 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
         String apiVersion,
         @Nullable Integer dimensions,
         Boolean dimensionsSetByUser,
-        @Nullable String encodingFormat,
-        Boolean encodingFormatSetByUser,
         @Nullable Integer maxInputTokens
     ) {
         this.resourceName = resourceName;
@@ -172,8 +119,6 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
         this.apiVersion = apiVersion;
         this.dimensions = dimensions;
         this.dimensionsSetByUser = Objects.requireNonNull(dimensionsSetByUser);
-        this.encodingFormat = encodingFormat;
-        this.encodingFormatSetByUser = Objects.requireNonNull(encodingFormatSetByUser);
         this.maxInputTokens = maxInputTokens;
     }
 
@@ -183,20 +128,16 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
         apiVersion = in.readString();
         dimensions = in.readOptionalVInt();
         dimensionsSetByUser = in.readBoolean();
-        encodingFormat = in.readOptionalString();
-        encodingFormatSetByUser = in.readBoolean();
         maxInputTokens = in.readOptionalVInt();
     }
 
-    private AzureOpenAiEmbeddingsServiceSettings(CommonFields fields, Boolean dimensionsSetByUser, Boolean encodingFormatSetByUser) {
+    private AzureOpenAiEmbeddingsServiceSettings(CommonFields fields) {
         this(
             fields.resourceName,
             fields.deploymentId,
             fields.apiVersion,
             fields.dimensions,
-            dimensionsSetByUser,
-            fields.encodingFormat,
-            encodingFormatSetByUser,
+            fields.dimensionsSetByUser,
             fields.maxInputTokens
         );
     }
@@ -222,14 +163,6 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
         return dimensionsSetByUser;
     }
 
-    public String encodingFormat() {
-        return encodingFormat;
-    }
-
-    public Boolean encodingFormatSetByUser() {
-        return encodingFormatSetByUser;
-    }
-
     public Integer maxInputTokens() {
         return maxInputTokens;
     }
@@ -250,13 +183,7 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
 
         toXContentFragmentOfExposedFields(builder, params);
 
-        if (dimensionsSetByUser != null) {
-            builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
-        }
-
-        if (encodingFormatSetByUser != null) {
-            builder.field(ENCODING_FORMAT_SET_BY_USER, encodingFormatSetByUser);
-        }
+        builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
 
         builder.endObject();
         return builder;
@@ -269,9 +196,6 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
 
         if (dimensions != null) {
             builder.field(DIMENSIONS, dimensions);
-        }
-        if (encodingFormat != null) {
-            builder.field(ENCODING_FORMAT, encodingFormat);
         }
         if (maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
@@ -302,8 +226,6 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
         out.writeString(apiVersion);
         out.writeOptionalVInt(dimensions);
         out.writeBoolean(dimensionsSetByUser);
-        out.writeOptionalString(encodingFormat);
-        out.writeBoolean(encodingFormatSetByUser);
         out.writeOptionalVInt(maxInputTokens);
     }
 
@@ -318,22 +240,11 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
             && Objects.equals(apiVersion, that.apiVersion)
             && Objects.equals(dimensions, that.dimensions)
             && Objects.equals(dimensionsSetByUser, that.dimensionsSetByUser)
-            && Objects.equals(encodingFormat, that.encodingFormat)
-            && Objects.equals(encodingFormatSetByUser, that.encodingFormatSetByUser)
             && Objects.equals(maxInputTokens, that.maxInputTokens);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            resourceName,
-            deploymentId,
-            apiVersion,
-            dimensions,
-            dimensionsSetByUser,
-            encodingFormat,
-            encodingFormatSetByUser,
-            maxInputTokens
-        );
+        return Objects.hash(resourceName, deploymentId, apiVersion, dimensions, dimensionsSetByUser, maxInputTokens);
     }
 }

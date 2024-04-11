@@ -20,15 +20,16 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
 
-public record AzureOpenAiSecretSettings(SecureString apiKey, SecureString entraId) implements SecretSettings {
+public record AzureOpenAiSecretSettings(@Nullable SecureString apiKey, @Nullable SecureString entraId) implements SecretSettings {
 
     public static final String NAME = "azure_openai_secret_settings";
-    static final String API_KEY = "api_key";
-    static final String ENTRA_ID = "entra_id";
+    public static final String API_KEY = "api_key";
+    public static final String ENTRA_ID = "entra_id";
 
     public static AzureOpenAiSecretSettings fromMap(@Nullable Map<String, Object> map) {
         if (map == null) {
@@ -38,10 +39,6 @@ public record AzureOpenAiSecretSettings(SecureString apiKey, SecureString entraI
         ValidationException validationException = new ValidationException();
         SecureString secureApiToken = extractOptionalSecureString(map, API_KEY, ModelSecrets.SECRET_SETTINGS, validationException);
         SecureString secureEntraId = extractOptionalSecureString(map, ENTRA_ID, ModelSecrets.SECRET_SETTINGS, validationException);
-
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
 
         if (secureApiToken == null && secureEntraId == null) {
             validationException.addValidationError(
@@ -57,11 +54,19 @@ public record AzureOpenAiSecretSettings(SecureString apiKey, SecureString entraI
             throw validationException;
         }
 
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
+        }
+
         return new AzureOpenAiSecretSettings(secureApiToken, secureEntraId);
     }
 
+    public AzureOpenAiSecretSettings {
+        Objects.requireNonNullElse(apiKey, entraId);
+    }
+
     public AzureOpenAiSecretSettings(StreamInput in) throws IOException {
-        this(in.readSecureString(), in.readSecureString());
+        this(in.readOptionalSecureString(), in.readOptionalSecureString());
     }
 
     @Override
@@ -92,7 +97,7 @@ public record AzureOpenAiSecretSettings(SecureString apiKey, SecureString entraI
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeSecureString(apiKey);
-        out.writeSecureString(entraId);
+        out.writeOptionalSecureString(apiKey);
+        out.writeOptionalSecureString(entraId);
     }
 }

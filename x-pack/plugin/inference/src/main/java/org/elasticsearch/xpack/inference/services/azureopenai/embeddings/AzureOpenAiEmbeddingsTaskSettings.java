@@ -16,7 +16,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -35,7 +34,7 @@ public class AzureOpenAiEmbeddingsTaskSettings implements TaskSettings {
 
     public static final String NAME = "azure_openai_embeddings_task_settings";
 
-    public static AzureOpenAiEmbeddingsTaskSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+    public static AzureOpenAiEmbeddingsTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
         String user = extractOptionalString(map, USER, ModelConfigurations.TASK_SETTINGS, validationException);
@@ -49,8 +48,8 @@ public class AzureOpenAiEmbeddingsTaskSettings implements TaskSettings {
     /**
      * Creates a new {@link AzureOpenAiEmbeddingsTaskSettings} object by overriding the values in originalSettings with the ones
      * passed in via requestSettings if the fields are not null.
-     * @param originalSettings the original task settings from the inference entity configuration from storage
-     * @param requestSettings the task settings from the request
+     * @param originalSettings the original {@link AzureOpenAiEmbeddingsTaskSettings} from the inference entity configuration from storage
+     * @param requestSettings the {@link AzureOpenAiEmbeddingsTaskSettings} from the request
      * @return a new {@link AzureOpenAiEmbeddingsTaskSettings}
      */
     public static AzureOpenAiEmbeddingsTaskSettings of(

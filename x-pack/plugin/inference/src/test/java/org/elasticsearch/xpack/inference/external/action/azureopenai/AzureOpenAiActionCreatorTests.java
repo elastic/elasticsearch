@@ -102,7 +102,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
 
             var model = createModel("resource", "deployment", "apiversion", "orig_user", "apikey", null, "id");
             model.setUri(new URI(getUrl(webServer)));
-            var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool), model);
+            var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = getRequestTaskSettingsMap("overridden_user");
             var action = (AzureOpenAiEmbeddingsAction) actionCreator.create(model, overriddenTaskSettings);
 
@@ -152,7 +152,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
 
             var model = createModel("resource", "deployment", "apiversion", null, "apikey", null, "id");
             model.setUri(new URI(getUrl(webServer)));
-            var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool), model);
+            var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = getRequestTaskSettingsMap(null);
             var action = (AzureOpenAiEmbeddingsAction) actionCreator.create(model, overriddenTaskSettings);
 
@@ -208,7 +208,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
 
             var model = createModel("resource", "deployment", "apiversion", null, "apikey", null, "id");
             model.setUri(new URI(getUrl(webServer)));
-            var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool), model);
+            var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = getRequestTaskSettingsMap("overridden_user");
             var action = (AzureOpenAiEmbeddingsAction) actionCreator.create(model, overriddenTaskSettings);
 
@@ -220,10 +220,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
                 thrownException.getMessage(),
                 is(format("Failed to send Azure OpenAI embeddings request to [%s]", getUrl(webServer)))
             );
-            assertThat(
-                thrownException.getCause().getMessage(),
-                is("Failed to find required field [data] in Azure OpenAI embeddings response")
-            );
+            assertThat(thrownException.getCause().getMessage(), is("Failed to find required field [data] in OpenAI embeddings response"));
 
             assertThat(webServer.requests(), hasSize(1));
             validateRequestWithApiKey(webServer.requests().get(0), "apikey");
@@ -283,7 +280,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
 
             var model = createModel("resource", "deployment", "apiversion", null, "apikey", null, "id");
             model.setUri(new URI(getUrl(webServer)));
-            var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool), model);
+            var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = getRequestTaskSettingsMap("overridden_user");
             var action = (AzureOpenAiEmbeddingsAction) actionCreator.create(model, overriddenTaskSettings);
 
@@ -359,7 +356,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
 
             var model = createModel("resource", "deployment", "apiversion", null, "apikey", null, "id");
             model.setUri(new URI(getUrl(webServer)));
-            var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool), model);
+            var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = getRequestTaskSettingsMap("overridden_user");
             var action = (AzureOpenAiEmbeddingsAction) actionCreator.create(model, overriddenTaskSettings);
 
@@ -418,7 +415,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             // truncated to 1 token = 3 characters
             var model = createModel("resource", "deployment", "apiversion", null, false, null, false, 1, null, "apikey", null, "id");
             model.setUri(new URI(getUrl(webServer)));
-            var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool), model);
+            var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = getRequestTaskSettingsMap("overridden_user");
             var action = (AzureOpenAiEmbeddingsAction) actionCreator.create(model, overriddenTaskSettings);
 

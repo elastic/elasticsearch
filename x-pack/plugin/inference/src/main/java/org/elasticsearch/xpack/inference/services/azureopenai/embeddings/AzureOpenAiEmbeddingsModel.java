@@ -50,7 +50,7 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
             taskType,
             service,
             AzureOpenAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
-            AzureOpenAiEmbeddingsTaskSettings.fromMap(taskSettings, context),
+            AzureOpenAiEmbeddingsTaskSettings.fromMap(taskSettings),
             AzureOpenAiSecretSettings.fromMap(secrets)
         );
     }

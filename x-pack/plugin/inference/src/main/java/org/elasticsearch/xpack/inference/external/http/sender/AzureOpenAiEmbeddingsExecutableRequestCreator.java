@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.inference.external.azureopenai.AzureOpenAiRespons
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.external.response.azureopenai.AzureOpenAiEmbeddingsResponseEntity;
+import org.elasticsearch.xpack.inference.external.response.openai.OpenAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
 
 import java.util.List;
@@ -34,29 +34,16 @@ public class AzureOpenAiEmbeddingsExecutableRequestCreator implements Executable
     private static final ResponseHandler HANDLER = createEmbeddingsHandler();
 
     private static ResponseHandler createEmbeddingsHandler() {
-        return new AzureOpenAiResponseHandler("openai text embedding", AzureOpenAiEmbeddingsResponseEntity::fromResponse);
+        return new AzureOpenAiResponseHandler("azure openai text embedding", OpenAiEmbeddingsResponseEntity::fromResponse);
     }
 
     private final Truncator truncator;
     private final AzureOpenAiEmbeddingsModel model;
     private final AzureOpenAiAccount account;
 
-    /*
-    String resourceName,
-    String deploymentId,
-    String apiVersion,
-    @Nullable SecureString apiKey,
-    @Nullable SecureString entraId
-     */
     public AzureOpenAiEmbeddingsExecutableRequestCreator(AzureOpenAiEmbeddingsModel model, Truncator truncator) {
         this.model = Objects.requireNonNull(model);
-        this.account = new AzureOpenAiAccount(
-            this.model.getServiceSettings().resourceName(),
-            this.model.getServiceSettings().deploymentId(),
-            this.model.getServiceSettings().apiVersion(),
-            this.model.getSecretSettings().apiKey(),
-            this.model.getSecretSettings().entraId()
-        );
+        this.account = AzureOpenAiAccount.fromModel(model);
         this.truncator = Objects.requireNonNull(truncator);
     }
 

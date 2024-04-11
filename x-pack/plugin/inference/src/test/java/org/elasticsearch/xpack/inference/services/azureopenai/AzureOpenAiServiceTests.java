@@ -115,7 +115,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null, null),
+                    getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null),
                     getAzureOpenAiRequestTaskSettingsMap("user"),
                     getAzureOpenAiSecretSettingsMap("secret", null)
                 ),
@@ -139,7 +139,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.SPARSE_EMBEDDING,
                 getRequestConfigMap(
-                    getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null, null),
+                    getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null),
                     getAzureOpenAiRequestTaskSettingsMap("user"),
                     getAzureOpenAiSecretSettingsMap("secret", null)
                 ),
@@ -152,7 +152,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createAzureOpenAiService()) {
             var config = getRequestConfigMap(
-                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null, null),
+                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null),
                 getAzureOpenAiRequestTaskSettingsMap("user"),
                 getAzureOpenAiSecretSettingsMap("secret", null)
             );
@@ -175,7 +175,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInServiceSettingsMap() throws IOException {
         try (var service = createAzureOpenAiService()) {
-            var serviceSettings = getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null, null);
+            var serviceSettings = getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null);
             serviceSettings.put("extra_key", "value");
 
             var config = getRequestConfigMap(
@@ -204,7 +204,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             taskSettingsMap.put("extra_key", "value");
 
             var config = getRequestConfigMap(
-                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null, null),
+                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null),
                 taskSettingsMap,
                 getAzureOpenAiSecretSettingsMap("secret", null)
             );
@@ -229,7 +229,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             secretSettingsMap.put("extra_key", "value");
 
             var config = getRequestConfigMap(
-                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null, null),
+                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null),
                 getAzureOpenAiRequestTaskSettingsMap("user"),
                 secretSettingsMap
             );
@@ -265,7 +265,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null, null),
+                    getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null),
                     getAzureOpenAiRequestTaskSettingsMap("user"),
                     getAzureOpenAiSecretSettingsMap("secret", null)
                 ),
@@ -278,7 +278,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_CreatesAnAzureOpenAiEmbeddingsModel() throws IOException {
         try (var service = createAzureOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
-                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", 100, "float", 512),
+                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", 100, 512),
                 getAzureOpenAiRequestTaskSettingsMap("user"),
                 getAzureOpenAiSecretSettingsMap("secret", null)
             );
@@ -297,7 +297,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             assertThat(embeddingsModel.getServiceSettings().deploymentId(), is("deployment_id"));
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is("api_version"));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(100));
-            assertThat(embeddingsModel.getServiceSettings().encodingFormat(), is("float"));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
@@ -307,7 +306,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_ThrowsErrorTryingToParseInvalidModel() throws IOException {
         try (var service = createAzureOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
-                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null, null),
+                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null),
                 getAzureOpenAiRequestTaskSettingsMap("user"),
                 getAzureOpenAiSecretSettingsMap("secret", null)
             );
@@ -332,7 +331,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createAzureOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
-                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", 100, "float", 512),
+                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", 100, 512),
                 getAzureOpenAiRequestTaskSettingsMap("user"),
                 getAzureOpenAiSecretSettingsMap("secret", null)
             );
@@ -352,7 +351,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             assertThat(embeddingsModel.getServiceSettings().deploymentId(), is("deployment_id"));
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is("api_version"));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(100));
-            assertThat(embeddingsModel.getServiceSettings().encodingFormat(), is("float"));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
@@ -365,7 +363,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             secretSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
-                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", 100, "float", 512),
+                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", 100, 512),
                 getAzureOpenAiRequestTaskSettingsMap("user"),
                 secretSettingsMap
             );
@@ -384,7 +382,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             assertThat(embeddingsModel.getServiceSettings().deploymentId(), is("deployment_id"));
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is("api_version"));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(100));
-            assertThat(embeddingsModel.getServiceSettings().encodingFormat(), is("float"));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
@@ -394,7 +391,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInSecrets() throws IOException {
         try (var service = createAzureOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
-                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", 100, "float", 512),
+                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", 100, 512),
                 getAzureOpenAiRequestTaskSettingsMap("user"),
                 getAzureOpenAiSecretSettingsMap("secret", null)
             );
@@ -414,7 +411,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             assertThat(embeddingsModel.getServiceSettings().deploymentId(), is("deployment_id"));
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is("api_version"));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(100));
-            assertThat(embeddingsModel.getServiceSettings().encodingFormat(), is("float"));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
@@ -423,7 +419,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
 
     public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (var service = createAzureOpenAiService()) {
-            var serviceSettingsMap = getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", 100, "float", 512);
+            var serviceSettingsMap = getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", 100, 512);
             serviceSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
@@ -446,7 +442,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             assertThat(embeddingsModel.getServiceSettings().deploymentId(), is("deployment_id"));
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is("api_version"));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(100));
-            assertThat(embeddingsModel.getServiceSettings().encodingFormat(), is("float"));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
@@ -459,7 +454,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             taskSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
-                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", 100, "float", 512),
+                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", 100, 512),
                 taskSettingsMap,
                 getAzureOpenAiSecretSettingsMap("secret", null)
             );
@@ -478,7 +473,6 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             assertThat(embeddingsModel.getServiceSettings().deploymentId(), is("deployment_id"));
             assertThat(embeddingsModel.getServiceSettings().apiVersion(), is("api_version"));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(100));
-            assertThat(embeddingsModel.getServiceSettings().encodingFormat(), is("float"));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
@@ -488,7 +482,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfig_CreatesAnAzureOpenAiEmbeddingsModel() throws IOException {
         try (var service = createAzureOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
-                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null, null),
+                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null),
                 getAzureOpenAiRequestTaskSettingsMap("user")
             );
 
@@ -508,7 +502,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfig_ThrowsErrorTryingToParseInvalidModel() throws IOException {
         try (var service = createAzureOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
-                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null, null),
+                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null),
                 getAzureOpenAiRequestTaskSettingsMap("user")
             );
 
@@ -527,7 +521,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createAzureOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
-                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null, null),
+                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null),
                 getAzureOpenAiRequestTaskSettingsMap("user")
             );
             persistedConfig.config().put("extra_key", "value");
@@ -547,7 +541,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
 
     public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (var service = createAzureOpenAiService()) {
-            var serviceSettingsMap = getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null, null);
+            var serviceSettingsMap = getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null);
             serviceSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getAzureOpenAiRequestTaskSettingsMap("user"));
@@ -571,7 +565,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             taskSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
-                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null, null),
+                getAzureOpenAiServiceSettingsMap("resource_name", "deployment_id", "api_version", null, null),
                 taskSettingsMap
             );
 

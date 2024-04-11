@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
       reason: "Introduction of META tracking in 8.14+"
 
   - do:

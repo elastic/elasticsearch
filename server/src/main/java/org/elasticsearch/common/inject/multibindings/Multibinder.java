@@ -152,7 +152,7 @@ public abstract class Multibinder<T> {
         public LinkedBindingBuilder<T> addBinding() {
             checkConfiguration(isInitialized() == false, "Multibinder was already initialized");
 
-            return binder.bind(Key.get(elementType, new RealElement("")));
+            return binder.bind(Key.get(elementType, new RealElement()));
         }
 
         /**
@@ -165,9 +165,7 @@ public abstract class Multibinder<T> {
             providers = new ArrayList<>();
             for (Binding<T> entry : injector.findBindingsByType(elementType)) {
                 Key<?> key = entry.getKey();
-                if (key.getTypeLiteral().equals(elementType)
-                    && key.getAnnotation() instanceof Element
-                    && ((Element) key.getAnnotation()).setName().equals("")) {
+                if (key.getTypeLiteral().equals(elementType) && key.getAnnotation() instanceof Element) {
                     providers.add(entry.getProvider());
                 }
             }
@@ -190,10 +188,6 @@ public abstract class Multibinder<T> {
                 checkConfiguration(result.add(newValue), "Set injection failed due to duplicated element \"%s\"", newValue);
             }
             return Collections.unmodifiableSet(result);
-        }
-
-        static String getSetName() {
-            return "";
         }
 
         Key<Set<T>> getSetKey() {

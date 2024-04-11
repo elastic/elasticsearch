@@ -19,9 +19,9 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
-import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
+import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
@@ -343,35 +343,15 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 continue;
             }
 
-            /*
-             * This is the pre-rollover write index. It may or may not be the write index after maybeExecuteRollover has executed, depending
-             * on rollover criteria. We're keeping a reference to it because regardless of whether it's rolled over or not we want to
-             * exclude it from force merging later in this data stream lifecycle run.
-             */
-            Index currentRunWriteIndex = dataStream.getWriteIndex();
-            try {
-                maybeExecuteRollover(state, dataStream);
-            } catch (Exception e) {
-                logger.error(
-                    () -> String.format(Locale.ROOT, "Data stream lifecycle failed to rollover data stream [%s]", dataStream.getName()),
-                    e
-                );
-                DataStream latestDataStream = clusterService.state().metadata().dataStreams().get(dataStream.getName());
-                if (latestDataStream != null) {
-                    if (latestDataStream.getWriteIndex().getName().equals(currentRunWriteIndex.getName())) {
-                        // data stream has not been rolled over in the meantime so record the error against the write index we
-                        // attempted the rollover
-                        errorStore.recordError(currentRunWriteIndex.getName(), e);
-                    }
-                }
-            }
-
+            // the following indices should not be considered for the remainder of this service run, for various reasons.
             Set<Index> indicesToExcludeForRemainingRun = new HashSet<>();
-            // the following indices should not be considered for the remainder of this service run:
-            // 1) the write index as it's still getting writes and we'll have to roll it over when the conditions are met
-            // 2) tsds indices that are still within their time bounds (i.e. now < time_series.end_time) - we don't want these indices to be
+
+            // This is the pre-rollover write index. It may or may not be the write index after maybeExecuteRollover has executed,
+            // depending on rollover criteria, for this reason we exclude it for the remaining run.
+            indicesToExcludeForRemainingRun.addAll(maybeExecuteRollover(state, dataStream));
+
+            // tsds indices that are still within their time bounds (i.e. now < time_series.end_time) - we don't want these indices to be
             // deleted, forcemerged, or downsampled as they're still expected to receive large amounts of writes
-            indicesToExcludeForRemainingRun.add(currentRunWriteIndex);
             indicesToExcludeForRemainingRun.addAll(
                 timeSeriesIndicesStillWithinTimeBounds(
                     state.metadata(),
@@ -738,7 +718,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         transportActionsDeduplicator.executeOnce(
             addIndexBlockRequest,
             new ErrorRecordingActionListener(
-                AddIndexBlockAction.NAME,
+                TransportAddIndexBlockAction.TYPE.name(),
                 indexName,
                 errorStore,
                 Strings.format("Data stream lifecycle service encountered an error trying to mark index [%s] as readonly", indexName),
@@ -791,26 +771,50 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         }
     }
 
-    private void maybeExecuteRollover(ClusterState state, DataStream dataStream) {
-        Index writeIndex = dataStream.getWriteIndex();
-        if (dataStream.isIndexManagedByDataStreamLifecycle(writeIndex, state.metadata()::index)) {
-            RolloverRequest rolloverRequest = getDefaultRolloverRequest(
-                rolloverConfiguration,
-                dataStream.getName(),
-                dataStream.getLifecycle().getEffectiveDataRetention(DataStreamGlobalRetention.getFromClusterState(state))
+    /**
+     * This method will attempt to rollover the write index of a data stream. The rollover will occur only if the conditions
+     * apply. In any case, we return the write backing index back to the caller, so it can be excluded from the next steps.
+     * @return the write index of this data stream before rollover was requested.
+     */
+    private Set<Index> maybeExecuteRollover(ClusterState state, DataStream dataStream) {
+        Index currentRunWriteIndex = dataStream.getWriteIndex();
+        try {
+            if (dataStream.isIndexManagedByDataStreamLifecycle(currentRunWriteIndex, state.metadata()::index)) {
+                RolloverRequest rolloverRequest = getDefaultRolloverRequest(
+                    rolloverConfiguration,
+                    dataStream.getName(),
+                    dataStream.getLifecycle().getEffectiveDataRetention(DataStreamGlobalRetention.getFromClusterState(state))
+                );
+                transportActionsDeduplicator.executeOnce(
+                    rolloverRequest,
+                    new ErrorRecordingActionListener(
+                        RolloverAction.NAME,
+                        currentRunWriteIndex.getName(),
+                        errorStore,
+                        Strings.format(
+                            "Data stream lifecycle encountered an error trying to rollover data steam [%s]",
+                            dataStream.getName()
+                        ),
+                        signallingErrorRetryInterval
+                    ),
+                    (req, reqListener) -> rolloverDataStream(currentRunWriteIndex.getName(), rolloverRequest, reqListener)
+                );
+            }
+        } catch (Exception e) {
+            logger.error(
+                () -> String.format(Locale.ROOT, "Data stream lifecycle failed to rollover data stream [%s]", dataStream.getName()),
+                e
             );
-            transportActionsDeduplicator.executeOnce(
-                rolloverRequest,
-                new ErrorRecordingActionListener(
-                    RolloverAction.NAME,
-                    writeIndex.getName(),
-                    errorStore,
-                    Strings.format("Data stream lifecycle encountered an error trying to rollover data steam [%s]", dataStream.getName()),
-                    signallingErrorRetryInterval
-                ),
-                (req, reqListener) -> rolloverDataStream(writeIndex.getName(), rolloverRequest, reqListener)
-            );
+            DataStream latestDataStream = clusterService.state().metadata().dataStreams().get(dataStream.getName());
+            if (latestDataStream != null) {
+                if (latestDataStream.getWriteIndex().getName().equals(currentRunWriteIndex.getName())) {
+                    // data stream has not been rolled over in the meantime so record the error against the write index we
+                    // attempted the rollover
+                    errorStore.recordError(currentRunWriteIndex.getName(), e);
+                }
+            }
         }
+        return Set.of(currentRunWriteIndex);
     }
 
     /**
@@ -818,7 +822,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * it has sent delete requests for.
      *
      * @param state                           The cluster state from which to get index metadata
-     * @param dataStream                      The datastream
+     * @param dataStream                      The data stream
      * @param indicesToExcludeForRemainingRun Indices to exclude from retention even if it would be time for them to be deleted
      * @return The set of indices that delete requests have been sent for
      */

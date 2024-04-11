@@ -245,7 +245,6 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         return Stream.of(
             HttpSettings.getSettings(),
             HttpClientManager.getSettings(),
-            HttpRequestSender.getSettings(),
             ThrottlerManager.getSettings(),
             RetrySettings.getSettingsDefinitions(),
             Truncator.getSettings(),

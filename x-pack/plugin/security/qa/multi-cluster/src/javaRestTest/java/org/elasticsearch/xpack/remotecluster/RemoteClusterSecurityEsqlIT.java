@@ -86,7 +86,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                         {
                           "search": [
                             {
-                                "names": ["index*", "not_found_index", "employees"]
+                                "names": ["index*", "not_found_index", "employees*"]
                             }
                           ]
                         }""");
@@ -191,40 +191,8 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             performRequestWithAdminUser(client, new Request("DELETE", "/countries"));
         };
         // Fulfilling cluster
-        {
-            setupEnrich.accept(fulfillingClusterClient);
-            Request createIndex = new Request("PUT", "employees");
-            createIndex.setJsonEntity("""
-                {
-                    "mappings": {
-                        "properties": {
-                          "emp_id": { "type": "keyword" },
-                          "department": {"type": "keyword" }
-                        }
-                    }
-                }
-                """);
-            assertOK(performRequestAgainstFulfillingCluster(createIndex));
-            final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
-            bulkRequest.setJsonEntity(Strings.format("""
-                { "index": { "_index": "employees" } }
-                { "emp_id": "1", "department" : "engineering" }
-                { "index": { "_index": "employees" } }
-                { "emp_id": "3", "department" : "sales" }
-                { "index": { "_index": "employees" } }
-                { "emp_id": "5", "department" : "marketing" }
-                { "index": { "_index": "employees" } }
-                { "emp_id": "7", "department" : "engineering" }
-                { "index": { "_index": "employees" } }
-                { "emp_id": "9", "department" : "sales" }
-                """));
-            assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
-        }
-        // Querying cluster
-        // Index some documents, to use them in a mixed-cluster search
-        setupEnrich.accept(client());
-        Request createIndex = new Request("PUT", "employees");
-        createIndex.setJsonEntity("""
+        setupEnrich.accept(fulfillingClusterClient);
+        String employeesMapping = """
             {
                 "mappings": {
                     "properties": {
@@ -233,9 +201,44 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                     }
                 }
             }
-            """);
+            """;
+        Request createIndex = new Request("PUT", "employees");
+        createIndex.setJsonEntity(employeesMapping);
+        assertOK(performRequestAgainstFulfillingCluster(createIndex));
+        Request createIndex2 = new Request("PUT", "employees2");
+        createIndex2.setJsonEntity(employeesMapping);
+        assertOK(performRequestAgainstFulfillingCluster(createIndex2));
+        Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
+        bulkRequest.setJsonEntity(Strings.format("""
+            { "index": { "_index": "employees" } }
+            { "emp_id": "1", "department" : "engineering" }
+            { "index": { "_index": "employees" } }
+            { "emp_id": "3", "department" : "sales" }
+            { "index": { "_index": "employees" } }
+            { "emp_id": "5", "department" : "marketing" }
+            { "index": { "_index": "employees" } }
+            { "emp_id": "7", "department" : "engineering" }
+            { "index": { "_index": "employees" } }
+            { "emp_id": "9", "department" : "sales" }
+            { "index": { "_index": "employees2" } }
+            { "emp_id": "11", "department" : "engineering" }
+            { "index": { "_index": "employees2" } }
+            { "emp_id": "13", "department" : "sales" }
+            { "index": { "_index": "employees2" } }
+            """));
+        assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
+
+        // Querying cluster
+        // Index some documents, to use them in a mixed-cluster search
+        setupEnrich.accept(client());
+
+        createIndex = new Request("PUT", "employees");
+        createIndex.setJsonEntity(employeesMapping);
         assertOK(adminClient().performRequest(createIndex));
-        final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
+        createIndex2 = new Request("PUT", "employees2");
+        createIndex2.setJsonEntity(employeesMapping);
+        assertOK(adminClient().performRequest(createIndex2));
+        bulkRequest = new Request("POST", "/_bulk?refresh=true");
         bulkRequest.setJsonEntity(Strings.format("""
             { "index": { "_index": "employees" } }
             { "emp_id": "2", "department" : "management" }
@@ -245,6 +248,10 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             { "emp_id": "6", "department" : "marketing"}
             { "index": { "_index": "employees"} }
             { "emp_id": "8", "department" : "support"}
+            { "index": { "_index": "employees2"} }
+            { "emp_id": "10", "department" : "management"}
+            { "index": { "_index": "employees2"} }
+            { "emp_id": "12", "department" : "engineering"}
             """));
         assertOK(client().performRequest(bulkRequest));
 
@@ -281,6 +288,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
     public void wipeData() throws Exception {
         CheckedConsumer<RestClient, IOException> wipe = client -> {
             performRequestWithAdminUser(client, new Request("DELETE", "/employees"));
+            performRequestWithAdminUser(client, new Request("DELETE", "/employees2"));
             performRequestWithAdminUser(client, new Request("DELETE", "/_enrich/policy/countries"));
         };
         wipe.accept(fulfillingClusterClient);
@@ -291,26 +299,65 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
     public void testCrossClusterQuery() throws Exception {
         configureRemoteCluster();
         populateData();
-        // Query cluster
-        {
+
+        // query remote cluster only
+        Response response = performRequestWithRemoteSearchUser(esqlRequest("""
+            FROM my_remote_cluster:employees
+            | SORT emp_id ASC
+            | LIMIT 2
+            | KEEP emp_id, department"""));
+        assertOK(response);
+        assertRemoteOnlyResults(response);
+
+        // query remote and local cluster
+        response = performRequestWithRemoteSearchUser(esqlRequest("""
+            FROM my_remote_cluster:employees,employees
+            | SORT emp_id ASC
+            | LIMIT 10"""));
+        assertOK(response);
+        assertRemoteAndLocalResults(response);
+
+        // query remote cluster only - but also include employees2 which the user does not have access to
+        response = performRequestWithRemoteSearchUser(esqlRequest("""
+            FROM my_remote_cluster:employees,my_remote_cluster:employees2
+            | SORT emp_id ASC
+            | LIMIT 2
+            | KEEP emp_id, department"""));
+        assertOK(response);
+        assertRemoteOnlyResults(response); // same as above since the user only has access to employees
+
+        // query remote and local cluster - but also include employees2 which the user does not have access to
+        response = performRequestWithRemoteSearchUser(esqlRequest("""
+            FROM my_remote_cluster:employees,my_remote_cluster:employees2,employees,employees2
+            | SORT emp_id ASC
+            | LIMIT 10"""));
+        assertOK(response);
+        assertRemoteAndLocalResults(response); // same as above since the user only has access to employees
+
+        // update role to include both employees and employees2 for the remote cluster
+        final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
+        putRoleRequest.setJsonEntity("""
             {
-                Response response = performRequestWithRemoteSearchUser(esqlRequest("""
-                    FROM my_remote_cluster:employees
-                    | SORT emp_id ASC
-                    | LIMIT 2
-                    | KEEP emp_id, department"""));
-                assertOK(response);
-                assertRemoteOnlyResults(response);
-            }
-            {
-                Response response = performRequestWithRemoteSearchUser(esqlRequest("""
-                    FROM my_remote_cluster:employees,employees
-                    | SORT emp_id ASC
-                    | LIMIT 10"""));
-                assertOK(response);
-                assertRemoteAndLocalResults(response);
-            }
-        }
+              "indices": [{"names": [""], "privileges": ["read_cross_cluster"]}],
+              "remote_indices": [
+                {
+                  "names": ["employees*"],
+                  "privileges": ["read"],
+                  "clusters": ["my_remote_cluster"]
+                }
+              ]
+            }""");
+        response = adminClient().performRequest(putRoleRequest);
+        assertOK(response);
+
+        // query remote cluster only - but also include employees2 which the user now access
+        response = performRequestWithRemoteSearchUser(esqlRequest("""
+            FROM my_remote_cluster:employees,my_remote_cluster:employees2
+            | SORT emp_id ASC
+            | LIMIT 2
+            | KEEP emp_id, department"""));
+        assertOK(response);
+        assertRemoteOnlyAgainst2IndexResults(response);
     }
 
     @SuppressWarnings("unchecked")
@@ -521,6 +568,19 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             .flatMap(innerList -> innerList instanceof List ? ((List<String>) innerList).stream() : Stream.empty())
             .collect(Collectors.toList());
         assertThat(flatList, containsInAnyOrder("1", "3", "engineering", "sales"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertRemoteOnlyAgainst2IndexResults(Response response) throws IOException {
+        Map<String, Object> responseAsMap = entityAsMap(response);
+        List<?> columns = (List<?>) responseAsMap.get("columns");
+        List<?> values = (List<?>) responseAsMap.get("values");
+        assertEquals(2, columns.size());
+        assertEquals(2, values.size());
+        List<String> flatList = values.stream()
+            .flatMap(innerList -> innerList instanceof List ? ((List<String>) innerList).stream() : Stream.empty())
+            .collect(Collectors.toList());
+        assertThat(flatList, containsInAnyOrder("1", "11", "engineering", "engineering"));
     }
 
     @SuppressWarnings("unchecked")

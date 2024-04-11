@@ -155,7 +155,7 @@ final class SystemJvmOptions {
         }
         String archname = sysprops.get("os.arch");
         String arch;
-        if (archname.equals("amd64")) {
+        if (archname.equals("amd64") || archname.equals("x86_64")) {
             arch = "x64";
         } else if (archname.equals("aarch64")) {
             arch = archname;

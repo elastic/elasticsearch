@@ -5,6 +5,12 @@ the Cohere service.
 
 // end::cohere[]
 
+// tag::hugging-face[]
+
+A https://huggingface.co/[HuggingFace account] is required to use the {infer}
+API with the HuggingFace service.
+
+// end::hugging-face[]
 
 // tag::openai[]
 

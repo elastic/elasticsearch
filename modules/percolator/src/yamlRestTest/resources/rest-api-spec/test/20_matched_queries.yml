@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "Displaying matched named queries within percolator queries was added in 8.13"
   - do:
       indices.create:

@@ -148,7 +148,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
@@ -401,19 +400,19 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard.acquireAllPrimaryOperationsPermits(onAcquired, new TimeValue(Long.MAX_VALUE, TimeUnit.NANOSECONDS));
             final Releasable permit = onAcquired.actionGet();
             final CountDownLatch latch = new CountDownLatch(1);
-            final String executorOnDelay = randomFrom(
-                ThreadPool.Names.FLUSH,
-                ThreadPool.Names.GENERIC,
-                ThreadPool.Names.MANAGEMENT,
-                ThreadPool.Names.SAME
-            );
+            final String expectedThreadPoolName;
+            final Executor executorOnDelay;
+            if (randomBoolean()) {
+                expectedThreadPoolName = ThreadPool.Names.GENERIC;
+                executorOnDelay = EsExecutors.DIRECT_EXECUTOR_SERVICE;
+            } else {
+                expectedThreadPoolName = randomFrom(ThreadPool.Names.FLUSH, ThreadPool.Names.GENERIC, ThreadPool.Names.MANAGEMENT);
+                executorOnDelay = threadPool.executor(expectedThreadPoolName);
+            }
             indexShard.runUnderPrimaryPermit(() -> {
-                final String expectedThreadPoolName = executorOnDelay.equals(ThreadPool.Names.SAME)
-                    ? "generic"
-                    : executorOnDelay.toLowerCase(Locale.ROOT);
-                assertThat(Thread.currentThread().getName(), containsString(expectedThreadPoolName));
+                assertThat(Thread.currentThread().getName(), containsString('[' + expectedThreadPoolName + ']'));
                 latch.countDown();
-            }, e -> fail(e.toString()), threadPool.executor(executorOnDelay));
+            }, e -> fail(e.toString()), executorOnDelay);
             permit.close();
             latch.await();
             // we could race and assert on the count before the permit is returned

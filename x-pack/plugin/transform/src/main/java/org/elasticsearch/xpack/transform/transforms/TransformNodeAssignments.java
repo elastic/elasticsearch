@@ -65,4 +65,18 @@ public final class TransformNodeAssignments {
     public Set<String> getStopped() {
         return stopped;
     }
+
+    @Override
+    public String toString() {
+        return new StringBuilder("TransformNodeAssignments[").append("executorNodes=")
+            .append(executorNodes)
+            .append(",assigned=")
+            .append(assigned)
+            .append(",waitingForAssignment=")
+            .append(waitingForAssignment)
+            .append(",stopped=")
+            .append(stopped)
+            .append("]")
+            .toString();
+    }
 }

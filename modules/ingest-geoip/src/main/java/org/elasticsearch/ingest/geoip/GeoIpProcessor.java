@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.db.Network;
+import com.maxmind.geoip2.model.AnonymousIpResponse;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
 import com.maxmind.geoip2.model.CountryResponse;
@@ -28,15 +29,13 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.geoip.Database.Property;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -53,9 +52,6 @@ public final class GeoIpProcessor extends AbstractProcessor {
         + "Elasticsearch no longer includes the default Maxmind geoip databases. This setting will be removed in Elasticsearch 9.0";
 
     public static final String TYPE = "geoip";
-    private static final String CITY_DB_SUFFIX = "-City";
-    private static final String COUNTRY_DB_SUFFIX = "-Country";
-    private static final String ASN_DB_SUFFIX = "-ASN";
 
     private final String field;
     private final Supplier<Boolean> isValid;
@@ -166,21 +162,19 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
     private Map<String, Object> getGeoData(GeoIpDatabase geoIpDatabase, String ip) throws IOException {
         final String databaseType = geoIpDatabase.getDatabaseType();
-        final InetAddress ipAddress = InetAddresses.forString(ip);
-        Map<String, Object> geoData;
-        if (databaseType.endsWith(CITY_DB_SUFFIX)) {
-            geoData = retrieveCityGeoData(geoIpDatabase, ipAddress);
-        } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
-            geoData = retrieveCountryGeoData(geoIpDatabase, ipAddress);
-        } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
-            geoData = retrieveAsnGeoData(geoIpDatabase, ipAddress);
-        } else {
-            throw new ElasticsearchParseException(
-                "Unsupported database type [" + geoIpDatabase.getDatabaseType() + "]",
-                new IllegalStateException()
-            );
+        final Database database;
+        try {
+            database = Database.getDatabase(databaseType, databaseFile);
+        } catch (IllegalArgumentException e) {
+            throw new ElasticsearchParseException(e.getMessage(), e);
         }
-        return geoData;
+        final InetAddress ipAddress = InetAddresses.forString(ip);
+        return switch (database) {
+            case City -> retrieveCityGeoData(geoIpDatabase, ipAddress);
+            case Country -> retrieveCountryGeoData(geoIpDatabase, ipAddress);
+            case Asn -> retrieveAsnGeoData(geoIpDatabase, ipAddress);
+            case AnonymousIp -> retrieveAnonymousIpGeoData(geoIpDatabase, ipAddress);
+        };
     }
 
     @Override
@@ -348,6 +342,46 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
+    private Map<String, Object> retrieveAnonymousIpGeoData(GeoIpDatabase geoIpDatabase, InetAddress ipAddress) {
+        AnonymousIpResponse response = geoIpDatabase.getAnonymousIp(ipAddress);
+        if (response == null) {
+            return Map.of();
+        }
+
+        boolean isHostingProvider = response.isHostingProvider();
+        boolean isTorExitNode = response.isTorExitNode();
+        boolean isAnonymousVpn = response.isAnonymousVpn();
+        boolean isAnonymous = response.isAnonymous();
+        boolean isPublicProxy = response.isPublicProxy();
+        boolean isResidentialProxy = response.isResidentialProxy();
+
+        Map<String, Object> geoData = new HashMap<>();
+        for (Property property : this.properties) {
+            switch (property) {
+                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case HOSTING_PROVIDER -> {
+                    geoData.put("hosting_provider", isHostingProvider);
+                }
+                case TOR_EXIT_NODE -> {
+                    geoData.put("tor_exit_node", isTorExitNode);
+                }
+                case ANONYMOUS_VPN -> {
+                    geoData.put("anonymous_vpn", isAnonymousVpn);
+                }
+                case ANONYMOUS -> {
+                    geoData.put("anonymous", isAnonymous);
+                }
+                case PUBLIC_PROXY -> {
+                    geoData.put("public_proxy", isPublicProxy);
+                }
+                case RESIDENTIAL_PROXY -> {
+                    geoData.put("residential_proxy", isResidentialProxy);
+                }
+            }
+        }
+        return geoData;
+    }
+
     /**
      * Retrieves and verifies a {@link GeoIpDatabase} instance for each execution of the {@link GeoIpProcessor}. Guards against missing
      * custom databases, and ensures that database instances are of the proper type before use.
@@ -384,23 +418,6 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     public static final class Factory implements Processor.Factory {
-        static final Set<Property> DEFAULT_CITY_PROPERTIES = Set.copyOf(
-            EnumSet.of(
-                Property.CONTINENT_NAME,
-                Property.COUNTRY_NAME,
-                Property.COUNTRY_ISO_CODE,
-                Property.REGION_ISO_CODE,
-                Property.REGION_NAME,
-                Property.CITY_NAME,
-                Property.LOCATION
-            )
-        );
-        static final Set<Property> DEFAULT_COUNTRY_PROPERTIES = Set.copyOf(
-            EnumSet.of(Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE)
-        );
-        static final Set<Property> DEFAULT_ASN_PROPERTIES = Set.copyOf(
-            EnumSet.of(Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK)
-        );
 
         private final GeoIpDatabaseProvider geoIpDatabaseProvider;
 
@@ -440,6 +457,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 // pipeline.
                 return new DatabaseUnavailableProcessor(processorTag, description, databaseFile);
             }
+
             final String databaseType;
             try {
                 databaseType = geoIpDatabase.getDatabaseType();
@@ -447,32 +465,18 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 geoIpDatabase.release();
             }
 
+            final Database database;
+            try {
+                database = Database.getDatabase(databaseType, databaseFile);
+            } catch (IllegalArgumentException e) {
+                throw newConfigurationException(TYPE, processorTag, "database_file", e.getMessage());
+            }
+
             final Set<Property> properties;
-            if (propertyNames != null) {
-                Set<Property> modifiableProperties = EnumSet.noneOf(Property.class);
-                for (String fieldName : propertyNames) {
-                    try {
-                        modifiableProperties.add(Property.parseProperty(databaseType, fieldName));
-                    } catch (IllegalArgumentException e) {
-                        throw newConfigurationException(TYPE, processorTag, "properties", e.getMessage());
-                    }
-                }
-                properties = Set.copyOf(modifiableProperties);
-            } else {
-                if (databaseType.endsWith(CITY_DB_SUFFIX)) {
-                    properties = DEFAULT_CITY_PROPERTIES;
-                } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
-                    properties = DEFAULT_COUNTRY_PROPERTIES;
-                } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
-                    properties = DEFAULT_ASN_PROPERTIES;
-                } else {
-                    throw newConfigurationException(
-                        TYPE,
-                        processorTag,
-                        "database_file",
-                        "Unsupported database type [" + databaseType + "]"
-                    );
-                }
+            try {
+                properties = database.parseProperties(propertyNames);
+            } catch (IllegalArgumentException e) {
+                throw newConfigurationException(TYPE, processorTag, "properties", e.getMessage());
             }
             return new GeoIpProcessor(
                 processorTag,
@@ -496,69 +500,6 @@ public final class GeoIpProcessor extends AbstractProcessor {
             return readBooleanProperty(GeoIpProcessor.TYPE, processorTag, config, "download_database_on_pipeline_creation", true);
         }
 
-    }
-
-    enum Property {
-
-        IP,
-        COUNTRY_ISO_CODE,
-        COUNTRY_NAME,
-        CONTINENT_NAME,
-        REGION_ISO_CODE,
-        REGION_NAME,
-        CITY_NAME,
-        TIMEZONE,
-        LOCATION,
-        ASN,
-        ORGANIZATION_NAME,
-        NETWORK;
-
-        static final EnumSet<Property> ALL_CITY_PROPERTIES = EnumSet.of(
-            Property.IP,
-            Property.COUNTRY_ISO_CODE,
-            Property.COUNTRY_NAME,
-            Property.CONTINENT_NAME,
-            Property.REGION_ISO_CODE,
-            Property.REGION_NAME,
-            Property.CITY_NAME,
-            Property.TIMEZONE,
-            Property.LOCATION
-        );
-        static final EnumSet<Property> ALL_COUNTRY_PROPERTIES = EnumSet.of(
-            Property.IP,
-            Property.CONTINENT_NAME,
-            Property.COUNTRY_NAME,
-            Property.COUNTRY_ISO_CODE
-        );
-        static final EnumSet<Property> ALL_ASN_PROPERTIES = EnumSet.of(
-            Property.IP,
-            Property.ASN,
-            Property.ORGANIZATION_NAME,
-            Property.NETWORK
-        );
-
-        public static Property parseProperty(String databaseType, String value) {
-            Set<Property> validProperties = EnumSet.noneOf(Property.class);
-            if (databaseType.endsWith(CITY_DB_SUFFIX)) {
-                validProperties = ALL_CITY_PROPERTIES;
-            } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
-                validProperties = ALL_COUNTRY_PROPERTIES;
-            } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
-                validProperties = ALL_ASN_PROPERTIES;
-            }
-
-            try {
-                Property property = valueOf(value.toUpperCase(Locale.ROOT));
-                if (validProperties.contains(property) == false) {
-                    throw new IllegalArgumentException("invalid");
-                }
-                return property;
-            } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException(
-                    "illegal property value [" + value + "]. valid values are " + Arrays.toString(validProperties.toArray())
-                );
-            }
-        }
     }
 
     static class DatabaseUnavailableProcessor extends AbstractProcessor {

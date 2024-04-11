@@ -8,7 +8,7 @@ synopsis:keyword
 "double atan(number:double|integer|long|unsigned_long)"
 "double atan2(y_coordinate:double|integer|long|unsigned_long, x_coordinate:double|integer|long|unsigned_long)"
 "double avg(number:double|integer|long)"
-"double|date bucket(field:integer|long|double|date, buckets:integer, from:integer|long|double|date|keyword|text, to:integer|long|double|date|keyword|text)"
+"double|date bucket(field:integer|long|double|date, buckets:integer, from:integer|long|double|date, to:integer|long|double|date)"
 "boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version case(condition:boolean, trueValue...:boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version)"
 "double|integer|long|unsigned_long ceil(number:double|integer|long|unsigned_long)"
 "boolean cidr_match(ip:ip, blockX...:keyword|text)"
@@ -118,7 +118,7 @@ asin          |number                              |"double|integer|long|unsigne
 atan          |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 atan2         |[y_coordinate, x_coordinate]        |["double|integer|long|unsigned_long", "double|integer|long|unsigned_long"]                                                        |[y coordinate. If `null`\, the function returns `null`., x coordinate. If `null`\, the function returns `null`.]
 avg           |number                              |"double|integer|long"                                                                                                             |[""]
-bucket        |[field, buckets, from, to]          |["integer|long|double|date", integer, "integer|long|double|date|keyword|text", "integer|long|double|date|keyword|text"]           |["", "", "", ""]
+bucket        |[field, buckets, from, to]          |["integer|long|double|date", integer, "integer|long|double|date", "integer|long|double|date"]           |["", "", "", ""]
 case          |[condition, trueValue]              |[boolean, "boolean|cartesian_point|date|double|geo_point|integer|ip|keyword|long|text|unsigned_long|version"]                     |["", ""]
 ceil          |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 cidr_match    |[ip, blockX]                        |[ip, "keyword|text"]                                                                                                              |[, CIDR block to test the IP against.]

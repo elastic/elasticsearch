@@ -27,7 +27,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.IntStream;
 
 /**
@@ -128,5 +130,14 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
     @FunctionalInterface
     public interface BlobReader {
         StreamInput readBlobAtOffset(String blobName, long offset, long length) throws IOException;
+    }
+
+    public static Set<PrimaryTermAndGeneration> computeReferencedBCCGenerations(StatelessCompoundCommit commit) {
+        Set<PrimaryTermAndGeneration> primaryTermAndGenerations = new HashSet<>();
+        for (BlobLocation blobLocation : commit.commitFiles().values()) {
+            var generation = StatelessCompoundCommit.parseGenerationFromBlobName(blobLocation.blobName());
+            primaryTermAndGenerations.add(new PrimaryTermAndGeneration(blobLocation.primaryTerm(), generation));
+        }
+        return Collections.unmodifiableSet(primaryTermAndGenerations);
     }
 }

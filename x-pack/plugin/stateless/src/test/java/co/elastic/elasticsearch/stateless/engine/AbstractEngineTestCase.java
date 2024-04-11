@@ -168,7 +168,13 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             argument.onResponse(null);
             return null;
         }).when(commitService).addListenerForUploadedGeneration(any(ShardId.class), anyLong(), any());
-        when(commitService.closedLocalReadersForGeneration(any(ShardId.class))).thenReturn(v -> {});
+        when(commitService.getIndexEngineLocalReaderListenerForShard(any(ShardId.class))).thenReturn(
+            (bccHoldingClosedCommit, openBCCs) -> {}
+        );
+        when(commitService.getCommitBCCResolverForShard(any(ShardId.class))).thenReturn(
+            generation -> Set.of(new PrimaryTermAndGeneration(1, generation))
+        );
+
         return commitService;
     }
 
@@ -184,7 +190,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             objectStoreService::getTranslogBlobContainer,
             commitService,
             RefreshThrottler.Noop::new,
-            commitService.closedLocalReadersForGeneration(indexConfig.getShardId())
+            commitService.getIndexEngineLocalReaderListenerForShard(indexConfig.getShardId()),
+            commitService.getCommitBCCResolverForShard(indexConfig.getShardId())
         ) {
 
             @Override

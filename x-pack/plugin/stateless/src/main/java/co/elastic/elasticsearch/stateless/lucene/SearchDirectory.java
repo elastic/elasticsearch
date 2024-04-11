@@ -220,6 +220,11 @@ public class SearchDirectory extends ByteSizeDirectory {
         throw exception;
     }
 
+    public StatelessCompoundCommit getCurrentCommit() {
+        // Only used to initialize the search engine
+        return currentCommit.get();
+    }
+
     public Optional<String> getCurrentMetadataNodeEphemeralId() {
         StatelessCompoundCommit compoundCommit = currentCommit.get();
         return compoundCommit != null ? Optional.of(compoundCommit.nodeEphemeralId()) : Optional.empty();

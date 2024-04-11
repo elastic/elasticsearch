@@ -24,11 +24,13 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+import co.elastic.elasticsearch.stateless.engine.IndexEngineTestUtils;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -121,12 +123,14 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -845,19 +849,28 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
         ensureGreen(indexName);
 
-        final Supplier<PrimaryTermAndGeneration> latestPrimaryTermAndGeneration = () -> {
+        final Supplier<Set<PrimaryTermAndGeneration>> latestPrimaryTermAndGenerationDependencies = () -> {
             var indexShardEngineOrNull = findIndexShard(resolveIndex(indexName), 0).getEngineOrNull();
             assertThat(indexShardEngineOrNull, notNullValue());
-            return new PrimaryTermAndGeneration(
-                indexShardEngineOrNull.config().getPrimaryTermSupplier().getAsLong(),
-                ((IndexEngine) indexShardEngineOrNull).getCurrentGeneration()
-            );
+            IndexEngine indexEngine = (IndexEngine) indexShardEngineOrNull;
+            var currentGeneration = indexEngine.getCurrentGeneration();
+            var openReaders = IndexEngineTestUtils.getOpenReaders(indexEngine);
+            for (Map.Entry<DirectoryReader, Set<PrimaryTermAndGeneration>> directoryReaderSetEntry : openReaders.entrySet()) {
+                var directoryReader = directoryReaderSetEntry.getKey();
+                if (IndexEngineTestUtils.getLatestCommittedGeneration(directoryReader) == currentGeneration) {
+                    return directoryReaderSetEntry.getValue();
+                }
+            }
+            throw new AssertionError("Expected to find the reader for the current generation " + currentGeneration);
         };
 
         var searchShardEngineOrNull = findSearchShard(resolveIndex(indexName), 0).getEngineOrNull();
         assertThat(searchShardEngineOrNull, instanceOf(SearchEngine.class));
         var searchEngine = (SearchEngine) searchShardEngineOrNull;
-        assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(latestPrimaryTermAndGeneration.get()));
+        assertThat(
+            latestPrimaryTermAndGenerationDependencies.get(),
+            everyItem(is(in(searchEngine.getAcquiredPrimaryTermAndGenerations())))
+        );
 
         indexDocs(indexName, 100);
         flushAndRefresh(indexName);
@@ -868,8 +881,8 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             firstScrollId.set(firstScroll.getScrollId());
         });
 
-        var firstScrollPrimaryTermAndGeneration = latestPrimaryTermAndGeneration.get();
-        assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(firstScrollPrimaryTermAndGeneration));
+        var firstScrollPrimaryTermAndGenerations = latestPrimaryTermAndGenerationDependencies.get();
+        assertThat(firstScrollPrimaryTermAndGenerations, everyItem(is(in(searchEngine.getAcquiredPrimaryTermAndGenerations()))));
 
         indexDocs(indexName, 100);
         flushAndRefresh(indexName);
@@ -880,15 +893,12 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             secondScrollId.set(secondScroll.getScrollId());
         });
 
-        var secondScrollPrimaryTermAndGeneration = latestPrimaryTermAndGeneration.get();
-        assertThat(
-            searchEngine.getAcquiredPrimaryTermAndGenerations(),
-            containsInAnyOrder(firstScrollPrimaryTermAndGeneration, secondScrollPrimaryTermAndGeneration)
-        );
+        var secondScrollPrimaryTermAndGenerations = latestPrimaryTermAndGenerationDependencies.get();
+        assertThat(secondScrollPrimaryTermAndGenerations, everyItem(is(in(searchEngine.getAcquiredPrimaryTermAndGenerations()))));
 
         clearScroll(firstScrollId.get());
 
-        assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(secondScrollPrimaryTermAndGeneration));
+        assertThat(secondScrollPrimaryTermAndGenerations, everyItem(is(in(searchEngine.getAcquiredPrimaryTermAndGenerations()))));
 
         indexDocs(indexName, 100);
         flushAndRefresh(indexName);
@@ -896,26 +906,25 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         assertNoFailuresAndResponse(prepareSearch().setScroll(TimeValue.timeValueHours(1L)), thirdScroll -> {
             assertThat(thirdScroll.getHits().getTotalHits().value, equalTo(300L));
 
-            var thirdScrollPrimaryTermAndGeneration = latestPrimaryTermAndGeneration.get();
-            assertThat(
-                searchEngine.getAcquiredPrimaryTermAndGenerations(),
-                containsInAnyOrder(secondScrollPrimaryTermAndGeneration, thirdScrollPrimaryTermAndGeneration)
-            );
+            var thirdScrollPrimaryTermAndGenerations = latestPrimaryTermAndGenerationDependencies.get();
+            assertThat(secondScrollPrimaryTermAndGenerations, everyItem(is(in(searchEngine.getAcquiredPrimaryTermAndGenerations()))));
+            assertThat(thirdScrollPrimaryTermAndGenerations, everyItem(is(in(searchEngine.getAcquiredPrimaryTermAndGenerations()))));
 
             clearScroll(thirdScroll.getScrollId());
             indexDocs(indexName, 1);
             flushAndRefresh(indexName);
 
-            assertThat(thirdScrollPrimaryTermAndGeneration, not(equalTo(latestPrimaryTermAndGeneration.get())));
+            assertThat(thirdScrollPrimaryTermAndGenerations, not(equalTo(latestPrimaryTermAndGenerationDependencies.get())));
+            assertThat(secondScrollPrimaryTermAndGenerations, everyItem(is(in(searchEngine.getAcquiredPrimaryTermAndGenerations()))));
             assertThat(
-                searchEngine.getAcquiredPrimaryTermAndGenerations(),
-                containsInAnyOrder(secondScrollPrimaryTermAndGeneration, latestPrimaryTermAndGeneration.get())
+                latestPrimaryTermAndGenerationDependencies.get(),
+                everyItem(is(in(searchEngine.getAcquiredPrimaryTermAndGenerations())))
             );
         });
 
         clearScroll(secondScrollId.get());
 
-        assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(latestPrimaryTermAndGeneration.get()));
+        assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), equalTo(latestPrimaryTermAndGenerationDependencies.get()));
     }
 
     public void testSearchNotInterruptedByNewCommit() throws Exception {

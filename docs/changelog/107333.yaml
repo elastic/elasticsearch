@@ -1,11 +1,11 @@
 pr: 107333
 summary: Limit how much space some string functions can use
 area: SQL
-type: "breaking, bug"
+type: breaking
 issues: []
 breaking:
   title: Limit how much space some string functions can use
-  area: SQL
+  area: REST API
   details: "Before this change, some of the string functions could return a\
     \ result of any arbitrary length, which could force the VM to allocate\
     \ large chunks of memory or even make it exit. Any user with access to the\

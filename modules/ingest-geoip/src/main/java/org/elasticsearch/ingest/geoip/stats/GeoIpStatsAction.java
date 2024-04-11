@@ -30,11 +30,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public class GeoIpDownloaderStatsAction {
+public class GeoIpStatsAction {
 
     public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:monitor/ingest/geoip/stats");
 
-    private GeoIpDownloaderStatsAction() {/* no instances */}
+    private GeoIpStatsAction() {/* no instances */}
 
     public static class Request extends BaseNodesRequest<Request> implements ToXContentObject {
 
@@ -89,8 +89,8 @@ public class GeoIpDownloaderStatsAction {
             super(clusterName, nodes, failures);
         }
 
-        public GeoIpDownloaderStats getStats() {
-            return getNodes().stream().map(n -> n.stats).filter(Objects::nonNull).findFirst().orElse(GeoIpDownloaderStats.EMPTY);
+        public GeoIpDownloaderStats getDownloaderStats() {
+            return getNodes().stream().map(n -> n.downloaderStats).filter(Objects::nonNull).findFirst().orElse(GeoIpDownloaderStats.EMPTY);
         }
 
         @Override
@@ -105,7 +105,7 @@ public class GeoIpDownloaderStatsAction {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            GeoIpDownloaderStats stats = getStats();
+            GeoIpDownloaderStats stats = getDownloaderStats();
             builder.startObject();
             builder.field("stats", stats);
             builder.startObject("nodes");
@@ -153,14 +153,14 @@ public class GeoIpDownloaderStatsAction {
 
     public static class NodeResponse extends BaseNodeResponse {
 
-        private final GeoIpDownloaderStats stats;
+        private final GeoIpDownloaderStats downloaderStats;
         private final Set<String> databases;
         private final Set<String> filesInTemp;
         private final Set<String> configDatabases;
 
         protected NodeResponse(StreamInput in) throws IOException {
             super(in);
-            stats = in.readBoolean() ? new GeoIpDownloaderStats(in) : null;
+            downloaderStats = in.readBoolean() ? new GeoIpDownloaderStats(in) : null;
             databases = in.readCollectionAsImmutableSet(StreamInput::readString);
             filesInTemp = in.readCollectionAsImmutableSet(StreamInput::readString);
             configDatabases = in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
@@ -170,20 +170,20 @@ public class GeoIpDownloaderStatsAction {
 
         protected NodeResponse(
             DiscoveryNode node,
-            GeoIpDownloaderStats stats,
+            GeoIpDownloaderStats downloaderStats,
             Set<String> databases,
             Set<String> filesInTemp,
             Set<String> configDatabases
         ) {
             super(node);
-            this.stats = stats;
+            this.downloaderStats = downloaderStats;
             this.databases = Set.copyOf(databases);
             this.filesInTemp = Set.copyOf(filesInTemp);
             this.configDatabases = Set.copyOf(configDatabases);
         }
 
-        public GeoIpDownloaderStats getStats() {
-            return stats;
+        public GeoIpDownloaderStats getDownloaderStats() {
+            return downloaderStats;
         }
 
         public Set<String> getDatabases() {
@@ -201,9 +201,9 @@ public class GeoIpDownloaderStatsAction {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeBoolean(stats != null);
-            if (stats != null) {
-                stats.writeTo(out);
+            out.writeBoolean(downloaderStats != null);
+            if (downloaderStats != null) {
+                downloaderStats.writeTo(out);
             }
             out.writeStringCollection(databases);
             out.writeStringCollection(filesInTemp);
@@ -217,7 +217,7 @@ public class GeoIpDownloaderStatsAction {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             NodeResponse that = (NodeResponse) o;
-            return stats.equals(that.stats)
+            return downloaderStats.equals(that.downloaderStats)
                 && databases.equals(that.databases)
                 && filesInTemp.equals(that.filesInTemp)
                 && Objects.equals(configDatabases, that.configDatabases);
@@ -225,7 +225,7 @@ public class GeoIpDownloaderStatsAction {
 
         @Override
         public int hashCode() {
-            return Objects.hash(stats, databases, filesInTemp, configDatabases);
+            return Objects.hash(downloaderStats, databases, filesInTemp, configDatabases);
         }
     }
 }

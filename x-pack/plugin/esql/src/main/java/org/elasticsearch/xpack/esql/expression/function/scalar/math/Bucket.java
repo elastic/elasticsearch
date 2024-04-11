@@ -90,8 +90,8 @@ public class Bucket extends EsqlScalarFunction implements Validatable, TwoOption
         Source source,
         @Param(name = "field", type = { "integer", "long", "double", "date" }) Expression field,
         @Param(name = "bucketsOrSpan", type = { "integer", "double", "date_period", "time_duration" }) Expression bucketsOrSpan,
-        @Param(name = "from", type = { "integer", "long", "double", "date", "keyword", "text" }, optional = true) Expression from,
-        @Param(name = "to", type = { "integer", "long", "double", "date", "keyword", "text" }, optional = true) Expression to
+        @Param(name = "from", type = { "integer", "long", "double", "date" }, optional = true) Expression from,
+        @Param(name = "to", type = { "integer", "long", "double", "date" }, optional = true) Expression to
     ) {
         super(source, from != null && to != null ? List.of(field, bucketsOrSpan, from, to) : List.of(field, bucketsOrSpan));
         this.field = field;

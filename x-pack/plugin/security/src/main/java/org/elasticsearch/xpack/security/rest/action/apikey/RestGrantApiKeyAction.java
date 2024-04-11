@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
@@ -19,7 +20,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xcontent.AbstractObjectParser;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -46,19 +46,19 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 @ServerlessScope(Scope.INTERNAL)
 public final class RestGrantApiKeyAction extends ApiKeyBaseRestHandler implements RestRequestFilter {
-
-    interface Translator {
+    public interface Translator {
         GrantApiKeyRequest translate(RestRequest request) throws IOException;
 
         class Default implements Translator {
-            private static final ObjectParser<GrantApiKeyRequest, Void> PARSER = createParser(
-                CreateApiKeyRequestBuilder.createParser((n, p) -> RoleDescriptor.parse(n, p, false))
-            );
+            private static final ObjectParser<GrantApiKeyRequest, Void> PARSER = createParser((n, p) -> RoleDescriptor.parse(n, p, false));
 
             protected static ObjectParser<GrantApiKeyRequest, Void> createParser(
-                ConstructingObjectParser<CreateApiKeyRequest, Void> apiKeyParser
+                CheckedBiFunction<String, XContentParser, RoleDescriptor, IOException> roleDescriptorParser
             ) {
-                ObjectParser<GrantApiKeyRequest, Void> parser = new ObjectParser<>("grant_api_key_request", GrantApiKeyRequest::new);
+                final ConstructingObjectParser<CreateApiKeyRequest, Void> apiKeyParser = CreateApiKeyRequestBuilder.createParser(
+                    roleDescriptorParser
+                );
+                final ObjectParser<GrantApiKeyRequest, Void> parser = new ObjectParser<>("grant_api_key_request", GrantApiKeyRequest::new);
                 parser.declareString((req, str) -> req.getGrant().setType(str), new ParseField("grant_type"));
                 parser.declareString((req, str) -> req.getGrant().setUsername(str), new ParseField("username"));
                 parser.declareField(
@@ -90,16 +90,21 @@ public final class RestGrantApiKeyAction extends ApiKeyBaseRestHandler implement
             @Override
             public GrantApiKeyRequest translate(RestRequest request) throws IOException {
                 try (XContentParser parser = request.contentParser()) {
-                    return PARSER.parse(parser, null);
+                    return fromXContent(parser);
                 }
+            }
+
+            public static GrantApiKeyRequest fromXContent(XContentParser parser) throws IOException {
+                return PARSER.parse(parser, null);
             }
         }
     }
 
-    private final Translator translator = new Translator.Default();
+    private final Translator requestTranslator;
 
-    public RestGrantApiKeyAction(Settings settings, XPackLicenseState licenseState) {
+    public RestGrantApiKeyAction(Settings settings, XPackLicenseState licenseState, Translator requestTranslator) {
         super(settings, licenseState);
+        this.requestTranslator = requestTranslator;
     }
 
     @Override
@@ -112,14 +117,9 @@ public final class RestGrantApiKeyAction extends ApiKeyBaseRestHandler implement
         return "xpack_security_grant_api_key";
     }
 
-    public static GrantApiKeyRequest fromXContent(XContentParser parser) throws IOException {
-        // TODO
-        return Translator.Default.PARSER.parse(parser, null);
-    }
-
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final GrantApiKeyRequest grantRequest = translator.translate(request);
+        final GrantApiKeyRequest grantRequest = requestTranslator.translate(request);
         final String refresh = request.param("refresh");
         if (refresh != null) {
             grantRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.parse(refresh));

@@ -335,7 +335,7 @@ public class MlLearningToRankRescorerIT extends ESRestTestCase {
                 "rescore": {
                     "window_size": 10,
                     "learning_to_rank": {
-                        "model_id": "basic-ltr-model",
+                        "model_id": "basic-ltr-model"
                     }
                 }
             }""";

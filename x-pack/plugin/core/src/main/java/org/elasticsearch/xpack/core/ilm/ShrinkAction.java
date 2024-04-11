@@ -325,8 +325,12 @@ public class ShrinkAction implements LifecycleAction {
         );
 
         if (allowWriteAfterShrink) {
-            UpdateSettingsStep allowWriteAfterShrinkStep =
-                new UpdateSettingsStep(allowWriteKey, nextStepKey, client, CLEAR_WRITE_BLOCK_SETTINGS);
+            UpdateSettingsStep allowWriteAfterShrinkStep = new UpdateSettingsStep(
+                allowWriteKey,
+                nextStepKey,
+                client,
+                CLEAR_WRITE_BLOCK_SETTINGS
+            );
             steps.add(allowWriteAfterShrinkStep);
         }
         return steps;

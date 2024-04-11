@@ -464,7 +464,11 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 threads[threadId] = new Thread(() -> {
                     try {
                         latch.await();
-                        mapperService.parseMapping("_doc", new CompressedXContent(Strings.toString(builders[threadId])));
+                        mapperService.parseMapping(
+                            "_doc",
+                            MergeReason.MAPPING_UPDATE,
+                            new CompressedXContent(Strings.toString(builders[threadId]))
+                        );
                     } catch (Exception e) {
                         throw new AssertionError(e);
                     }

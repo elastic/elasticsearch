@@ -23,7 +23,7 @@ public class DeleteConnectorActionRequestBWCSerializingTests extends AbstractBWC
 
     @Override
     protected DeleteConnectorAction.Request createTestInstance() {
-        return new DeleteConnectorAction.Request(randomAlphaOfLengthBetween(1, 10));
+        return new DeleteConnectorAction.Request(randomAlphaOfLengthBetween(1, 10), false);
     }
 
     @Override
@@ -38,6 +38,6 @@ public class DeleteConnectorActionRequestBWCSerializingTests extends AbstractBWC
 
     @Override
     protected DeleteConnectorAction.Request mutateInstanceForVersion(DeleteConnectorAction.Request instance, TransportVersion version) {
-        return new DeleteConnectorAction.Request(instance.getConnectorId());
+        return new DeleteConnectorAction.Request(instance.getConnectorId(), instance.shouldDeleteSyncJobs());
     }
 }

@@ -108,6 +108,7 @@ public class HttpRequestSenderTests extends ESTestCase {
             sender.send(
                 OpenAiEmbeddingsExecutableRequestCreatorTests.makeCreator(getUrl(webServer), null, "key", "model", null),
                 new DocumentsOnlyInput(List.of("abc")),
+                null,
                 listener
             );
 
@@ -138,7 +139,7 @@ public class HttpRequestSenderTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var thrownException = expectThrows(
                 AssertionError.class,
-                () -> sender.send(ExecutableRequestCreatorTests.createMock(), new DocumentsOnlyInput(List.of()), listener)
+                () -> sender.send(ExecutableRequestCreatorTests.createMock(), new DocumentsOnlyInput(List.of()), null, listener)
             );
             assertThat(thrownException.getMessage(), is("call start() before sending a request"));
         }
@@ -156,9 +157,6 @@ public class HttpRequestSenderTests extends ESTestCase {
 
         try (var sender = senderFactory.createSender("test_service")) {
             assertThat(sender, instanceOf(HttpRequestSender.class));
-            // hack to get around the sender interface so we can set the timeout directly
-            var httpSender = (HttpRequestSender) sender;
-            httpSender.setMaxRequestTimeout(TimeValue.timeValueNanos(1));
             sender.start();
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();

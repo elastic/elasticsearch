@@ -170,6 +170,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_TIMEOUT_ADDED = def(8_629_00_0);
     public static final TransportVersion MODIFY_DATA_STREAM_FAILURE_STORES = def(8_630_00_0);
     public static final TransportVersion ML_INFERENCE_RERANK_NEW_RESPONSE_FORMAT = def(8_631_00_0);
+    public static final TransportVersion HIGHLIGHTERS_TAGS_ON_FIELD_LEVEL = def(8_632_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

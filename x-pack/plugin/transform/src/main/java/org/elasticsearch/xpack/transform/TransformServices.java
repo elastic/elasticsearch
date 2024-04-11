@@ -26,17 +26,20 @@ public final class TransformServices {
     private final TransformCheckpointService checkpointService;
     private final TransformAuditor auditor;
     private final TransformScheduler scheduler;
+    private final TransformNode transformNode;
 
     public TransformServices(
         TransformConfigManager configManager,
         TransformCheckpointService checkpointService,
         TransformAuditor auditor,
-        TransformScheduler scheduler
+        TransformScheduler scheduler,
+        TransformNode transformNode
     ) {
         this.configManager = Objects.requireNonNull(configManager);
         this.checkpointService = Objects.requireNonNull(checkpointService);
         this.auditor = Objects.requireNonNull(auditor);
         this.scheduler = Objects.requireNonNull(scheduler);
+        this.transformNode = transformNode;
     }
 
     public TransformConfigManager getConfigManager() {
@@ -53,5 +56,9 @@ public final class TransformServices {
 
     public TransformScheduler getScheduler() {
         return scheduler;
+    }
+
+    public TransformNode getTransformNode() {
+        return transformNode;
     }
 }

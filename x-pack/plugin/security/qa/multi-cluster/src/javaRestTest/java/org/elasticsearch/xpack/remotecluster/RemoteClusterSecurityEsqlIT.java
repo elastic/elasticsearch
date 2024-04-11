@@ -86,7 +86,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                         {
                           "search": [
                             {
-                                "names": ["index*", "not_found_index", "employees", "employees"]
+                                "names": ["index*", "not_found_index", "employees", "employees2"]
                             },
                             {
                                 "names": ["employees3"],

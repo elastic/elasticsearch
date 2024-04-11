@@ -143,6 +143,7 @@ public final class DataStreamTestHelper {
             lifecycle,
             false,
             List.of(),
+            false,
             autoShardingEvent
         );
     }
@@ -169,6 +170,7 @@ public final class DataStreamTestHelper {
             lifecycle,
             failureStores.size() > 0,
             failureStores,
+            false,
             null
         );
     }
@@ -352,13 +354,14 @@ public final class DataStreamTestHelper {
             );
         }
 
+        boolean replicated = randomBoolean();
         return new DataStream(
             dataStreamName,
             indices,
             generation,
             metadata,
             randomBoolean(),
-            randomBoolean(),
+            replicated,
             false, // Some tests don't work well with system data streams, since these data streams require special handling
             timeProvider,
             randomBoolean(),
@@ -366,7 +369,7 @@ public final class DataStreamTestHelper {
             randomBoolean() ? DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build() : null,
             failureStore,
             failureIndices,
-            randomBoolean(),
+            replicated == false && randomBoolean(),
             randomBoolean()
                 ? new DataStreamAutoShardingEvent(
                     indices.get(indices.size() - 1).getName(),
@@ -726,6 +729,7 @@ public final class DataStreamTestHelper {
             Mapping mapping = new Mapping(root, new MetadataFieldMapper[0], null);
             DocumentMapper documentMapper = mock(DocumentMapper.class);
             when(documentMapper.mapping()).thenReturn(mapping);
+            when(documentMapper.mappers()).thenReturn(MappingLookup.EMPTY);
             when(documentMapper.mappingSource()).thenReturn(mapping.toCompressedXContent());
             RoutingFieldMapper routingFieldMapper = mock(RoutingFieldMapper.class);
             when(routingFieldMapper.required()).thenReturn(false);

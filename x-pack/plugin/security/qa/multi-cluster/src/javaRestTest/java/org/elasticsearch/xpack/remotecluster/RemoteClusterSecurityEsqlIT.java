@@ -300,15 +300,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                     | LIMIT 2
                     | KEEP emp_id, department"""));
                 assertOK(response);
-                Map<String, Object> responseAsMap = entityAsMap(response);
-                List<?> columns = (List<?>) responseAsMap.get("columns");
-                List<?> values = (List<?>) responseAsMap.get("values");
-                assertEquals(2, columns.size());
-                assertEquals(2, values.size());
-                List<String> flatList = values.stream()
-                    .flatMap(innerList -> innerList instanceof List ? ((List<String>) innerList).stream() : Stream.empty())
-                    .collect(Collectors.toList());
-                assertThat(flatList, containsInAnyOrder("1", "3", "engineering", "sales"));
+                assertRemoteOnlyResults(response);
             }
             {
                 Response response = performRequestWithRemoteSearchUser(esqlRequest("""
@@ -316,38 +308,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                     | SORT emp_id ASC
                     | LIMIT 10"""));
                 assertOK(response);
-
-                Map<String, Object> responseAsMap = entityAsMap(response);
-                List<?> columns = (List<?>) responseAsMap.get("columns");
-                List<?> values = (List<?>) responseAsMap.get("values");
-                assertEquals(2, columns.size());
-                assertEquals(9, values.size());
-                List<String> flatList = values.stream()
-                    .flatMap(innerList -> innerList instanceof List ? ((List<String>) innerList).stream() : Stream.empty())
-                    .collect(Collectors.toList());
-                assertThat(
-                    flatList,
-                    containsInAnyOrder(
-                        "1",
-                        "2",
-                        "3",
-                        "4",
-                        "5",
-                        "6",
-                        "7",
-                        "8",
-                        "9",
-                        "engineering",
-                        "engineering",
-                        "engineering",
-                        "management",
-                        "sales",
-                        "sales",
-                        "marketing",
-                        "marketing",
-                        "support"
-                    )
-                );
+                assertRemoteAndLocalResults(response);
             }
         }
     }
@@ -373,16 +334,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         var q = "FROM invalid_remote:employees,employees |  SORT emp_id DESC | LIMIT 10";
         Response response = performRequestWithRemoteSearchUser(esqlRequest(q));
         assertOK(response);
-        Map<String, Object> responseAsMap = entityAsMap(response);
-        List<?> columns = (List<?>) responseAsMap.get("columns");
-        List<?> values = (List<?>) responseAsMap.get("values");
-        assertEquals(2, columns.size());
-        assertEquals(4, values.size());
-        List<String> flatList = values.stream()
-            .flatMap(innerList -> innerList instanceof List ? ((List<String>) innerList).stream() : Stream.empty())
-            .collect(Collectors.toList());
-        // local results
-        assertThat(flatList, containsInAnyOrder("2", "4", "6", "8", "support", "management", "engineering", "marketing"));
+        assertLocalOnlyResults(response);
 
         // only calling an invalid remote should error
         ResponseException error = expectThrows(ResponseException.class, () -> {
@@ -400,7 +352,6 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
 
         // Query cluster
         final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
-
         putRoleRequest.setJsonEntity("""
             {
               "indices": [{"names": [""], "privileges": ["read_cross_cluster"]}],
@@ -421,15 +372,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             | LIMIT 2
             | KEEP emp_id, department"""));
         assertOK(response);
-        Map<String, Object> responseAsMap = entityAsMap(response);
-        List<?> columns = (List<?>) responseAsMap.get("columns");
-        List<?> values = (List<?>) responseAsMap.get("values");
-        assertEquals(2, columns.size());
-        assertEquals(2, values.size());
-        List<String> flatList = values.stream()
-            .flatMap(innerList -> innerList instanceof List ? ((List<String>) innerList).stream() : Stream.empty())
-            .collect(Collectors.toList());
-        assertThat(flatList, containsInAnyOrder("1", "3", "engineering", "sales"));
+        assertRemoteOnlyResults(response);
 
         // no local privs at all will fail
         final var putRoleNoLocalPrivs = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
@@ -565,5 +508,67 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod("local_search_user", PASS))
         );
         return client().performRequest(request);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertRemoteOnlyResults(Response response) throws IOException {
+        Map<String, Object> responseAsMap = entityAsMap(response);
+        List<?> columns = (List<?>) responseAsMap.get("columns");
+        List<?> values = (List<?>) responseAsMap.get("values");
+        assertEquals(2, columns.size());
+        assertEquals(2, values.size());
+        List<String> flatList = values.stream()
+            .flatMap(innerList -> innerList instanceof List ? ((List<String>) innerList).stream() : Stream.empty())
+            .collect(Collectors.toList());
+        assertThat(flatList, containsInAnyOrder("1", "3", "engineering", "sales"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertLocalOnlyResults(Response response) throws IOException {
+        Map<String, Object> responseAsMap = entityAsMap(response);
+        List<?> columns = (List<?>) responseAsMap.get("columns");
+        List<?> values = (List<?>) responseAsMap.get("values");
+        assertEquals(2, columns.size());
+        assertEquals(4, values.size());
+        List<String> flatList = values.stream()
+            .flatMap(innerList -> innerList instanceof List ? ((List<String>) innerList).stream() : Stream.empty())
+            .collect(Collectors.toList());
+        // local results
+        assertThat(flatList, containsInAnyOrder("2", "4", "6", "8", "support", "management", "engineering", "marketing"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertRemoteAndLocalResults(Response response) throws IOException {
+        Map<String, Object> responseAsMap = entityAsMap(response);
+        List<?> columns = (List<?>) responseAsMap.get("columns");
+        List<?> values = (List<?>) responseAsMap.get("values");
+        assertEquals(2, columns.size());
+        assertEquals(9, values.size());
+        List<String> flatList = values.stream()
+            .flatMap(innerList -> innerList instanceof List ? ((List<String>) innerList).stream() : Stream.empty())
+            .collect(Collectors.toList());
+        assertThat(
+            flatList,
+            containsInAnyOrder(
+                "1",
+                "2",
+                "3",
+                "4",
+                "5",
+                "6",
+                "7",
+                "8",
+                "9",
+                "engineering",
+                "engineering",
+                "engineering",
+                "management",
+                "sales",
+                "sales",
+                "marketing",
+                "marketing",
+                "support"
+            )
+        );
     }
 }

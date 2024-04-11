@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.Closeable;
 import java.util.List;
@@ -81,10 +82,11 @@ public interface InferenceService extends Closeable {
      * Perform inference on the model.
      *
      * @param model        The model
-     * @param query
+     * @param query        Inference query, mainly for re-ranking
      * @param input        Inference input
      * @param taskSettings Settings in the request to override the model's defaults
      * @param inputType    For search, ingest etc
+     * @param timeout      The timeout for the request
      * @param listener     Inference result listener
      */
     void infer(
@@ -93,6 +95,7 @@ public interface InferenceService extends Closeable {
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
+        TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     );
 
@@ -102,11 +105,12 @@ public interface InferenceService extends Closeable {
      * values.
      *
      * @param model           The model
-     * @param query
+     * @param query           Inference query, mainly for re-ranking
      * @param input           Inference input
      * @param taskSettings    Settings in the request to override the model's defaults
      * @param inputType       For search, ingest etc
      * @param chunkingOptions The window and span options to apply
+     * @param timeout         The timeout for the request
      * @param listener        Chunked Inference result listener
      */
     void chunkedInfer(
@@ -116,6 +120,7 @@ public interface InferenceService extends Closeable {
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
+        TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     );
 

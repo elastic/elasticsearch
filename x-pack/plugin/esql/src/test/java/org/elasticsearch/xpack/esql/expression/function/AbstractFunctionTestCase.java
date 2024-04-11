@@ -1073,7 +1073,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 args = List.of(
                     args.get(0),
                     falseValue,
-                    new EsqlFunctionRegistry.ArgSignature("falseValue", falseValue.type(), falseValue.description(), true)
+                    new EsqlFunctionRegistry.ArgSignature(
+                        "falseValue",
+                        falseValue.type(),
+                        falseValue.description(),
+                        true,
+                        EsqlFunctionRegistry.getTargetType(falseValue.type())
+                    )
                 );
             }
             renderKibanaFunctionDefinition(name, info, args, description.variadic());

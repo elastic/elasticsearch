@@ -1,8 +1,8 @@
 ---
 "get cluster stats returns synonym sets stats":
 
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason:  "synonym sets stats are added for v8.10.0"
 
   - do:

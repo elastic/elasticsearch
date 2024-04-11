@@ -1,9 +1,9 @@
 ---
 "Put index template":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: "index template v2 API unavailable before 7.8"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -32,10 +32,10 @@
 
 ---
 "Put multiple index templates":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: "index template v2 API unavailable before 7.8"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -72,10 +72,10 @@
 
 ---
 "Put index template with 'create' flag":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: "index template v2 API unavailable before 7.8"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -110,8 +110,8 @@
 
 ---
 "Put index template without index_patterns":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: "index template v2 API unavailable before 7.8"
 
   - do:
@@ -122,10 +122,10 @@
 
 ---
 "Delete multiple templates":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "not yet backported"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:

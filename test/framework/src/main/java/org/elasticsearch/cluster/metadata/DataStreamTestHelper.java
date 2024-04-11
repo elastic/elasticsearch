@@ -544,18 +544,18 @@ public final class DataStreamTestHelper {
             backingIndices.add(im);
             generation++;
         }
-        DataStream ds = new DataStream(
+        var dataStreamBuilder = DataStream.builder(
             dataStreamName,
-            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
-            generation,
-            existing != null ? existing.getMetadata() : null,
-            existing != null && existing.isHidden(),
-            existing != null && existing.isReplicated(),
-            existing != null && existing.isSystem(),
-            existing != null && existing.isAllowCustomRouting(),
-            IndexMode.TIME_SERIES
-        );
-        builder.put(ds);
+            backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList())
+        ).setGeneration(generation).setIndexMode(IndexMode.TIME_SERIES);
+        if (existing != null) {
+            dataStreamBuilder.setMetadata(existing.getMetadata())
+                .setHidden(existing.isHidden())
+                .setReplicated(existing.isReplicated())
+                .setSystem(existing.isSystem())
+                .setAllowCustomRouting(existing.isAllowCustomRouting());
+        }
+        builder.put(dataStreamBuilder.build());
     }
 
     private static IndexMetadata createIndexMetadata(String name, boolean hidden, Settings settings, int replicas) {

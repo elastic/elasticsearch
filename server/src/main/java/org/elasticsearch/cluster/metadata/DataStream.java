@@ -195,36 +195,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.autoShardingEvent = autoShardingEvent;
     }
 
-    // mainly available for testing
-    public DataStream(
-        String name,
-        List<Index> indices,
-        long generation,
-        Map<String, Object> metadata,
-        boolean hidden,
-        boolean replicated,
-        boolean system,
-        boolean allowCustomRouting,
-        IndexMode indexMode
-    ) {
-        this(
-            name,
-            indices,
-            generation,
-            metadata,
-            hidden,
-            replicated,
-            system,
-            allowCustomRouting,
-            indexMode,
-            null,
-            false,
-            List.of(),
-            false,
-            null
-        );
-    }
-
     private static boolean assertConsistent(List<Index> indices) {
         assert indices.size() > 0;
         final Set<String> indexNames = new HashSet<>();
@@ -632,22 +602,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         List<Index> updatedFailureIndices = new ArrayList<>(failureIndices);
         updatedFailureIndices.remove(index);
         assert updatedFailureIndices.size() == failureIndices.size() - 1;
-        return new DataStream(
-            name,
-            indices,
-            generation + 1,
-            metadata,
-            hidden,
-            replicated,
-            system,
-            allowCustomRouting,
-            indexMode,
-            lifecycle,
-            failureStore,
-            updatedFailureIndices,
-            rolloverOnWrite,
-            autoShardingEvent
-        );
+        return copy().setGeneration(generation + 1).setFailureIndices(updatedFailureIndices).build();
     }
 
     /**
@@ -728,22 +683,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         List<Index> updatedFailureIndices = new ArrayList<>(failureIndices);
         updatedFailureIndices.add(0, index);
         assert updatedFailureIndices.size() == failureIndices.size() + 1;
-        return new DataStream(
-            name,
-            indices,
-            generation + 1,
-            metadata,
-            hidden,
-            replicated,
-            system,
-            allowCustomRouting,
-            indexMode,
-            lifecycle,
-            failureStore,
-            updatedFailureIndices,
-            rolloverOnWrite,
-            autoShardingEvent
-        );
+        return copy().setGeneration(generation + 1).setFailureIndices(updatedFailureIndices).build();
     }
 
     /**

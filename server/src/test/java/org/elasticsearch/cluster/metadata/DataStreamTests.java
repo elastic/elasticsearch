@@ -39,7 +39,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -995,17 +994,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 .numberOfReplicas(1)
                 .creationDate(creationTimeMillis);
             IndexMetadata indexMetadata = indexMetaBuilder.build();
-            DataStream dataStream = new DataStream(
-                dataStreamName,
-                List.of(indexMetadata.getIndex()),
-                1L,
-                Map.of(),
-                false,
-                randomBoolean(),
-                false,
-                randomBoolean(),
-                IndexMode.STANDARD
-            );
+            DataStream dataStream = createDataStream(dataStreamName, List.of(indexMetadata.getIndex()));
             assertNull(dataStream.getGenerationLifecycleDate(indexMetadata));
         }
 
@@ -1025,16 +1014,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             MaxAgeCondition rolloverCondition = new MaxAgeCondition(TimeValue.timeValueMillis(rolloverTimeMills));
             indexMetaBuilder.putRolloverInfo(new RolloverInfo(dataStreamName, List.of(rolloverCondition), now - 2000L));
             IndexMetadata indexMetadata = indexMetaBuilder.build();
-            DataStream dataStream = new DataStream(
+            DataStream dataStream = createDataStream(
                 dataStreamName,
-                List.of(indexMetadata.getIndex(), writeIndexMetaBuilder.build().getIndex()),
-                1L,
-                Map.of(),
-                false,
-                randomBoolean(),
-                false,
-                randomBoolean(),
-                IndexMode.STANDARD
+                List.of(indexMetadata.getIndex(), writeIndexMetaBuilder.build().getIndex())
             );
             assertThat(dataStream.getGenerationLifecycleDate(indexMetadata).millis(), is(rolloverTimeMills));
         }
@@ -1055,16 +1037,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             MaxAgeCondition rolloverCondition = new MaxAgeCondition(TimeValue.timeValueMillis(rolloverTimeMills));
             indexMetaBuilder.putRolloverInfo(new RolloverInfo("some-alias-name", List.of(rolloverCondition), now - 2000L));
             IndexMetadata indexMetadata = indexMetaBuilder.build();
-            DataStream dataStream = new DataStream(
+            DataStream dataStream = createDataStream(
                 dataStreamName,
-                List.of(indexMetadata.getIndex(), writeIndexMetaBuilder.build().getIndex()),
-                1L,
-                Map.of(),
-                false,
-                randomBoolean(),
-                false,
-                randomBoolean(),
-                IndexMode.STANDARD
+                List.of(indexMetadata.getIndex(), writeIndexMetaBuilder.build().getIndex())
             );
             assertThat(dataStream.getGenerationLifecycleDate(indexMetadata).millis(), is(creationTimeMillis));
         }
@@ -1077,17 +1052,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 .numberOfReplicas(1)
                 .creationDate(creationTimeMillis);
             IndexMetadata indexMetadata = indexMetaBuilder.build();
-            DataStream dataStream = new DataStream(
-                dataStreamName,
-                List.of(indexMetadata.getIndex()),
-                1L,
-                Map.of(),
-                false,
-                randomBoolean(),
-                false,
-                randomBoolean(),
-                IndexMode.STANDARD
-            );
+            DataStream dataStream = createDataStream(dataStreamName, List.of(indexMetadata.getIndex()));
 
             assertNull(dataStream.getGenerationLifecycleDate(indexMetadata));
         }
@@ -1106,16 +1071,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 .numberOfReplicas(1)
                 .creationDate(creationTimeMillis);
             IndexMetadata indexMetadata = indexMetaBuilder.build();
-            DataStream dataStream = new DataStream(
+            DataStream dataStream = createDataStream(
                 dataStreamName,
-                List.of(indexMetadata.getIndex(), writeIndexMetaBuilder.build().getIndex()),
-                1L,
-                Map.of(),
-                false,
-                randomBoolean(),
-                false,
-                randomBoolean(),
-                IndexMode.STANDARD
+                List.of(indexMetadata.getIndex(), writeIndexMetaBuilder.build().getIndex())
             );
             assertThat(dataStream.getGenerationLifecycleDate(indexMetadata).millis(), is(originTimeMillis));
         }
@@ -1136,16 +1094,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             MaxAgeCondition rolloverCondition = new MaxAgeCondition(TimeValue.timeValueMillis(rolloverTimeMills));
             indexMetaBuilder.putRolloverInfo(new RolloverInfo(dataStreamName, List.of(rolloverCondition), now - 2000L));
             IndexMetadata indexMetadata = indexMetaBuilder.build();
-            DataStream dataStream = new DataStream(
+            DataStream dataStream = createDataStream(
                 dataStreamName,
-                List.of(indexMetadata.getIndex(), writeIndexMetaBuilder.build().getIndex()),
-                1L,
-                Map.of(),
-                false,
-                randomBoolean(),
-                false,
-                randomBoolean(),
-                IndexMode.STANDARD
+                List.of(indexMetadata.getIndex(), writeIndexMetaBuilder.build().getIndex())
             );
             assertThat(dataStream.getGenerationLifecycleDate(indexMetadata).millis(), is(originTimeMillis));
         }
@@ -1166,19 +1117,21 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             MaxAgeCondition rolloverCondition = new MaxAgeCondition(TimeValue.timeValueMillis(rolloverTimeMills));
             indexMetaBuilder.putRolloverInfo(new RolloverInfo("some-alias-name", List.of(rolloverCondition), now - 2000L));
             IndexMetadata indexMetadata = indexMetaBuilder.build();
-            DataStream dataStream = new DataStream(
+            DataStream dataStream = createDataStream(
                 dataStreamName,
-                List.of(indexMetadata.getIndex(), writeIndexMetaBuilder.build().getIndex()),
-                1L,
-                Map.of(),
-                false,
-                randomBoolean(),
-                false,
-                randomBoolean(),
-                IndexMode.STANDARD
+                List.of(indexMetadata.getIndex(), writeIndexMetaBuilder.build().getIndex())
             );
             assertThat(dataStream.getGenerationLifecycleDate(indexMetadata).millis(), is(originTimeMillis));
         }
+    }
+
+    private DataStream createDataStream(String name, List<Index> indices) {
+        return DataStream.builder(name, indices)
+            .setMetadata(Map.of())
+            .setReplicated(randomBoolean())
+            .setAllowCustomRouting(randomBoolean())
+            .setIndexMode(IndexMode.STANDARD)
+            .build();
     }
 
     public void testGetIndicesOlderThan() {
@@ -1885,17 +1838,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         backingIndices.add(writeIndexMetadata.getIndex());
         metadataBuilder.put(writeIndexMetadata, false);
 
-        final DataStream dataStream = new DataStream(
-            dataStreamName,
-            backingIndices,
-            backingIndices.size(),
-            Collections.emptyMap(),
-            false,
-            false,
-            false,
-            false,
-            randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES
-        );
+        final DataStream dataStream = DataStream.builder(dataStreamName, backingIndices)
+            .setGeneration(backingIndices.size())
+            .setMetadata(Map.of())
+            .setIndexMode(randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES)
+            .build();
 
         metadataBuilder.put(dataStream);
 
@@ -1946,17 +1893,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         backingIndices.add(writeIndexMetadata.getIndex());
         metadataBuilder.put(writeIndexMetadata, false);
 
-        final DataStream dataStream = new DataStream(
-            dataStreamName,
-            backingIndices,
-            backingIndices.size(),
-            Collections.emptyMap(),
-            false,
-            false,
-            false,
-            false,
-            randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES
-        );
+        final DataStream dataStream = DataStream.builder(dataStreamName, backingIndices)
+            .setGeneration(backingIndices.size())
+            .setMetadata(Map.of())
+            .setIndexMode(randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES)
+            .build();
 
         metadataBuilder.put(dataStream);
 

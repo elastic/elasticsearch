@@ -398,7 +398,7 @@ public abstract class Engine implements Closeable {
     /**
      * Returns the total time flushes have been executed excluding waiting on locks.
      */
-    public long getFlushTimeExcludingWaitingOnLockInMillis() {
+    public long getTotalFlushTimeExcludingWaitingOnLockInMillis() {
         return 0;
     }
 

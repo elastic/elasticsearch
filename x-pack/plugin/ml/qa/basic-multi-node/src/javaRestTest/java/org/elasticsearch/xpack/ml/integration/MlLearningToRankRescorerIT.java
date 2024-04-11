@@ -336,7 +336,6 @@ public class MlLearningToRankRescorerIT extends ESRestTestCase {
                     "window_size": 10,
                     "learning_to_rank": {
                         "model_id": "basic-ltr-model",
-                        "params": { "keyword": "TV" }
                     }
                 }
             }""";
@@ -352,11 +351,20 @@ public class MlLearningToRankRescorerIT extends ESRestTestCase {
         deleteLearningToRankModel(MODEL_ID);
         putLearningToRankModel(MODEL_ID, """
             {
-              "input": { "field_names": ["product_bm25"] },
+              "input": { "field_names": ["cost"] },
               "inference_config": {
                 "learning_to_rank": {
                   "feature_extractors": [
-                      { "query_extractor": { "feature_name": "product_bm25", "query": { "match": { "product": "{{keyword}}" } } }
+                    {
+                      "query_extractor": {
+                        "feature_name": "cost",
+                        "query": {
+                          "script_score": {
+                            "query": { "match_all": {} },
+                            "script": { "source": "return doc[\\"cost\\"].value" }
+                          }
+                        }
+                      }
                     }
                   ]
                 }
@@ -364,30 +372,30 @@ public class MlLearningToRankRescorerIT extends ESRestTestCase {
               "definition": {
                 "trained_model": {
                   "ensemble": {
-                    "feature_names": ["product_bm25"],
+                    "feature_names": ["cost"],
                     "target_type": "regression",
                     "trained_models": [
                       {
                         "tree": {
-                          "feature_names": [ "product_bm25" ],
+                          "feature_names": ["cost"],
                           "tree_structure": [
                             {
                               "node_index": 0,
                               "split_feature": 0,
                               "split_gain": 12,
-                              "threshold": 0,
-                              "decision_type": "lte",
+                              "threshold": 1000,
+                              "decision_type": "lt",
                               "default_left": true,
                               "left_child": 1,
                               "right_child": 2
                             },
                             {
                               "node_index": 1,
-                              "leaf_value": 0.0
+                              "leaf_value": 1.0
                             },
                             {
                               "node_index": 2,
-                              "leaf_value": 10.0
+                              "leaf_value": 10
                             }
                           ],
                           "target_type": "regression"
@@ -405,7 +413,7 @@ public class MlLearningToRankRescorerIT extends ESRestTestCase {
         assertThat(
             response.toString(),
             (List<Double>) XContentMapValues.extractValue("hits.hits._score", response),
-            contains(10.0, 10.0, 0.0, 0.0, 0.0)
+            contains(20.0, 20.0, 1.0, 1.0, 1.0)
         );
     }
 

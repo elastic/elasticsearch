@@ -150,11 +150,6 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            throw new UnsupportedOperationException("DocBlock doesn't support appendBlockAndMerge");
-        }
-
-        @Override
         public Block.Builder mvOrdering(MvOrdering mvOrdering) {
             /*
              * This is called when copying but otherwise doesn't do

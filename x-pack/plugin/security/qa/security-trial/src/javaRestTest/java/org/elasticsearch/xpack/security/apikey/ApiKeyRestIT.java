@@ -45,8 +45,8 @@ import java.util.Set;
 
 import static org.elasticsearch.test.SecuritySettingsSourceField.ES_TEST_ROOT_ROLE;
 import static org.elasticsearch.test.SecuritySettingsSourceField.ES_TEST_ROOT_ROLE_DESCRIPTOR;
-import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequestTests.randomCrossClusterApiKeyAccessField;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField.RUN_AS_USER_HEADER;
+import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.randomCrossClusterApiKeyAccessField;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;

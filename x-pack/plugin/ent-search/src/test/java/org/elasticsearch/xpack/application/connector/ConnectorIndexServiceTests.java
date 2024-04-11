@@ -54,6 +54,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.getRandomCronExpression;
+import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.registerSimplifiedConnectorIndexTemplates;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -65,6 +67,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
     @Before
     public void setup() {
+        registerSimplifiedConnectorIndexTemplates(indicesAdmin());
         this.connectorIndexService = new ConnectorIndexService(client());
     }
 
@@ -103,11 +106,11 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         }
 
         String connectorIdToDelete = connectorIds.get(0);
-        DeleteResponse resp = awaitDeleteConnector(connectorIdToDelete);
+        DeleteResponse resp = awaitDeleteConnector(connectorIdToDelete, false);
         assertThat(resp.status(), equalTo(RestStatus.OK));
         expectThrows(ResourceNotFoundException.class, () -> awaitGetConnector(connectorIdToDelete));
 
-        expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnector(connectorIdToDelete));
+        expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnector(connectorIdToDelete, false));
     }
 
     public void testUpdateConnectorConfiguration_FullConfiguration() throws Exception {
@@ -320,6 +323,43 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(updatedScheduling, equalTo(indexedConnector.getScheduling()));
     }
 
+    public void testUpdateConnectorScheduling_OnlyFullSchedule() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        // Update scheduling for full, incremental and access_control
+        ConnectorScheduling initialScheduling = ConnectorTestUtils.getRandomConnectorScheduling();
+        UpdateConnectorSchedulingAction.Request updateSchedulingRequest = new UpdateConnectorSchedulingAction.Request(
+            connectorId,
+            initialScheduling
+        );
+        DocWriteResponse updateResponse = awaitUpdateConnectorScheduling(updateSchedulingRequest);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        // Update full scheduling only
+        ConnectorScheduling.ScheduleConfig fullSyncSchedule = new ConnectorScheduling.ScheduleConfig.Builder().setEnabled(randomBoolean())
+            .setInterval(getRandomCronExpression())
+            .build();
+
+        UpdateConnectorSchedulingAction.Request updateSchedulingRequestWithFullSchedule = new UpdateConnectorSchedulingAction.Request(
+            connectorId,
+            new ConnectorScheduling.Builder().setFull(fullSyncSchedule).build()
+        );
+
+        updateResponse = awaitUpdateConnectorScheduling(updateSchedulingRequestWithFullSchedule);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+        // Assert that full schedule is updated
+        assertThat(fullSyncSchedule, equalTo(indexedConnector.getScheduling().getFull()));
+        // Assert that other schedules stay unchanged
+        assertThat(initialScheduling.getAccessControl(), equalTo(indexedConnector.getScheduling().getAccessControl()));
+        assertThat(initialScheduling.getIncremental(), equalTo(indexedConnector.getScheduling().getIncremental()));
+    }
+
     public void testUpdateConnectorIndexName() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
@@ -488,11 +528,11 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(updateApiKeyIdRequest.getApiKeySecretId(), equalTo(indexedConnector.getApiKeySecretId()));
     }
 
-    private DeleteResponse awaitDeleteConnector(String connectorId) throws Exception {
+    private DeleteResponse awaitDeleteConnector(String connectorId, boolean deleteConnectorSyncJobs) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<DeleteResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        connectorIndexService.deleteConnector(connectorId, new ActionListener<>() {
+        connectorIndexService.deleteConnector(connectorId, deleteConnectorSyncJobs, new ActionListener<>() {
             @Override
             public void onResponse(DeleteResponse deleteResponse) {
                 resp.set(deleteResponse);

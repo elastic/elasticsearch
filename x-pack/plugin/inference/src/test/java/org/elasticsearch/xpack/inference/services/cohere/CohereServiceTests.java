@@ -31,6 +31,7 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
@@ -620,7 +621,15 @@ public class CohereServiceTests extends ESTestCase {
 
         try (var service = new CohereService(factory, createWithEmptySettings(threadPool))) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(mockModel, null, List.of(""), new HashMap<>(), InputType.INGEST, listener);
+            service.infer(
+                mockModel,
+                null,
+                List.of(""),
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             MatcherAssert.assertThat(
@@ -679,7 +688,15 @@ public class CohereServiceTests extends ESTestCase {
                 null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, List.of("abc"), new HashMap<>(), InputType.INGEST, listener);
+            service.infer(
+                model,
+                null,
+                List.of("abc"),
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -914,7 +931,15 @@ public class CohereServiceTests extends ESTestCase {
                 null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, List.of("abc"), new HashMap<>(), InputType.INGEST, listener);
+            service.infer(
+                model,
+                null,
+                List.of("abc"),
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             MatcherAssert.assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));
@@ -965,7 +990,15 @@ public class CohereServiceTests extends ESTestCase {
                 null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, List.of("abc"), new HashMap<>(), InputType.INGEST, listener);
+            service.infer(
+                model,
+                null,
+                List.of("abc"),
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -1035,6 +1068,7 @@ public class CohereServiceTests extends ESTestCase {
                 List.of("abc"),
                 CohereEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.SEARCH, null),
                 InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
 
@@ -1099,7 +1133,15 @@ public class CohereServiceTests extends ESTestCase {
                 null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, List.of("abc"), new HashMap<>(), InputType.UNSPECIFIED, listener);
+            service.infer(
+                model,
+                null,
+                List.of("abc"),
+                new HashMap<>(),
+                InputType.UNSPECIFIED,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -1162,7 +1204,15 @@ public class CohereServiceTests extends ESTestCase {
                 null
             );
             PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(model, List.of("abc"), new HashMap<>(), InputType.UNSPECIFIED, new ChunkingOptions(null, null), listener);
+            service.chunkedInfer(
+                model,
+                List.of("abc"),
+                new HashMap<>(),
+                InputType.UNSPECIFIED,
+                new ChunkingOptions(null, null),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT).get(0);
             assertThat(result, CoreMatchers.instanceOf(ChunkedTextEmbeddingResults.class));
@@ -1241,7 +1291,15 @@ public class CohereServiceTests extends ESTestCase {
                 CohereEmbeddingType.INT8
             );
             PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(model, List.of("abc"), new HashMap<>(), InputType.UNSPECIFIED, new ChunkingOptions(null, null), listener);
+            service.chunkedInfer(
+                model,
+                List.of("abc"),
+                new HashMap<>(),
+                InputType.UNSPECIFIED,
+                new ChunkingOptions(null, null),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT).get(0);
 

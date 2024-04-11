@@ -248,7 +248,7 @@ For example, to create hourly buckets for the data on October 23rd:
 
 [source,esql]
 ----
-include::{esql-specs}/date.csv-spec[tag=gs-bucket]
+include::{esql-specs}/bucket.csv-spec[tag=gs-bucket]
 ----
 
 Combine `BUCKET` with <<esql-stats-by>> to create a histogram. For example,
@@ -256,14 +256,14 @@ to count the number of events per hour:
 
 [source,esql]
 ----
-include::{esql-specs}/date.csv-spec[tag=gs-bucket-stats-by]
+include::{esql-specs}/bucket.csv-spec[tag=gs-bucket-stats-by]
 ----
 
 Or the median duration per hour:
 
 [source,esql]
 ----
-include::{esql-specs}/date.csv-spec[tag=gs-bucket-stats-by-median]
+include::{esql-specs}/bucket.csv-spec[tag=gs-bucket-stats-by-median]
 ----
 
 [discrete]

@@ -47,15 +47,10 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 /**
- * Buckets dates into a given number of buckets.
- * <p>
- *     Takes a date field and three constants and picks a bucket size based on the
- *     constants. The constants are "target bucket count", "from", and "to". It looks like:
- *     {@code bucket(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")}.
- *     We have a list of "human" bucket sizes like "one month" and "four hours". We pick
- *     the largest range that covers the range in fewer than the target bucket count. So
- *     in the above case we'll pick month long buckets, yielding 12 buckets.
- * </p>
+ * Splits dates and numbers into a given number of buckets. There are two ways to invoke
+ * this function: with a user-provided span (explicit invocation mode), or a span derived
+ * from a number of desired buckets (as a hint) and a range (auto mode).
+ * In the former case, two parameters will be provided, in the latter four.
  */
 public class Bucket extends EsqlScalarFunction implements Validatable, TwoOptionalArguments {
     // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
@@ -120,21 +115,24 @@ public class Bucket extends EsqlScalarFunction implements Validatable, TwoOption
                 long t = foldToLong(to);
                 preparedRounding = new DateRoundingPicker(b, f, t).pickRounding().prepareForUnknown();
             } else {
+                assert EsqlDataTypes.isTemporalAmount(bucketsOrSpan.dataType())
+                    : "Unexpected span data type [" + bucketsOrSpan.dataType() + "]";
                 preparedRounding = DateTrunc.createRounding(bucketsOrSpan.fold(), DEFAULT_TZ);
             }
             return DateTrunc.evaluator(source(), toEvaluator.apply(field), preparedRounding);
         }
         if (field.dataType().isNumeric()) {
-            double r;
+            double span;
             if (from != null) {
                 int b = ((Number) bucketsOrSpan.fold()).intValue();
                 double f = ((Number) from.fold()).doubleValue();
                 double t = ((Number) to.fold()).doubleValue();
-                r = pickRounding(b, f, t);
+                span = pickRounding(b, f, t);
             } else {
-                r = ((Number) bucketsOrSpan.fold()).doubleValue();
+                assert bucketsOrSpan.dataType().isRational() : "Unexpected span data type [" + bucketsOrSpan.dataType() + "]";
+                span = ((Number) bucketsOrSpan.fold()).doubleValue();
             }
-            Literal rounding = new Literal(source(), r, DataTypes.DOUBLE);
+            Literal rounding = new Literal(source(), span, DataTypes.DOUBLE);
 
             // We could make this more efficient, either by generating the evaluators with byte code or hand rolling this one.
             Div div = new Div(source(), field, rounding);

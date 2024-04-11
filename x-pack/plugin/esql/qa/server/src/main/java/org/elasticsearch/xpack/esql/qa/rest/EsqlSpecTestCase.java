@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.http.HttpEntity;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
@@ -23,6 +24,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
+import org.elasticsearch.xpack.esql.version.EsqlVersion;
 import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.ql.SpecReader;
 import org.junit.After;
@@ -35,6 +37,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import static org.apache.lucene.geo.GeoEncodingUtils.decodeLatitude;
@@ -65,6 +68,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     private final Integer lineNumber;
     protected final CsvTestCase testCase;
     protected final Mode mode;
+    protected final Set<EsqlVersion> versions;
 
     public enum Mode {
         SYNC,
@@ -97,6 +101,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         this.lineNumber = lineNumber;
         this.testCase = testCase;
         this.mode = mode;
+        // TODO: Read applicable versions from csv-spec files/make it part of testCase.
+        this.versions = Build.current().isSnapshot() ? Set.of(EsqlVersion.values()) : Set.of(EsqlVersion.releasedAscending());
     }
 
     @Before
@@ -144,8 +150,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected final void doTest() throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
+        EsqlVersion version = randomFrom(versions);
+        String versionString = randomBoolean() ? version.toString() : version.versionStringWithoutEmoji();
         Map<String, Object> answer = runEsql(
-            builder.query(testCase.query),
+            builder.query(testCase.query).version(versionString),
             testCase.expectedWarnings(false),
             testCase.expectedWarningsRegex()
         );

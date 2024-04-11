@@ -28,7 +28,7 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
     static VectorSimilarityFunctions vectorSimilarityFunctionsOrNull(NativeLibraryProvider libraryProvider) {
         if (isNativeVectorLibSupported()) {
             var lib = new VectorSimilarityFunctions(libraryProvider.getLibrary(VectorLibrary.class));
-            logger.info("Using [" + lib.getClass().getSimpleName() + "] native vector library");
+            logger.info("Using native vector library; to disable start with -D" + ENABLE_JDK_VECTOR_LIBRARY + "=false");
             return lib;
         }
         return null;
@@ -54,8 +54,8 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
         return (name.startsWith("Mac") || name.startsWith("Linux")) && System.getProperty("os.arch").equals("aarch64");
     }
 
-    /** -Dorg.elasticsearch.nativeaccess.VectorLibrary=false to disable.*/
-    static final String ENABLE_JDK_VECTOR_LIBRARY = "org.elasticsearch.nativeaccess.VectorLibrary";
+    /** -Dorg.elasticsearch.nativeaccess.enableVectorLibrary=false to disable.*/
+    static final String ENABLE_JDK_VECTOR_LIBRARY = "org.elasticsearch.nativeaccess.enableVectorLibrary";
 
     static boolean checkEnableSystemProperty() {
         return Optional.ofNullable(System.getProperty(ENABLE_JDK_VECTOR_LIBRARY)).map(Boolean::valueOf).orElse(Boolean.TRUE);

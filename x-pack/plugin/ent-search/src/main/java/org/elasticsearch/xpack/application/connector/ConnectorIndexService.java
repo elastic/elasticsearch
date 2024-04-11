@@ -54,6 +54,8 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorPipel
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorServiceTypeAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorStatusAction;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobIndexService;
 
 import java.time.Instant;
 import java.util.Arrays;
@@ -253,12 +255,13 @@ public class ConnectorIndexService {
     }
 
     /**
-     * Deletes the {@link Connector} in the underlying index.
+     * Deletes the {@link Connector} and the related instances of {@link ConnectorSyncJob} in the underlying index.
      *
-     * @param connectorId The id of the connector object.
-     * @param listener    The action listener to invoke on response/failure.
+     * @param connectorId          The id of the {@link Connector}.
+     * @param shouldDeleteSyncJobs The flag indicating if {@link ConnectorSyncJob} should also be deleted.
+     * @param listener             The action listener to invoke on response/failure.
      */
-    public void deleteConnector(String connectorId, ActionListener<DeleteResponse> listener) {
+    public void deleteConnector(String connectorId, boolean shouldDeleteSyncJobs, ActionListener<DeleteResponse> listener) {
 
         final DeleteRequest deleteRequest = new DeleteRequest(CONNECTOR_INDEX_NAME).id(connectorId)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -269,7 +272,11 @@ public class ConnectorIndexService {
                     l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                     return;
                 }
-                l.onResponse(deleteResponse);
+                if (shouldDeleteSyncJobs) {
+                    new ConnectorSyncJobIndexService(client).deleteAllSyncJobsByConnectorId(connectorId, l.map(r -> deleteResponse));
+                } else {
+                    l.onResponse(deleteResponse);
+                }
             }));
         } catch (Exception e) {
             listener.onFailure(e);

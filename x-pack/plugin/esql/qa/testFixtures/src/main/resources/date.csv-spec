@@ -261,36 +261,36 @@ int:integer |dt:date
 // end::to_datetime-int-result[]
 ;
 
-autoBucketSimpleMonth
-// tag::auto_bucket_month[]
+bucketSimpleMonth#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+// tag::bucket_month[]
 ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
-| EVAL bucket=AUTO_BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
-// end::auto_bucket_month[]
+| EVAL bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+// end::bucket_month[]
 ;
 
-// tag::auto_bucket_month-result[]
+// tag::bucket_month-result[]
            date:datetime | bucket:datetime
 1985-07-09T00:00:00.000Z | 1985-07-01T00:00:00.000Z
-// end::auto_bucket_month-result[]
+// end::bucket_month-result[]
 ;
 
-autoBucketSimpleWeek
-// tag::auto_bucket_week[]
+bucketSimpleWeek#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+// tag::bucket_week[]
 ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
-| EVAL bucket=AUTO_BUCKET(date, 100, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
-// end::auto_bucket_week[]
+| EVAL bucket=BUCKET(date, 100, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+// end::bucket_week[]
 ;
 
-// tag::auto_bucket_week-result[]
+// tag::bucket_week-result[]
            date:datetime | bucket:datetime
 1985-07-09T00:00:00.000Z | 1985-07-08T00:00:00.000Z
-// end::auto_bucket_week-result[]
+// end::bucket_week-result[]
 ;
 
-autoBucketMonth
+bucketMonth#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 from employees
 | where hire_date >= "1985-01-01T00:00:00Z" and hire_date < "1986-01-01T00:00:00Z"
-| eval hd = auto_bucket(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+| eval hd = bucket(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
 | sort hire_date
 | keep hire_date, hd;
 
@@ -308,10 +308,10 @@ hire_date:date           | hd:date
 1985-11-21T00:00:00.000Z | 1985-11-01T00:00:00.000Z
 ;
 
-autoBucketWeek
+bucketWeek#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 from employees
 | where hire_date >= "1985-01-01T00:00:00Z" and hire_date < "1986-01-01T00:00:00Z"
-| eval hd = auto_bucket(hire_date, 55, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+| eval hd = bucket(hire_date, 55, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
 | sort hire_date
 | keep hire_date, hd;
 
@@ -350,10 +350,10 @@ from employees | where birth_date > now() | sort emp_no asc | keep emp_no, birth
 emp_no:integer  | birth_date:date
 ;
 
-autoBucketYearInAgg#[skip:-8.12.99, reason:date type is supported in 8.13]
+bucketYearInAgg#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
 | WHERE hire_date >= "1999-01-01T00:00:00Z"
-| EVAL bucket = AUTO_BUCKET(hire_date, 5, "1999-01-01T00:00:00Z", NOW())
+| EVAL bucket = BUCKET(hire_date, 5, "1999-01-01T00:00:00Z", NOW())
 | STATS COUNT(*) by bucket
 | sort bucket;
 
@@ -361,12 +361,12 @@ COUNT(*):long            | bucket:date
 1                        | 1999-01-01T00:00:00.000Z
 ;
 
-autoBucketYearInAggConstRefsString#[skip:-8.12.99, reason:date type is supported in 8.13]
+bucketYearInAggConstRefsString#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
 | WHERE hire_date >= "1999-01-01T00:00:00Z"
 | EVAL bucket_start = "1999-01-01T00:00:00Z"
 | EVAL bucket_end = NOW()
-| EVAL bucket = AUTO_BUCKET(hire_date, 5, bucket_start, bucket_end)
+| EVAL bucket = BUCKET(hire_date, 5, bucket_start, bucket_end)
 | STATS COUNT(*) by bucket
 | sort bucket;
 
@@ -374,12 +374,12 @@ COUNT(*):long            | bucket:date
 1                        | 1999-01-01T00:00:00.000Z
 ;
 
-autoBucketYearInAggConstRefsConcat#[skip:-8.12.99, reason:date type is supported in 8.13]
+bucketYearInAggConstRefsConcat#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
 | WHERE hire_date >= "1999-01-01T00:00:00Z"
 | EVAL bucket_start = CONCAT("1999-01-01", "T", "00:00:00Z")
 | EVAL bucket_end = NOW()
-| EVAL bucket = AUTO_BUCKET(hire_date, 5, bucket_start, bucket_end)
+| EVAL bucket = BUCKET(hire_date, 5, bucket_start, bucket_end)
 | STATS COUNT(*) by bucket
 | sort bucket;
 
@@ -387,12 +387,12 @@ COUNT(*):long            | bucket:date
 1                        | 1999-01-01T00:00:00.000Z
 ;
 
-autoBucketYearInAggConstRefsDate#[skip:-8.12.99, reason:date type is supported in 8.13]
+bucketYearInAggConstRefsDate#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
 | WHERE hire_date >= "1999-01-01T00:00:00Z"
 | EVAL bucket_start = TO_DATETIME("1999-01-01T00:00:00.000Z")
 | EVAL bucket_end = NOW()
-| EVAL bucket = AUTO_BUCKET(hire_date, 5, bucket_start, bucket_end)
+| EVAL bucket = BUCKET(hire_date, 5, bucket_start, bucket_end)
 | keep bucket_start, bucket_end, bucket
 | STATS COUNT(*) by bucket
 | sort bucket;
@@ -401,31 +401,31 @@ COUNT(*):long            | bucket:date
 1                        | 1999-01-01T00:00:00.000Z
 ;
 
-autoBucketYearInAggConstRefsRename#[skip:-8.12.99, reason:date type is supported in 8.13]
+bucketYearInAggConstRefsRename#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
 | WHERE hire_date >= "1999-01-01T00:00:00Z"
 | EVAL bucket_start = "1999-01-01T00:00:00Z"
 | EVAL bucket_end = NOW()
 | RENAME bucket_end as be, bucket_start as bs
-| STATS c = COUNT(*) by AUTO_BUCKET(hire_date, 5, bs, be)
+| STATS c = COUNT(*) by BUCKET(hire_date, 5, bs, be)
 | SORT c
 ;
 
-c:long            | AUTO_BUCKET(hire_date, 5, bs, be):date
+c:long            | BUCKET(hire_date, 5, bs, be):date
 1                 | 1999-01-01T00:00:00.000Z
 ;
 
-autoBucketMonthInAgg
-// tag::auto_bucket_in_agg[]
+bucketMonthInAgg#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+// tag::bucket_in_agg[]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-| EVAL bucket = AUTO_BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+| EVAL bucket = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
 | STATS AVG(salary) BY bucket
 | SORT bucket
-// end::auto_bucket_in_agg[]
+// end::bucket_in_agg[]
 ;
 
-// tag::auto_bucket_in_agg-result[]
+// tag::bucket_in_agg-result[]
 AVG(salary):double | bucket:date
           46305.0  | 1985-02-01T00:00:00.000Z
           44817.0  | 1985-05-01T00:00:00.000Z
@@ -433,7 +433,7 @@ AVG(salary):double | bucket:date
           49095.0  | 1985-09-01T00:00:00.000Z
           51532.0  | 1985-10-01T00:00:00.000Z
           54539.75 | 1985-11-01T00:00:00.000Z
-// end::auto_bucket_in_agg-result[]
+// end::bucket_in_agg-result[]
 ;
 
 evalDateDiffInNanoAndMicroAndMilliSeconds#[skip:-8.12.99, reason:date_diff added in 8.13]
@@ -508,6 +508,17 @@ ROW date1 = TO_DATETIME("2023-12-02T11:00:00.000Z"), date2 = TO_DATETIME("2023-1
 date1:date          |         date2:date          |    dd_ms:integer
 2023-12-02T11:00:00.000Z | 2023-12-02T11:00:00.001Z | 1000  
 // end::docsDateDiff-result[]
+;
+
+evalDateDiffString
+required_feature: esql.string_literal_auto_casting
+
+ROW date1 = TO_DATETIME("2023-12-02T11:00:00.000Z")
+| EVAL dd_ms = DATE_DIFF("microseconds", date1, "2023-12-02T11:00:00.001Z")
+;
+
+date1:date               | dd_ms:integer
+2023-12-02T11:00:00.000Z | 1000
 ;
 
 evalDateParseWithSimpleDate
@@ -950,17 +961,17 @@ birth_date:datetime
 1953-04-21T00:00:00.000Z
 ;
 
-docsAutoBucketMonth
-//tag::docsAutoBucketMonth[]
+docsBucketMonth#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+//tag::docsBucketMonth[]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-| EVAL month = AUTO_BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+| EVAL month = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
 | KEEP hire_date, month
 | SORT hire_date
-//end::docsAutoBucketMonth[]
+//end::docsBucketMonth[]
 ;
 
-//tag::docsAutoBucketMonth-result[]
+//tag::docsBucketMonth-result[]
    hire_date:date    |    month:date
 1985-02-18T00:00:00.000Z|1985-02-01T00:00:00.000Z
 1985-02-24T00:00:00.000Z|1985-02-01T00:00:00.000Z
@@ -973,20 +984,20 @@ FROM employees
 1985-11-20T00:00:00.000Z|1985-11-01T00:00:00.000Z
 1985-11-20T00:00:00.000Z|1985-11-01T00:00:00.000Z
 1985-11-21T00:00:00.000Z|1985-11-01T00:00:00.000Z
-//end::docsAutoBucketMonth-result[]
+//end::docsBucketMonth-result[]
 ;
 
-docsAutoBucketMonthlyHistogram
-//tag::docsAutoBucketMonthlyHistogram[]
+docsBucketMonthlyHistogram#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+//tag::docsBucketMonthlyHistogram[]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-| EVAL month = AUTO_BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+| EVAL month = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
 | STATS hires_per_month = COUNT(*) BY month
 | SORT month
-//end::docsAutoBucketMonthlyHistogram[]
+//end::docsBucketMonthlyHistogram[]
 ;
 
-//tag::docsAutoBucketMonthlyHistogram-result[]
+//tag::docsBucketMonthlyHistogram-result[]
   hires_per_month:long    |    month:date
 2              |1985-02-01T00:00:00.000Z
 1              |1985-05-01T00:00:00.000Z
@@ -994,20 +1005,20 @@ FROM employees
 1              |1985-09-01T00:00:00.000Z
 2              |1985-10-01T00:00:00.000Z
 4              |1985-11-01T00:00:00.000Z
-//end::docsAutoBucketMonthlyHistogram-result[]
+//end::docsBucketMonthlyHistogram-result[]
 ;
 
-docsAutoBucketWeeklyHistogram
-//tag::docsAutoBucketWeeklyHistogram[]
+docsBucketWeeklyHistogram#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+//tag::docsBucketWeeklyHistogram[]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-| EVAL week = AUTO_BUCKET(hire_date, 100, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+| EVAL week = BUCKET(hire_date, 100, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
 | STATS hires_per_week = COUNT(*) BY week
 | SORT week
-//end::docsAutoBucketWeeklyHistogram[]
+//end::docsBucketWeeklyHistogram[]
 ;
 
-//tag::docsAutoBucketWeeklyHistogram-result[]
+//tag::docsBucketWeeklyHistogram-result[]
   hires_per_week:long    |    week:date
 2              |1985-02-18T00:00:00.000Z
 1              |1985-05-13T00:00:00.000Z
@@ -1015,40 +1026,40 @@ FROM employees
 1              |1985-09-16T00:00:00.000Z
 2              |1985-10-14T00:00:00.000Z
 4              |1985-11-18T00:00:00.000Z
-//end::docsAutoBucketWeeklyHistogram-result[]
+//end::docsBucketWeeklyHistogram-result[]
 ;
 
-docsAutoBucketLast24hr#[skip:-8.12.99, reason:date type is supported in 8.13]
-//tag::docsAutoBucketLast24hr[]
+docsBucketLast24hr#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+//tag::docsBucketLast24hr[]
 FROM sample_data 
 | WHERE @timestamp >= NOW() - 1 day and @timestamp < NOW()
-| EVAL bucket = AUTO_BUCKET(@timestamp, 25, NOW() - 1 day, NOW())
+| EVAL bucket = BUCKET(@timestamp, 25, NOW() - 1 day, NOW())
 | STATS COUNT(*) BY bucket
-//end::docsAutoBucketLast24hr[]
+//end::docsBucketLast24hr[]
 ;
 
    COUNT(*):long    |    bucket:date
 ;
 
-docsGettingStartedAutoBucket#[skip:-8.12.99, reason:date type is supported in 8.13]
-// tag::gs-auto_bucket[]
+docsGettingStartedBucket#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+// tag::gs-bucket[]
 FROM sample_data
 | KEEP @timestamp
-| EVAL bucket = AUTO_BUCKET(@timestamp, 24, "2023-10-23T00:00:00Z", NOW())
-// end::gs-auto_bucket[]
+| EVAL bucket = BUCKET(@timestamp, 24, "2023-10-23T00:00:00Z", NOW())
+// end::gs-bucket[]
 | LIMIT 0
 ;
 
 @timestamp:date | bucket:date
 ;
 
-docsGettingStartedAutoBucketStatsBy
-// tag::gs-auto_bucket-stats-by[]
+docsGettingStartedBucketStatsBy#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+// tag::gs-bucket-stats-by[]
 FROM sample_data
 | KEEP @timestamp, event_duration
-| EVAL bucket = AUTO_BUCKET(@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
+| EVAL bucket = BUCKET(@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
 | STATS COUNT(*) BY bucket
-// end::gs-auto_bucket-stats-by[]
+// end::gs-bucket-stats-by[]
 | SORT bucket
 ;
 
@@ -1057,13 +1068,13 @@ COUNT(*):long | bucket:date
 5              |2023-10-23T13:00:00.000Z
 ;
 
-docsGettingStartedAutoBucketStatsByMedian
-// tag::gs-auto_bucket-stats-by-median[]
+docsGettingStartedBucketStatsByMedian#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+// tag::gs-bucket-stats-by-median[]
 FROM sample_data
 | KEEP @timestamp, event_duration
-| EVAL bucket = AUTO_BUCKET(@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
+| EVAL bucket = BUCKET(@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
 | STATS median_duration = MEDIAN(event_duration) BY bucket
-// end::gs-auto_bucket-stats-by-median[]
+// end::gs-bucket-stats-by-median[]
 | SORT bucket
 ;
 
@@ -1083,6 +1094,17 @@ ROW date = DATE_PARSE("yyyy-MM-dd", "2022-05-06")
 date:date                 | year:long
 2022-05-06T00:00:00.000Z  | 2022
 // end::dateExtract-result[]
+;
+
+dateExtractString
+required_feature: esql.string_literal_auto_casting
+
+ROW date = DATE_PARSE("yyyy-MM-dd", "2022-05-06")
+| EVAL year = DATE_EXTRACT("year", "2022-05-06")
+;
+
+date:date                 | year:long
+2022-05-06T00:00:00.000Z  | 2022
 ;
 
 docsDateExtractBusinessHours
@@ -1115,6 +1137,17 @@ Anneke         |Preusig        |1989-06-02T00:00:00.000Z|1989-06-02
 // end::docsDateFormat-result[]
 ;
 
+evalDateFormatString
+required_feature: esql.string_literal_auto_casting
+
+ROW a = 1
+| EVAL df = DATE_FORMAT("YYYY-MM-dd", "1989-06-02T00:00:00.000Z")
+;
+
+a:integer | df:keyword
+1         | 1989-06-02
+;
+
 docsDateTrunc
 // tag::docsDateTrunc[]
 FROM employees
@@ -1131,6 +1164,17 @@ Alejandro      |McAlpine       |1991-06-26T00:00:00.000Z|1991-01-01T00:00:00.000
 Amabile        |Gomatam        |1992-11-18T00:00:00.000Z|1992-01-01T00:00:00.000Z
 Anneke         |Preusig        |1989-06-02T00:00:00.000Z|1989-01-01T00:00:00.000Z
 // end::docsDateTrunc-result[]
+;
+
+evalDateTruncString
+required_feature: esql.string_literal_auto_casting
+
+ROW a = 1
+| EVAL year_hired = DATE_TRUNC(1 year, "1991-06-26T00:00:00.000Z")
+;
+
+a:integer | year_hired:date
+1         | 1991-01-01T00:00:00.000Z
 ;
 
 docsDateTruncHistogram

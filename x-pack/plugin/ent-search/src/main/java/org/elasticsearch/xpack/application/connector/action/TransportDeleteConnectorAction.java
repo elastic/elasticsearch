@@ -43,6 +43,7 @@ public class TransportDeleteConnectorAction extends HandledTransportAction<Delet
     @Override
     protected void doExecute(Task task, DeleteConnectorAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         String connectorId = request.getConnectorId();
-        connectorIndexService.deleteConnector(connectorId, listener.map(v -> AcknowledgedResponse.TRUE));
+        boolean shouldDeleteSyncJobs = request.shouldDeleteSyncJobs();
+        connectorIndexService.deleteConnector(connectorId, shouldDeleteSyncJobs, listener.map(v -> AcknowledgedResponse.TRUE));
     }
 }

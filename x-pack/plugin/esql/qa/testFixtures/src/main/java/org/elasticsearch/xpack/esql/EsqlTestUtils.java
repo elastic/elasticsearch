@@ -34,17 +34,24 @@ import org.elasticsearch.xpack.ql.type.TypesTests;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.junit.Assert;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.ql.TestUtils.of;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.junit.Assert.assertTrue;
 
 public final class EsqlTestUtils {
 
@@ -146,6 +153,14 @@ public final class EsqlTestUtils {
         return TypesTests.loadMapping(EsqlDataTypeRegistry.INSTANCE, name, true);
     }
 
+    public static String loadUtf8TextFile(String name) {
+        try (InputStream textStream = EsqlTestUtils.class.getResourceAsStream(name)) {
+            return new String(textStream.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
     public static EnrichResolution emptyPolicyResolution() {
         return new EnrichResolution();
     }
@@ -232,5 +247,15 @@ public final class EsqlTestUtils {
         all.add(enrich);
         all.addAll(after);
         return String.join(" | ", all);
+    }
+
+    public static void assertWarnings(List<String> warnings, List<String> allowedWarnings, List<Pattern> allowedWarningsRegex) {
+        if (allowedWarningsRegex.isEmpty()) {
+            assertMap(warnings.stream().sorted().toList(), matchesList(allowedWarnings.stream().sorted().toList()));
+        } else {
+            for (String warning : warnings) {
+                assertTrue("Unexpected warning: " + warning, allowedWarningsRegex.stream().anyMatch(x -> x.matcher(warning).matches()));
+            }
+        }
     }
 }

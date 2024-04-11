@@ -84,7 +84,6 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
     public void configureClusterSettings() {
         updateClusterSettings(
             Settings.builder()
-                .putList(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING.getKey(), List.of())
                 // we want to manually trigger the rollovers in this test suite to be able to assert incrementally the changes in shard
                 // configurations
                 .put(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "30d")
@@ -93,11 +92,7 @@ public class DataStreamAutoshardingIT extends ESIntegTestCase {
 
     @After
     public void resetClusterSetting() {
-        updateClusterSettings(
-            Settings.builder()
-                .putNull(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING.getKey())
-                .putNull(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL)
-        );
+        updateClusterSettings(Settings.builder().putNull(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL));
     }
 
     public void testRolloverOnAutoShardCondition() throws Exception {

@@ -117,6 +117,10 @@ PUT _snapshot/my_gcs_repository
 // TEST[skip:we don't have gcs setup while testing this]
 
 The `credentials_file` settings are {ref}/secure-settings.html#reloadable-secure-settings[reloadable].
+You can define these settings before the node is started, 
+or call the <<cluster-nodes-reload-secure-settings,Nodes reload secure settings API>> 
+after the settings are defined to apply them to a running node.
+
 After you reload the settings, the internal `gcs` clients, which are used to
 transfer the snapshot contents, utilize the latest settings from the keystore.
 

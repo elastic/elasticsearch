@@ -323,6 +323,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         );
 
         final ClusterState clusterState = clusterService.state();
+        clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
+
         final ResolvedIndices resolvedIndices;
         if (original.pointInTimeBuilder() != null) {
             resolvedIndices = ResolvedIndices.resolveWithPIT(
@@ -1088,7 +1090,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponse.Clusters clusters,
         SearchPhaseProvider searchPhaseProvider
     ) {
-        clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
         if (searchRequest.allowPartialSearchResults() == null) {
             // No user preference defined in search request - apply cluster service default
             searchRequest.allowPartialSearchResults(searchService.defaultAllowPartialSearchResults());

@@ -3988,7 +3988,7 @@ public class IndexShardTests extends IndexShardTestCase {
         var executor = Executors.newFixedThreadPool(numFlushes);
         for (int i = 0; i < numFlushes; i++) {
             executor.submit(() -> {
-                shard.flush(new FlushRequest().waitIfOngoing(true));
+                shard.flush(new FlushRequest().waitIfOngoing(true).force(true));
                 flushesLatch.countDown();
             });
         }

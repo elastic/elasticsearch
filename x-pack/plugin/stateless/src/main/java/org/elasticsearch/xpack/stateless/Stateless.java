@@ -189,7 +189,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -867,8 +866,7 @@ public class Stateless extends Plugin
         TranslogReplicator translogReplicator,
         Function<String, BlobContainer> translogBlobContainer,
         StatelessCommitService statelessCommitService,
-        RefreshThrottler.Factory refreshThrottlerFactory,
-        LongConsumer closedReadersForGenerationConsumer
+        RefreshThrottler.Factory refreshThrottlerFactory
     ) {
         return new IndexEngine(
             engineConfig,
@@ -876,7 +874,8 @@ public class Stateless extends Plugin
             translogBlobContainer,
             statelessCommitService,
             refreshThrottlerFactory,
-            closedReadersForGenerationConsumer
+            statelessCommitService.getIndexEngineLocalReaderListenerForShard(engineConfig.getShardId()),
+            statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId())
         );
     }
 
@@ -929,8 +928,7 @@ public class Stateless extends Plugin
                     translogReplicator.get(),
                     getObjectStoreService()::getTranslogBlobContainer,
                     getCommitService(),
-                    refreshThrottlingService.get().createRefreshThrottlerFactory(indexSettings),
-                    commitService.get().closedLocalReadersForGeneration(newConfig.getShardId())
+                    refreshThrottlingService.get().createRefreshThrottlerFactory(indexSettings)
                 );
             } else {
                 return new SearchEngine(config, client.get(), getClosedShardService());

@@ -33,10 +33,11 @@ import org.elasticsearch.index.translog.Translog;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
 import java.util.NavigableMap;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -184,8 +185,21 @@ public class IndexEngineTests extends AbstractEngineTestCase {
     public void testClosedReaders() throws IOException {
         TranslogReplicator translogReplicator = mock(TranslogReplicator.class);
         StatelessCommitService commitService = mockCommitService();
-        List<Long> closedReaderGenerations = new ArrayList<>();
-        when(commitService.closedLocalReadersForGeneration(any())).thenReturn(closedReaderGenerations::add);
+        Set<PrimaryTermAndGeneration> openReaderGenerations = new HashSet<>();
+        Set<Long> closedReaderGenerations = new HashSet<>();
+        when(commitService.getCommitBCCResolverForShard(any())).thenReturn(commitGeneration -> {
+            var commitPrimaryTermAndGeneration = new PrimaryTermAndGeneration(1, commitGeneration);
+            openReaderGenerations.add(commitPrimaryTermAndGeneration);
+            return Set.of(commitPrimaryTermAndGeneration);
+        });
+        when(commitService.getIndexEngineLocalReaderListenerForShard(any())).thenReturn((bccHoldingClosedCommit, openBCCs) -> {
+            for (PrimaryTermAndGeneration primaryTermAndGeneration : openReaderGenerations) {
+                if (openBCCs.contains(primaryTermAndGeneration) == false) {
+                    closedReaderGenerations.add(primaryTermAndGeneration.generation());
+                }
+            }
+            openReaderGenerations.removeIf(gen -> openBCCs.contains(gen) == false);
+        });
         Settings nodeSettings = Settings.builder().put(Stateless.STATELESS_ENABLED.getKey(), true).build();
         try (
             var engine = newIndexEngine(
@@ -212,9 +226,9 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             assertThat(closedReaderGenerations, empty());
             // external reader manager refresh.
             engine.refresh("test");
-            List<Long> expectedClosed = new ArrayList<>();
-            expectedClosed.add(initialGen);
-            assertThat(closedReaderGenerations, equalTo(expectedClosed));
+            Set<Long> expectedClosedReaderGenerations = new HashSet<>();
+            expectedClosedReaderGenerations.add(initialGen);
+            assertThat(closedReaderGenerations, equalTo(expectedClosedReaderGenerations));
 
             final var gen = engine.getCurrentGeneration();
             int commits = between(1, 10);
@@ -228,21 +242,18 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 engine.refresh("test");
             }
 
-            Runnable refreshExpectedClosed = () -> {
-                long releasedUntil = searchers.isEmpty() ? commits + gen : searchers.firstKey();
-                for (long generation = expectedClosed.get(expectedClosed.size() - 1) + 1; generation < releasedUntil; ++generation) {
-                    expectedClosed.add(generation);
-                }
-            };
-            refreshExpectedClosed.run();
-            assertThat(closedReaderGenerations, equalTo(expectedClosed));
+            // closedReaderGenerations must contain [initialGen .. gen + commits) - {open searchers}
+            LongStream.range(initialGen, gen + commits)
+                .filter(generation -> searchers.containsKey(generation) == false)
+                .forEach(expectedClosedReaderGenerations::add);
+            assertThat(closedReaderGenerations, equalTo(expectedClosedReaderGenerations));
 
             while (searchers.isEmpty() == false) {
                 long generation = randomFrom(searchers.keySet());
                 Engine.Searcher searcher = searchers.remove(generation);
                 searcher.close();
-                refreshExpectedClosed.run();
-                assertThat(closedReaderGenerations, equalTo(expectedClosed));
+                expectedClosedReaderGenerations.add(generation);
+                assertThat(closedReaderGenerations, equalTo(expectedClosedReaderGenerations));
             }
         }
     }

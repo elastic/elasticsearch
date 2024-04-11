@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
+import co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions;
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
@@ -64,7 +65,6 @@ import org.elasticsearch.transport.ConnectTransportException;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -78,9 +78,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BinaryOperator;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -108,6 +108,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         TimeValue.timeValueMinutes(30),
         Setting.Property.NodeScope
     );
+    private static final long DELETED_INDEX_NOTIFICATION_GENERATION_SENTINEL = Long.MAX_VALUE;
 
     private final ObjectStoreService objectStoreService;
     private final Supplier<String> ephemeralNodeIdSupplier;
@@ -124,6 +125,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     private final TimeValue shardInactivityDuration;
     private final TimeValue shardInactivityMonitorInterval;
+    private final BooleanSupplier allNodesResolveBCCReferencesLocally;
     private final ShardInactivityMonitor shardInactivityMonitor;
     private Scheduler.Cancellable scheduledShardInactivityMonitorFuture;
 
@@ -141,7 +143,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             (shardId) -> clusterService.state().routingTable().shardRoutingTable(shardId),
             clusterService.threadPool(),
             client,
-            commitCleaner
+            commitCleaner,
+            () -> clusterService.state()
+                .getMinTransportVersion()
+                .onOrAfter(ServerlessTransportVersions.EXPLICIT_BCC_REFERENCES_TRACKING_ADDED)
         );
     }
 
@@ -152,7 +157,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Function<ShardId, IndexShardRoutingTable> shardRouting,
         ThreadPool threadPool,
         Client client,
-        StatelessCommitCleaner commitCleaner
+        StatelessCommitCleaner commitCleaner,
+        BooleanSupplier allNodesResolveBCCReferencesLocally
     ) {
         this.objectStoreService = objectStoreService;
         this.ephemeralNodeIdSupplier = ephemeralNodeIdSupplier;
@@ -160,6 +166,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         this.threadPool = threadPool;
         this.client = client;
         this.commitCleaner = commitCleaner;
+        this.allNodesResolveBCCReferencesLocally = allNodesResolveBCCReferencesLocally;
         this.shardInactivityDuration = SHARD_INACTIVITY_DURATION_TIME_SETTING.get(settings);
         this.shardInactivityMonitorInterval = SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING.get(settings);
         this.shardInactivityMonitor = new ShardInactivityMonitor();
@@ -610,7 +617,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return state == ShardCommitState.State.CLOSED || state == ShardCommitState.State.RELOCATED;
     }
 
-    private class ShardCommitState {
+    private class ShardCommitState implements IndexEngineLocalReaderListener, CommitBCCResolver {
 
         private enum State {
             RUNNING,
@@ -642,18 +649,21 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private final AtomicLong maxGenerationToUploadForFlush = new AtomicLong(-1);
         private volatile State state = State.RUNNING;
         private volatile boolean isDeleted;
-        // map generations to compound commit blob instances
+        // map BCC generations to BCC blob instances
         private final Map<PrimaryTermAndGeneration, BlobReference> primaryTermAndGenToBlobReference = new ConcurrentHashMap<>();
 
         // maps file names to their (maybe future) compound commit blob & blob location
         private final Map<String, CommitAndBlobLocation> blobLocations = new ConcurrentHashMap<>();
         private volatile long lastNewCommitNotificationSentTimestamp = -1;
+        // Map commits to BCCs
+        private final Map<PrimaryTermAndGeneration, CommitReferencesInfo> commitReferencesInfos = new ConcurrentHashMap<>();
 
         private ShardCommitState(ShardId shardId, long allocationPrimaryTerm) {
             this.shardId = shardId;
             this.allocationPrimaryTerm = allocationPrimaryTerm;
         }
 
+        // TODO: ES-8246 provide the recovered BatchedCompoundCommit
         private void markCommitRecovered(StatelessCompoundCommit recoveredCommit, Set<BlobFile> nonRecoveredBlobs) {
             assert recoveredCommit != null;
             assert nonRecoveredBlobs != null;
@@ -661,6 +671,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             assert blobLocations.isEmpty() : blobLocations;
 
             Map<PrimaryTermAndGeneration, Map<String, BlobLocation>> referencedBlobs = new HashMap<>();
+            // TODO: ES-8246 Fix #getInternalFiles to account for multiple CCs belonging to a BCC
             final var recoveredInternalFiles = recoveredCommit.getInternalFiles();
             for (Map.Entry<String, BlobLocation> referencedBlob : recoveredCommit.commitFiles().entrySet()) {
                 if (recoveredInternalFiles.contains(referencedBlob.getKey()) == false) {
@@ -674,9 +685,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 }
             }
 
+            List<BlobReference> previousBCCBlobs = new ArrayList<>(nonRecoveredBlobs.size());
             // create a compound commit blob instance for the recovery commit
-
-            List<PrimaryTermAndGeneration> nonRecoveredTermGens = new ArrayList<>();
             for (BlobFile nonRecoveredBlobFile : nonRecoveredBlobs) {
                 if (StatelessCompoundCommit.startsWithBlobPrefix(nonRecoveredBlobFile.blobName())) {
                     PrimaryTermAndGeneration nonRecoveredTermGen = new PrimaryTermAndGeneration(
@@ -684,7 +694,21 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         StatelessCompoundCommit.parseGenerationFromBlobName(nonRecoveredBlobFile.blobName())
                     );
 
-                    nonRecoveredTermGens.add(nonRecoveredTermGen);
+                    Map<String, BlobLocation> internalFiles = referencedBlobs.getOrDefault(nonRecoveredTermGen, Collections.emptyMap());
+                    // We don't know which CCs are included in the non-recovered BCCs,
+                    // hence the empty set for the included commits in the blob reference
+                    BlobReference nonRecoveredBlobReference = new BlobReference(
+                        nonRecoveredTermGen,
+                        internalFiles.keySet(),
+                        Set.of(),
+                        Set.of()
+                    );
+                    internalFiles.forEach((key, value) -> {
+                        var previous = blobLocations.put(key, new CommitAndBlobLocation(nonRecoveredBlobReference, value));
+                        assert previous == null : key + ':' + previous;
+                    });
+                    primaryTermAndGenToBlobReference.put(nonRecoveredTermGen, nonRecoveredBlobReference);
+                    previousBCCBlobs.add(nonRecoveredBlobReference);
                 } else {
                     logger.warn(
                         () -> format(
@@ -695,48 +719,27 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     );
                 }
             }
-            nonRecoveredTermGens.sort(null);
-            // keep a single list and use sublist to avoid n^2 space complexity with many left over commits.
-            ArrayList<BlobReference> previousCommits = new ArrayList<>(nonRecoveredTermGens.size());
-            for (int i = 0; i < nonRecoveredTermGens.size(); ++i) {
-                previousCommits.add(null);
-            }
-            for (int i = 0; i < nonRecoveredTermGens.size(); ++i) {
-                PrimaryTermAndGeneration nonRecoveredTermGen = nonRecoveredTermGens.get(i);
-                Map<String, BlobLocation> internalFiles = referencedBlobs.getOrDefault(nonRecoveredTermGen, Collections.emptyMap());
-                BlobReference nonRecoveredBlobReference = new BlobReference(
-                    nonRecoveredTermGen,
-                    internalFiles.keySet(),
-                    Collections.unmodifiableList(previousCommits.subList(0, i))
-                );
-                internalFiles.forEach((key, value) -> {
-                    var previous = blobLocations.put(key, new CommitAndBlobLocation(nonRecoveredBlobReference, value));
-                    assert previous == null : key + ':' + previous;
-                });
-                previousCommits.set(i, nonRecoveredBlobReference);
-            }
 
-            var referencedCommitsForRecoveryCommit = previousCommits.stream()
+            var referencedBCCsForRecoveryCommit = previousBCCBlobs.stream()
                 .filter(commit -> referencedBlobs.containsKey(commit.getPrimaryTermAndGeneration()))
                 .collect(Collectors.toUnmodifiableSet());
-            var recoveryCommitBlob = new BlobReference(
+            var recoveryBCCBlob = new BlobReference(
                 recoveredCommit.primaryTermAndGeneration(),
                 recoveredCommit.getInternalFiles(),
-                referencedCommitsForRecoveryCommit
+                referencedBCCsForRecoveryCommit,
+                // During recovery we only read the latest stored commit,
+                // hence we consider that the recovered blob reference contains only that commit
+                Set.of(recoveredCommit.primaryTermAndGeneration())
             );
 
-            previousCommits.forEach(current -> primaryTermAndGenToBlobReference.put(current.getPrimaryTermAndGeneration(), current));
-
-            assert previousCommits.contains(recoveryCommitBlob) == false;
             assert primaryTermAndGenToBlobReference.containsKey(recoveredCommit.primaryTermAndGeneration()) == false;
 
-            primaryTermAndGenToBlobReference.put(recoveryCommitBlob.getPrimaryTermAndGeneration(), recoveryCommitBlob);
+            primaryTermAndGenToBlobReference.put(recoveryBCCBlob.getPrimaryTermAndGeneration(), recoveryBCCBlob);
 
             recoveredCommit.getInternalFiles().forEach(fileName -> {
-                var existing = blobLocations.put(
-                    fileName,
-                    new CommitAndBlobLocation(recoveryCommitBlob, recoveredCommit.commitFiles().get(fileName))
-                );
+                var fileBlobLocation = recoveredCommit.commitFiles().get(fileName);
+                assert fileBlobLocation != null : fileName;
+                var existing = blobLocations.put(fileName, new CommitAndBlobLocation(recoveryBCCBlob, fileBlobLocation));
                 assert existing == null : fileName + ':' + existing;
             });
 
@@ -749,15 +752,21 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             primaryTermAndGenToBlobReference.values()
                 .forEach(commit -> trackOutstandingUnpromotableShardCommitRef(currentUnpromotableShardAssignedNodes, commit));
 
-            // Decrement all of the non-recovered commits since we do not reference them locally
-            primaryTermAndGenToBlobReference.values()
-                .stream()
-                .filter(b -> b.getPrimaryTermAndGeneration().equals(recoveryCommitBlob.getPrimaryTermAndGeneration()) == false)
-                .forEach(b -> {
-                    // Deleted and unused locally such that only the recovery commit retains this compound commit
-                    b.deleted();
-                    b.closedLocalReaders();
-                });
+            var referencedBCCGenerationsByRecoveredCommit = BatchedCompoundCommit.computeReferencedBCCGenerations(recoveredCommit);
+            commitReferencesInfos.put(
+                recoveredCommit.primaryTermAndGeneration(),
+                new CommitReferencesInfo(recoveredCommit.primaryTermAndGeneration(), referencedBCCGenerationsByRecoveredCommit)
+            );
+
+            // Decrement all of the non-recovered BCCs that are not referenced by the recovered commit
+            for (BlobReference blobReference : primaryTermAndGenToBlobReference.values()) {
+                if (blobReference.getPrimaryTermAndGeneration().equals(recoveryBCCBlob.getPrimaryTermAndGeneration()) == false) {
+                    blobReference.deleted();
+                }
+                if (referencedBCCGenerationsByRecoveredCommit.contains(blobReference.getPrimaryTermAndGeneration()) == false) {
+                    blobReference.closedLocalReaders();
+                }
+            }
 
             recoveredPrimaryTerm = recoveredCommit.primaryTerm();
             recoveredGeneration = recoveredCommit.generation();
@@ -844,6 +853,25 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         )
                     );
                 }
+
+                var pendingCompoundCommit = currentVirtualBcc.getLastPendingCompoundCommit();
+                var statelessCompoundCommit = pendingCompoundCommit.getStatelessCompoundCommit();
+                var commitPrimaryTermAndGeneration = statelessCompoundCommit.primaryTermAndGeneration();
+
+                assert commitPrimaryTermAndGeneration.primaryTerm() == reference.getPrimaryTerm();
+                assert commitPrimaryTermAndGeneration.generation() == reference.getGeneration();
+
+                var previousCommitReferencesInfo = commitReferencesInfos.put(
+                    commitPrimaryTermAndGeneration,
+                    new CommitReferencesInfo(
+                        currentVirtualBcc.getPrimaryTermAndGeneration(),
+                        BatchedCompoundCommit.computeReferencedBCCGenerations(statelessCompoundCommit)
+                    )
+                );
+
+                assert previousCommitReferencesInfo == null
+                    : statelessCompoundCommit.primaryTermAndGeneration() + " was already present in " + commitReferencesInfos;
+
                 return currentVirtualBcc;
             }
         }
@@ -911,9 +939,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         private BlobReference createBlobReference(VirtualBatchedCompoundCommit virtualBcc) {
             assert isDeleted == false : "shard " + shardId + " is deleted when trying to add commit data";
-            final long primaryTerm = virtualBcc.getPrimaryTermAndGeneration().primaryTerm();
-            final long generation = virtualBcc.getPrimaryTermAndGeneration().generation();
             assert virtualBcc.getPendingCompoundCommits().size() == 1 : "must contain a single CC till BCC is in full motion";
+            assert commitReferencesInfos.keySet().containsAll(virtualBcc.getPendingCompoundCommitGenerations())
+                : "Commit references infos should be populated when new commits are appended";
             final var commitFiles = virtualBcc.getPendingCompoundCommits()
                 .stream()
                 .flatMap(pc -> pc.getCommitReference().getCommitFiles().stream())
@@ -924,32 +952,35 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 .collect(Collectors.toUnmodifiableSet());
 
             // if there are external files the new instance must reference the corresponding commit blob instances
-            Set<BlobReference> references = commitFiles.stream()
-                .filter(fileName -> additionalFiles.contains(fileName) == false)
-                .map(fileName -> {
-                    final var commitAndBlobLocation = blobLocations.get(fileName);
-                    if (commitAndBlobLocation == null) {
-                        final var message = Strings.format(
-                            """
-                                [%s] blobLocations missing [%s]; \
-                                primaryTerm=%d, generation=%d, commitFiles=%s, additionalFiles=%s, blobLocations=%s""",
-                            shardId,
-                            fileName,
-                            primaryTerm,
-                            generation,
-                            commitFiles,
-                            additionalFiles,
-                            blobLocations.keySet()
-                        );
-                        assert false : message;
-                        throw new IllegalStateException(message);
-                    }
-                    return commitAndBlobLocation.blobReference;
-                })
-                .collect(Collectors.toUnmodifiableSet());
+            var referencedBCCs = commitFiles.stream().filter(fileName -> additionalFiles.contains(fileName) == false).map(fileName -> {
+                final var commitAndBlobLocation = blobLocations.get(fileName);
+                if (commitAndBlobLocation == null) {
+                    final var message = Strings.format(
+                        """
+                            [%s] blobLocations missing [%s]; \
+                            primaryTerm=%d, generation=%d, commitFiles=%s, additionalFiles=%s, blobLocations=%s""",
+                        shardId,
+                        fileName,
+                        virtualBcc.getPrimaryTermAndGeneration().primaryTerm(),
+                        virtualBcc.getPrimaryTermAndGeneration().generation(),
+                        commitFiles,
+                        additionalFiles,
+                        blobLocations.keySet()
+                    );
+                    assert false : message;
+                    throw new IllegalStateException(message);
+                }
+                return commitAndBlobLocation.blobReference;
+            }).collect(Collectors.toUnmodifiableSet());
 
-            // create a compound commit blob instance for the new commit
-            var blobReference = new BlobReference(primaryTerm, generation, additionalFiles, references);
+            // create a compound commit blob instance for the new BCC
+            var blobReference = new BlobReference(
+                virtualBcc.getPrimaryTermAndGeneration(),
+                additionalFiles,
+                referencedBCCs,
+                virtualBcc.getPendingCompoundCommitGenerations()
+            );
+
             if (primaryTermAndGenToBlobReference.putIfAbsent(blobReference.getPrimaryTermAndGeneration(), blobReference) != null) {
                 throw new IllegalArgumentException(blobReference + " already exists");
             }
@@ -971,21 +1002,42 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     }
                 });
             });
-
             return blobReference;
         }
 
+        @Override
+        public Set<PrimaryTermAndGeneration> resolveReferencedBCCsForCommit(long generation) {
+            // TODO: handle close case better
+            // It's possible that a background task such as force merge creates a commit after the shard
+            // has relocated or closed and these commits are not appended into VBCCs nor uploaded.
+            // In such cases we just respond back with an empty set since we're not tracking these.
+            if (closedOrRelocated(state) || generation == DELETED_INDEX_NOTIFICATION_GENERATION_SENTINEL) {
+                return Set.of();
+            }
+            PrimaryTermAndGeneration primaryTermAndGeneration = resolvePrimaryTermForGeneration(generation);
+            var commitReferencesInfo = commitReferencesInfos.get(primaryTermAndGeneration);
+            assert commitReferencesInfo != null : commitReferencesInfos + " " + generation;
+            // TODO: this assertion won't hold once we have multiple CCs per BCC since its primary term and generation might be >= than the
+            // BCC primary term and generation
+            assert commitReferencesInfo.referencesBCC(primaryTermAndGeneration);
+
+            return commitReferencesInfo.referencedBCCs();
+        }
+
         public void markCommitDeleted(long generation) {
-            long primaryTerm = generation == recoveredGeneration ? recoveredPrimaryTerm : allocationPrimaryTerm;
-            var primaryTermAndGeneration = new PrimaryTermAndGeneration(primaryTerm, generation);
-            final var blobReference = primaryTermAndGenToBlobReference.get(primaryTermAndGeneration);
+            var commitPrimaryTermAndGeneration = resolvePrimaryTermForGeneration(generation);
+            var commitReferencesInfo = commitReferencesInfos.get(commitPrimaryTermAndGeneration);
+            assert commitReferencesInfo != null;
+            final var blobReference = primaryTermAndGenToBlobReference.get(commitReferencesInfo.storedInBCC());
+            // This method should only be invoked after the VBCC has been uploaded, as it holds Lucene commit references. This ensures that
+            // requests accessing the commit files can be served until the VBCC is uploaded to the blob store.
             if (blobReference == null) {
                 throw new IllegalStateException(
                     Strings.format(
                         "Unable to mark commit with %s as deleted. "
                             + "recoveredGeneration: %s, recoveredPrimaryTerm: %s, allocationPrimaryTerm: %s, "
                             + "primaryTermAndGenToBlobReference: %s",
-                        primaryTermAndGeneration,
+                        commitPrimaryTermAndGeneration,
                         recoveredGeneration,
                         recoveredPrimaryTerm,
                         allocationPrimaryTerm,
@@ -994,6 +1046,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 );
             }
             blobReference.deleted();
+        }
+
+        private PrimaryTermAndGeneration resolvePrimaryTermForGeneration(long generation) {
+            return new PrimaryTermAndGeneration(
+                generation == recoveredGeneration ? recoveredPrimaryTerm : allocationPrimaryTerm,
+                generation
+            );
         }
 
         public void markCommitUploaded(StatelessCompoundCommit commit) {
@@ -1286,7 +1345,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             ActionListener.onFailure(listenersToFail, new AlreadyClosedException("shard [" + shardId + "] has already been closed"));
 
             if (isDeleted) {
-                updateUnpromotableShardAssignedNodes(Set.of(), Long.MAX_VALUE); // clear all unpromotable references
+                // clear all unpromotable references
+                updateUnpromotableShardAssignedNodes(Set.of(), DELETED_INDEX_NOTIFICATION_GENERATION_SENTINEL);
                 primaryTermAndGenToBlobReference.values().forEach(blobReference -> {
                     blobReference.closedLocalReaders();
                     blobReference.deleted();
@@ -1381,7 +1441,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 // (but would be safe - and we rely on it, this check is just an optimistic check)
                 return;
             }
-            // TODO: provide Map<nodeId, Set<PrimaryTermAndGeneration>>
+
+            if (allNodesResolveBCCReferencesLocally() == false) {
+                // Ignore notification responses until all nodes report the full set of BCCs that are in use
+                return;
+            }
 
             for (BlobReference blobReference : primaryTermAndGenToBlobReference.values()) {
                 // we are allowed to shrink the set of search nodes for any generation <= notificationGeneration, since after the
@@ -1419,16 +1483,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         /**
          * Register commit used by unpromotable, returning the commit to use by the unpromotable.
          */
-        BlobReference registerCommitForUnpromotableRecovery(ClusterState state, String nodeId, PrimaryTermAndGeneration commit) {
+        BlobReference registerCommitForUnpromotableRecovery(String nodeId, PrimaryTermAndGeneration commit) {
             // Find a commit (starting with the requested one) that could be used for unpromotable recovery
+            // TODO: ES-8200 We should account for the fact that the node will register using a commit,
+            // but the blob references point to BCCs
             var compoundCommit = primaryTermAndGenToBlobReference.get(commit);
             if (compoundCommit == null) {
                 long lastUploadedGeneration = getMaxUploadedGeneration();
                 if (lastUploadedGeneration != -1) {
-                    long primaryTerm = lastUploadedGeneration == recoveredGeneration ? recoveredPrimaryTerm : allocationPrimaryTerm;
-                    compoundCommit = primaryTermAndGenToBlobReference.get(
-                        new PrimaryTermAndGeneration(primaryTerm, lastUploadedGeneration)
-                    );
+                    compoundCommit = primaryTermAndGenToBlobReference.get(resolvePrimaryTermForGeneration(lastUploadedGeneration));
                 }
             }
             // If the indexing shard is not finished initializing from the object store, we are not
@@ -1449,7 +1512,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // Register the commit that is going to be used for unpromotable recovery
             long previousGenerationUploaded = -1;
             while (true) {
-                if (compoundCommit != null && registerUnpromoteableCommitRefs(Set.of(nodeId), compoundCommit)) {
+                if (compoundCommit != null && registerUnpromotableBCCRefsForCommit(compoundCommit.getPrimaryTermAndGeneration(), nodeId)) {
                     assert compoundCommit.isExternalReadersClosed() == false;
                     return compoundCommit;
                 } else {
@@ -1462,6 +1525,25 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
         }
 
+        private boolean registerUnpromotableBCCRefsForCommit(PrimaryTermAndGeneration commitPrimaryTermAndGeneration, String nodeId) {
+            // TODO: maybe we should let the search node to resolve the dependencies for the commit?
+            var commitInfo = commitReferencesInfos.get(commitPrimaryTermAndGeneration);
+            if (commitInfo == null) {
+                return false;
+            }
+
+            var referencedBCCsForCommit = commitInfo.referencedBCCs();
+            for (PrimaryTermAndGeneration bccPrimaryTermAndGeneration : referencedBCCsForCommit) {
+                var blobReference = primaryTermAndGenToBlobReference.get(bccPrimaryTermAndGeneration);
+                // TODO: ES-8200 once we move to multiple CCs per BCC we'll need to handle the case where
+                // TODO: blobReference is null for the non-uploaded BCCs
+                if (blobReference == null || registerUnpromoteableCommitRefs(Set.of(nodeId), blobReference) == false) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         /**
          * Adds the given 'nodes' to the {@link BlobReference} for 'compoundCommit'.
          */
@@ -1470,27 +1552,30 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             return result != null;
         }
 
-        public LongConsumer closedLocalReadersForGeneration() {
-            return generation -> {
-                long primaryTerm = generation == recoveredGeneration ? recoveredPrimaryTerm : allocationPrimaryTerm;
-                BlobReference blobReference = primaryTermAndGenToBlobReference.get(new PrimaryTermAndGeneration(primaryTerm, generation));
-                if (blobReference != null) {
+        @Override
+        public void onLocalReaderClosed(long bccHoldingClosedCommit, Set<PrimaryTermAndGeneration> remainingReferencedBCCs) {
+            assert primaryTermAndGenToBlobReference.keySet().containsAll(remainingReferencedBCCs);
+            for (BlobReference blobReference : primaryTermAndGenToBlobReference.values()) {
+                if (remainingReferencedBCCs.contains(blobReference.getPrimaryTermAndGeneration()) == false
+                    // Ensure that we don't close the latest reference when we've populated the blob reference but the local reader hasn't
+                    // opened yet, meaning that's not part of the remainingReferencedBCCs
+                    && blobReference.getPrimaryTermAndGeneration().generation() <= bccHoldingClosedCommit) {
                     blobReference.closedLocalReaders();
-                } // else assume an idempotent call when already deleted.
-            };
+                }
+            }
         }
 
         /**
-         * A ref counted instance representing a (compound commit) blob reference to the object store. It can reference some other previous
-         * blob reference instances (if the commit has external files) which are decRef when the current instance ref count reaches zero.
+         * A ref counted instance representing a (BCC) blob reference to the object store.
          */
         private class BlobReference extends AbstractRefCounted {
             private final PrimaryTermAndGeneration primaryTermAndGeneration;
+            private final Set<PrimaryTermAndGeneration> includedCommitGenerations;
             // TODO: The internalFiles should include copied generational files once ES-7654 is resolved
             private final Set<String> internalFiles;
-            private final Collection<BlobReference> references;
-            private final AtomicBoolean deleted = new AtomicBoolean();
+            private final Set<BlobReference> references;
             private final AtomicBoolean readersClosed = new AtomicBoolean();
+            private final AtomicBoolean deleted = new AtomicBoolean();
             /**
              * Set of search node-ids using the commit. The lifecycle of entries is like this:
              * 1. Initially created at instantiation on recovery or commit created - with an empty set.
@@ -1503,76 +1588,40 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
              */
             private final AtomicReference<Set<String>> searchNodesRef = new AtomicReference<>(Set.of());
 
-            BlobReference(long primaryTerm, long generation, Set<String> internalFiles, Collection<BlobReference> references) {
-                this(new PrimaryTermAndGeneration(primaryTerm, generation), internalFiles, references);
-            }
-
             BlobReference(
                 PrimaryTermAndGeneration primaryTermAndGeneration,
                 Set<String> internalFiles,
-                Collection<BlobReference> references
+                Set<BlobReference> references,
+                Set<PrimaryTermAndGeneration> includedCommitGenerations
             ) {
-                // no duplicates, isSortedUnique is slightly stronger than needed, but assuming sorted helps avoid allocation and sampling
-                assert references instanceof Set || isSortedUnique((List<BlobReference>) references) : references;
                 this.primaryTermAndGeneration = primaryTermAndGeneration;
                 this.internalFiles = Set.copyOf(internalFiles);
                 this.references = references;
-                // we both decRef on delete, closedLocalReaders and closedExternalReaders, hence the extra incRefs (in addition to the
+                this.includedCommitGenerations = Set.copyOf(includedCommitGenerations);
+                // we both decRef closedLocalReaders and closedExternalReaders, hence the extra incRef (in addition to the
                 // 1 ref given by AbstractRefCounted constructor)
                 this.incRef();
                 this.incRef();
-                references.forEach(this::incRef);
-            }
-
-            // only for assertions, does sampling.
-            private boolean isSortedUnique(List<BlobReference> references) {
-                if (references.size() <= 1) {
-                    return true;
-                }
-                BlobReference previous = references.get(0);
-                int i = 1;
-                do {
-                    BlobReference next = references.get(i);
-                    if (next.equals(previous)) {
-                        return false;
-                    }
-                    if (next.getPrimaryTermAndGeneration().compareTo(previous.getPrimaryTermAndGeneration()) <= 0) {
-                        return false;
-                    }
-                    previous = next;
-                    if (i > 100) {
-                        i = i * 2;
-                    } else {
-                        i++;
-                    }
-                } while (i < references.size());
-
-                return true;
+                // incRef dependencies only once since we're only tracking dependencies for Lucene local deletions
+                references.forEach(AbstractRefCounted::incRef);
             }
 
             public PrimaryTermAndGeneration getPrimaryTermAndGeneration() {
                 return primaryTermAndGeneration;
             }
 
-            private void incRef(BlobReference other) {
-                assert other.hasReferences() : other;
-                // incRef three times since we expect all commits to be both deleted, locally unused and externally unused
-                other.incRef();
-                other.incRef();
-                other.incRef();
-            }
-
-            public void deleted() {
+            public void closedLocalReaders() {
                 // be idempotent.
-                if (deleted.compareAndSet(false, true)) {
-                    references.forEach(AbstractRefCounted::decRef);
+                if (readersClosed.compareAndSet(false, true)) {
                     decRef();
                 }
             }
 
-            public void closedLocalReaders() {
+            public void deleted() {
+                // TODO: ES-8234 account for multiples CCs pointing to the same BlobReference
+                assert includedCommitGenerations.size() == 1 || includedCommitGenerations.isEmpty();
                 // be idempotent.
-                if (readersClosed.compareAndSet(false, true)) {
+                if (deleted.compareAndSet(false, true)) {
                     references.forEach(AbstractRefCounted::decRef);
                     decRef();
                 }
@@ -1586,7 +1635,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 if (remainingSearchNodes != null && remainingSearchNodes.isEmpty()
                 // only mark it closed for readers if it is not the newest commit, since we want a new search shard to be able to use at
                 // least that commit (relevant only in case there are no search shards currently).
-                    && notificationGeneration > primaryTermAndGeneration.generation()) {
+                    && notificationGeneration > primaryTermAndGeneration.generation()
+                    && isReferencedByNotificationGeneration(notificationGeneration) == false) {
                     final Set<String> previousSearchNodes = searchNodesRef.getAndUpdate(existing -> {
                         if (existing == null) {
                             // a concurrent thread already updated it to null. that's ok. assume the other thread handles it
@@ -1602,10 +1652,21 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     if (previousSearchNodes != null && previousSearchNodes.isEmpty()) {
                         assert searchNodesRef.get() == null;
                         logger.trace(() -> Strings.format("[%s] closing external readers", shardId));
-                        references.forEach(AbstractRefCounted::decRef);
                         decRef();
                     }
                 }
+            }
+
+            /**
+             * Checks if this blob is referenced by the commit indicated by {@param notificationGeneration}.
+             * This prevents closing the external readers reference for a blob when the {@param notificationGeneration} commit
+             * utilizes files from a prior BCC reference, and no search nodes are available
+             * (e.g., when all replicas are down due to a transient issue).
+             */
+            boolean isReferencedByNotificationGeneration(long notificationGeneration) {
+                var referencedBCCsForNotificationGeneration = resolveReferencedBCCsForCommit(notificationGeneration);
+                assert referencedBCCsForNotificationGeneration != null : notificationGeneration + " " + commitReferencesInfos;
+                return referencedBCCsForNotificationGeneration.contains(primaryTermAndGeneration);
             }
 
             public boolean isExternalReadersClosed() {
@@ -1665,6 +1726,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         return null;
                     });
                 });
+                includedCommitGenerations.forEach(commitPrimaryTermAndGeneration -> {
+                    var commitReferencesInfo = commitReferencesInfos.remove(commitPrimaryTermAndGeneration);
+                    assert commitReferencesInfo != null : commitPrimaryTermAndGeneration + " " + commitReferencesInfos;
+                });
+
                 commitCleaner.deleteCommit(new StaleCompoundCommit(shardId, primaryTermAndGeneration, allocationPrimaryTerm));
                 var removed = primaryTermAndGenToBlobReference.remove(primaryTermAndGeneration);
                 assert removed == this;
@@ -1687,7 +1753,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             public String toString() {
                 final Set<String> searchNodes = searchNodesRef.get();
                 final boolean externalReaderClosed = searchNodes == null;
-                return "Compound commit blob "
+                return "Batched compound commit blob "
                     + primaryTermAndGeneration
                     + " ["
                     + deleted.get()
@@ -1699,6 +1765,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     + ","
                     + refCount()
                     + "]";
+            }
+        }
+
+        record CommitReferencesInfo(PrimaryTermAndGeneration storedInBCC, Set<PrimaryTermAndGeneration> referencedBCCs) {
+            CommitReferencesInfo {
+                assert referencedBCCs.contains(storedInBCC) : referencedBCCs + " do not contain " + storedInBCC;
+            }
+
+            boolean referencesBCC(PrimaryTermAndGeneration bcc) {
+                return referencedBCCs.contains(bcc);
             }
         }
     }
@@ -1778,7 +1854,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         waitForClusterStateProcessed(state.version(), () -> {
             ActionListener.completeWith(listener, () -> {
                 var shardCommitsState = getSafe(shardsCommitsStates, shardId);
-                var compoundCommit = shardCommitsState.registerCommitForUnpromotableRecovery(state, nodeId, commit);
+                var compoundCommit = shardCommitsState.registerCommitForUnpromotableRecovery(nodeId, commit);
                 var proposed = compoundCommit.primaryTermAndGeneration;
                 assert proposed.compareTo(commit) >= 0
                     : Strings.format(
@@ -1802,14 +1878,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
     }
 
-    /**
-     * An idempotent consumer of generations that the index shard no longer need for readers
-     *
-     * @param shardId the shard to get consumer for
-     * @return consumer of generations
-     */
-    public LongConsumer closedLocalReadersForGeneration(ShardId shardId) {
-        return shardsCommitsStates.get(shardId).closedLocalReadersForGeneration();
+    public IndexEngineLocalReaderListener getIndexEngineLocalReaderListenerForShard(ShardId shardId) {
+        return getSafe(shardsCommitsStates, shardId);
+    }
+
+    public CommitBCCResolver getCommitBCCResolverForShard(ShardId shardId) {
+        return getSafe(shardsCommitsStates, shardId);
     }
 
     private void waitForClusterStateProcessed(long clusterStateVersion, Runnable whenDone) {
@@ -1830,5 +1904,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     + "] in recovered commit";
         }
         return true;
+    }
+
+    private boolean allNodesResolveBCCReferencesLocally() {
+        return allNodesResolveBCCReferencesLocally.getAsBoolean();
     }
 }

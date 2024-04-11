@@ -60,6 +60,16 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class MaxMindSupportTests extends ESTestCase {
 
+    private static final Set<String> ANONYMOUS_IP_SUPPORTED_FIELDS = Set.of(
+        "anonymous",
+        "anonymousVpn",
+        "hostingProvider",
+        "publicProxy",
+        "residentialProxy",
+        "torExitNode"
+    );
+    private static final Set<String> ANONYMOUS_IP_UNSUPPORTED_FIELDS = Set.of("ipAddress", "network");
+
     private static final Set<String> ASN_SUPPORTED_FIELDS = Set.of("autonomousSystemNumber", "autonomousSystemOrganization", "network");
     private static final Set<String> ASN_UNSUPPORTED_FIELDS = Set.of("ipAddress");
 
@@ -192,6 +202,8 @@ public class MaxMindSupportTests extends ESTestCase {
     );
 
     private static final Map<Database, Set<String>> TYPE_TO_SUPPORTED_FIELDS_MAP = Map.of(
+        Database.AnonymousIp,
+        ANONYMOUS_IP_SUPPORTED_FIELDS,
         Database.Asn,
         ASN_SUPPORTED_FIELDS,
         Database.City,
@@ -200,6 +212,8 @@ public class MaxMindSupportTests extends ESTestCase {
         COUNTRY_SUPPORTED_FIELDS
     );
     private static final Map<Database, Set<String>> TYPE_TO_UNSUPPORTED_FIELDS_MAP = Map.of(
+        Database.AnonymousIp,
+        ANONYMOUS_IP_UNSUPPORTED_FIELDS,
         Database.Asn,
         ASN_UNSUPPORTED_FIELDS,
         Database.City,
@@ -208,6 +222,8 @@ public class MaxMindSupportTests extends ESTestCase {
         COUNTRY_UNSUPPORTED_FIELDS
     );
     private static final Map<Database, Class<? extends AbstractResponse>> TYPE_TO_MAX_MIND_CLASS = Map.of(
+        Database.AnonymousIp,
+        AnonymousIpResponse.class,
         Database.Asn,
         AsnResponse.class,
         Database.City,
@@ -217,7 +233,6 @@ public class MaxMindSupportTests extends ESTestCase {
     );
 
     private static final Set<Class<? extends AbstractResponse>> KNOWN_UNSUPPORTED_RESPONSE_CLASSES = Set.of(
-        AnonymousIpResponse.class,
         ConnectionTypeResponse.class,
         DomainResponse.class,
         EnterpriseResponse.class,

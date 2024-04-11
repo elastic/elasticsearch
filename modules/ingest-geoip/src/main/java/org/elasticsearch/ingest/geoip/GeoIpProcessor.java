@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.db.Network;
+import com.maxmind.geoip2.model.AnonymousIpResponse;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
 import com.maxmind.geoip2.model.CountryResponse;
@@ -172,6 +173,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             case City -> retrieveCityGeoData(geoIpDatabase, ipAddress);
             case Country -> retrieveCountryGeoData(geoIpDatabase, ipAddress);
             case Asn -> retrieveAsnGeoData(geoIpDatabase, ipAddress);
+            case AnonymousIp -> retrieveAnonymousIpGeoData(geoIpDatabase, ipAddress);
         };
     }
 
@@ -334,6 +336,46 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     if (network != null) {
                         geoData.put("network", network.toString());
                     }
+                }
+            }
+        }
+        return geoData;
+    }
+
+    private Map<String, Object> retrieveAnonymousIpGeoData(GeoIpDatabase geoIpDatabase, InetAddress ipAddress) {
+        AnonymousIpResponse response = geoIpDatabase.getAnonymousIp(ipAddress);
+        if (response == null) {
+            return Map.of();
+        }
+
+        boolean isHostingProvider = response.isHostingProvider();
+        boolean isTorExitNode = response.isTorExitNode();
+        boolean isAnonymousVpn = response.isAnonymousVpn();
+        boolean isAnonymous = response.isAnonymous();
+        boolean isPublicProxy = response.isPublicProxy();
+        boolean isResidentialProxy = response.isResidentialProxy();
+
+        Map<String, Object> geoData = new HashMap<>();
+        for (Property property : this.properties) {
+            switch (property) {
+                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case HOSTING_PROVIDER -> {
+                    geoData.put("hosting_provider", isHostingProvider);
+                }
+                case TOR_EXIT_NODE -> {
+                    geoData.put("tor_exit_node", isTorExitNode);
+                }
+                case ANONYMOUS_VPN -> {
+                    geoData.put("anonymous_vpn", isAnonymousVpn);
+                }
+                case ANONYMOUS -> {
+                    geoData.put("anonymous", isAnonymous);
+                }
+                case PUBLIC_PROXY -> {
+                    geoData.put("public_proxy", isPublicProxy);
+                }
+                case RESIDENTIAL_PROXY -> {
+                    geoData.put("residential_proxy", isResidentialProxy);
                 }
             }
         }

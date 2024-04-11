@@ -14,6 +14,7 @@ import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 
 import java.util.concurrent.Executor;
 
@@ -62,7 +63,7 @@ final class RemoteClusterAwareClient implements RemoteClusterClient {
                 TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(listener, action.getResponseReader(), responseExecutor)
             );
-        }, e -> {
+        }, connectionError -> {
             responseExecutor.execute(new AbstractRunnable() {
                 @Override
                 public boolean isForceExecution() {
@@ -75,8 +76,19 @@ final class RemoteClusterAwareClient implements RemoteClusterClient {
                 }
 
                 @Override
+                public void onRejection(Exception e) {
+                    if (connectionError != e) {
+                        connectionError.addSuppressed(e);
+                    }
+                    // force-execution means we won't be rejected unless we're shutting down
+                    assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
+                    // in this case it's better to complete the handler on the calling thread rather than leaking it
+                    doRun();
+                }
+
+                @Override
                 protected void doRun() {
-                    listener.onFailure(e);
+                    listener.onFailure(connectionError);
                 }
             });
         }));

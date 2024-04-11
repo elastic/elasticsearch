@@ -45,7 +45,9 @@ public class ES813Int8FlatVectorFormat extends KnnVectorsFormat {
      */
     public ES813Int8FlatVectorFormat(Float confidenceInterval) {
         super(NAME);
-        this.format = new Lucene99ScalarQuantizedVectorsFormat(confidenceInterval);
+        int bits = 7;
+        boolean compress = false;
+        this.format = new Lucene99ScalarQuantizedVectorsFormat(confidenceInterval, bits, compress);
     }
 
     @Override

@@ -32,6 +32,7 @@ import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -355,7 +356,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             indicesToExcludeForRemainingRun.addAll(
                 timeSeriesIndicesStillWithinTimeBounds(
                     state.metadata(),
-                    getTargetIndices(dataStream, indicesToExcludeForRemainingRun, state.metadata()::index),
+                    getTargetIndices(dataStream, indicesToExcludeForRemainingRun, state.metadata()::index, false),
                     nowSupplier
                 )
             );
@@ -377,7 +378,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             try {
                 indicesToExcludeForRemainingRun.addAll(
-                    maybeExecuteForceMerge(state, getTargetIndices(dataStream, indicesToExcludeForRemainingRun, state.metadata()::index))
+                    maybeExecuteForceMerge(
+                        state,
+                        getTargetIndices(dataStream, indicesToExcludeForRemainingRun, state.metadata()::index, true)
+                    )
                 );
             } catch (Exception e) {
                 logger.error(
@@ -395,7 +399,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     maybeExecuteDownsampling(
                         state,
                         dataStream,
-                        getTargetIndices(dataStream, indicesToExcludeForRemainingRun, state.metadata()::index)
+                        getTargetIndices(dataStream, indicesToExcludeForRemainingRun, state.metadata()::index, false)
                     )
                 );
             } catch (Exception e) {
@@ -734,15 +738,25 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private static List<Index> getTargetIndices(
         DataStream dataStream,
         Set<Index> indicesToExcludeForRemainingRun,
-        Function<String, IndexMetadata> indexMetadataSupplier
+        Function<String, IndexMetadata> indexMetadataSupplier,
+        boolean withFailureStore
     ) {
-        return dataStream.getIndices()
-            .stream()
-            .filter(
-                index -> dataStream.isIndexManagedByDataStreamLifecycle(index, indexMetadataSupplier)
-                    && indicesToExcludeForRemainingRun.contains(index) == false
-            )
-            .toList();
+        List<Index> targetIndices = new ArrayList<>();
+        for (Index index : dataStream.getIndices()) {
+            if (dataStream.isIndexManagedByDataStreamLifecycle(index, indexMetadataSupplier)
+                && indicesToExcludeForRemainingRun.contains(index) == false) {
+                targetIndices.add(index);
+            }
+        }
+        if (withFailureStore && DataStream.isFailureStoreEnabled() && dataStream.getFailureIndices().isEmpty() == false) {
+            for (Index index : dataStream.getFailureIndices()) {
+                if (dataStream.isIndexManagedByDataStreamLifecycle(index, indexMetadataSupplier)
+                    && indicesToExcludeForRemainingRun.contains(index) == false) {
+                    targetIndices.add(index);
+                }
+            }
+        }
+        return targetIndices;
     }
 
     /**
@@ -777,13 +791,27 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * @return the write index of this data stream before rollover was requested.
      */
     private Set<Index> maybeExecuteRollover(ClusterState state, DataStream dataStream) {
-        Index currentRunWriteIndex = dataStream.getWriteIndex();
+        Set<Index> currentRunWriteIndices = new HashSet<>();
+        currentRunWriteIndices.add(maybeExecuteRollover(state, dataStream, false));
+        if (DataStream.isFailureStoreEnabled() && dataStream.isFailureStore()) {
+            currentRunWriteIndices.add(maybeExecuteRollover(state, dataStream, true));
+        }
+        return currentRunWriteIndices;
+    }
+
+    @Nullable
+    private Index maybeExecuteRollover(ClusterState state, DataStream dataStream, boolean rolloverFailureStore) {
+        Index currentRunWriteIndex = rolloverFailureStore ? dataStream.getFailureStoreWriteIndex() : dataStream.getWriteIndex();
+        if (currentRunWriteIndex == null) {
+            return null;
+        }
         try {
             if (dataStream.isIndexManagedByDataStreamLifecycle(currentRunWriteIndex, state.metadata()::index)) {
                 RolloverRequest rolloverRequest = getDefaultRolloverRequest(
                     rolloverConfiguration,
                     dataStream.getName(),
-                    dataStream.getLifecycle().getEffectiveDataRetention(DataStreamGlobalRetention.getFromClusterState(state))
+                    dataStream.getLifecycle().getEffectiveDataRetention(DataStreamGlobalRetention.getFromClusterState(state)),
+                    rolloverFailureStore
                 );
                 transportActionsDeduplicator.executeOnce(
                     rolloverRequest,
@@ -792,7 +820,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                         currentRunWriteIndex.getName(),
                         errorStore,
                         Strings.format(
-                            "Data stream lifecycle encountered an error trying to rollover data steam [%s]",
+                            "Data stream lifecycle encountered an error trying to rollover[%s] data steam [%s]",
+                            rolloverFailureStore ? " the failure store of the" : "",
                             dataStream.getName()
                         ),
                         signallingErrorRetryInterval
@@ -802,7 +831,12 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             }
         } catch (Exception e) {
             logger.error(
-                () -> String.format(Locale.ROOT, "Data stream lifecycle failed to rollover data stream [%s]", dataStream.getName()),
+                () -> String.format(
+                    Locale.ROOT,
+                    "Data stream lifecycle encountered an error trying to rollover[%s] data steam [%s]",
+                    rolloverFailureStore ? " the failure store of the" : "",
+                    dataStream.getName()
+                ),
                 e
             );
             DataStream latestDataStream = clusterService.state().metadata().dataStreams().get(dataStream.getName());
@@ -814,7 +848,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 }
             }
         }
-        return Set.of(currentRunWriteIndex);
+        return currentRunWriteIndex;
     }
 
     /**
@@ -1345,9 +1379,17 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     static RolloverRequest getDefaultRolloverRequest(
         RolloverConfiguration rolloverConfiguration,
         String dataStream,
-        TimeValue dataRetention
+        TimeValue dataRetention,
+        boolean rolloverFailureStore
     ) {
         RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null).masterNodeTimeout(TimeValue.MAX_VALUE);
+        if (rolloverFailureStore) {
+            rolloverRequest.setIndicesOptions(
+                IndicesOptions.builder(rolloverRequest.indicesOptions())
+                    .failureStoreOptions(new IndicesOptions.FailureStoreOptions(false, true))
+                    .build()
+            );
+        }
         rolloverRequest.setConditions(rolloverConfiguration.resolveRolloverConditions(dataRetention));
         return rolloverRequest;
     }

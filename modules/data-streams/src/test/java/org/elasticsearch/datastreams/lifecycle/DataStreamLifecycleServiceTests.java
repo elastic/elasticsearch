@@ -991,7 +991,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             RolloverRequest rolloverRequest = DataStreamLifecycleService.getDefaultRolloverRequest(
                 new RolloverConfiguration(randomConcreteRolloverConditions, Set.of("max_age")),
                 "my-data-stream",
-                null
+                null,
+                false
             );
             assertThat(rolloverRequest.getRolloverTarget(), equalTo("my-data-stream"));
             assertThat(
@@ -1005,7 +1006,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             RolloverRequest rolloverRequestWithRetention = DataStreamLifecycleService.getDefaultRolloverRequest(
                 new RolloverConfiguration(randomConcreteRolloverConditions, Set.of("max_age")),
                 "my-data-stream",
-                TimeValue.timeValueDays(3)
+                TimeValue.timeValueDays(3),
+                false
             );
             assertThat(
                 rolloverRequestWithRetention.getConditions(),
@@ -1022,14 +1024,16 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             RolloverRequest rolloverRequest = DataStreamLifecycleService.getDefaultRolloverRequest(
                 new RolloverConfiguration(randomConcreteRolloverConditions),
                 "my-data-stream",
-                null
+                null,
+                false
             );
             assertThat(rolloverRequest.getRolloverTarget(), equalTo("my-data-stream"));
             assertThat(rolloverRequest.getConditions(), equalTo(randomConcreteRolloverConditions));
             RolloverRequest rolloverRequestWithRetention = DataStreamLifecycleService.getDefaultRolloverRequest(
                 new RolloverConfiguration(randomConcreteRolloverConditions),
                 "my-data-stream",
-                TimeValue.timeValueDays(1)
+                TimeValue.timeValueDays(1),
+                false
             );
             assertThat(rolloverRequestWithRetention.getConditions(), equalTo(randomConcreteRolloverConditions));
         }

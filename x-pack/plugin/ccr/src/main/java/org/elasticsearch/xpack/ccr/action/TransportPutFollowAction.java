@@ -297,6 +297,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
         ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request();
         resumeFollowRequest.setFollowerIndex(request.getFollowerIndex());
         resumeFollowRequest.setParameters(new FollowParameters(parameters));
+        resumeFollowRequest.masterNodeTimeout(request.masterNodeTimeout());
         clientWithHeaders.execute(
             ResumeFollowAction.INSTANCE,
             resumeFollowRequest,
@@ -340,6 +341,9 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 remoteDataStream.getLifecycle(),
                 remoteDataStream.isFailureStore(),
                 remoteDataStream.getFailureIndices(),
+                // Replicated data streams can't be rolled over, so having the `rolloverOnWrite` flag set to `true` wouldn't make sense
+                // (and potentially even break things).
+                false,
                 remoteDataStream.getAutoShardingEvent()
             );
         } else {
@@ -394,6 +398,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 localDataStream.getLifecycle(),
                 localDataStream.isFailureStore(),
                 localDataStream.getFailureIndices(),
+                localDataStream.rolloverOnWrite(),
                 localDataStream.getAutoShardingEvent()
             );
         }

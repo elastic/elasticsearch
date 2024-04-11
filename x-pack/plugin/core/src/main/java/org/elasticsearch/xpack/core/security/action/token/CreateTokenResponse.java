@@ -25,14 +25,12 @@ import java.util.Objects;
  */
 public final class CreateTokenResponse extends ActionResponse implements ToXContentObject {
 
-    private String tokenString;
-    private TimeValue expiresIn;
-    private String scope;
-    private String refreshToken;
-    private String kerberosAuthenticationResponseToken;
+    private final String tokenString;
+    private final TimeValue expiresIn;
+    private final String scope;
+    private final String refreshToken;
+    private final String kerberosAuthenticationResponseToken;
     private Authentication authentication;
-
-    CreateTokenResponse() {}
 
     public CreateTokenResponse(StreamInput in) throws IOException {
         super(in);

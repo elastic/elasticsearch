@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -29,13 +30,16 @@ import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.external.action.cohere.CohereActionCreator;
+import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 
 import java.util.List;
 import java.util.Map;
@@ -130,6 +134,7 @@ public class CohereService extends SenderService {
                 secretSettings,
                 context
             );
+            case RERANK -> new CohereRerankModel(inferenceEntityId, taskType, NAME, serviceSettings, taskSettings, secretSettings, context);
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
     }
@@ -173,9 +178,11 @@ public class CohereService extends SenderService {
     @Override
     public void doInfer(
         Model model,
+        String query,
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
+        TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         if (model instanceof CohereModel == false) {
@@ -187,23 +194,46 @@ public class CohereService extends SenderService {
         var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
 
         var action = cohereModel.accept(actionCreator, taskSettings, inputType);
-        action.execute(input, listener);
+        action.execute(new QueryAndDocsInputs(query, input), timeout, listener);
+    }
+
+    @Override
+    public void doInfer(
+        Model model,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        if (model instanceof CohereModel == false) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+
+        CohereModel cohereModel = (CohereModel) model;
+        var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
+
+        var action = cohereModel.accept(actionCreator, taskSettings, inputType);
+        action.execute(new DocumentsOnlyInput(input), timeout, listener);
     }
 
     @Override
     protected void doChunkedInfer(
         Model model,
+        @Nullable String query,
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
+        TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         ActionListener<InferenceServiceResults> inferListener = listener.delegateFailureAndWrap(
             (delegate, response) -> delegate.onResponse(translateToChunkedResults(input, response))
         );
 
-        doInfer(model, input, taskSettings, inputType, inferListener);
+        doInfer(model, input, taskSettings, inputType, timeout, inferListener);
     }
 
     private static List<ChunkedInferenceServiceResults> translateToChunkedResults(

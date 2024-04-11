@@ -34,7 +34,7 @@ public class FlushStats implements Writeable, ToXContentFragment {
         total = in.readVLong();
         totalTimeInMillis = in.readVLong();
         periodic = in.readVLong();
-        totalTimeExcludingWaitingOnLockInMillis = in.getTransportVersion().onOrAfter(TransportVersions.ACTUAL_FLUSH_STATS)
+        totalTimeExcludingWaitingOnLockInMillis = in.getTransportVersion().onOrAfter(TransportVersions.TRACK_FLUSH_TIME_EXCLUDING_WAITING_ON_LOCKS)
             ? in.readVLong()
             : 0L;
     }
@@ -132,7 +132,7 @@ public class FlushStats implements Writeable, ToXContentFragment {
         out.writeVLong(total);
         out.writeVLong(totalTimeInMillis);
         out.writeVLong(periodic);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ACTUAL_FLUSH_STATS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.TRACK_FLUSH_TIME_EXCLUDING_WAITING_ON_LOCKS)) {
             out.writeVLong(totalTimeExcludingWaitingOnLockInMillis);
         }
     }

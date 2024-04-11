@@ -51,7 +51,7 @@ PUT hugging-face-embeddings
   }
 }
 --------------------------------------------------
-<1> The name of the field to contain the generated tokens. It must be refrenced
+<1> The name of the field to contain the generated tokens. It must be referenced
 in the {infer} pipeline configuration in the next step.
 <2> The field to contain the tokens is a `dense_vector` field.
 <3> The output dimensions of the model. Find this value in the

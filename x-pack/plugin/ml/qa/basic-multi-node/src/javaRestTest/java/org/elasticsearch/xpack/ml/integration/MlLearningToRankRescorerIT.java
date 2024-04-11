@@ -413,7 +413,7 @@ public class MlLearningToRankRescorerIT extends ESRestTestCase {
         assertThat(
             response.toString(),
             (List<Double>) XContentMapValues.extractValue("hits.hits._score", response),
-            contains(20.0, 20.0, 1.0, 1.0, 1.0)
+            contains(10.0, 10.0, 1.0, 1.0, 1.0)
         );
     }
 

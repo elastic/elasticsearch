@@ -13,5 +13,5 @@ public class CohereServiceFields {
     /**
      * Taken from https://docs.cohere.com/reference/embed
      */
-    public static final int EMBEDDING_MAX_BATCH_SIZE = 96;
+    static final int EMBEDDING_MAX_BATCH_SIZE = 96;
 }

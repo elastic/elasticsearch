@@ -17,7 +17,7 @@ import java.util.Locale;
  * Breaks text into smaller strings or chunks on Word boundaries.
  * Whitespace is preserved and included in the start of the
  * following chunk not the end of the chunk. If the chunk ends
- * on a punctuation mark the punctuation is including in the
+ * on a punctuation mark the punctuation is included in the
  * next chunk.
  *
  * The overlap value must be > (chunkSize /2) to avoid the
@@ -66,72 +66,46 @@ public class WordBoundaryChunker {
 
         // This position in the chunk is where the next overlapping chunk will start
         final int chunkSizeLessOverlap = chunkSize - overlap;
-        int wordInChunkCount = 0;
+        // includes the count of words from the overlap portion in the previous chunk
+        int wordsInChunkCountIncludingOverlap = 0;
         int nextWindowStart = 0;
+        int windowStart = 0;
+        int wordsSinceStartWindowWasMarked = 0;
 
         wordIterator.setText(input);
         int boundary = wordIterator.next();
 
-        // The first chunk is 0..chunksize. The following chunks
-        // incorporate overlap and calculate the start offset differently
         while (boundary != BreakIterator.DONE) {
             if (wordIterator.getRuleStatus() != BreakIterator.WORD_NONE) {
-                wordInChunkCount++;
+                wordsInChunkCountIncludingOverlap++;
+                wordsSinceStartWindowWasMarked++;
 
-                if (wordInChunkCount == chunkSizeLessOverlap) {
-                    nextWindowStart = boundary;
-                }
-                if (wordInChunkCount >= chunkSize) {
-                    chunks.add(input.substring(0, boundary));
-                    break;
-                }
-            }
-            boundary = wordIterator.next();
-        }
-
-        if (boundary == BreakIterator.DONE && wordInChunkCount < chunkSize) {
-            chunks.add(input);
-            return chunks;
-        }
-
-        wordInChunkCount = 0;
-        int windowStart = nextWindowStart;
-
-        // this check is explicitly for the case where overlap == chunkSize / 2
-        // meaning the next window start occurs now before any new words are seen
-        if (chunkSizeLessOverlap - overlap == 0) {
-            nextWindowStart = boundary;
-        }
-
-        boundary = wordIterator.next();
-
-        // Split the remaining text into chunkSize strings.
-        // Due to overlap the next chunk starting point is inside
-        // the current chunk and must be track
-        while (boundary != BreakIterator.DONE) {
-            if (wordIterator.getRuleStatus() != BreakIterator.WORD_NONE) {
-                wordInChunkCount++;
-
-                if (wordInChunkCount == chunkSizeLessOverlap - overlap) {
-                    nextWindowStart = boundary;
-                }
-                if (wordInChunkCount == chunkSizeLessOverlap) {
+                if (wordsInChunkCountIncludingOverlap >= chunkSize) {
                     chunks.add(input.substring(windowStart, boundary));
-                    wordInChunkCount = 0;
-                    windowStart = nextWindowStart;
+                    wordsInChunkCountIncludingOverlap = overlap;
 
-                    if (chunkSizeLessOverlap - overlap == 0) {
+                    if (overlap == 0) {
                         nextWindowStart = boundary;
                     }
+
+                    windowStart = nextWindowStart;
+                }
+
+                if (wordsSinceStartWindowWasMarked == chunkSizeLessOverlap) {
+                    nextWindowStart = boundary;
+                    wordsSinceStartWindowWasMarked = 0;
                 }
             }
-
             boundary = wordIterator.next();
         }
 
-        if (wordInChunkCount > 0) {
+        // Get the last chunk that was shorter than the required chunk size
+        // if it ends on a boundary than the count should equal overlap in which case
+        // we can ignore it, unless this is the first chunk in which case we want to add it
+        if (wordsInChunkCountIncludingOverlap > overlap || chunks.isEmpty()) {
             chunks.add(input.substring(windowStart));
         }
+
         return chunks;
     }
 }

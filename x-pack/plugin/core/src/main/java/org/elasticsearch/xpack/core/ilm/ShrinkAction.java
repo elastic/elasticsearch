@@ -13,9 +13,11 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeNumberOfShardsCalcula
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -27,7 +29,7 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -61,6 +63,10 @@ public class ShrinkAction implements LifecycleAction {
         );
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_WRITE_AFTER_SHRINK);
     }
+
+    public static final Settings CLEAR_WRITE_BLOCK_SETTINGS = Settings.builder()
+        .put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), (String) null)
+        .build();
 
     private Integer numberOfShards;
     private ByteSizeValue maxPrimaryShardSize;
@@ -172,12 +178,13 @@ public class ShrinkAction implements LifecycleAction {
         StepKey isShrunkIndexKey = new StepKey(phase, NAME, ShrunkenIndexCheckStep.NAME);
         StepKey replaceDataStreamIndexKey = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
         StepKey deleteIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
-        StepKey allowWriteKey = new StepKey(phase, NAME, AllowWriteStep.NAME);
+        StepKey allowWriteKey = new StepKey(phase, NAME, UpdateSettingsStep.NAME);
+        StepKey lastOrNextStep = allowWriteAfterShrink ? allowWriteKey : nextStepKey;
 
         AsyncBranchingStep conditionalSkipShrinkStep = new AsyncBranchingStep(
             preShrinkBranchingKey,
             checkNotWriteIndex,
-            allowWriteKey,
+            lastOrNextStep,
             (indexMetadata, clusterState, listener) -> {
                 if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
                     logger.warn(
@@ -292,10 +299,9 @@ public class ShrinkAction implements LifecycleAction {
             ShrinkIndexNameSupplier::getShrinkIndexName
         );
         DeleteStep deleteSourceIndexStep = new DeleteStep(deleteIndexKey, isShrunkIndexKey, client);
-        ShrunkenIndexCheckStep waitOnShrinkTakeover = new ShrunkenIndexCheckStep(isShrunkIndexKey, allowWriteKey);
-        AllowWriteStep allowWriteAfterShrinkStep = new AllowWriteStep(allowWriteKey, nextStepKey, client, allowWriteAfterShrink);
+        ShrunkenIndexCheckStep waitOnShrinkTakeover = new ShrunkenIndexCheckStep(isShrunkIndexKey, lastOrNextStep);
 
-        return Arrays.asList(
+        List<Step> steps = new ArrayList<>(List.of(
             conditionalSkipShrinkStep,
             checkNotWriteIndexStep,
             waitForNoFollowersStep,
@@ -313,9 +319,15 @@ public class ShrinkAction implements LifecycleAction {
             aliasSwapAndDelete,
             waitOnShrinkTakeover,
             replaceDataStreamBackingIndex,
-            deleteSourceIndexStep,
-            allowWriteAfterShrinkStep
-        );
+            deleteSourceIndexStep
+        ));
+
+        if (allowWriteAfterShrink) {
+            UpdateSettingsStep allowWriteAfterShrinkStep =
+                new UpdateSettingsStep(allowWriteKey, nextStepKey, client, CLEAR_WRITE_BLOCK_SETTINGS);
+            steps.add(allowWriteAfterShrinkStep);
+        }
+        return steps;
     }
 
     @Override

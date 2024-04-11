@@ -199,8 +199,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
     ) throws InterruptedException {
         String phase = randomAlphaOfLengthBetween(1, 10);
         List<Step> steps = action.toSteps(client, phase, nextStepKey);
-        AsyncBranchingStep step = ((AsyncBranchingStep) steps.get(0));
-        Step finalStep = steps.get(steps.size() - 1);
+        AsyncBranchingStep branchStep = ((AsyncBranchingStep) steps.get(0));
 
         LifecyclePolicy policy = new LifecyclePolicy(
             lifecycleName,
@@ -226,11 +225,11 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
                         indexMetadataBuilder.putCustom(
                             LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
                             LifecycleExecutionState.builder()
-                                .setPhase(step.getKey().phase())
+                                .setPhase(branchStep.getKey().phase())
                                 .setPhaseTime(0L)
-                                .setAction(step.getKey().action())
+                                .setAction(branchStep.getKey().action())
                                 .setActionTime(0L)
-                                .setStep(step.getKey().name())
+                                .setStep(branchStep.getKey().name())
                                 .setStepTime(0L)
                                 .build()
                                 .asMap()
@@ -241,7 +240,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         setUpIndicesStatsRequestMock(indexName, withError);
         CountDownLatch countDownLatch = new CountDownLatch(1);
         AtomicBoolean failurePropagated = new AtomicBoolean(false);
-        step.performAction(state.metadata().index(indexName), state, null, new ActionListener<>() {
+        branchStep.performAction(state.metadata().index(indexName), state, null, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
                 countDownLatch.countDown();
@@ -259,14 +258,19 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
             }
         });
         assertTrue(countDownLatch.await(5, TimeUnit.SECONDS));
+
         if (withError) {
             assertTrue(failurePropagated.get());
         } else if (shouldSkip) {
-            assertThat(step.getNextStepKey(), equalTo(finalStep.getKey()));
+            if (action.getAllowWriteAfterShrink()) {
+                Step lastStep = steps.get(steps.size() - 1);
+                assertThat(branchStep.getNextStepKey(), equalTo(lastStep.getKey()));
+            } else {
+                assertThat(branchStep.getNextStepKey(), equalTo(nextStepKey));
+            }
         } else {
-            assertThat(step.getNextStepKey(), equalTo(steps.get(1).getKey()));
+            assertThat(branchStep.getNextStepKey(), equalTo(steps.get(1).getKey()));
         }
-        assertThat(finalStep.getNextStepKey(), equalTo(nextStepKey));
     }
 
     public void testToSteps() {
@@ -278,7 +282,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
             randomAlphaOfLengthBetween(1, 10)
         );
         List<Step> steps = action.toSteps(client, phase, nextStepKey);
-        assertThat(steps.size(), equalTo(19));
+        assertThat(steps.size(), equalTo(action.getAllowWriteAfterShrink() ? 19 : 18));
         StepKey expectedFirstKey = new StepKey(phase, ShrinkAction.NAME, ShrinkAction.CONDITIONAL_SKIP_SHRINK_STEP);
         StepKey expectedSecondKey = new StepKey(phase, ShrinkAction.NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey expectedThirdKey = new StepKey(phase, ShrinkAction.NAME, WaitForNoFollowersStep.NAME);
@@ -297,13 +301,16 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         StepKey expectedSixteenKey = new StepKey(phase, ShrinkAction.NAME, ShrunkenIndexCheckStep.NAME);
         StepKey expectedSeventeenKey = new StepKey(phase, ShrinkAction.NAME, ReplaceDataStreamBackingIndexStep.NAME);
         StepKey expectedEighteenKey = new StepKey(phase, ShrinkAction.NAME, DeleteStep.NAME);
-        StepKey expectedNineteenthKey = new StepKey(phase, ShrinkAction.NAME, AllowWriteStep.NAME);
+        StepKey expectedNineteenthKey = new StepKey(phase, ShrinkAction.NAME, UpdateSettingsStep.NAME);
 
         assertTrue(steps.get(0) instanceof AsyncBranchingStep);
         assertThat(steps.get(0).getKey(), equalTo(expectedFirstKey));
         expectThrows(IllegalStateException.class, () -> steps.get(0).getNextStepKey());
         assertThat(((AsyncBranchingStep) steps.get(0)).getNextStepKeyOnFalse(), equalTo(expectedSecondKey));
-        assertThat(((AsyncBranchingStep) steps.get(0)).getNextStepKeyOnTrue(), equalTo(expectedNineteenthKey));
+        assertThat(
+            ((AsyncBranchingStep) steps.get(0)).getNextStepKeyOnTrue(),
+            equalTo(action.getAllowWriteAfterShrink() ? expectedNineteenthKey : nextStepKey)
+        );
 
         assertTrue(steps.get(1) instanceof CheckNotDataStreamWriteIndexStep);
         assertThat(steps.get(1).getKey(), equalTo(expectedSecondKey));
@@ -374,7 +381,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
 
         assertTrue(steps.get(15) instanceof ShrunkenIndexCheckStep);
         assertThat(steps.get(15).getKey(), equalTo(expectedSixteenKey));
-        assertThat(steps.get(15).getNextStepKey(), equalTo(expectedNineteenthKey));
+        assertThat(steps.get(15).getNextStepKey(), equalTo(action.getAllowWriteAfterShrink() ? expectedNineteenthKey : nextStepKey));
 
         assertTrue(steps.get(16) instanceof ReplaceDataStreamBackingIndexStep);
         assertThat(steps.get(16).getKey(), equalTo(expectedSeventeenKey));
@@ -384,9 +391,11 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         assertThat(steps.get(17).getKey(), equalTo(expectedEighteenKey));
         assertThat(steps.get(17).getNextStepKey(), equalTo(expectedSixteenKey));
 
-        assertTrue(steps.get(18) instanceof AllowWriteStep);
-        assertThat(steps.get(18).getKey(), equalTo(expectedNineteenthKey));
-        assertThat(steps.get(18).getNextStepKey(), equalTo(nextStepKey));
+        if (action.getAllowWriteAfterShrink()) {
+            assertTrue(steps.get(18) instanceof UpdateSettingsStep);
+            assertThat(steps.get(18).getKey(), equalTo(expectedNineteenthKey));
+            assertThat(steps.get(18).getNextStepKey(), equalTo(nextStepKey));
+        }
     }
 
     private void setUpIndicesStatsRequestMock(String index, boolean withError) {

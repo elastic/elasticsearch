@@ -163,7 +163,14 @@ public class EmbeddingRequestChunker {
             if (inferenceServiceResults instanceof TextEmbeddingResults textEmbeddingResults) { // TODO byte embeddings
                 int numRequests = positions.stream().mapToInt(SubBatchPositionsAndCount::embeddingCount).sum();
                 if (numRequests != textEmbeddingResults.embeddings().size()) {
-                    onFailure(new ElasticsearchStatusException("What", RestStatus.INTERNAL_SERVER_ERROR)); // TODO try to return some
+                    onFailure(
+                        new ElasticsearchStatusException(
+                            "Error the number of embedding responses [{}] does not equal the number of " + "requests [{}]",
+                            RestStatus.BAD_REQUEST,
+                            textEmbeddingResults.embeddings().size(),
+                            numRequests
+                        )
+                    );
                     return;
                 }
 

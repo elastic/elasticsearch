@@ -11,10 +11,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
@@ -225,6 +227,35 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
             assertThat(chunkedFloatResult.chunks(), hasSize(1));
             assertEquals("3rd small", chunkedFloatResult.chunks().get(0).matchedText());
         }
+    }
+
+    public void testListenerErrorsWithWrongNumberOfResponses() {
+        List<String> inputs = List.of("1st small", "2nd small", "3rd small");
+
+        var failureMessage = new AtomicReference<String>();
+        var listener = new ActionListener<List<ChunkedInferenceServiceResults>>() {
+
+            @Override
+            public void onResponse(List<ChunkedInferenceServiceResults> chunkedInferenceServiceResults) {
+                assertThat(chunkedInferenceServiceResults.get(0), instanceOf(ErrorChunkedInferenceResults.class));
+                var error = (ErrorChunkedInferenceResults) chunkedInferenceServiceResults.get(0);
+                failureMessage.set(error.getException().getMessage());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("expected a response with an error");
+            }
+        };
+
+        var batches = new EmbeddingRequestChunker(inputs, 10, 100, 0).batchRequestsWithListeners(listener);
+        assertThat(batches, hasSize(1));
+
+        var embeddings = new ArrayList<TextEmbeddingResults.Embedding>();
+        embeddings.add(new TextEmbeddingResults.Embedding(List.of(randomFloat())));
+        embeddings.add(new TextEmbeddingResults.Embedding(List.of(randomFloat())));
+        batches.get(0).listener().onResponse(new TextEmbeddingResults(embeddings));
+        assertEquals("Error the number of embedding responses [2] does not equal the number of requests [3]", failureMessage.get());
     }
 
     private ChunkedResultsListener testListener() {

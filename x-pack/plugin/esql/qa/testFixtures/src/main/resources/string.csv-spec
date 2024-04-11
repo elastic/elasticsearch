@@ -70,6 +70,29 @@ emp_no:integer | last_name:keyword | gender:keyword | f_l:boolean
 10010 | Piveteau  | null | null
 ;
 
+stringCast
+required_feature: esql.string_literal_auto_casting
+
+ROW a = 1 | eval ss = substring("abcd", "2"), l = left("abcd", "2"), r = right("abcd", "2");
+
+a:integer | ss:keyword | l:keyword | r:keyword
+1         | bcd        | ab        | cd
+;
+
+stringCastEmp
+required_feature: esql.string_literal_auto_casting
+
+from employees
+| eval ss = substring(first_name, "2")
+| sort emp_no
+| keep emp_no, first_name, ss
+| limit 2;
+
+emp_no: integer | first_name:keyword | ss:keyword
+10001           | Georgi             | eorgi
+10002           | Bezalel            | ezalel
+;
+
 substring
 from employees | where emp_no <= 10010 | eval f_l = substring(last_name, 3) | keep emp_no, last_name, f_l;
 ignoreOrder:true
@@ -746,6 +769,16 @@ emp_no:integer | job_positions:keyword                                          
 10003          | null                                                                   | null                                                                   | null
 10004          | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead] | [Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead] | [Tech Lead, Support Engineer, Reporting Analyst, Head Human Resources]
 10005          | null                                                                   | null                                                                   | null
+;
+
+mvSliceCast
+required_feature: esql.string_literal_auto_casting
+
+ROW a = ["1", "2", "3", "4"]
+| eval a1 = mv_slice(a, "0", "1");
+
+a:keyword            | a1:keyword
+["1", "2", "3", "4"] | ["1", "2"]
 ;
 
 mvSliceEmp

@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import static org.apache.lucene.geo.GeoEncodingUtils.decodeLatitude;
 import static org.apache.lucene.geo.GeoEncodingUtils.decodeLongitude;
@@ -143,7 +144,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected final void doTest() throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
-        Map<String, Object> answer = runEsql(builder.query(testCase.query), testCase.expectedWarnings(false));
+        Map<String, Object> answer = runEsql(
+            builder.query(testCase.query),
+            testCase.expectedWarnings(false),
+            testCase.expectedWarningsRegex()
+        );
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 
         var metadata = answer.get("columns");
@@ -160,12 +165,16 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         assertResults(expectedColumnsWithValues, actualColumns, actualValues, testCase.ignoreOrder, logger);
     }
 
-    private Map<String, Object> runEsql(RequestObjectBuilder requestObject, List<String> expectedWarnings) throws IOException {
+    private Map<String, Object> runEsql(
+        RequestObjectBuilder requestObject,
+        List<String> expectedWarnings,
+        List<Pattern> expectedWarningsRegex
+    ) throws IOException {
         if (mode == Mode.ASYNC) {
             assert supportsAsync();
-            return RestEsqlTestCase.runEsqlAsync(requestObject, expectedWarnings);
+            return RestEsqlTestCase.runEsqlAsync(requestObject, expectedWarnings, expectedWarningsRegex);
         } else {
-            return RestEsqlTestCase.runEsqlSync(requestObject, expectedWarnings);
+            return RestEsqlTestCase.runEsqlSync(requestObject, expectedWarnings, expectedWarningsRegex);
         }
     }
 

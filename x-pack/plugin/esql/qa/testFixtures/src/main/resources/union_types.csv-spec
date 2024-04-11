@@ -44,6 +44,15 @@ count:long  |  client_ip:ip
 1           |  172.21.2.162
 ;
 
+multiIndexIpStringFail
+FROM sample_data* METADATA _index
+| KEEP _index, @timestamp, client_ip, event_duration, message
+| SORT _index ASC, @timestamp DESC
+;
+
+_index:keyword  | @timestamp:date           |  client_ip:ip  |  event_duration:long  |  message:keyword
+;
+
 multiIndexIpString
 FROM sample_data* METADATA _index
 | EVAL client_ip = TO_IP(client_ip)

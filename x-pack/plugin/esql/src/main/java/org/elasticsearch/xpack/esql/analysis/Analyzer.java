@@ -127,7 +127,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveFunctions(),
             new ResolveRefs(),
             new ImplicitCasting(),
-            new ResolveUnionTypes()
+            new ResolveUnionTypes()  // Must be after ResolveRefs, so union types can be found
         );
         var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new PromoteStringsInDateComparisons());
         rules = List.of(resolution, finish);
@@ -1043,6 +1043,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private FieldAttribute fieldAttribute(Source source, String name, EsField resolvedField, NameId id) {
             return new FieldAttribute(source, null, name, resolvedField, null, Nullability.TRUE, id, false);
+        }
+
+        private static Attribute checkUnresolved(FieldAttribute fa) {
+            var field = fa.field();
+            if (field instanceof InvalidMappedField imf) {
+                String unresolvedMessage = "Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage();
+                return new UnresolvedAttribute(fa.source(), fa.name(), fa.qualifier(), fa.id(), unresolvedMessage, null);
+            }
+            return fa;
         }
     }
 }

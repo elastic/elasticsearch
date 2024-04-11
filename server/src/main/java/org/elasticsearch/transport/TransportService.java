@@ -855,19 +855,30 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     private static void handleSendRequestException(TransportResponseHandler<?> handler, TransportException transportException) {
-        handler.executor().execute(new ForkingResponseHandlerRunnable(handler, transportException) {
-            @Override
-            protected void doRun() {
-                try {
-                    handler.handleException(transportException);
-                } catch (Exception innerException) {
-                    // should not happen
-                    innerException.addSuppressed(transportException);
-                    logger.error("unexpected exception from handler.handleException", innerException);
-                    assert false : innerException;
-                }
+        if (handler.executor() == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+            try {
+                handler.handleException(transportException);
+            } catch (Exception innerException) {
+                // should not happen
+                innerException.addSuppressed(transportException);
+                logger.error("unexpected exception from handler.handleException", innerException);
+                assert false : innerException;
             }
-        });
+        } else {
+            handler.executor().execute(new ForkingResponseHandlerRunnable(handler, transportException) {
+                @Override
+                protected void doRun() {
+                    try {
+                        handler.handleException(transportException);
+                    } catch (Exception innerException) {
+                        // should not happen
+                        innerException.addSuppressed(transportException);
+                        logger.error("unexpected exception from handler.handleException", innerException);
+                        assert false : innerException;
+                    }
+                }
+            });
+        }
     }
 
     /**

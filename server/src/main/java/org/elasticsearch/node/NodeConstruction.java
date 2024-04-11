@@ -68,6 +68,7 @@ import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.DynamicContextDataProvider;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
@@ -162,6 +163,7 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentParsingProviderPlugin;
+import org.elasticsearch.plugins.internal.LoggingDataProvider;
 import org.elasticsearch.plugins.internal.ReloadAwarePlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.plugins.internal.SettingsExtension;
@@ -248,6 +250,7 @@ class NodeConstruction {
             NodeConstruction constructor = new NodeConstruction(closeables);
 
             Settings settings = constructor.createEnvironment(initialEnvironment, serviceProvider);
+            constructor.loadLoggingDataProviders();
             TelemetryProvider telemetryProvider = constructor.createTelemetryProvider(settings);
             ThreadPool threadPool = constructor.createThreadPool(settings, telemetryProvider.getMeterRegistry());
             SettingsModule settingsModule = constructor.validateSettings(initialEnvironment.settings(), settings, threadPool);
@@ -458,6 +461,10 @@ class NodeConstruction {
         modules.bindToInstance(Environment.class, environment);
 
         return settings;
+    }
+
+    private void loadLoggingDataProviders() {
+        DynamicContextDataProvider.setDataProviders(pluginsService.loadServiceProviders(LoggingDataProvider.class));
     }
 
     private TelemetryProvider createTelemetryProvider(Settings settings) {

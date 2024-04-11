@@ -101,7 +101,6 @@ import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
@@ -1579,19 +1578,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private static RemoteTransportException wrapRemoteClusterFailure(String clusterAlias, Exception e) {
         return new RemoteTransportException("error while communicating with remote cluster [" + clusterAlias + "]", e);
-    }
-
-    static Map<String, OriginalIndices> getIndicesFromSearchContexts(SearchContextId searchContext, IndicesOptions indicesOptions) {
-        final Map<String, Set<String>> indices = new HashMap<>();
-        for (Map.Entry<ShardId, SearchContextIdForNode> entry : searchContext.shards().entrySet()) {
-            String clusterAlias = entry.getValue().getClusterAlias() == null
-                ? RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY
-                : entry.getValue().getClusterAlias();
-            indices.computeIfAbsent(clusterAlias, k -> new HashSet<>()).add(entry.getKey().getIndexName());
-        }
-        return indices.entrySet()
-            .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> new OriginalIndices(e.getValue().toArray(String[]::new), indicesOptions)));
     }
 
     static List<SearchShardIterator> getLocalLocalShardsIteratorFromPointInTime(

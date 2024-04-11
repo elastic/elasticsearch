@@ -1311,7 +1311,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             flushMetric.count(),
             periodicFlushMetric.count(),
             TimeUnit.NANOSECONDS.toMillis(flushMetric.sum()),
-            getEngineOrNull() != null ? getEngineOrNull().getFlushTimeExcludingWaitingInMillis() : 0L
+            getEngineOrNull() != null ? getEngineOrNull().getFlushTimeExcludingWaitingOnLockInMillis() : 0L
         );
     }
 

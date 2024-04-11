@@ -24,7 +24,7 @@ public class FlushStats implements Writeable, ToXContentFragment {
     private long total;
     private long periodic;
     private long totalTimeInMillis;
-    private long totalTimeExcludingWaitingInMillis;
+    private long totalTimeExcludingWaitingOnLockInMillis;
 
     public FlushStats() {
 
@@ -34,21 +34,23 @@ public class FlushStats implements Writeable, ToXContentFragment {
         total = in.readVLong();
         totalTimeInMillis = in.readVLong();
         periodic = in.readVLong();
-        totalTimeExcludingWaitingInMillis = in.getTransportVersion().onOrAfter(TransportVersions.ACTUAL_FLUSH_STATS) ? in.readVLong() : 0L;
+        totalTimeExcludingWaitingOnLockInMillis = in.getTransportVersion().onOrAfter(TransportVersions.ACTUAL_FLUSH_STATS)
+            ? in.readVLong()
+            : 0L;
     }
 
-    public FlushStats(long total, long periodic, long totalTimeInMillis, long totalTimeExcludingWaitingInMillis) {
+    public FlushStats(long total, long periodic, long totalTimeInMillis, long totalTimeExcludingWaitingOnLockInMillis) {
         this.total = total;
         this.periodic = periodic;
         this.totalTimeInMillis = totalTimeInMillis;
-        this.totalTimeExcludingWaitingInMillis = totalTimeExcludingWaitingInMillis;
+        this.totalTimeExcludingWaitingOnLockInMillis = totalTimeExcludingWaitingOnLockInMillis;
     }
 
     public void add(long total, long periodic, long totalTimeInMillis, long totalTimeWithoutWaitingInMillis) {
         this.total += total;
         this.periodic += periodic;
         this.totalTimeInMillis += totalTimeInMillis;
-        this.totalTimeExcludingWaitingInMillis += totalTimeWithoutWaitingInMillis;
+        this.totalTimeExcludingWaitingOnLockInMillis += totalTimeWithoutWaitingInMillis;
     }
 
     public void add(FlushStats flushStats) {
@@ -62,7 +64,7 @@ public class FlushStats implements Writeable, ToXContentFragment {
         this.total += flushStats.total;
         this.periodic += flushStats.periodic;
         this.totalTimeInMillis += flushStats.totalTimeInMillis;
-        this.totalTimeExcludingWaitingInMillis += flushStats.totalTimeExcludingWaitingInMillis;
+        this.totalTimeExcludingWaitingOnLockInMillis += flushStats.totalTimeExcludingWaitingOnLockInMillis;
     }
 
     /**
@@ -96,8 +98,8 @@ public class FlushStats implements Writeable, ToXContentFragment {
     /**
      * The total time flushes have been executed excluding waiting time on locks (in milliseconds).
      */
-    public long getTotalTimeExcludingWaitingMillis() {
-        return totalTimeExcludingWaitingInMillis;
+    public long getTotalTimeExcludingWaitingOnLockMillis() {
+        return totalTimeExcludingWaitingOnLockInMillis;
     }
 
     @Override
@@ -107,9 +109,9 @@ public class FlushStats implements Writeable, ToXContentFragment {
         builder.field(Fields.PERIODIC, periodic);
         builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, getTotalTime());
         builder.humanReadableField(
-            Fields.TOTAL_TIME_EXCLUDING_WAITING_IN_MILLIS,
+            Fields.TOTAL_TIME_EXCLUDING_WAITING_ON_LOCK_IN_MILLIS,
             Fields.TOTAL_TIME_EXCLUDING_WAITING,
-            new TimeValue(getTotalTimeExcludingWaitingMillis())
+            new TimeValue(getTotalTimeExcludingWaitingOnLockMillis())
         );
         builder.endObject();
         return builder;
@@ -122,7 +124,7 @@ public class FlushStats implements Writeable, ToXContentFragment {
         static final String TOTAL_TIME = "total_time";
         static final String TOTAL_TIME_IN_MILLIS = "total_time_in_millis";
         static final String TOTAL_TIME_EXCLUDING_WAITING = "total_time_excluding_waiting";
-        static final String TOTAL_TIME_EXCLUDING_WAITING_IN_MILLIS = "total_time_excluding_waiting_in_millis";
+        static final String TOTAL_TIME_EXCLUDING_WAITING_ON_LOCK_IN_MILLIS = "total_time_excluding_waiting_on_lock_in_millis";
     }
 
     @Override
@@ -131,7 +133,7 @@ public class FlushStats implements Writeable, ToXContentFragment {
         out.writeVLong(totalTimeInMillis);
         out.writeVLong(periodic);
         if (out.getTransportVersion().onOrAfter(TransportVersions.ACTUAL_FLUSH_STATS)) {
-            out.writeVLong(totalTimeExcludingWaitingInMillis);
+            out.writeVLong(totalTimeExcludingWaitingOnLockInMillis);
         }
     }
 
@@ -143,11 +145,11 @@ public class FlushStats implements Writeable, ToXContentFragment {
         return total == that.total
             && totalTimeInMillis == that.totalTimeInMillis
             && periodic == that.periodic
-            && totalTimeExcludingWaitingInMillis == that.totalTimeExcludingWaitingInMillis;
+            && totalTimeExcludingWaitingOnLockInMillis == that.totalTimeExcludingWaitingOnLockInMillis;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(total, totalTimeInMillis, periodic, totalTimeExcludingWaitingInMillis);
+        return Objects.hash(total, totalTimeInMillis, periodic, totalTimeExcludingWaitingOnLockInMillis);
     }
 }

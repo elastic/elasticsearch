@@ -664,11 +664,13 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.flush.total_excluding_waiting.time",
+                "es.flush.total_excluding_waiting_on_lock.time",
                 "The total time flushes have been executed excluding waiting time on locks",
                 "milliseconds",
                 () -> new LongWithAttributes(
-                    stats.getOrRefresh() != null ? stats.getOrRefresh().getIndices().getFlush().getTotalTimeExcludingWaitingMillis() : 0L
+                    stats.getOrRefresh() != null
+                        ? stats.getOrRefresh().getIndices().getFlush().getTotalTimeExcludingWaitingOnLockMillis()
+                        : 0L
                 )
             )
         );

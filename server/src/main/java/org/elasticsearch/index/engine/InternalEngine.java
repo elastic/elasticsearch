@@ -179,7 +179,7 @@ public class InternalEngine extends Engine {
     private final CounterMetric numDocDeletes = new CounterMetric();
     private final CounterMetric numDocAppends = new CounterMetric();
     private final CounterMetric numDocUpdates = new CounterMetric();
-    private final MeanMetric flushTimeExcludingWaiting = new MeanMetric();
+    private final MeanMetric flushTimeExcludingWaitingOnLock = new MeanMetric();
 
     private final NumericDocValuesField softDeletesField = Lucene.newSoftDeletesField();
     private final SoftDeletesPolicy softDeletesPolicy;
@@ -2251,7 +2251,7 @@ public class InternalEngine extends Engine {
             listener.onFailure(e);
             return;
         } finally {
-            flushTimeExcludingWaiting.inc(System.nanoTime() - startTime);
+            flushTimeExcludingWaitingOnLock.inc(System.nanoTime() - startTime);
             flushLock.unlock();
             logger.trace("released flush lock");
         }
@@ -3073,8 +3073,8 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public long getFlushTimeExcludingWaitingInMillis() {
-        return TimeUnit.NANOSECONDS.toMillis(flushTimeExcludingWaiting.sum());
+    public long getFlushTimeExcludingWaitingOnLockInMillis() {
+        return TimeUnit.NANOSECONDS.toMillis(flushTimeExcludingWaitingOnLock.sum());
     }
 
     @Override

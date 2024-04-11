@@ -37,7 +37,7 @@ non-NLP models, use the <<ml-df-trained-models-apis>>.
 The perform {infer} API enables you to use {ml} models to perform specific tasks
 on data that you provide as an input. The API returns a response with the
 results of the tasks. The {infer} endpoint you use can perform one specific task
-that has been defined when the endpoint was created with the 
+that has been defined when the endpoint was created with the
 <<put-inference-api>>.
 
 
@@ -54,6 +54,13 @@ The unique identifier of the {infer} endpoint.
 (Optional, string)
 The type of {infer} task that the model performs.
 
+[[post-inference-api-query-params]]
+== {api-query-parms-title}
+
+`timeout`::
+(Optional, timeout)
+Controls the amount of time to wait for the inference to complete. Defaults to 30
+seconds.
 
 [discrete]
 [[post-inference-api-request-body]]

@@ -317,4 +317,32 @@ public class MlAssignmentNotifierTests extends ESTestCase {
         // as it doesn't make any difference whether they're assigned or not and autoscaling will ignore them
         assertThat(itemsToReport, empty());
     }
+
+    public void testFindLongTimeUnassignedTasks_WithNullState() {
+        MlAssignmentNotifier notifier = new MlAssignmentNotifier(
+            anomalyDetectionAuditor,
+            dataFrameAnalyticsAuditor,
+            threadPool,
+            clusterService
+        );
+        var now = Instant.now();
+        var sevenHoursAgo = now.minus(Duration.ofHours(7));
+        var eightHoursAgo = now.minus(Duration.ofHours(8));
+
+        {
+            // run once with valid state to add unassigned job to the history
+            PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+            addJobTask("job1", null, JobState.OPENED, tasksBuilder);
+            List<String> itemsToReport = notifier.findLongTimeUnassignedTasks(eightHoursAgo, tasksBuilder.build());
+            // Nothing reported because unassigned jobs only just detected
+            assertThat(itemsToReport, empty());
+        }
+        {
+            PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+            addJobTask("job1", null, null, tasksBuilder); // this time the job has no state
+            // one hour later the job would be detected as unassigned if not for the missing state
+            List<String> itemsToReport = notifier.findLongTimeUnassignedTasks(sevenHoursAgo, tasksBuilder.build());
+            assertThat(itemsToReport, empty());
+        }
+    }
 }

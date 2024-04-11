@@ -99,13 +99,24 @@ public class Count extends AggregateFunction implements EnclosedAgg, ToAggregato
         var s = source();
         var field = field();
 
-        // COUNT(const) is equivalent to MV_COUNT(const)*COUNT(*) if const is not null; otherwise COUNT(const) == 0.
-        return field.foldable()
-            ? new Mul(
+        if (field.foldable()) {
+            if (field instanceof Literal l) {
+                if (l.value() != null && (l.value() instanceof List<?>) == false) {
+                    // TODO: Normalize COUNT(*), COUNT(), COUNT("foobar"), COUNT(1) as COUNT(*).
+                    // Does not apply to COUNT([1,2,3])
+                    // return new Count(s, new Literal(s, StringUtils.WILDCARD, DataTypes.KEYWORD));
+                    return null;
+                }
+            }
+
+            // COUNT(const) is equivalent to MV_COUNT(const)*COUNT(*) if const is not null; otherwise COUNT(const) == 0.
+            return new Mul(
                 s,
                 new Coalesce(s, new MvCount(s, field), List.of(new Literal(s, 0, DataTypes.INTEGER))),
                 new Count(s, new Literal(s, StringUtils.WILDCARD, DataTypes.KEYWORD))
-            )
-            : null;
+            );
+        }
+
+        return null;
     }
 }

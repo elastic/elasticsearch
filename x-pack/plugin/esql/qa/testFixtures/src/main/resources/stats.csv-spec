@@ -1467,7 +1467,7 @@ s1:l | s2point1:l | s_mv:l | s_null:l | rows:l
 
 countOfConstGrouped#[skip:-8.13.99,reason:supported in 8.14]
 FROM employees
-| STATS s2point1 = count(2.1), s_mv = count([-1, 0, 3]), s_null = count(null), rows = count(*) by languages
+| STATS s2point1 = count("two point one"), s_mv = count([-1, 0, 3]), s_null = count(null), rows = count(*) by languages
 | SORT languages
 ;
 

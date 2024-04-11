@@ -44,7 +44,7 @@ import static org.elasticsearch.vec.VectorSimilarityType.EUCLIDEAN;
 @Warmup(iterations = 3, time = 3)
 @Measurement(iterations = 5, time = 3)
 @BenchmarkMode(Mode.Throughput)
-@OutputTimeUnit(TimeUnit.NANOSECONDS)
+@OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Thread)
 /**
  * Benchmark that compares various scalar quantized vector similarity function
@@ -57,7 +57,7 @@ public class VectorScorerBenchmark {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
-    @Param({ "1024" })
+    @Param({ "96", "768", "1024" })
     int dims;
     int size = 2; // there are only two vectors to compare
 

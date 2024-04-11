@@ -44,16 +44,16 @@ public class IndexInputUtilsTests extends ESTestCase {
                         assertThat(segArray[0].byteSize(), equalTo((long) size));
 
                         // Out of Bounds - cannot retrieve the segment
-                        assertNull(IndexInputUtils.segmentSlice(input, 0, size + 1));
-                        assertNull(IndexInputUtils.segmentSlice(input, size - 1, 2));
+                        assertNull(segmentSlice(input, 0, size + 1));
+                        assertNull(segmentSlice(input, size - 1, 2));
 
-                        var fullSeg = IndexInputUtils.segmentSlice(input, 0, size);
+                        var fullSeg = segmentSlice(input, 0, size);
                         assertNotNull(fullSeg);
                         for (int i = 0; i < size; i++) {
                             assertThat(fullSeg.get(ValueLayout.JAVA_BYTE, i), equalTo((byte) i));
                         }
 
-                        var partialSeg = IndexInputUtils.segmentSlice(input, 1, size - 1);
+                        var partialSeg = segmentSlice(input, 1, size - 1);
                         assertNotNull(partialSeg);
                         for (int i = 0; i < size - 2; i++) {
                             assertThat(partialSeg.get(ValueLayout.JAVA_BYTE, i), equalTo((byte) (i + 1)));
@@ -66,7 +66,7 @@ public class IndexInputUtilsTests extends ESTestCase {
                         assertThat(sliceSgArray.length, equalTo(1));
                         assertThat(sliceSgArray[0].byteSize(), equalTo((long) size - 2));
 
-                        var fullSeg = IndexInputUtils.segmentSlice(slice, 0, size - 2);
+                        var fullSeg = segmentSlice(slice, 0, size - 2);
                         assertNotNull(fullSeg);
                         for (int i = 0; i < size - 2; i++) {
                             assertThat(fullSeg.get(ValueLayout.JAVA_BYTE, i), equalTo((byte) (i + 1)));
@@ -81,30 +81,68 @@ public class IndexInputUtilsTests extends ESTestCase {
         try (Directory dir = new MMapDirectory(createTempDir(getTestName()), 32L)) {
             for (int times = 0; times < TIMES; times++) {
                 String fileName = getTestName() + times;
-                int size = randomIntBetween(65, 250);
+                int size = randomIntBetween(65, 1511);
                 int expectedNumSegs = size / 32 + 1;
                 try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
                     byte[] ba = new byte[size];
+                    IntStream.range(0, size).forEach(i -> ba[i] = (byte) i);
                     out.writeBytes(ba, 0, ba.length);
                 }
                 try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
                     var input = IndexInputUtils.unwrapAndCheckInputOrNull(in);
                     assertNotNull(input);
-                    var segArray = IndexInputUtils.segmentArray(input);
-                    assertThat(segArray.length, equalTo(expectedNumSegs));
-                    assertThat(Arrays.stream(segArray).mapToLong(MemorySegment::byteSize).sum(), equalTo((long) size));
+
+                    var fullSegArray = IndexInputUtils.segmentArray(input);
+                    assertThat(fullSegArray.length, equalTo(expectedNumSegs));
+                    assertThat(Arrays.stream(fullSegArray).mapToLong(MemorySegment::byteSize).sum(), equalTo((long) size));
                     assertThat(IndexInputUtils.offset(input), equalTo(0L));
 
-                    var slice = input.slice("partial slice", 1, size - 1);
-                    assertThat(IndexInputUtils.offset(slice), equalTo(1L));
+                    var partialSlice = input.slice("partial slice", 1, size - 1);
+                    assertThat(IndexInputUtils.offset(partialSlice), equalTo(1L));
+                    var msseg1 = segmentSlice(partialSlice, 0, 24);
+                    for (int i = 0; i < 24; i++) {
+                        assertThat(msseg1.get(ValueLayout.JAVA_BYTE, i), equalTo((byte) (i + 1)));
+                    }
 
-                    var slice2 = input.slice("full segment slice", 32, size - 32);
-                    var segArray2 = IndexInputUtils.segmentArray(slice2);
+                    var fullMSSlice = input.slice("start at full MemorySegment slice", 32, size - 32);
+                    var segArray2 = IndexInputUtils.segmentArray(fullMSSlice);
                     assertThat(Arrays.stream(segArray2).mapToLong(MemorySegment::byteSize).sum(), equalTo((long) size - 32));
-                    assertThat(IndexInputUtils.offset(slice2), equalTo(0L));
+                    assertThat(IndexInputUtils.offset(fullMSSlice), equalTo(0L));
+                    var msseg2 = segmentSlice(fullMSSlice, 0, 32);
+                    for (int i = 0; i < 32; i++) {
+                        assertThat(msseg2.get(ValueLayout.JAVA_BYTE, i), equalTo((byte) (i + 32)));
+                    }
+
+                    // slice of a slice
+                    var sliceSlice = partialSlice.slice("slice of a slice", 1, partialSlice.length() - 1);
+                    var segSliceSliceArray = IndexInputUtils.segmentArray(sliceSlice);
+                    assertThat(Arrays.stream(segSliceSliceArray).mapToLong(MemorySegment::byteSize).sum(), equalTo((long) size));
+                    assertThat(IndexInputUtils.offset(sliceSlice), equalTo(2L));
+                    var msseg3 = segmentSlice(sliceSlice, 0, 28);
+                    for (int i = 0; i < 28; i++) {
+                        assertThat(msseg3.get(ValueLayout.JAVA_BYTE, i), equalTo((byte) (i + 2)));
+                    }
+
                 }
             }
         }
+    }
+
+    static MemorySegment segmentSlice(IndexInput input, long pos, int length) {
+        if (IndexInputUtils.MS_MSINDEX_CLS.isAssignableFrom(input.getClass())) {
+            pos += IndexInputUtils.offset(input);
+        }
+        final int si = (int) (pos >> IndexInputUtils.chunkSizePower(input));
+        final MemorySegment seg = IndexInputUtils.segmentArray(input)[si];
+        long offset = pos & IndexInputUtils.chunkSizeMask(input);
+        if (checkIndex(offset + length, seg.byteSize() + 1)) {
+            return seg.asSlice(offset, length);
+        }
+        return null;
+    }
+
+    static boolean checkIndex(long index, long length) {
+        return index >= 0 && index < length;
     }
 
     static final int TIMES = 100; // a loop iteration times

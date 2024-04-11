@@ -15,8 +15,6 @@ import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 
-import static org.elasticsearch.vec.internal.IndexInputUtils.segmentSlice;
-
 // Scalar Quantized vectors are inherently bytes.
 public final class Euclidean extends AbstractScalarQuantizedVectorScorer {
 
@@ -39,8 +37,8 @@ public final class Euclidean extends AbstractScalarQuantizedVectorScorer {
         int firstByteOffset = firstOrd * (length + Float.BYTES);
         int secondByteOffset = secondOrd * (length + Float.BYTES);
 
-        MemorySegment firstSeg = segmentSlice(input, firstByteOffset, length);
-        MemorySegment secondSeg = segmentSlice(input, secondByteOffset, length);
+        MemorySegment firstSeg = segmentSlice(firstByteOffset, length);
+        MemorySegment secondSeg = segmentSlice(secondByteOffset, length);
 
         if (firstSeg != null && secondSeg != null) {
             int squareDistance = squareDistance(firstSeg, secondSeg, length);

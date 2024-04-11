@@ -28,6 +28,12 @@ abstract sealed class AbstractScalarQuantizedVectorScorer implements VectorScore
     protected final int maxOrd;
     protected final float scoreCorrectionConstant;
     protected final IndexInput input;
+    protected final MemorySegment segment;
+    protected final MemorySegment[] segments;
+    protected final long offset;
+    protected final int chunkSizePower;
+    protected final long chunkSizeMask;
+
     private final ScalarQuantizedVectorSimilarity fallbackScorer;
 
     protected AbstractScalarQuantizedVectorScorer(
@@ -42,6 +48,17 @@ abstract sealed class AbstractScalarQuantizedVectorScorer implements VectorScore
         this.scoreCorrectionConstant = scoreCorrectionConstant;
         this.input = input;
         this.fallbackScorer = fallbackScorer;
+
+        this.segments = IndexInputUtils.segmentArray(input);
+        if (segments.length == 1) {
+            segment = segments[0];
+            offset = 0L;
+        } else {
+            segment = null;
+            offset = IndexInputUtils.offset(input);
+        }
+        this.chunkSizePower = IndexInputUtils.chunkSizePower(input);
+        this.chunkSizeMask = IndexInputUtils.chunkSizeMask(input);
     }
 
     @Override
@@ -74,11 +91,34 @@ abstract sealed class AbstractScalarQuantizedVectorScorer implements VectorScore
         return fallbackScorer.score(a, aOffsetValue, b, bOffsetValue);
     }
 
+    protected final MemorySegment segmentSlice(long pos, int length) {
+        if (segment != null) {
+            // single
+            if (checkIndex(pos, segment.byteSize() + 1)) {
+                return segment.asSlice(pos, length);
+            }
+        } else {
+            // multi
+            pos = pos + this.offset;
+            final int si = (int) (pos >> chunkSizePower);
+            final MemorySegment seg = segments[si];
+            long offset = pos & chunkSizeMask;
+            if (checkIndex(offset + length, seg.byteSize() + 1)) {
+                return seg.asSlice(offset, length);
+            }
+        }
+        return null;
+    }
+
+    static boolean checkIndex(long index, long length) {
+        return index >= 0 && index < length;
+    }
+
     static final MethodHandle DOT_PRODUCT = DISTANCE_FUNCS.dotProductHandle();
     static final MethodHandle SQUARE_DISTANCE = DISTANCE_FUNCS.squareDistanceHandle();
 
     static int dotProduct(MemorySegment a, MemorySegment b, int length) {
-        assert assertSegments(a, b, length);
+        // assert assertSegments(a, b, length);
         try {
             return (int) DOT_PRODUCT.invokeExact(a, b, length);
         } catch (Throwable e) {
@@ -93,7 +133,7 @@ abstract sealed class AbstractScalarQuantizedVectorScorer implements VectorScore
     }
 
     static int squareDistance(MemorySegment a, MemorySegment b, int length) {
-        assert assertSegments(a, b, length);
+        // assert assertSegments(a, b, length);
         try {
             return (int) SQUARE_DISTANCE.invokeExact(a, b, length);
         } catch (Throwable e) {

@@ -51,23 +51,6 @@ public final class IndexInputUtils {
 
     private IndexInputUtils() {}
 
-    static MemorySegment segmentSlice(IndexInput input, long pos, int length) {
-        if (MS_MSINDEX_CLS.isAssignableFrom(input.getClass())) {
-            pos += offset(input);
-        }
-        final int si = (int) (pos >> chunkSizePower(input));
-        final MemorySegment seg = segmentArray(input)[si];
-        long offset = pos & chunkSizeMask(input);
-        if (checkIndex(offset + length, seg.byteSize() + 1)) {
-            return seg.asSlice(offset, length);
-        }
-        return null;
-    }
-
-    static boolean checkIndex(long index, long length) {
-        return index >= 0 && index < length;
-    }
-
     /** Unwraps and returns the input if it's a MemorySegment backed input. Otherwise, null. */
     public static IndexInput unwrapAndCheckInputOrNull(IndexInput input) {
         input = FilterIndexInput.unwrap(input);

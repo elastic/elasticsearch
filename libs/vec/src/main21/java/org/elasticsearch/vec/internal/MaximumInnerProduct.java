@@ -15,8 +15,6 @@ import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 
-import static org.elasticsearch.vec.internal.IndexInputUtils.segmentSlice;
-
 // Scalar Quantized vectors are inherently bytes.
 public final class MaximumInnerProduct extends AbstractScalarQuantizedVectorScorer {
 
@@ -39,11 +37,11 @@ public final class MaximumInnerProduct extends AbstractScalarQuantizedVectorScor
         int firstByteOffset = firstOrd * (length + Float.BYTES);
         int secondByteOffset = secondOrd * (length + Float.BYTES);
 
-        MemorySegment firstSeg = segmentSlice(input, firstByteOffset, length);
+        MemorySegment firstSeg = segmentSlice(firstByteOffset, length);
         input.seek(firstByteOffset + length);
         float firstOffset = Float.intBitsToFloat(input.readInt());
 
-        MemorySegment secondSeg = segmentSlice(input, secondByteOffset, length);
+        MemorySegment secondSeg = segmentSlice(secondByteOffset, length);
         input.seek(secondByteOffset + length);
         float secondOffset = Float.intBitsToFloat(input.readInt());
 

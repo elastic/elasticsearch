@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 public abstract class AbstractRoleMapperClearRealmCache implements UserRoleMapper {
 
     private static final Logger logger = LogManager.getLogger(AbstractRoleMapperClearRealmCache.class);
-    private final List<String> realmNamesToRefresh = new CopyOnWriteArrayList<>();
+    private final List<String> realmNamesToClearCaches = new CopyOnWriteArrayList<>();
     private final List<Runnable> localRealmCacheInvalidators = new CopyOnWriteArrayList<>();
 
     /**
@@ -37,16 +37,16 @@ public abstract class AbstractRoleMapperClearRealmCache implements UserRoleMappe
      */
     @Override
     public void refreshRealmOnChange(CachingRealm realm) {
-        realmNamesToRefresh.add(realm.name());
+        realmNamesToClearCaches.add(realm.name());
         localRealmCacheInvalidators.add(realm::expireAll);
     }
 
     protected void clearRealmCachesOnAllNodes(Client client, ActionListener<Void> listener) {
-        if (realmNamesToRefresh.isEmpty()) {
+        if (realmNamesToClearCaches.isEmpty()) {
             listener.onResponse(null);
             return;
         }
-        final String[] realmNames = this.realmNamesToRefresh.toArray(Strings.EMPTY_ARRAY);
+        final String[] realmNames = this.realmNamesToClearCaches.toArray(Strings.EMPTY_ARRAY);
         executeAsyncWithOrigin(
             client,
             SECURITY_ORIGIN,

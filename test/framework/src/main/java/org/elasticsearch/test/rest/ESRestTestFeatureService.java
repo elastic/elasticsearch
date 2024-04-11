@@ -81,12 +81,14 @@ class ESRestTestFeatureService implements TestFeatureService {
         Matcher matcher = VERSION_FEATURE_PATTERN.matcher(featureId);
         if (matcher.matches()) {
             Version extractedVersion = Version.fromString(matcher.group(1));
-            // FIXME consolidate with FeatureData
             if (Version.V_8_14_0.before(extractedVersion)) {
+                // As of version 8.14.0 REST tests have been migrated to use features only.
+                // For migration purposes we provide a synthetic version feature gte_vX.Y.Z for any version at or before 8.14.0.
                 throw new IllegalArgumentException(
                     Strings.format(
                         "Synthetic version features are only available before [%s] for migration purposes! "
-                            + "Please add a cluster feature to the appropriate FeatureSpecification.",
+                            + "Please add a cluster feature to an appropriate FeatureSpecification; features only necessary for "
+                            + "testing can be supplied via ESRestTestCase#createAdditionalFeatureSpecifications()",
                         Version.V_8_14_0
                     )
                 );

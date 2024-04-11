@@ -77,7 +77,9 @@ public final class CsvSpecReader {
                     if (testCase.expectedWarnings.isEmpty() == false) {
                         throw new IllegalArgumentException("Cannot mix warnings and regex warnings in CSV SPEC files: [" + line + "]");
                     }
-                    testCase.expectedWarningsRegex.add(Pattern.compile(".*" + line.substring("warningregex:".length()).trim() + ".*"));
+                    String regex = line.substring("warningregex:".length()).trim();
+                    testCase.expectedWarningsRegexString.add(regex);
+                    testCase.expectedWarningsRegex.add(warningRegexToPattern(regex));
                 } else if (lower.startsWith("ignoreorder:")) {
                     testCase.ignoreOrder = Boolean.parseBoolean(line.substring("ignoreOrder:".length()).trim());
                 } else if (line.startsWith(";")) {
@@ -97,11 +99,16 @@ public final class CsvSpecReader {
         }
     }
 
+    private static Pattern warningRegexToPattern(String regex) {
+        return Pattern.compile(".*" + regex + ".*");
+    }
+
     public static class CsvTestCase {
         public String query;
         public String earlySchema;
         public String expectedResults;
         private final List<String> expectedWarnings = new ArrayList<>();
+        private final List<String> expectedWarningsRegexString = new ArrayList<>();
         private final List<Pattern> expectedWarningsRegex = new ArrayList<>();
         public boolean ignoreOrder;
         public List<String> requiredFeatures = List.of();
@@ -146,6 +153,9 @@ public final class CsvSpecReader {
          */
         public void adjustExpectedWarnings(Function<String, String> updater) {
             expectedWarnings.replaceAll(updater::apply);
+            expectedWarningsRegexString.replaceAll(updater::apply);
+            expectedWarningsRegex.clear();
+            expectedWarningsRegex.addAll(expectedWarningsRegexString.stream().map(CsvSpecReader::warningRegexToPattern).toList());
         }
 
         public List<Pattern> expectedWarningsRegex() {

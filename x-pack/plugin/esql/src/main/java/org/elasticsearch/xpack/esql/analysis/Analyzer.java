@@ -984,6 +984,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     );
                 });
             }
+            if (plan instanceof EsRelation esRelation) {
+                // If there was no Eval that resolved multi-type fields, the EsRelation will still contain unresolved MultiTypeEsFields
+                plan = esRelation.transformExpressionsOnly(FieldAttribute.class, ResolveUnionTypes::checkUnresolved);
+            }
             return plan;
         }
 

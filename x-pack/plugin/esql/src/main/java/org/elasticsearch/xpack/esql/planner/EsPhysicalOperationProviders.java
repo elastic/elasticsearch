@@ -451,6 +451,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             return new RowStrideReader() {
                 @Override
                 public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+                    // TODO: Support union-types
                     reader.read(docId, storedFields, builder);
                 }
 

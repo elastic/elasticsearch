@@ -60,13 +60,19 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     public void testScale() {
+        testIndexStateScale("open");
+        testIndexStateScale("close");
+    }
+
+    private void testIndexStateScale(String indexState) {
         ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(
             List.of(Tuple.tuple("test", between(1, 10))),
             List.of(),
             System.currentTimeMillis(),
             Settings.EMPTY,
             0,
-            randomBoolean()
+            randomBoolean(),
+            indexState
         );
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
         IntStream.range(0, between(1, 10)).forEach(i -> ReactiveStorageDeciderServiceTests.addNode(stateBuilder));
@@ -172,7 +178,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             System.currentTimeMillis(),
             Settings.EMPTY,
             between(0, 4),
-            randomBoolean()
+            randomBoolean(),
+            null
         );
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
         stateBuilder.routingTable(
@@ -238,7 +245,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             System.currentTimeMillis(),
             Settings.EMPTY,
             shardCopies - 1,
-            randomBoolean()
+            randomBoolean(),
+            null
         );
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
         stateBuilder.routingTable(

@@ -467,10 +467,10 @@ dfs profile for search with dfs_query_then_fetch:
   - is_false: profile.shards.0.dfs
 ---
 composite_id_parsed:
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason: node_id, shard_id, index and cluster fields added in 8.10.0
-      features: "contains"
+      test_runner_features: "contains"
 
   - do:
       search:

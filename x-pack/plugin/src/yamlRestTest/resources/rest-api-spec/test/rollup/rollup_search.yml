@@ -150,8 +150,8 @@ setup:
 
 ---
 "Basic Search with rest_total_hits_as_int":
-  - skip:
-      version: " - 6.5.99"
+  - requires:
+      cluster_features: ["gte_v6.6.0"]
       reason: rest_total_hits_as_int was introduced in 6.6.0
   - do:
       rollup.rollup_search:
@@ -910,10 +910,10 @@ setup:
 
 ---
 "Obsolete Timezone":
-  - skip:
-        version: " - 7.1.99"
-        reason: "IANA TZ deprecations in 7.2"
-        features: "warnings"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
+      reason: "IANA TZ deprecations in 7.2"
+      test_runner_features: "warnings"
   - do:
       indices.create:
         index: tz
@@ -1055,9 +1055,9 @@ setup:
 
 ---
 "Obsolete BWC Timezone":
-  - skip:
-        version: " - 7.1.99"
-        reason: "IANA TZ deprecations in 7.2"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
+      reason: "IANA TZ deprecations in 7.2"
   - do:
       indices.create:
         index: tz_rollup

@@ -368,7 +368,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
          * Applies the {@link FieldInferenceResponseAccumulator} to the provided {@link BulkItemRequest}.
          * If the response contains failures, the bulk item request is marked as failed for the downstream action.
          * Otherwise, the source of the request is augmented with the field inference results under the
-         * {@link SemanticTextFieldMapper#NAME} field.
+         * {@link SemanticTextField#INFERENCE_FIELD} field.
          */
         private void applyInferenceResponses(BulkItemRequest item, FieldInferenceResponseAccumulator response) {
             if (response.failures().isEmpty() == false) {

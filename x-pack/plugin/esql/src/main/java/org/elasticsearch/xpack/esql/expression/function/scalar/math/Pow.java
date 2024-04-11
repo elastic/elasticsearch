@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -34,11 +35,26 @@ public class Pow extends EsqlScalarFunction implements OptionalArgument {
     private final Expression base, exponent;
     private final DataType dataType;
 
-    @FunctionInfo(returnType = "double", description = "Returns the value of a base raised to the power of an exponent.")
+    @FunctionInfo(
+        returnType = "double",
+        description = "Returns the value of `base` raised to the power of `exponent`.",
+        note = "It is still possible to overflow a double result here; in that case, null will be returned.",
+        examples = { @Example(file = "math", tag = "powDI"), @Example(file = "math", tag = "powID-sqrt", description = """
+            The exponent can be a fraction, which is similar to performing a root.
+            For example, the exponent of `0.5` will give the square root of the base:"""), }
+    )
     public Pow(
         Source source,
-        @Param(name = "base", type = { "double", "integer", "long", "unsigned_long" }) Expression base,
-        @Param(name = "exponent", type = { "double", "integer", "long", "unsigned_long" }) Expression exponent
+        @Param(
+            name = "base",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "Numeric expression for the base. If `null`, the function returns `null`."
+        ) Expression base,
+        @Param(
+            name = "exponent",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "Numeric expression for the exponent. If `null`, the function returns `null`."
+        ) Expression exponent
     ) {
         super(source, Arrays.asList(base, exponent));
         this.base = base;

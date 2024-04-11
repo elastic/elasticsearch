@@ -340,7 +340,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                         valuesSourceType,
                         (dv, n) -> {
                             throw new UnsupportedOperationException();
-                        }
+                        },
+                        isIndexed()
                     ).build(cache, breakerService);
                     return new ScaledFloatIndexFieldData(scaledValues, scalingFactor, ScaledFloatDocValuesField::new);
                 };
@@ -606,6 +607,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
              * into a double the right way afterwords.
              */
             return true;
+        }
+
+        @Override
+        protected boolean isIndexed() {
+            return false; // We don't know how to take advantage of the index with half floats anyway
         }
 
         @Override

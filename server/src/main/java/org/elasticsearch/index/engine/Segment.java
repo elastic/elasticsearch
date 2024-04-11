@@ -39,7 +39,7 @@ public class Segment implements Writeable {
     public Boolean compound = null;
     public String mergeId;
     public Sort segmentSort;
-    public Map<String, Object> attributes;
+    public Map<String, String> attributes;
 
     public Segment(StreamInput in) throws IOException {
         name = in.readString();
@@ -128,7 +128,7 @@ public class Segment implements Writeable {
      * Return segment attributes.
      * @see org.apache.lucene.index.SegmentInfo#getAttributes()
      */
-    public Map<String, Object> getAttributes() {
+    public Map<String, String> getAttributes() {
         return attributes;
     }
 
@@ -168,7 +168,7 @@ public class Segment implements Writeable {
         boolean hasAttributes = attributes != null;
         out.writeBoolean(hasAttributes);
         if (hasAttributes) {
-            out.writeMap(attributes, StreamOutput::writeGenericValue);
+            out.writeMap(attributes, StreamOutput::writeString);
         }
     }
 

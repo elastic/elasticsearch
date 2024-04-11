@@ -1048,8 +1048,7 @@ public abstract class Engine implements Closeable {
                         logger.trace(() -> "failed to get size for [" + info.info.name + "]", e);
                     }
                     segment.segmentSort = info.info.getIndexSort();
-                    segment.attributes = new HashMap<>();
-                    segment.attributes.putAll(info.info.getAttributes());
+                    segment.attributes = info.info.getAttributes();
                     segments.put(info.info.name, segment);
                 } else {
                     segment.committed = true;
@@ -1080,7 +1079,6 @@ public abstract class Engine implements Closeable {
         segment.attributes = new HashMap<>();
         segment.attributes.putAll(info.info.getAttributes());
         Codec codec = info.info.getCodec();
-        segment.attributes.put("codec", codec.getName());
         Map<String, List<String>> knnFormats = null;
         if (codec instanceof PerFieldMapperCodec) {
             try {
@@ -1108,7 +1106,9 @@ public abstract class Engine implements Closeable {
             }
         }
         if (knnFormats != null) {
-            segment.attributes.put("knn_formats", knnFormats);
+            for (Map.Entry<String, List<String>> entry : knnFormats.entrySet()) {
+                segment.attributes.put(entry.getKey(), entry.getValue().toString());
+            }
         }
         // TODO: add more fine grained mem stats values to per segment info here
         segments.put(info.info.name, segment);

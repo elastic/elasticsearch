@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.VersionId;
 import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 
 import java.util.Arrays;
 import java.util.Comparator;

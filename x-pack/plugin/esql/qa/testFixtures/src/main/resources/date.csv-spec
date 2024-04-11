@@ -510,6 +510,17 @@ date1:date          |         date2:date          |    dd_ms:integer
 // end::docsDateDiff-result[]
 ;
 
+evalDateDiffString
+required_feature: esql.string_literal_auto_casting
+
+ROW date1 = TO_DATETIME("2023-12-02T11:00:00.000Z")
+| EVAL dd_ms = DATE_DIFF("microseconds", date1, "2023-12-02T11:00:00.001Z")
+;
+
+date1:date               | dd_ms:integer
+2023-12-02T11:00:00.000Z | 1000
+;
+
 evalDateParseWithSimpleDate
 row a = "2023-02-01" | eval b = date_parse("yyyy-MM-dd", a) | keep b;
 
@@ -1085,6 +1096,17 @@ date:date                 | year:long
 // end::dateExtract-result[]
 ;
 
+dateExtractString
+required_feature: esql.string_literal_auto_casting
+
+ROW date = DATE_PARSE("yyyy-MM-dd", "2022-05-06")
+| EVAL year = DATE_EXTRACT("year", "2022-05-06")
+;
+
+date:date                 | year:long
+2022-05-06T00:00:00.000Z  | 2022
+;
+
 docsDateExtractBusinessHours
 // tag::docsDateExtractBusinessHours[]
 FROM sample_data
@@ -1115,6 +1137,17 @@ Anneke         |Preusig        |1989-06-02T00:00:00.000Z|1989-06-02
 // end::docsDateFormat-result[]
 ;
 
+evalDateFormatString
+required_feature: esql.string_literal_auto_casting
+
+ROW a = 1
+| EVAL df = DATE_FORMAT("YYYY-MM-dd", "1989-06-02T00:00:00.000Z")
+;
+
+a:integer | df:keyword
+1         | 1989-06-02
+;
+
 docsDateTrunc
 // tag::docsDateTrunc[]
 FROM employees
@@ -1131,6 +1164,17 @@ Alejandro      |McAlpine       |1991-06-26T00:00:00.000Z|1991-01-01T00:00:00.000
 Amabile        |Gomatam        |1992-11-18T00:00:00.000Z|1992-01-01T00:00:00.000Z
 Anneke         |Preusig        |1989-06-02T00:00:00.000Z|1989-01-01T00:00:00.000Z
 // end::docsDateTrunc-result[]
+;
+
+evalDateTruncString
+required_feature: esql.string_literal_auto_casting
+
+ROW a = 1
+| EVAL year_hired = DATE_TRUNC(1 year, "1991-06-26T00:00:00.000Z")
+;
+
+a:integer | year_hired:date
+1         | 1991-01-01T00:00:00.000Z
 ;
 
 docsDateTruncHistogram

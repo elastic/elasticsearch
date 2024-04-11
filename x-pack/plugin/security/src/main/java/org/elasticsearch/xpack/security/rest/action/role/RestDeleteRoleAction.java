@@ -51,7 +51,6 @@ public class RestDeleteRoleAction extends NativeRoleBaseRestHandler {
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String name = request.param("name");
         final String refresh = request.param("refresh");
-
         return channel -> new DeleteRoleRequestBuilder(client).name(name)
             .setRefreshPolicy(refresh)
             .execute(new RestBuilderListener<>(channel) {

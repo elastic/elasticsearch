@@ -65,7 +65,7 @@ public class FetchFieldsPhaseTests extends ESTestCase {
         when(fieldType.valueFetcher(any(), any())).thenReturn(
             new DocValueFetcher(
                 DocValueFormat.RAW,
-                new SortedNumericIndexFieldData("field", IndexNumericFieldData.NumericType.LONG, CoreValuesSourceType.NUMERIC, null)
+                new SortedNumericIndexFieldData("field", IndexNumericFieldData.NumericType.LONG, CoreValuesSourceType.NUMERIC, null, false)
             )
         );
         when(sec.getFieldType(any())).thenReturn(fieldType);

@@ -1,0 +1,55 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.core.inference.results;
+
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+public class RankedDocsResultsTests extends AbstractBWCSerializationTestCase<RankedDocsResults> {
+
+    @Override
+    protected Writeable.Reader<RankedDocsResults> instanceReader() {
+        return RankedDocsResults::new;
+    }
+
+    @Override
+    protected RankedDocsResults createTestInstance() {
+        return createRandom();
+    }
+
+    public static RankedDocsResults createRandom() {
+        return new RankedDocsResults(randomList(0, 10, RankedDocsResultsTests::createRandomDoc));
+    }
+
+    public static RankedDocsResults.RankedDoc createRandomDoc() {
+        return new RankedDocsResults.RankedDoc(randomIntBetween(0, 100), randomFloat(), randomAlphaOfLength(10));
+    }
+
+    @Override
+    protected RankedDocsResults mutateInstance(RankedDocsResults instance) throws IOException {
+        List<RankedDocsResults.RankedDoc> copy = new ArrayList<>(List.copyOf(instance.getRankedDocs()));
+        copy.add(createRandomDoc());
+        return new RankedDocsResults(copy);
+    }
+
+    @Override
+    protected RankedDocsResults mutateInstanceForVersion(RankedDocsResults instance, TransportVersion fromVersion) {
+        return instance;
+    }
+
+    @Override
+    protected RankedDocsResults doParseInstance(XContentParser parser) throws IOException {
+        return RankedDocsResults.createParser(true).apply(parser, null);
+    }
+}

@@ -158,6 +158,19 @@ public class TransportVersions {
     public static final TransportVersion SEARCH_NODE_LOAD_AUTOSCALING = def(8_617_00_0);
     public static final TransportVersion ESQL_ES_SOURCE_OPTIONS = def(8_618_00_0);
     public static final TransportVersion ADD_PERSISTENT_TASK_EXCEPTIONS = def(8_619_00_0);
+    public static final TransportVersion ESQL_REDUCER_NODE_FRAGMENT = def(8_620_00_0);
+    public static final TransportVersion FAILURE_STORE_ROLLOVER = def(8_621_00_0);
+    public static final TransportVersion CCR_STATS_API_TIMEOUT_PARAM = def(8_622_00_0);
+    public static final TransportVersion ESQL_ORDINAL_BLOCK = def(8_623_00_0);
+    public static final TransportVersion ML_INFERENCE_COHERE_RERANK = def(8_624_00_0);
+    public static final TransportVersion INDEXING_PRESSURE_DOCUMENT_REJECTIONS_COUNT = def(8_625_00_0);
+    public static final TransportVersion ALIAS_ACTION_RESULTS = def(8_626_00_0);
+    public static final TransportVersion HISTOGRAM_AGGS_KEY_SORTED = def(8_627_00_0);
+    public static final TransportVersion INFERENCE_FIELDS_METADATA = def(8_628_00_0);
+    public static final TransportVersion ML_INFERENCE_TIMEOUT_ADDED = def(8_629_00_0);
+    public static final TransportVersion MODIFY_DATA_STREAM_FAILURE_STORES = def(8_630_00_0);
+    public static final TransportVersion ML_INFERENCE_RERANK_NEW_RESPONSE_FORMAT = def(8_631_00_0);
+    public static final TransportVersion HIGHLIGHTERS_TAGS_ON_FIELD_LEVEL = def(8_632_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

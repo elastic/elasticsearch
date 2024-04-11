@@ -79,22 +79,32 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
-        indexMapping(b, true);
+        indexMapping(b, IndexVersion.current());
     }
 
     @Override
     protected void minimalMapping(XContentBuilder b, IndexVersion indexVersion) throws IOException {
-        indexMapping(b, indexVersion.onOrAfter(DenseVectorFieldMapper.INDEXED_BY_DEFAULT_INDEX_VERSION));
+        indexMapping(b, indexVersion);
     }
 
-    private void indexMapping(XContentBuilder b, boolean indexedByDefault) throws IOException {
+    private void indexMapping(XContentBuilder b, IndexVersion indexVersion) throws IOException {
         b.field("type", "dense_vector").field("dims", 4);
         if (elementType != ElementType.FLOAT) {
             b.field("element_type", elementType.toString());
         }
-        if (indexedByDefault || indexed) {
+        if (indexVersion.onOrAfter(DenseVectorFieldMapper.INDEXED_BY_DEFAULT_INDEX_VERSION) || indexed) {
             // Serialize if it's new index version, or it was not the default for previous indices
             b.field("index", indexed);
+        }
+        if (indexVersion.onOrAfter(DenseVectorFieldMapper.DEFAULT_TO_INT8)
+            && indexed
+            && elementType.equals(ElementType.FLOAT)
+            && indexOptionsSet == false) {
+            b.startObject("index_options");
+            b.field("type", "int8_hnsw");
+            b.field("m", 16);
+            b.field("ef_construction", 100);
+            b.endObject();
         }
         if (indexed) {
             b.field("similarity", "dot_product");
@@ -247,7 +257,15 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         mapping = mapping(b -> {
             b.startObject("field");
-            b.field("type", "dense_vector").field("dims", 4).field("similarity", "cosine").field("index", true);
+            b.field("type", "dense_vector")
+                .field("dims", 4)
+                .field("similarity", "cosine")
+                .field("index", true)
+                .startObject("index_options")
+                .field("type", "int8_hnsw")
+                .field("m", 16)
+                .field("ef_construction", 100)
+                .endObject();
             b.endObject();
         });
         merge(mapperService, mapping);

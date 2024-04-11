@@ -1,9 +1,9 @@
 ---
 setup:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: "system index attribute introduced in 8.2"
-      features: "warnings"
+      test_runner_features: "warnings"
 
   - do:
       indices.create:

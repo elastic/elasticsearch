@@ -18,7 +18,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BackoffPolicy;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.get.GetRequest;
@@ -748,7 +747,7 @@ public class ProfileService {
             () -> executeAsyncWithOrigin(
                 client,
                 getActionOrigin(),
-                BulkAction.INSTANCE,
+                TransportBulkAction.TYPE,
                 bulkRequest,
                 TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
                     assert docId.equals(indexResponse.getId());

@@ -9,15 +9,16 @@ package org.elasticsearch.xpack.inference.external.action.huggingface;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.HuggingFaceExecutableRequestCreator;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
 
-import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
@@ -48,10 +49,10 @@ public class HuggingFaceAction implements ExecutableAction {
     }
 
     @Override
-    public void execute(List<String> input, ActionListener<InferenceServiceResults> listener) {
+    public void execute(InferenceInputs inferenceInputs, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         try {
             ActionListener<InferenceServiceResults> wrappedListener = wrapFailuresInElasticsearchException(errorMessage, listener);
-            sender.send(requestCreator, input, wrappedListener);
+            sender.send(requestCreator, inferenceInputs, timeout, wrappedListener);
         } catch (ElasticsearchException e) {
             listener.onFailure(e);
         } catch (Exception e) {

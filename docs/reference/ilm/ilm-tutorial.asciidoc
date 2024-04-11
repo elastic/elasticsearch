@@ -184,7 +184,7 @@ stream's write index.
 This process repeats each time a rollover condition is met.
 You can search across all of the data stream's backing indices, managed by the `timeseries_policy`,
 with the `timeseries` data stream name.
-Write operations are routed to the current write index. Read operations will be handled by all
+You will point ingest towards the alias which will route write operations to its current write index. Read operations will be handled by all
 backing indices.
 
 [discrete]
@@ -282,14 +282,15 @@ DELETE /_index_template/timeseries_template
 [[manage-time-series-data-without-data-streams]]
 === Manage time series data without data streams
 
-Even though <<data-streams, data streams>> are a convenient way to scale
-and manage time series data, they are designed to be append-only. We recognise there
-might be use-cases where data needs to be updated or deleted in place and the
-data streams don't support delete and update requests directly,
-so the index APIs would need to be used directly on the data stream's backing indices.
+Even though <<data-streams, data streams>> are a convenient way to scale and manage time series
+data, they are designed to be append-only. We recognise there might be use-cases where data needs to
+be updated or deleted in place and the data streams don't support delete and update requests
+directly, so the index APIs would need to be used directly on the data stream's backing indices. In
+these cases we still recommend using a data stream.
 
-In these cases, you can use an index alias to manage indices containing the time series data
-and periodically roll over to a new index.
+If you frequently send multiple documents using the same `_id` expecting last-write-wins, you can
+use an index alias instead of a data stream to manage indices containing the time series data and
+periodically roll over to a new index.
 
 To automate rollover and management of time series indices with {ilm-init} using an index
 alias, you:

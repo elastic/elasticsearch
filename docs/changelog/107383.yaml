@@ -1,0 +1,6 @@
+pr: 107383
+summary: Users that did not create an async-search cannot modify its `keep_alive`
+  state via the status endpoint
+area: Authorization
+type: bug
+issues: []

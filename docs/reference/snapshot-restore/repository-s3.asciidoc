@@ -56,7 +56,7 @@ For more information about creating and updating the {es} keystore, see
 {ref}/secure-settings.html[Secure settings].
 
 For example, if you want to use specific credentials to access S3 then run the
-following commands to add these credentials to the keystore:
+following commands to add these credentials to the keystore.
 
 [source,sh]
 ----
@@ -80,8 +80,12 @@ bin/elasticsearch-keystore remove s3.client.default.session_token
 ----
 
 *All* client secure settings of this repository type are
-{ref}/secure-settings.html#reloadable-secure-settings[reloadable]. After you
-reload the settings, the internal `s3` clients, used to transfer the snapshot
+{ref}/secure-settings.html#reloadable-secure-settings[reloadable]. 
+You can define these settings before the node is started, 
+or call the <<cluster-nodes-reload-secure-settings,Nodes reload secure settings API>> 
+after the settings are defined to apply them to a running node. 
+
+After you reload the settings, the internal `s3` clients, used to transfer the snapshot
 contents, will utilize the latest settings from the keystore. Any existing `s3`
 repositories, as well as any newly created ones, will pick up the new values
 stored in the keystore.

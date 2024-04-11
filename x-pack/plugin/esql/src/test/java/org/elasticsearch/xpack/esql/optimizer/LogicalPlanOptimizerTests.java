@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
@@ -3725,21 +3726,36 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     private record AggOfLiteralTestCase(
-        String aggFunctionName,
-        List<Class<? extends Expression>> substitutionChain,
-        Function<int[], Object> aggMultiValue
+        String aggFunctionTemplate,
+        Function<Expression, Expression> replacementForConstant,
+        Function<int[], Object> aggMultiValue,
+        Function<Double, Object> aggSingleValue
     ) {};
 
     private static List<AggOfLiteralTestCase> AGG_OF_CONST_CASES = List.of(
-        new AggOfLiteralTestCase("avg", List.of(MvAvg.class), ints -> ((double) Arrays.stream(ints).sum()) / ints.length),
-        new AggOfLiteralTestCase("min", List.of(MvMin.class), ints -> Arrays.stream(ints).min().getAsInt()),
-        new AggOfLiteralTestCase("max", List.of(MvMax.class), ints -> Arrays.stream(ints).max().getAsInt()),
-        new AggOfLiteralTestCase("median", List.of(MvMedian.class, ToDouble.class), ints -> {
+        new AggOfLiteralTestCase(
+            "avg({})",
+            constant -> new MvAvg(EMPTY, constant),
+            ints -> ((double) Arrays.stream(ints).sum()) / ints.length,
+            d -> d
+        ),
+        new AggOfLiteralTestCase("min({})", c -> new MvMin(EMPTY, c), ints -> Arrays.stream(ints).min().getAsInt(), d -> d),
+        new AggOfLiteralTestCase("max({})", c -> new MvMax(EMPTY, c), ints -> Arrays.stream(ints).max().getAsInt(), d -> d),
+        new AggOfLiteralTestCase("median({})", c -> new MvMedian(EMPTY, new ToDouble(EMPTY, c)), ints -> {
             var sortedInts = Arrays.stream(ints).sorted().toArray();
             int middle = ints.length / 2;
             double result = ints.length % 2 == 1 ? sortedInts[middle] : (sortedInts[middle] + sortedInts[middle - 1]) / 2.0;
             return result;
-        })
+        }, d -> d),
+        new AggOfLiteralTestCase(
+            "count_distinct({}, 1234)",
+            c -> new ToLong(
+                EMPTY,
+                new Coalesce(EMPTY, new MvCount(EMPTY, new MvDedupe(EMPTY, c)), List.of(new Literal(EMPTY, 0, DataTypes.INTEGER)))
+            ),
+            ints -> Arrays.stream(ints).distinct().count(),
+            d -> 1L
+        )
     );
 
     /**
@@ -3756,13 +3772,21 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      */
     public void testAggOfLiteral() {
         for (AggOfLiteralTestCase testCase : AGG_OF_CONST_CASES) {
-            String query = LoggerMessageFormat.format(null, """
+            String queryTemplate = """
                 from test
-                | stats s = {}([1,2]),
-                        s_expr = {}(314.0/100),
-                        s_null = {}(null)
+                | stats s = {},
+                        s_expr = {},
+                        s_null = {}
                 | keep s, s_expr, s_null
-                """, testCase.aggFunctionName, testCase.aggFunctionName, testCase.aggFunctionName);
+                """;
+            String queryWithoutValues = LoggerMessageFormat.format(
+                null,
+                queryTemplate,
+                testCase.aggFunctionTemplate,
+                testCase.aggFunctionTemplate,
+                testCase.aggFunctionTemplate
+            );
+            String query = LoggerMessageFormat.format(null, queryWithoutValues, "[1,2]", "314.0/100", "null");
 
             var plan = plan(query, SubstitutionOnlyOptimizer.INSTANCE);
 
@@ -3775,19 +3799,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             assertThat(singleRow.length, equalTo(1));
             assertThat(singleRow[0].getPositionCount(), equalTo(1));
 
-            var exprs = eval.fields();
-            var s = as(exprs.get(0), Alias.class);
-            assertSubstitutionChain(s.child(), testCase.substitutionChain);
-            assertThat(s.child().fold(), equalTo(testCase.aggMultiValue.apply(new int[] { 1, 2 })));
-            var s_expr = as(exprs.get(1), Alias.class);
-            assertSubstitutionChain(s_expr.child(), testCase.substitutionChain);
-            assertThat(s_expr.child().fold(), equalTo(3.14));
-            var s_null = as(exprs.get(2), Alias.class);
-            assertSubstitutionChain(s_null.child(), testCase.substitutionChain);
-            // Cannot just fold as there may be no evaluator for the NULL datatype;
-            // instead we emulate how the optimizer would fold the null value:
-            // it transforms up from the leaves; c.f. FoldNull.
-            assertTrue(allLeavesAreNull(s_null));
+            assertAggOfConstExprs(testCase, eval.fields());
         }
     }
 
@@ -3805,14 +3817,22 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      */
     public void testAggOfLiteralGrouped() {
         for (AggOfLiteralTestCase testCase : AGG_OF_CONST_CASES) {
-            String query = LoggerMessageFormat.format(null, """
+            String queryTemplate = """
                     from test
-                    | stats s = {}([1,2]),
-                            s_expr = {}(314.0/100),
-                            s_null = {}(null)
+                    | stats s = {},
+                            s_expr = {},
+                            s_null = {}
                             by emp_no
                     | keep s, s_expr, s_null, emp_no
-                """, testCase.aggFunctionName, testCase.aggFunctionName, testCase.aggFunctionName);
+                """;
+            String queryWithoutValues = LoggerMessageFormat.format(
+                null,
+                queryTemplate,
+                testCase.aggFunctionTemplate,
+                testCase.aggFunctionTemplate,
+                testCase.aggFunctionTemplate
+            );
+            String query = LoggerMessageFormat.format(null, queryWithoutValues, "[1,2]", "314.0/100", "null");
 
             var plan = plan(query, SubstitutionOnlyOptimizer.INSTANCE);
 
@@ -3823,26 +3843,35 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             var agg = as(eval.child(), Aggregate.class);
             assertThat(agg.child(), instanceOf(EsRelation.class));
 
-            // Assert exprs
-            var exprs = eval.fields();
-
-            var s = as(exprs.get(0), Alias.class);
-            assertSubstitutionChain(s.child(), testCase.substitutionChain);
-            assertThat(s.child().fold(), equalTo(testCase.aggMultiValue.apply(new int[] { 1, 2 })));
-            var s_expr = as(exprs.get(1), Alias.class);
-            assertSubstitutionChain(s_expr.child(), testCase.substitutionChain);
-            assertThat(s_expr.child().fold(), equalTo(3.14));
-            var s_null = as(exprs.get(2), Alias.class);
-            assertSubstitutionChain(s_null.child(), testCase.substitutionChain);
-            // Cannot just fold as there may be no evaluator for the NULL datatype;
-            // instead we emulate how the optimizer would fold the null value:
-            // it transforms up from the leaves; c.f. FoldNull.
-            assertTrue(allLeavesAreNull(s_null));
-
             // Assert that the aggregate only does the grouping by emp_no
             assertThat(Expressions.names(agg.groupings()), contains("emp_no"));
             assertThat(agg.aggregates().size(), equalTo(1));
+
+            assertAggOfConstExprs(testCase, eval.fields());
         }
+    }
+
+    private static void assertAggOfConstExprs(AggOfLiteralTestCase testCase, List<Alias> exprs) {
+        var s = as(exprs.get(0), Alias.class);
+        assertThat(s.source().toString(), containsString(LoggerMessageFormat.format(null, testCase.aggFunctionTemplate, "[1,2]")));
+        assertEquals(s.child(), testCase.replacementForConstant.apply(new Literal(EMPTY, List.of(1, 2), INTEGER)));
+        assertEquals(s.child().fold(), testCase.aggMultiValue.apply(new int[] { 1, 2 }));
+
+        var s_expr = as(exprs.get(1), Alias.class);
+        assertThat(s_expr.source().toString(), containsString(LoggerMessageFormat.format(null, testCase.aggFunctionTemplate, "314.0/100")));
+        assertEquals(
+            s_expr.child(),
+            testCase.replacementForConstant.apply(new Div(EMPTY, new Literal(EMPTY, 314.0, DOUBLE), new Literal(EMPTY, 100, INTEGER)))
+        );
+        assertEquals(s_expr.child().fold(), testCase.aggSingleValue.apply(3.14));
+
+        var s_null = as(exprs.get(2), Alias.class);
+        assertThat(s_null.source().toString(), containsString(LoggerMessageFormat.format(null, testCase.aggFunctionTemplate, "null")));
+        assertEquals(s_null.child(), testCase.replacementForConstant.apply(NULL));
+        // Cannot just fold as there may be no evaluator for the NULL datatype;
+        // instead we emulate how the optimizer would fold the null value:
+        // it transforms up from the leaves; c.f. FoldNull.
+        assertTrue(oneLeaveIsNull(s_null));
     }
 
     private static void assertSubstitutionChain(Expression e, List<Class<? extends Expression>> substitutionChain) {
@@ -3857,12 +3886,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(currentExpression, instanceOf(substitutionChain.get(substitutionChain.size() - 1)));
     }
 
-    private static boolean allLeavesAreNull(Expression e) {
-        Holder<Boolean> result = new Holder<>(true);
+    private static boolean oneLeaveIsNull(Expression e) {
+        Holder<Boolean> result = new Holder<>(false);
 
         e.forEachUp(node -> {
             if (node.children().size() == 0) {
-                result.set(result.get() && Expressions.isNull(node));
+                result.set(result.get() || Expressions.isNull(node));
             }
         });
 

@@ -58,7 +58,6 @@ import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
-import java.util.function.LongConsumer;
 
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -92,8 +91,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
             TranslogReplicator translogReplicator,
             Function<String, BlobContainer> translogBlobContainer,
             StatelessCommitService statelessCommitService,
-            RefreshThrottler.Factory refreshThrottlerFactory,
-            LongConsumer closedReadersForGenerationConsumer
+            RefreshThrottler.Factory refreshThrottlerFactory
         ) {
             return new IndexEngine(
                 engineConfig,
@@ -101,7 +99,8 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
                 translogBlobContainer,
                 statelessCommitService,
                 refreshThrottlerFactory,
-                closedReadersForGenerationConsumer
+                statelessCommitService.getIndexEngineLocalReaderListenerForShard(engineConfig.getShardId()),
+                statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId())
             ) {
                 @Override
                 public void readVirtualBatchedCompoundCommitChunk(

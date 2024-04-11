@@ -362,6 +362,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         return pendingCompoundCommits.last().getGeneration();
     }
 
+    public PendingCompoundCommit getLastPendingCompoundCommit() {
+        return pendingCompoundCommits.last();
+    }
+
     @Override
     public void close() {
         decRef();
@@ -374,6 +378,13 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
     List<PendingCompoundCommit> getPendingCompoundCommits() {
         return List.copyOf(pendingCompoundCommits);
+    }
+
+    Set<PrimaryTermAndGeneration> getPendingCompoundCommitGenerations() {
+        return pendingCompoundCommits.stream()
+            .map(PendingCompoundCommit::getStatelessCompoundCommit)
+            .map(StatelessCompoundCommit::primaryTermAndGeneration)
+            .collect(Collectors.toSet());
     }
 
     private byte[] materializeCompoundCommitHeader(StatelessCommitRef reference, List<StatelessCompoundCommit.InternalFile> internalFiles)

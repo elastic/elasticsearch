@@ -20,12 +20,17 @@
 package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
+import co.elastic.elasticsearch.stateless.commits.CommitBCCResolver;
+import co.elastic.elasticsearch.stateless.commits.IndexEngineLocalReaderListener;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -37,6 +42,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.engine.ElasticsearchReaderManager;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineCreationFailureException;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.LiveVersionMapArchive;
@@ -46,14 +52,16 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collection;
 import java.util.Map;
-import java.util.NavigableMap;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
 
@@ -71,13 +79,14 @@ public class IndexEngine extends InternalEngine {
     private final Function<String, BlobContainer> translogBlobContainer;
     private final boolean fastRefresh;
     private final RefreshThrottler refreshThrottler;
+    private final IndexEngineLocalReaderListener localReaderListener;
+    private final CommitBCCResolver commitBCCResolver;
     // This is written and then accessed on the same thread under the flush lock. So not need for volatile
     private long translogStartFileForNextCommit = 0;
 
-    // Map from generation to number of readers.
-    private final NavigableMap<Long, Long> openReadersPerGeneration = new ConcurrentSkipListMap<>();
+    // The values of this map are sets of BCCs referenced by the reader
+    private final Map<DirectoryReader, Set<PrimaryTermAndGeneration>> openReaders = new ConcurrentHashMap<>();
 
-    private final LongConsumer closedReadersForGenerationConsumer;
     private final AtomicBoolean ongoingFlushMustUpload = new AtomicBoolean(false);
 
     public IndexEngine(
@@ -86,7 +95,8 @@ public class IndexEngine extends InternalEngine {
         Function<String, BlobContainer> translogBlobContainer,
         StatelessCommitService statelessCommitService,
         RefreshThrottler.Factory refreshThrottlerFactory,
-        LongConsumer closedReadersForGenerationConsumer
+        IndexEngineLocalReaderListener localReaderListener,
+        CommitBCCResolver commitBCCResolver
     ) {
         super(engineConfig);
         assert engineConfig.isPromotableToPrimary();
@@ -95,8 +105,23 @@ public class IndexEngine extends InternalEngine {
         this.statelessCommitService = statelessCommitService;
         this.fastRefresh = INDEX_FAST_REFRESH_SETTING.get(config().getIndexSettings().getSettings());
         this.refreshThrottler = refreshThrottlerFactory.create(this::doExternalRefresh);
-        this.closedReadersForGenerationConsumer = closedReadersForGenerationConsumer;
-        this.openReadersPerGeneration.put(getLastCommittedSegmentInfos().getGeneration(), 1L);
+        this.localReaderListener = localReaderListener;
+        this.commitBCCResolver = commitBCCResolver;
+
+        // We have to track the initial BCC references held by local readers at this point instead of doing it in
+        // #createInternalReaderManager because that method is called from the super constructor and at that point,
+        // commitBCCResolver field is not set yet.
+        var referenceManager = getReferenceManager(SearcherScope.INTERNAL);
+        try {
+            ElasticsearchDirectoryReader directoryReader = referenceManager.acquire();
+            try {
+                trackOpenLocalReader(directoryReader);
+            } finally {
+                referenceManager.release(directoryReader);
+            }
+        } catch (IOException e) {
+            throw new EngineCreationFailureException(engineConfig.getShardId(), "Failed to create an index engine", e);
+        }
     }
 
     @Override
@@ -115,9 +140,6 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     protected ElasticsearchReaderManager createInternalReaderManager(ElasticsearchDirectoryReader directoryReader) {
-        final long initialGeneration = safeGeneration(directoryReader);
-        ElasticsearchDirectoryReader.addReaderCloseListener(directoryReader, ignored -> closedReader(initialGeneration));
-
         return new ElasticsearchReaderManager(directoryReader) {
             @Override
             protected ElasticsearchDirectoryReader refreshIfNeeded(ElasticsearchDirectoryReader referenceToRefresh) throws IOException {
@@ -127,11 +149,7 @@ public class IndexEngine extends InternalEngine {
                 }
                 boolean success = false;
                 try {
-                    long generation = next.getIndexCommit().getGeneration();
-                    assert openReadersPerGeneration.isEmpty() || openReadersPerGeneration.firstKey() <= generation
-                        : "generation must be monotonically increasing " + openReadersPerGeneration.firstKey() + " > " + generation;
-                    ElasticsearchDirectoryReader.addReaderCloseListener(next, ignored -> closedReader(generation));
-                    openReadersPerGeneration.compute(generation, (k, v) -> v == null ? 1 : v + 1);
+                    trackOpenLocalReader(next);
                     success = true;
                 } finally {
                     if (success == false) {
@@ -143,29 +161,40 @@ public class IndexEngine extends InternalEngine {
         };
     }
 
-    private static long safeGeneration(ElasticsearchDirectoryReader reader) {
-        try {
-            return reader.getIndexCommit().getGeneration();
-        } catch (IOException e) {
-            assert false : e;
-            throw new UncheckedIOException(e);
-        }
+    private void trackOpenLocalReader(ElasticsearchDirectoryReader directoryReader) {
+        long generation = getLatestCommittedGeneration(directoryReader);
+
+        ElasticsearchDirectoryReader.addReaderCloseListener(directoryReader, ignored -> onLocalReaderClosed(directoryReader));
+        var referencedBCCsForCommit = commitBCCResolver.resolveReferencedBCCsForCommit(generation);
+        openReaders.put(directoryReader, referencedBCCsForCommit);
     }
 
-    private void closedReader(long generation) {
-        assert openReadersPerGeneration.containsKey(generation);
-        Long result = openReadersPerGeneration.compute(generation, (k, v) -> v > 1 ? v - 1 : null);
-        if (result == null) {
-            Map.Entry<Long, Long> firstEntry = openReadersPerGeneration.firstEntry();
-            if (firstEntry != null) {
-                long first = firstEntry.getKey();
-                while (first > generation) {
-                    closedReadersForGenerationConsumer.accept(generation);
-                    ++generation;
-                }
-            } else {
-                assert isClosed.get() : "no readers found when not closed";
-            }
+    private void onLocalReaderClosed(DirectoryReader reader) {
+        var bccDependencies = openReaders.remove(reader);
+        assert bccDependencies != null : openReaders + " -> " + reader;
+        assert bccDependencies.isEmpty() == false;
+
+        long bccHoldingCommit = bccDependencies.stream().max(PrimaryTermAndGeneration::compareTo).get().generation();
+        localReaderListener.onLocalReaderClosed(
+            bccHoldingCommit,
+            openReaders.values().stream().flatMap(Collection::stream).collect(Collectors.toSet())
+        );
+    }
+
+    static long getLatestCommittedGeneration(DirectoryReader directoryReader) {
+        if (FilterDirectoryReader.unwrap(directoryReader) instanceof StandardDirectoryReader standardDirectoryReader) {
+            // If there's a concurrent flush while the refresh is executed, the generation from
+            // getIndexCommit().getGeneration() will point to the yet to be committed Lucene commit generation
+            // therefore, we need to fetch the last generation that refers to the latest successful Lucene commit
+            return standardDirectoryReader.getSegmentInfos().getLastGeneration();
+        }
+
+        try {
+            assert false;
+            return directoryReader.getIndexCommit().getGeneration();
+        } catch (IOException e) {
+            assert false;
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -240,10 +269,14 @@ public class IndexEngine extends InternalEngine {
         // TODO: could we avoid this refresh if we have flushed above?
         return super.refreshInternalSearcher(source, block);
     }
-    // visible for testing
 
+    // visible for testing
     public long getCurrentGeneration() {
         return getLastCommittedSegmentInfos().getGeneration();
+    }
+
+    Map<DirectoryReader, Set<PrimaryTermAndGeneration>> getOpenReaders() {
+        return openReaders;
     }
 
     @Override

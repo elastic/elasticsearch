@@ -248,7 +248,10 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         // open a searcher on generation 5 which includes segment cores _0, _1 and generational files of _0
         var searcher_5 = searchShard.acquireSearcher("searcher_generation_5");
         assertThat(searcher_5.getDirectoryReader().getIndexCommit().getGeneration(), equalTo(5L));
-        assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(new PrimaryTermAndGeneration(primaryTerm, 5L)));
+        assertThat(
+            searchEngine.getAcquiredPrimaryTermAndGenerations(),
+            contains(new PrimaryTermAndGeneration(primaryTerm, 4L), new PrimaryTermAndGeneration(primaryTerm, 5L))
+        );
 
         long totalLiveDocs = readGenerationalDocValues(searcher_5);
         assertThat("10 docs deleted, 10 docs created", totalLiveDocs, equalTo(1000L - 10L + 10L));
@@ -287,7 +290,14 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         assertBusyFilesLocations(indexDirectory, expectedLocations);
         assertBusyFilesLocations(searchDirectory, expectedLocations);
         assertThat(searchEngine.getLastCommittedSegmentInfos().getGeneration(), equalTo(6L));
-        assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(new PrimaryTermAndGeneration(primaryTerm, 6L)));
+        assertThat(
+            searchEngine.getAcquiredPrimaryTermAndGenerations(),
+            contains(
+                new PrimaryTermAndGeneration(primaryTerm, 4L),
+                new PrimaryTermAndGeneration(primaryTerm, 5L),
+                new PrimaryTermAndGeneration(primaryTerm, 6L)
+            )
+        );
 
         // now force-merge to 2 segments: segment cores _1 and _2 should be merged together as they are smaller than _0
         var forceMerge = client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(2).setFlush(false).get();
@@ -314,7 +324,10 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         assertBusyFilesLocations(indexDirectory, expectedLocations);
         assertBusyFilesLocations(searchDirectory, expectedLocations);
         assertThat(searchEngine.getLastCommittedSegmentInfos().getGeneration(), equalTo(7L));
-        assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(new PrimaryTermAndGeneration(primaryTerm, 7L)));
+        assertThat(
+            searchEngine.getAcquiredPrimaryTermAndGenerations(),
+            contains(new PrimaryTermAndGeneration(primaryTerm, 4L), new PrimaryTermAndGeneration(primaryTerm, 7L))
+        );
 
         // There is also a bug in ref counting that prevents the deletion of the stateless_commit_5 files, so we delete it manually for now:
         // TODO https://github.com/elastic/elasticsearch-serverless/pull/1165

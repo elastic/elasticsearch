@@ -99,6 +99,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 
@@ -264,7 +265,8 @@ public class FakeStatelessNode implements Closeable {
                 this::getShardRoutingTable,
                 clusterService.threadPool(),
                 client,
-                commitCleaner
+                commitCleaner,
+                createAllNodesResolveBCCReferencesLocallySupplier()
             );
             commitService.register(shardId, getPrimaryTerm());
             indexingDirectory.getSearchDirectory().setBlobContainer(term -> objectStoreService.getBlobContainer(shardId, term));
@@ -381,6 +383,10 @@ public class FakeStatelessNode implements Closeable {
 
     protected long getPrimaryTerm() {
         return primaryTerm;
+    }
+
+    protected BooleanSupplier createAllNodesResolveBCCReferencesLocallySupplier() {
+        return () -> true;
     }
 
     public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {

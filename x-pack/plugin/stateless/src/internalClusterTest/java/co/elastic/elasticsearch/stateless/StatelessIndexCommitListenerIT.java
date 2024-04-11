@@ -17,7 +17,10 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.commits.CommitBCCResolver;
+import co.elastic.elasticsearch.stateless.commits.IndexEngineLocalReaderListener;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
@@ -83,6 +86,14 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
                 argument.onResponse(null);
                 return null;
             }).when(commitService).addListenerForUploadedGeneration(any(ShardId.class), anyLong(), any());
+            // #onNewCommit is intercepted by the test, meaning that the ShardCommitState does not populate the data structures used for
+            // file deletions; in this case we just mock the methods taking care of that tracking to be no-ops.
+            doAnswer(invocation -> (CommitBCCResolver) generation -> Set.of(new PrimaryTermAndGeneration(1, generation))).when(
+                commitService
+            ).getCommitBCCResolverForShard(any(ShardId.class));
+            doAnswer(invocation -> (IndexEngineLocalReaderListener) (bccHoldingClosedCommit, remainingReferencedBCCs) -> {}).when(
+                commitService
+            ).getIndexEngineLocalReaderListenerForShard(any(ShardId.class));
             doAnswer(invocation -> null).when(commitService).ensureMaxGenerationToUploadForFlush(any(ShardId.class), anyLong());
             return commitService;
         }

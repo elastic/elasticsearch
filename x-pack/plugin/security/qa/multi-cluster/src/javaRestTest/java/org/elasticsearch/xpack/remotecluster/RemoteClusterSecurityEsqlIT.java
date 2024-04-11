@@ -383,7 +383,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
     }
 
     @SuppressWarnings("unchecked")
-    public void testCrossClusterQueryWithRemoteDLS() throws Exception {
+    public void testCrossClusterQueryWithRemoteDLSAndFLS() throws Exception {
         configureRemoteCluster();
         populateData();
 
@@ -457,6 +457,41 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         // the APIKey has DLS set to : "query": {"term" : {"department" : "engineering"}}
         // AND this role has DLS set to: "query": {"term" : {"emp_id" : "21"}}
         assertThat(flatList, containsInAnyOrder("21", "engineering"));
+
+        // add FLS to the remote indices in the role to restrict access to only access department
+        putRoleRequest.setJsonEntity("""
+            {
+              "indices": [{"names": [""], "privileges": ["read_cross_cluster"]}],
+              "remote_indices": [
+                {
+                  "names": ["employees*"],
+                  "privileges": ["read"],
+                  "clusters": ["my_remote_cluster"],
+                  "query": {"term" : {"emp_id" : "21"}},
+                  "field_security": {"grant": [ "department" ]}
+                }
+              ]
+            }""");
+        response = adminClient().performRequest(putRoleRequest);
+        assertOK(response);
+
+        response = performRequestWithRemoteSearchUser(esqlRequest("""
+            FROM my_remote_cluster:employees3
+            | LIMIT 2
+            """));
+        assertOK(response);
+        responseAsMap = entityAsMap(response);
+        columns = (List<?>) responseAsMap.get("columns");
+        values = (List<?>) responseAsMap.get("values");
+        assertEquals(1, columns.size());
+        assertEquals(1, values.size());
+        flatList = values.stream()
+            .flatMap(innerList -> innerList instanceof List ? ((List<String>) innerList).stream() : Stream.empty())
+            .collect(Collectors.toList());
+        // the APIKey has DLS set to : "query": {"term" : {"department" : "engineering"}}
+        // AND this role has DLS set to: "query": {"term" : {"emp_id" : "21"}}
+        // AND this role has FLS set to: "field_security": {"grant": [ "department" ]}
+        assertThat(flatList, containsInAnyOrder("engineering"));
     }
 
     @SuppressWarnings("unchecked")

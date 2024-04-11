@@ -206,7 +206,10 @@ public class StringFunctionProcessorTests extends AbstractWireSerializingTestCas
 
     static void maxResultLengthTest(long required, ThrowingRunnable runnable) {
         Exception e = expectThrows(SqlIllegalArgumentException.class, runnable);
-        assertEquals("Required result length [" + required + "] exceeds implementation limit [" + MAX_RESULT_LENGTH + "]", e.getMessage());
+        assertEquals(
+            "Required result length [" + required + "] exceeds implementation limit [" + MAX_RESULT_LENGTH + "] bytes",
+            e.getMessage()
+        );
     }
 
     public void testBitLength() {

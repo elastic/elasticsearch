@@ -133,8 +133,8 @@ public class StringProcessor implements Processor {
     static void checkResultLength(long needed) {
         if (needed > MAX_RESULT_LENGTH) {
             throw new SqlIllegalArgumentException(
-                "Required result length [{}] exceeds implementation limit [{}]",
-                needed, // doProcess() below checks that c is within the Integer range
+                "Required result length [{}] exceeds implementation limit [{}] bytes",
+                needed,
                 MAX_RESULT_LENGTH
             );
         }

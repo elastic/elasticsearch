@@ -6,7 +6,14 @@ issues: []
 breaking:
   title: Limit how much space some string functions can use
   area: SQL
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  details: "Before this change, some of the string functions could return a\
+    \ result of any arbitrary length, which could force the VM to allocate\
+    \ large chunks of memory or even make it exit. Any user with access to the\
+    \ SQL API can invoke these functions. This change introduces a limitation \
+    \ of how much memory the result returned by a function call can consume.\
+    \ The functions affected by this change are: CONCAT, INSERT, REPEAT, \
+    \ REPLACE and SPACE."
+  impact: "The affected functions used to return a result of any length. After\
+    \ this change, a result can no longer exceed 1MB in length. Note that this\
+    \ is a bytes length, the character count may be lower."
   notable: false

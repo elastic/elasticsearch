@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.application.connector.filtering.FilteringRuleCond
 import org.elasticsearch.xpack.application.connector.filtering.FilteringRules;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringValidationInfo;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringValidationState;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobType;
 import org.elasticsearch.xpack.core.scheduler.Cron;
 

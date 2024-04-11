@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorPipel
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorServiceTypeAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorStatusAction;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobIndexService;
 
 import java.time.Instant;

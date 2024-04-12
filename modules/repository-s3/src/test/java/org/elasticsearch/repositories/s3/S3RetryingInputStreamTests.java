@@ -89,23 +89,19 @@ public class S3RetryingInputStreamTests extends ESTestCase {
     public void testReadAfterBlobLengthThrowsRequestedRangeNotSatisfiedException() throws IOException {
         final byte[] bytes = randomByteArrayOfLength(randomIntBetween(1, 512));
         {
-            int position = bytes.length;
-            int length = randomIntBetween(1, 100);
-            try (var stream = createInputStream(bytes, position, length)) {
-                assertThat(Streams.consumeFully(stream), equalTo(0L));
-            }
-        }
-        {
-            final int position = bytes.length + randomIntBetween(1, 100);
+            final int position = bytes.length + randomIntBetween(0, 100);
             final int length = randomIntBetween(1, 100);
             var exception = expectThrows(RequestedRangeNotSatisfiedException.class, () -> {
                 try (var ignored = createInputStream(bytes, position, length)) {
-                    throw new AssertionError("Should have failed");
+                    fail();
                 }
             });
+            assertThat(exception.getResource(), equalTo("_blob"));
+            assertThat(exception.getPosition(), equalTo((long) position));
+            assertThat(exception.getLength(), equalTo((long) length));
             assertThat(
                 exception.getMessage(),
-                startsWith("Requested range [position=" + position + ", length=" + (length - 1) + "] cannot be satisfied for [_blob]")
+                startsWith("Requested range [position=" + position + ", length=" + length + "] cannot be satisfied for [_blob]")
             );
         }
         {
@@ -127,7 +123,7 @@ public class S3RetryingInputStreamTests extends ESTestCase {
         when(blobStore.clientReference()).thenReturn(clientReference);
 
         if (position != null && length != null) {
-            if (data.length < position) {
+            if (data.length <= position) {
                 var amazonS3Exception = new AmazonS3Exception("test");
                 amazonS3Exception.setStatusCode(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus());
                 when(client.getObject(any(GetObjectRequest.class))).thenThrow(amazonS3Exception);

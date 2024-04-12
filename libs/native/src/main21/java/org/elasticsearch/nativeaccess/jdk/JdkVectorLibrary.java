@@ -35,6 +35,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
     static final MethodHandle dot8s$mh = downcallHandle("dot8s", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT));
     static final MethodHandle sqr8s$mh = downcallHandle("sqr8s", FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT));
 
+    static final MethodHandle vecCaps$mh = downcallHandle("vec_caps", FunctionDescriptor.of(JAVA_INT));
+
     // Stride of the native implementation - consumes this number of bytes per loop invocation.
     // There must be at least this number of bytes/elements available when going native
     static final int DOT_STRIDE = 32;
@@ -160,5 +162,15 @@ public final class JdkVectorLibrary implements VectorLibrary {
     @Override
     public MethodHandle squareDistanceHandle() {
         return SQR_HANDLE;
+    }
+
+    @Override
+    public boolean isCpuVectorCapable() {
+        try {
+            int caps = (int) vecCaps$mh.invokeExact();
+            return caps != 0;
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
     }
 }

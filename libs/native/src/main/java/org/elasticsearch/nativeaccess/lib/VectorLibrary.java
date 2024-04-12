@@ -20,4 +20,6 @@ public non-sealed interface VectorLibrary extends NativeLibrary {
     MethodHandle dotProductHandle();
 
     MethodHandle squareDistanceHandle();
+
+    boolean isCpuVectorCapable();
 }

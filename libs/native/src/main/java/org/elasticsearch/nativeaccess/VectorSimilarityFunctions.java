@@ -48,4 +48,15 @@ public final class VectorSimilarityFunctions implements VectorLibrary {
     public MethodHandle squareDistanceHandle() {
         return vectorLibrary.squareDistanceHandle();
     }
+
+    /**
+     * Returns a boolean telling if the CPU we are running on is "vector capable".
+     * "Vector capable" means that the CPU supports the SIMD/vector instruction set used
+     * to implement the native methods referenced by the MethodHandles exposed by this interface.
+     */
+    @Override
+    public boolean isCpuVectorCapable() {
+        return vectorLibrary.isCpuVectorCapable();
+    }
+
 }

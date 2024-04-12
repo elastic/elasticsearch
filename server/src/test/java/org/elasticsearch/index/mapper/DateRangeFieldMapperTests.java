@@ -63,9 +63,9 @@ public class DateRangeFieldMapperTests extends RangeFieldMapperTests {
     @SuppressWarnings("unchecked")
     protected TestRange<Long> randomRangeForSyntheticSourceTest() {
         var includeFrom = randomBoolean();
-        Long from = rarely() ? null : randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999 - 1);
+        Long from = rarely() ? null : randomLongBetween(0, DateUtils.MAX_MILLIS_BEFORE_9999 - 1);
         var includeTo = randomBoolean();
-        Long to = rarely() ? null : randomLongBetween((from == null ? Long.MIN_VALUE : from) + 1, DateUtils.MAX_MILLIS_BEFORE_9999);
+        Long to = rarely() ? null : randomLongBetween((from == null ? 0 : from) + 1, DateUtils.MAX_MILLIS_BEFORE_9999);
 
         return new TestRange<>(rangeType(), from, to, includeFrom, includeTo) {
             private final DateFormatter inputDateFormatter = DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss.SSS");
@@ -79,7 +79,10 @@ public class DateRangeFieldMapperTests extends RangeFieldMapperTests {
                 var fromFormatted = from != null && randomBoolean() ? inputDateFormatter.format(Instant.ofEpochMilli(from)) : from;
                 var toFormatted = to != null && randomBoolean() ? inputDateFormatter.format(Instant.ofEpochMilli(to)) : to;
 
-                return (ToXContent) (builder, params) -> builder.startObject().field(fromKey, from).field(toKey, to).endObject();
+                return (ToXContent) (builder, params) -> builder.startObject()
+                    .field(fromKey, fromFormatted)
+                    .field(toKey, toFormatted)
+                    .endObject();
             }
 
             @Override

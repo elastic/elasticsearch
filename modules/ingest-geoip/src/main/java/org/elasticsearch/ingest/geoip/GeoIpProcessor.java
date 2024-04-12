@@ -9,9 +9,11 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.db.Network;
+import com.maxmind.geoip2.model.AnonymousIpResponse;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
 import com.maxmind.geoip2.model.CountryResponse;
+import com.maxmind.geoip2.model.EnterpriseResponse;
 import com.maxmind.geoip2.record.City;
 import com.maxmind.geoip2.record.Continent;
 import com.maxmind.geoip2.record.Country;
@@ -172,6 +174,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
             case City -> retrieveCityGeoData(geoIpDatabase, ipAddress);
             case Country -> retrieveCountryGeoData(geoIpDatabase, ipAddress);
             case Asn -> retrieveAsnGeoData(geoIpDatabase, ipAddress);
+            case AnonymousIp -> retrieveAnonymousIpGeoData(geoIpDatabase, ipAddress);
+            case Enterprise -> retrieveEnterpriseGeoData(geoIpDatabase, ipAddress);
         };
     }
 
@@ -334,6 +338,167 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     if (network != null) {
                         geoData.put("network", network.toString());
                     }
+                }
+            }
+        }
+        return geoData;
+    }
+
+    private Map<String, Object> retrieveAnonymousIpGeoData(GeoIpDatabase geoIpDatabase, InetAddress ipAddress) {
+        AnonymousIpResponse response = geoIpDatabase.getAnonymousIp(ipAddress);
+        if (response == null) {
+            return Map.of();
+        }
+
+        boolean isHostingProvider = response.isHostingProvider();
+        boolean isTorExitNode = response.isTorExitNode();
+        boolean isAnonymousVpn = response.isAnonymousVpn();
+        boolean isAnonymous = response.isAnonymous();
+        boolean isPublicProxy = response.isPublicProxy();
+        boolean isResidentialProxy = response.isResidentialProxy();
+
+        Map<String, Object> geoData = new HashMap<>();
+        for (Property property : this.properties) {
+            switch (property) {
+                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case HOSTING_PROVIDER -> {
+                    geoData.put("hosting_provider", isHostingProvider);
+                }
+                case TOR_EXIT_NODE -> {
+                    geoData.put("tor_exit_node", isTorExitNode);
+                }
+                case ANONYMOUS_VPN -> {
+                    geoData.put("anonymous_vpn", isAnonymousVpn);
+                }
+                case ANONYMOUS -> {
+                    geoData.put("anonymous", isAnonymous);
+                }
+                case PUBLIC_PROXY -> {
+                    geoData.put("public_proxy", isPublicProxy);
+                }
+                case RESIDENTIAL_PROXY -> {
+                    geoData.put("residential_proxy", isResidentialProxy);
+                }
+            }
+        }
+        return geoData;
+    }
+
+    private Map<String, Object> retrieveEnterpriseGeoData(GeoIpDatabase geoIpDatabase, InetAddress ipAddress) {
+        EnterpriseResponse response = geoIpDatabase.getEnterprise(ipAddress);
+        if (response == null) {
+            return Map.of();
+        }
+
+        Country country = response.getCountry();
+        City city = response.getCity();
+        Location location = response.getLocation();
+        Continent continent = response.getContinent();
+        Subdivision subdivision = response.getMostSpecificSubdivision();
+
+        Long asn = response.getTraits().getAutonomousSystemNumber();
+        String organization_name = response.getTraits().getAutonomousSystemOrganization();
+        Network network = response.getTraits().getNetwork();
+
+        boolean isHostingProvider = response.getTraits().isHostingProvider();
+        boolean isTorExitNode = response.getTraits().isTorExitNode();
+        boolean isAnonymousVpn = response.getTraits().isAnonymousVpn();
+        boolean isAnonymous = response.getTraits().isAnonymous();
+        boolean isPublicProxy = response.getTraits().isPublicProxy();
+        boolean isResidentialProxy = response.getTraits().isResidentialProxy();
+
+        Map<String, Object> geoData = new HashMap<>();
+        for (Property property : this.properties) {
+            switch (property) {
+                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case COUNTRY_ISO_CODE -> {
+                    String countryIsoCode = country.getIsoCode();
+                    if (countryIsoCode != null) {
+                        geoData.put("country_iso_code", countryIsoCode);
+                    }
+                }
+                case COUNTRY_NAME -> {
+                    String countryName = country.getName();
+                    if (countryName != null) {
+                        geoData.put("country_name", countryName);
+                    }
+                }
+                case CONTINENT_NAME -> {
+                    String continentName = continent.getName();
+                    if (continentName != null) {
+                        geoData.put("continent_name", continentName);
+                    }
+                }
+                case REGION_ISO_CODE -> {
+                    // ISO 3166-2 code for country subdivisions.
+                    // See iso.org/iso-3166-country-codes.html
+                    String countryIso = country.getIsoCode();
+                    String subdivisionIso = subdivision.getIsoCode();
+                    if (countryIso != null && subdivisionIso != null) {
+                        String regionIsoCode = countryIso + "-" + subdivisionIso;
+                        geoData.put("region_iso_code", regionIsoCode);
+                    }
+                }
+                case REGION_NAME -> {
+                    String subdivisionName = subdivision.getName();
+                    if (subdivisionName != null) {
+                        geoData.put("region_name", subdivisionName);
+                    }
+                }
+                case CITY_NAME -> {
+                    String cityName = city.getName();
+                    if (cityName != null) {
+                        geoData.put("city_name", cityName);
+                    }
+                }
+                case TIMEZONE -> {
+                    String locationTimeZone = location.getTimeZone();
+                    if (locationTimeZone != null) {
+                        geoData.put("timezone", locationTimeZone);
+                    }
+                }
+                case LOCATION -> {
+                    Double latitude = location.getLatitude();
+                    Double longitude = location.getLongitude();
+                    if (latitude != null && longitude != null) {
+                        Map<String, Object> locationObject = new HashMap<>();
+                        locationObject.put("lat", latitude);
+                        locationObject.put("lon", longitude);
+                        geoData.put("location", locationObject);
+                    }
+                }
+                case ASN -> {
+                    if (asn != null) {
+                        geoData.put("asn", asn);
+                    }
+                }
+                case ORGANIZATION_NAME -> {
+                    if (organization_name != null) {
+                        geoData.put("organization_name", organization_name);
+                    }
+                }
+                case NETWORK -> {
+                    if (network != null) {
+                        geoData.put("network", network.toString());
+                    }
+                }
+                case HOSTING_PROVIDER -> {
+                    geoData.put("is_hosting_provider", isHostingProvider);
+                }
+                case TOR_EXIT_NODE -> {
+                    geoData.put("is_tor_exit_node", isTorExitNode);
+                }
+                case ANONYMOUS_VPN -> {
+                    geoData.put("is_anonymous_vpn", isAnonymousVpn);
+                }
+                case ANONYMOUS -> {
+                    geoData.put("is_anonymous", isAnonymous);
+                }
+                case PUBLIC_PROXY -> {
+                    geoData.put("is_public_proxy", isPublicProxy);
+                }
+                case RESIDENTIAL_PROXY -> {
+                    geoData.put("is_residential_proxy", isResidentialProxy);
                 }
             }
         }

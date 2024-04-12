@@ -1,8 +1,8 @@
 setup:
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason: "ESQL is available in 8.11+"
-      features: allowed_warnings_regex
+      test_runner_features: allowed_warnings_regex
   - do:
       indices.create:
           index: test
@@ -107,8 +107,8 @@ setup:
 
 ---
 load everything:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "_source is available in 8.13+"
   - do:
       allowed_warnings_regex:
@@ -233,8 +233,8 @@ from index pattern explicit counter use:
 
 ---
 _source:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "_source is available in 8.13+"
 
   - do:

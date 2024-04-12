@@ -65,15 +65,7 @@ public final class TransportGrantApiKeyAction extends TransportGrantAction<Grant
         ApiKeyService apiKeyService,
         ApiKeyUserRoleDescriptorResolver resolver
     ) {
-        super(
-            GrantApiKeyAction.NAME,
-            transportService,
-            actionFilters,
-            GrantApiKeyRequest::new,
-            authenticationService,
-            authorizationService,
-            threadContext
-        );
+        super(GrantApiKeyAction.NAME, transportService, actionFilters, authenticationService, authorizationService, threadContext);
         this.apiKeyService = apiKeyService;
         this.resolver = resolver;
     }

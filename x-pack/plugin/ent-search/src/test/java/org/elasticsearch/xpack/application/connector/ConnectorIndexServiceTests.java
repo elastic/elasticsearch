@@ -55,6 +55,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.getRandomCronExpression;
+import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.registerSimplifiedConnectorIndexTemplates;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -66,6 +67,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
     @Before
     public void setup() {
+        registerSimplifiedConnectorIndexTemplates(indicesAdmin());
         this.connectorIndexService = new ConnectorIndexService(client());
     }
 
@@ -104,11 +106,11 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         }
 
         String connectorIdToDelete = connectorIds.get(0);
-        DeleteResponse resp = awaitDeleteConnector(connectorIdToDelete);
+        DeleteResponse resp = awaitDeleteConnector(connectorIdToDelete, false);
         assertThat(resp.status(), equalTo(RestStatus.OK));
         expectThrows(ResourceNotFoundException.class, () -> awaitGetConnector(connectorIdToDelete));
 
-        expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnector(connectorIdToDelete));
+        expectThrows(ResourceNotFoundException.class, () -> awaitDeleteConnector(connectorIdToDelete, false));
     }
 
     public void testUpdateConnectorConfiguration_FullConfiguration() throws Exception {
@@ -526,11 +528,11 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(updateApiKeyIdRequest.getApiKeySecretId(), equalTo(indexedConnector.getApiKeySecretId()));
     }
 
-    private DeleteResponse awaitDeleteConnector(String connectorId) throws Exception {
+    private DeleteResponse awaitDeleteConnector(String connectorId, boolean deleteConnectorSyncJobs) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<DeleteResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
-        connectorIndexService.deleteConnector(connectorId, new ActionListener<>() {
+        connectorIndexService.deleteConnector(connectorId, deleteConnectorSyncJobs, new ActionListener<>() {
             @Override
             public void onResponse(DeleteResponse deleteResponse) {
                 resp.set(deleteResponse);

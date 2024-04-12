@@ -15,7 +15,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.openai.OpenAiChatCompletionRequest;
 import org.elasticsearch.xpack.inference.external.response.openai.OpenAiChatCompletionResponseEntity;
@@ -33,15 +32,8 @@ public class OpenAiCompletionExecutableRequestCreator implements ExecutableReque
 
     private final OpenAiChatCompletionModel model;
 
-    private final OpenAiAccount account;
-
     public OpenAiCompletionExecutableRequestCreator(OpenAiChatCompletionModel model) {
         this.model = Objects.requireNonNull(model);
-        this.account = new OpenAiAccount(
-            this.model.getServiceSettings().uri(),
-            this.model.getServiceSettings().organizationId(),
-            this.model.getSecretSettings().apiKey()
-        );
     }
 
     @Override
@@ -53,7 +45,7 @@ public class OpenAiCompletionExecutableRequestCreator implements ExecutableReque
         HttpClientContext context,
         ActionListener<InferenceServiceResults> listener
     ) {
-        OpenAiChatCompletionRequest request = new OpenAiChatCompletionRequest(account, input, model);
+        OpenAiChatCompletionRequest request = new OpenAiChatCompletionRequest(input, model);
 
         return new ExecutableInferenceRequest(requestSender, logger, request, context, HANDLER, hasRequestCompletedFunction, listener);
     }

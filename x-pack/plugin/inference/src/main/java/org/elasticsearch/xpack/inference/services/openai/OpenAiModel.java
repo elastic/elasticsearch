@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.openai;
 
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -14,22 +16,50 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionVisitor;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.Map;
+import java.util.Objects;
 
 public abstract class OpenAiModel extends Model {
 
-    public OpenAiModel(ModelConfigurations configurations, ModelSecrets secrets) {
+    private final OpenAiRateLimitServiceSettings rateLimitServiceSettings;
+    private final SecureString apiKey;
+
+    public OpenAiModel(
+        ModelConfigurations configurations,
+        ModelSecrets secrets,
+        OpenAiRateLimitServiceSettings rateLimitServiceSettings,
+        @Nullable DefaultSecretSettings secretSettings
+    ) {
         super(configurations, secrets);
+
+        this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
+        apiKey = ServiceUtils.apiKey(secretSettings);
     }
 
     protected OpenAiModel(OpenAiModel model, TaskSettings taskSettings) {
         super(model, taskSettings);
+
+        rateLimitServiceSettings = model.rateLimitServiceSettings();
+        apiKey = model.apiKey();
     }
 
     protected OpenAiModel(OpenAiModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
+
+        rateLimitServiceSettings = model.rateLimitServiceSettings();
+        apiKey = model.apiKey();
     }
 
     public abstract ExecutableAction accept(OpenAiActionVisitor creator, Map<String, Object> taskSettings);
+
+    public SecureString apiKey() {
+        return apiKey;
+    }
+
+    public OpenAiRateLimitServiceSettings rateLimitServiceSettings() {
+        return rateLimitServiceSettings;
+    }
 }

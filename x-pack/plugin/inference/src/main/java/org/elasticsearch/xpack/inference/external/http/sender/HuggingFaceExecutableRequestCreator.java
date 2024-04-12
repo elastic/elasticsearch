@@ -15,7 +15,6 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceAccount;
 import org.elasticsearch.xpack.inference.external.request.huggingface.HuggingFaceInferenceRequest;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
 
@@ -29,13 +28,11 @@ public class HuggingFaceExecutableRequestCreator implements ExecutableRequestCre
     private static final Logger logger = LogManager.getLogger(HuggingFaceExecutableRequestCreator.class);
 
     private final HuggingFaceModel model;
-    private final HuggingFaceAccount account;
     private final ResponseHandler responseHandler;
     private final Truncator truncator;
 
     public HuggingFaceExecutableRequestCreator(HuggingFaceModel model, ResponseHandler responseHandler, Truncator truncator) {
         this.model = Objects.requireNonNull(model);
-        account = new HuggingFaceAccount(model.getUri(), model.getApiKey());
         this.responseHandler = Objects.requireNonNull(responseHandler);
         this.truncator = Objects.requireNonNull(truncator);
     }
@@ -50,7 +47,7 @@ public class HuggingFaceExecutableRequestCreator implements ExecutableRequestCre
         ActionListener<InferenceServiceResults> listener
     ) {
         var truncatedInput = truncate(input, model.getTokenLimit());
-        var request = new HuggingFaceInferenceRequest(truncator, account, truncatedInput, model);
+        var request = new HuggingFaceInferenceRequest(truncator, truncatedInput, model);
 
         return new ExecutableInferenceRequest(
             requestSender,

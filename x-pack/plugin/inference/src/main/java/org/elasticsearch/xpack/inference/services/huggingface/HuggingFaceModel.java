@@ -13,19 +13,35 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceActionVisitor;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 
-import java.net.URI;
+import java.util.Objects;
 
 public abstract class HuggingFaceModel extends Model {
-    public HuggingFaceModel(ModelConfigurations configurations, ModelSecrets secrets) {
+    private final HuggingFaceRateLimitServiceSettings rateLimitServiceSettings;
+    private final SecureString apiKey;
+
+    public HuggingFaceModel(
+        ModelConfigurations configurations,
+        ModelSecrets secrets,
+        HuggingFaceRateLimitServiceSettings rateLimitServiceSettings,
+        ApiKeySecrets apiKeySecrets
+    ) {
         super(configurations, secrets);
+        this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
+        apiKey = ServiceUtils.apiKey(apiKeySecrets);
     }
 
     public abstract ExecutableAction accept(HuggingFaceActionVisitor creator);
 
-    public abstract URI getUri();
+    public HuggingFaceRateLimitServiceSettings rateLimitServiceSettings() {
+        return rateLimitServiceSettings;
+    }
 
-    public abstract SecureString getApiKey();
+    public SecureString apiKey() {
+        return apiKey;
+    }
 
     public abstract Integer getTokenLimit();
 }

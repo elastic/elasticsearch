@@ -32,7 +32,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class TrainedModelCacheMetadataService implements ClusterStateListener {
     private static final Logger LOGGER = LogManager.getLogger(TrainedModelCacheMetadataService.class);
-    private static final String TASK_QUEUE_NAME = "trained-models-cache-metadata-management";
+    static final String TASK_QUEUE_NAME = "trained-models-cache-metadata-management";
     private final MasterServiceTaskQueue<CacheMetadataUpdateTask> metadataUpdateTaskQueue;
     private final Client client;
     private volatile boolean isMasterNode = false;
@@ -62,7 +62,7 @@ public class TrainedModelCacheMetadataService implements ClusterStateListener {
         this.isMasterNode = event.localNodeMaster();
     }
 
-    private abstract static class CacheMetadataUpdateTask implements ClusterStateTaskListener {
+    abstract static class CacheMetadataUpdateTask implements ClusterStateTaskListener {
         protected final ActionListener<AcknowledgedResponse> listener;
 
         CacheMetadataUpdateTask(ActionListener<AcknowledgedResponse> listener) {
@@ -83,7 +83,7 @@ public class TrainedModelCacheMetadataService implements ClusterStateListener {
         }
     }
 
-    private static class RefreshCacheMetadataVersionTask extends CacheMetadataUpdateTask {
+    static class RefreshCacheMetadataVersionTask extends CacheMetadataUpdateTask {
         RefreshCacheMetadataVersionTask(ActionListener<AcknowledgedResponse> listener) {
             super(listener);
         }
@@ -104,7 +104,7 @@ public class TrainedModelCacheMetadataService implements ClusterStateListener {
         }
     }
 
-    private static class CacheMetadataUpdateTaskExecutor implements ClusterStateTaskExecutor<CacheMetadataUpdateTask> {
+    static class CacheMetadataUpdateTaskExecutor implements ClusterStateTaskExecutor<CacheMetadataUpdateTask> {
         @Override
         public ClusterState execute(BatchExecutionContext<CacheMetadataUpdateTask> batchExecutionContext) {
             final var initialState = batchExecutionContext.initialState();

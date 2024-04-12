@@ -102,7 +102,7 @@ public class TrainedModelCacheMetadataServiceTests extends ESTestCase {
         }).when(client).execute(any(ActionType.class), any(FlushTrainedModelCacheAction.Request.class), any(ActionListener.class));
 
         @SuppressWarnings("unchecked")
-        final ActionListener<AcknowledgedResponse> listener =  mock(ActionListener.class);
+        final ActionListener<AcknowledgedResponse> listener = mock(ActionListener.class);
         modelCacheMetadataService.refreshCacheVersion(listener);
 
         // Check a FlushTrainedModelCacheAction request is emitted to the master node, that will flush the cache.
@@ -123,7 +123,7 @@ public class TrainedModelCacheMetadataServiceTests extends ESTestCase {
         final RefreshCacheMetadataVersionTask task = new RefreshCacheMetadataVersionTask(listener);
 
         final TrainedModelCacheMetadata currentCacheMetadata = new TrainedModelCacheMetadata(
-            randomValueOtherThan(Long.MAX_VALUE, () ->randomNonNegativeLong())
+            randomValueOtherThan(Long.MAX_VALUE, () -> randomNonNegativeLong())
         );
 
         @SuppressWarnings("unchecked")
@@ -154,7 +154,7 @@ public class TrainedModelCacheMetadataServiceTests extends ESTestCase {
         final TrainedModelCacheMetadata updatedCacheMetadata = task.execute(currentCacheMetadata, taskContext);
 
         // Check the version counter is reset to 1
-        assertThat(updatedCacheMetadata.version(), equalTo( 1L));
+        assertThat(updatedCacheMetadata.version(), equalTo(1L));
     }
 
     private static Client mockClient() {

@@ -1826,9 +1826,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
                     if (event.indexRoutingTableChanged(shardId.getIndexName())) {
                         var currentShardRoutingTable = event.state().routingTable().shardRoutingTable(shardId);
-                        var previousShardRoutingTable = event.previousState().routingTable().shardRoutingTable(shardId);
 
-                        if (currentShardRoutingTable != previousShardRoutingTable) {
+                        if (event.previousState().routingTable().hasIndex(shardId.getIndex()) == false
+                            || currentShardRoutingTable != event.previousState().routingTable().shardRoutingTable(shardId)) {
                             var currentUnpromotableShards = currentShardRoutingTable.unpromotableShards();
                             var currentUnpromotableShardAssignedNodes = currentUnpromotableShards.stream()
                                 .map(ShardRouting::currentNodeId)

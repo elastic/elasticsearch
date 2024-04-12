@@ -251,7 +251,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 "Requested range [position="
                     + position
                     + ", length="
-                    + (length - 1L)
+                    + length
                     + "] cannot be satisfied for ["
                     + repository.basePath().buildAsString()
                     + blobName

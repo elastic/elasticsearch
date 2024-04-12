@@ -113,7 +113,7 @@ class S3RetryingInputStream extends InputStream {
                             new RequestedRangeNotSatisfiedException(
                                 blobKey,
                                 currentStreamFirstOffset,
-                                (end < Long.MAX_VALUE - 1) ? end - currentStreamFirstOffset : end,
+                                (end < Long.MAX_VALUE - 1) ? end - currentStreamFirstOffset + 1 : end,
                                 amazonS3Exception
                             )
                         );

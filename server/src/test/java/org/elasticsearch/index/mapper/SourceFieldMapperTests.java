@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -23,6 +24,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class SourceFieldMapperTests extends MetadataMapperTestCase {
 
@@ -237,5 +239,63 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         DocumentMapper mapper = createTimeSeriesModeDocumentMapper(mapping);
         assertTrue(mapper.sourceMapper().isSynthetic());
         assertEquals("{\"_source\":{\"mode\":\"synthetic\"}}", mapper.sourceMapper().toString());
+    }
+
+    public void testSupportsNonDefaultParameterValues() throws IOException {
+        Settings settings = Settings.builder().put(SourceFieldMapper.LOSSY_PARAMETERS_ALLOWED_SETTING_NAME, false).build();
+        {
+            var sourceFieldMapper = createMapperService(settings, topMapping(b -> b.startObject("_source").endObject())).documentMapper()
+                .sourceMapper();
+            assertThat(sourceFieldMapper, notNullValue());
+        }
+        {
+            var sourceFieldMapper = createMapperService(
+                settings,
+                topMapping(b -> b.startObject("_source").field("mode", randomBoolean() ? "synthetic" : "stored").endObject())
+            ).documentMapper().sourceMapper();
+            assertThat(sourceFieldMapper, notNullValue());
+        }
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(settings, topMapping(b -> b.startObject("_source").field("enabled", false).endObject()))
+                .documentMapper()
+                .sourceMapper()
+        );
+        assertThat(e.getMessage(), containsString("Parameter [enabled] is not allowed in source"));
+
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(settings, topMapping(b -> b.startObject("_source").array("includes", "foo").endObject()))
+                .documentMapper()
+                .sourceMapper()
+        );
+        assertThat(e.getMessage(), containsString("Parameter [includes] is not allowed in source"));
+
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(settings, topMapping(b -> b.startObject("_source").array("excludes", "foo").endObject()))
+                .documentMapper()
+                .sourceMapper()
+        );
+        assertThat(e.getMessage(), containsString("Parameter [excludes] is not allowed in source"));
+
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(settings, topMapping(b -> b.startObject("_source").field("mode", "disabled").endObject()))
+                .documentMapper()
+                .sourceMapper()
+        );
+        assertThat(e.getMessage(), containsString("Parameter [mode=disabled] is not allowed in source"));
+
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> createMapperService(
+                settings,
+                topMapping(
+                    b -> b.startObject("_source").field("enabled", false).array("includes", "foo").array("excludes", "foo").endObject()
+                )
+            ).documentMapper().sourceMapper()
+        );
+        assertThat(e.getMessage(), containsString("Parameters [enabled,includes,excludes] are not allowed in source"));
     }
 }

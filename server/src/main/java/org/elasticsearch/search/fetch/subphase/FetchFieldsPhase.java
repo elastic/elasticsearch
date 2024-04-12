@@ -69,11 +69,11 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             for (final String storedField : storedFieldsContext.fieldNames()) {
                 final Set<String> matchingFieldNames = searchExecutionContext.getMatchingFieldNames(storedField);
                 for (final String matchingFieldName : matchingFieldNames) {
+                    if (SourceFieldMapper.NAME.equals(matchingFieldName) || IdFieldMapper.NAME.equals(matchingFieldName)) {
+                        continue;
+                    }
                     final MappedFieldType fieldType = searchExecutionContext.getFieldType(matchingFieldName);
-                    if (SourceFieldMapper.NAME.equals(matchingFieldName) == false
-                        && IdFieldMapper.NAME.equals(matchingFieldName) == false
-                        && searchExecutionContext.isMetadataField(matchingFieldName)
-                        && fieldType.isStored()) {
+                    if (searchExecutionContext.isMetadataField(matchingFieldName) && fieldType.isStored()) {
                         metadataFields.add(new FieldAndFormat(matchingFieldName, null));
                     }
                 }

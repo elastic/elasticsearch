@@ -23,12 +23,12 @@ public abstract class RankCoordinatorContext {
 
     protected final int size;
     protected final int from;
-    protected final int windowSize;
+    protected final int rankWindowSize;
 
-    public RankCoordinatorContext(int size, int from, int windowSize) {
+    public RankCoordinatorContext(int size, int from, int rankWindowSize) {
         this.size = size;
         this.from = from;
-        this.windowSize = windowSize;
+        this.rankWindowSize = rankWindowSize;
     }
 
     /**

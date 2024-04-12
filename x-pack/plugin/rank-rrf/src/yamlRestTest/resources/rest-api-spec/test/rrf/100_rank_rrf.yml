@@ -89,7 +89,7 @@ setup:
               text: term
           rank:
             rrf:
-              window_size: 100
+              rank_window_size: 100
               rank_constant: 1
           size: 10
 
@@ -135,7 +135,7 @@ setup:
           ]
           rank:
             rrf:
-              window_size: 100
+              rank_window_size: 100
               rank_constant: 1
           size: 10
 
@@ -183,7 +183,7 @@ setup:
           ]
           rank:
             rrf:
-              window_size: 100
+              rank_window_size: 100
               rank_constant: 1
           size: 10
 
@@ -226,7 +226,7 @@ setup:
               keyword: keyword
           rank:
             rrf:
-              window_size: 1
+              rank_window_size: 1
               rank_constant: 1
           from : 2
           size : 1
@@ -267,7 +267,7 @@ setup:
           ]
           rank:
             rrf:
-              window_size: 1
+              rank_window_size: 1
               rank_constant: 1
           from : 1
           size : 1
@@ -307,7 +307,7 @@ setup:
           ]
           rank:
             rrf:
-              window_size: 1
+              rank_window_size: 1
               rank_constant: 1
           from : 10
           size : 1

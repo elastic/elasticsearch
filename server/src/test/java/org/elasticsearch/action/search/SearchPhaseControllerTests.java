@@ -375,7 +375,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                             List<QuerySearchResult> querySearchResults,
                             TopDocsStats topDocStats
                         ) {
-                            PriorityQueue<RankDoc> queue = new PriorityQueue<RankDoc>(windowSize) {
+                            PriorityQueue<RankDoc> queue = new PriorityQueue<RankDoc>(rankWindowSize) {
                                 @Override
                                 protected boolean lessThan(RankDoc a, RankDoc b) {
                                     return a.score < b.score;

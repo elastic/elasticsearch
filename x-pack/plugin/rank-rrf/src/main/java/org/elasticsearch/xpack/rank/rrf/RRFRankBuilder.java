@@ -47,7 +47,7 @@ public class RRFRankBuilder extends RankBuilder {
     });
 
     static {
-        PARSER.declareInt(optionalConstructorArg(), WINDOW_SIZE_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_CONSTANT_FIELD);
     }
 
@@ -65,8 +65,8 @@ public class RRFRankBuilder extends RankBuilder {
 
     private final int rankConstant;
 
-    public RRFRankBuilder(int windowSize, int rankConstant) {
-        super(windowSize);
+    public RRFRankBuilder(int rankWindowSize, int rankConstant) {
+        super(rankWindowSize);
         this.rankConstant = rankConstant;
     }
 
@@ -96,12 +96,12 @@ public class RRFRankBuilder extends RankBuilder {
 
     @Override
     public RankShardContext buildRankShardContext(List<Query> queries, int from) {
-        return new RRFRankShardContext(queries, from, windowSize(), rankConstant);
+        return new RRFRankShardContext(queries, from, rankWindowSize(), rankConstant);
     }
 
     @Override
     public RankCoordinatorContext buildRankCoordinatorContext(int size, int from) {
-        return new RRFRankCoordinatorContext(size, from, windowSize(), rankConstant);
+        return new RRFRankCoordinatorContext(size, from, rankWindowSize(), rankConstant);
     }
 
     @Override

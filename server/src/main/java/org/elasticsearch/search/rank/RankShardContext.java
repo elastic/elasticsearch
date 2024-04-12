@@ -22,12 +22,12 @@ public abstract class RankShardContext {
 
     protected final List<Query> queries;
     protected final int from;
-    protected final int windowSize;
+    protected final int rankWindowSize;
 
-    public RankShardContext(List<Query> queries, int from, int windowSize) {
+    public RankShardContext(List<Query> queries, int from, int rankWindowSize) {
         this.queries = queries;
         this.from = from;
-        this.windowSize = windowSize;
+        this.rankWindowSize = rankWindowSize;
     }
 
     public List<Query> queries() {
@@ -35,7 +35,7 @@ public abstract class RankShardContext {
     }
 
     public int windowSize() {
-        return windowSize;
+        return rankWindowSize;
     }
 
     /**

@@ -28,8 +28,8 @@ public class RRFRankCoordinatorContext extends RankCoordinatorContext {
 
     private final int rankConstant;
 
-    public RRFRankCoordinatorContext(int size, int from, int windowSize, int rankConstant) {
-        super(size, from, windowSize);
+    public RRFRankCoordinatorContext(int size, int from, int rankWindowSize, int rankConstant) {
+        super(size, from, rankWindowSize);
         this.rankConstant = rankConstant;
     }
 
@@ -62,7 +62,7 @@ public class RRFRankCoordinatorContext extends RankCoordinatorContext {
 
                 for (int qi = 0; qi < queryCount; ++qi) {
                     final int fqi = qi;
-                    queues.add(new PriorityQueue<>(windowSize + from) {
+                    queues.add(new PriorityQueue<>(rankWindowSize) {
                         @Override
                         protected boolean lessThan(RRFRankDoc a, RRFRankDoc b) {
                             float score1 = a.scores[fqi];
@@ -105,7 +105,7 @@ public class RRFRankCoordinatorContext extends RankCoordinatorContext {
         // score if we already saw it as part of a previous query's
         // doc set, otherwise we make a new doc and calculate the
         // initial score
-        Map<RankKey, RRFRankDoc> results = Maps.newMapWithExpectedSize(queryCount * windowSize);
+        Map<RankKey, RRFRankDoc> results = Maps.newMapWithExpectedSize(queryCount * rankWindowSize);
         final int fqc = queryCount;
         for (int qi = 0; qi < queryCount; ++qi) {
             PriorityQueue<RRFRankDoc> queue = queues.get(qi);

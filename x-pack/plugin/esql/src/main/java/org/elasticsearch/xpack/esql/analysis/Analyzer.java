@@ -989,11 +989,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     EsIndex index = esRelation.index();
                     index.mapping()
                         .replaceAll(
-                            (name, field) -> (field instanceof MultiTypeEsField.UnresolvedField mtf) ? expressionMap.get(mtf) : field
+                            (name, field) -> (field instanceof MultiTypeEsField.UnresolvedField mtf && expressionMap.containsKey(mtf))
+                                ? expressionMap.get(mtf)
+                                : field
                         );
                     return esRelation.transformExpressionsOnly(
                         FieldAttribute.class,
-                        fa -> (fa.field() instanceof MultiTypeEsField.UnresolvedField mtf)
+                        fa -> (fa.field() instanceof MultiTypeEsField.UnresolvedField mtf && expressionMap.containsKey(mtf))
                             ? fieldAttribute(fa.source(), fa.name(), expressionMap.get(mtf), fa.id())
                             : fa
                     );

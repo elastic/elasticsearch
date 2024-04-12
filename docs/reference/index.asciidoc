@@ -2,8 +2,6 @@
 = Elasticsearch Guide
 
 :include-xpack:         true
-:dependencies-dir:      {elasticsearch-root}/build-tools-internal
-:xes-repo-dir:          {elasticsearch-root}/x-pack/docs/{lang}
 :es-repo-dir:           {elasticsearch-root}/docs/reference
 
 include::../Versions.asciidoc[]

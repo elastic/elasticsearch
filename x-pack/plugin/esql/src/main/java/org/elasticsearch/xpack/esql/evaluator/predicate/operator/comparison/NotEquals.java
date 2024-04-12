@@ -83,11 +83,6 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<BinaryC
     }
 
     @Override
-    protected TypeResolution resolveInputType(Expression e, TypeResolutions.ParamOrdinal paramOrdinal) {
-        return EsqlTypeResolutions.isExact(e, sourceText(), DEFAULT);
-    }
-
-    @Override
     public BinaryComparison reverse() {
         return this;
     }

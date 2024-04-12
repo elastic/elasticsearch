@@ -47,11 +47,6 @@ public class GreaterThan extends EsqlBinaryComparison implements Negatable<Binar
     }
 
     @Override
-    protected TypeResolution resolveInputType(Expression e, TypeResolutions.ParamOrdinal paramOrdinal) {
-        return EsqlTypeResolutions.isExact(e, sourceText(), DEFAULT);
-    }
-
-    @Override
     protected NodeInfo<GreaterThan> info() {
         return NodeInfo.create(this, GreaterThan::new, left(), right(), zoneId());
     }

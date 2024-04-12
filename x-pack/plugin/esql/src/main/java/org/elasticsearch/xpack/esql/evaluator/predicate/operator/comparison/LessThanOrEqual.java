@@ -43,11 +43,6 @@ public class LessThanOrEqual extends EsqlBinaryComparison implements Negatable<B
     }
 
     @Override
-    protected TypeResolution resolveInputType(Expression e, TypeResolutions.ParamOrdinal paramOrdinal) {
-        return EsqlTypeResolutions.isExact(e, sourceText(), DEFAULT);
-    }
-
-    @Override
     protected NodeInfo<LessThanOrEqual> info() {
         return NodeInfo.create(this, LessThanOrEqual::new, left(), right(), zoneId());
     }

@@ -570,7 +570,6 @@ from employees | where job_positions == "Accountant" or job_positions == "Tech L
 warning:Line 1:24: evaluation of [job_positions] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 1:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
-
 // Note that multivalued job_positions aren't included because they aren't less than or greater than C - that comparison is null
 emp_no:integer |job_positions:keyword
 10020          |Tech Lead

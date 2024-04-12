@@ -47,11 +47,6 @@ public class GreaterThanOrEqual extends EsqlBinaryComparison implements Negatabl
     }
 
     @Override
-    protected TypeResolution resolveInputType(Expression e, TypeResolutions.ParamOrdinal paramOrdinal) {
-        return EsqlTypeResolutions.isExact(e, sourceText(), DEFAULT);
-    }
-
-    @Override
     protected NodeInfo<GreaterThanOrEqual> info() {
         return NodeInfo.create(this, GreaterThanOrEqual::new, left(), right(), zoneId());
     }

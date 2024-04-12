@@ -240,7 +240,15 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     }
 
     public Transport.Connection getConnection(String cluster) {
-        return getRemoteClusterConnection(cluster).getConnection();
+        try {
+            return getRemoteClusterConnection(cluster).getConnection();
+        } catch (NoSuchRemoteClusterException e) {
+            if (getRemoteClusterNames().contains(cluster)) {
+                throw new ConnectTransportException(null, "No connection to [" + cluster + "]");
+            } else {
+                throw e;
+            }
+        }
     }
 
     /**

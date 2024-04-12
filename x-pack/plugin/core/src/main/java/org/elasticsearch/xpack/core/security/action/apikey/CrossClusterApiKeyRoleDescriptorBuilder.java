@@ -24,6 +24,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class CrossClusterApiKeyRoleDescriptorBuilder {
 
+    //monitor_enrich is needed for ES|QL + ENRICH and https://github.com/elastic/elasticsearch/issues/106926 is related
     public static final String[] CCS_CLUSTER_PRIVILEGE_NAMES = { "cross_cluster_search", "monitor_enrich" };
     public static final String[] CCR_CLUSTER_PRIVILEGE_NAMES = { "cross_cluster_replication" };
     public static final String[] CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES = Stream.concat(

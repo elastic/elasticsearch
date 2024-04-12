@@ -1097,7 +1097,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testBuildRoleFromDescriptorsWithSingleRestriction() {
-        Role role = buildRole(RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), true));
+        Role role = buildRole(RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), true, randomBoolean()));
         assertThat(role.hasWorkflowsRestriction(), equalTo(true));
     }
 
@@ -1105,8 +1105,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         var e = expectThrows(
             IllegalArgumentException.class,
             () -> buildRole(
-                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), true),
-                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), true)
+                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), true, randomBoolean()),
+                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), true, randomBoolean())
             )
         );
         assertThat(e.getMessage(), containsString("more than one role descriptor with restriction is not allowed"));
@@ -1114,9 +1114,9 @@ public class CompositeRolesStoreTests extends ESTestCase {
         e = expectThrows(
             IllegalArgumentException.class,
             () -> buildRole(
-                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), true),
-                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), false),
-                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), false)
+                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), true, randomBoolean()),
+                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), false, randomBoolean()),
+                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), false, randomBoolean())
             )
         );
         assertThat(e.getMessage(), containsString("combining role descriptors with and without restriction is not allowed"));

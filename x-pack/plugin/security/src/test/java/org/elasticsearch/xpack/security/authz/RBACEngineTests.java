@@ -135,7 +135,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
@@ -199,7 +198,7 @@ public class RBACEngineTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             final var listener = (ActionListener<Tuple<Role, Role>>) invocation.getArgument(1);
             final Supplier<Role> randomRoleSupplier = () -> Role.buildFromRoleDescriptor(
-                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), false, randomBoolean()),
+                RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), false, randomBoolean(), false),
                 new FieldPermissionsCache(Settings.EMPTY),
                 RESTRICTED_INDICES,
                 List.of()

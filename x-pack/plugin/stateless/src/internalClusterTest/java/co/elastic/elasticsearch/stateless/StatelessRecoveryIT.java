@@ -1551,10 +1551,6 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo((long) numDocs));
     }
 
-    private String getNodeId(String nodeName) {
-        return internalCluster().getInstance(ClusterService.class, nodeName).localNode().getId();
-    }
-
     public void testWaitForClusterStateToBeAppliedOnSourceNodeInPrimaryRelocation() throws Exception {
         final var sourceNode = startIndexNode();
         String indexName = "test-index";

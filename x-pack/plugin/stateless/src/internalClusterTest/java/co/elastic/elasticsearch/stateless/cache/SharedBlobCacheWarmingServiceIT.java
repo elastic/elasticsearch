@@ -51,6 +51,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestCase {
 
@@ -73,7 +74,6 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         return plugins;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1549")
     public void testCacheIsWarmedBeforeIndexingShardRelocation() throws Exception {
         startMasterOnlyNode();
 
@@ -132,8 +132,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
                 )
             )
         );
-        internalCluster().stopNode(indexNodeA);
         ensureGreen(indexName);
+        assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(indexNodeB)));
     }
 
     public static class TestStateless extends Stateless {

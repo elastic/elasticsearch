@@ -805,8 +805,4 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             throw new RuntimeException(e);
         }
     }
-
-    private static String getNodeId(String nodeName) {
-        return internalCluster().clusterService().state().getNodes().resolveNode(nodeName).getId();
-    }
 }

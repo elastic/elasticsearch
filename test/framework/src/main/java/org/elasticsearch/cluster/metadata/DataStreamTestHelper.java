@@ -135,7 +135,7 @@ public final class DataStreamTestHelper {
             .setMetadata(metadata)
             .setReplicated(replicated)
             .setLifecycle(lifecycle)
-            .setAutoShardingEvent(autoShardingEvent)
+            .setBackingIndices(DataStream.DataStreamIndices.backingBuilder(indices).setAutoShardingEvent(autoShardingEvent).build())
             .build();
     }
 
@@ -154,7 +154,7 @@ public final class DataStreamTestHelper {
             .setReplicated(replicated)
             .setLifecycle(lifecycle)
             .setFailureStoreEnabled(failureStores.isEmpty() == false)
-            .setFailureIndices(failureStores)
+            .setFailureIndices(DataStream.DataStreamIndices.failureBuilder(failureStores).build())
             .build();
     }
 

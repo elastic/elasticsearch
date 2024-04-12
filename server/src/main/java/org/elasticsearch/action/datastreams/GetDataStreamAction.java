@@ -322,7 +322,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 if (DataStream.isFailureStoreFeatureFlagEnabled()) {
                     builder.field(DataStream.FAILURE_INDICES_FIELD.getPreferredName());
                     builder.startArray();
-                    for (Index failureStore : dataStream.getFailureIndices()) {
+                    for (Index failureStore : dataStream.getFailureIndices().indices()) {
                         builder.startObject();
                         failureStore.toXContentFragment(builder);
                         IndexProperties indexProperties = indexSettingsValues.get(failureStore);

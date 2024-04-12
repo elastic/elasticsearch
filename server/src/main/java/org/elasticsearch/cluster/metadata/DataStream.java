@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling.Round;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -102,7 +101,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     private final LongSupplier timeProvider;
     private final String name;
-    private final List<Index> indices;
     private final long generation;
     @Nullable
     private final Map<String, Object> metadata;
@@ -114,12 +112,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private final IndexMode indexMode;
     @Nullable
     private final DataStreamLifecycle lifecycle;
-    private final boolean rolloverOnWrite;
     private final boolean failureStoreEnabled;
-    private final List<Index> failureIndices;
     private volatile Set<String> failureStoreLookup;
-    @Nullable
-    private final DataStreamAutoShardingEvent autoShardingEvent;
+
+    private final DataStreamIndices backingIndices;
+    private final DataStreamIndices failureIndices;
 
     public DataStream(
         String name,
@@ -156,8 +153,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         );
     }
 
-    // visible for testing
-    DataStream(
+    public DataStream(
         String name,
         List<Index> indices,
         long generation,
@@ -174,9 +170,40 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         boolean rolloverOnWrite,
         @Nullable DataStreamAutoShardingEvent autoShardingEvent
     ) {
+        this(
+            name,
+            generation,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            timeProvider,
+            allowCustomRouting,
+            indexMode,
+            lifecycle,
+            failureStoreEnabled,
+            new DataStreamIndices(BACKING_INDEX_PREFIX, List.copyOf(indices), rolloverOnWrite, autoShardingEvent),
+            new DataStreamIndices(FAILURE_STORE_PREFIX, failureStoreEnabled ? List.copyOf(failureIndices) : List.of(), false, null)
+        );
+    }
+
+    // visible for testing
+    DataStream(
+        String name,
+        long generation,
+        Map<String, Object> metadata,
+        boolean hidden,
+        boolean replicated,
+        boolean system,
+        LongSupplier timeProvider,
+        boolean allowCustomRouting,
+        IndexMode indexMode,
+        DataStreamLifecycle lifecycle,
+        boolean failureStoreEnabled,
+        DataStreamIndices backingIndices,
+        DataStreamIndices failureIndices
+    ) {
         this.name = name;
-        this.indices = List.copyOf(indices);
-        assert indices.isEmpty() == false;
         this.generation = generation;
         this.metadata = metadata;
         assert system == false || hidden; // system indices must be hidden
@@ -188,11 +215,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.indexMode = indexMode;
         this.lifecycle = lifecycle;
         this.failureStoreEnabled = failureStoreEnabled;
+        assert backingIndices.indices.isEmpty() == false;
+        assert assertConsistent(backingIndices.indices);
+        assert replicated == false || backingIndices.rolloverOnWrite == false
+            : "replicated data streams cannot be marked for lazy rollover";
+        this.backingIndices = backingIndices;
         this.failureIndices = failureIndices;
-        assert assertConsistent(this.indices);
-        assert replicated == false || rolloverOnWrite == false : "replicated data streams cannot be marked for lazy rollover";
-        this.rolloverOnWrite = rolloverOnWrite;
-        this.autoShardingEvent = autoShardingEvent;
     }
 
     private static boolean assertConsistent(List<Index> indices) {
@@ -222,20 +250,16 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     @Override
     public List<Index> getIndices() {
-        return indices;
+        return backingIndices.indices;
     }
 
     public long getGeneration() {
         return generation;
     }
 
-    public List<Index> getFailureIndices() {
-        return failureIndices;
-    }
-
     @Override
     public Index getWriteIndex() {
-        return indices.get(indices.size() - 1);
+        return backingIndices.getWriteIndex();
     }
 
     /**
@@ -243,7 +267,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     @Nullable
     public Index getFailureStoreWriteIndex() {
-        return isFailureStoreEnabled() == false || failureIndices.isEmpty() ? null : failureIndices.get(failureIndices.size() - 1);
+        return isFailureStoreEnabled() == false || failureIndices.indices.isEmpty() ? null : failureIndices.getWriteIndex();
     }
 
     /**
@@ -252,6 +276,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * This will perform better if there are multiple indices of this data stream checked.
      */
     public boolean isFailureStoreIndex(String indexName) {
+        var failureIndices = this.failureIndices.indices;
         if (failureStoreLookup == null) {
             // There is a chance this will be calculated twice, but it's a relatively cheap action,
             // so it's not worth synchronising
@@ -265,7 +290,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     public boolean rolloverOnWrite() {
-        return rolloverOnWrite;
+        return backingIndices.rolloverOnWrite;
     }
 
     /**
@@ -275,8 +300,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      *         an end time that is less than the provided timestamp. Otherwise <code>null</code> is returned.
      */
     public Index selectTimeSeriesWriteIndex(Instant timestamp, Metadata metadata) {
-        for (int i = indices.size() - 1; i >= 0; i--) {
-            Index index = indices.get(i);
+        for (int i = backingIndices.indices.size() - 1; i >= 0; i--) {
+            Index index = backingIndices.indices.get(i);
             IndexMetadata im = metadata.index(index);
 
             // TODO: make index_mode, start and end time fields in IndexMetadata class.
@@ -306,7 +331,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public void validate(Function<String, IndexMetadata> imSupplier) {
         if (indexMode == IndexMode.TIME_SERIES) {
             // Get a sorted overview of each backing index with there start and end time range:
-            var startAndEndTimes = indices.stream().map(index -> {
+            var startAndEndTimes = backingIndices.indices.stream().map(index -> {
                 IndexMetadata im = imSupplier.apply(index.getName());
                 if (im == null) {
                     throw new IllegalStateException("index [" + index.getName() + "] is not found in the index metadata supplier");
@@ -407,7 +432,19 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * Returns the latest auto sharding event that happened for this data stream
      */
     public DataStreamAutoShardingEvent getAutoShardingEvent() {
-        return autoShardingEvent;
+        return backingIndices.autoShardingEvent;
+    }
+
+    public DataStreamIndices getBackingIndices() {
+        return backingIndices;
+    }
+
+    public DataStreamIndices getFailureIndices() {
+        return failureIndices;
+    }
+
+    public DataStreamIndices getDataStreamIndices(boolean failureStore) {
+        return failureStore ? this.failureIndices : backingIndices;
     }
 
     /**
@@ -446,15 +483,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             indexMode = null;
         }
 
-        List<Index> backingIndices = new ArrayList<>(indices);
+        List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices);
         backingIndices.add(writeIndex);
-        return copy().setIndices(backingIndices)
-            .setGeneration(generation)
-            .setReplicated(false)
-            .setIndexMode(indexMode)
-            .setAutoShardingEvent(autoShardingEvent)
-            .setRolloverOnWrite(false)
-            .build();
+        return copy().setBackingIndices(
+            this.backingIndices.copy().setIndices(backingIndices).setAutoShardingEvent(autoShardingEvent).setRolloverOnWrite(false).build()
+        ).setGeneration(generation).setIndexMode(indexMode).build();
     }
 
     /**
@@ -475,9 +508,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * Like {@link #rolloverFailureStore(Index, long)}, but does no validation, use with care only.
      */
     public DataStream unsafeRolloverFailureStore(Index writeIndex, long generation) {
-        List<Index> failureIndices = new ArrayList<>(this.failureIndices);
+        List<Index> failureIndices = new ArrayList<>(this.failureIndices.indices);
         failureIndices.add(writeIndex);
-        return copy().setGeneration(generation).setReplicated(false).setFailureIndices(failureIndices).build();
+        return copy().setGeneration(generation)
+            .setReplicated(false)
+            .setFailureIndices(this.failureIndices.copy().setIndices(failureIndices).build())
+            .build();
     }
 
     /**
@@ -486,45 +522,17 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * @param clusterMetadata Cluster metadata
      * @return tuple of the next write index name and next generation.
      */
-    public Tuple<String, Long> nextWriteIndexAndGeneration(Metadata clusterMetadata) {
+    public Tuple<String, Long> nextWriteIndexAndGeneration(Metadata clusterMetadata, DataStreamIndices dataStreamIndices) {
         ensureNotReplicated();
-        return unsafeNextWriteIndexAndGeneration(clusterMetadata);
+        return unsafeNextWriteIndexAndGeneration(clusterMetadata, dataStreamIndices);
     }
 
-    /**
-     * Like {@link #nextWriteIndexAndGeneration(Metadata)}, but does no validation, use with care only.
-     */
-    public Tuple<String, Long> unsafeNextWriteIndexAndGeneration(Metadata clusterMetadata) {
-        return generateNextWriteIndexAndGeneration(clusterMetadata, DataStream::getDefaultBackingIndexName);
-    }
-
-    /**
-     * Generates the next write index name and <code>generation</code> to be used for rolling over the failure store of this data stream.
-     *
-     * @param clusterMetadata Cluster metadata
-     * @return tuple of the next failure store write index name and next generation.
-     */
-    public Tuple<String, Long> nextFailureStoreWriteIndexAndGeneration(Metadata clusterMetadata) {
-        ensureNotReplicated();
-        return unsafeNextFailureStoreWriteIndexAndGeneration(clusterMetadata);
-    }
-
-    /**
-     * Like {@link #nextFailureStoreWriteIndexAndGeneration(Metadata)}, but does no validation, use with care only.
-     */
-    public Tuple<String, Long> unsafeNextFailureStoreWriteIndexAndGeneration(Metadata clusterMetadata) {
-        return generateNextWriteIndexAndGeneration(clusterMetadata, DataStream::getDefaultFailureStoreName);
-    }
-
-    private Tuple<String, Long> generateNextWriteIndexAndGeneration(
-        Metadata clusterMetadata,
-        TriFunction<String, Long, Long, String> nameGenerator
-    ) {
+    public Tuple<String, Long> unsafeNextWriteIndexAndGeneration(Metadata clusterMetadata, DataStreamIndices dataStreamIndices) {
         String newWriteIndexName;
         long generation = this.generation;
         long currentTimeMillis = timeProvider.getAsLong();
         do {
-            newWriteIndexName = nameGenerator.apply(getName(), ++generation, currentTimeMillis);
+            newWriteIndexName = dataStreamIndices.provideName(name, ++generation, currentTimeMillis);
         } while (clusterMetadata.hasIndexAbstraction(newWriteIndexName));
         return Tuple.tuple(newWriteIndexName, generation);
     }
@@ -544,14 +552,14 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * @throws IllegalArgumentException if {@code index} is not a backing index or is the current write index of the data stream
      */
     public DataStream removeBackingIndex(Index index) {
-        int backingIndexPosition = indices.indexOf(index);
+        int backingIndexPosition = backingIndices.indices.indexOf(index);
 
         if (backingIndexPosition == -1) {
             throw new IllegalArgumentException(
                 String.format(Locale.ROOT, "index [%s] is not part of data stream [%s]", index.getName(), name)
             );
         }
-        if (indices.size() == (backingIndexPosition + 1)) {
+        if (backingIndices.indices.size() == (backingIndexPosition + 1)) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
@@ -562,10 +570,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             );
         }
 
-        List<Index> backingIndices = new ArrayList<>(indices);
+        List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices);
         backingIndices.remove(index);
-        assert backingIndices.size() == indices.size() - 1;
-        return copy().setIndices(backingIndices).setGeneration(generation + 1).build();
+        assert backingIndices.size() == this.backingIndices.indices.size() - 1;
+        return copy().setBackingIndices(this.backingIndices.copy().setIndices(backingIndices).build())
+            .setGeneration(generation + 1)
+            .build();
     }
 
     /**
@@ -578,7 +588,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * data stream
      */
     public DataStream removeFailureStoreIndex(Index index) {
-        int failureIndexPosition = failureIndices.indexOf(index);
+        int failureIndexPosition = failureIndices.indices.indexOf(index);
 
         if (failureIndexPosition == -1) {
             throw new IllegalArgumentException(
@@ -588,7 +598,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
         // TODO: When failure stores are lazily created, this wont necessarily be required anymore. We can remove the failure store write
         // index as long as we mark the data stream to lazily rollover the failure store with no conditions on its next write
-        if (failureIndices.size() == (failureIndexPosition + 1)) {
+        if (failureIndices.indices.size() == (failureIndexPosition + 1)) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
@@ -599,10 +609,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             );
         }
 
-        List<Index> updatedFailureIndices = new ArrayList<>(failureIndices);
+        List<Index> updatedFailureIndices = new ArrayList<>(failureIndices.indices);
         updatedFailureIndices.remove(index);
-        assert updatedFailureIndices.size() == failureIndices.size() - 1;
-        return copy().setGeneration(generation + 1).setFailureIndices(updatedFailureIndices).build();
+        assert updatedFailureIndices.size() == failureIndices.indices.size() - 1;
+        return copy().setFailureIndices(failureIndices.copy().setIndices(updatedFailureIndices).build())
+            .setGeneration(generation + 1)
+            .build();
     }
 
     /**
@@ -616,14 +628,14 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * existing index.
      */
     public DataStream replaceBackingIndex(Index existingBackingIndex, Index newBackingIndex) {
-        List<Index> backingIndices = new ArrayList<>(indices);
+        List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices);
         int backingIndexPosition = backingIndices.indexOf(existingBackingIndex);
         if (backingIndexPosition == -1) {
             throw new IllegalArgumentException(
                 String.format(Locale.ROOT, "index [%s] is not part of data stream [%s]", existingBackingIndex.getName(), name)
             );
         }
-        if (indices.size() == (backingIndexPosition + 1)) {
+        if (this.backingIndices.indices.size() == (backingIndexPosition + 1)) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
@@ -634,7 +646,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             );
         }
         backingIndices.set(backingIndexPosition, newBackingIndex);
-        return copy().setIndices(backingIndices).setGeneration(generation + 1).build();
+        return copy().setBackingIndices(this.backingIndices.copy().setIndices(backingIndices).build())
+            .setGeneration(generation + 1)
+            .build();
     }
 
     /**
@@ -656,10 +670,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         // ensure that no aliases reference index
         ensureNoAliasesOnIndex(clusterMetadata, index);
 
-        List<Index> backingIndices = new ArrayList<>(indices);
+        List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices);
         backingIndices.add(0, index);
-        assert backingIndices.size() == indices.size() + 1;
-        return copy().setIndices(backingIndices).setGeneration(generation + 1).build();
+        assert backingIndices.size() == this.backingIndices.indices.size() + 1;
+        return copy().setBackingIndices(this.backingIndices.copy().setIndices(backingIndices).build())
+            .setGeneration(generation + 1)
+            .build();
     }
 
     /**
@@ -680,10 +696,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
         ensureNoAliasesOnIndex(clusterMetadata, index);
 
-        List<Index> updatedFailureIndices = new ArrayList<>(failureIndices);
+        List<Index> updatedFailureIndices = new ArrayList<>(failureIndices.indices);
         updatedFailureIndices.add(0, index);
-        assert updatedFailureIndices.size() == failureIndices.size() + 1;
-        return copy().setGeneration(generation + 1).setFailureIndices(updatedFailureIndices).build();
+        assert updatedFailureIndices.size() == failureIndices.indices.size() + 1;
+        return copy().setFailureIndices(failureIndices.copy().setIndices(updatedFailureIndices).build())
+            .setGeneration(generation + 1)
+            .build();
     }
 
     /**
@@ -742,7 +760,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     @Nullable
     public DataStream snapshot(Collection<String> indicesInSnapshot) {
         // do not include indices not available in the snapshot
-        List<Index> reconciledIndices = new ArrayList<>(this.indices);
+        List<Index> reconciledIndices = new ArrayList<>(this.backingIndices.indices);
         if (reconciledIndices.removeIf(x -> indicesInSnapshot.contains(x.getName()) == false) == false) {
             return this;
         }
@@ -751,7 +769,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             return null;
         }
 
-        return copy().setIndices(reconciledIndices).setMetadata(metadata == null ? null : new HashMap<>(metadata)).build();
+        return copy().setBackingIndices(backingIndices.copy().setIndices(reconciledIndices).build())
+            .setMetadata(metadata == null ? null : new HashMap<>(metadata))
+            .build();
     }
 
     /**
@@ -790,7 +810,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         Function<String, IndexMetadata> indexMetadataSupplier,
         LongSupplier nowSupplier
     ) {
-        assert indices.contains(index) : "the provided index must be a backing index for this datastream";
+        assert backingIndices.indices.contains(index) : "the provided index must be a backing index for this datastream";
         if (lifecycle == null || lifecycle.getDownsamplingRounds() == null) {
             return List.of();
         }
@@ -829,7 +849,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         LongSupplier nowSupplier
     ) {
         List<Index> olderIndices = new ArrayList<>();
-        for (Index index : indices) {
+        for (Index index : backingIndices.indices) {
             if (isIndexOderThan(index, retentionPeriod.getMillis(), nowSupplier.getAsLong(), indicesPredicate, indexMetadataSupplier)) {
                 olderIndices.add(index);
             }
@@ -862,7 +882,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * we return false.
      */
     public boolean isIndexManagedByDataStreamLifecycle(Index index, Function<String, IndexMetadata> indexMetadataSupplier) {
-        if (indices.contains(index) == false) {
+        if (backingIndices.indices.contains(index) == false) {
             return false;
         }
         IndexMetadata indexMetadata = indexMetadataSupplier.apply(index.getName());
@@ -934,13 +954,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * @return backing index name
      */
     public static String getDefaultBackingIndexName(String dataStreamName, long generation, long epochMillis) {
-        return String.format(
-            Locale.ROOT,
-            BACKING_INDEX_PREFIX + "%s-%s-%06d",
-            dataStreamName,
-            DATE_FORMATTER.formatMillis(epochMillis),
-            generation
-        );
+        return getDefaultIndexName(BACKING_INDEX_PREFIX, dataStreamName, generation, epochMillis);
     }
 
     /**
@@ -953,13 +967,20 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * @return backing index name
      */
     public static String getDefaultFailureStoreName(String dataStreamName, long generation, long epochMillis) {
-        return String.format(
-            Locale.ROOT,
-            FAILURE_STORE_PREFIX + "%s-%s-%06d",
-            dataStreamName,
-            DATE_FORMATTER.formatMillis(epochMillis),
-            generation
-        );
+        return getDefaultIndexName(FAILURE_STORE_PREFIX, dataStreamName, generation, epochMillis);
+    }
+
+    /**
+     * Generates the name of the index that conforms to the default naming convention for backing indices
+     * on data streams given the specified data stream name, generation, and time.
+     *
+     * @param dataStreamName name of the data stream
+     * @param generation generation of the data stream
+     * @param epochMillis creation time for the backing index
+     * @return backing index name
+     */
+    public static String getDefaultIndexName(String prefix, String dataStreamName, long generation, long epochMillis) {
+        return String.format(Locale.ROOT, prefix + "%s-%s-%06d", dataStreamName, DATE_FORMATTER.formatMillis(epochMillis), generation);
     }
 
     public DataStream(StreamInput in) throws IOException {
@@ -1001,7 +1022,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(TIMESTAMP_FIELD_NAME); // TODO: clear this out in the future https://github.com/elastic/elasticsearch/issues/101991
-        out.writeCollection(indices);
+        out.writeCollection(backingIndices.indices);
         out.writeVLong(generation);
         out.writeGenericMap(metadata);
         out.writeBoolean(hidden);
@@ -1018,13 +1039,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
         if (out.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {
             out.writeBoolean(failureStoreEnabled);
-            out.writeCollection(failureIndices);
+            out.writeCollection(failureIndices.indices);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.LAZY_ROLLOVER_ADDED)) {
-            out.writeBoolean(rolloverOnWrite);
+            out.writeBoolean(backingIndices.rolloverOnWrite);
         }
         if (out.getTransportVersion().onOrAfter(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION)) {
-            out.writeOptionalWriteable(autoShardingEvent);
+            out.writeOptionalWriteable(backingIndices.autoShardingEvent);
         }
     }
 
@@ -1130,10 +1151,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             .startObject()
             .field(NAME_FIELD.getPreferredName(), TIMESTAMP_FIELD_NAME)
             .endObject();
-        builder.xContentList(INDICES_FIELD.getPreferredName(), indices);
+        builder.xContentList(INDICES_FIELD.getPreferredName(), backingIndices.indices);
         builder.field(GENERATION_FIELD.getPreferredName(), generation);
-        if (DataStream.isFailureStoreFeatureFlagEnabled() && failureIndices.isEmpty() == false) {
-            builder.xContentList(FAILURE_INDICES_FIELD.getPreferredName(), failureIndices);
+        if (DataStream.isFailureStoreFeatureFlagEnabled() && failureIndices.indices.isEmpty() == false) {
+            builder.xContentList(FAILURE_INDICES_FIELD.getPreferredName(), failureIndices.indices);
         }
         if (metadata != null) {
             builder.field(METADATA_FIELD.getPreferredName(), metadata);
@@ -1152,10 +1173,10 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             builder.field(LIFECYCLE.getPreferredName());
             lifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention);
         }
-        builder.field(ROLLOVER_ON_WRITE_FIELD.getPreferredName(), rolloverOnWrite);
-        if (autoShardingEvent != null) {
+        builder.field(ROLLOVER_ON_WRITE_FIELD.getPreferredName(), backingIndices.rolloverOnWrite);
+        if (backingIndices.autoShardingEvent != null) {
             builder.startObject(AUTO_SHARDING_FIELD.getPreferredName());
-            autoShardingEvent.toXContent(builder, params);
+            backingIndices.autoShardingEvent.toXContent(builder, params);
             builder.endObject();
         }
         builder.endObject();
@@ -1168,7 +1189,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (o == null || getClass() != o.getClass()) return false;
         DataStream that = (DataStream) o;
         return name.equals(that.name)
-            && indices.equals(that.indices)
             && generation == that.generation
             && Objects.equals(metadata, that.metadata)
             && hidden == that.hidden
@@ -1178,16 +1198,14 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             && indexMode == that.indexMode
             && Objects.equals(lifecycle, that.lifecycle)
             && failureStoreEnabled == that.failureStoreEnabled
-            && failureIndices.equals(that.failureIndices)
-            && rolloverOnWrite == that.rolloverOnWrite
-            && Objects.equals(autoShardingEvent, that.autoShardingEvent);
+            && Objects.equals(backingIndices, that.backingIndices)
+            && Objects.equals(failureIndices, that.failureIndices);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(
             name,
-            indices,
             generation,
             metadata,
             hidden,
@@ -1197,9 +1215,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             indexMode,
             lifecycle,
             failureStoreEnabled,
-            failureIndices,
-            rolloverOnWrite,
-            autoShardingEvent
+            backingIndices,
+            failureIndices
         );
     }
 
@@ -1347,10 +1364,81 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return new Builder(this);
     }
 
+    public record DataStreamIndices(
+        String namePrefix,
+        List<Index> indices,
+        boolean rolloverOnWrite,
+        @Nullable DataStreamAutoShardingEvent autoShardingEvent
+    ) {
+
+        public Index getWriteIndex() {
+            return indices.get(indices.size() - 1);
+        }
+
+        public String provideName(String dataStreamName, long generation, long epochMillis) {
+            return getDefaultIndexName(namePrefix, dataStreamName, generation, epochMillis);
+        }
+
+        public static Builder backingBuilder(List<Index> indices) {
+            return new Builder(BACKING_INDEX_PREFIX, indices);
+        }
+
+        public static Builder failureBuilder(List<Index> indices) {
+            return new Builder(FAILURE_STORE_PREFIX, indices);
+        }
+
+        public Builder copy() {
+            return new Builder(this);
+        }
+
+        public static class Builder {
+            private String namePrefix;
+            private List<Index> indices;
+            private boolean rolloverOnWrite = false;
+            @Nullable
+            private DataStreamAutoShardingEvent autoShardingEvent = null;
+
+            public Builder(String namePrefix, List<Index> indices) {
+                this.namePrefix = namePrefix;
+                this.indices = indices;
+            }
+
+            public Builder(DataStreamIndices dataStreamIndices) {
+                this.namePrefix = dataStreamIndices.namePrefix;
+                this.indices = dataStreamIndices.indices;
+                this.rolloverOnWrite = dataStreamIndices.rolloverOnWrite;
+                this.autoShardingEvent = dataStreamIndices.autoShardingEvent;
+            }
+
+            public Builder setNamePrefix(String namePrefix) {
+                this.namePrefix = namePrefix;
+                return this;
+            }
+
+            public Builder setIndices(List<Index> indices) {
+                this.indices = indices;
+                return this;
+            }
+
+            public Builder setRolloverOnWrite(boolean rolloverOnWrite) {
+                this.rolloverOnWrite = rolloverOnWrite;
+                return this;
+            }
+
+            public Builder setAutoShardingEvent(DataStreamAutoShardingEvent autoShardingEvent) {
+                this.autoShardingEvent = autoShardingEvent;
+                return this;
+            }
+
+            public DataStreamIndices build() {
+                return new DataStreamIndices(namePrefix, indices, rolloverOnWrite, autoShardingEvent);
+            }
+        }
+    }
+
     public static class Builder {
         private LongSupplier timeProvider = System::currentTimeMillis;
         private String name;
-        private List<Index> indices;
         private long generation = 1;
         @Nullable
         private Map<String, Object> metadata = null;
@@ -1362,22 +1450,19 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         private IndexMode indexMode = null;
         @Nullable
         private DataStreamLifecycle lifecycle = null;
-        private boolean rolloverOnWrite = false;
         private boolean failureStoreEnabled = false;
-        private List<Index> failureIndices = List.of();
-        @Nullable
-        private DataStreamAutoShardingEvent autoShardingEvent = null;
+        private DataStreamIndices backingIndices;
+        private DataStreamIndices failureIndices = DataStreamIndices.failureBuilder(List.of()).build();
 
         public Builder(String name, List<Index> indices) {
             this.name = name;
             assert indices.isEmpty() == false : "Cannot create data stream with empty backing indices";
-            this.indices = indices;
+            this.backingIndices = DataStreamIndices.backingBuilder(indices).build();
         }
 
         public Builder(DataStream dataStream) {
             timeProvider = dataStream.timeProvider;
             name = dataStream.name;
-            indices = dataStream.indices;
             generation = dataStream.generation;
             metadata = dataStream.metadata;
             hidden = dataStream.hidden;
@@ -1386,10 +1471,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             allowCustomRouting = dataStream.allowCustomRouting;
             indexMode = dataStream.indexMode;
             lifecycle = dataStream.lifecycle;
-            rolloverOnWrite = dataStream.rolloverOnWrite;
             failureStoreEnabled = dataStream.failureStoreEnabled;
+            backingIndices = dataStream.backingIndices;
             failureIndices = dataStream.failureIndices;
-            autoShardingEvent = dataStream.autoShardingEvent;
         }
 
         public Builder setTimeProvider(LongSupplier timeProvider) {
@@ -1399,12 +1483,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
         public Builder setName(String name) {
             this.name = name;
-            return this;
-        }
-
-        public Builder setIndices(List<Index> indices) {
-            assert indices.isEmpty() == false : "Cannot create data stream with empty backing indices";
-            this.indices = indices;
             return this;
         }
 
@@ -1448,30 +1526,33 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             return this;
         }
 
-        public Builder setRolloverOnWrite(boolean rolloverOnWrite) {
-            this.rolloverOnWrite = rolloverOnWrite;
-            return this;
-        }
-
         public Builder setFailureStoreEnabled(boolean failureStoreEnabled) {
             this.failureStoreEnabled = failureStoreEnabled;
             return this;
         }
 
-        public Builder setFailureIndices(List<Index> failureIndices) {
+        public Builder setBackingIndices(DataStreamIndices backingIndices) {
+            this.backingIndices = backingIndices;
+            return this;
+        }
+
+        public Builder setFailureIndices(DataStreamIndices failureIndices) {
             this.failureIndices = failureIndices;
             return this;
         }
 
-        public Builder setAutoShardingEvent(DataStreamAutoShardingEvent autoShardingEvent) {
-            this.autoShardingEvent = autoShardingEvent;
+        public Builder setDataStreamIndices(boolean targetFailureStore, DataStreamIndices indices) {
+            if (targetFailureStore) {
+                this.failureIndices = indices;
+            } else {
+                this.backingIndices = indices;
+            }
             return this;
         }
 
         public DataStream build() {
             return new DataStream(
                 name,
-                indices,
                 generation,
                 metadata,
                 hidden,
@@ -1482,9 +1563,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 indexMode,
                 lifecycle,
                 failureStoreEnabled,
-                failureIndices,
-                rolloverOnWrite,
-                autoShardingEvent
+                backingIndices,
+                failureIndices
             );
         }
     }

@@ -198,7 +198,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         assert BlobContainer.assertPurposeConsistency(purpose, blobName);
         final SeekableByteChannel channel = Files.newByteChannel(path.resolve(blobName));
         if (position > 0L) {
-            if (channel.size() < position) {
+            if (channel.size() <= position) {
                 try (channel) {
                     throw new RequestedRangeNotSatisfiedException(blobName, position, length);
                 }

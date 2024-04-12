@@ -110,18 +110,8 @@ public class FsBlobContainerTests extends ESTestCase {
         );
 
         {
-            long position = blobData.length;
-            long length = randomIntBetween(1, 100);
-            try (var stream = container.readBlob(randomPurpose(), blobName, position, length)) {
-                assertThat(totalBytesRead.get(), equalTo(0L));
-                assertThat(Streams.consumeFully(stream), equalTo(0L));
-                assertThat(totalBytesRead.get(), equalTo(0L));
-            }
-        }
-
-        {
-            final long position = blobData.length + randomIntBetween(1, 100);
-            final long length = randomIntBetween(1, 100);
+            long position = randomLongBetween(blobData.length, Long.MAX_VALUE - 1L);
+            long length = randomLongBetween(1L, Long.MAX_VALUE - position);
             var exception = expectThrows(
                 RequestedRangeNotSatisfiedException.class,
                 () -> container.readBlob(randomPurpose(), blobName, position, length)

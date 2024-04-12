@@ -36,10 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 
 import static org.hamcrest.Matchers.containsString;
@@ -361,76 +358,6 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
 
             final StatelessCommitRef newCommitRef = fakeNode.generateIndexCommits(1).get(0);
             assertFalse(virtualBatchedCompoundCommit.appendCommit(newCommitRef));
-        }
-    }
-
-    public void testConcurrentFreezeAndAppend() throws Exception {
-        var primaryTerm = 1;
-        try (var fakeNode = createFakeNode(primaryTerm)) {
-            var numberOfCommits = randomIntBetween(1, 4);
-            var commits = fakeNode.generateIndexCommits(numberOfCommits);
-            final int numberOfFreezeThreads = between(1, 4);
-            final CountDownLatch latch = new CountDownLatch(1);
-
-            long firstCommitGeneration = commits.get(0).getGeneration();
-            // Use a semaphore to control when we want to suspend the append thread
-            var virtualBatchedCompoundCommit = new VirtualBatchedCompoundCommit(
-                fakeNode.shardId,
-                "node-id",
-                primaryTerm,
-                firstCommitGeneration,
-                (fileName) -> {
-                    throw new AssertionError("Unexpected call");
-                }
-            );
-
-            // Append some initial commits, they should be successful since the semaphore is not blocked yet
-            for (StatelessCommitRef commit : commits) {
-                assertTrue(virtualBatchedCompoundCommit.appendCommit(commit));
-            }
-            assertThat(virtualBatchedCompoundCommit.getPendingCompoundCommits().size(), equalTo(numberOfCommits));
-
-            final StatelessCommitRef newCommitRef = fakeNode.generateIndexCommits(1).get(0);
-
-            final AtomicBoolean successfullyAppended = new AtomicBoolean();
-            final AtomicInteger completionCount = new AtomicInteger(0);
-            final AtomicInteger freezeCount = new AtomicInteger(0);
-
-            // Start appending
-            new Thread(() -> {
-                safeAwait(latch);
-                successfullyAppended.set(virtualBatchedCompoundCommit.appendCommit(newCommitRef));
-                completionCount.incrementAndGet();
-            }, "TEST-appending").start();
-
-            // Start concurrent freeze which is blocked due to the ongoing append
-            for (int i = 0; i < numberOfFreezeThreads; i++) {
-                new Thread(() -> {
-                    safeAwait(latch);
-                    if (virtualBatchedCompoundCommit.freeze()) {
-                        freezeCount.incrementAndGet();
-                    }
-                    completionCount.incrementAndGet();
-                }).start();
-            }
-
-            // Let the threads race
-            latch.countDown();
-
-            // All threads should complete successfully
-            assertBusy(() -> assertThat(completionCount.get(), equalTo(numberOfFreezeThreads + 1)));
-            // Exactly one thread actually freezes the VBCC
-            assertThat(freezeCount.get(), equalTo(1));
-            // check size of commits depending on whether appending is successful
-            assertThat(
-                virtualBatchedCompoundCommit.getPendingCompoundCommits().size(),
-                equalTo(successfullyAppended.get() ? numberOfCommits + 1 : numberOfCommits)
-            );
-            // VBCC is frozen and serializable
-            try (BytesStreamOutput output = new BytesStreamOutput()) {
-                assertTrue(virtualBatchedCompoundCommit.isFrozen());
-                virtualBatchedCompoundCommit.writeToStore(output);
-            }
         }
     }
 

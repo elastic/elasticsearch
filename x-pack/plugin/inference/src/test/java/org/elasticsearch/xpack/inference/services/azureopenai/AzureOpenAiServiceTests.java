@@ -23,6 +23,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
@@ -712,9 +713,80 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "apiversion",
                 null,
                 false,
+                100,
+                null,
+                "user",
+                "apikey",
+                null,
+                "id"
+            );
+            model.setUri(new URI(getUrl(webServer)));
+
+            PlainActionFuture<Model> listener = new PlainActionFuture<>();
+            service.checkModelConfig(model, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+            assertThat(
+                result,
+                is(
+                    AzureOpenAiEmbeddingsModelTests.createModel(
+                        "resource",
+                        "deployment",
+                        "apiversion",
+                        2,
+                        false,
+                        100,
+                        SimilarityMeasure.DOT_PRODUCT,
+                        "user",
+                        "apikey",
+                        null,
+                        "id"
+                    )
+                )
+            );
+
+            assertThat(webServer.requests(), hasSize(1));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "user", "user")));
+        }
+    }
+
+    public void testCheckModelConfig_HasSimilarity() throws IOException, URISyntaxException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
+
+            String responseJson = """
+                {
+                    "object": "list",
+                    "data": [
+                        {
+                            "object": "embedding",
+                            "index": 0,
+                            "embedding": [
+                                0.0123,
+                                -0.0123
+                            ]
+                        }
+                    ],
+                    "model": "text-embedding-ada-002-v2",
+                    "usage": {
+                        "prompt_tokens": 8,
+                        "total_tokens": 8
+                    }
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = AzureOpenAiEmbeddingsModelTests.createModel(
+                "resource",
+                "deployment",
+                "apiversion",
                 null,
                 false,
-                100,
+                null,
+                SimilarityMeasure.COSINE,
                 "user",
                 "apikey",
                 null,
@@ -736,8 +808,79 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                         2,
                         false,
                         null,
+                        SimilarityMeasure.COSINE,
+                        "user",
+                        "apikey",
+                        null,
+                        "id"
+                    )
+                )
+            );
+
+            assertThat(webServer.requests(), hasSize(1));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "user", "user")));
+        }
+    }
+
+    public void testCheckModelConfig_AddsDefaultSimilarityDotProduct() throws IOException, URISyntaxException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
+
+            String responseJson = """
+                {
+                    "object": "list",
+                    "data": [
+                        {
+                            "object": "embedding",
+                            "index": 0,
+                            "embedding": [
+                                0.0123,
+                                -0.0123
+                            ]
+                        }
+                    ],
+                    "model": "text-embedding-ada-002-v2",
+                    "usage": {
+                        "prompt_tokens": 8,
+                        "total_tokens": 8
+                    }
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = AzureOpenAiEmbeddingsModelTests.createModel(
+                "resource",
+                "deployment",
+                "apiversion",
+                null,
+                false,
+                null,
+                null,
+                "user",
+                "apikey",
+                null,
+                "id"
+            );
+            model.setUri(new URI(getUrl(webServer)));
+
+            PlainActionFuture<Model> listener = new PlainActionFuture<>();
+            service.checkModelConfig(model, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+            assertThat(
+                result,
+                is(
+                    AzureOpenAiEmbeddingsModelTests.createModel(
+                        "resource",
+                        "deployment",
+                        "apiversion",
+                        2,
                         false,
-                        100,
+                        null,
+                        SimilarityMeasure.DOT_PRODUCT,
                         "user",
                         "apikey",
                         null,
@@ -786,9 +929,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "apiversion",
                 3,
                 true,
-                null,
-                false,
                 100,
+                null,
                 "user",
                 "apikey",
                 null,
@@ -849,9 +991,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 "apiversion",
                 100,
                 false,
-                null,
-                false,
                 100,
+                null,
                 "user",
                 "apikey",
                 null,
@@ -872,9 +1013,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                         "apiversion",
                         2,
                         false,
-                        null,
-                        false,
                         100,
+                        SimilarityMeasure.DOT_PRODUCT,
                         "user",
                         "apikey",
                         null,

@@ -68,7 +68,9 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
                     ServiceFields.DIMENSIONS,
                     dims,
                     ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens
+                    maxInputTokens,
+                    SIMILARITY,
+                    SimilarityMeasure.COSINE.toString()
                 )
             ),
             ConfigurationParseContext.REQUEST
@@ -76,7 +78,17 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
 
         assertThat(
             serviceSettings,
-            is(new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, dims, true, maxInputTokens, null))
+            is(
+                new AzureOpenAiEmbeddingsServiceSettings(
+                    resourceName,
+                    deploymentId,
+                    apiVersion,
+                    dims,
+                    true,
+                    maxInputTokens,
+                    SimilarityMeasure.COSINE
+                )
+            )
         );
     }
 
@@ -143,36 +155,6 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         );
     }
 
-    public void testFromMap_Request_Similarity_ShouldThrowWhenPresent() {
-        var resourceName = "this-resource";
-        var deploymentId = "this-deployment";
-        var apiVersion = "2024-01-01";
-        var maxInputTokens = 512;
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> AzureOpenAiEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(
-                    Map.of(
-                        AzureOpenAiServiceFields.RESOURCE_NAME,
-                        resourceName,
-                        AzureOpenAiServiceFields.DEPLOYMENT_ID,
-                        deploymentId,
-                        AzureOpenAiServiceFields.API_VERSION,
-                        apiVersion,
-                        SIMILARITY,
-                        SimilarityMeasure.COSINE.toString()
-                    )
-                ),
-                ConfigurationParseContext.REQUEST
-            )
-        );
-
-        MatcherAssert.assertThat(
-            thrownException.getMessage(),
-            containsString(Strings.format("Validation Failed: 1: [service_settings] does not allow the setting [%s];", SIMILARITY))
-        );
-    }
-
     public void testFromMap_Persistent_CreatesSettingsCorrectly() {
         var resourceName = "this-resource";
         var deploymentId = "this-deployment";
@@ -195,7 +177,9 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
                     DIMENSIONS_SET_BY_USER,
                     false,
                     ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens
+                    maxInputTokens,
+                    SIMILARITY,
+                    SimilarityMeasure.DOT_PRODUCT.toString()
                 )
             ),
             ConfigurationParseContext.PERSISTENT
@@ -203,7 +187,17 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
 
         assertThat(
             serviceSettings,
-            is(new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, dims, false, maxInputTokens, null))
+            is(
+                new AzureOpenAiEmbeddingsServiceSettings(
+                    resourceName,
+                    deploymentId,
+                    apiVersion,
+                    dims,
+                    false,
+                    maxInputTokens,
+                    SimilarityMeasure.DOT_PRODUCT
+                )
+            )
         );
     }
 

@@ -84,14 +84,6 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
                         ServiceUtils.invalidSettingError(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
                     );
                 }
-
-                // the similarity should never be in the request as Azure does not expose this, and we always default to DOT_PRODUCT
-                if (similarity != null) {
-                    validationException.addValidationError(
-                        ServiceUtils.invalidSettingError(SIMILARITY, ModelConfigurations.SERVICE_SETTINGS)
-                    );
-                }
-
                 dimensionsSetByUser = dims != null;
             }
             case PERSISTENT -> {
@@ -130,7 +122,7 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
     private final Integer dimensions;
     private final Boolean dimensionsSetByUser;
     private final Integer maxInputTokens;
-    private final SimilarityMeasure similarityMeasure;
+    private final SimilarityMeasure similarity;
 
     public AzureOpenAiEmbeddingsServiceSettings(
         String resourceName,
@@ -139,7 +131,7 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
         @Nullable Integer dimensions,
         Boolean dimensionsSetByUser,
         @Nullable Integer maxInputTokens,
-        @Nullable SimilarityMeasure similarityMeasure
+        @Nullable SimilarityMeasure similarity
     ) {
         this.resourceName = resourceName;
         this.deploymentId = deploymentId;
@@ -147,7 +139,7 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
         this.dimensions = dimensions;
         this.dimensionsSetByUser = Objects.requireNonNull(dimensionsSetByUser);
         this.maxInputTokens = maxInputTokens;
-        this.similarityMeasure = similarityMeasure;
+        this.similarity = similarity;
     }
 
     public AzureOpenAiEmbeddingsServiceSettings(StreamInput in) throws IOException {
@@ -157,7 +149,7 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
         dimensions = in.readOptionalVInt();
         dimensionsSetByUser = in.readBoolean();
         maxInputTokens = in.readOptionalVInt();
-        similarityMeasure = in.readOptionalEnum(SimilarityMeasure.class);
+        similarity = in.readOptionalEnum(SimilarityMeasure.class);
     }
 
     private AzureOpenAiEmbeddingsServiceSettings(CommonFields fields) {
@@ -199,7 +191,7 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
 
     @Override
     public SimilarityMeasure similarity() {
-        return SimilarityMeasure.DOT_PRODUCT;
+        return similarity;
     }
 
     @Override
@@ -220,12 +212,6 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
 
         builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
 
-        // note - this field should not be exposed as it is not used and should never be part of
-        // a request from a user. This is for compatibility with the other embedding task types.
-        if (similarityMeasure != null) {
-            builder.field(SIMILARITY, similarityMeasure);
-        }
-
         builder.endObject();
         return builder;
     }
@@ -240,6 +226,9 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
         }
         if (maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
+        }
+        if (similarity != null) {
+            builder.field(SIMILARITY, similarity);
         }
     }
 
@@ -268,7 +257,7 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
         out.writeOptionalVInt(dimensions);
         out.writeBoolean(dimensionsSetByUser);
         out.writeOptionalVInt(maxInputTokens);
-        out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarityMeasure, out.getTransportVersion()));
+        out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
     }
 
     @Override
@@ -283,11 +272,11 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings {
             && Objects.equals(dimensions, that.dimensions)
             && Objects.equals(dimensionsSetByUser, that.dimensionsSetByUser)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
-            && Objects.equals(similarityMeasure, that.similarityMeasure);
+            && Objects.equals(similarity, that.similarity);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(resourceName, deploymentId, apiVersion, dimensions, dimensionsSetByUser, maxInputTokens, similarityMeasure);
+        return Objects.hash(resourceName, deploymentId, apiVersion, dimensions, dimensionsSetByUser, maxInputTokens, similarity);
     }
 }

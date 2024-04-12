@@ -413,7 +413,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             // truncated to 1 token = 3 characters
-            var model = createModel("resource", "deployment", "apiversion", null, false, null, false, 1, null, "apikey", null, "id");
+            var model = createModel("resource", "deployment", "apiversion", null, false, 1, null, null, "apikey", null, "id");
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
             var overriddenTaskSettings = getRequestTaskSettingsMap("overridden_user");

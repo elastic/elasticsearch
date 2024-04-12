@@ -51,7 +51,18 @@ public class AzureOpenAiSecretSettingsTests extends AbstractWireSerializingTestC
     }
 
     public void testFromMap_MissingApiKeyAndEntraId_ThrowsError() {
-        assertThrows(NullPointerException.class, () -> AzureOpenAiSecretSettings.fromMap(new HashMap<>()));
+        var thrownException = expectThrows(ValidationException.class, () -> AzureOpenAiSecretSettings.fromMap(new HashMap<>()));
+
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format(
+                    "[secret_settings] must have either the [%s] or the [%s] key set",
+                    AzureOpenAiSecretSettings.API_KEY,
+                    ENTRA_ID
+                )
+            )
+        );
     }
 
     public void testFromMap_HasBothApiKeyAndEntraId_ThrowsError() {

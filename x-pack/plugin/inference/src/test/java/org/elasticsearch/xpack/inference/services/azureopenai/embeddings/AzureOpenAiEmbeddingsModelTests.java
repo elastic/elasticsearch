@@ -91,9 +91,8 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
         String apiVersion,
         @Nullable Integer dimensions,
         Boolean dimensionsSetByUser,
-        @Nullable String encodingFormat,
-        Boolean encodingFormatSetByUser,
         @Nullable Integer maxInputTokens,
+        @Nullable SimilarityMeasure similarity,
         @Nullable String user,
         @Nullable String apiKey,
         @Nullable String entraId,
@@ -113,7 +112,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
                 dimensions,
                 dimensionsSetByUser,
                 maxInputTokens,
-                SimilarityMeasure.DOT_PRODUCT
+                similarity
             ),
             new AzureOpenAiEmbeddingsTaskSettings(user),
             new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)

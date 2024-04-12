@@ -19,6 +19,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.TextEmbedding;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 
@@ -354,6 +355,7 @@ public class ServiceUtils {
             List.of(TEST_EMBEDDING_INPUT),
             Map.of(),
             InputType.INGEST,
+            InferenceAction.Request.DEFAULT_TIMEOUT,
             listener.delegateFailureAndWrap((delegate, r) -> {
                 if (r instanceof TextEmbedding embeddingResults) {
                     try {

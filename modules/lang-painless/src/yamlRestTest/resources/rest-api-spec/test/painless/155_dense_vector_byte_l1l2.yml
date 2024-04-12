@@ -1,8 +1,8 @@
 setup:
-  - skip:
-      version: " - 8.5.99"
+  - requires:
+      cluster_features: ["gte_v8.6.0"]
       reason: "support for byte vectors added in 8.6"
-      features: headers
+      test_runner_features: headers
 
   - do:
       indices.create:

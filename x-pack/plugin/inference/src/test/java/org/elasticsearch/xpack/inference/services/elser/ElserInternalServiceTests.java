@@ -22,6 +22,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
@@ -384,10 +385,12 @@ public class ElserInternalServiceTests extends ESTestCase {
 
         service.chunkedInfer(
             model,
+            null,
             List.of("foo", "bar"),
             Map.of(),
             InputType.SEARCH,
             new ChunkingOptions(null, null),
+            InferenceAction.Request.DEFAULT_TIMEOUT,
             ActionListener.runAfter(resultsListener, () -> terminate(threadpool))
         );
 
@@ -437,6 +440,7 @@ public class ElserInternalServiceTests extends ESTestCase {
                 Map.of(),
                 InputType.SEARCH,
                 null,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
                 ActionListener.wrap(r -> fail("unexpected result"), e -> fail(e.getMessage()))
             );
 
@@ -448,6 +452,7 @@ public class ElserInternalServiceTests extends ESTestCase {
                 Map.of(),
                 InputType.SEARCH,
                 new ChunkingOptions(256, null),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
                 ActionListener.wrap(r -> fail("unexpected result"), e -> fail(e.getMessage()))
             );
         } finally {

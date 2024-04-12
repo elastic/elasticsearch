@@ -11,7 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -97,7 +97,7 @@ class TransformClusterStateListener implements ClusterStateListener {
             client.threadPool().getThreadContext(),
             TRANSFORM_ORIGIN,
             request,
-            ActionListener.<AcknowledgedResponse>wrap(r -> finalListener.onResponse(r.isAcknowledged()), finalListener::onFailure),
+            ActionListener.<IndicesAliasesResponse>wrap(r -> finalListener.onResponse(r.isAcknowledged()), finalListener::onFailure),
             client.admin().indices()::aliases
         );
     }

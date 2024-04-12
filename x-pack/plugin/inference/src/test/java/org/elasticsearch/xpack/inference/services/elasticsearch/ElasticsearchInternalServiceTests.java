@@ -19,16 +19,19 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
 
 import java.util.ArrayList;
@@ -235,14 +238,15 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             settings.put(
                 ModelConfigurations.SERVICE_SETTINGS,
                 new HashMap<>(
-                    Map.of(ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS, 1, ElasticsearchInternalServiceSettings.NUM_THREADS, 4)
+                    Map.of(
+                        ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS,
+                        1,
+                        ElasticsearchInternalServiceSettings.NUM_THREADS,
+                        4,
+                        ServiceFields.SIMILARITY,
+                        SimilarityMeasure.L2_NORM.toString()
+                    )
                 )
-            );
-
-            var e5ServiceSettings = new MultilingualE5SmallInternalServiceSettings(
-                1,
-                4,
-                ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
             );
 
             expectThrows(IllegalArgumentException.class, () -> service.parsePersistedConfig(randomInferenceEntityId, taskType, settings));
@@ -290,7 +294,9 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                         ElasticsearchInternalServiceSettings.NUM_THREADS,
                         4,
                         InternalServiceSettings.MODEL_ID,
-                        ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID
+                        ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID,
+                        ServiceFields.DIMENSIONS,
+                        1
                     )
                 )
             );
@@ -400,10 +406,12 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
         service.chunkedInfer(
             model,
+            null,
             List.of("foo", "bar"),
             Map.of(),
             InputType.SEARCH,
             new ChunkingOptions(null, null),
+            InferenceAction.Request.DEFAULT_TIMEOUT,
             ActionListener.runAfter(resultsListener, () -> terminate(threadpool))
         );
 
@@ -452,6 +460,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 Map.of(),
                 InputType.SEARCH,
                 null,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
                 ActionListener.wrap(r -> fail("unexpected result"), e -> fail(e.getMessage()))
             );
 
@@ -463,6 +472,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 Map.of(),
                 InputType.SEARCH,
                 new ChunkingOptions(256, null),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
                 ActionListener.wrap(r -> fail("unexpected result"), e -> fail(e.getMessage()))
             );
         } finally {

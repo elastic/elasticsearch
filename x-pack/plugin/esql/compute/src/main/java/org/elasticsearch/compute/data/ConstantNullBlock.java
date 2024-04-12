@@ -97,7 +97,7 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
-    public Block expand() {
+    public ConstantNullBlock expand() {
         incRef();
         return this;
     }
@@ -170,11 +170,6 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
             }
             positionCount += endExclusive - beginInclusive;
             return this;
-        }
-
-        @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            return appendNull();
         }
 
         @Override

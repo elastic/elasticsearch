@@ -39,13 +39,11 @@ import static org.mockito.Mockito.when;
 
 public class MlInitializationServiceIT extends MlNativeAutodetectIntegTestCase {
 
-    private ThreadPool threadPool;
     private MlInitializationService mlInitializationService;
 
     @Before
     public void setUpMocks() {
-        threadPool = mock(ThreadPool.class);
-        when(threadPool.executor(ThreadPool.Names.SAME)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        final var threadPool = mock(ThreadPool.class);
         when(threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         MlDailyMaintenanceService mlDailyMaintenanceService = mock(MlDailyMaintenanceService.class);
         ClusterService clusterService = mock(ClusterService.class);

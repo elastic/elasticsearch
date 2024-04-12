@@ -20,9 +20,9 @@ import java.util.Collections;
 import java.util.List;
 
 public class SimulatePipelineResponse extends ActionResponse implements ToXContentObject {
-    private String pipelineId;
+    private final String pipelineId;
     private boolean verbose;
-    private List<SimulateDocumentResult> results;
+    private final List<SimulateDocumentResult> results;
 
     public SimulatePipelineResponse(StreamInput in) throws IOException {
         super(in);

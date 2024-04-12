@@ -178,7 +178,7 @@ public class CohereEmbeddingsRequestTests extends ESTestCase {
     }
 
     public static CohereEmbeddingsRequest createRequest(List<String> input, CohereEmbeddingsModel model) {
-        var account = new CohereAccount(model.getServiceSettings().getCommonSettings().getUri(), model.getSecretSettings().apiKey());
+        var account = new CohereAccount(model.getServiceSettings().getCommonSettings().uri(), model.getSecretSettings().apiKey());
         return new CohereEmbeddingsRequest(account, input, model);
     }
 }

@@ -174,6 +174,9 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
 
     private FunctionDefinition[][] functions() {
         return new FunctionDefinition[][] {
+            // grouping functions
+            new FunctionDefinition[] {
+                def(Bucket.class, Bucket::new, "bucket", "bin"), },
             // aggregate functions
             new FunctionDefinition[] {
                 def(Avg.class, Avg::new, "avg"),
@@ -193,7 +196,6 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
                 def(Asin.class, Asin::new, "asin"),
                 def(Atan.class, Atan::new, "atan"),
                 def(Atan2.class, Atan2::new, "atan2"),
-                def(Bucket.class, Bucket::new, "bucket", "bin"),
                 def(Ceil.class, Ceil::new, "ceil"),
                 def(Cos.class, Cos::new, "cos"),
                 def(Cosh.class, Cosh::new, "cosh"),

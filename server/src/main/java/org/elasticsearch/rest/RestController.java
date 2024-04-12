@@ -381,8 +381,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
             } else {
                 handler = handlers.getHandler(method, restApiVersion);
             }
+
             if (handler != null) {
-                return handler.supportedQueryParameters().containsAll(parameters) && handler.supportedFeatures().containsAll(features);
+                var supportedParams = handler.supportedQueryParameters();
+                return (supportedParams == null || supportedParams.containsAll(parameters))
+                    && handler.supportedFeatures().containsAll(features);
             }
         }
         return false;

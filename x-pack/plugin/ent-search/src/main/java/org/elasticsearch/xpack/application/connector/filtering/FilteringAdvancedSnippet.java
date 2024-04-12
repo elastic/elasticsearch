@@ -36,7 +36,7 @@ public class FilteringAdvancedSnippet implements Writeable, ToXContentObject {
     @Nullable
     private final Instant advancedSnippetCreatedAt;
     @Nullable
-    private Instant advancedSnippetUpdatedAt;
+    private final Instant advancedSnippetUpdatedAt;
     private final Object advancedSnippetValue;
 
     /**

@@ -97,7 +97,7 @@ public class UpdateConnectorFilteringAction {
                 validationException = addValidationError("[connector_id] cannot be [null] or [\"\"].", validationException);
             }
 
-            // If [filtering] is not present in the request payload it means that the user should define [rules] and/or [advances_snippet]
+            // If [filtering] is not present in the request payload it means that the user should define [rules] and/or [advanced_snippet]
             if (filtering == null) {
                 if (rules == null && advancedSnippet == null) {
                     validationException = addValidationError("[advanced_snippet] and [rules] cannot be both [null].", validationException);

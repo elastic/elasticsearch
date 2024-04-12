@@ -175,8 +175,7 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
     private FunctionDefinition[][] functions() {
         return new FunctionDefinition[][] {
             // grouping functions
-            new FunctionDefinition[] {
-                def(Bucket.class, Bucket::new, "bucket", "bin"), },
+            new FunctionDefinition[] { def(Bucket.class, Bucket::new, "bucket", "bin"), },
             // aggregate functions
             new FunctionDefinition[] {
                 def(Avg.class, Avg::new, "avg"),

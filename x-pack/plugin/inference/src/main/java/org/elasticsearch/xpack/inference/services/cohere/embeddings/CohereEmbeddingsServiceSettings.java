@@ -19,16 +19,18 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.cohere.CohereRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 
-public class CohereEmbeddingsServiceSettings implements ServiceSettings {
+public class CohereEmbeddingsServiceSettings implements ServiceSettings, CohereRateLimitServiceSettings {
     public static final String NAME = "cohere_embeddings_service_settings";
 
     static final String EMBEDDING_TYPE = "embedding_type";
@@ -91,6 +93,11 @@ public class CohereEmbeddingsServiceSettings implements ServiceSettings {
     public CohereEmbeddingsServiceSettings(StreamInput in) throws IOException {
         commonSettings = new CohereServiceSettings(in);
         embeddingType = Objects.requireNonNullElse(in.readOptionalEnum(CohereEmbeddingType.class), CohereEmbeddingType.FLOAT);
+    }
+
+    @Override
+    public URI uri() {
+        return commonSettings.uri();
     }
 
     public CohereServiceSettings getCommonSettings() {

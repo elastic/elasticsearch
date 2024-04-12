@@ -54,7 +54,12 @@ public class CohereEmbeddingsModel extends CohereModel {
         CohereEmbeddingsTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
-        super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings));
+        super(
+            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
+            new ModelSecrets(secretSettings),
+            serviceSettings,
+            secretSettings
+        );
     }
 
     private CohereEmbeddingsModel(CohereEmbeddingsModel model, CohereEmbeddingsTaskSettings taskSettings) {

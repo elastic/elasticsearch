@@ -17,7 +17,7 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionVisitor;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
+import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 
 import java.util.Map;
 import java.util.Objects;
@@ -31,12 +31,12 @@ public abstract class OpenAiModel extends Model {
         ModelConfigurations configurations,
         ModelSecrets secrets,
         OpenAiRateLimitServiceSettings rateLimitServiceSettings,
-        @Nullable DefaultSecretSettings secretSettings
+        @Nullable ApiKeySecrets apiKeySecrets
     ) {
         super(configurations, secrets);
 
         this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
-        apiKey = ServiceUtils.apiKey(secretSettings);
+        apiKey = ServiceUtils.apiKey(apiKeySecrets);
     }
 
     protected OpenAiModel(OpenAiModel model, TaskSettings taskSettings) {
@@ -53,8 +53,6 @@ public abstract class OpenAiModel extends Model {
         apiKey = model.apiKey();
     }
 
-    public abstract ExecutableAction accept(OpenAiActionVisitor creator, Map<String, Object> taskSettings);
-
     public SecureString apiKey() {
         return apiKey;
     }
@@ -62,4 +60,6 @@ public abstract class OpenAiModel extends Model {
     public OpenAiRateLimitServiceSettings rateLimitServiceSettings() {
         return rateLimitServiceSettings;
     }
+
+    public abstract ExecutableAction accept(OpenAiActionVisitor creator, Map<String, Object> taskSettings);
 }

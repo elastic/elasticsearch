@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.inference.external.cohere.CohereAccount;
 import org.elasticsearch.xpack.inference.external.cohere.CohereResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -32,12 +31,10 @@ public class CohereRerankExecutableRequestCreator implements ExecutableRequestCr
         return new CohereResponseHandler("cohere rerank", (request, response) -> CohereRankedResponseEntity.fromResponse(response));
     }
 
-    private final CohereAccount account;
     private final CohereRerankModel model;
 
     public CohereRerankExecutableRequestCreator(CohereRerankModel model) {
         this.model = Objects.requireNonNull(model);
-        account = new CohereAccount(this.model.getServiceSettings().getCommonSettings().uri(), this.model.getSecretSettings().apiKey());
     }
 
     @Override
@@ -49,7 +46,7 @@ public class CohereRerankExecutableRequestCreator implements ExecutableRequestCr
         HttpClientContext context,
         ActionListener<InferenceServiceResults> listener
     ) {
-        CohereRerankRequest request = new CohereRerankRequest(account, query, input, model);
+        CohereRerankRequest request = new CohereRerankRequest(query, input, model);
 
         return new ExecutableInferenceRequest(requestSender, logger, request, context, HANDLER, hasRequestCompletedFunction, listener);
     }

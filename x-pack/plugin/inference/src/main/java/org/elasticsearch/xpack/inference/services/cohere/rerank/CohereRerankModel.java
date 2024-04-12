@@ -54,7 +54,12 @@ public class CohereRerankModel extends CohereModel {
         CohereRerankTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
-        super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings));
+        super(
+            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
+            new ModelSecrets(secretSettings),
+            serviceSettings,
+            secretSettings
+        );
     }
 
     private CohereRerankModel(CohereRerankModel model, CohereRerankTaskSettings taskSettings) {

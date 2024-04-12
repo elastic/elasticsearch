@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.huggingface;
 
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -26,14 +27,12 @@ public abstract class HuggingFaceModel extends Model {
         ModelConfigurations configurations,
         ModelSecrets secrets,
         HuggingFaceRateLimitServiceSettings rateLimitServiceSettings,
-        ApiKeySecrets apiKeySecrets
+        @Nullable ApiKeySecrets apiKeySecrets
     ) {
         super(configurations, secrets);
         this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
         apiKey = ServiceUtils.apiKey(apiKeySecrets);
     }
-
-    public abstract ExecutableAction accept(HuggingFaceActionVisitor creator);
 
     public HuggingFaceRateLimitServiceSettings rateLimitServiceSettings() {
         return rateLimitServiceSettings;
@@ -44,4 +43,7 @@ public abstract class HuggingFaceModel extends Model {
     }
 
     public abstract Integer getTokenLimit();
+
+    public abstract ExecutableAction accept(HuggingFaceActionVisitor creator);
+
 }

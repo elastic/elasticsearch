@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.inference.external.cohere.CohereAccount;
 import org.elasticsearch.xpack.inference.external.cohere.CohereResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -32,12 +31,10 @@ public class CohereEmbeddingsExecutableRequestCreator implements ExecutableReque
         return new CohereResponseHandler("cohere text embedding", CohereEmbeddingsResponseEntity::fromResponse);
     }
 
-    private final CohereAccount account;
     private final CohereEmbeddingsModel model;
 
     public CohereEmbeddingsExecutableRequestCreator(CohereEmbeddingsModel model) {
         this.model = Objects.requireNonNull(model);
-        account = new CohereAccount(this.model.getServiceSettings().getCommonSettings().uri(), this.model.getSecretSettings().apiKey());
     }
 
     @Override
@@ -49,7 +46,7 @@ public class CohereEmbeddingsExecutableRequestCreator implements ExecutableReque
         HttpClientContext context,
         ActionListener<InferenceServiceResults> listener
     ) {
-        CohereEmbeddingsRequest request = new CohereEmbeddingsRequest(account, input, model);
+        CohereEmbeddingsRequest request = new CohereEmbeddingsRequest(input, model);
 
         return new ExecutableInferenceRequest(requestSender, logger, request, context, HANDLER, hasRequestCompletedFunction, listener);
     }

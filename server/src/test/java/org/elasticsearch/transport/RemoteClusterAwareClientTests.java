@@ -10,10 +10,6 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
@@ -35,12 +31,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RemoteClusterAwareClientTests extends ESTestCase {
@@ -177,55 +171,6 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                     });
                 }
                 ThreadPool.terminate(executorService, 5, TimeUnit.SECONDS);
-            }
-        }
-    }
-
-    public void testFailedToConnectRemoteCluster() throws Exception {
-        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (MockTransportService remoteCluster = startTransport("seed_node", knownNodes)) {
-            knownNodes.add(remoteCluster.getLocalDiscoNode());
-            Settings.Builder builder = Settings.builder();
-            builder.putList("cluster.remote.cluster1.seeds", remoteCluster.getLocalDiscoNode().getAddress().toString());
-            try (
-                MockTransportService service = MockTransportService.createNewService(
-                    builder.build(),
-                    VersionInformation.CURRENT,
-                    TransportVersion.current(),
-                    threadPool,
-                    null
-                )
-            ) {
-                remoteCluster.stop();
-                var responseThread = randomFrom(ThreadPool.Names.SEARCH_COORDINATION, ThreadPool.Names.SEARCH);
-                var responseExecutor = service.threadPool.executor(responseThread);
-                var request = new FieldCapabilitiesRequest();
-                request.indices("test-index");
-                request.fields("*");
-                // failed to open connections
-                {
-                    CountDownLatch latch = new CountDownLatch(1);
-                    var remoteClient = new RemoteClusterAwareClient(service, "cluster1", responseExecutor, randomBoolean());
-                    remoteClient.execute(TransportFieldCapabilitiesAction.REMOTE_TYPE, request, ActionListener.running(() -> {
-                        assertThat(Thread.currentThread().getName(), containsString("[" + responseThread + "]"));
-                        latch.countDown();
-                    }));
-                    assertTrue(latch.await(30, TimeUnit.SECONDS));
-                }
-                // failed to send requests
-                {
-                    CountDownLatch latch = new CountDownLatch(1);
-                    service.sendRequest(
-                        remoteCluster.getLocalDiscoNode(),
-                        TransportFieldCapabilitiesAction.NAME,
-                        request,
-                        new ActionListenerResponseHandler<>(ActionListener.running(() -> {
-                            assertThat(Thread.currentThread().getName(), containsString("[" + responseThread + "]"));
-                            latch.countDown();
-                        }), FieldCapabilitiesResponse::new, responseExecutor)
-                    );
-                    assertTrue(latch.await(30, TimeUnit.SECONDS));
-                }
             }
         }
     }

@@ -13,8 +13,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 
 import java.util.concurrent.Executor;
 
@@ -40,7 +38,7 @@ final class RemoteClusterAwareClient implements RemoteClusterClient {
         Request request,
         ActionListener<Response> listener
     ) {
-        maybeEnsureConnected(ActionListener.wrap(unused -> {
+        maybeEnsureConnected(listener.delegateFailureAndWrap((delegateListener, v) -> {
             final Transport.Connection connection;
             try {
                 if (request instanceof RemoteClusterAwareRequest) {
@@ -61,36 +59,8 @@ final class RemoteClusterAwareClient implements RemoteClusterClient {
                 action.name(),
                 request,
                 TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(listener, action.getResponseReader(), responseExecutor)
+                new ActionListenerResponseHandler<>(delegateListener, action.getResponseReader(), responseExecutor)
             );
-        }, connectionError -> {
-            responseExecutor.execute(new AbstractRunnable() {
-                @Override
-                public boolean isForceExecution() {
-                    return true; // we must complete every pending listener
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    assert false : new AssertionError(e);
-                }
-
-                @Override
-                public void onRejection(Exception e) {
-                    if (connectionError != e) {
-                        connectionError.addSuppressed(e);
-                    }
-                    // force-execution means we won't be rejected unless we're shutting down
-                    assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
-                    // in this case it's better to complete the handler on the calling thread rather than leaking it
-                    doRun();
-                }
-
-                @Override
-                protected void doRun() {
-                    listener.onFailure(connectionError);
-                }
-            });
         }));
     }
 

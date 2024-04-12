@@ -854,42 +854,15 @@ public class TransportService extends AbstractLifecycleComponent
         }
     }
 
-    private void handleSendRequestException(TransportResponseHandler<?> handler, TransportException transportException) {
-        getInternalSendExceptionExecutor(handler.executor()).execute(new AbstractRunnable() {
-            @Override
-            public boolean isForceExecution() {
-                return true; // we must complete every pending listener
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assert false : new AssertionError(e);
-                logger.error("unexpected exception from handler.handleException", e);
-            }
-
-            @Override
-            public void onRejection(Exception e) {
-                if (transportException != e) {
-                    transportException.addSuppressed(e);
-                }
-                // force-execution means we won't be rejected unless we're shutting down
-                assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
-                // in this case it's better to complete the handler on the calling thread rather than leaking it
-                doRun();
-            }
-
-            @Override
-            protected void doRun() {
-                try {
-                    handler.handleException(transportException);
-                } catch (Exception innerException) {
-                    // should not happen
-                    innerException.addSuppressed(transportException);
-                    logger.error("unexpected exception from handler.handleException", innerException);
-                    assert false : innerException;
-                }
-            }
-        });
+    private static void handleSendRequestException(TransportResponseHandler<?> handler, TransportException transportException) {
+        try {
+            handler.handleException(transportException);
+        } catch (Exception innerException) {
+            // should not happen
+            innerException.addSuppressed(transportException);
+            logger.error("unexpected exception from handler.handleException", innerException);
+            assert false : innerException;
+        }
     }
 
     /**

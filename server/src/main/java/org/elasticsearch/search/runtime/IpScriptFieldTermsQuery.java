@@ -26,9 +26,11 @@ public class IpScriptFieldTermsQuery extends AbstractIpScriptFieldQuery {
 
     @Override
     protected boolean matches(BytesRef[] values, int count) {
-        for (int i = 0; i < count; i++) {
-            if (terms.find(values[i]) >= 0) {
-                return true;
+        synchronized (terms) {
+            for (int i = 0; i < count; i++) {
+                if (terms.find(values[i]) >= 0) {
+                    return true;
+                }
             }
         }
         return false;

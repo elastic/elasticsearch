@@ -33,6 +33,10 @@ setup:
 
 ---
 "kNN retriever":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/107395"
+
   - do:
       search:
         index: index1

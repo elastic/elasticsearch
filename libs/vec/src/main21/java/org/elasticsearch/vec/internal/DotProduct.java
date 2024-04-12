@@ -24,7 +24,7 @@ public final class DotProduct extends AbstractScalarQuantizedVectorScorer {
             maxOrd,
             scoreCorrectionConstant,
             input,
-            ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityFunction.DOT_PRODUCT, scoreCorrectionConstant)
+            ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityFunction.DOT_PRODUCT, scoreCorrectionConstant, (byte) 7)
         );
     }
 

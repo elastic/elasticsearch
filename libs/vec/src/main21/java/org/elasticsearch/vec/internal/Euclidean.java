@@ -24,7 +24,7 @@ public final class Euclidean extends AbstractScalarQuantizedVectorScorer {
             maxOrd,
             scoreCorrectionConstant,
             input,
-            ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityFunction.EUCLIDEAN, scoreCorrectionConstant)
+            ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityFunction.EUCLIDEAN, scoreCorrectionConstant, (byte) 7)
         );
     }
 

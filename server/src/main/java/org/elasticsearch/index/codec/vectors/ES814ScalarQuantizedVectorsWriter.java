@@ -169,7 +169,7 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
                 mergedQuantizationState
             );
             long vectorDataOffset = quantizedVectorData.alignFilePointer(Float.BYTES);
-            DocsWithFieldSet docsWithField = writeQuantizedVectorData(quantizedVectorData, byteVectorValues);
+            DocsWithFieldSet docsWithField = writeQuantizedVectorData(quantizedVectorData, byteVectorValues, (byte) 7, false);
             long vectorDataLength = quantizedVectorData.getFilePointer() - vectorDataOffset;
             float confidenceInterval = this.confidenceInterval == null
                 ? calculateDefaultConfidenceInterval(fieldInfo.getVectorDimension())
@@ -379,7 +379,7 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
         float confidenceInterval = this.confidenceInterval == null
             ? calculateDefaultConfidenceInterval(fieldInfo.getVectorDimension())
             : this.confidenceInterval;
-        return mergeAndRecalculateQuantiles(mergeState, fieldInfo, confidenceInterval);
+        return mergeAndRecalculateQuantiles(mergeState, fieldInfo, confidenceInterval, (byte) 7);
     }
 
     private ScalarQuantizedCloseableRandomVectorScorerSupplier mergeOneFieldToIndex(
@@ -402,7 +402,7 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
                 mergeState,
                 mergedQuantizationState
             );
-            DocsWithFieldSet docsWithField = writeQuantizedVectorData(tempQuantizedVectorData, byteVectorValues);
+            DocsWithFieldSet docsWithField = writeQuantizedVectorData(tempQuantizedVectorData, byteVectorValues, (byte) 7, false);
             CodecUtil.writeFooter(tempQuantizedVectorData);
             IOUtils.close(tempQuantizedVectorData);
             quantizationDataInput = segmentWriteState.directory.openInput(tempQuantizedVectorData.getName(), segmentWriteState.context);
@@ -449,6 +449,8 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
                     new OffHeapQuantizedByteVectorValues.DenseOffHeapVectorValues(
                         fieldInfo.getVectorDimension(),
                         docsWithField.cardinality(),
+                        (byte) 7, // TODO: bits
+                        false, // TODO compress
                         quantizationDataInput
                     )
                 );
@@ -537,7 +539,8 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
             ScalarQuantizer quantizer = ScalarQuantizer.fromVectors(
                 new FloatVectorWrapper(floatVectors, fieldInfo.getVectorSimilarityFunction() == VectorSimilarityFunction.COSINE),
                 confidenceInterval,
-                floatVectors.size()
+                floatVectors.size(),
+                (byte) 7
             );
             minQuantile = quantizer.getLowerQuantile();
             maxQuantile = quantizer.getUpperQuantile();
@@ -558,7 +561,7 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
 
         ScalarQuantizer createQuantizer() {
             assert finished;
-            return new ScalarQuantizer(minQuantile, maxQuantile, confidenceInterval);
+            return new ScalarQuantizer(minQuantile, maxQuantile, (byte) 7);
         }
 
         @Override

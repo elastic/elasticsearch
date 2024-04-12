@@ -24,7 +24,11 @@ public final class MaximumInnerProduct extends AbstractScalarQuantizedVectorScor
             maxOrd,
             scoreCorrectionConstant,
             input,
-            ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT, scoreCorrectionConstant)
+            ScalarQuantizedVectorSimilarity.fromVectorSimilarity(
+                VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT,
+                scoreCorrectionConstant,
+                (byte) 7
+            )
         );
     }
 

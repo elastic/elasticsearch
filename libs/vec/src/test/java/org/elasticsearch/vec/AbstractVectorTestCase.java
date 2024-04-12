@@ -68,7 +68,7 @@ public abstract class AbstractVectorTestCase extends ESTestCase {
         float aOffsetValue,
         float bOffsetValue
     ) {
-        var scorer = ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityType.of(similarityFunc), correction);
+        var scorer = ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityType.of(similarityFunc), correction, (byte) 7);
         return scorer.score(a, aOffsetValue, b, bOffsetValue);
     }
 

@@ -129,8 +129,9 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
      * Starting with 8.11, cluster state has minimum system index mappings versions (#99307) and the system index mappings upgrade service
      * started using them to determine when to update mappings for system indices. See https://github.com/elastic/elasticsearch/pull/99668
      */
-    public static final NodeFeature MAPPINGS_UPGRADE_SERVICE_USES_MAPPINGS_VERSION
-        = new NodeFeature("mappings.upgrade_service_uses_mappings_version");
+    public static final NodeFeature MAPPINGS_UPGRADE_SERVICE_USES_MAPPINGS_VERSION = new NodeFeature(
+        "mappings.upgrade_service_uses_mappings_version"
+    );
 
     // YAML
     public static final NodeFeature REST_ELASTIC_PRODUCT_HEADER_PRESENT = new NodeFeature("action.rest.product_header_present");

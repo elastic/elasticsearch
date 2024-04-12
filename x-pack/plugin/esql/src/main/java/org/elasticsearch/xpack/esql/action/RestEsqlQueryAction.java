@@ -64,6 +64,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         return Set.of(URL_PARAM_DELIMITER, EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION);
     }
 
+    static final String PRODUCT_ORIGIN = "x-elastic-product-origin";
     static final String CLIENT_META = "x-elastic-client-meta";
 
     static void defaultVersionForOldClients(EsqlQueryRequest esqlRequest, RestRequest restRequest) {
@@ -72,6 +73,13 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         }
         String clientMeta = restRequest.header(CLIENT_META);
         if (clientMeta == null) {
+            return;
+        }
+        String product = restRequest.header(PRODUCT_ORIGIN);
+        if ("kibana".equals(product)) {
+            if (clientMeta.contains("es=8.9")) {
+                esqlRequest.esqlVersion(EsqlVersion.ROCKET.versionStringWithoutEmoji());
+            }
             return;
         }
         if (clientMeta.contains("es=8.1") == false) {

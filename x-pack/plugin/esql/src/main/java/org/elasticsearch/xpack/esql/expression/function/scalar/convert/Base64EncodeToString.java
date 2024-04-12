@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -31,7 +32,11 @@ public class Base64EncodeToString extends AbstractConvertFunction implements Eva
         Map.entry(TEXT, Base64EncodeToStringEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "keyword", description = "Encode a string to a base64 string.")
+    @FunctionInfo(
+        returnType = "keyword",
+        description = "Encode a string to a base64 string.",
+        examples = @Example(file = "string", tag = "base64_encode")
+    )
     public Base64EncodeToString(
         Source source,
         @Param(name = "string", type = { "keyword", "text" }, description = "A string.") Expression string

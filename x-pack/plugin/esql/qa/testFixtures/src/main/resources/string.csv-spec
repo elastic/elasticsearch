@@ -1327,13 +1327,13 @@ required_feature: esql.base64_decode_encode
 // tag::base64_encode[]
 row a = "hello" 
 | eval e = base64_encode_tostring(a)
-// tag::base64_encode[]
+// end::base64_encode[]
 ;
 
 // tag::base64_encode-result[]
 a:keyword | e:keyword
 hello     | aGVsbG8=
-// tag::base64_encode-result[]
+// end::base64_encode-result[]
 ;
 
 base64EncodeDecode#[skip:-8.13.99,reason:new base64 function added in 8.14]
@@ -1342,13 +1342,13 @@ required_feature: esql.base64_decode_encode
 // tag::base64_decode[]
 row a = "aGVsbG8=" 
 | eval d = base64_decode_tostring(a)
-// tag::base64_decode[]
+// end::base64_decode[]
 ;
 
 // tag::base64_decode-result[]
 a:keyword | d:keyword
 aGVsbG8=  | hello
-// tag::base64_decode-result[]
+// end::base64_decode-result[]
 ;
 
 base64EncodeDecodeEmp#[skip:-8.13.99,reason:new base64 function added in 8.14]

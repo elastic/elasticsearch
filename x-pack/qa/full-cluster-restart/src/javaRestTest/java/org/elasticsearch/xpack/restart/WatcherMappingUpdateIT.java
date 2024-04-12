@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.restart;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.util.EntityUtils;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -19,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
+import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -27,11 +27,19 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100282")
 public class WatcherMappingUpdateIT extends AbstractXpackFullClusterRestartTestCase {
 
     public WatcherMappingUpdateIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
         super(upgradeStatus);
+    }
+
+    @Before
+    public void setup() {
+        // This test is superseded by SystemIndexMappingUpdateServiceIT#testSystemIndexManagerUpgradesMappings for newer versions
+        assumeFalse(
+            "Starting from 8.11, the mappings upgrade service uses mappings versions instead of node versions",
+            clusterHasFeature(RestTestLegacyFeatures.MAPPINGS_UPGRADE_SERVICE_USES_MAPPINGS_VERSION)
+        );
     }
 
     @Override

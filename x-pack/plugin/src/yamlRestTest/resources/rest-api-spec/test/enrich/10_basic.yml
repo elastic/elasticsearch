@@ -14,6 +14,10 @@ setup:
 
 ---
 "Test enrich crud apis":
+  - skip:
+      version: all
+      reason: AwaitsFix https://github.com/elastic/elasticsearch/issues/107401
+
   - do:
       enrich.put_policy:
         name: policy-crud

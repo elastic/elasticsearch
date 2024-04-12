@@ -81,6 +81,7 @@ public class TrainedModelCacheMetadataServiceTests extends ESTestCase {
         final ActionListener<AcknowledgedResponse> listener = mock(ActionListener.class);
         modelCacheMetadataService.refreshCacheVersion(listener);
 
+        // Verify a cluster state update task were submitted.
         ArgumentCaptor<CacheMetadataUpdateTask> updateTaskCaptor = ArgumentCaptor.forClass(RefreshCacheMetadataVersionTask.class);
         verify(taskQueue).submitTask(any(String.class), updateTaskCaptor.capture(), isNull());
         assertThat(updateTaskCaptor.getValue().listener, is(listener));
@@ -104,6 +105,7 @@ public class TrainedModelCacheMetadataServiceTests extends ESTestCase {
         final ActionListener<AcknowledgedResponse> listener =  mock(ActionListener.class);
         modelCacheMetadataService.refreshCacheVersion(listener);
 
+        // Check a FlushTrainedModelCacheAction request is emitted to the master node, that will flush the cache.
         verify(client).execute(
             eq(FlushTrainedModelCacheAction.INSTANCE),
             any(FlushTrainedModelCacheAction.Request.class),
@@ -111,6 +113,7 @@ public class TrainedModelCacheMetadataServiceTests extends ESTestCase {
         );
         verify(listener).onResponse(eq(AcknowledgedResponse.TRUE));
 
+        // Verify no cluster state update task were submitted on a non-master node.
         verify(taskQueue, never()).submitTask(any(String.class), any(RefreshCacheMetadataVersionTask.class), any(TimeValue.class));
     }
 
@@ -150,6 +153,7 @@ public class TrainedModelCacheMetadataServiceTests extends ESTestCase {
         final TaskContext<CacheMetadataUpdateTask> taskContext = mock(TaskContext.class);
         final TrainedModelCacheMetadata updatedCacheMetadata = task.execute(currentCacheMetadata, taskContext);
 
+        // Check the version counter is reset to 1
         assertThat(updatedCacheMetadata.version(), equalTo( 1L));
     }
 

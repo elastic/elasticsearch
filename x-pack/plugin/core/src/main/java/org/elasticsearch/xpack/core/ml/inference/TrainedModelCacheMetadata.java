@@ -27,9 +27,7 @@ import java.util.Iterator;
 import java.util.Objects;
 
 public class TrainedModelCacheMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
-
     public static final String NAME = "trained_model_cache_metadata";
-
     public static final TrainedModelCacheMetadata EMPTY = new TrainedModelCacheMetadata(0L);
     private static final ParseField VERSION_FIELD = new ParseField("version");
 

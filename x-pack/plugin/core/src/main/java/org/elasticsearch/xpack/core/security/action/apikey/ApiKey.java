@@ -419,7 +419,7 @@ public final class ApiKey implements ToXContentObject {
         parser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
         parser.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> {
             p.nextToken();
-            return RoleDescriptor.parse(n, p, false);
+            return RoleDescriptor.parser().allowRestriction(true).parse(n, p);
         }, new ParseField("role_descriptors"));
         parser.declareField(
             optionalConstructorArg(),

@@ -31,7 +31,7 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
     public PutRoleRequestBuilder source(String name, BytesReference source, XContentType xContentType) throws IOException {
         // we pass false as last parameter because we want to reject the request if field permissions
         // are given in 2.x syntax
-        RoleDescriptor descriptor = RoleDescriptor.parse(name, source, false, xContentType, false);
+        RoleDescriptor descriptor = RoleDescriptor.parser().allowDescription(true).parse(name, source, xContentType);
         assert name.equals(descriptor.getName());
         request.name(name);
         request.cluster(descriptor.getClusterPrivileges());

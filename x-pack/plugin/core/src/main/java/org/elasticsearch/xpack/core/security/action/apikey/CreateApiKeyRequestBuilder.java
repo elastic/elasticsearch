@@ -32,7 +32,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public class CreateApiKeyRequestBuilder extends ActionRequestBuilder<CreateApiKeyRequest, CreateApiKeyResponse> {
     private static final ConstructingObjectParser<CreateApiKeyRequest, Void> PARSER = createParser(
-        (n, p) -> RoleDescriptor.parse(n, p, false)
+        (n, p) -> RoleDescriptor.parser().allowRestriction(true).parse(n, p)
     );
 
     @SuppressWarnings("unchecked")

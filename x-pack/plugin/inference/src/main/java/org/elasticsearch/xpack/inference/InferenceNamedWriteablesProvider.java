@@ -42,7 +42,7 @@ import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCo
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings;
-import org.elasticsearch.xpack.inference.services.settings.AzureOpenAiSecretSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.ArrayList;

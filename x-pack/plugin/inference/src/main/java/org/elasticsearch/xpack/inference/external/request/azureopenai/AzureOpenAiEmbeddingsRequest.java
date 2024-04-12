@@ -26,8 +26,8 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 import static org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiUtils.API_KEY_HEADER;
-import static org.elasticsearch.xpack.inference.services.settings.AzureOpenAiSecretSettings.API_KEY;
-import static org.elasticsearch.xpack.inference.services.settings.AzureOpenAiSecretSettings.ENTRA_ID;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.API_KEY;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.ENTRA_ID;
 
 public class AzureOpenAiEmbeddingsRequest implements AzureOpenAiRequest {
     private static final String MISSING_AUTHENTICATION_ERROR_MESSAGE =

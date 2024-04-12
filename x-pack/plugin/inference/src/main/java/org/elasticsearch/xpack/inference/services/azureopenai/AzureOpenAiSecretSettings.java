@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.settings;
+package org.elasticsearch.xpack.inference.services.azureopenai;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;

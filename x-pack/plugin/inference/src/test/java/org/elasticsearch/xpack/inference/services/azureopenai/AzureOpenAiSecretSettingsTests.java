@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.settings;
+package org.elasticsearch.xpack.inference.services.azureopenai;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -16,14 +16,15 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.settings.AzureOpenAiSecretSettings.API_KEY;
-import static org.elasticsearch.xpack.inference.services.settings.AzureOpenAiSecretSettings.ENTRA_ID;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.API_KEY;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.ENTRA_ID;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 

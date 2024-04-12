@@ -71,6 +71,9 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                         continue;
                     }
                     final MappedFieldType fieldType = searchExecutionContext.getFieldType(matchingFieldName);
+                    // NOTE: checking if the field is stored is required for backward compatibility reasons and to make
+                    // sure we also handle here stored fields requested via `stored_fields`, which was previously a
+                    // responsibility of StoredFieldsPhase.
                     if (searchExecutionContext.isMetadataField(matchingFieldName) && fieldType.isStored()) {
                         metadataFields.add(new FieldAndFormat(matchingFieldName, null));
                     }

@@ -228,12 +228,12 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
             final var dir = SearchDirectory.unwrapDirectory(testHarness.searchStore.directory());
             dir.setBlobContainer(primaryTerm -> testHarness.objectStoreService.getBlobContainer(testHarness.shardId, primaryTerm));
-            StatelessCompoundCommit commit = ObjectStoreService.readSearchShardState(
+            BatchedCompoundCommit commit = ObjectStoreService.readSearchShardState(
                 testHarness.objectStoreService.getBlobContainer(testHarness.shardId),
                 1
             );
             if (commit != null) {
-                dir.updateCommit(commit);
+                dir.updateCommit(commit.last());
             }
 
             if (commitCount > 0) {
@@ -296,13 +296,19 @@ public class ObjectStoreServiceTests extends ESTestCase {
             // Should find the latest compound commit from a list of pure CCs
             if (ccCount > 0) {
                 assertThat(
-                    ObjectStoreService.readNewestCommit(shardBlobContainer, shardBlobContainer.listBlobs(OperationPurpose.INDICES)),
-                    equalTo(expectedNewestCompoundCommit.get())
+                    ObjectStoreService.readNewestBcc(shardBlobContainer, shardBlobContainer.listBlobs(OperationPurpose.INDICES)),
+                    equalTo(
+                        new BatchedCompoundCommit(
+                            expectedNewestCompoundCommit.get().primaryTermAndGeneration(),
+                            List.of(expectedNewestCompoundCommit.get())
+                        )
+                    )
                 );
             }
 
             // Add BCCs after the existing CCs
             final int bccCount = between(1, 4);
+            final AtomicReference<BatchedCompoundCommit> expectedNewestBatchedCompoundCommit = new AtomicReference<>();
 
             for (int i = 0; i < bccCount; i++) {
                 final int ccPerBcc = between(1, 4);
@@ -331,9 +337,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                             for (var compoundCommit : batchedCompoundCommit.compoundCommits()) {
                                 uploadedBlobLocations.putAll(compoundCommit.commitFiles());
                             }
-                            expectedNewestCompoundCommit.set(
-                                batchedCompoundCommit.compoundCommits().get(batchedCompoundCommit.compoundCommits().size() - 1)
-                            );
+                            expectedNewestBatchedCompoundCommit.set(batchedCompoundCommit);
                         }
                     );
                 }
@@ -341,8 +345,8 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
             // Should find the newest commit in a list of CCs and BCCs
             assertThat(
-                ObjectStoreService.readNewestCommit(shardBlobContainer, shardBlobContainer.listBlobs(OperationPurpose.INDICES)),
-                equalTo(expectedNewestCompoundCommit.get())
+                ObjectStoreService.readNewestBcc(shardBlobContainer, shardBlobContainer.listBlobs(OperationPurpose.INDICES)),
+                equalTo(expectedNewestBatchedCompoundCommit.get())
             );
         }
     }

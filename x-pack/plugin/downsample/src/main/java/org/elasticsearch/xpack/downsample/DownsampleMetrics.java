@@ -31,6 +31,9 @@ public class DownsampleMetrics extends AbstractLifecycleComponent {
 
     public static final String LATENCY_SHARD = "es.tsdb.downsample.latency.shard.histogram";
     public static final String LATENCY_TOTAL = "es.tsdb.downsample.latency.total.histogram";
+    public static final String SUCCESS = "es.tsdb.downsample.success.total";
+    public static final String FAILURE = "es.tsdb.downsample.failure.total";
+    public static final String INVALID_CONFIGURATION = "es.tsdb.downsample.invalid_configuration.total";
 
     private final MeterRegistry meterRegistry;
 
@@ -43,6 +46,9 @@ public class DownsampleMetrics extends AbstractLifecycleComponent {
         // Register all metrics to track.
         meterRegistry.registerLongHistogram(LATENCY_SHARD, "Downsampling action latency per shard", "ms");
         meterRegistry.registerLongHistogram(LATENCY_TOTAL, "Downsampling latency end-to-end", "ms");
+        meterRegistry.registerLongCounter(SUCCESS, "Downsampling success", "count");
+        meterRegistry.registerLongCounter(FAILURE, "Downsampling failure", "count");
+        meterRegistry.registerLongCounter(INVALID_CONFIGURATION, "Downsampling failed due to invalid configuration", "count");
     }
 
     @Override
@@ -77,5 +83,17 @@ public class DownsampleMetrics extends AbstractLifecycleComponent {
 
     void recordLatencyTotal(long durationInMilliSeconds, ActionStatus status) {
         meterRegistry.getLongHistogram(LATENCY_TOTAL).record(durationInMilliSeconds, Map.of(ActionStatus.NAME, status.getMessage()));
+    }
+
+    void recordSuccess() {
+        meterRegistry.getLongCounter(SUCCESS).increment();
+    }
+
+    void recordFailure() {
+        meterRegistry.getLongCounter(FAILURE).increment();
+    }
+
+    void recordInvalidConfiguration() {
+        meterRegistry.getLongCounter(INVALID_CONFIGURATION).increment();
     }
 }

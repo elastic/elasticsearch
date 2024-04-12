@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
+import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.BlobFile;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
@@ -122,14 +123,14 @@ class StatelessIndexEventListener implements IndexEventListener {
         }
     }
 
-    private static void logBootstrapping(IndexShard indexShard, StatelessCompoundCommit latestCommit) {
+    private static void logBootstrapping(IndexShard indexShard, BatchedCompoundCommit latestCommit) {
         if (latestCommit != null) {
             logger.info(
                 "{} bootstrapping [{}] shard on primary term [{}] with {} from object store ({})",
                 indexShard.shardId(),
                 indexShard.routingEntry().role(),
                 indexShard.getOperationPrimaryTerm(),
-                latestCommit.toShortDescription(),
+                latestCommit.last().toShortDescription(),
                 indexShard.recoveryState().getRecoverySource()
             );
         } else {
@@ -146,24 +147,24 @@ class StatelessIndexEventListener implements IndexEventListener {
     private void beforeRecoveryIndexShard(IndexShard indexShard, BlobContainer existingBlobContainer, ActionListener<Void> listener)
         throws IOException {
         final Set<BlobFile> unreferencedFiles;
-        final StatelessCompoundCommit commit;
+        final BatchedCompoundCommit batchedCompoundCommit;
         if (existingBlobContainer != null) {
             var state = ObjectStoreService.readIndexingShardState(existingBlobContainer, indexShard.getOperationPrimaryTerm());
-            commit = state.v1();
+            batchedCompoundCommit = state.v1();
             unreferencedFiles = state.v2();
-            logBootstrapping(indexShard, commit);
+            logBootstrapping(indexShard, batchedCompoundCommit);
         } else {
-            commit = null;
+            batchedCompoundCommit = null;
             unreferencedFiles = null;
         }
         assert indexShard.routingEntry().isPromotableToPrimary();
         ActionListener.completeWith(listener, () -> {
             final Store store = indexShard.store();
             final var indexDirectory = IndexDirectory.unwrapDirectory(store.directory());
-            if (commit != null) {
-                indexDirectory.updateCommit(commit, null);
+            if (batchedCompoundCommit != null) {
+                indexDirectory.updateCommit(batchedCompoundCommit.last(), null);
                 var warmingService = sharedBlobCacheWarmingService.get();
-                warmingService.warmCacheForIndexingShardRecovery(indexShard, commit);
+                warmingService.warmCacheForIndexingShardRecovery(indexShard, batchedCompoundCommit.last());
             }
             final var segmentInfos = SegmentInfos.readLatestCommit(indexDirectory);
             final var translogUUID = segmentInfos.userData.get(Translog.TRANSLOG_UUID_KEY);
@@ -181,9 +182,10 @@ class StatelessIndexEventListener implements IndexEventListener {
                 bootstrap(indexShard, store);
             }
 
-            if (commit != null) {
-                statelessCommitService.markRecoveredCommit(indexShard.shardId(), commit, unreferencedFiles);
+            if (batchedCompoundCommit != null) {
+                statelessCommitService.markRecoveredBcc(indexShard.shardId(), batchedCompoundCommit, unreferencedFiles);
             }
+            // TODO: indexDirectory.updateCommit must be called for not uploaded CC as well
             statelessCommitService.addConsumerForNewUploadedCommit(
                 indexShard.shardId(),
                 info -> indexDirectory.updateCommit(info.commit(), info.filesToRetain())
@@ -200,14 +202,14 @@ class StatelessIndexEventListener implements IndexEventListener {
 
     private void beforeRecoveryOnSearchShard(IndexShard indexShard, BlobContainer existingBlobContainer, ActionListener<Void> listener)
         throws IOException {
-        final StatelessCompoundCommit commit;
+        final BatchedCompoundCommit batchedCompoundCommit;
         if (existingBlobContainer != null) {
-            commit = ObjectStoreService.readSearchShardState(existingBlobContainer, indexShard.getOperationPrimaryTerm());
-            logBootstrapping(indexShard, commit);
+            batchedCompoundCommit = ObjectStoreService.readSearchShardState(existingBlobContainer, indexShard.getOperationPrimaryTerm());
+            logBootstrapping(indexShard, batchedCompoundCommit);
         } else {
-            commit = null;
+            batchedCompoundCommit = null;
         }
-        if (commit == null) {
+        if (batchedCompoundCommit == null) {
             // TODO: can this happen? Do we need this?
             listener.onResponse(null);
             return;
@@ -215,6 +217,8 @@ class StatelessIndexEventListener implements IndexEventListener {
         final Store store = indexShard.store();
         // On a search shard. First register, then read the new or confirmed commit.
         store.incRef();
+        // TODO: We may want to register for referenced BCCs. For now we use CC here to keep the existing behaviour. See also ES-8200
+        final StatelessCompoundCommit commit = batchedCompoundCommit.last();
         var commitToRegister = commit.primaryTermAndGeneration();
         recoveryCommitRegistrationHandler.get().register(commitToRegister, commit.shardId(), new ActionListener<>() {
             @Override
@@ -230,6 +234,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                         var searchDirectory = SearchDirectory.unwrapDirectory(store.directory());
                         var compoundCommit = commit;
                         if (commitToRegister.equals(commitToUse) == false) {
+                            // TODO: This won't work once we fully enable BCC, ES-8200
                             compoundCommit = ObjectStoreService.readStatelessCompoundCommit(
                                 searchDirectory.getBlobContainer(commitToUse.primaryTerm()),
                                 commitToUse.generation()

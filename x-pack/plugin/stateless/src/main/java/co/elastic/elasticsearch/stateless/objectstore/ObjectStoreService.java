@@ -461,7 +461,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     }
 
     // Package private for testing
-    static StatelessCompoundCommit readNewestCommit(BlobContainer blobContainer, Map<String, BlobMetadata> allBlobs) throws IOException {
+    static BatchedCompoundCommit readNewestBcc(BlobContainer blobContainer, Map<String, BlobMetadata> allBlobs) throws IOException {
 
         final BlobMetadata blobMetadataOfMaxGeneration = allBlobs.values()
             .stream()
@@ -481,8 +481,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 blobContainer.readBlob(OperationPurpose.INDICES, blobName, offset, length)
             )
         );
-        // TODO: may need to return BCC info as well once we decide how to track commit files
-        return batchedCompoundCommit.getLast();
+        return batchedCompoundCommit;
     }
 
     private static List<Tuple<Long, BlobContainer>> getContainersToSearch(BlobContainer shardContainer, long primaryTerm)
@@ -501,8 +500,8 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             .toList();
     }
 
-    public static StatelessCompoundCommit readSearchShardState(BlobContainer shardContainer, long primaryTerm) throws IOException {
-        StatelessCompoundCommit latestCommit = null;
+    public static BatchedCompoundCommit readSearchShardState(BlobContainer shardContainer, long primaryTerm) throws IOException {
+        BatchedCompoundCommit latestBcc = null;
         List<Tuple<Long, BlobContainer>> containersToSearch = getContainersToSearch(shardContainer, primaryTerm);
         for (Tuple<Long, BlobContainer> container : containersToSearch) {
             final var blobContainer = container.v2();
@@ -510,19 +509,19 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             Map<String, BlobMetadata> allBlobs = blobContainer.listBlobs(OperationPurpose.INDICES);
             logger.trace(() -> format("listing blobs in [%s]: %s", blobContainer.path().buildAsString(), allBlobs));
 
-            latestCommit = ObjectStoreService.readNewestCommit(blobContainer, allBlobs);
-            if (latestCommit != null) {
-                logLatestCommit(latestCommit, blobContainer);
+            latestBcc = ObjectStoreService.readNewestBcc(blobContainer, allBlobs);
+            if (latestBcc != null) {
+                logLatestBcc(latestBcc, blobContainer);
                 break;
             }
         }
-        return latestCommit;
+        return latestBcc;
     }
 
-    public static Tuple<StatelessCompoundCommit, Set<BlobFile>> readIndexingShardState(BlobContainer shardContainer, long primaryTerm)
+    public static Tuple<BatchedCompoundCommit, Set<BlobFile>> readIndexingShardState(BlobContainer shardContainer, long primaryTerm)
         throws IOException {
         Set<BlobFile> unreferencedBlobs = new HashSet<>();
-        StatelessCompoundCommit latestCommit = null;
+        BatchedCompoundCommit latestBcc = null;
         List<Tuple<Long, BlobContainer>> containersToSearch = getContainersToSearch(shardContainer, primaryTerm);
         for (Tuple<Long, BlobContainer> container : containersToSearch) {
             final long blobContainerPrimaryTerm = container.v1();
@@ -531,16 +530,16 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             Map<String, BlobMetadata> allBlobs = blobContainer.listBlobs(OperationPurpose.INDICES);
             logger.trace(() -> format("listing blobs in [%s]: %s", blobContainer.path().buildAsString(), allBlobs));
 
-            if (latestCommit == null) {
-                latestCommit = ObjectStoreService.readNewestCommit(blobContainer, allBlobs);
-                if (latestCommit != null) {
-                    logLatestCommit(latestCommit, blobContainer);
-                    StatelessCompoundCommit finalLatestCommit = latestCommit;
+            if (latestBcc == null) {
+                latestBcc = ObjectStoreService.readNewestBcc(blobContainer, allBlobs);
+                if (latestBcc != null) {
+                    logLatestBcc(latestBcc, blobContainer);
+                    final var latestBccTermAndGen = latestBcc.primaryTermAndGeneration();
                     allBlobs.forEach((key, value) -> {
                         var blobFile = new BlobFile(blobContainerPrimaryTerm, key);
                         if (startsWithBlobPrefix(blobFile.blobName()) == false
-                            || blobFile.primaryTerm() != finalLatestCommit.primaryTerm()
-                            || parseGenerationFromBlobName(blobFile.blobName()) != finalLatestCommit.generation()) {
+                            || blobFile.primaryTerm() != latestBccTermAndGen.primaryTerm()
+                            || parseGenerationFromBlobName(blobFile.blobName()) != latestBccTermAndGen.generation()) {
                             unreferencedBlobs.add(blobFile);
                         }
                     });
@@ -551,12 +550,12 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         }
         final var finalUnreferencedBlobs = Set.copyOf(unreferencedBlobs);
         logger.trace(() -> format("found unreferenced blobs in [%s]: %s", shardContainer.path().buildAsString(), finalUnreferencedBlobs));
-        return new Tuple<>(latestCommit, finalUnreferencedBlobs);
+        return new Tuple<>(latestBcc, finalUnreferencedBlobs);
     }
 
-    private static void logLatestCommit(StatelessCompoundCommit latestCommit, BlobContainer blobContainer) {
+    private static void logLatestBcc(BatchedCompoundCommit latestBcc, BlobContainer blobContainer) {
         if (logger.isTraceEnabled()) {
-            logger.trace("found latest commit in [{}]: {}", blobContainer.path().buildAsString(), latestCommit.toLongDescription());
+            logger.trace("found latest CC in [{}]: {}", blobContainer.path().buildAsString(), latestBcc.last().toLongDescription());
         }
     }
 
@@ -699,7 +698,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                     )
                 );
                 assert batchedCompoundCommitRef.get() != null;
-                assert batchedCompoundCommitRef.get().getLast() != null;
+                assert batchedCompoundCommitRef.get().last() != null;
                 // assign this last, since it is used as a flag to successfully complete the listener below.
                 // this is critically important, since completing the listener successfully for a failed write can lead to
                 // erroneously deleted files.

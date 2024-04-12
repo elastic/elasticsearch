@@ -66,7 +66,11 @@ public record BatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGener
         return compoundCommits.get(0).shardId();
     }
 
-    public StatelessCompoundCommit getLast() {
+    public int size() {
+        return compoundCommits.size();
+    }
+
+    public StatelessCompoundCommit last() {
         return compoundCommits.get(compoundCommits.size() - 1);
     }
 

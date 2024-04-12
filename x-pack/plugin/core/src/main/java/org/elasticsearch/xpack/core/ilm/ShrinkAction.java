@@ -29,9 +29,10 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 
@@ -300,40 +301,36 @@ public class ShrinkAction implements LifecycleAction {
         );
         DeleteStep deleteSourceIndexStep = new DeleteStep(deleteIndexKey, isShrunkIndexKey, client);
         ShrunkenIndexCheckStep waitOnShrinkTakeover = new ShrunkenIndexCheckStep(isShrunkIndexKey, lastOrNextStep);
-
-        List<Step> steps = new ArrayList<>(
-            List.of(
-                conditionalSkipShrinkStep,
-                checkNotWriteIndexStep,
-                waitForNoFollowersStep,
-                waitUntilTimeSeriesEndTimeStep,
-                readOnlyStep,
-                checkTargetShardsCountStep,
-                cleanupShrinkIndexStep,
-                generateUniqueIndexNameStep,
-                setSingleNodeStep,
-                checkShrinkReadyStep,
-                shrink,
-                allocated,
-                copyMetadata,
-                isDataStreamBranchingStep,
-                aliasSwapAndDelete,
-                waitOnShrinkTakeover,
-                replaceDataStreamBackingIndex,
-                deleteSourceIndexStep
-            )
+        UpdateSettingsStep allowWriteAfterShrinkStep = new UpdateSettingsStep(
+            allowWriteKey,
+            nextStepKey,
+            client,
+            CLEAR_WRITE_BLOCK_SETTINGS
         );
 
-        if (allowWriteAfterShrink) {
-            UpdateSettingsStep allowWriteAfterShrinkStep = new UpdateSettingsStep(
-                allowWriteKey,
-                nextStepKey,
-                client,
-                CLEAR_WRITE_BLOCK_SETTINGS
-            );
-            steps.add(allowWriteAfterShrinkStep);
-        }
-        return steps;
+        Stream<Step> steps = Stream.of(
+            conditionalSkipShrinkStep,
+            checkNotWriteIndexStep,
+            waitForNoFollowersStep,
+            waitUntilTimeSeriesEndTimeStep,
+            readOnlyStep,
+            checkTargetShardsCountStep,
+            cleanupShrinkIndexStep,
+            generateUniqueIndexNameStep,
+            setSingleNodeStep,
+            checkShrinkReadyStep,
+            shrink,
+            allocated,
+            copyMetadata,
+            isDataStreamBranchingStep,
+            aliasSwapAndDelete,
+            waitOnShrinkTakeover,
+            replaceDataStreamBackingIndex,
+            deleteSourceIndexStep,
+            allowWriteAfterShrink ? allowWriteAfterShrinkStep : null
+        );
+
+        return steps.filter(Objects::nonNull).collect(Collectors.toList());
     }
 
     @Override

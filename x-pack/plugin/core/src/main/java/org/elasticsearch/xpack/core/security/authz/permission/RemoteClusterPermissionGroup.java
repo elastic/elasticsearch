@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -28,8 +29,9 @@ import java.util.Objects;
  }
  * </code>
  */
-public class RemoteClusterPermissionGroup implements Writeable, ToXContentObject {
+public class RemoteClusterPermissionGroup implements NamedWriteable, ToXContentObject {
 
+    public static final String NAME = "remote_cluster_permission_group";
     private final String[] clusterPrivileges;
     private final String[] remoteClusterAliases;
     private final StringMatcher remoteClusterAliasMatcher;
@@ -111,5 +113,10 @@ public class RemoteClusterPermissionGroup implements Writeable, ToXContentObject
             ", remoteClusterAliases=" + Arrays.toString(remoteClusterAliases) +
             ", remoteClusterAliasMatcher=" + remoteClusterAliasMatcher +
             '}';
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

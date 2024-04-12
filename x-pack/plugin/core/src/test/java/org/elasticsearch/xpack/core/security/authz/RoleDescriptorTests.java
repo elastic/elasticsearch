@@ -497,12 +497,8 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(afterStats.getHits(), equalTo(beforeStats.getHits() + numberOfFieldSecurityBlocks * iterations));
     }
 
-    @AwaitsFix(bugUrl = "TOOD!")
     public void testSerializationForCurrentVersion() throws Exception {
-        //TODO: replace this .. this test is busted cuase the production code is wrong
-         TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
-         System.out.println(version);
-        version = TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS;
+        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         final boolean canIncludeRemoteIndices = version.onOrAfter(TransportVersions.V_8_8_0);
         final boolean canIncludeRemoteClusters = version.onOrAfter(TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS);
         final boolean canIncludeWorkflows = version.onOrAfter(WORKFLOWS_RESTRICTION_VERSION);
@@ -572,13 +568,13 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testSerializationWithRemoteClusterWithElderVersion() throws IOException {
-        final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(
+        final TransportVersion versionBeforeRemoteCluster = TransportVersionUtils.getPreviousVersion(
             TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS
         );
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersions.V_7_17_0,
-            versionBeforeRemoteIndices
+            versionBeforeRemoteCluster
         );
         final BytesStreamOutput output = new BytesStreamOutput();
         output.setTransportVersion(version);

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -52,8 +53,9 @@ import java.util.Set;
  *   "cluster": ["bar"]
  * </code>
  */
-public class RemoteClusterPermissions implements Writeable, ToXContentObject {
+public class RemoteClusterPermissions implements NamedWriteable, ToXContentObject {
 
+    public static final String NAME = "remote_cluster_permissions";
     private final List<RemoteClusterPermissionGroup> remoteClusterPermissionGroups;
     private static final Set<String> allowedRemoteClusterPermissions = Set.of("monitor_enrich");
     static{
@@ -68,7 +70,7 @@ public class RemoteClusterPermissions implements Writeable, ToXContentObject {
     }
 
     public RemoteClusterPermissions(StreamInput in) throws IOException {
-        remoteClusterPermissionGroups = in.readCollectionAsList(RemoteClusterPermissionGroup::new);
+        remoteClusterPermissionGroups = in.readNamedWriteableCollectionAsList(RemoteClusterPermissionGroup.class);
     }
 
     public RemoteClusterPermissions() {
@@ -154,7 +156,7 @@ public class RemoteClusterPermissions implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(remoteClusterPermissionGroups);
+        out.writeNamedWriteableCollection(remoteClusterPermissionGroups);
     }
 
     @Override
@@ -175,5 +177,10 @@ public class RemoteClusterPermissions implements Writeable, ToXContentObject {
         return "RemoteClusterPermissions{" +
             "remoteClusterPermissionGroups=" + remoteClusterPermissionGroups +
             '}';
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 }

@@ -1076,6 +1076,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
+            if (plan instanceof EsRelation esRelation) {
+                EsIndex index = esRelation.index();
+                index.mapping()
+                    .replaceAll(
+                        (name, field) -> (field instanceof MultiTypeEsField.UnresolvedField mtf)
+                            ? new EsField(mtf.getName(), DataTypes.UNSUPPORTED, mtf.getProperties(), mtf.isAggregatable())
+                            : field
+                    );
+            }
             return plan.transformExpressionsOnly(FieldAttribute.class, UnresolveUnionTypes::checkUnresolved);
         }
 

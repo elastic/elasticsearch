@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ql.plan.logical;
 
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.options.EsSourceOptions;
@@ -96,7 +97,7 @@ public class EsRelation extends LeafPlan {
 
     @Override
     public boolean expressionsResolved() {
-        return true;
+        return attrs.stream().allMatch(Expression::resolved);
     }
 
     @Override

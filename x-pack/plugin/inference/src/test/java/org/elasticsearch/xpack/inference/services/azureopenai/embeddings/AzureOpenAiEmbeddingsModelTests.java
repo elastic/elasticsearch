@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.azureopenai.embeddings;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
@@ -48,7 +49,15 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
 
     public void testCreateModel_FromUpdatedServiceSettings() {
         var model = createModel("resource", "deployment", "apiversion", "user", "api_key", null, "id");
-        var updatedSettings = new AzureOpenAiEmbeddingsServiceSettings("resource", "deployment", "override_apiversion", null, false, null);
+        var updatedSettings = new AzureOpenAiEmbeddingsServiceSettings(
+            "resource",
+            "deployment",
+            "override_apiversion",
+            null,
+            false,
+            null,
+            null
+        );
 
         var overridenModel = new AzureOpenAiEmbeddingsModel(model, updatedSettings);
 
@@ -70,7 +79,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
             inferenceEntityId,
             TaskType.TEXT_EMBEDDING,
             "service",
-            new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, null, false, null),
+            new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, null, false, null, null),
             new AzureOpenAiEmbeddingsTaskSettings(user),
             new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
         );
@@ -103,7 +112,8 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
                 apiVersion,
                 dimensions,
                 dimensionsSetByUser,
-                maxInputTokens
+                maxInputTokens,
+                SimilarityMeasure.DOT_PRODUCT
             ),
             new AzureOpenAiEmbeddingsTaskSettings(user),
             new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)

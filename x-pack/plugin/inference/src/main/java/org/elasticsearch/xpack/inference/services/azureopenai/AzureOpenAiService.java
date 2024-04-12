@@ -21,6 +21,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
@@ -272,13 +273,17 @@ public class AzureOpenAiService extends SenderService {
             );
         }
 
+        var similarityFromModel = model.getServiceSettings().similarity();
+        var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
+
         AzureOpenAiEmbeddingsServiceSettings serviceSettings = new AzureOpenAiEmbeddingsServiceSettings(
             model.getServiceSettings().resourceName(),
             model.getServiceSettings().deploymentId(),
             model.getServiceSettings().apiVersion(),
             embeddingSize,
             model.getServiceSettings().dimensionsSetByUser(),
-            model.getServiceSettings().maxInputTokens()
+            model.getServiceSettings().maxInputTokens(),
+            similarityToUse
         );
 
         return new AzureOpenAiEmbeddingsModel(model, serviceSettings);

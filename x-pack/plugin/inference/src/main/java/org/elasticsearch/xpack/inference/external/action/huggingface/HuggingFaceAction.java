@@ -40,7 +40,7 @@ public class HuggingFaceAction implements ExecutableAction {
         Objects.requireNonNull(serviceComponents);
         Objects.requireNonNull(requestType);
         this.sender = Objects.requireNonNull(sender);
-        requestCreator = new HuggingFaceRequestManager(
+        requestCreator = HuggingFaceRequestManager.of(
             model,
             responseHandler,
             serviceComponents.truncator(),

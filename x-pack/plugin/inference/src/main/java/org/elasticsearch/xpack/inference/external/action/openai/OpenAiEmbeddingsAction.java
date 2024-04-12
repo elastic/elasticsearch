@@ -34,7 +34,7 @@ public class OpenAiEmbeddingsAction implements ExecutableAction {
         Objects.requireNonNull(serviceComponents);
         Objects.requireNonNull(model);
         this.sender = Objects.requireNonNull(sender);
-        requestCreator = new OpenAiEmbeddingsRequestManager(model, serviceComponents.truncator(), serviceComponents.threadPool());
+        requestCreator = OpenAiEmbeddingsRequestManager.of(model, serviceComponents.truncator(), serviceComponents.threadPool());
         errorMessage = constructFailedToSendRequestMessage(model.getServiceSettings().uri(), "OpenAI embeddings");
     }
 

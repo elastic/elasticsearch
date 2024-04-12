@@ -37,7 +37,7 @@ public class OpenAiCompletionRequestManager extends OpenAiRequestManager {
 
     private final OpenAiChatCompletionModel model;
 
-    public OpenAiCompletionRequestManager(OpenAiChatCompletionModel model, ThreadPool threadPool) {
+    private OpenAiCompletionRequestManager(OpenAiChatCompletionModel model, ThreadPool threadPool) {
         super(threadPool, model, OpenAiChatCompletionRequest::buildDefaultUri);
         this.model = Objects.requireNonNull(model);
     }

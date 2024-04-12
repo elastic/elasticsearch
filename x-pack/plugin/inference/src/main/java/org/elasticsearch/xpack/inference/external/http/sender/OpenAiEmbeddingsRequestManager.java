@@ -48,7 +48,7 @@ public class OpenAiEmbeddingsRequestManager extends OpenAiRequestManager {
     private final Truncator truncator;
     private final OpenAiEmbeddingsModel model;
 
-    public OpenAiEmbeddingsRequestManager(OpenAiEmbeddingsModel model, Truncator truncator, ThreadPool threadPool) {
+    private OpenAiEmbeddingsRequestManager(OpenAiEmbeddingsModel model, Truncator truncator, ThreadPool threadPool) {
         super(threadPool, model, OpenAiEmbeddingsRequest::buildDefaultUri);
         this.model = Objects.requireNonNull(model);
         this.truncator = Objects.requireNonNull(truncator);

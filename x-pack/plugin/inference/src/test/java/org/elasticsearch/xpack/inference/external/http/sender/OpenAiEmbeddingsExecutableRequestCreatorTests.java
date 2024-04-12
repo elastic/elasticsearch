@@ -24,7 +24,7 @@ public class OpenAiEmbeddingsExecutableRequestCreatorTests {
     ) {
         var model = createModel(url, org, apiKey, modelName, user);
 
-        return new OpenAiEmbeddingsRequestManager(model, TruncatorTests.createTruncator(), threadPool);
+        return OpenAiEmbeddingsRequestManager.of(model, TruncatorTests.createTruncator(), threadPool);
     }
 
     public static OpenAiEmbeddingsRequestManager makeCreator(
@@ -38,6 +38,6 @@ public class OpenAiEmbeddingsExecutableRequestCreatorTests {
     ) {
         var model = createModel(url, org, apiKey, modelName, user, inferenceEntityId);
 
-        return new OpenAiEmbeddingsRequestManager(model, TruncatorTests.createTruncator(), threadPool);
+        return OpenAiEmbeddingsRequestManager.of(model, TruncatorTests.createTruncator(), threadPool);
     }
 }

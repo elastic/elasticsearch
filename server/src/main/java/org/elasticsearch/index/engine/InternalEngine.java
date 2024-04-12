@@ -2703,7 +2703,7 @@ public class InternalEngine extends Engine {
         iwc.setSimilarity(engineConfig.getSimilarity());
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
         iwc.setCodec(engineConfig.getCodec());
-        boolean useCompoundFile = engineConfig.getUseCompoundFile();
+        boolean useCompoundFile = false;// engineConfig.getUseCompoundFile();
         iwc.setUseCompoundFile(useCompoundFile);
         if (useCompoundFile == false) {
             logger.warn(

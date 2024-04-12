@@ -167,7 +167,14 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     @Override
     public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
-        return delegateAllocator.decideShardAllocation(shard, allocation);
+        var decision = delegateAllocator.decideShardAllocation(shard, allocation);
+        var assignment = currentDesiredBalance.getAssignment(shard.shardId());
+
+        if (assignment != null) {
+
+        }
+
+        return decision;
     }
 
     @Override

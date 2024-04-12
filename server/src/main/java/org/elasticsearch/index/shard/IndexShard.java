@@ -868,7 +868,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    // TODO only nullable temporarily, remove once deprecated relocated() override is removed
+    // TODO only nullable temporarily, remove once deprecated relocated() override is removed, see ES-6725
     private void verifyRelocatingState(@Nullable String targetNodeId) {
         if (state != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(shardId, state);

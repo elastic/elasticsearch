@@ -1,7 +1,7 @@
 setup:
 
-  - skip:
-      version: " - 7.14.99"
+  - requires:
+      cluster_features: ["gte_v7.15.0"]
       reason: "unsigned long script fields api was added in 7.15.0"
 
   - do:
@@ -293,8 +293,8 @@ setup:
 
 ---
 "Scripted Metric":
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: "context for scripted metric was added in 8.1"
 
   - do:

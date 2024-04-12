@@ -57,7 +57,7 @@ double pi()
 "double pow(base:double|integer|long|unsigned_long, exponent:double|integer|long|unsigned_long)"
 "keyword replace(string:keyword|text, regex:keyword|text, newString:keyword|text)"
 "keyword right(string:keyword|text, length:integer)"
-"double round(number:double, ?decimals:integer)"
+"double|integer|long|unsigned_long round(number:double|integer|long|unsigned_long, ?decimals:integer)"
 "keyword|text rtrim(string:keyword|text)"
 "double signum(number:double|integer|long|unsigned_long)"
 "double sin(angle:double|integer|long|unsigned_long)"
@@ -135,7 +135,7 @@ date_parse    |[datePattern, dateString]           |["keyword|text", "keyword|te
 date_trunc    |[interval, date]                    |["date_period|time_duration", date]                                                                                               |[Interval; expressed using the timespan literal syntax., Date expression]
 e             |null                                |null                                                                                                                              |null
 ends_with     |[str, suffix]                       |["keyword|text", "keyword|text"]                                                                                                  |[, ]
-floor         |number                              |"double|integer|long|unsigned_long"                                                                                               |[""]
+floor         |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
 greatest      |first                               |"integer|long|double|boolean|keyword|text|ip|version"                                                                             |[""]
 least         |first                               |"integer|long|double|boolean|keyword|text|ip|version"                                                                             |[""]
 left          |[string, length]                    |["keyword|text", integer]                                                                                                         |[The string from which to return a substring., The number of characters to return.]
@@ -164,10 +164,10 @@ mv_zip        |[string1, string2, delim]           |["keyword|text", "keyword|te
 now           |null                                |null                                                                                                                              |null
 percentile    |[number, percentile]                |["double|integer|long", "double|integer|long"]                                                                                    |[, ]
 pi            |null                                |null                                                                                                                              |null
-pow           |[base, exponent]                    |["double|integer|long|unsigned_long", "double|integer|long|unsigned_long"]                                                        |[, ]
+pow           |[base, exponent]                    |["double|integer|long|unsigned_long", "double|integer|long|unsigned_long"]                                                        |["Numeric expression for the base. If `null`\, the function returns `null`.", "Numeric expression for the exponent. If `null`\, the function returns `null`."]
 replace       |[string, regex, newString]          |["keyword|text", "keyword|text", "keyword|text"]                                                                                  |[, , ]
 right         |[string, length]                    |["keyword|text", integer]                                                                                                         |[, ]
-round         |[number, decimals]                  |[double, integer]                                                                                                                 |[The numeric value to round, The number of decimal places to round to. Defaults to 0.]
+round         |[number, decimals]                  |["double|integer|long|unsigned_long", integer]                                                                                    |["The numeric value to round. If `null`\, the function returns `null`.", "The number of decimal places to round to. Defaults to 0. If `null`\, the function returns `null`."]
 rtrim         |string                              |"keyword|text"                                                                                                                    |[""]
 signum        |number                              |"double|integer|long|unsigned_long"                                                                                               |"Numeric expression. If `null`, the function returns `null`."
 sin           |angle                               |"double|integer|long|unsigned_long"                                                                                               |An angle, in radians. If `null`, the function returns `null`.
@@ -244,7 +244,7 @@ date_extract  |Extracts parts of a date, like year, month, day, hour.
 date_format   |Returns a string representation of a date, in the provided format.
 date_parse    |Parses a string into a date value
 date_trunc    |Rounds down a date to the closest interval.
-e             |Euler’s number.
+e             |Returns {wikipedia}/E_(mathematical_constant)[Euler's number].
 ends_with     |Returns a boolean that indicates whether a keyword string ends with another string
 floor         |Round a number down to the nearest integer.
 greatest      |Returns the maximum value from many columns.
@@ -274,11 +274,11 @@ mv_sum        |Converts a multivalued field into a single valued field containin
 mv_zip        |Combines the values from two multivalued fields with a delimiter that joins them together.
 now           |Returns current date and time.
 percentile    |The value at which a certain percentage of observed values occur.
-pi            |The ratio of a circle’s circumference to its diameter.
-pow           |Returns the value of a base raised to the power of an exponent.
+pi            |Returns {wikipedia}/Pi[Pi], the ratio of a circle's circumference to its diameter.
+pow           |Returns the value of `base` raised to the power of `exponent`.
 replace       |The function substitutes in the string any match of the regular expression with the replacement string.
 right         |Return the substring that extracts length chars from the string starting from the right.
-round         |Rounds a number to the closest number with the specified number of digits.
+round         |Rounds a number to the specified number of decimal places. Defaults to 0, which returns the nearest integer. If the precision is a negative number, rounds to the number of digits left of the decimal point.
 rtrim         |Removes trailing whitespaces from a string.
 signum        |Returns the sign of the given number. It returns `-1` for negative numbers, `0` for `0` and `1` for positive numbers.
 sin           |Returns ths {wikipedia}/Sine_and_cosine[Sine] trigonometric function of an angle.
@@ -390,7 +390,7 @@ pi            |double                                                           
 pow           |double                                                                                                                      |[false, false]              |false           |false
 replace       |keyword                                                                                                                     |[false, false, false]       |false           |false
 right         |keyword                                                                                                                     |[false, false]              |false           |false
-round         |double                                                                                                                      |[false, true]               |false           |false
+round         |"double|integer|long|unsigned_long"                                                                                         |[false, true]               |false           |false
 rtrim         |"keyword|text"                                                                                                              |false                       |false           |false
 signum        |double                                                                                                                      |false                       |false           |false
 sin           |double                                                                                                                      |false                       |false           |false

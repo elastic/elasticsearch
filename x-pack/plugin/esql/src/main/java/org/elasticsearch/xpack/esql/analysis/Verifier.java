@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -55,6 +56,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 
 public class Verifier {
 
+    private static GroupingFunction gf;
     private final Metrics metrics;
 
     public Verifier(Metrics metrics) {
@@ -140,7 +142,7 @@ public class Verifier {
                 return;
             }
             checkFilterConditionType(p, failures);
-            checkAggregate(p, failures, aliases);
+            checkAggregate(p, failures);
             checkRegexExtractOnlyOnStrings(p, failures);
 
             checkRow(p, failures);
@@ -160,7 +162,7 @@ public class Verifier {
         return failures;
     }
 
-    private static void checkAggregate(LogicalPlan p, Set<Failure> failures, AttributeMap<Expression> aliases) {
+    private static void checkAggregate(LogicalPlan p, Set<Failure> failures) {
         if (p instanceof Aggregate agg) {
             List<Expression> groupings = agg.groupings();
             AttributeSet groupRefs = new AttributeSet();
@@ -170,6 +172,21 @@ public class Verifier {
                 e.forEachUp(g -> {
                     if (g instanceof AggregateFunction af) {
                         failures.add(fail(g, "cannot use an aggregate [{}] for grouping", af));
+                    } else if (g instanceof GroupingFunction gf) {
+                        gf.children()
+                            .forEach(
+                                c -> c.forEachDown(
+                                    GroupingFunction.class,
+                                    inner -> failures.add(
+                                        fail(
+                                            inner,
+                                            "cannot imbricate grouping functions; found [{}] inside [{}]",
+                                            inner.sourceText(),
+                                            gf.sourceText()
+                                        )
+                                    )
+                                )
+                            );
                     }
                 });
                 // keep the grouping attributes (common case)
@@ -191,11 +208,16 @@ public class Verifier {
                 // traverse the tree to find invalid matches
                 checkInvalidNamedExpressionUsage(exp, groupings, groupRefs, failures, 0);
             });
+        } else {
+            p.forEachExpression(
+                GroupingFunction.class,
+                gf -> failures.add(fail(gf, "cannot use grouping function [{}] outside of a STATS command", gf.sourceText()))
+            );
         }
     }
 
     // traverse the expression and look either for an agg function or a grouping match
-    // stop either when no children are left, the leaves are literals or a reference attribute is given
+    // stop either when no children are left, the leafs are literals or a reference attribute is given
     private static void checkInvalidNamedExpressionUsage(
         Expression e,
         List<Expression> groups,
@@ -208,6 +230,10 @@ public class Verifier {
             af.field().forEachDown(AggregateFunction.class, f -> {
                 failures.add(fail(f, "nested aggregations [{}] not allowed inside other aggregations [{}]", f, af));
             });
+        } else if (e instanceof GroupingFunction gf) {
+            // optimizer will later unroll expressions with aggs and non-aggs with a grouping function into an EVAL, but that will no longer
+            // be verified (by check above in checkAggregate()), so do it explicitly here
+            failures.add(fail(gf, "can only use grouping function [{}] part of the BY clause", gf.sourceText()));
         } else if (e.foldable()) {
             // don't do anything
         } else if (groups.contains(e) || groupRefs.contains(e)) {

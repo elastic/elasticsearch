@@ -7,7 +7,7 @@
 bucketSimpleMonth#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 // tag::bucket_month[]
 ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
-| EVAL bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+| STATS date=VALUES(date) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
 // end::bucket_month[]
 ;
 
@@ -20,7 +20,7 @@ ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
 bucketSimpleWeek#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 // tag::bucket_week[]
 ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
-| EVAL bucket=BUCKET(date, 100, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+| STATS date=VALUES(date) BY bucket=BUCKET(date, 100, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
 // end::bucket_week[]
 ;
 
@@ -31,52 +31,41 @@ ROW date=TO_DATETIME("1985-07-09T00:00:00.000Z")
 ;
 
 bucketMonth#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
-from employees
-| where hire_date >= "1985-01-01T00:00:00Z" and hire_date < "1986-01-01T00:00:00Z"
-| eval hd = bucket(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
-| sort hire_date
-| keep hire_date, hd;
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| STATS hd = VALUES(hire_date) BY b = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+| SORT hd
+;
 
-hire_date:date           | hd:date
-1985-02-18T00:00:00.000Z | 1985-02-01T00:00:00.000Z
-1985-02-24T00:00:00.000Z | 1985-02-01T00:00:00.000Z
-1985-05-13T00:00:00.000Z | 1985-05-01T00:00:00.000Z
-1985-07-09T00:00:00.000Z | 1985-07-01T00:00:00.000Z
-1985-09-17T00:00:00.000Z | 1985-09-01T00:00:00.000Z
-1985-10-14T00:00:00.000Z | 1985-10-01T00:00:00.000Z
-1985-10-20T00:00:00.000Z | 1985-10-01T00:00:00.000Z
-1985-11-19T00:00:00.000Z | 1985-11-01T00:00:00.000Z
-1985-11-20T00:00:00.000Z | 1985-11-01T00:00:00.000Z
-1985-11-20T00:00:00.000Z | 1985-11-01T00:00:00.000Z
-1985-11-21T00:00:00.000Z | 1985-11-01T00:00:00.000Z
+                                      hd:date                                 |           b:date
+[1985-02-18T00:00:00.000Z, 1985-02-24T00:00:00.000Z]                          |1985-02-01T00:00:00.000Z
+1985-05-13T00:00:00.000Z                                                      |1985-05-01T00:00:00.000Z
+1985-07-09T00:00:00.000Z                                                      |1985-07-01T00:00:00.000Z
+1985-09-17T00:00:00.000Z                                                      |1985-09-01T00:00:00.000Z
+[1985-10-20T00:00:00.000Z, 1985-10-14T00:00:00.000Z]                          |1985-10-01T00:00:00.000Z
+[1985-11-21T00:00:00.000Z, 1985-11-20T00:00:00.000Z, 1985-11-19T00:00:00.000Z]|1985-11-01T00:00:00.000Z
 ;
 
 bucketWeek#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 from employees
 | where hire_date >= "1985-01-01T00:00:00Z" and hire_date < "1986-01-01T00:00:00Z"
-| eval hd = bucket(hire_date, 55, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
+| stats hire_date = values(hire_date) by hd = bucket(hire_date, 55, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
 | sort hire_date
-| keep hire_date, hd;
+;
 
-hire_date:date           | hd:date
-1985-02-18T00:00:00.000Z | 1985-02-18T00:00:00.000Z
-1985-02-24T00:00:00.000Z | 1985-02-18T00:00:00.000Z
-1985-05-13T00:00:00.000Z | 1985-05-13T00:00:00.000Z
-1985-07-09T00:00:00.000Z | 1985-07-08T00:00:00.000Z
-1985-09-17T00:00:00.000Z | 1985-09-16T00:00:00.000Z
-1985-10-14T00:00:00.000Z | 1985-10-14T00:00:00.000Z
-1985-10-20T00:00:00.000Z | 1985-10-14T00:00:00.000Z
-1985-11-19T00:00:00.000Z | 1985-11-18T00:00:00.000Z
-1985-11-20T00:00:00.000Z | 1985-11-18T00:00:00.000Z
-1985-11-20T00:00:00.000Z | 1985-11-18T00:00:00.000Z
-1985-11-21T00:00:00.000Z | 1985-11-18T00:00:00.000Z
+hire_date:date                                                                | hd:date
+[1985-02-18T00:00:00.000Z, 1985-02-24T00:00:00.000Z]                          |1985-02-18T00:00:00.000Z
+1985-05-13T00:00:00.000Z                                                      |1985-05-13T00:00:00.000Z
+1985-07-09T00:00:00.000Z                                                      |1985-07-08T00:00:00.000Z
+1985-09-17T00:00:00.000Z                                                      |1985-09-16T00:00:00.000Z
+[1985-10-20T00:00:00.000Z, 1985-10-14T00:00:00.000Z]                          |1985-10-14T00:00:00.000Z
+[1985-11-21T00:00:00.000Z, 1985-11-20T00:00:00.000Z, 1985-11-19T00:00:00.000Z]|1985-11-18T00:00:00.000Z
 ;
 
 bucketYearInAgg#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
 | WHERE hire_date >= "1999-01-01T00:00:00Z"
-| EVAL bucket = BUCKET(hire_date, 5, "1999-01-01T00:00:00Z", NOW())
-| STATS COUNT(*) by bucket
+| STATS COUNT(*) by bucket = BUCKET(hire_date, 5, "1999-01-01T00:00:00Z", NOW())
 | sort bucket;
 
 COUNT(*):long            | bucket:date
@@ -88,9 +77,9 @@ FROM employees
 | WHERE hire_date >= "1999-01-01T00:00:00Z"
 | EVAL bucket_start = "1999-01-01T00:00:00Z"
 | EVAL bucket_end = NOW()
-| EVAL bucket = BUCKET(hire_date, 5, bucket_start, bucket_end)
-| STATS COUNT(*) by bucket
-| sort bucket;
+| STATS COUNT(*) BY bucket = BUCKET(hire_date, 5, bucket_start, bucket_end)
+| SORT bucket
+;
 
 COUNT(*):long            | bucket:date
 1                        | 1999-01-01T00:00:00.000Z
@@ -101,9 +90,9 @@ FROM employees
 | WHERE hire_date >= "1999-01-01T00:00:00Z"
 | EVAL bucket_start = CONCAT("1999-01-01", "T", "00:00:00Z")
 | EVAL bucket_end = NOW()
-| EVAL bucket = BUCKET(hire_date, 5, bucket_start, bucket_end)
-| STATS COUNT(*) by bucket
-| sort bucket;
+| STATS COUNT(*) by bucket = BUCKET(hire_date, 5, bucket_start, bucket_end)
+| sort bucket
+;
 
 COUNT(*):long            | bucket:date
 1                        | 1999-01-01T00:00:00.000Z
@@ -114,10 +103,9 @@ FROM employees
 | WHERE hire_date >= "1999-01-01T00:00:00Z"
 | EVAL bucket_start = TO_DATETIME("1999-01-01T00:00:00.000Z")
 | EVAL bucket_end = NOW()
-| EVAL bucket = BUCKET(hire_date, 5, bucket_start, bucket_end)
-| keep bucket_start, bucket_end, bucket
-| STATS COUNT(*) by bucket
-| sort bucket;
+| STATS COUNT(*) BY bucket = BUCKET(hire_date, 5, bucket_start, bucket_end)
+| SORT bucket
+;
 
 COUNT(*):long            | bucket:date
 1                        | 1999-01-01T00:00:00.000Z
@@ -141,8 +129,7 @@ bucketMonthInAgg#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 // tag::bucket_in_agg[]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-| EVAL bucket = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
-| STATS AVG(salary) BY bucket
+| STATS AVG(salary) BY bucket = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
 | SORT bucket
 // end::bucket_in_agg[]
 ;
@@ -162,25 +149,19 @@ docsBucketMonth#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 //tag::docsBucketMonth[]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-| EVAL month = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
-| KEEP hire_date, month
+| STATS hire_date = VALUES(hire_date) BY month = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
 | SORT hire_date
 //end::docsBucketMonth[]
 ;
 
 //tag::docsBucketMonth-result[]
-   hire_date:date    |    month:date
-1985-02-18T00:00:00.000Z|1985-02-01T00:00:00.000Z
-1985-02-24T00:00:00.000Z|1985-02-01T00:00:00.000Z
-1985-05-13T00:00:00.000Z|1985-05-01T00:00:00.000Z
-1985-07-09T00:00:00.000Z|1985-07-01T00:00:00.000Z
-1985-09-17T00:00:00.000Z|1985-09-01T00:00:00.000Z
-1985-10-14T00:00:00.000Z|1985-10-01T00:00:00.000Z
-1985-10-20T00:00:00.000Z|1985-10-01T00:00:00.000Z
-1985-11-19T00:00:00.000Z|1985-11-01T00:00:00.000Z
-1985-11-20T00:00:00.000Z|1985-11-01T00:00:00.000Z
-1985-11-20T00:00:00.000Z|1985-11-01T00:00:00.000Z
-1985-11-21T00:00:00.000Z|1985-11-01T00:00:00.000Z
+   hire_date:date                                                             |    month:date
+[1985-02-18T00:00:00.000Z, 1985-02-24T00:00:00.000Z]                          |1985-02-01T00:00:00.000Z
+1985-05-13T00:00:00.000Z                                                      |1985-05-01T00:00:00.000Z
+1985-07-09T00:00:00.000Z                                                      |1985-07-01T00:00:00.000Z
+1985-09-17T00:00:00.000Z                                                      |1985-09-01T00:00:00.000Z
+[1985-10-20T00:00:00.000Z, 1985-10-14T00:00:00.000Z]                          |1985-10-01T00:00:00.000Z
+[1985-11-21T00:00:00.000Z, 1985-11-20T00:00:00.000Z, 1985-11-19T00:00:00.000Z]|1985-11-01T00:00:00.000Z
 //end::docsBucketMonth-result[]
 ;
 
@@ -188,8 +169,7 @@ docsBucketMonthlyHistogram#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 //tag::docsBucketMonthlyHistogram[]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-| EVAL month = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
-| STATS hires_per_month = COUNT(*) BY month
+| STATS hires_per_month = COUNT(*) BY month = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
 | SORT month
 //end::docsBucketMonthlyHistogram[]
 ;
@@ -209,8 +189,7 @@ docsBucketWeeklyHistogram#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 //tag::docsBucketWeeklyHistogram[]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-| EVAL week = BUCKET(hire_date, 100, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
-| STATS hires_per_week = COUNT(*) BY week
+| STATS hires_per_week = COUNT(*) BY week = BUCKET(hire_date, 100, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
 | SORT week
 //end::docsBucketWeeklyHistogram[]
 ;
@@ -230,8 +209,7 @@ docsBucketLast24hr#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 //tag::docsBucketLast24hr[]
 FROM sample_data 
 | WHERE @timestamp >= NOW() - 1 day and @timestamp < NOW()
-| EVAL bucket = BUCKET(@timestamp, 25, NOW() - 1 day, NOW())
-| STATS COUNT(*) BY bucket
+| STATS COUNT(*) BY bucket = BUCKET(@timestamp, 25, NOW() - 1 day, NOW())
 //end::docsBucketLast24hr[]
 ;
 
@@ -241,26 +219,23 @@ FROM sample_data
 docsGettingStartedBucket#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 // tag::gs-bucket[]
 FROM sample_data
-| KEEP @timestamp
-| EVAL bucket = BUCKET(@timestamp, 24, "2023-10-23T00:00:00Z", NOW())
+| STATS BY bucket = BUCKET(@timestamp, 24, "2023-10-23T00:00:00Z", NOW())
 // end::gs-bucket[]
 | LIMIT 0
 ;
 
-@timestamp:date | bucket:date
+bucket:date
 ;
 
 docsGettingStartedBucketStatsBy#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 // tag::gs-bucket-stats-by[]
 FROM sample_data
-| KEEP @timestamp, event_duration
-| EVAL bucket = BUCKET(@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
-| STATS COUNT(*) BY bucket
+| STATS c = COUNT(*) BY bucket = BUCKET(@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
 // end::gs-bucket-stats-by[]
 | SORT bucket
 ;
 
-COUNT(*):long | bucket:date
+ c:long        | bucket:date
 2              |2023-10-23T12:00:00.000Z
 5              |2023-10-23T13:00:00.000Z
 ;
@@ -269,8 +244,7 @@ docsGettingStartedBucketStatsByMedian#[skip:-8.13.99, reason:BUCKET renamed in 8
 // tag::gs-bucket-stats-by-median[]
 FROM sample_data
 | KEEP @timestamp, event_duration
-| EVAL bucket = BUCKET(@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
-| STATS median_duration = MEDIAN(event_duration) BY bucket
+| STATS median_duration = MEDIAN(event_duration) BY bucket = BUCKET(@timestamp, 24, "2023-10-23T00:00:00Z", "2023-10-23T23:59:59Z")
 // end::gs-bucket-stats-by-median[]
 | SORT bucket
 ;
@@ -282,17 +256,14 @@ median_duration:double | bucket:date
 
 bucketByTimeDuration#[skip:-8.13.99, reason:BUCKET extended in 8.14]
 FROM sample_data
-| EVAL bucket = BUCKET(@timestamp, 30 minutes)
-| KEEP @timestamp, bucket
-| SORT @timestamp
-| LIMIT 4
+| STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = BUCKET(@timestamp, 30 minutes)
+| SORT min
 ;
 
-       @timestamp:date  |         bucket:date
-2023-10-23T12:15:03.360Z|2023-10-23T12:00:00.000Z
-2023-10-23T12:27:28.948Z|2023-10-23T12:00:00.000Z
-2023-10-23T13:33:34.937Z|2023-10-23T13:30:00.000Z
-2023-10-23T13:51:54.732Z|2023-10-23T13:30:00.000Z
+          min:date      |          max:date      |         bucket:date
+2023-10-23T12:27:28.948Z|2023-10-23T12:27:28.948Z|2023-10-23T12:00:00.000Z
+2023-10-23T13:55:01.543Z|2023-10-23T13:55:01.543Z|2023-10-23T13:30:00.000Z
+
 ;
 
 aggByTimeDuratinBucket#[skip:-8.13.99, reason:BUCKET extended in 8.14]
@@ -309,17 +280,14 @@ FROM sample_data
 bucketByDatePeriod#[skip:-8.13.99, reason:BUCKET extended in 8.14]
 FROM sample_data
 | EVAL adjusted = CASE(TO_LONG(@timestamp) % 2 == 0, @timestamp + 1 month, @timestamp + 2 years)
-| EVAL bucket = BUCKET(adjusted, 1 month)
-| KEEP @timestamp, adjusted, bucket
-| SORT @timestamp
-| LIMIT 4
+| STATS c = COUNT(*) BY b = BUCKET(adjusted, 1 month)
+| SORT c
 ;
 
-       @timestamp:date  |        adjusted:date   |         bucket:date
-2023-10-23T12:15:03.360Z|2023-11-23T12:15:03.360Z|2023-11-01T00:00:00.000Z
-2023-10-23T12:27:28.948Z|2023-11-23T12:27:28.948Z|2023-11-01T00:00:00.000Z
-2023-10-23T13:33:34.937Z|2025-10-23T13:33:34.937Z|2025-10-01T00:00:00.000Z
-2023-10-23T13:51:54.732Z|2023-11-23T13:51:54.732Z|2023-11-01T00:00:00.000Z
+       c:long  |           b:date            
+3              |2025-10-01T00:00:00.000Z
+4              |2023-11-01T00:00:00.000Z
+
 ;
 
 aggByDatePeriodBucket#[skip:-8.13.99, reason:BUCKET extended in 8.14]
@@ -341,30 +309,26 @@ FROM sample_data
 bucketNumeric#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-| EVAL bs = BUCKET(salary, 20, 25324, 74999)
-| SORT hire_date, salary
-| KEEP hire_date, salary, bs
+| STATS c = COUNT(*) BY b = BUCKET(salary, 20, 25324, 74999)
+| SORT b
 ;
 
-hire_date:date           | salary:integer | bs:double
-1985-02-18T00:00:00.000Z | 66174          | 65000.0
-1985-02-24T00:00:00.000Z | 26436          | 25000.0
-1985-05-13T00:00:00.000Z | 44817          | 40000.0
-1985-07-09T00:00:00.000Z | 62405          | 60000.0
-1985-09-17T00:00:00.000Z | 49095          | 45000.0
-1985-10-14T00:00:00.000Z | 54329          | 50000.0
-1985-10-20T00:00:00.000Z | 48735          | 45000.0
-1985-11-19T00:00:00.000Z | 52833          | 50000.0
-1985-11-20T00:00:00.000Z | 33956          | 30000.0
-1985-11-20T00:00:00.000Z | 74999          | 70000.0
-1985-11-21T00:00:00.000Z | 56371          | 55000.0
+ c:long        | b:double       
+1              |25000.0        
+1              |30000.0        
+1              |40000.0        
+2              |45000.0        
+2              |50000.0        
+1              |55000.0        
+1              |60000.0        
+1              |65000.0        
+1              |70000.0        
 ;
 
 docsBucketNumeric#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 //tag::docsBucketNumeric[]
 FROM employees
-| EVAL bs = BUCKET(salary, 20, 25324, 74999)
-| STATS COUNT(*) by bs
+| STATS COUNT(*) by bs = BUCKET(salary, 20, 25324, 74999)
 | SORT bs
 //end::docsBucketNumeric[]
 ;
@@ -384,25 +348,64 @@ FROM employees
 //end::docsBucketNumeric-result[]
 ;
 
-// bucketing in explicit and auto mode (identical to above), verify their result equality
-bucketNumericWithSpanAndAuto#[skip:-8.13.99, reason:BUCKET extended in 8.14]
+// bucketing in span mode (identical results to above)
+bucketNumericWithSpan#[skip:-8.13.99, reason:BUCKET extended in 8.14]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-| EVAL bs = BUCKET(salary, 20, 25324, 74999)
-| WHERE bs == BUCKET(salary, 5000.)
-| STATS c = COUNT(1)
+| STATS c = COUNT(1) BY b = BUCKET(salary, 5000.)
+| SORT b
 ;
 
-c:long
-11
+       c:long  |       b:double
+1              |25000.0        
+1              |30000.0        
+1              |40000.0        
+2              |45000.0        
+2              |50000.0        
+1              |55000.0        
+1              |60000.0        
+1              |65000.0        
+1              |70000.0     
 ;
 
 bucketNumericMixedTypes#[skip:-8.13.99, reason:BUCKET extended in 8.14]
-ROW b1 = BUCKET(TO_LONG(100), 99.), b2 = BUCKET(99., 100.), b3 = BUCKET(100, 49.5)
+ROW long = TO_LONG(100), double = 99., int = 100
+| STATS BY b1 = BUCKET(long, 99.), b2 = BUCKET(double, 100.), b3 = BUCKET(int, 49.5)
 ;
 
       b1:double|      b2:double|      b3:double
 99.0           |0.0            |99.0
+;
+
+bucketWithFloats#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM employees
+| WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+| STATS hire_date = VALUES(hire_date) BY  bh = ROUND(BUCKET(height, 20, 1.41, 2.10), 2)
+| SORT hire_date, bh
+;
+
+                     hire_date:date                 |      bh:double
+1985-02-18T00:00:00.000Z                            |1.85           
+[1985-02-24T00:00:00.000Z, 1985-05-13T00:00:00.000Z]|2.0            
+[1985-07-09T00:00:00.000Z, 1985-11-19T00:00:00.000Z]|1.8            
+1985-09-17T00:00:00.000Z                            |1.4            
+1985-10-14T00:00:00.000Z                            |1.75           
+[1985-10-20T00:00:00.000Z, 1985-11-20T00:00:00.000Z]|1.9            
+1985-11-20T00:00:00.000Z                            |1.95           
+1985-11-21T00:00:00.000Z                            |2.05    
+;
+
+bucketWithUnsignedLong#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+FROM ul_logs
+| WHERE @timestamp >= "2017-11-10T20:30:00Z" AND @timestamp < "2017-11-10T20:35:00Z"
+| STATS ts = VALUES(@timestamp) BY bh = bucket(bytes_in, 20, 5480608687137202404, 17764691215469285192)
+| SORT ts
+;
+
+           ts:date      |      bh:double
+2017-11-10T20:32:57.000Z|8.0E18         
+2017-11-10T20:33:06.000Z|5.0E18         
+2017-11-10T20:34:43.000Z|1.75E19        
 ;
 
 
@@ -412,12 +415,11 @@ ROW b1 = BUCKET(TO_LONG(100), 99.), b2 = BUCKET(99., 100.), b3 = BUCKET(100, 49.
 
 docsGettingStartedBin#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM sample_data
-| KEEP @timestamp
-| EVAL bin = BIN(@timestamp, 24, "2023-10-23T00:00:00Z", NOW())
+| STATS BY bin = BIN(@timestamp, 24, "2023-10-23T00:00:00Z", NOW())
 | LIMIT 0
 ;
 
-@timestamp:date | bin:date
+bin:date
 ;
 
 aggByTimeDuratinBin#[skip:-8.13.99, reason:BUCKET extended in 8.14]
@@ -433,8 +435,7 @@ FROM sample_data
 
 binNumeric#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
-| EVAL bin = BIN(salary, 20, 25324, 74999)
-| STATS COUNT(*) by bin
+| STATS COUNT(*) by bin = BIN(salary, 20, 25324, 74999)
 | SORT bin
 ;
 
@@ -452,7 +453,8 @@ FROM employees
 ;
 
 binNumericMixedTypes#[skip:-8.13.99, reason:BUCKET extended in 8.14]
-ROW b1 = BIN(TO_LONG(100), 99.), b2 = BIN(99., 100.), b3 = BIN(100, 49.5)
+ROW long = TO_LONG(100), double = 99., int = 100
+| STATS BY b1 = BIN(long, 99.), b2 = BIN(double, 100.), b3 = BIN(int, 49.5)
 ;
 
       b1:double|      b2:double|      b3:double

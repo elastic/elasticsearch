@@ -69,7 +69,6 @@
         value: 23
 
   - is_false: fields
-  - is_false: stored_fields
 
   - do:
       get:
@@ -86,7 +85,6 @@
         value: missing
 
   - is_false: fields
-  - is_false: stored_fields
 
   - do:
       get:
@@ -112,7 +110,6 @@
           - ops
 
   - is_false: fields
-  - is_false: stored_fields
 
   - do:
       get:

@@ -44,5 +44,12 @@ public class SimpleNodesCapabilitiesIT extends ESIntegTestCase {
             .actionGet();
         assertThat(response.getNodes(), hasSize(2));
         assertThat(response.isSupported(), is(false));
+
+        // check we don't support a random invalid api
+        // TODO this is not working yet - see https://github.com/elastic/elasticsearch/issues/107425
+        /*response = clusterAdmin().nodesCapabilities(new NodesCapabilitiesRequest().path("_invalid"))
+            .actionGet();
+        assertThat(response.getNodes(), hasSize(2));
+        assertThat(response.isSupported(), is(false));*/
     }
 }

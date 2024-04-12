@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.capabilities;
 
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
 
@@ -24,7 +25,7 @@ public class NodesCapabilitiesRequest extends BaseNodesRequest<NodesCapabilities
 
     public NodesCapabilitiesRequest() {
         // always send to all nodes
-        super(new String[0]);
+        super(Strings.EMPTY_ARRAY);
     }
 
     public NodesCapabilitiesRequest path(String path) {

@@ -89,6 +89,7 @@ public interface RestHandler {
     /**
      * The set of query parameters accepted by this rest handler,
      * {@code null} if query parameters should not be checked nor validated.
+     * TODO - make this not nullable when all handlers have been updated
      */
     default @Nullable Set<String> supportedQueryParameters() {
         return null;

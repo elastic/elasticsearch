@@ -24,18 +24,6 @@ import static org.hamcrest.Matchers.is;
 
 public class ClientYamlTestExecutionContextTests extends ESTestCase {
 
-    private static class MockTestFeatureService implements TestFeatureService {
-        @Override
-        public boolean clusterHasFeature(String featureId) {
-            return true;
-        }
-
-        @Override
-        public Set<String> getAllSupportedFeatures() {
-            return Set.of();
-        }
-    }
-
     public void testHeadersSupportStashedValueReplacement() throws IOException {
         final AtomicReference<Map<String, String>> headersRef = new AtomicReference<>();
         final String version = randomAlphaOfLength(10);
@@ -44,7 +32,7 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
             null,
             randomBoolean(),
             Set.of(version),
-            new MockTestFeatureService(),
+            TestFeatureService.ALL_FEATURES,
             Set.of("os")
         ) {
             @Override
@@ -82,7 +70,7 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
             null,
             randomBoolean(),
             Set.of(version),
-            new MockTestFeatureService(),
+            TestFeatureService.ALL_FEATURES,
             Set.of("os")
         ) {
             @Override

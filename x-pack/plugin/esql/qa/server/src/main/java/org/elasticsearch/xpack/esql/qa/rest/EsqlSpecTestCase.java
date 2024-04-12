@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.http.HttpEntity;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
@@ -23,6 +24,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
+import org.elasticsearch.xpack.esql.version.EsqlVersion;
 import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.ql.SpecReader;
 import org.junit.After;
@@ -35,6 +37,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 import static org.apache.lucene.geo.GeoEncodingUtils.decodeLatitude;
 import static org.apache.lucene.geo.GeoEncodingUtils.decodeLongitude;
@@ -54,6 +58,9 @@ import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
 
 public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
+    // To avoid referencing the main module, we replicate EsqlFeatures.ASYNC_QUERY.id() here
+    protected static final String ASYNC_QUERY_FEATURE_ID = "esql.async_query";
+
     private static final Logger LOGGER = LogManager.getLogger(EsqlSpecTestCase.class);
     private final String fileName;
     private final String groupName;
@@ -61,6 +68,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     private final Integer lineNumber;
     protected final CsvTestCase testCase;
     protected final Mode mode;
+    protected final Set<EsqlVersion> versions;
 
     public enum Mode {
         SYNC,
@@ -93,6 +101,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         this.lineNumber = lineNumber;
         this.testCase = testCase;
         this.mode = mode;
+        // TODO: Read applicable versions from csv-spec files/make it part of testCase.
+        this.versions = Build.current().isSnapshot() ? Set.of(EsqlVersion.values()) : Set.of(EsqlVersion.releasedAscending());
     }
 
     @Before
@@ -103,7 +113,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected boolean supportsAsync() {
-        return Version.CURRENT.onOrAfter(Version.V_8_13_0); // the Async API was introduced in 8.13.0
+        return clusterHasFeature(ASYNC_QUERY_FEATURE_ID); // the Async API was introduced in 8.13.0
     }
 
     @AfterClass
@@ -131,7 +141,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
     }
 
-    protected void shouldSkipTest(String testName) {
+    protected void shouldSkipTest(String testName) throws IOException {
         for (String feature : testCase.requiredFeatures) {
             assumeTrue("Test " + testName + " requires " + feature, clusterHasFeature(feature));
         }
@@ -140,7 +150,13 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected final void doTest() throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
-        Map<String, Object> answer = runEsql(builder.query(testCase.query), testCase.expectedWarnings(false));
+        EsqlVersion version = randomFrom(versions);
+        String versionString = randomBoolean() ? version.toString() : version.versionStringWithoutEmoji();
+        Map<String, Object> answer = runEsql(
+            builder.query(testCase.query).version(versionString),
+            testCase.expectedWarnings(false),
+            testCase.expectedWarningsRegex()
+        );
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 
         var metadata = answer.get("columns");
@@ -157,12 +173,16 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         assertResults(expectedColumnsWithValues, actualColumns, actualValues, testCase.ignoreOrder, logger);
     }
 
-    private Map<String, Object> runEsql(RequestObjectBuilder requestObject, List<String> expectedWarnings) throws IOException {
+    private Map<String, Object> runEsql(
+        RequestObjectBuilder requestObject,
+        List<String> expectedWarnings,
+        List<Pattern> expectedWarningsRegex
+    ) throws IOException {
         if (mode == Mode.ASYNC) {
             assert supportsAsync();
-            return RestEsqlTestCase.runEsqlAsync(requestObject, expectedWarnings);
+            return RestEsqlTestCase.runEsqlAsync(requestObject, expectedWarnings, expectedWarningsRegex);
         } else {
-            return RestEsqlTestCase.runEsqlSync(requestObject, expectedWarnings);
+            return RestEsqlTestCase.runEsqlSync(requestObject, expectedWarnings, expectedWarningsRegex);
         }
     }
 
@@ -238,7 +258,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 Map<?, ?> node = (Map<?, ?>) n;
                 Map<?, ?> breakers = (Map<?, ?>) node.get("breakers");
                 Map<?, ?> request = (Map<?, ?>) breakers.get("request");
-                assertMap(request, matchesMap().extraOk().entry("estimated_size_in_bytes", 0).entry("estimated_size", "0b"));
+                assertMap(
+                    "circuit breakers not reset to 0",
+                    request,
+                    matchesMap().extraOk().entry("estimated_size_in_bytes", 0).entry("estimated_size", "0b")
+                );
             }
         });
     }

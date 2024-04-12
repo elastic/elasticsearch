@@ -9,12 +9,16 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestSearchStats;
@@ -53,8 +57,10 @@ import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.util.Holder;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -78,7 +84,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
-public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
+public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
 
@@ -268,6 +274,70 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
             | stats c = count(salary)
             """, IS_SV_STATS);
         assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
+    }
+
+    public void testCountPushdownForSvAndMvFields() throws IOException {
+        String properties = EsqlTestUtils.loadUtf8TextFile("/mapping-basic.json");
+        String mapping = "{\"mappings\": " + properties + "}";
+
+        String query = """
+            from test
+            | stats c = count(salary)
+            """;
+
+        PhysicalPlan plan;
+
+        List<List<String>> docsCasesWithoutPushdown = List.of(
+            // No pushdown yet in case of MVs
+            List.of("{ \"salary\" : [1,2] }"),
+            List.of("{ \"salary\" : [1,2] }", "{ \"salary\" : null}")
+        );
+        for (List<String> docs : docsCasesWithoutPushdown) {
+            plan = planWithMappingAndDocs(query, mapping, docs);
+            // No EsSatsQueryExec as leaf of the plan.
+            assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
+        }
+
+        // Cases where we can push this down as a COUNT(*) since there are only SVs
+        List<List<String>> docsCasesWithPushdown = List.of(List.of(), List.of("{ \"salary\" : 1 }"), List.of("{ \"salary\": null }"));
+        for (List<String> docs : docsCasesWithPushdown) {
+            plan = planWithMappingAndDocs(query, mapping, docs);
+
+            Holder<EsStatsQueryExec> leaf = new Holder<>();
+            plan.forEachDown(p -> {
+                if (p instanceof EsStatsQueryExec s) {
+                    leaf.set(s);
+                }
+            });
+
+            String expectedStats = """
+                [Stat[name=salary, type=COUNT, query={
+                  "exists" : {
+                    "field" : "salary",
+                    "boost" : 1.0
+                  }
+                }]]""";
+            assertNotNull(leaf.get());
+            assertThat(leaf.get().stats().toString(), equalTo(expectedStats));
+        }
+    }
+
+    private PhysicalPlan planWithMappingAndDocs(String query, String mapping, List<String> docs) throws IOException {
+        MapperService mapperService = createMapperService(mapping);
+        List<ParsedDocument> parsedDocs = docs.stream().map(d -> mapperService.documentMapper().parse(source(d))).toList();
+
+        Holder<PhysicalPlan> plan = new Holder<>(null);
+        withLuceneIndex(mapperService, indexWriter -> {
+            for (ParsedDocument parsedDoc : parsedDocs) {
+                indexWriter.addDocument(parsedDoc.rootDoc());
+            }
+        }, directoryReader -> {
+            IndexSearcher searcher = newSearcher(directoryReader);
+            SearchExecutionContext ctx = createSearchExecutionContext(mapperService, searcher);
+            plan.set(plan(query, new SearchStats(List.of(ctx))));
+        });
+
+        return plan.get();
     }
 
     // optimized doesn't know yet how to break down different multi count
@@ -587,11 +657,9 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
             new OutOfRangeTestCase("byte", smallerThanInteger, largerThanInteger),
             new OutOfRangeTestCase("short", smallerThanInteger, largerThanInteger),
             new OutOfRangeTestCase("integer", smallerThanInteger, largerThanInteger),
-            new OutOfRangeTestCase("long", smallerThanLong, largerThanLong),
+            new OutOfRangeTestCase("long", smallerThanLong, largerThanLong)
             // TODO: add unsigned_long https://github.com/elastic/elasticsearch/issues/102935
             // TODO: add half_float, float https://github.com/elastic/elasticsearch/issues/100130
-            new OutOfRangeTestCase("double", "-1.0/0.0", "1.0/0.0"),
-            new OutOfRangeTestCase("scaled_float", "-1.0/0.0", "1.0/0.0")
         );
 
         final String LT = "<";
@@ -608,8 +676,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
                 GT + testCase.tooLow,
                 GTE + testCase.tooLow,
                 NEQ + testCase.tooHigh,
-                NEQ + testCase.tooLow,
-                NEQ + "0.0/0.0"
+                NEQ + testCase.tooLow
             );
             List<String> alwaysFalsePredicates = List.of(
                 LT + testCase.tooLow,
@@ -617,12 +684,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
                 GT + testCase.tooHigh,
                 GTE + testCase.tooHigh,
                 EQ + testCase.tooHigh,
-                EQ + testCase.tooLow,
-                LT + "0.0/0.0",
-                LTE + "0.0/0.0",
-                GT + "0.0/0.0",
-                GTE + "0.0/0.0",
-                EQ + "0.0/0.0"
+                EQ + testCase.tooLow
             );
 
             for (String truePredicate : trueForSingleValuesPredicates) {
@@ -630,6 +692,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
                 var query = "from test | where " + comparison;
                 Source expectedSource = new Source(1, 18, comparison);
 
+                logger.info("Query: " + query);
                 EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query, allTypeMappingAnalyzer);
 
                 assertThat(actualQueryExec.query(), is(instanceOf(SingleValueQuery.Builder.class)));

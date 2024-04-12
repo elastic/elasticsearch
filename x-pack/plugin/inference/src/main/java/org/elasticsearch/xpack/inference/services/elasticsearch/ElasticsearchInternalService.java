@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
@@ -28,6 +29,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
@@ -36,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
@@ -48,6 +51,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings.MODEL_ID;
@@ -207,9 +211,11 @@ public class ElasticsearchInternalService implements InferenceService {
     @Override
     public void infer(
         Model model,
+        @Nullable String query,
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
+        TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         try {
@@ -223,7 +229,7 @@ public class ElasticsearchInternalService implements InferenceService {
             model.getConfigurations().getInferenceEntityId(),
             TextEmbeddingConfigUpdate.EMPTY_INSTANCE,
             input,
-            TimeValue.timeValueSeconds(10)  // TODO get timeout from request
+            timeout
         );
 
         client.execute(
@@ -233,13 +239,27 @@ public class ElasticsearchInternalService implements InferenceService {
         );
     }
 
-    @Override
     public void chunkedInfer(
         Model model,
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
+        TimeValue timeout,
+        ActionListener<List<ChunkedInferenceServiceResults>> listener
+    ) {
+        chunkedInfer(model, null, input, taskSettings, inputType, chunkingOptions, timeout, listener);
+    }
+
+    @Override
+    public void chunkedInfer(
+        Model model,
+        @Nullable String query,
+        List<String> input,
+        Map<String, Object> taskSettings,
+        InputType inputType,
+        ChunkingOptions chunkingOptions,
+        TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         try {
@@ -249,23 +269,43 @@ public class ElasticsearchInternalService implements InferenceService {
             return;
         }
 
-        var configUpdate = chunkingOptions.settingsArePresent()
+        var configUpdate = chunkingOptions != null
             ? new TokenizationConfigUpdate(chunkingOptions.windowSize(), chunkingOptions.span())
-            : TextEmbeddingConfigUpdate.EMPTY_INSTANCE;
+            : new TokenizationConfigUpdate(null, null);
 
         var request = InferTrainedModelDeploymentAction.Request.forTextInput(
             model.getConfigurations().getInferenceEntityId(),
             configUpdate,
             input,
-            TimeValue.timeValueSeconds(10)  // TODO get timeout from request
+            timeout
         );
         request.setChunkResults(true);
 
         client.execute(
             InferTrainedModelDeploymentAction.INSTANCE,
             request,
-            listener.delegateFailureAndWrap((l, inferenceResult) -> l.onResponse(translateChunkedResults(inferenceResult.getResults())))
+            listener.delegateFailureAndWrap((l, inferenceResult) -> l.onResponse(translateToChunkedResults(inferenceResult.getResults())))
         );
+    }
+
+    private static List<ChunkedInferenceServiceResults> translateToChunkedResults(List<InferenceResults> inferenceResults) {
+        var translated = new ArrayList<ChunkedInferenceServiceResults>();
+
+        for (var inferenceResult : inferenceResults) {
+            translated.add(translateToChunkedResult(inferenceResult));
+        }
+
+        return translated;
+    }
+
+    private static ChunkedInferenceServiceResults translateToChunkedResult(InferenceResults inferenceResult) {
+        if (inferenceResult instanceof org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults mlChunkedResult) {
+            return ChunkedTextEmbeddingResults.ofMlResult(mlChunkedResult);
+        } else if (inferenceResult instanceof ErrorInferenceResults error) {
+            return new ErrorChunkedInferenceResults(error.getException());
+        } else {
+            throw createInvalidChunkedResultException(inferenceResult.getWriteableName());
+        }
     }
 
     @Override
@@ -376,25 +416,6 @@ public class ElasticsearchInternalService implements InferenceService {
         }
     }
 
-    private List<ChunkedInferenceServiceResults> translateChunkedResults(List<InferenceResults> inferenceResults) {
-        var translated = new ArrayList<ChunkedInferenceServiceResults>();
-
-        for (var inferenceResult : inferenceResults) {
-            if (inferenceResult instanceof org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults mlChunkedResult) {
-                translated.add(ChunkedTextEmbeddingResults.ofMlResult(mlChunkedResult));
-            } else {
-                throw new ElasticsearchStatusException(
-                    "Expected a chunked inference [{}] received [{}]",
-                    RestStatus.INTERNAL_SERVER_ERROR,
-                    ChunkedTextEmbeddingResults.NAME,
-                    inferenceResult.getWriteableName()
-                );
-            }
-        }
-
-        return translated;
-    }
-
     @Override
     public boolean isInClusterService() {
         return true;
@@ -402,7 +423,7 @@ public class ElasticsearchInternalService implements InferenceService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED;
+        return TransportVersions.ML_INFERENCE_L2_NORM_SIMILARITY_ADDED;
     }
 
     @Override

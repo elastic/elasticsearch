@@ -329,7 +329,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     @Override
     public IndexRequest routing(String routing) {
-        if (routing != null && routing.length() == 0) {
+        if (routing != null && routing.isEmpty()) {
             this.routing = null;
         } else {
             this.routing = routing;

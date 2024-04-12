@@ -1,0 +1,33 @@
+[[release-notes-8.13.1]]
+== {es} version 8.13.1
+
+Also see <<breaking-changes-8.13,Breaking changes in 8.13>>.
+
+[[bug-8.13.1]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Add test to exercise reduction of terms aggregation order by key {es-pull}106799[#106799]
+
+Downsampling::
+* Gate reading of optional string array for bwc {es-pull}106878[#106878]
+
+Machine Learning::
+* Fix Array out of bounds exception in the XLM Roberta tokenizer {es-pull}106655[#106655]
+
+Search::
+* Fix concurrency bug in `AbstractStringScriptFieldAutomatonQuery` {es-pull}106678[#106678] (issue: {es-issue}105911[#105911])
+* Fix the background set of significant terms aggregations in case the data is in different shards than the foreground set {es-pull}106564[#106564]
+
+Transform::
+* Fail checkpoint on missing clusters {es-pull}106793[#106793] (issues: {es-issue}104533[#104533], {es-issue}106790[#106790])
+
+[[enhancement-8.13.1]]
+[float]
+=== Enhancements
+
+Transform::
+* Raise loglevel of events related to transform lifecycle from DEBUG to INFO {es-pull}106602[#106602]
+
+

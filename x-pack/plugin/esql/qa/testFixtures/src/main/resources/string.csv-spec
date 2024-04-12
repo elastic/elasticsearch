@@ -1321,34 +1321,34 @@ l1:integer | l2:integer
 null       | 0
 ;
 
-base64EncodeDecode#[skip:-8.13.99,reason:new base64 function added in 8.14]
+base64Encode#[skip:-8.13.99,reason:new base64 function added in 8.14]
 required_feature: esql.base64_decode_encode
 
-// tag::base64_encode[]
-row a = "hello" 
-| eval e = base64_encode_tostring(a)
-// end::base64_encode[]
+// tag::to_base64[]
+row a = "hellohellohello" 
+| eval e = to_base64(a)
+// end::to_base64[]
 ;
 
-// tag::base64_encode-result[]
+// tag::to_base64-result[]
 a:keyword | e:keyword
 hello     | aGVsbG8=
-// end::base64_encode-result[]
+// end::to_base64-result[]
 ;
 
-base64EncodeDecode#[skip:-8.13.99,reason:new base64 function added in 8.14]
+base64Decode#[skip:-8.13.99,reason:new base64 function added in 8.14]
 required_feature: esql.base64_decode_encode
 
-// tag::base64_decode[]
+// tag::from_base64[]
 row a = "aGVsbG8=" 
-| eval d = base64_decode_tostring(a)
-// end::base64_decode[]
+| eval d = from_base64(a)
+// end::from_base64[]
 ;
 
-// tag::base64_decode-result[]
+// tag::from_base64-result[]
 a:keyword | d:keyword
 aGVsbG8=  | hello
-// end::base64_decode-result[]
+// end::from_base64-result[]
 ;
 
 base64EncodeDecodeEmp#[skip:-8.13.99,reason:new base64 function added in 8.14]
@@ -1356,7 +1356,7 @@ required_feature: esql.base64_decode_encode
 
 from employees
 | where emp_no < 10032 and emp_no > 10027
-| eval e = base64_encode_tostring(first_name), d = base64_decode_tostring(e)
+| eval e = to_base64(first_name), d = from_base64(e)
 | keep emp_no, first_name, e, d
 | sort emp_no
 ;

@@ -26,9 +26,9 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@FunctionName("base64_decode_tostring")
-public class Base64DecodeToStringTests extends AbstractFunctionTestCase {
-    public Base64DecodeToStringTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+@FunctionName("from_base64")
+public class FromBase64Tests extends AbstractFunctionTestCase {
+    public FromBase64Tests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -39,7 +39,7 @@ public class Base64DecodeToStringTests extends AbstractFunctionTestCase {
             BytesRef input = new BytesRef(randomAlphaOfLength(6));
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(input, DataTypes.KEYWORD, "string")),
-                "Base64DecodeToStringEvaluator[field=Attribute[channel=0]]",
+                "FromBase64Evaluator[field=Attribute[channel=0]]",
                 DataTypes.KEYWORD,
                 equalTo(new BytesRef(Base64.getDecoder().decode(input.utf8ToString().getBytes(StandardCharsets.UTF_8))))
             );
@@ -49,7 +49,7 @@ public class Base64DecodeToStringTests extends AbstractFunctionTestCase {
             BytesRef input = new BytesRef(randomAlphaOfLength(54));
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(input, DataTypes.TEXT, "string")),
-                "Base64DecodeToStringEvaluator[field=Attribute[channel=0]]",
+                "FromBase64Evaluator[field=Attribute[channel=0]]",
                 DataTypes.KEYWORD,
                 equalTo(new BytesRef(Base64.getDecoder().decode(input.utf8ToString().getBytes(StandardCharsets.UTF_8))))
             );
@@ -60,6 +60,6 @@ public class Base64DecodeToStringTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Base64DecodeToString(source, args.get(0));
+        return new FromBase64(source, args.get(0));
     }
 }

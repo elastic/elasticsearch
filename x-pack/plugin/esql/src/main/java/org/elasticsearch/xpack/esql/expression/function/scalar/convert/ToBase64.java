@@ -25,22 +25,19 @@ import java.util.Map;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 
-public class Base64DecodeToString extends AbstractConvertFunction implements EvaluatorMapper {
+public class ToBase64 extends AbstractConvertFunction implements EvaluatorMapper {
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(KEYWORD, Base64DecodeToStringEvaluator.Factory::new),
-        Map.entry(TEXT, Base64DecodeToStringEvaluator.Factory::new)
+        Map.entry(KEYWORD, ToBase64Evaluator.Factory::new),
+        Map.entry(TEXT, ToBase64Evaluator.Factory::new)
     );
 
     @FunctionInfo(
         returnType = "keyword",
-        description = "Decode a base64 string.",
-        examples = @Example(file = "string", tag = "base64_decode")
+        description = "Encode a string to a base64 string.",
+        examples = @Example(file = "string", tag = "to_base64")
     )
-    public Base64DecodeToString(
-        Source source,
-        @Param(name = "string", type = { "keyword", "text" }, description = "A base64 string.") Expression string
-    ) {
+    public ToBase64(Source source, @Param(name = "string", type = { "keyword", "text" }, description = "A string.") Expression string) {
         super(source, string);
     }
 
@@ -56,18 +53,18 @@ public class Base64DecodeToString extends AbstractConvertFunction implements Eva
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Base64DecodeToString(source(), newChildren.get(0));
+        return new ToBase64(source(), newChildren.get(0));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Base64DecodeToString::new, field());
+        return NodeInfo.create(this, ToBase64::new, field());
     }
 
     @ConvertEvaluator()
     static BytesRef process(BytesRef input) {
         byte[] bytes = new byte[input.length];
         System.arraycopy(input.bytes, input.offset, bytes, 0, input.length);
-        return new BytesRef(Base64.getDecoder().decode(bytes));
+        return new BytesRef(Base64.getEncoder().encode(bytes));
     }
 }

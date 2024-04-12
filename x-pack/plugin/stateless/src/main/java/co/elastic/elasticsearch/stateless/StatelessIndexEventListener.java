@@ -164,7 +164,7 @@ class StatelessIndexEventListener implements IndexEventListener {
             if (batchedCompoundCommit != null) {
                 indexDirectory.updateCommit(batchedCompoundCommit.last(), null);
                 var warmingService = sharedBlobCacheWarmingService.get();
-                warmingService.warmCacheForIndexingShardRecovery(indexShard, batchedCompoundCommit.last());
+                warmingService.warmCacheForShardRecovery(indexShard, batchedCompoundCommit.last());
             }
             final var segmentInfos = SegmentInfos.readLatestCommit(indexDirectory);
             final var translogUUID = segmentInfos.userData.get(Translog.TRANSLOG_UUID_KEY);
@@ -245,6 +245,8 @@ class StatelessIndexEventListener implements IndexEventListener {
                         }
                         assert compoundCommit != null;
                         searchDirectory.updateCommit(compoundCommit);
+                        var warmingService = sharedBlobCacheWarmingService.get();
+                        warmingService.warmCacheForShardRecovery(indexShard, commit);
                         return null;
                     } finally {
                         store.decRef();

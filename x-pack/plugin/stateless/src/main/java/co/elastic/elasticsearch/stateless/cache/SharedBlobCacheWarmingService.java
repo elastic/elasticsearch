@@ -75,7 +75,9 @@ public class SharedBlobCacheWarmingService {
     }
 
     /**
-     * Warms the cache to optimize cache hits during the recovery of an indexing shard.
+     * Warms the cache to optimize cache hits during the recovery of an indexing or search shard. The warming happens concurrently
+     * with the recovery and doesn't block it.
+     *
      * <p>
      * This method uses the list of files of the recovered commit to identify which region(s) of the compound commit blob are likely to be
      * accessed first. It then tries to fetch every region to write them in cache. Note that regions are fetched completely, ie not only the
@@ -84,10 +86,10 @@ public class SharedBlobCacheWarmingService {
      * one without waiting for the region to be available in cache.
      * </p>
      *
-     * @param indexShard the indexing shard
+     * @param indexShard the shard to warm in cache
      * @param commit the commit to be recovered
      */
-    public void warmCacheForIndexingShardRecovery(IndexShard indexShard, StatelessCompoundCommit commit) {
+    public void warmCacheForShardRecovery(IndexShard indexShard, StatelessCompoundCommit commit) {
         final long started = threadPool.rawRelativeTimeInMillis();
         logger.debug("{} warming", indexShard.shardId());
         warmCache(indexShard, commit, Map.Entry.comparingByKey(new IndexingShardRecoveryComparator()), ActionListener.running(() -> {

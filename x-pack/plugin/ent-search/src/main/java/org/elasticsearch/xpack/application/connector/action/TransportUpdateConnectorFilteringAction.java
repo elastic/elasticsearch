@@ -56,6 +56,8 @@ public class TransportUpdateConnectorFilteringAction extends HandledTransportAct
         List<ConnectorFiltering> filtering = request.getFiltering();
         FilteringAdvancedSnippet advancedSnippet = request.getAdvancedSnippet();
         List<FilteringRule> rules = request.getRules();
+        // If [filtering] is not present in request body, it means that user's intention is to
+        // update draft's rules or advanced snippet
         if (request.getFiltering() == null) {
             connectorIndexService.updateConnectorFilteringDraft(
                 connectorId,
@@ -63,7 +65,9 @@ public class TransportUpdateConnectorFilteringAction extends HandledTransportAct
                 rules,
                 listener.map(r -> new ConnectorUpdateActionResponse(r.getResult()))
             );
-        } else {
+        }
+        // Otherwise override the whole filtering object (discouraged in docs)
+        else {
             connectorIndexService.updateConnectorFiltering(
                 connectorId,
                 filtering,

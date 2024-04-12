@@ -197,7 +197,8 @@ public class SearchDirectoryTests extends ESTestCase {
                                     f -> new BlobLocation(primaryTerm, blobName, f.fileOffset, f.fileLength)
                                 )
                             ),
-                        blobLength
+                        blobLength,
+                        files.stream().map(ChecksummedFile::fileName).collect(Collectors.toSet())
                     )
                 );
                 generation += 1L;

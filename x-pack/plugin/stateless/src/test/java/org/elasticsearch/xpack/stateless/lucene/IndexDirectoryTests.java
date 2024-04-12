@@ -160,7 +160,8 @@ public class IndexDirectoryTests extends ESTestCase {
                                 1L,
                                 "_na_",
                                 Map.of(fileName, new BlobLocation(1L, "_blob", 0L, length)),
-                                length
+                                length,
+                                Set.of(fileName)
                             ),
                             null
                         );
@@ -206,7 +207,8 @@ public class IndexDirectoryTests extends ESTestCase {
                                             o -> new BlobLocation(1L, "blob_" + o.getKey(), 0L, o.getValue())
                                         )
                                     ),
-                                totalSize
+                                totalSize,
+                                files.stream().map(Map.Entry::getKey).collect(Collectors.toSet())
                             ),
                             null
                         );
@@ -355,14 +357,14 @@ public class IndexDirectoryTests extends ESTestCase {
     private static StatelessCompoundCommit createCommit(IndexDirectory directory, Set<String> files, long generation) {
         Map<String, BlobLocation> commitFiles = files.stream()
             .collect(Collectors.toMap(Function.identity(), o -> new BlobLocation(1L, "blob_" + o, 0L, between(1, 100))));
-        StatelessCompoundCommit commit = new StatelessCompoundCommit(
+        return new StatelessCompoundCommit(
             directory.getSearchDirectory().getShardId(),
             generation,
             1L,
             "_na_",
             commitFiles,
-            commitFiles.values().stream().mapToLong(BlobLocation::fileLength).sum()
+            commitFiles.values().stream().mapToLong(BlobLocation::fileLength).sum(),
+            files
         );
-        return commit;
     }
 }

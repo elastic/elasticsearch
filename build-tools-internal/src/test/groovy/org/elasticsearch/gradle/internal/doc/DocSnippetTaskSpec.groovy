@@ -535,7 +535,7 @@ GET /_analyze
       ]
     }
   ],
-  "text": "My license plate is ٢٥٠١٥"
+  "text": "My license plate is empty"
 }
 ----
 """
@@ -557,7 +557,7 @@ GET /_analyze
       ]
     }
   ],
-  "text": "My license plate is ٢٥٠١٥"
+  "text": "My license plate is empty"
 }"""
     }
 

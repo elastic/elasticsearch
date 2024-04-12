@@ -86,10 +86,8 @@ public final class IndexPrivilege extends Privilege {
         ClusterSearchShardsAction.NAME,
         TransportSearchShardsAction.TYPE.name(),
         TransportResolveClusterAction.NAME,
-        // cross clusters query for ESQL
-        "internal:data/read/esql/open_exchange",
-        "internal:data/read/esql/exchange",
-        "indices:data/read/esql/cluster"
+        "indices:data/read/esql",
+        "indices:data/read/esql/compute"
     );
     private static final Automaton CREATE_AUTOMATON = patterns(
         "indices:data/write/index*",

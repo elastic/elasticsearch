@@ -33,6 +33,7 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
+import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -930,6 +931,36 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             var blobsAfterRecoveryAndRefresh = listBlobsWithAbsolutePath(shardCommitsContainer);
             assertThat(Sets.intersection(blobsAfterRecoveryAndRefresh, blobsBeforeMerge), is(empty()));
         });
+    }
+
+    public void testStatelessCommitServiceClusterStateListenerHandlesNewShardAssignmentsCorrectly() throws Exception {
+        startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        ensureStableCluster(2);
+
+        var assignedShardStateProcessed = new CountDownLatch(1);
+        var unassignedShardStateRejected = new AtomicBoolean();
+        var unassignedShardStateRejectedLatch = new CountDownLatch(1);
+        MockTransportService.getInstance(indexNode)
+            .addRequestHandlingBehavior(PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME, (handler, request, channel, task) -> {
+                if (unassignedShardStateRejected.compareAndSet(false, true)) {
+                    // Let the index node miss the cluster state update with the unassigned shard
+                    channel.sendResponse(new RuntimeException("Unable to process the cluster state update"));
+                    unassignedShardStateRejectedLatch.countDown();
+                } else {
+                    handler.messageReceived(request, channel, task);
+                    assignedShardStateProcessed.countDown();
+                }
+            });
+        var indexName = randomIdentifier();
+        var createIndexFuture = prepareCreate(indexName, indexSettings(1, 0)).execute();
+        safeAwait(unassignedShardStateRejectedLatch);
+        safeAwait(assignedShardStateProcessed);
+        createIndexFuture.get();
+        // This assertion will pass even in the presence of the bug that was fixed when this test was introduced,
+        // but it is useful to reproduce the scenario in which a missed cluster state update could produce a NPE
+        // in the StatelessCommitService#clusterChanged method
+        ensureGreen(indexName);
     }
 
     private Set<String> listBlobsWithAbsolutePath(BlobContainer blobContainer) throws IOException {

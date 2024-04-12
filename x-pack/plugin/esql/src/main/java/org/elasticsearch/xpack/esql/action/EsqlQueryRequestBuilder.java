@@ -30,7 +30,7 @@ public class EsqlQueryRequestBuilder extends org.elasticsearch.xpack.core.esql.a
     private EsqlQueryRequestBuilder(ElasticsearchClient client, EsqlQueryRequest request) {
         super(client, EsqlQueryAction.INSTANCE, request);
         EsqlVersion version = Build.current().isSnapshot() ? EsqlVersion.SNAPSHOT : EsqlVersion.latestReleased();
-        esqlVersion(version.toString());
+        esqlVersion(version.versionStringWithoutEmoji());
     }
 
     @Override

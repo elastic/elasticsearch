@@ -46,6 +46,7 @@ import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.elasticsearch.xpack.esql.heap_attack.HeapAttackConfig.isServerless;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -77,7 +78,7 @@ public class HeapAttackIT extends ESRestTestCase {
      */
     public void testSortByManyLongsSuccess() throws IOException {
         initManyLongs();
-        Response response = sortByManyLongs(500);
+        Response response = sortByManyLongs(isServerless() ? 500 : 2000);
         Map<?, ?> map = responseAsMap(response);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "a").entry("type", "long"))
             .item(matchesMap().entry("name", "b").entry("type", "long"));
@@ -226,7 +227,7 @@ public class HeapAttackIT extends ESRestTestCase {
         StringBuilder query = new StringBuilder();
         query.append("{\"query\":\"FROM manylongs | EVAL str = CONCAT(");
         query.append(
-            Arrays.stream(new String[] { "a", "b", "c", "d", "e" })
+            Arrays.stream(new String[]{"a", "b", "c", "d", "e"})
                 .map(f -> "TO_STRING(" + f + ")")
                 .collect(Collectors.joining(", \\\"  \\\", "))
         );

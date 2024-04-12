@@ -12,9 +12,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
+import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceAccount;
 import org.elasticsearch.xpack.inference.external.request.huggingface.HuggingFaceInferenceRequest;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceModel;
 
@@ -24,17 +26,32 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
-public class HuggingFaceExecutableRequestCreator implements ExecutableRequestCreator {
-    private static final Logger logger = LogManager.getLogger(HuggingFaceExecutableRequestCreator.class);
+public class HuggingFaceRequestManager extends BaseRequestManager {
+    private static final Logger logger = LogManager.getLogger(HuggingFaceRequestManager.class);
+
+    public static HuggingFaceRequestManager of(
+        HuggingFaceModel model,
+        ResponseHandler responseHandler,
+        Truncator truncator,
+        ThreadPool threadPool
+    ) {
+        return new HuggingFaceRequestManager(
+            Objects.requireNonNull(model),
+            Objects.requireNonNull(responseHandler),
+            Objects.requireNonNull(truncator),
+            Objects.requireNonNull(threadPool)
+        );
+    }
 
     private final HuggingFaceModel model;
     private final ResponseHandler responseHandler;
     private final Truncator truncator;
 
-    public HuggingFaceExecutableRequestCreator(HuggingFaceModel model, ResponseHandler responseHandler, Truncator truncator) {
-        this.model = Objects.requireNonNull(model);
-        this.responseHandler = Objects.requireNonNull(responseHandler);
-        this.truncator = Objects.requireNonNull(truncator);
+    public HuggingFaceRequestManager(HuggingFaceModel model, ResponseHandler responseHandler, Truncator truncator, ThreadPool threadPool) {
+        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model));
+        this.model = model;
+        this.responseHandler = responseHandler;
+        this.truncator = truncator;
     }
 
     @Override
@@ -58,5 +75,16 @@ public class HuggingFaceExecutableRequestCreator implements ExecutableRequestCre
             hasRequestCompletedFunction,
             listener
         );
+    }
+
+    record RateLimitGrouping(HuggingFaceAccount account) {
+
+        public static RateLimitGrouping of(HuggingFaceModel model) {
+            return new RateLimitGrouping(new HuggingFaceAccount(model.rateLimitServiceSettings().uri(), model.apiKey()));
+        }
+
+        public RateLimitGrouping {
+            Objects.requireNonNull(account);
+        }
     }
 }

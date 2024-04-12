@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -26,9 +27,9 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
-public class OpenAiEmbeddingsExecutableRequestCreator implements ExecutableRequestCreator {
+public class OpenAiEmbeddingsRequestManager extends OpenAiRequestManager {
 
-    private static final Logger logger = LogManager.getLogger(OpenAiEmbeddingsExecutableRequestCreator.class);
+    private static final Logger logger = LogManager.getLogger(OpenAiEmbeddingsRequestManager.class);
 
     private static final ResponseHandler HANDLER = createEmbeddingsHandler();
 
@@ -36,10 +37,19 @@ public class OpenAiEmbeddingsExecutableRequestCreator implements ExecutableReque
         return new OpenAiResponseHandler("openai text embedding", OpenAiEmbeddingsResponseEntity::fromResponse);
     }
 
+    public static OpenAiEmbeddingsRequestManager of(OpenAiEmbeddingsModel model, Truncator truncator, ThreadPool threadPool) {
+        return new OpenAiEmbeddingsRequestManager(
+            Objects.requireNonNull(model),
+            Objects.requireNonNull(truncator),
+            Objects.requireNonNull(threadPool)
+        );
+    }
+
     private final Truncator truncator;
     private final OpenAiEmbeddingsModel model;
 
-    public OpenAiEmbeddingsExecutableRequestCreator(OpenAiEmbeddingsModel model, Truncator truncator) {
+    public OpenAiEmbeddingsRequestManager(OpenAiEmbeddingsModel model, Truncator truncator, ThreadPool threadPool) {
+        super(threadPool, model, OpenAiEmbeddingsRequest::buildDefaultUri);
         this.model = Objects.requireNonNull(model);
         this.truncator = Objects.requireNonNull(truncator);
     }

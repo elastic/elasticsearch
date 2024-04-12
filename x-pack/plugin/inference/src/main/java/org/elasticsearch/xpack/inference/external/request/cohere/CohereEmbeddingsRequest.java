@@ -84,8 +84,7 @@ public class CohereEmbeddingsRequest implements Request {
         return null;
     }
 
-    // default for testing
-    static URI buildDefaultUri() throws URISyntaxException {
+    public static URI buildDefaultUri() throws URISyntaxException {
         return new URIBuilder().setScheme("https")
             .setHost(CohereUtils.HOST)
             .setPathSegments(CohereUtils.VERSION_1, CohereUtils.EMBEDDINGS_PATH)

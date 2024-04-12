@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.cohere.CohereResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -23,18 +24,23 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-public class CohereRerankExecutableRequestCreator implements ExecutableRequestCreator {
-    private static final Logger logger = LogManager.getLogger(CohereRerankExecutableRequestCreator.class);
+public class CohereRerankRequestManager extends CohereRequestManager {
+    private static final Logger logger = LogManager.getLogger(CohereRerankRequestManager.class);
     private static final ResponseHandler HANDLER = createCohereResponseHandler();
 
     private static ResponseHandler createCohereResponseHandler() {
         return new CohereResponseHandler("cohere rerank", (request, response) -> CohereRankedResponseEntity.fromResponse(response));
     }
 
+    public static CohereRerankRequestManager of(CohereRerankModel model, ThreadPool threadPool) {
+        return new CohereRerankRequestManager(Objects.requireNonNull(model), Objects.requireNonNull(threadPool));
+    }
+
     private final CohereRerankModel model;
 
-    public CohereRerankExecutableRequestCreator(CohereRerankModel model) {
-        this.model = Objects.requireNonNull(model);
+    public CohereRerankRequestManager(CohereRerankModel model, ThreadPool threadPool) {
+        super(threadPool, model, CohereRerankRequest::buildDefaultUri);
+        this.model = model;
     }
 
     @Override

@@ -63,7 +63,7 @@ public class UpdateApiKeyRequestTests extends ESTestCase {
                     null,
                     null,
                     new RoleDescriptor.Restriction(workflows.toArray(String[]::new)),
-                    randomBoolean() ? null : randomAlphaOfLengthBetween(0, 20)
+                    null
                 )
             ),
             null,

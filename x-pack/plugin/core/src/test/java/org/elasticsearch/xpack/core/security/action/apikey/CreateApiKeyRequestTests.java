@@ -106,7 +106,7 @@ public class CreateApiKeyRequestTests extends ESTestCase {
                     null,
                     null,
                     new RoleDescriptor.Restriction(unknownWorkflows),
-                    randomBoolean() ? null : randomAlphaOfLengthBetween(0, 20)
+                    null
                 )
             ),
             null

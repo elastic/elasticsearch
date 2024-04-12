@@ -2258,15 +2258,12 @@ public class ApiKeyServiceTests extends ESTestCase {
         final ApiKey.Type type = randomFrom(ApiKey.Type.values());
         final Set<RoleDescriptor> oldUserRoles = type == ApiKey.Type.CROSS_CLUSTER
             ? Set.of()
-            : randomSet(0, 3, () -> RoleDescriptorTestHelper.builder().allowReservedMetadata(true).allowDescription(true).build());
+            : randomSet(0, 3, () -> RoleDescriptorTestHelper.builder().allowReservedMetadata(true).build());
         final List<RoleDescriptor> oldKeyRoles;
         if (type == ApiKey.Type.CROSS_CLUSTER) {
             oldKeyRoles = List.of(CrossClusterApiKeyRoleDescriptorBuilder.parse(randomCrossClusterApiKeyAccessField()).build());
         } else {
-            oldKeyRoles = randomList(
-                3,
-                () -> RoleDescriptorTestHelper.builder().allowReservedMetadata(true).allowDescription(true).build()
-            );
+            oldKeyRoles = randomList(3, () -> RoleDescriptorTestHelper.builder().allowReservedMetadata(true).build());
         }
         final long now = randomMillisUpToYear9999();
         when(clock.instant()).thenReturn(Instant.ofEpochMilli(now));
@@ -2829,7 +2826,6 @@ public class ApiKeyServiceTests extends ESTestCase {
                 .allowReservedMetadata(randomBoolean())
                 .allowRemoteIndices(false)
                 .allowRestriction(randomBoolean())
-                .allowDescription(randomBoolean())
                 .build()
         );
 
@@ -2855,21 +2851,11 @@ public class ApiKeyServiceTests extends ESTestCase {
     }
 
     private static RoleDescriptor randomRoleDescriptorWithRemoteIndexPrivileges() {
-        return RoleDescriptorTestHelper.builder()
-            .allowReservedMetadata(true)
-            .allowDescription(true)
-            .allowRestriction(true)
-            .alwaysIncludeRemoteIndices()
-            .build();
+        return RoleDescriptorTestHelper.builder().allowReservedMetadata(true).allowRestriction(true).alwaysIncludeRemoteIndices().build();
     }
 
     private static RoleDescriptor randomRoleDescriptorWithWorkflowsRestriction() {
-        return RoleDescriptorTestHelper.builder()
-            .allowReservedMetadata(true)
-            .allowRemoteIndices(false)
-            .allowDescription(true)
-            .allowRestriction(true)
-            .build();
+        return RoleDescriptorTestHelper.builder().allowReservedMetadata(true).allowRemoteIndices(false).build();
     }
 
     public static String randomCrossClusterApiKeyAccessField() {

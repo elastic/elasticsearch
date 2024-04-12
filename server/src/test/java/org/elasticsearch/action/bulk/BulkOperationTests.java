@@ -363,7 +363,7 @@ public class BulkOperationTests extends ESTestCase {
      * A bulk operation to a data stream with a failure store enabled should redirect any shard level failures to the failure store.
      */
     public void testFailingEntireShardRedirectsToFailureStore() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreEnabled());
+        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
 
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
@@ -393,7 +393,7 @@ public class BulkOperationTests extends ESTestCase {
      * failure store.
      */
     public void testFailingDocumentRedirectsToFailureStore() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreEnabled());
+        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
 
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
@@ -423,7 +423,7 @@ public class BulkOperationTests extends ESTestCase {
      * a shard-level failure while writing to the failure store indices.
      */
     public void testFailureStoreShardFailureRejectsDocument() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreEnabled());
+        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
 
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
@@ -467,7 +467,7 @@ public class BulkOperationTests extends ESTestCase {
      * instead will simply report its original failure in the response, with the conversion failure present as a suppressed exception.
      */
     public void testFailedDocumentCanNotBeConvertedFails() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreEnabled());
+        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
 
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
@@ -505,7 +505,7 @@ public class BulkOperationTests extends ESTestCase {
      * non-retryable block when the redirected documents would be sent to the shard-level action.
      */
     public void testBlockedClusterRejectsFailureStoreDocument() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreEnabled());
+        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
 
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
@@ -560,7 +560,7 @@ public class BulkOperationTests extends ESTestCase {
      * retryable block to clear when the redirected documents would be sent to the shard-level action.
      */
     public void testOperationTimeoutRejectsFailureStoreDocument() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreEnabled());
+        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
 
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();
@@ -623,7 +623,7 @@ public class BulkOperationTests extends ESTestCase {
      * for a retryable block to clear when the redirected documents would be sent to the shard-level action.
      */
     public void testNodeClosureRejectsFailureStoreDocument() {
-        Assume.assumeTrue(DataStream.isFailureStoreEnabled());
+        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
 
         // Requests that go to two separate shards
         BulkRequest bulkRequest = new BulkRequest();

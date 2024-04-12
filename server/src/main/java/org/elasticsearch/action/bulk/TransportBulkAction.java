@@ -738,7 +738,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
      * or if it matches a template that has a data stream failure store enabled.
      */
     static boolean shouldStoreFailure(String indexName, Metadata metadata, long epochMillis) {
-        return DataStream.isFailureStoreEnabled()
+        return DataStream.isFailureStoreFeatureFlagEnabled()
             && resolveFailureStoreFromMetadata(indexName, metadata, epochMillis).or(
                 () -> resolveFailureStoreFromTemplate(indexName, metadata)
             ).orElse(false);
@@ -774,7 +774,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         DataStream targetDataStream = writeAbstraction.getParentDataStream();
 
         // We will store the failure if the write target belongs to a data stream with a failure store.
-        return Optional.of(targetDataStream != null && targetDataStream.isFailureStore());
+        return Optional.of(targetDataStream != null && targetDataStream.isFailureStoreEnabled());
     }
 
     /**

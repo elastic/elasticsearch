@@ -1668,6 +1668,7 @@ public class ApiKeyService {
             listener
         );
     }
+
     private <T> void findApiKeysForUserRealmApiKeyIdAndNameCombination(
         String[] realmNames,
         String userName,

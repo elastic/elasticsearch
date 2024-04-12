@@ -218,11 +218,6 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
             failIfNoDocValues();
             return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, SeqNoDocValuesField::new, isIndexed());
         }
-
-        @Override
-        public boolean isFetchedViaWildcardExpression() {
-            return false;
-        }
     }
 
     private SeqNoFieldMapper() {

@@ -85,11 +85,6 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
                 }
             };
         }
-
-        @Override
-        public boolean isFetchedViaWildcardExpression() {
-            return false;
-        }
     }
 
     private DocCountFieldMapper() {

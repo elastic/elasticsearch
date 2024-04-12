@@ -68,11 +68,6 @@ public class VersionFieldMapper extends MetadataFieldMapper {
             failIfNoDocValues();
             return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, VersionDocValuesField::new, isIndexed());
         }
-
-        @Override
-        public boolean isFetchedViaWildcardExpression() {
-            return false;
-        }
     }
 
     private VersionFieldMapper() {

@@ -666,13 +666,6 @@ public abstract class MappedFieldType {
     }
 
     /**
-     * Whether the field needs to be fetched when a wildcard expression is provided via `stored_fields` option
-     */
-    public boolean isFetchedViaWildcardExpression() {
-        return true;
-    }
-
-    /**
      * Returns a loader for ESQL or {@code null} if the field doesn't support
      * ESQL.
      */

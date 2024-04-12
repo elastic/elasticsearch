@@ -69,11 +69,6 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             throw new UnsupportedOperationException();
         }
-
-        @Override
-        public boolean isFetchedViaWildcardExpression() {
-            return false;
-        }
     }
 
     private static DataStreamTimestampFieldMapper toType(FieldMapper in) {

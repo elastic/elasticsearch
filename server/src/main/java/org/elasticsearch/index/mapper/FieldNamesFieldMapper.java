@@ -154,11 +154,6 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             );
             return super.termQuery(value, context);
         }
-
-        @Override
-        public boolean isFetchedViaWildcardExpression() {
-            return false;
-        }
     }
 
     private final Explicit<Boolean> enabled;

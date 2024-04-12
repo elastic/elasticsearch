@@ -87,14 +87,15 @@ public abstract class SystemIndexThreadPoolTestCase extends ESIntegTestCase {
         assertThat(e1.getMessage(), startsWith("rejected execution of TimedRunnable"));
         var e2 = expectThrows(EsRejectedExecutionException.class, () -> client().prepareGet(USER_INDEX, "id").get());
         assertThat(e2.getMessage(), startsWith("rejected execution of ActionRunnable"));
-        var e3 = expectThrows(SearchPhaseExecutionException.class, () -> {
-            client().prepareSearch()
+        var e3 = expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> client().prepareSearch(USER_INDEX)
                 .setQuery(QueryBuilders.matchAllQuery())
                 // Don't let the test framework set maxConcurrentShardRequests randomly, because the
                 // request times out if this is set to 1
                 .setMaxConcurrentShardRequests(SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS)
-                .get();
-        });
+                .get()
+        );
         assertThat(e3.getMessage(), containsString("all shards failed"));
     }
 

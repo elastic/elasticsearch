@@ -121,28 +121,32 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
     /**
      * Freeze the VBCC so that no more CC can be appended. The VBCC is guaranteed to be frozen afterwards.
+     * No synchronization is needed for this method because its sole caller is itself synchronized
      * @return {@code true} if the VBCC is frozen by this thread or
      * {@code false} if it is already frozen or concurrently frozen by other threads.
      */
     public boolean freeze() {
-        assert pendingCompoundCommits.isEmpty() == false : "Cannot freeze an empty virtual batch compound commit";
-
-        if (isFrozen()) {
-            return false;
-        }
-        // TODO: we can drop this synchronization since usages of append and freeze are synchronized by ShardCommitState
-        synchronized (this) {
+        assert assertCompareAndSetFreezeOrAppendingCommitThread(null, Thread.currentThread());
+        try {
+            assert pendingCompoundCommits.isEmpty() == false : "Cannot freeze an empty virtual batch compound commit";
             if (isFrozen()) {
                 return false;
             }
             frozen = true;
             logger.debug("VBCC is successfully frozen");
             return true;
+        } finally {
+            assert assertCompareAndSetFreezeOrAppendingCommitThread(Thread.currentThread(), null);
         }
     }
 
+    /**
+     * Aadd the specified {@link StatelessCommitRef} as {@link PendingCompoundCommit}
+     * No synchronization is needed for this method because its sole caller is itself synchronized
+     * @return {@code true} if the append is successful or {@code false} if the VBCC is frozen and cannot be appended to
+     */
     public boolean appendCommit(StatelessCommitRef reference) {
-        assert assertCompareAndSetAppendingCommitThread(null, Thread.currentThread());
+        assert assertCompareAndSetFreezeOrAppendingCommitThread(null, Thread.currentThread());
         try {
             return doAppendCommit(reference);
         } catch (IOException e) {
@@ -151,11 +155,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 e
             );
         } finally {
-            assert assertCompareAndSetAppendingCommitThread(Thread.currentThread(), null);
+            assert assertCompareAndSetFreezeOrAppendingCommitThread(Thread.currentThread(), null);
         }
     }
 
-    // package private for testing
     boolean isFrozen() {
         return frozen;
     }
@@ -176,66 +179,57 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         var header = materializeCompoundCommitHeader(reference, internalFiles);
         long compoundCommitSize = header.length + compoundCommitFilesSize;
 
-        // TODO: we can drop this synchronization since usages of append and freeze are synchronized by ShardCommitState
-        // Blocking when adding the new CC and updating relevant fields so that they offer consistent view to other (freezing) threads
-        synchronized (this) {
-            if (isFrozen()) {
-                return false;
-            }
-
-            // Add padding to the previous CC if it exists
-            if (pendingCompoundCommits.isEmpty() == false) {
-                var lastCompoundCommit = pendingCompoundCommits.last();
-                long lastCompoundCommitSize = lastCompoundCommit.getSizeInBytes();
-                long lastCompoundCommitSizePageAligned = BlobCacheUtils.toPageAlignedSize(lastCompoundCommitSize);
-                int padding = Math.toIntExact(lastCompoundCommitSizePageAligned - lastCompoundCommitSize);
-                lastCompoundCommit.setPadding(padding);
-                long paddingOffset = currentOffset.get();
-                var previousPaddingOffset = internalDataReadersByOffset.put(paddingOffset, new InternalPaddingReader(padding));
-                assert previousPaddingOffset == null;
-                currentOffset.set(paddingOffset + padding);
-            }
-
-            final long headerOffset = currentOffset.get();
-            assert headerOffset == BlobCacheUtils.toPageAlignedSize(headerOffset) : "header offset is not page-aligned: " + headerOffset;
-            var previousHeaderOffset = internalDataReadersByOffset.put(headerOffset, new InternalHeaderReader(header));
-            assert previousHeaderOffset == null;
-
-            long internalFileOffset = headerOffset + header.length;
-
-            for (var internalFile : internalFiles) {
-                var fileLength = internalFile.length();
-                var previousLocation = internalLocations.put(
-                    internalFile.name(),
-                    new BlobLocation(primaryTermAndGeneration.primaryTerm(), blobName, internalFileOffset, fileLength)
-                );
-                assert previousLocation == null;
-                var previousOffset = internalDataReadersByOffset.put(
-                    internalFileOffset,
-                    new InternalFileReader(internalFile.name(), reference.getDirectory())
-                );
-                assert previousOffset == null;
-                internalFileOffset += fileLength;
-            }
-            currentOffset.set(internalFileOffset);
-
-            var pendingCompoundCommit = new PendingCompoundCommit(
-                header,
-                reference,
-                internalFiles,
-                createStatelessCompoundCommit(reference, header.length + compoundCommitFilesSize)
-            );
-            pendingCompoundCommits.add(pendingCompoundCommit);
-            logger.debug("appended new CC [{}] to VBCC [{}]", pendingCompoundCommit, primaryTermAndGeneration);
-            assert currentOffset.get() == headerOffset + pendingCompoundCommit.getSizeInBytes()
-                : "current offset "
-                    + currentOffset.get()
-                    + " should be equal to header offset "
-                    + headerOffset
-                    + " plus size of pending compound commit "
-                    + pendingCompoundCommit.getSizeInBytes();
+        // Add padding to the previous CC if it exists
+        if (pendingCompoundCommits.isEmpty() == false) {
+            var lastCompoundCommit = pendingCompoundCommits.last();
+            long lastCompoundCommitSize = lastCompoundCommit.getSizeInBytes();
+            long lastCompoundCommitSizePageAligned = BlobCacheUtils.toPageAlignedSize(lastCompoundCommitSize);
+            int padding = Math.toIntExact(lastCompoundCommitSizePageAligned - lastCompoundCommitSize);
+            lastCompoundCommit.setPadding(padding);
+            long paddingOffset = currentOffset.get();
+            var previousPaddingOffset = internalDataReadersByOffset.put(paddingOffset, new InternalPaddingReader(padding));
+            assert previousPaddingOffset == null;
+            currentOffset.set(paddingOffset + padding);
         }
-        // The consistency can be asserted outside the blocking code since appendCommit runs single-threaded
+
+        final long headerOffset = currentOffset.get();
+        assert headerOffset == BlobCacheUtils.toPageAlignedSize(headerOffset) : "header offset is not page-aligned: " + headerOffset;
+        var previousHeaderOffset = internalDataReadersByOffset.put(headerOffset, new InternalHeaderReader(header));
+        assert previousHeaderOffset == null;
+
+        long internalFileOffset = headerOffset + header.length;
+
+        for (var internalFile : internalFiles) {
+            var fileLength = internalFile.length();
+            var previousLocation = internalLocations.put(
+                internalFile.name(),
+                new BlobLocation(primaryTermAndGeneration.primaryTerm(), blobName, internalFileOffset, fileLength)
+            );
+            assert previousLocation == null;
+            var previousOffset = internalDataReadersByOffset.put(
+                internalFileOffset,
+                new InternalFileReader(internalFile.name(), reference.getDirectory())
+            );
+            assert previousOffset == null;
+            internalFileOffset += fileLength;
+        }
+        currentOffset.set(internalFileOffset);
+
+        var pendingCompoundCommit = new PendingCompoundCommit(
+            header,
+            reference,
+            internalFiles,
+            createStatelessCompoundCommit(reference, header.length + compoundCommitFilesSize)
+        );
+        pendingCompoundCommits.add(pendingCompoundCommit);
+        logger.debug("appended new CC [{}] to VBCC [{}]", pendingCompoundCommit, primaryTermAndGeneration);
+        assert currentOffset.get() == headerOffset + pendingCompoundCommit.getSizeInBytes()
+            : "current offset "
+                + currentOffset.get()
+                + " should be equal to header offset "
+                + headerOffset
+                + " plus size of pending compound commit "
+                + pendingCompoundCommit.getSizeInBytes();
         assert assertInternalConsistency();
         return true;
     }
@@ -465,7 +459,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         }
     }
 
-    private boolean assertCompareAndSetAppendingCommitThread(Thread current, Thread updated) {
+    private boolean assertCompareAndSetFreezeOrAppendingCommitThread(Thread current, Thread updated) {
         final Thread witness = appendingCommitThread.compareAndExchange(current, updated);
         assert witness == current
             : "Unable to set appending commit thread to ["

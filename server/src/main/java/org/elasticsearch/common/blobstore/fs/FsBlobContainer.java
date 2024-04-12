@@ -26,8 +26,10 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 
@@ -78,6 +80,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     protected final FsBlobStore blobStore;
     protected final Path path;
+    private final KeyedLock<String> fileLocks = new KeyedLock<>();
 
     public FsBlobContainer(FsBlobStore blobStore, BlobPath blobPath, Path path) {
         super(blobPath);
@@ -397,7 +400,10 @@ public class FsBlobContainer extends AbstractBlobContainer {
     ) {
         ActionListener.completeWith(listener, () -> {
             BlobContainerUtils.ensureValidRegisterContent(updated);
-            try (LockedFileChannel lockedFileChannel = LockedFileChannel.open(path.resolve(key))) {
+            try (
+                Releasable fileLock = fileLocks.acquire(key);
+                LockedFileChannel lockedFileChannel = LockedFileChannel.open(path.resolve(key))
+            ) {
                 final FileChannel fileChannel = lockedFileChannel.fileChannel();
                 final ByteBuffer readBuf = ByteBuffer.allocate(BlobContainerUtils.MAX_REGISTER_CONTENT_LENGTH);
                 while (readBuf.remaining() > 0) {

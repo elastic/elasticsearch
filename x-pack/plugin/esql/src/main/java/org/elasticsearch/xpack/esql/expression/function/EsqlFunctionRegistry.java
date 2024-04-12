@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.Base64DecodeToString;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.Base64EncodeToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
@@ -254,6 +256,8 @@ public final class EsqlFunctionRegistry extends FunctionRegistry {
             new FunctionDefinition[] { def(CIDRMatch.class, CIDRMatch::new, "cidr_match") },
             // conversion functions
             new FunctionDefinition[] {
+                def(Base64DecodeToString.class, Base64DecodeToString::new, "base64_decode_tostring"),
+                def(Base64EncodeToString.class, Base64EncodeToString::new, "base64_encode_tostring"),
                 def(ToBoolean.class, ToBoolean::new, "to_boolean", "to_bool"),
                 def(ToCartesianPoint.class, ToCartesianPoint::new, "to_cartesianpoint"),
                 def(ToCartesianShape.class, ToCartesianShape::new, "to_cartesianshape"),

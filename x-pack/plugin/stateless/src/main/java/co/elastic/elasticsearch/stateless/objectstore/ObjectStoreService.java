@@ -44,6 +44,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Releasables;
@@ -51,6 +52,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -781,20 +783,28 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
         @Override
         public void onFailure(Exception e) {
-            // Might be 100 files only log when debug enabled
+            final var level = lifecycle.started() ? Level.WARN : Level.DEBUG;
             if (logger.isDebugEnabled()) {
-                logger.warn(() -> format("exception while attempting to delete blob files [{}]", toDeleteInThisTask), e);
+                // Might be 100 files, only log when debug enabled
+                logger.log(level, () -> format("exception while attempting to delete blob files [{}]", toDeleteInThisTask), e);
             } else {
-                logger.warn("exception while attempting to delete blob files", e);
+                logger.log(level, () -> "exception while attempting to delete blob files", e);
             }
         }
 
         @Override
         public void onAfter() {
             shardFileDeleteSchedulePermit.release();
-            if (commitBlobsToDelete.isEmpty() == false && shardFileDeleteSchedulePermit.tryAcquire()) {
+            if (lifecycle.started() && commitBlobsToDelete.isEmpty() == false && shardFileDeleteSchedulePermit.tryAcquire()) {
                 threadPool.executor(Stateless.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
             }
+        }
+
+        @Override
+        public void onRejection(Exception e) {
+            assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
+            assert lifecycle.closed() : lifecycle;
+            // no need to retry or even log, we're shutting down
         }
 
         @Override

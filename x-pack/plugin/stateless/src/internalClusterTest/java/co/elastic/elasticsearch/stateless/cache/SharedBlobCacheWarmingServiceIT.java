@@ -19,7 +19,6 @@ package co.elastic.elasticsearch.stateless.cache;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.Stateless;
-import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
@@ -45,8 +44,6 @@ import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
-import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
@@ -75,7 +72,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         return plugins;
     }
 
-    public void testCacheIsWarmedBeforeIndexingShardRelocation() throws Exception {
+    public void testCacheIsWarmedBeforeIndexingShardRelocation() {
         startMasterOnlyNode();
 
         var cacheSettings = Settings.builder()
@@ -92,11 +89,11 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
                     .put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(EngineConfig.USE_COMPOUND_FILE, false)
+                    .put(EngineConfig.USE_COMPOUND_FILE, randomBoolean())
             )
         );
 
-        indexDocs(indexName, 1000);
+        indexDocs(indexName, randomIntBetween(100, 10000));
         refresh(indexName);
 
         var indexNodeB = startIndexNode(cacheSettings);
@@ -232,18 +229,13 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         }
 
         @Override
-        protected void warmCache(
-            IndexShard indexShard,
-            StatelessCompoundCommit commit,
-            Comparator<Map.Entry<String, BlobLocation>> comparator,
-            ActionListener<Void> listener
-        ) {
+        protected void warmCache(IndexShard indexShard, StatelessCompoundCommit commit, ActionListener<Void> listener) {
             var wrappedListener = new SubscribableListener<Void>();
             for (ActionListener<Void> voidActionListener : listeners) {
                 wrappedListener.addListener(voidActionListener);
             }
             wrappedListener.addListener(listener); // completed last
-            super.warmCache(indexShard, commit, comparator, wrappedListener);
+            super.warmCache(indexShard, commit, wrappedListener);
             safeAwait(wrappedListener);
         }
     }

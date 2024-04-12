@@ -83,8 +83,7 @@ public class GaussDecayFunctionBuilder extends DecayFunctionBuilder<GaussDecayFu
 
         @Override
         public boolean equals(Object obj) {
-            return obj == this
-                || (obj != null && obj.getClass() == this.getClass());
+            return obj == this || (obj != null && obj.getClass() == this.getClass());
         }
     }
 }

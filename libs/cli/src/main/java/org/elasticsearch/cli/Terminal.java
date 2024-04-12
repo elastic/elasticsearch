@@ -21,7 +21,6 @@ import java.io.Reader;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Locale;
 
@@ -125,8 +124,8 @@ public abstract class Terminal {
      * Returns a line based OutputStream wrapping this Terminal's println.
      * Note, this OutputStream is not thread-safe!
      */
-    public final OutputStream asLineOutputStream() {
-        return new LineOutputStream();
+    public final OutputStream asLineOutputStream(Charset charset) {
+        return new LineOutputStream(charset);
     }
 
     /**
@@ -370,8 +369,13 @@ public abstract class Terminal {
         static final int DEFAULT_BUFFER_LENGTH = 1024;
         static final int MAX_BUFFER_LENGTH = DEFAULT_BUFFER_LENGTH * 8;
 
+        private final Charset charset;
         private byte[] bytes = new byte[DEFAULT_BUFFER_LENGTH];
         private int count = 0;
+
+        LineOutputStream(Charset charset) {
+            this.charset = charset;
+        }
 
         @Override
         public void write(int b) {
@@ -397,7 +401,7 @@ public abstract class Terminal {
             if (skipEmpty && count == 0) {
                 return;
             }
-            println(count > 0 ? new String(bytes, 0, count, StandardCharsets.UTF_8) : "");
+            println(count > 0 ? new String(bytes, 0, count, charset) : "");
             count = 0;
             if (bytes.length > DEFAULT_BUFFER_LENGTH) {
                 bytes = new byte[DEFAULT_BUFFER_LENGTH];

@@ -51,7 +51,6 @@ import org.elasticsearch.index.translog.TruncateTranslogAction;
 
 import java.io.IOException;
 import java.io.PrintStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -59,6 +58,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.common.lucene.Lucene.indexWriterConfigWithNoMerging;
 
 public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
@@ -248,7 +248,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
                 throw new ElasticsearchException("translog directory [" + translogPath + "], must exist and be a directory");
             }
 
-            final PrintStream printStream = new PrintStream(terminal.asLineOutputStream(), false, StandardCharsets.UTF_8);
+            final PrintStream printStream = new PrintStream(terminal.asLineOutputStream(UTF_8), false, UTF_8);
             final boolean verbose = terminal.isPrintable(Terminal.Verbosity.VERBOSE);
 
             final Directory indexDirectory = getDirectory(indexPath);

@@ -70,7 +70,7 @@ public record RoleDescriptorsIntersection(Collection<Set<RoleDescriptor>> roleDe
             while ((token = p.nextToken()) != XContentParser.Token.END_OBJECT) {
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, p);
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, p.nextToken(), p);
-                roleDescriptors.add(RoleDescriptor.parse(p.currentName(), p, false));
+                roleDescriptors.add(RoleDescriptor.parser().allowRestriction(true).parse(p.currentName(), p));
             }
             return Set.copyOf(roleDescriptors);
         });

@@ -263,7 +263,7 @@ public final class CrossClusterAccessSubjectInfo {
                 while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                     parser.nextToken();
                     final String roleName = parser.currentName();
-                    roleDescriptors.add(RoleDescriptor.parse(roleName, parser, false));
+                    roleDescriptors.add(RoleDescriptor.parser().parse(roleName, parser));
                 }
                 return Set.copyOf(roleDescriptors);
             } catch (IOException e) {

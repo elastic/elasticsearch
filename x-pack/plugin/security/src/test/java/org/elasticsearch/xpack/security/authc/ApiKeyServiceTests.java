@@ -1769,7 +1769,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final String apiKey3 = randomAlphaOfLength(16);
         ApiKeyCredentials apiKeyCredentials3 = getApiKeyCredentials(docId3, apiKey3, type);
         final List<RoleDescriptor> keyRoles = List.of(
-            RoleDescriptor.parse("key-role", new BytesArray("{\"cluster\":[\"monitor\"]}"), true, XContentType.JSON)
+            RoleDescriptor.parser().allow2xFormat(true).parse("key-role", new BytesArray("{\"cluster\":[\"monitor\"]}"), XContentType.JSON)
         );
         final Map<String, Object> metadata3 = mockKeyDocument(
             docId3,

@@ -247,12 +247,8 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         @SuppressWarnings("unchecked")
         final Map<String, ?> descriptor = (Map<String, ?>) fleetServerRoleDescriptor.get("elastic/fleet-server");
 
-        final RoleDescriptor roleDescriptor = RoleDescriptor.parse(
-            "elastic/fleet-server",
-            XContentTestUtils.convertToXContent(descriptor, XContentType.JSON),
-            false,
-            XContentType.JSON
-        );
+        final RoleDescriptor roleDescriptor = RoleDescriptor.parser()
+            .parse("elastic/fleet-server", XContentTestUtils.convertToXContent(descriptor, XContentType.JSON), XContentType.JSON);
         assertThat(roleDescriptor, equalTo(ServiceAccountService.getServiceAccounts().get("elastic/fleet-server").roleDescriptor()));
     }
 
@@ -588,12 +584,12 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         final Map<String, Object> roleDescriptors = (Map<String, Object>) document.get("role_descriptors");
         assertThat(roleDescriptors.keySet(), contains("cross_cluster"));
         @SuppressWarnings("unchecked")
-        final RoleDescriptor actualRoleDescriptor = RoleDescriptor.parse(
-            "cross_cluster",
-            XContentTestUtils.convertToXContent((Map<String, Object>) roleDescriptors.get("cross_cluster"), XContentType.JSON),
-            false,
-            XContentType.JSON
-        );
+        final RoleDescriptor actualRoleDescriptor = RoleDescriptor.parser()
+            .parse(
+                "cross_cluster",
+                XContentTestUtils.convertToXContent((Map<String, Object>) roleDescriptors.get("cross_cluster"), XContentType.JSON),
+                XContentType.JSON
+            );
 
         final RoleDescriptor expectedRoleDescriptor = new RoleDescriptor(
             "cross_cluster",

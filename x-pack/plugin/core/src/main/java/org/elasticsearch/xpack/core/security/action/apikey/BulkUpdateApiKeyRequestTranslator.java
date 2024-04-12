@@ -27,7 +27,7 @@ public interface BulkUpdateApiKeyRequestTranslator {
 
     class Default implements BulkUpdateApiKeyRequestTranslator {
         private static final ConstructingObjectParser<BulkUpdateApiKeyRequest, Void> PARSER = createParser(
-            (n, p) -> RoleDescriptor.parse(n, p, false)
+            (n, p) -> RoleDescriptor.parser().allowRestriction(true).parse(n, p)
         );
 
         @SuppressWarnings("unchecked")

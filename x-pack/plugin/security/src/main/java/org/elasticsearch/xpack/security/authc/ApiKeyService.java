@@ -985,7 +985,7 @@ public class ApiKeyService {
                         XContentType.JSON
                     )
                 ) {
-                    return RoleDescriptor.parse(name, parser, false);
+                    return RoleDescriptor.parser().allowRestriction(true).parse(name, parser);
                 }
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -1025,7 +1025,7 @@ public class ApiKeyService {
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 parser.nextToken(); // role name
                 String roleName = parser.currentName();
-                roleDescriptors.add(RoleDescriptor.parse(roleName, parser, false));
+                roleDescriptors.add(RoleDescriptor.parser().allowRestriction(true).parse(roleName, parser));
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);

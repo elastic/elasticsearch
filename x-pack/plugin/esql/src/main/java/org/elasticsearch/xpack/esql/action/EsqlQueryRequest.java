@@ -105,10 +105,7 @@ public class EsqlQueryRequest extends ActionRequest implements CompositeIndicesR
             validationException = addValidationError("[" + QUERY_FIELD + "] is required", validationException);
         }
         if (onSnapshotBuild == false && pragmas.isEmpty() == false) {
-            validationException = addValidationError(
-                "[" + PRAGMA_FIELD + "] only allowed in snapshot builds",
-                validationException
-            );
+            validationException = addValidationError("[" + PRAGMA_FIELD + "] only allowed in snapshot builds", validationException);
         }
         return validationException;
     }

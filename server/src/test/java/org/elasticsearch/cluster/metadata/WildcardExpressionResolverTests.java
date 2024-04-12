@@ -381,7 +381,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
                 null,
                 false,
                 List.of(),
-                null
+                false
             );
 
             Metadata.Builder mdBuilder = Metadata.builder().put(firstBackingIndexMetadata, true).put(dataStream);

@@ -94,6 +94,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             \\_OutputOperator[columns = [sum(pause_me)]]""";
         REDUCE_DESCRIPTION = """
             \\_ExchangeSourceOperator[]
+            \\_AggregationOperator[mode = INTERMEDIATE, aggs = sum of longs]
             \\_ExchangeSinkOperator""";
         nodeLevelReduction = randomBoolean();
     }
@@ -475,6 +476,37 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             scriptPermits.release(numberOfDocs());
             try (EsqlQueryResponse esqlResponse = response.get()) {
                 assertThat(Iterators.flatMap(esqlResponse.values(), i -> i).next(), equalTo(1L));
+            }
+        }
+    }
+
+    public void testTaskContentsForGroupingStatsQuery() throws Exception {
+        READ_DESCRIPTION = """
+            \\_LuceneSourceOperator[dataPartitioning = SHARD, maxPageSize = pageSize(), limit = 2147483647]
+            \\_ValuesSourceReaderOperator[fields = [foo]]
+            \\_OrdinalsGroupingOperator(aggs = max of longs)
+            \\_ExchangeSinkOperator""".replace("pageSize()", Integer.toString(pageSize()));
+        MERGE_DESCRIPTION = """
+            \\_ExchangeSourceOperator[]
+            \\_HashAggregationOperator[mode = <not-needed>, aggs = max of longs]
+            \\_ProjectOperator[projection = [1, 0]]
+            \\_LimitOperator[limit = 1000]
+            \\_OutputOperator[columns = [max(foo), pause_me]]""";
+        REDUCE_DESCRIPTION = "\\_ExchangeSourceOperator[]\n"
+            + (nodeLevelReduction ? "\\_HashAggregationOperator[mode = <not-needed>, aggs = max of longs]\n" : "")
+            + "\\_ExchangeSinkOperator";
+
+        ActionFuture<EsqlQueryResponse> response = startEsql("from test | stats max(foo) by pause_me");
+        try {
+            getTasksStarting();
+            scriptPermits.release(pageSize());
+            getTasksRunning();
+        } finally {
+            scriptPermits.release(numberOfDocs());
+            try (EsqlQueryResponse esqlResponse = response.get()) {
+                var it = Iterators.flatMap(esqlResponse.values(), i -> i);
+                assertThat(it.next(), equalTo(numberOfDocs() - 1L)); // max of numberOfDocs() generated int values
+                assertThat(it.next(), equalTo(1L)); // pause_me always emits 1
             }
         }
     }

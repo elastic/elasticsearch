@@ -54,7 +54,7 @@ import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.PART
 public class Mapper {
 
     private final FunctionRegistry functionRegistry;
-    private final boolean localMode;
+    private final boolean localMode; // non-coordinator (data node) mode
 
     public Mapper(FunctionRegistry functionRegistry) {
         this.functionRegistry = functionRegistry;

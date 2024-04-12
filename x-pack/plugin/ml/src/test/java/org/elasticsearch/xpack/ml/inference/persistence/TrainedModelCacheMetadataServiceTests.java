@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor.TaskContext;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -26,6 +27,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.FlushTrainedModelCacheAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelCacheMetadata;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelCacheMetadataService.CacheMetadataUpdateTask;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelCacheMetadataService.CacheMetadataUpdateTaskExecutor;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelCacheMetadataService.RefreshCacheMetadataVersionTask;
@@ -33,6 +35,8 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -74,12 +78,12 @@ public class TrainedModelCacheMetadataServiceTests extends ESTestCase {
         modelCacheMetadataService.clusterChanged(new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE));
 
         @SuppressWarnings("unchecked")
-        final var listener = (ActionListener<AcknowledgedResponse>) mock(ActionListener.class);
+        final ActionListener<AcknowledgedResponse> listener = mock(ActionListener.class);
         modelCacheMetadataService.refreshCacheVersion(listener);
 
         ArgumentCaptor<CacheMetadataUpdateTask> updateTaskCaptor = ArgumentCaptor.forClass(RefreshCacheMetadataVersionTask.class);
         verify(taskQueue).submitTask(any(String.class), updateTaskCaptor.capture(), isNull());
-        assertEquals(updateTaskCaptor.getValue().listener, listener);
+        assertThat(updateTaskCaptor.getValue().listener, is(listener));
 
         verify(client, never()).execute(any(), any(), any());
     }
@@ -97,7 +101,7 @@ public class TrainedModelCacheMetadataServiceTests extends ESTestCase {
         }).when(client).execute(any(ActionType.class), any(FlushTrainedModelCacheAction.Request.class), any(ActionListener.class));
 
         @SuppressWarnings("unchecked")
-        final var listener = (ActionListener<AcknowledgedResponse>) mock(ActionListener.class);
+        final ActionListener<AcknowledgedResponse> listener =  mock(ActionListener.class);
         modelCacheMetadataService.refreshCacheVersion(listener);
 
         verify(client).execute(
@@ -108,6 +112,45 @@ public class TrainedModelCacheMetadataServiceTests extends ESTestCase {
         verify(listener).onResponse(eq(AcknowledgedResponse.TRUE));
 
         verify(taskQueue, never()).submitTask(any(String.class), any(RefreshCacheMetadataVersionTask.class), any(TimeValue.class));
+    }
+
+    public void testRefreshCacheMetadataVersionTaskExecution() {
+        @SuppressWarnings("unchecked")
+        final ActionListener<AcknowledgedResponse> listener = mock(ActionListener.class);
+        final RefreshCacheMetadataVersionTask task = new RefreshCacheMetadataVersionTask(listener);
+
+        final TrainedModelCacheMetadata currentCacheMetadata = new TrainedModelCacheMetadata(
+            randomValueOtherThan(Long.MAX_VALUE, () ->randomNonNegativeLong())
+        );
+
+        @SuppressWarnings("unchecked")
+        final TaskContext<CacheMetadataUpdateTask> taskContext = mock(TaskContext.class);
+        doAnswer(invocationOnMock -> {
+            invocationOnMock.getArgument(0, Runnable.class).run();
+            return null;
+        }).when(taskContext).success(any(Runnable.class));
+
+        final TrainedModelCacheMetadata updatedCacheMetadata = task.execute(currentCacheMetadata, taskContext);
+
+        // Check the version is incremented correctly
+        assertThat(updatedCacheMetadata.version(), equalTo(currentCacheMetadata.version() + 1));
+
+        // Check the task is marked as successful and the listener is called.
+        verify(taskContext).success(any(Runnable.class));
+        verify(listener).onResponse(eq(AcknowledgedResponse.TRUE));
+    }
+
+    public void testRefreshCacheMetadataVersionTaskExecutionWithMaxVersion() {
+        @SuppressWarnings("unchecked")
+        final ActionListener<AcknowledgedResponse> listener = mock(ActionListener.class);
+        final RefreshCacheMetadataVersionTask task = new RefreshCacheMetadataVersionTask(listener);
+
+        final TrainedModelCacheMetadata currentCacheMetadata = new TrainedModelCacheMetadata(Long.MAX_VALUE);
+        @SuppressWarnings("unchecked")
+        final TaskContext<CacheMetadataUpdateTask> taskContext = mock(TaskContext.class);
+        final TrainedModelCacheMetadata updatedCacheMetadata = task.execute(currentCacheMetadata, taskContext);
+
+        assertThat(updatedCacheMetadata.version(), equalTo( 1L));
     }
 
     private static Client mockClient() {

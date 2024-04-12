@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: introduced in 8.2.0
 
   - do:
@@ -90,8 +90,8 @@ setup:
 
 ---
 from tsdb to standard:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: introduced in 8.2.0
 
   - do:
@@ -126,8 +126,8 @@ from tsdb to standard:
 
 ---
 from tsdb to tsdb:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: introduced in 8.2.0
 
   - do:
@@ -170,8 +170,8 @@ from tsdb to tsdb:
 
 ---
 from standard with tsdb id to tsdb:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: introduced in 8.2.0
 
   # Populate the standard index
@@ -237,8 +237,8 @@ from standard with tsdb id to tsdb:
 
 ---
 from standard with random _id to tsdb:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: introduced in 8.2.0
 
   # Populate the standard index
@@ -304,8 +304,8 @@ from standard with random _id to tsdb:
 
 ---
 from tsdb to tsdb modifying timestamp:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: introduced in 8.2.0
 
   - do:
@@ -353,8 +353,8 @@ from tsdb to tsdb modifying timestamp:
 
 ---
 from tsdb to tsdb modifying dimension:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: introduced in 8.2.0
 
   - do:
@@ -402,10 +402,10 @@ from tsdb to tsdb modifying dimension:
 
 ---
 from tsdb to tsdb created by template while modifying dimension:
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason: introduced in 8.3.0
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       cluster.put_component_template:

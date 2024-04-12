@@ -16,6 +16,7 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.esql.version.EsqlVersion;
 
 import java.io.IOException;
 import java.util.List;
@@ -45,6 +46,7 @@ public class RestEsqlQueryAction extends BaseRestHandler {
             esqlRequest = RequestXContent.parseSync(parser);
         }
 
+        defaultVersionForOldClients(esqlRequest, request);
         LOGGER.info("Beginning execution of ESQL query.\nQuery string: [{}]", esqlRequest.query());
 
         return channel -> {
@@ -60,5 +62,23 @@ public class RestEsqlQueryAction extends BaseRestHandler {
     @Override
     protected Set<String> responseParams() {
         return Set.of(URL_PARAM_DELIMITER, EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION);
+    }
+
+    static final String CLIENT_META = "x-elastic-client-meta";
+
+    static void defaultVersionForOldClients(EsqlQueryRequest esqlRequest, RestRequest restRequest) {
+        if (esqlRequest.esqlVersion() != null) {
+            return;
+        }
+        String clientMeta = restRequest.header(CLIENT_META);
+        if (clientMeta == null) {
+            return;
+        }
+        if (clientMeta.contains("es=8.1") == false) {
+            return;
+        }
+        if (clientMeta.contains("es=8.13") || clientMeta.contains("es=8.12") || clientMeta.contains("es=8.11")) {
+            esqlRequest.esqlVersion(EsqlVersion.ROCKET.versionStringWithoutEmoji());
+        }
     }
 }

@@ -255,6 +255,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     remoteRequest,
                     // The underlying transport service may call onFailure with a thread pool other than search_coordinator.
                     // This fork is a workaround to ensure that the merging of field-caps always occurs on the search_coordinator.
+                    // TODO: remove this workaround after we fixed https://github.com/elastic/elasticsearch/issues/107439
                     new ForkingOnFailureActionListener<>(
                         searchCoordinationExecutor,
                         true,

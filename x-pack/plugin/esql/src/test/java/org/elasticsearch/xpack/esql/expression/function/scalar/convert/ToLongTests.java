@@ -129,7 +129,7 @@ public class ToLongTests extends AbstractFunctionTestCase {
         TestCaseSupplier.unary(
             suppliers,
             evaluatorName.apply("String"),
-            TestCaseSupplier.longCases(Long.MIN_VALUE, Long.MAX_VALUE)
+            TestCaseSupplier.longCases(Long.MIN_VALUE, Long.MAX_VALUE, true)
                 .stream()
                 .map(
                     tds -> new TestCaseSupplier.TypedDataSupplier(
@@ -147,7 +147,7 @@ public class ToLongTests extends AbstractFunctionTestCase {
         TestCaseSupplier.unary(
             suppliers,
             evaluatorName.apply("String"),
-            TestCaseSupplier.doubleCases(Long.MIN_VALUE, Long.MAX_VALUE)
+            TestCaseSupplier.doubleCases(Long.MIN_VALUE, Long.MAX_VALUE, true)
                 .stream()
                 .map(
                     tds -> new TestCaseSupplier.TypedDataSupplier(
@@ -165,7 +165,7 @@ public class ToLongTests extends AbstractFunctionTestCase {
         TestCaseSupplier.unary(
             suppliers,
             evaluatorName.apply("String"),
-            TestCaseSupplier.doubleCases(Double.NEGATIVE_INFINITY, Long.MIN_VALUE - 1d)
+            TestCaseSupplier.doubleCases(Double.NEGATIVE_INFINITY, Long.MIN_VALUE - 1d, true)
                 .stream()
                 .map(
                     tds -> new TestCaseSupplier.TypedDataSupplier(
@@ -188,7 +188,7 @@ public class ToLongTests extends AbstractFunctionTestCase {
         TestCaseSupplier.unary(
             suppliers,
             evaluatorName.apply("String"),
-            TestCaseSupplier.doubleCases(Long.MAX_VALUE + 1d, Double.POSITIVE_INFINITY)
+            TestCaseSupplier.doubleCases(Long.MAX_VALUE + 1d, Double.POSITIVE_INFINITY, true)
                 .stream()
                 .map(
                     tds -> new TestCaseSupplier.TypedDataSupplier(

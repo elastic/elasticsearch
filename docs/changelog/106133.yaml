@@ -1,0 +1,5 @@
+pr: 106133
+summary: Add an optimised vector distance function for aarch64
+area: Search
+type: enhancement
+issues: []

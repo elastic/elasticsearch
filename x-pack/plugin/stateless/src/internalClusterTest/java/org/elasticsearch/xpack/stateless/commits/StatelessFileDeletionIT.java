@@ -25,6 +25,7 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -49,6 +50,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportSettings;
@@ -58,6 +61,7 @@ import java.util.Collection;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -73,6 +77,8 @@ import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_C
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
+import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.HEARTBEAT_FREQUENCY;
+import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.MAX_MISSED_HEARTBEATS;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -688,6 +694,59 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         indexDocsAndFlush(indexName);
         assertAcked(indicesAdmin().delete(new DeleteIndexRequest(indexName)).actionGet());
         assertBusy(() -> { assertThat(listBlobsWithAbsolutePath(shardCommitsContainer), empty()); });
+    }
+
+    @TestLogging(
+        reason = "verifying shutdown doesn't cause warnings",
+        value = "co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService:WARN"
+    )
+    public void testDeleteIndexWhileNodeStopping() {
+        var indexNode = startMasterAndIndexNode();
+        startSearchNode();
+        var indexName = randomIdentifier();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+        startMasterAndIndexNode(Settings.builder().put(HEARTBEAT_FREQUENCY.getKey(), "1s").put(MAX_MISSED_HEARTBEATS.getKey(), 1).build());
+
+        indexDocsAndFlush(indexName);
+
+        final var startBarrier = new CyclicBarrier(3);
+
+        final var deleteThread = new Thread(() -> {
+            safeAwait(startBarrier);
+            indexDocsAndFlush(indexName);
+        });
+
+        final var doForceMerge = randomBoolean();
+        final var forceMergeThread = new Thread(() -> {
+            safeAwait(startBarrier);
+            if (doForceMerge) {
+                indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
+            }
+        });
+
+        MockLogAppender.assertThatLogger(() -> {
+            try {
+                deleteThread.start();
+                forceMergeThread.start();
+                safeAwait(startBarrier);
+                internalCluster().stopNode(indexNode);
+                deleteThread.join();
+                forceMergeThread.join();
+            } catch (Exception e) {
+                fail(e);
+            }
+        },
+            ObjectStoreService.class,
+            new MockLogAppender.UnseenEventExpectation(
+                "warnings",
+                ObjectStoreService.class.getCanonicalName(),
+                Level.WARN,
+                "exception while attempting to delete blob files*"
+            )
+        );
+
+        // no assertions really, just checking that this doesn't trip anything in ObjectStoreService; we can do more when ES-7400 is done.
     }
 
     public void testDeleteIndexAfterRecovery() throws Exception {

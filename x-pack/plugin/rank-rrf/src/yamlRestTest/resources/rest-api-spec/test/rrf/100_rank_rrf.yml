@@ -206,7 +206,7 @@ setup:
 
 
 ---
-"Simple rank with bm25, knn and pagination":
+"Simple rank with bm25, knn and pagination - within rank_window_size":
   - skip:
       version: ' - 8.13.99'
       reason: 'pagination support for rank added in 8.14'
@@ -226,7 +226,7 @@ setup:
               keyword: keyword
           rank:
             rrf:
-              rank_window_size: 1
+              rank_window_size: 3
               rank_constant: 1
           from : 2
           size : 1
@@ -239,7 +239,7 @@ setup:
   - match: { hits.hits.0.fields.keyword.0: "other" }
 
 ---
-"Simple rank with sub-searches and pagination":
+"Simple rank with sub-searches and pagination within rank_window_size":
   - skip:
       version: ' - 8.13.99'
       reason: 'pagination support for rank added in 8.14'
@@ -267,7 +267,7 @@ setup:
           ]
           rank:
             rrf:
-              rank_window_size: 1
+              rank_window_size: 2
               rank_constant: 1
           from : 1
           size : 1
@@ -279,7 +279,7 @@ setup:
   - match: { hits.hits.0.fields.keyword.0: "aardvark" }
 
 ---
-"Simple rank with sub-searches and pagination - no results if outside range":
+"Simple rank with sub-searches and pagination - no results if outside rank_window_size":
   - skip:
       version: ' - 8.13.99'
       reason: 'pagination support for rank added in 8.14'

@@ -151,3 +151,19 @@ required_feature: esql.casting_operator
 10093          |10093          |175392000000   |1964-06-11T00:00:00.000Z
 10095          |10095          |157593600000   |1965-01-03T00:00:00.000Z
 ;
+
+convertWithBoolExpressionAndQualifiedName
+required_feature: esql.casting_operator
+ FROM employees
+| EVAL neg = (NOT still_hired)::str, sf = ROUND(height.scaled_float::dbl, 2)
+| KEEP emp_no, still_hired, neg, sf
+| SORT emp_no
+| WHERE neg == "false"
+| LIMIT 3
+;
+
+ emp_no:integer| still_hired:boolean | neg:keyword   | sf:double
+10001          |true                 |false          |2.03
+10002          |true                 |false          |2.08
+10004          |true                 |false          |1.78
+;

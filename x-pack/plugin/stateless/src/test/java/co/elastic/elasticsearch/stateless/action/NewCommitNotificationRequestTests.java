@@ -34,6 +34,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.NEW_COMMIT_NOTIFICATION_WITH_BCC_INFO;
 import static org.hamcrest.Matchers.allOf;
@@ -82,7 +83,8 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
                         newCcTermAndGen.primaryTerm(),
                         compoundCommit.nodeEphemeralId(),
                         compoundCommit.commitFiles(),
-                        compoundCommit.sizeInBytes()
+                        compoundCommit.sizeInBytes(),
+                        compoundCommit.internalFiles()
                     ),
                     newCcTermAndGen.generation(),
                     instance.getLatestUploadedBatchedCompoundCommitTermAndGen()
@@ -127,7 +129,8 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
             primaryTerm,
             randomUUID(),
             Map.of(),
-            randomLongBetween(10, 100)
+            randomLongBetween(10, 100),
+            Set.of()
         );
 
         final var request1 = new NewCommitNotificationRequest(
@@ -198,7 +201,8 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
                 primaryTerm,
                 randomUUID(),
                 Map.of(),
-                randomLongBetween(10, 100)
+                randomLongBetween(10, 100),
+                Set.of()
             ),
             bccGeneration,
             randomFrom(
@@ -221,7 +225,8 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
                 primaryTerm,
                 randomUUID(),
                 Map.of(),
-                randomLongBetween(10, 100)
+                randomLongBetween(10, 100),
+                Set.of()
             ),
             generation,
             new PrimaryTermAndGeneration(primaryTerm, generation)

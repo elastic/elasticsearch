@@ -77,10 +77,10 @@ public class FsBlobContainer extends AbstractBlobContainer {
     private static final Logger logger = LogManager.getLogger(FsBlobContainer.class);
 
     private static final String TEMP_FILE_PREFIX = "pending-";
+    private static final KeyedLock<String> FILE_LOCKS = new KeyedLock<>();
 
     protected final FsBlobStore blobStore;
     protected final Path path;
-    private final KeyedLock<String> fileLocks = new KeyedLock<>();
 
     public FsBlobContainer(FsBlobStore blobStore, BlobPath blobPath, Path path) {
         super(blobPath);
@@ -401,7 +401,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         ActionListener.completeWith(listener, () -> {
             BlobContainerUtils.ensureValidRegisterContent(updated);
             try (
-                Releasable fileLock = fileLocks.acquire(key);
+                Releasable fileLock = FILE_LOCKS.acquire(key);
                 LockedFileChannel lockedFileChannel = LockedFileChannel.open(path.resolve(key))
             ) {
                 final FileChannel fileChannel = lockedFileChannel.fileChannel();

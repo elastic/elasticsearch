@@ -1179,6 +1179,10 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(1, measurement.attributes().size());
             assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "failed", "missing_docs")));
         }
+        List<Measurement> shardActionMeasurements = plugin.getLongCounterMeasurement(DownsampleMetrics.ACTIONS_SHARD);
+        assertThat(shardActionMeasurements.size(), greaterThanOrEqualTo(1));
+        assertThat(shardActionMeasurements.get(0).getLong(), equalTo(1L));
+        assertThat(shardActionMeasurements.get(0).attributes().get("status"), Matchers.in(List.of("success", "failed", "missing_docs")));
 
         // Total latency and counters are recorded after reindex and force-merge complete.
         assertBusy(() -> {
@@ -1193,9 +1197,10 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 assertThat(measurement.attributes().get("status"), Matchers.in(List.of("success", "invalid_configuration", "failed")));
             }
 
-            List<Measurement> successMeasurements = plugin.getLongCounterMeasurement(DownsampleMetrics.SUCCESS);
-            assertThat(successMeasurements.size(), greaterThanOrEqualTo(1));
-            assertThat(successMeasurements.get(0).getLong(), equalTo(1L));
+            List<Measurement> actionMeasurements = plugin.getLongCounterMeasurement(DownsampleMetrics.ACTIONS);
+            assertThat(actionMeasurements.size(), greaterThanOrEqualTo(1));
+            assertThat(actionMeasurements.get(0).getLong(), equalTo(1L));
+            assertThat(actionMeasurements.get(0).attributes().get("status"), Matchers.in(List.of("success", "invalid_configuration", "failed")));
         }, 10, TimeUnit.SECONDS);
     }
 

@@ -180,22 +180,19 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     }
 
     private void recordSuccessMetrics(long startTime) {
-        recordLatency(startTime, DownsampleMetrics.ActionStatus.SUCCESS);
-        downsampleMetrics.recordSuccess();
+        recordOperation(startTime, DownsampleMetrics.ActionStatus.SUCCESS);
     }
 
     private void recordFailureMetrics(long startTime) {
-        recordLatency(startTime, DownsampleMetrics.ActionStatus.FAILED);
-        downsampleMetrics.recordFailure();
+        recordOperation(startTime, DownsampleMetrics.ActionStatus.FAILED);
     }
 
     private void recordInvalidConfigurationMetrics(long startTime) {
-        recordLatency(startTime, DownsampleMetrics.ActionStatus.INVALID_CONFIGURATION);
-        downsampleMetrics.recordInvalidConfiguration();
+        recordOperation(startTime, DownsampleMetrics.ActionStatus.INVALID_CONFIGURATION);
     }
 
-    private void recordLatency(long startTime, DownsampleMetrics.ActionStatus status) {
-        downsampleMetrics.recordLatencyTotal(
+    private void recordOperation(long startTime, DownsampleMetrics.ActionStatus status) {
+        downsampleMetrics.recordOperation(
             TimeValue.timeValueMillis(client.threadPool().relativeTimeInMillis() - startTime).getMillis(),
             status
         );

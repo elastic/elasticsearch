@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -103,6 +104,12 @@ public class FilteringValidationInfo implements Writeable, ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(validationErrors, validationState);
+    }
+
+    public static FilteringValidationInfo getInitialDraftValidationInfo() {
+        return new FilteringValidationInfo.Builder().setValidationErrors(Collections.emptyList())
+            .setValidationState(FilteringValidationState.EDITED)
+            .build();
     }
 
     public static class Builder {

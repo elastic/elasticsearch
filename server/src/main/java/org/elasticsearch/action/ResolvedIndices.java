@@ -35,7 +35,7 @@ public class ResolvedIndices {
     private final OriginalIndices localIndices;
     private final Map<Index, IndexMetadata> localIndexMetadata;
 
-    private ResolvedIndices(
+    ResolvedIndices(
         Map<String, OriginalIndices> remoteClusterIndices,
         @Nullable OriginalIndices localIndices,
         Map<Index, IndexMetadata> localIndexMetadata,
@@ -47,7 +47,7 @@ public class ResolvedIndices {
         this.searchContextId = searchContextId;
     }
 
-    private ResolvedIndices(
+    ResolvedIndices(
         Map<String, OriginalIndices> remoteClusterIndices,
         @Nullable OriginalIndices localIndices,
         Map<Index, IndexMetadata> localIndexMetadata

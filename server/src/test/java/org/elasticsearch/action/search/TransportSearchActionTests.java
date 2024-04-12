@@ -16,6 +16,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.OriginalIndicesTests;
 import org.elasticsearch.action.ResolvedIndices;
@@ -155,10 +156,7 @@ public class TransportSearchActionTests extends ESTestCase {
         OriginalIndices localIndices,
         Map<String, OriginalIndices> remoteIndicesByCluster
     ) {
-        ResolvedIndices mockResolvedIndices = mock(ResolvedIndices.class);
-        when(mockResolvedIndices.getLocalIndices()).thenReturn(localIndices);
-        when(mockResolvedIndices.getRemoteClusterIndices()).thenReturn(remoteIndicesByCluster);
-        return mockResolvedIndices;
+        return new MockResolvedIndices(remoteIndicesByCluster, localIndices, Map.of());
     }
 
     public void testMergeShardsIterators() {

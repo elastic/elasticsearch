@@ -14,6 +14,7 @@ import com.carrotsearch.randomizedtesting.SeedUtils;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -109,8 +110,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public abstract class AbstractBuilderTestCase extends ESTestCase {
 
@@ -648,14 +647,11 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         }
 
         private ResolvedIndices createMockResolvedIndices() {
-            ResolvedIndices resolvedIndices = mock(ResolvedIndices.class);
-            when(resolvedIndices.getRemoteClusterIndices()).thenReturn(Map.of());
-            when(resolvedIndices.getLocalIndices()).thenReturn(
-                new OriginalIndices(new String[] { index.getName() }, IndicesOptions.DEFAULT)
+            return new MockResolvedIndices(
+                Map.of(),
+                new OriginalIndices(new String[] { index.getName() }, IndicesOptions.DEFAULT),
+                Map.of(index, indexMetadata)
             );
-            when(resolvedIndices.getConcreteLocalIndicesMetadata()).thenReturn(Map.of(index, indexMetadata));
-            when(resolvedIndices.getConcreteLocalIndices()).thenReturn(new Index[] { index });
-            return resolvedIndices;
         }
     }
 }

@@ -73,6 +73,8 @@ public abstract class DocSnippetTask extends DefaultTask {
     private SnippetParser parserForFileType(File docFile) {
         if (docFile.getName().endsWith(".asciidoc")) {
             return new AsciidocSnippetParser(defaultSubstitutions);
+        } else if (docFile.getName().endsWith(".mdx")) {
+            return new MdxSnippetParser(defaultSubstitutions);
         }
         throw new InvalidUserDataException("Unsupported file type: " + docFile.getName());
     }

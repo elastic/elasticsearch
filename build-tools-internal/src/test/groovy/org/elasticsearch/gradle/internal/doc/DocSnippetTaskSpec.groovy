@@ -14,6 +14,7 @@ import spock.lang.TempDir
 import org.gradle.api.InvalidUserDataException
 import org.gradle.testfixtures.ProjectBuilder
 
+import static DocTestUtils.SAMPLE_TEST_DOCS
 import static org.elasticsearch.gradle.internal.test.TestUtils.normalizeString
 
 class DocSnippetTaskSpec extends Specification {
@@ -29,6 +30,7 @@ class DocSnippetTaskSpec extends Specification {
         def substitutions = []
         def snippets = task.parseDocFile(
             tempDir, docFile(
+            "mapping-charfilter.asciidoc",
             """
 [[mapper-annotated-text]]
 === Mapper annotated text plugin
@@ -364,6 +366,7 @@ but with the following exceptions:
         def substitutions = []
         def snippets = task().parseDocFile(
             tempDir, docFile(
+            "mapping-charfilter.asciidoc",
             """
 [source,console]
 ----
@@ -384,6 +387,7 @@ POST logs-my_app-default/_rollover/
         substitutions = []
         snippets = task().parseDocFile(
             tempDir, docFile(
+            "mapping-charfilter.asciidoc",
             """
 
 [source,console]
@@ -412,6 +416,7 @@ PUT _snapshot/my_hdfs_repository
         def substitutions = []
         def snippets = task().parseDocFile(
             tempDir, docFile(
+            "mapping-charfilter.asciidoc",
             """
 [source,console]
 ----
@@ -432,6 +437,7 @@ POST logs-my_app-default/_rollover/
         when:
         snippets = task().parseDocFile(
             tempDir, docFile(
+            "mapping-charfilter.asciidoc",
             """
 [source,console]
 ----
@@ -450,6 +456,7 @@ POST logs-my_app-default/_rollover/
         substitutions = []
         snippets = task().parseDocFile(
             tempDir, docFile(
+            "mapping-charfilter.asciidoc",
             """
 [source,txt]
 ---------------------------------------------------------------------------
@@ -470,6 +477,7 @@ my-index-000001 0 p RELOCATING 3014 31.1mb 192.168.56.10 H5dfFeA -> -> 192.168.5
         when:
         def snippets = task().parseDocFile(
             tempDir, docFile(
+            "mapping-charfilter.asciidoc",
             """
 [source,console]
 ----
@@ -486,6 +494,7 @@ my-index-000001 0 p RELOCATING 3014 31.1mb 192.168.56.10 H5dfFeA -> -> 192.168.5
         when:
         task().parseDocFile(
             tempDir, docFile(
+            "mapping-charfilter.asciidoc",
             """
 [source,console]
 ----
@@ -502,6 +511,7 @@ my-index-000001 0 p RELOCATING 3014 31.1mb 192.168.56.10 H5dfFeA -> -> 192.168.5
         when:
         task().parseDocFile(
             tempDir, docFile(
+            "mapping-charfilter.asciidoc",
             """
 // $firstToken
 // $secondToken
@@ -519,6 +529,7 @@ my-index-000001 0 p RELOCATING 3014 31.1mb 192.168.56.10 H5dfFeA -> -> 192.168.5
 
     def "test parsing snippet from doc"() {
         def doc = docFile(
+            "mapping-charfilter.asciidoc",
             """
 [source,console]
 ----
@@ -565,8 +576,36 @@ GET /_analyze
 }"""
     }
 
-    File docFile(String docContent) {
-        def file = tempDir.toPath().resolve("mapping-charfilter.asciidoc").toFile()
+    def "can parse mdx and asciidoc"() {
+        def mdx = docFile(
+            "painless-field-context.mdx", SAMPLE_TEST_DOCS["painless-field-context.mdx"]
+        )
+        def asciiDoc = docFile(
+            "painless-field-context.asciidoc", SAMPLE_TEST_DOCS["painless-field-context.asciidoc"]
+        )
+        def asciidocSnippets = task().parseDocFile(tempDir, asciiDoc, [])
+
+        expect:
+        asciidocSnippets.size() == 4
+        asciidocSnippets[0].start == 45
+        asciidocSnippets[0].language == "Painless"
+        normalizeString(asciidocSnippets[0].contents, tempDir) ==
+            "doc['datetime'].value.getDayOfWeekEnum().getDisplayName(TextStyle.FULL, Locale.ROOT)"
+
+        when:
+        def mdxSnippets = task().parseDocFile(tempDir, mdx, [])
+        then:
+        mdxSnippets.size() == 4
+        mdxSnippets[0].start == 49
+        mdxSnippets[0].language == "Painless"
+        normalizeString(mdxSnippets[0].contents, tempDir) ==
+            "doc['datetime'].value.getDayOfWeekEnum().getDisplayName(TextStyle.FULL, Locale.ROOT)"
+
+        assertSnippetsEqual(normalizeSnippets(asciidocSnippets), normalizeSnippets(mdxSnippets))
+    }
+
+    File docFile(String filename, String docContent) {
+        def file = tempDir.toPath().resolve(filename).toFile()
         file.text = docContent
         return file
     }
@@ -574,6 +613,25 @@ GET /_analyze
 
     private DocSnippetTask task() {
         ProjectBuilder.builder().build().tasks.register("docSnippetTask", DocSnippetTask).get()
+    }
+
+    boolean assertSnippetsEqual(List<Snippet> snippets1, List<Snippet> snippets2) {
+        assert snippets1.size() == snippets2.size()
+        assert snippets1 == snippets2
+        true
+    }
+
+    List<Snippet> normalizeSnippets(List<Snippet> snippets) {
+        return snippets.collect { Snippet s ->
+            s.setStart(0)
+            s.setEnd(10)
+            s.setName(s.getName() ? s.getName() - "ascidocc" : null)
+            def orgPath = s.getPath()
+            def fileName = orgPath.fileName.toString() - ".asciidoc" - ".mdx" + ".xdoc";
+            def normalizedPath = orgPath.parent == null ? new File(fileName).toPath() : orgPath.parent.resolve(fileName)
+            s.setPath(normalizedPath)
+            return s
+        }
     }
 
 }

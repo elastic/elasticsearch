@@ -223,35 +223,35 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
          */
         public void handleSnippet(Snippet snippet) {
             if (snippet.isConsoleCandidate()) {
-                unconvertedCandidates.add(snippet.path.toString().replace('\\', '/'));
+                unconvertedCandidates.add(snippet.getPath().toString().replace('\\', '/'));
             }
-            if (BAD_LANGUAGES.contains(snippet.language)) {
-                throw new InvalidUserDataException(snippet + ": Use `js` instead of `" + snippet.language + "`.");
+            if (BAD_LANGUAGES.contains(snippet.getLanguage())) {
+                throw new InvalidUserDataException(snippet + ": Use `js` instead of `" + snippet.getLanguage() + "`.");
             }
-            if (snippet.testSetup) {
+            if (snippet.isTestSetup()) {
                 testSetup(snippet);
                 previousTest = snippet;
                 return;
             }
-            if (snippet.testTearDown) {
+            if (snippet.isTestTearDown()) {
                 testTearDown(snippet);
                 previousTest = snippet;
                 return;
             }
-            if (snippet.testResponse || snippet.language.equals("console-result")) {
+            if (snippet.isTestResponse() || snippet.getLanguage().equals("console-result")) {
                 if (previousTest == null) {
                     throw new InvalidUserDataException(snippet + ": No paired previous test");
                 }
-                if (previousTest.path.equals(snippet.path) == false) {
+                if (previousTest.getPath().equals(snippet.getPath()) == false) {
                     throw new InvalidUserDataException(snippet + ": Result can't be first in file");
                 }
                 response(snippet);
                 return;
             }
-            if (("js".equals(snippet.language)) && snippet.console != null && snippet.console) {
+            if (("js".equals(snippet.getLanguage())) && snippet.getConsole() != null && snippet.getConsole()) {
                 throw new InvalidUserDataException(snippet + ": Use `[source,console]` instead of `// CONSOLE`.");
             }
-            if (snippet.test || snippet.language.equals("console")) {
+            if (snippet.isTest() || snippet.getLanguage().equals("console")) {
                 test(snippet);
                 previousTest = snippet;
                 return;
@@ -262,27 +262,27 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
         private void test(Snippet test) {
             setupCurrent(test);
 
-            if (test.continued) {
+            if (test.isContinued()) {
                 /* Catch some difficult to debug errors with // TEST[continued]
                  * and throw a helpful error message. */
-                if (previousTest == null || previousTest.path.equals(test.path) == false) {
+                if (previousTest == null || previousTest.getPath().equals(test.getPath()) == false) {
                     throw new InvalidUserDataException("// TEST[continued] " + "cannot be on first snippet in a file: " + test);
                 }
-                if (previousTest != null && previousTest.testSetup) {
+                if (previousTest != null && previousTest.isTestSetup()) {
                     throw new InvalidUserDataException("// TEST[continued] " + "cannot immediately follow // TESTSETUP: " + test);
                 }
-                if (previousTest != null && previousTest.testTearDown) {
+                if (previousTest != null && previousTest.isTestSetup()) {
                     throw new InvalidUserDataException("// TEST[continued] " + "cannot immediately follow // TEARDOWN: " + test);
                 }
             } else {
                 current.println("---");
-                if (test.name != null && test.name.isBlank() == false) {
-                    if (names.add(test.name) == false) {
-                        throw new InvalidUserDataException("Duplicated snippet name '" + test.name + "': " + test);
+                if (test.getName() != null && test.getName().isBlank() == false) {
+                    if (names.add(test.getName()) == false) {
+                        throw new InvalidUserDataException("Duplicated snippet name '" + test.getName() + "': " + test);
                     }
-                    current.println("\"" + test.name + "\":");
+                    current.println("\"" + test.getName() + "\":");
                 } else {
-                    current.println("\"line_" + test.start + "\":");
+                    current.println("\"line_" + test.getStart() + "\":");
                 }
                 /* The Elasticsearch test runner doesn't support quite a few
                  * constructs unless we output this skip. We don't know if
@@ -296,35 +296,35 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
                 current.println("        - stash_path_replace");
                 current.println("        - warnings");
             }
-            if (test.skip != null) {
-                if (test.continued) {
+            if (test.getSkip() != null) {
+                if (test.isContinued()) {
                     throw new InvalidUserDataException("Continued snippets " + "can't be skipped");
                 }
                 current.println("        - always_skip");
-                current.println("      reason: " + test.skip);
+                current.println("      reason: " + test.getSkip());
             }
-            if (test.setup != null) {
+            if (test.getSetup() != null) {
                 setup(test);
             }
 
             body(test, false);
 
-            if (test.teardown != null) {
+            if (test.getTeardown() != null) {
                 teardown(test);
             }
         }
 
         private void response(Snippet response) {
-            if (null == response.skip) {
+            if (null == response.getSkip()) {
                 current.println("  - match:");
                 current.println("      $body:");
-                replaceBlockQuote(response.contents).lines().forEach(line -> current.println("        " + line));
+                replaceBlockQuote(response.getContents()).lines().forEach(line -> current.println("        " + line));
             }
         }
 
         private void teardown(final Snippet snippet) {
             // insert a teardown defined outside of the docs
-            for (final String name : snippet.teardown.split(",")) {
+            for (final String name : snippet.getTeardown().split(",")) {
                 final String teardown = teardowns.get(name);
                 if (teardown == null) {
                     throw new InvalidUserDataException("Couldn't find named teardown $name for " + snippet);
@@ -335,7 +335,7 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
         }
 
         private void testTearDown(Snippet snippet) {
-            if (previousTest != null && previousTest.testSetup == false && lastDocsPath == snippet.path) {
+            if (previousTest != null && previousTest.isTestSetup() == false && lastDocsPath.equals(snippet.getPath())) {
                 throw new InvalidUserDataException(snippet + " must follow test setup or be first");
             }
             setupCurrent(snippet);
@@ -411,7 +411,7 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
         }
 
         private void body(Snippet snippet, boolean inSetup) {
-            ParsingUtils.parse(snippet.getLocation(), snippet.contents, SYNTAX, (matcher, last) -> {
+            ParsingUtils.parse(snippet.getLocation(), snippet.getContents(), SYNTAX, (matcher, last) -> {
                 if (matcher.group("comment") != null) {
                     // Comment
                     return;
@@ -424,27 +424,27 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
                 String method = matcher.group("method");
                 String pathAndQuery = matcher.group("pathAndQuery");
                 String body = matcher.group("body");
-                String catchPart = last ? snippet.catchPart : null;
+                String catchPart = last ? snippet.getCatchPart() : null;
                 if (pathAndQuery.startsWith("/")) {
                     // Leading '/'s break the generated paths
                     pathAndQuery = pathAndQuery.substring(1);
                 }
-                emitDo(method, pathAndQuery, body, catchPart, snippet.warnings, inSetup, snippet.skipShardsFailures);
+                emitDo(method, pathAndQuery, body, catchPart, snippet.getWarnings(), inSetup, snippet.skipShardsFailures);
             });
 
         }
 
         private PrintWriter setupCurrent(Snippet test) {
-            if (test.path.equals(lastDocsPath)) {
+            if (test.getPath().equals(lastDocsPath)) {
                 return current;
             }
             names.clear();
             finishLastTest();
-            lastDocsPath = test.path;
+            lastDocsPath = test.getPath();
 
             // Make the destination file:
             // Shift the path into the destination directory tree
-            Path dest = getOutputRoot().toPath().resolve(test.path);
+            Path dest = getOutputRoot().toPath().resolve(test.getPath());
             // Replace the extension
             String fileName = dest.getName(dest.getNameCount() - 1).toString();
             dest = dest.getParent().resolve(fileName.replace(".asciidoc", ".yml"));
@@ -460,7 +460,7 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
         }
 
         private void testSetup(Snippet snippet) {
-            if (lastDocsPath == snippet.path) {
+            if (lastDocsPath == snippet.getPath()) {
                 throw new InvalidUserDataException(
                     snippet + ": wasn't first. TESTSETUP can only be used in the first snippet of a document."
                 );
@@ -468,7 +468,7 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
             setupCurrent(snippet);
             current.println("---");
             current.println("setup:");
-            if (snippet.setup != null) {
+            if (snippet.getSetup() != null) {
                 setup(snippet);
             }
             body(snippet, true);
@@ -476,7 +476,7 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
 
         private void setup(final Snippet snippet) {
             // insert a setup defined outside of the docs
-            for (final String name : snippet.setup.split(",")) {
+            for (final String name : snippet.getSetup().split(",")) {
                 final String setup = setups.get(name);
                 if (setup == null) {
                     throw new InvalidUserDataException("Couldn't find named setup " + name + " for " + snippet);

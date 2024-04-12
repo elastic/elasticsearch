@@ -56,7 +56,7 @@ class RestTestsFromDocSnippetTaskSpec extends Specification {
         shouldAddShardFailureCheck("_ml/datafeeds/datafeed-id/_preview") == false
     }
 
-    def "can create rest tests from docs"() {
+    def "can create rest tests from asciidoc docs"() {
         def build = ProjectBuilder.builder().build()
         given:
         def task = build.tasks.create("restTestFromSnippet", RestTestsFromDocSnippetTask)
@@ -206,9 +206,12 @@ class RestTestsFromDocSnippetTaskSpec extends Specification {
          ---------------/+---------------/+---------------/+------------------------/s*
          Dan /s+Simmons    /s+/|Hyperion       /s+/|482            /s+/|1989-05-26T00:00:00.000Z/s*
          Frank /s+Herbert  /s+/|Dune           /s+/|604            /s+/|1965-06-01T00:00:00.000Z/s*/"""
-    def restSpec4 = new File(task.testRoot.get().getAsFile(), "rest-api-spec/test/reference/security/authorization/run-as-privilege.yml")
-    restSpec4.exists()
-    normalizeString(restSpec4.text, tempDir) == """---
+        def restSpec4 = new File(
+            task.testRoot.get().getAsFile(),
+            "rest-api-spec/test/reference/security/authorization/run-as-privilege.yml"
+        )
+        restSpec4.exists()
+        normalizeString(restSpec4.text, tempDir) == """---
 "line_51":
   - skip:
       features:
@@ -352,7 +355,41 @@ class RestTestsFromDocSnippetTaskSpec extends Specification {
             "metadata": { "innovation" : 8}
           }
   - is_false: _shards.failures"""
-}
+    }
+
+    def "can generate tests files from asciidoc and mdx"() {
+        given:
+        def build = ProjectBuilder.builder().build()
+        def task = build.tasks.register("restTestFromSnippet", RestTestsFromDocSnippetTask).get()
+        task.expectedUnconvertedCandidates = []
+        task.docs = build.fileTree(new File(tempDir, "docs"))
+        task.testRoot.convention(build.getLayout().buildDirectory.dir("rest-tests"));
+        docFile('docs/painless-field-context-asciidoc.asciidoc', DocTestUtils.SAMPLE_TEST_DOCS['painless-field-context.asciidoc'])
+        docFile('docs/painless-field-context-mdx.mdx', DocTestUtils.SAMPLE_TEST_DOCS['painless-field-context.mdx'])
+        task.getSetups().put(
+            "seats", """
+'''
+  - do:
+        indices.create:
+          index: seats
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                theatre:
+                  type: keyword
+"""
+        )
+        when:
+        task.getActions().forEach { it.execute(task) }
+
+        then:
+        def restSpecFromAsciidoc = new File(task.getTestRoot().get().getAsFile(), "rest-api-spec/test/painless-field-context-asciidoc.yml")
+        def restSpecFromMdx = new File(task.getTestRoot().get().getAsFile(), "rest-api-spec/test/painless-field-context-mdx.mdx")
+        normalizeRestSpec(restSpecFromAsciidoc.text) == normalizeRestSpec(restSpecFromMdx.text)
+    }
 
     File docFile(String fileName, String docContent) {
         def file = tempDir.toPath().resolve(fileName).toFile()
@@ -829,5 +866,10 @@ that realm. If the two users are in different realms, the values for
 """
         )
 
+    }
+
+    String normalizeRestSpec(String inputString) {
+        def withNormalizedLines = inputString.replaceAll(/"line_\d+":/, "\"line_0\":")
+        return withNormalizedLines
     }
 }

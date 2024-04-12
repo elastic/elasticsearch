@@ -43,7 +43,7 @@ public class RestEsqlAsyncQueryAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         EsqlQueryRequest esqlRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            esqlRequest = EsqlQueryRequest.fromXContentAsync(parser);
+            esqlRequest = RequestXContent.parseAsync(parser);
         }
 
         LOGGER.info("Beginning execution of ESQL async query.\nQuery string: [{}]", esqlRequest.query());

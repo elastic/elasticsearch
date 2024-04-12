@@ -63,7 +63,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
@@ -85,7 +84,6 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
@@ -482,14 +480,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         Engine.Result result = targetShard.applyIndexOperationOnPrimary(
                             Versions.MATCH_ANY,
                             VersionType.INTERNAL,
-                            new SourceToParse(
-                                id,
-                                source,
-                                XContentHelper.xContentType(source),
-                                rootFieldsVisitor.routing(),
-                                Map.of(),
-                                DocumentSizeObserver.EMPTY_INSTANCE
-                            ),
+                            new SourceToParse(id, source, XContentHelper.xContentType(source), rootFieldsVisitor.routing()),
                             SequenceNumbers.UNASSIGNED_SEQ_NO,
                             0,
                             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,

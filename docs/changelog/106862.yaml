@@ -1,0 +1,5 @@
+pr: 106862
+summary: Extend support of `allowedFields` to `getMatchingFieldNames` and `getAllFields`
+area: "Mapping"
+type: bug
+issues: []

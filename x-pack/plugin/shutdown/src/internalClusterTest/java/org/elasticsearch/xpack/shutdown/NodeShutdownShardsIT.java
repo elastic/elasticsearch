@@ -7,15 +7,12 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -51,7 +48,6 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
      * reverting to `NOT_STARTED` (this was a bug in the initial implementation).
      */
     public void testShardStatusStaysCompleteAfterNodeLeaves() throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.current().isSnapshot());
         final String nodeToRestartName = internalCluster().startNode();
         final String nodeToRestartId = getNodeId(nodeToRestartName);
         internalCluster().startNode();
@@ -70,9 +66,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
      * Similar to the previous test, but ensures that the status stays at `COMPLETE` when the node is offline when the shutdown is
      * registered. This may happen if {@link NodeSeenService} isn't working as expected.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76689")
     public void testShardStatusStaysCompleteAfterNodeLeavesIfRegisteredWhileNodeOffline() throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.current().isSnapshot());
         final String nodeToRestartName = internalCluster().startNode();
         final String nodeToRestartId = getNodeId(nodeToRestartName);
         internalCluster().startNode();
@@ -92,7 +86,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         NodesInfoResponse nodes = clusterAdmin().prepareNodesInfo().clear().get();
         assertThat(nodes.getNodes().size(), equalTo(1));
 
-        assertNodeShutdownStatus(nodeToRestartId, COMPLETE);
+        assertBusy(() -> { assertNodeShutdownStatus(nodeToRestartId, COMPLETE); });
     }
 
     /**
@@ -100,7 +94,6 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
      * (this was a bug in the initial implementation).
      */
     public void testShardStatusIsCompleteOnNonDataNodes() throws Exception {
-        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.current().isSnapshot());
         final String nodeToShutDownName = internalCluster().startMasterOnlyNode();
         internalCluster().startMasterOnlyNode(); // Just to have at least one other node
         final String nodeToRestartId = getNodeId(nodeToShutDownName);
@@ -459,17 +452,6 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
                     Strings.format("could not find a primary shard of index [%s] in list of started shards [%s]", indexName, startedShards)
                 )
             );
-    }
-
-    private String getNodeId(String nodeName) {
-        NodesInfoResponse nodes = clusterAdmin().prepareNodesInfo().clear().get();
-        return nodes.getNodes()
-            .stream()
-            .map(NodeInfo::getNode)
-            .filter(node -> node.getName().equals(nodeName))
-            .map(DiscoveryNode::getId)
-            .findFirst()
-            .orElseThrow();
     }
 
     private void putNodeShutdown(String nodeId, SingleNodeShutdownMetadata.Type type, String nodeReplacementName) throws Exception {

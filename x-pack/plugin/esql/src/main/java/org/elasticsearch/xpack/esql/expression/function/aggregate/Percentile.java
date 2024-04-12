@@ -36,7 +36,7 @@ public class Percentile extends NumericAggregate {
     )
     public Percentile(
         Source source,
-        @Param(name = "field", type = { "double", "integer", "long" }) Expression field,
+        @Param(name = "number", type = { "double", "integer", "long" }) Expression field,
         @Param(name = "percentile", type = { "double", "integer", "long" }) Expression percentile
     ) {
         super(source, field, List.of(percentile));

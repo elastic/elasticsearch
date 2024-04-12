@@ -21,7 +21,9 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
@@ -1116,36 +1118,36 @@ public class AnalyzerTests extends ESTestCase {
     public void testDateTruncOnInt() {
         verifyUnsupported("""
             from test
-            | eval date_trunc("1M", int)
-            """, "first argument of [date_trunc(\"1M\", int)] must be [datetime], found value [int] type [integer]");
+            | eval date_trunc(1 month, int)
+            """, "second argument of [date_trunc(1 month, int)] must be [datetime], found value [int] type [integer]");
     }
 
     public void testDateTruncOnFloat() {
         verifyUnsupported("""
             from test
-            | eval date_trunc("1M", float)
-            """, "first argument of [date_trunc(\"1M\", float)] must be [datetime], found value [float] type [double]");
+            | eval date_trunc(1 month, float)
+            """, "second argument of [date_trunc(1 month, float)] must be [datetime], found value [float] type [double]");
     }
 
     public void testDateTruncOnText() {
         verifyUnsupported("""
             from test
-            | eval date_trunc("1M", keyword)
-            """, "first argument of [date_trunc(\"1M\", keyword)] must be [datetime], found value [keyword] type [keyword]");
+            | eval date_trunc(1 month, keyword)
+            """, "second argument of [date_trunc(1 month, keyword)] must be [datetime], found value [keyword] type [keyword]");
     }
 
     public void testDateTruncWithNumericInterval() {
         verifyUnsupported("""
             from test
             | eval date_trunc(1, date)
-            """, "second argument of [date_trunc(1, date)] must be [dateperiod or timeduration], found value [1] type [integer]");
+            """, "first argument of [date_trunc(1, date)] must be [dateperiod or timeduration], found value [1] type [integer]");
     }
 
     public void testDateTruncWithDateInterval() {
         verifyUnsupported("""
             from test
             | eval date_trunc(date, date)
-            """, "second argument of [date_trunc(date, date)] must be [dateperiod or timeduration], found value [date] type [datetime]");
+            """, "first argument of [date_trunc(date, date)] must be [dateperiod or timeduration], found value [date] type [datetime]");
     }
 
     // check field declaration is validated even across duplicated declarations
@@ -1177,9 +1179,14 @@ public class AnalyzerTests extends ESTestCase {
         var order = as(limit.child(), OrderBy.class);
         var agg = as(order.child(), Aggregate.class);
         var aggregates = agg.aggregates();
-        assertThat(aggregates, hasSize(2));
-        assertThat(Expressions.names(aggregates), contains("x", "b"));
+        var output = agg.output();
+        assertThat(output, hasSize(2));
+        assertThat(Expressions.names(output), contains("x", "b"));
         var alias = as(aggregates.get(0), Alias.class);
+        var count = as(alias.child(), Count.class);
+        alias = as(aggregates.get(1), Alias.class);
+        var min = as(alias.child(), Min.class);
+        alias = as(aggregates.get(2), Alias.class);
         var max = as(alias.child(), Max.class);
     }
 
@@ -1193,9 +1200,53 @@ public class AnalyzerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var order = as(limit.child(), OrderBy.class);
         var agg = as(order.child(), Aggregate.class);
-        var aggregates = agg.aggregates();
-        assertThat(aggregates, hasSize(1));
-        assertThat(Expressions.names(aggregates), contains("b"));
+        var output = agg.output();
+        assertThat(output, hasSize(1));
+        assertThat(Expressions.names(output), contains("b"));
+    }
+
+    /**
+     * Expects
+     * Limit[1000[INTEGER]]
+     * \_EsqlAggregate[[emp_no{f}#9 + languages{f}#12 AS emp_no + languages],[MIN(emp_no{f}#9 + languages{f}#12) AS min(emp_no + langu
+     * ages), emp_no + languages{r}#7]]
+     *   \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     */
+    public void testAggsOverGroupingKey() throws Exception {
+        var plan = analyze("""
+            from test
+            | stats min(emp_no + languages) by emp_no + languages
+            """);
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var output = agg.output();
+        assertThat(output, hasSize(2));
+        var aggs = agg.aggregates();
+        var min = as(Alias.unwrap(aggs.get(0)), Min.class);
+        assertThat(min.arguments(), hasSize(1));
+        var group = Alias.unwrap(agg.groupings().get(0));
+        assertEquals(min.arguments().get(0), group);
+    }
+
+    /**
+     * Expects
+     * Limit[1000[INTEGER]]
+     * \_EsqlAggregate[[emp_no{f}#9 + languages{f}#12 AS a],[MIN(a{r}#7) AS min(a), a{r}#7]]
+     *   \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     */
+    public void testAggsOverGroupingKeyWithAlias() throws Exception {
+        var plan = analyze("""
+            from test
+            | stats min(a) by a = emp_no + languages
+            """);
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var output = agg.output();
+        assertThat(output, hasSize(2));
+        var aggs = agg.aggregates();
+        var min = as(Alias.unwrap(aggs.get(0)), Min.class);
+        assertThat(min.arguments(), hasSize(1));
+        assertEquals(Expressions.attribute(min.arguments().get(0)), Expressions.attribute(agg.groupings().get(0)));
     }
 
     public void testAggsWithoutAgg() throws Exception {
@@ -1462,13 +1513,19 @@ public class AnalyzerTests extends ESTestCase {
     public void testEnrichWrongMatchFieldType() {
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
-            | enrich languages on languages
+            | eval x = to_boolean(languages)
+            | enrich languages on x
             | keep first_name, language_name, id
             """));
-        assertThat(
-            e.getMessage(),
-            containsString("Unsupported type [INTEGER] for enrich matching field [languages]; only KEYWORD allowed")
-        );
+        assertThat(e.getMessage(), containsString("Unsupported type [BOOLEAN] for enrich matching field [x]; only [KEYWORD,"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            FROM airports
+            | EVAL x = to_string(city_location)
+            | ENRICH city_boundaries ON x
+            | KEEP abbrev, airport, region
+            """, "airports", "mapping-airports.json"));
+        assertThat(e.getMessage(), containsString("Unsupported type [KEYWORD] for enrich matching field [x]; only [GEO_POINT,"));
     }
 
     public void testValidEnrich() {
@@ -1492,6 +1549,41 @@ public class AnalyzerTests extends ESTestCase {
             | enrich languages on x with y = language_name
             | keep first_name, y
             """, "first_name", "y");
+
+        assertProjection(analyze("""
+            FROM sample_data
+            | ENRICH client_cidr ON client_ip WITH env
+            | KEEP client_ip, env
+            """, "sample_data", "mapping-sample_data.json"), "client_ip", "env");
+
+        assertProjection(analyze("""
+            FROM employees
+            | WHERE birth_date > "1960-01-01"
+            | EVAL birth_year = DATE_EXTRACT("year", birth_date)
+            | EVAL age = 2022 - birth_year
+            | ENRICH ages_policy ON age WITH age_group = description
+            | KEEP first_name, last_name, age, age_group
+            """, "employees", "mapping-default.json"), "first_name", "last_name", "age", "age_group");
+
+        assertProjection(analyze("""
+            FROM employees
+            | ENRICH heights_policy ON height WITH height_group = description
+            | KEEP first_name, last_name, height, height_group
+            """, "employees", "mapping-default.json"), "first_name", "last_name", "height", "height_group");
+
+        assertProjection(analyze("""
+            FROM employees
+            | ENRICH decades_policy ON birth_date WITH birth_decade = decade, birth_description = description
+            | ENRICH decades_policy ON hire_date WITH hire_decade = decade
+            | KEEP first_name, last_name, birth_decade, hire_decade, birth_description
+            """, "employees", "mapping-default.json"), "first_name", "last_name", "birth_decade", "hire_decade", "birth_description");
+
+        assertProjection(analyze("""
+            FROM airports
+            | WHERE abbrev == "CPH"
+            | ENRICH city_boundaries ON city_location WITH airport, region
+            | KEEP abbrev, airport, region
+            """, "airports", "mapping-airports.json"), "abbrev", "airport", "region");
     }
 
     public void testEnrichExcludesPolicyKey() {
@@ -1667,7 +1759,7 @@ public class AnalyzerTests extends ESTestCase {
             |stats x by 1
             """));
 
-        assertThat(e.getMessage(), containsString("[x] is not an aggregate function"));
+        assertThat(e.getMessage(), containsString("Unknown column [x]"));
     }
 
     public void testScalarFunctionsInStats() {
@@ -1734,6 +1826,32 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
+    public void testInOnText() {
+        assertProjectionWithMapping("""
+            from a_index
+            | eval text in (\"a\", \"b\", \"c\")
+            | keep text
+            """, "mapping-multi-field-variation.json", "text");
+
+        assertProjectionWithMapping("""
+            from a_index
+            | eval text in (\"a\", \"b\", \"c\", text)
+            | keep text
+            """, "mapping-multi-field-variation.json", "text");
+
+        assertProjectionWithMapping("""
+            from a_index
+            | eval text not in (\"a\", \"b\", \"c\")
+            | keep text
+            """, "mapping-multi-field-variation.json", "text");
+
+        assertProjectionWithMapping("""
+            from a_index
+            | eval text not in (\"a\", \"b\", \"c\", text)
+            | keep text
+            """, "mapping-multi-field-variation.json", "text");
+    }
+
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }
@@ -1744,7 +1862,10 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     private void assertProjection(String query, String... names) {
-        var plan = analyze(query);
+        assertProjection(analyze(query), names);
+    }
+
+    private void assertProjection(LogicalPlan plan, String... names) {
         var limit = as(plan, Limit.class);
         assertThat(Expressions.names(limit.output()), contains(names));
     }

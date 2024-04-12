@@ -113,17 +113,11 @@ public class TransportPutFollowActionTests extends ESTestCase {
         String differentDSBackingIndex = DataStream.getDefaultBackingIndexName("different-datastream", 2);
         initialLocalBackingIndices.add(new Index(differentDSBackingIndex, UUID.randomUUID().toString()));
 
-        DataStream localDataStream = new DataStream(
-            "logs-foobar",
-            initialLocalBackingIndices,
-            initialLocalBackingIndices.size(),
-            Map.of(),
-            false,
-            true,
-            false,
-            false,
-            null
-        );
+        DataStream localDataStream = DataStream.builder("logs-foobar", initialLocalBackingIndices)
+            .setGeneration(initialLocalBackingIndices.size())
+            .setMetadata(Map.of())
+            .setReplicated(true)
+            .build();
 
         // follow backing index 7
         Index backingIndexToFollow = remoteDataStream.getIndices().get(6);
@@ -166,12 +160,13 @@ public class TransportPutFollowActionTests extends ESTestCase {
             .mapToObj(value -> DataStream.getDefaultBackingIndexName(name, value))
             .map(value -> new Index(value, "uuid"))
             .collect(Collectors.toList());
-        return new DataStream(name, backingIndices, backingIndices.size(), Map.of(), false, replicate, false, false, null);
+        long generation = backingIndices.size();
+        return DataStream.builder(name, backingIndices).setGeneration(generation).setMetadata(Map.of()).setReplicated(replicate).build();
     }
 
     static DataStream generateDataSteam(String name, int generation, boolean replicate, String... backingIndexNames) {
         List<Index> backingIndices = Arrays.stream(backingIndexNames).map(value -> new Index(value, "uuid")).collect(Collectors.toList());
-        return new DataStream(name, backingIndices, generation, Map.of(), false, replicate, false, false, null);
+        return DataStream.builder(name, backingIndices).setGeneration(generation).setMetadata(Map.of()).setReplicated(replicate).build();
     }
 
 }

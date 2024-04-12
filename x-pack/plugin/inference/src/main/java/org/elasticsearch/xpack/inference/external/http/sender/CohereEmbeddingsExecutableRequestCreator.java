@@ -37,11 +37,12 @@ public class CohereEmbeddingsExecutableRequestCreator implements ExecutableReque
 
     public CohereEmbeddingsExecutableRequestCreator(CohereEmbeddingsModel model) {
         this.model = Objects.requireNonNull(model);
-        account = new CohereAccount(this.model.getServiceSettings().getCommonSettings().getUri(), this.model.getSecretSettings().apiKey());
+        account = new CohereAccount(this.model.getServiceSettings().getCommonSettings().uri(), this.model.getSecretSettings().apiKey());
     }
 
     @Override
     public Runnable create(
+        String query,
         List<String> input,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,

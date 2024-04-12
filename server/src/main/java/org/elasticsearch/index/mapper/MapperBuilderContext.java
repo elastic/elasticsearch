@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.util.Objects;
 
@@ -22,7 +23,11 @@ public class MapperBuilderContext {
      * The root context, to be used when building a tree of mappers
      */
     public static MapperBuilderContext root(boolean isSourceSynthetic, boolean isDataStream) {
-        return new MapperBuilderContext(null, isSourceSynthetic, isDataStream, false, ObjectMapper.Defaults.DYNAMIC);
+        return root(isSourceSynthetic, isDataStream, MergeReason.MAPPING_UPDATE);
+    }
+
+    public static MapperBuilderContext root(boolean isSourceSynthetic, boolean isDataStream, MergeReason mergeReason) {
+        return new MapperBuilderContext(null, isSourceSynthetic, isDataStream, false, ObjectMapper.Defaults.DYNAMIC, mergeReason);
     }
 
     private final String path;
@@ -30,9 +35,10 @@ public class MapperBuilderContext {
     private final boolean isDataStream;
     private final boolean parentObjectContainsDimensions;
     private final ObjectMapper.Dynamic dynamic;
+    private final MergeReason mergeReason;
 
     MapperBuilderContext(String path) {
-        this(path, false, false, false, ObjectMapper.Defaults.DYNAMIC);
+        this(path, false, false, false, ObjectMapper.Defaults.DYNAMIC, MergeReason.MAPPING_UPDATE);
     }
 
     MapperBuilderContext(
@@ -40,7 +46,8 @@ public class MapperBuilderContext {
         boolean isSourceSynthetic,
         boolean isDataStream,
         boolean parentObjectContainsDimensions,
-        ObjectMapper.Dynamic dynamic
+        ObjectMapper.Dynamic dynamic,
+        MergeReason mergeReason
     ) {
         Objects.requireNonNull(dynamic, "dynamic must not be null");
         this.path = path;
@@ -48,6 +55,7 @@ public class MapperBuilderContext {
         this.isDataStream = isDataStream;
         this.parentObjectContainsDimensions = parentObjectContainsDimensions;
         this.dynamic = dynamic;
+        this.mergeReason = mergeReason;
     }
 
     /**
@@ -79,7 +87,8 @@ public class MapperBuilderContext {
             this.isSourceSynthetic,
             this.isDataStream,
             parentObjectContainsDimensions,
-            getDynamic(dynamic)
+            getDynamic(dynamic),
+            this.mergeReason
         );
     }
 
@@ -120,5 +129,13 @@ public class MapperBuilderContext {
 
     public ObjectMapper.Dynamic getDynamic() {
         return dynamic;
+    }
+
+    /**
+     * The merge reason to use when merging mappers while building the mapper.
+     * See also {@link ObjectMapper.Builder#buildMappers(MapperBuilderContext)}.
+     */
+    public MergeReason getMergeReason() {
+        return mergeReason;
     }
 }

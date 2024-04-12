@@ -54,10 +54,13 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorPipel
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorSchedulingAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorServiceTypeAction;
 import org.elasticsearch.xpack.application.connector.action.UpdateConnectorStatusAction;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobIndexService;
 
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -107,7 +110,6 @@ public class ConnectorIndexService {
         try {
             isDataIndexNameAlreadyInUse(indexName, connectorId, listener.delegateFailure((l, isIndexNameInUse) -> {
                 if (isIndexNameInUse) {
-
                     l.onFailure(
                         new ElasticsearchStatusException(
                             "Index name [" + indexName + "] is used by another connector.",
@@ -188,7 +190,7 @@ public class ConnectorIndexService {
      * Creates a Connector with default values and specified parameters.
      *
      * @param description The description of the connector.
-     * @param indexName   The name of the index associated with the connector.
+     * @param indexName   The name of the index associated with the connector. It can be null to indicate that index is not attached yet.
      * @param isNative    Flag indicating if the connector is native; defaults to false if null.
      * @param language    The language supported by the connector.
      * @param name        The name of the connector; defaults to an empty string if null.
@@ -253,12 +255,13 @@ public class ConnectorIndexService {
     }
 
     /**
-     * Deletes the {@link Connector} in the underlying index.
+     * Deletes the {@link Connector} and the related instances of {@link ConnectorSyncJob} in the underlying index.
      *
-     * @param connectorId The id of the connector object.
-     * @param listener    The action listener to invoke on response/failure.
+     * @param connectorId          The id of the {@link Connector}.
+     * @param shouldDeleteSyncJobs The flag indicating if {@link ConnectorSyncJob} should also be deleted.
+     * @param listener             The action listener to invoke on response/failure.
      */
-    public void deleteConnector(String connectorId, ActionListener<DeleteResponse> listener) {
+    public void deleteConnector(String connectorId, boolean shouldDeleteSyncJobs, ActionListener<DeleteResponse> listener) {
 
         final DeleteRequest deleteRequest = new DeleteRequest(CONNECTOR_INDEX_NAME).id(connectorId)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -269,7 +272,11 @@ public class ConnectorIndexService {
                     l.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                     return;
                 }
-                l.onResponse(deleteResponse);
+                if (shouldDeleteSyncJobs) {
+                    new ConnectorSyncJobIndexService(client).deleteAllSyncJobsByConnectorId(connectorId, l.map(r -> deleteResponse));
+                } else {
+                    l.onResponse(deleteResponse);
+                }
             }));
         } catch (Exception e) {
             listener.onFailure(e);
@@ -694,7 +701,8 @@ public class ConnectorIndexService {
     }
 
     /**
-     * Updates the index name property of a {@link Connector}.
+     * Updates the index name property of a {@link Connector}. Index name can be set to null to indicate that the connector
+     * is not associated with any index.
      *
      * @param request  The request for updating the connector's index name.
      * @param listener The listener for handling responses, including successful updates or errors.
@@ -720,8 +728,11 @@ public class ConnectorIndexService {
                     new IndexRequest(CONNECTOR_INDEX_NAME).opType(DocWriteRequest.OpType.INDEX)
                         .id(connectorId)
                         .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                        .source(Map.of(Connector.INDEX_NAME_FIELD.getPreferredName(), request.getIndexName()))
-
+                        .source(new HashMap<>() {
+                            {
+                                put(Connector.INDEX_NAME_FIELD.getPreferredName(), request.getIndexName());
+                            }
+                        })
                 );
                 client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (ll, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
@@ -912,6 +923,10 @@ public class ConnectorIndexService {
      * @param listener     The listener for handling boolean responses and errors.
      */
     private void isDataIndexNameAlreadyInUse(String indexName, String connectorId, ActionListener<Boolean> listener) {
+        if (indexName == null) {
+            listener.onResponse(false);
+            return;
+        }
         try {
             BoolQueryBuilder boolFilterQueryBuilder = new BoolQueryBuilder();
 

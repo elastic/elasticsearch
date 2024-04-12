@@ -65,7 +65,7 @@ The type of the {infer} task that the model will perform. Available task types:
 
 [discrete]
 [[put-inference-api-request-body]]
-== {api-request-body-title}
+==== {api-request-body-title}
 
 `service`::
 (Required, string)

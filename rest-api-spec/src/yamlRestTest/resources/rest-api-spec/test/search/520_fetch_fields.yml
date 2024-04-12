@@ -140,3 +140,16 @@ fetch _seq_no via fields:
   # while instead it is mapped to an `internal_server_error (500)`
   - match: { status: 500 }
   - match: { error.root_cause.0.type: unsupported_operation_exception }
+
+---
+fetch fields with none stored_fields:
+  - do:
+      catch: "bad_request"
+      search:
+        index: test
+        body:
+          stored_fields: _none_
+          fields: [stored_keyword, keyword, stored_value, value, ignored_keyword, ignored_value, _ignored]
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: action_request_validation_exception }

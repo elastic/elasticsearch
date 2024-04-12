@@ -34,6 +34,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.application.connector.ConnectorFiltering.isDefaultRulePresentInFilteringRules;
 
 public class UpdateConnectorFilteringAction {
 
@@ -96,25 +97,29 @@ public class UpdateConnectorFilteringAction {
                 validationException = addValidationError("[connector_id] cannot be [null] or [\"\"].", validationException);
             }
 
-            // If [filtering] is not present in the request payload it means that the user should define both [rules] and [advances_snippet]
+            // If [filtering] is not present in the request payload it means that the user should define [rules] and/or [advances_snippet]
             if (filtering == null) {
                 if (rules == null && advancedSnippet == null) {
-                    validationException = addValidationError(
-                        "[filtering], [advanced_snippet] and [rules] cannot be all [null].",
-                        validationException
-                    );
-                } else if (rules == null) {
-                    validationException = addValidationError("[rules] cannot be [null].", validationException);
-                } else if (advancedSnippet == null) {
-                    validationException = addValidationError("[advanced_snippet] cannot be [null].", validationException);
+                    validationException = addValidationError("[advanced_snippet] and [rules] cannot be both [null].", validationException);
+                } else if (rules != null) {
+                    if (rules.isEmpty()) {
+                        validationException = addValidationError("[rules] cannot be an empty list.", validationException);
+                    } else if (isDefaultRulePresentInFilteringRules(rules) == false) {
+                        validationException = addValidationError(
+                            "[rules] need to include the default filtering rule.",
+                            validationException
+                        );
+                    }
                 }
             }
             // If [filtering] is present we don't expect [rules] and [advances_snippet] in the request body
-            else if (rules != null || advancedSnippet != null) {
-                validationException = addValidationError(
-                    "If [filtering] is specified, [rules] and [advanced_snippet] should not be present in the request body.",
-                    validationException
-                );
+            else {
+                if (rules != null || advancedSnippet != null) {
+                    validationException = addValidationError(
+                        "If [filtering] is specified, [rules] and [advanced_snippet] should not be present in the request body.",
+                        validationException
+                    );
+                }
             }
 
             return validationException;

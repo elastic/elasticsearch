@@ -186,6 +186,18 @@ public class FilteringRule implements Writeable, ToXContentObject {
             && Objects.equals(value, that.value);
     }
 
+    /**
+     * Compares this {@code FilteringRule} to another rule for equality, ignoring differences
+     * in created_at, updated_at timestamps and order.
+    */
+    public boolean equalsExceptForTimestampsAndOrder(FilteringRule that) {
+        return Objects.equals(field, that.field)
+            && Objects.equals(id, that.id)
+            && policy == that.policy
+            && rule == that.rule
+            && Objects.equals(value, that.value);
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(createdAt, field, id, order, policy, rule, updatedAt, value);

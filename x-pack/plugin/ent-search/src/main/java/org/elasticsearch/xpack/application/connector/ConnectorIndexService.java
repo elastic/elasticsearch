@@ -601,20 +601,24 @@ public class ConnectorIndexService {
         ActionListener<UpdateResponse> listener
     ) {
         try {
-
             getConnector(connectorId, listener.delegateFailure((l, connector) -> {
-
                 List<ConnectorFiltering> connectorFilteringList = fromXContentBytesConnectorFiltering(
                     connector.getSourceRef(),
                     XContentType.JSON
                 );
-
                 // Connectors represent their filtering configuration as a singleton list
                 ConnectorFiltering connectorFilteringSingleton = connectorFilteringList.get(0);
 
+                // If advanced snippet or rules are not defined, keep the current draft state
+                FilteringAdvancedSnippet newDraftAdvancedSnippet = advancedSnippet == null
+                    ? connectorFilteringSingleton.getDraft().getAdvancedSnippet()
+                    : advancedSnippet;
+
+                List<FilteringRule> newDraftRules = rules == null ? connectorFilteringSingleton.getDraft().getRules() : rules;
+
                 ConnectorFiltering connectorFilteringWithUpdatedDraft = connectorFilteringSingleton.setDraft(
-                    new FilteringRules.Builder().setRules(rules)
-                        .setAdvancedSnippet(advancedSnippet)
+                    new FilteringRules.Builder().setRules(newDraftRules)
+                        .setAdvancedSnippet(newDraftAdvancedSnippet)
                         .setFilteringValidationInfo(FilteringValidationInfo.getInitialDraftValidationInfo())
                         .build()
                 );

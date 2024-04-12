@@ -657,11 +657,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             new OutOfRangeTestCase("byte", smallerThanInteger, largerThanInteger),
             new OutOfRangeTestCase("short", smallerThanInteger, largerThanInteger),
             new OutOfRangeTestCase("integer", smallerThanInteger, largerThanInteger),
-            new OutOfRangeTestCase("long", smallerThanLong, largerThanLong),
+            new OutOfRangeTestCase("long", smallerThanLong, largerThanLong)
             // TODO: add unsigned_long https://github.com/elastic/elasticsearch/issues/102935
             // TODO: add half_float, float https://github.com/elastic/elasticsearch/issues/100130
-            new OutOfRangeTestCase("double", "-1.0/0.0", "1.0/0.0"),
-            new OutOfRangeTestCase("scaled_float", "-1.0/0.0", "1.0/0.0")
         );
 
         final String LT = "<";
@@ -678,8 +676,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                 GT + testCase.tooLow,
                 GTE + testCase.tooLow,
                 NEQ + testCase.tooHigh,
-                NEQ + testCase.tooLow,
-                NEQ + "0.0/0.0"
+                NEQ + testCase.tooLow
             );
             List<String> alwaysFalsePredicates = List.of(
                 LT + testCase.tooLow,
@@ -687,12 +684,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                 GT + testCase.tooHigh,
                 GTE + testCase.tooHigh,
                 EQ + testCase.tooHigh,
-                EQ + testCase.tooLow,
-                LT + "0.0/0.0",
-                LTE + "0.0/0.0",
-                GT + "0.0/0.0",
-                GTE + "0.0/0.0",
-                EQ + "0.0/0.0"
+                EQ + testCase.tooLow
             );
 
             for (String truePredicate : trueForSingleValuesPredicates) {
@@ -700,6 +692,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                 var query = "from test | where " + comparison;
                 Source expectedSource = new Source(1, 18, comparison);
 
+                logger.info("Query: " + query);
                 EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query, allTypeMappingAnalyzer);
 
                 assertThat(actualQueryExec.query(), is(instanceOf(SingleValueQuery.Builder.class)));

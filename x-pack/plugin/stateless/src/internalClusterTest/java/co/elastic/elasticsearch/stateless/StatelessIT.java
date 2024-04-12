@@ -856,9 +856,11 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         assertNotNull(statelessCommitService);
 
         final Set<String> uploadedFiles = ConcurrentCollections.newConcurrentSet();
-        statelessCommitService.addConsumerForNewUploadedCommit(
+        statelessCommitService.addConsumerForNewUploadedBcc(
             shard.shardId(),
-            info -> uploadedFiles.addAll(info.commit().commitFiles().keySet())
+            info -> uploadedFiles.addAll(
+                info.uploadedBcc().compoundCommits().stream().flatMap(cc -> cc.commitFiles().keySet().stream()).toList()
+            )
         );
 
         var numDocs = 100;

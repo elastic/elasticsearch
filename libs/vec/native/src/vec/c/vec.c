@@ -26,9 +26,13 @@
     #endif
 #endif
 
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
+
 EXPORT int vec_caps() {
 #ifdef __APPLE__
-    #ifdef TARGET_OS_MAC
+    #ifdef TARGET_OS_OSX
         // All M series Apple silicon support Neon instructions
         return 1;
     #else

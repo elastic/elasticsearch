@@ -656,7 +656,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     /**
-     * The tye of search to execute.
+     * The type of search to execute.
      */
     public SearchType searchType() {
         return searchType;

@@ -69,7 +69,13 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
 
     @Override
     protected NodeCapabilitiesRequest newNodeRequest(NodesCapabilitiesRequest request) {
-        return new NodeCapabilitiesRequest(request.method(), request.path(), request.parameters(), request.features());
+        return new NodeCapabilitiesRequest(
+            request.method(),
+            request.path(),
+            request.parameters(),
+            request.features(),
+            request.restApiVersion()
+        );
     }
 
     @Override
@@ -79,13 +85,12 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
 
     @Override
     protected NodeCapability nodeOperation(NodeCapabilitiesRequest request, Task task) {
-        // TODO: add the rest api version as a NodeCapabilitiesRequest parameter?
         boolean supported = restController.checkSupported(
             request.method,
             request.path,
             request.parameters,
             request.features,
-            RestApiVersion.V_8
+            request.restApiVersion
         );
         return new NodeCapability(supported, transportService.getLocalNode());
     }
@@ -95,6 +100,7 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
         private final String path;
         private final Set<String> parameters;
         private final Set<String> features;
+        private final RestApiVersion restApiVersion;
 
         public NodeCapabilitiesRequest(StreamInput in) throws IOException {
             super(in);
@@ -103,13 +109,21 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             path = in.readString();
             parameters = in.readCollectionAsImmutableSet(StreamInput::readString);
             features = in.readCollectionAsImmutableSet(StreamInput::readString);
+            restApiVersion = RestApiVersion.forMajor(in.readVInt());
         }
 
-        public NodeCapabilitiesRequest(RestRequest.Method method, String path, Set<String> parameters, Set<String> features) {
+        public NodeCapabilitiesRequest(
+            RestRequest.Method method,
+            String path,
+            Set<String> parameters,
+            Set<String> features,
+            RestApiVersion restApiVersion
+        ) {
             this.method = method;
             this.path = path;
             this.parameters = Set.copyOf(parameters);
             this.features = Set.copyOf(features);
+            this.restApiVersion = restApiVersion;
         }
 
         @Override
@@ -120,6 +134,7 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             out.writeString(path);
             out.writeCollection(parameters, StreamOutput::writeString);
             out.writeCollection(features, StreamOutput::writeString);
+            out.writeVInt(restApiVersion.major);
         }
     }
 }

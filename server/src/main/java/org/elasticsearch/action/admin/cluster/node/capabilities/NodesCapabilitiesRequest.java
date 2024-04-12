@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.capabilities;
 
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
 
 import java.util.Set;
@@ -19,6 +20,7 @@ public class NodesCapabilitiesRequest extends BaseNodesRequest<NodesCapabilities
     private String path = "/";
     private Set<String> parameters = Set.of();
     private Set<String> features = Set.of();
+    private RestApiVersion restApiVersion = RestApiVersion.current();
 
     public NodesCapabilitiesRequest() {
         // always send to all nodes
@@ -30,6 +32,10 @@ public class NodesCapabilitiesRequest extends BaseNodesRequest<NodesCapabilities
         return this;
     }
 
+    public String path() {
+        return path;
+    }
+
     public NodesCapabilitiesRequest method(RestRequest.Method method) {
         this.method = method;
         return this;
@@ -37,10 +43,6 @@ public class NodesCapabilitiesRequest extends BaseNodesRequest<NodesCapabilities
 
     public RestRequest.Method method() {
         return method;
-    }
-
-    public String path() {
-        return path;
     }
 
     public NodesCapabilitiesRequest parameters(String... parameters) {
@@ -59,5 +61,14 @@ public class NodesCapabilitiesRequest extends BaseNodesRequest<NodesCapabilities
 
     public Set<String> features() {
         return features;
+    }
+
+    public NodesCapabilitiesRequest restApiVersion(RestApiVersion restApiVersion) {
+        this.restApiVersion = restApiVersion;
+        return this;
+    }
+
+    public RestApiVersion restApiVersion() {
+        return restApiVersion;
     }
 }

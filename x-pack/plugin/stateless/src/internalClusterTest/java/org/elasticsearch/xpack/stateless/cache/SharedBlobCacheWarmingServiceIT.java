@@ -51,6 +51,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestCase {
@@ -98,25 +99,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         indexDocs(indexName, 1000);
         refresh(indexName);
 
-        final long generationToBlock = getShardEngine(findIndexShard(indexName), IndexEngine.class).getCurrentGeneration();
-
         var indexNodeB = startIndexNode(cacheSettings);
         ensureStableCluster(3);
 
-        final var warmingService = (BlockingSharedBlobCacheWarmingService) internalCluster().getInstance(PluginsService.class, indexNodeB)
-            .filterPlugins(TestStateless.class)
-            .findFirst()
-            .orElseThrow(() -> new AssertionError(TestStateless.class.getName() + " plugin not found"))
-            .getSharedBlobCacheWarmingService();
-
-        final var mockRepositoryB = getObjectStoreMockRepository(internalCluster().getInstance(ObjectStoreService.class, indexNodeB));
-        warmingService.addListener(ActionListener.running(() -> {
-            logger.info("--> block object store repository after warming");
-            mockRepositoryB.setRandomControlIOExceptionRate(1.0);
-            mockRepositoryB.setRandomDataFileIOExceptionRate(1.0);
-            mockRepositoryB.setMaximumNumberOfFailures(Long.MAX_VALUE);
-            mockRepositoryB.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
-        }));
+        blockObjectStoreRepository(indexName, indexNodeB);
 
         var shutdownNodeId = client().admin().cluster().prepareState().get().getState().nodes().resolveNode(indexNodeA).getId();
         assertAcked(
@@ -134,6 +120,88 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         );
         ensureGreen(indexName);
         assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(indexNodeB)));
+    }
+
+    public void testCacheIsWarmedBeforeSearchShardRecovery() throws Exception {
+        startMasterOnlyNode();
+
+        var cacheSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .build();
+        startIndexNode(cacheSettings);
+
+        var searchNodeA = startSearchNode(cacheSettings);
+        ensureStableCluster(3);
+
+        final String indexName = randomIdentifier();
+        assertAcked(
+            prepareCreate(
+                indexName,
+                Settings.builder()
+                    .put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(EngineConfig.USE_COMPOUND_FILE, false)
+            )
+        );
+
+        int numDocs = randomIntBetween(1000, 10_000);
+        indexDocs(indexName, numDocs);
+        flushAndRefresh(indexName);
+        ensureGreen(indexName);
+
+        // Verify that we performed pre-warming and don't need to hit the object store on searches
+        blockObjectStoreRepository(indexName, searchNodeA);
+
+        setReplicaCount(1, indexName);
+        ensureGreen(indexName);
+        assertHitCount(prepareSearch(indexName), numDocs);
+
+        var searchNodeB = startSearchNode(cacheSettings);
+        ensureStableCluster(4);
+
+        // The cache also gets pre-warmed when a shard gets relocated to a new node
+        blockObjectStoreRepository(indexName, searchNodeB);
+        shutdownNode(searchNodeA);
+        ensureGreen(indexName);
+        assertThat(findSearchShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(searchNodeB)));
+        assertHitCount(prepareSearch(indexName), numDocs);
+    }
+
+    private static void shutdownNode(String indexNode) {
+        var shutdownNodeId = client().admin().cluster().prepareState().get().getState().nodes().resolveNode(indexNode).getId();
+        assertAcked(
+            client().execute(
+                PutShutdownNodeAction.INSTANCE,
+                new PutShutdownNodeAction.Request(
+                    shutdownNodeId,
+                    SingleNodeShutdownMetadata.Type.SIGTERM,
+                    "Shutdown for cache warming test",
+                    null,
+                    null,
+                    TimeValue.timeValueMinutes(randomIntBetween(1, 5))
+                )
+            )
+        );
+    }
+
+    private void blockObjectStoreRepository(String indexName, String node) {
+        final long generationToBlock = getShardEngine(findIndexShard(indexName), IndexEngine.class).getCurrentGeneration();
+        final var warmingService = (BlockingSharedBlobCacheWarmingService) internalCluster().getInstance(PluginsService.class, node)
+            .filterPlugins(TestStateless.class)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError(TestStateless.class.getName() + " plugin not found"))
+            .getSharedBlobCacheWarmingService();
+
+        final var mockRepositoryB = getObjectStoreMockRepository(internalCluster().getInstance(ObjectStoreService.class, node));
+        warmingService.addListener(ActionListener.running(() -> {
+            logger.info("--> block object store repository after warming");
+            mockRepositoryB.setRandomControlIOExceptionRate(1.0);
+            mockRepositoryB.setRandomDataFileIOExceptionRate(1.0);
+            mockRepositoryB.setMaximumNumberOfFailures(Long.MAX_VALUE);
+            mockRepositoryB.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
+        }));
     }
 
     public static class TestStateless extends Stateless {

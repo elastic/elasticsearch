@@ -63,7 +63,6 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102813")
     public void testResponseIlmAndDataStreamLifecycleRepresentation() throws Exception {
         // we'll test a data stream with 3 backing indices and a failure store - two backing indices managed by ILM (having the ILM policy
         // configured for them) and the remainder without any ILM policy configured
@@ -77,21 +76,14 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
         List<Index> failureStores = List.of(failureStoreIndex);
         {
             // data stream has an enabled lifecycle
-            DataStream logs = new DataStream(
-                "logs",
-                indices,
-                3,
-                null,
-                false,
-                false,
-                false,
-                true,
-                IndexMode.STANDARD,
-                new DataStreamLifecycle(),
-                true,
-                failureStores,
-                null
-            );
+            DataStream logs = DataStream.builder("logs", indices)
+                .setGeneration(3)
+                .setAllowCustomRouting(true)
+                .setIndexMode(IndexMode.STANDARD)
+                .setLifecycle(new DataStreamLifecycle())
+                .setFailureStore(true)
+                .setFailureIndices(failureStores)
+                .build();
 
             String ilmPolicyName = "rollover-30days";
             Map<Index, Response.IndexProperties> indexSettingsValues = Map.of(
@@ -187,21 +179,14 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
 
         {
             // data stream has a lifecycle that's not enabled
-            DataStream logs = new DataStream(
-                "logs",
-                indices,
-                3,
-                null,
-                false,
-                false,
-                false,
-                true,
-                IndexMode.STANDARD,
-                new DataStreamLifecycle(null, null, false),
-                true,
-                failureStores,
-                null
-            );
+            DataStream logs = DataStream.builder("logs", indices)
+                .setGeneration(3)
+                .setAllowCustomRouting(true)
+                .setIndexMode(IndexMode.STANDARD)
+                .setLifecycle(new DataStreamLifecycle(null, null, false))
+                .setFailureStore(true)
+                .setFailureIndices(failureStores)
+                .build();
 
             String ilmPolicyName = "rollover-30days";
             Map<Index, Response.IndexProperties> indexSettingsValues = Map.of(

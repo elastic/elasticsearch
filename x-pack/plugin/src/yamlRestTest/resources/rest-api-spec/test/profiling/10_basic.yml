@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "Universal Profiling test infrastructure is available in 8.12+"
 
   - do:
@@ -217,3 +217,67 @@ teardown:
             }
           }
   - match: { Size: 47}
+
+---
+"Test topN functions from profiling-events":
+  - skip:
+      version: "- 8.13.99"
+      reason: "the topN functions API was added in 8.14.0"
+
+  - do:
+      profiling.topn_functions:
+        body: >
+          {
+            "sample_size": 20000,
+            "requested_duration": 86400,
+            "limit": 10,
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "range": {
+                      "@timestamp": {
+                        "gte": "2023-11-20",
+                        "lt": "2023-11-21",
+                        "format": "yyyy-MM-dd"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+  - length: { topn: 10}
+
+---
+"Test topN functions from test-events":
+  - skip:
+      version: "- 8.13.99"
+      reason: "the topN functions API was added in 8.14.0"
+
+  - do:
+      profiling.topn_functions:
+        body: >
+          {
+            "sample_size": 20000,
+            "indices": ["test-event*"],
+            "stacktrace_ids_field": "events",
+            "requested_duration": 86400,
+            "limit": 10,
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "range": {
+                      "@timestamp": {
+                        "gte": "2023-11-20",
+                        "lt": "2023-11-21",
+                        "format": "yyyy-MM-dd"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+  - length: { topn: 10}

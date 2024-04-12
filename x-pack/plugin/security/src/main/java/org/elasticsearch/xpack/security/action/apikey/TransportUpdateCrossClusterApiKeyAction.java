@@ -37,7 +37,7 @@ public final class TransportUpdateCrossClusterApiKeyAction extends TransportBase
         final ApiKeyService apiKeyService,
         final SecurityContext context
     ) {
-        super(UpdateCrossClusterApiKeyAction.NAME, transportService, actionFilters, UpdateCrossClusterApiKeyRequest::new, context);
+        super(UpdateCrossClusterApiKeyAction.NAME, transportService, actionFilters, context);
         this.apiKeyService = apiKeyService;
     }
 

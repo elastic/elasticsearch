@@ -38,6 +38,11 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
     }
 
     @Override
+    protected boolean reuseClusters() {
+        return false;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
         plugins.add(ExceptionOnRewriteQueryPlugin.class);

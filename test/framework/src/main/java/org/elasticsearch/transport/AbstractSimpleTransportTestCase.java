@@ -3410,7 +3410,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 }
             );
             latch.await();
-            final AtomicReference<TransportException> te = new AtomicReference<>();
+            final PlainActionFuture<TransportException> failureFuture = new PlainActionFuture<>();
             final Transport.Connection connection = serviceC.getConnection(nodeA);
             serviceC.sendRequest(
                 connection,
@@ -3430,12 +3430,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
                     @Override
                     public void handleException(final TransportException exp) {
-                        te.set(exp);
+                        failureFuture.onResponse(exp);
                     }
                 }
             );
-            assertThat(te.get(), not(nullValue()));
-            return te.get();
+            assertThat(failureFuture.actionGet(TimeValue.timeValueSeconds(10)), not(nullValue()));
+            return failureFuture.actionGet();
         }
     }
 

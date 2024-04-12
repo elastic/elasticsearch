@@ -577,7 +577,7 @@ public class Security extends Plugin
     private final SetOnce<CreateApiKeyRequestBuilderFactory> createApiKeyRequestBuilderFactory = new SetOnce<>();
     private final SetOnce<UpdateApiKeyRequestTranslator> updateApiKeyRequestTranslator = new SetOnce<>();
     private final SetOnce<BulkUpdateApiKeyRequestTranslator> bulkUpdateApiKeyRequestTranslator = new SetOnce<>();
-    private final SetOnce<RestGrantApiKeyAction.Translator> grantApiKeyRequestTranslator = new SetOnce<>();
+    private final SetOnce<RestGrantApiKeyAction.RequestTranslator> grantApiKeyRequestTranslator = new SetOnce<>();
     private final SetOnce<GetBuiltinPrivilegesResponseTranslator> getBuiltinPrivilegesResponseTranslator = new SetOnce<>();
     private final SetOnce<HasPrivilegesRequestBuilderFactory> hasPrivilegesRequestBuilderFactory = new SetOnce<>();
     private final SetOnce<FileRolesStore> fileRolesStore = new SetOnce<>();
@@ -855,7 +855,7 @@ public class Security extends Plugin
             bulkUpdateApiKeyRequestTranslator.set(new BulkUpdateApiKeyRequestTranslator.Default());
         }
         if (grantApiKeyRequestTranslator.get() == null) {
-            grantApiKeyRequestTranslator.set(new RestGrantApiKeyAction.Translator.Default());
+            grantApiKeyRequestTranslator.set(new RestGrantApiKeyAction.RequestTranslator.Default());
         }
         if (hasPrivilegesRequestBuilderFactory.get() == null) {
             hasPrivilegesRequestBuilderFactory.trySet(new HasPrivilegesRequestBuilderFactory.Default());
@@ -2122,7 +2122,7 @@ public class Security extends Plugin
         loadSingletonExtensionAndSetOnce(loader, hasPrivilegesRequestBuilderFactory, HasPrivilegesRequestBuilderFactory.class);
         loadSingletonExtensionAndSetOnce(loader, authorizationDenialMessages, AuthorizationDenialMessages.class);
         loadSingletonExtensionAndSetOnce(loader, reservedRoleNameCheckerFactory, ReservedRoleNameChecker.Factory.class);
-        loadSingletonExtensionAndSetOnce(loader, grantApiKeyRequestTranslator, RestGrantApiKeyAction.Translator.class);
+        loadSingletonExtensionAndSetOnce(loader, grantApiKeyRequestTranslator, RestGrantApiKeyAction.RequestTranslator.class);
         loadSingletonExtensionAndSetOnce(loader, secondaryAuthActions, SecondaryAuthActions.class);
     }
 

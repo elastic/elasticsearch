@@ -46,10 +46,10 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  */
 @ServerlessScope(Scope.INTERNAL)
 public final class RestGrantApiKeyAction extends ApiKeyBaseRestHandler implements RestRequestFilter {
-    public interface Translator {
+    public interface RequestTranslator {
         GrantApiKeyRequest translate(RestRequest request) throws IOException;
 
-        class Default implements Translator {
+        class Default implements RequestTranslator {
             private static final ObjectParser<GrantApiKeyRequest, Void> PARSER = createParser((n, p) -> RoleDescriptor.parse(n, p, false));
 
             protected static ObjectParser<GrantApiKeyRequest, Void> createParser(
@@ -100,9 +100,9 @@ public final class RestGrantApiKeyAction extends ApiKeyBaseRestHandler implement
         }
     }
 
-    private final Translator requestTranslator;
+    private final RequestTranslator requestTranslator;
 
-    public RestGrantApiKeyAction(Settings settings, XPackLicenseState licenseState, Translator requestTranslator) {
+    public RestGrantApiKeyAction(Settings settings, XPackLicenseState licenseState, RequestTranslator requestTranslator) {
         super(settings, licenseState);
         this.requestTranslator = requestTranslator;
     }

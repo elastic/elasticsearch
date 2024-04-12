@@ -129,7 +129,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
             new ImplicitCasting()
         );
-        var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new PromoteStringsInDateComparisons());
+        var finish = new Batch<>(
+            "Finish Analysis",
+            Limiter.ONCE,
+            new AddImplicitLimit(),
+            new PromoteStringsInDateComparisons(),
+            new UnresolveUnionTypes()
+        );
         rules = List.of(resolution, finish);
     }
 
@@ -949,14 +955,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
+    /**
+     * The EsqlIndexResolver will create InvalidMappedField instances for fields that are ambiguous (i.e. have multiple mappings).
+     * During ResolveRefs we do not convert these to UnresolvedAttribute instances, as we want to first determine if they can
+     * instead be handled by conversion functions within the query. This rule looks for matching conversion functions and converts
+     * those fields into MultiTypeEsField, which encapsulates the knowledge of how to convert these into a single type.
+     * This knowledge will be used later in generating the FieldExtractExec with built-in type conversion.
+     * Any fields which could not be resolved by conversion functions will be converted to UnresolvedAttribute instances in a later rule
+     * (See UnresolveUnionTypes below).
+     */
     private static class ResolveUnionTypes extends BaseAnalyzerRule {
 
         record TypeResolutionKey(String fieldName, DataType fieldType) {}
-
-        @Override
-        protected boolean skipResolved() {
-            return false;
-        }
 
         @Override
         protected LogicalPlan doRule(LogicalPlan plan) {
@@ -988,10 +998,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             : fa
                     );
                 });
-            }
-            if (plan instanceof EsRelation esRelation) {
-                // If there was no Eval that resolved multi-type fields, the EsRelation will still contain unresolved MultiTypeEsFields
-                plan = esRelation.transformExpressionsOnly(FieldAttribute.class, ResolveUnionTypes::checkUnresolved);
             }
             return plan;
         }
@@ -1052,6 +1058,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private FieldAttribute fieldAttribute(Source source, String name, EsField resolvedField, NameId id) {
             return new FieldAttribute(source, null, name, resolvedField, null, Nullability.TRUE, id, false);
+        }
+    }
+
+    /**
+     * If there was no Eval that resolved multi-type fields in the ResolveUnionTypes rules,
+     * then there could still be some FieldAttributes that contain unresolved MultiTypeEsFields.
+     * These need to be converted back to actual UnresolvedAttribute in order for validation to generate appropriate failures.
+     */
+    private static class UnresolveUnionTypes extends AnalyzerRules.AnalyzerRule<LogicalPlan> {
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan) {
+            return plan.transformExpressionsOnly(FieldAttribute.class, UnresolveUnionTypes::checkUnresolved);
         }
 
         private static Attribute checkUnresolved(FieldAttribute fa) {

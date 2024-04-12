@@ -332,7 +332,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // we should acquire a reference to avoid deleting the commit before notifying the unpromotable shards.
         // todo: reevaluate this.
         blobReference.incRef();
-        CommitUpload commitUpload = new CommitUpload(
+        var bccUpload = new BatchedCompoundCommitUpload(
             commitState,
             ActionListener.runAfter(
                 ActionListener.wrap(uploadedBcc -> commitState.sendNewCommitNotification(blobReference, uploadedBcc), new Consumer<>() {
@@ -379,10 +379,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             virtualBcc,
             TimeValue.timeValueMillis(50)
         );
-        commitUpload.run();
+        bccUpload.run();
     }
 
-    public boolean hasPendingCommitUploads(ShardId shardId) {
+    public boolean hasPendingBccUploads(ShardId shardId) {
         try {
             ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
             return commitState.pendingUploadBccGenerations.isEmpty() == false;
@@ -391,7 +391,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
     }
 
-    public class CommitUpload extends RetryableAction<BatchedCompoundCommit> {
+    public class BatchedCompoundCommitUpload extends RetryableAction<BatchedCompoundCommit> {
 
         private final VirtualBatchedCompoundCommit virtualBcc;
         private final ShardCommitState shardCommitState;
@@ -402,7 +402,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private final AtomicLong uploadedFileBytes = new AtomicLong();
         private int uploadTryNumber = 0;
 
-        public CommitUpload(
+        public BatchedCompoundCommitUpload(
             ShardCommitState shardCommitState,
             ActionListener<BatchedCompoundCommit> listener,
             VirtualBatchedCompoundCommit virtualBcc,
@@ -470,7 +470,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         private void executeUpload(ActionListener<BatchedCompoundCommit> listener) {
             try {
-                ActionListener<Void> uploadReadyListener = listener.delegateFailure((l, v) -> uploadStatelessCommitFile(l));
+                ActionListener<Void> uploadReadyListener = listener.delegateFailure((l, v) -> uploadBatchedCompoundCommitFile(l));
                 checkReadyToUpload(uploadReadyListener, listener);
             } catch (Exception e) {
                 listener.onFailure(e);
@@ -492,7 +492,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
         }
 
-        private void uploadStatelessCommitFile(ActionListener<BatchedCompoundCommit> listener) {
+        private void uploadBatchedCompoundCommitFile(ActionListener<BatchedCompoundCommit> listener) {
             objectStoreService.uploadBatchedCompoundCommitFile(
                 virtualBcc.getPrimaryTermAndGeneration().primaryTerm(),
                 // TODO: The Directory is used to get the blobContainer which can be obtained by using
@@ -502,15 +502,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 virtualBcc.getPendingCompoundCommits().get(0).getCommitReference().getDirectory(),
                 startNanos,
                 virtualBcc,
-                listener.delegateFailure((l, batchedCompoundCommit) -> {
+                listener.delegateFailure((l, uploadedBcc) -> {
                     for (Map.Entry<String, BlobLocation> entry : virtualBcc.getInternalLocations().entrySet()) {
                         uploadedFileCount.getAndIncrement();
                         uploadedFileBytes.getAndAdd(entry.getValue().fileLength());
-                        // TODO: Adapt to BCC reference handling
                     }
                     // TODO: remove the following assertion when BCC can contain multiple CCs
-                    assert batchedCompoundCommit.compoundCommits().size() == 1;
-                    shardCommitState.markBccUploaded(batchedCompoundCommit);
+                    assert uploadedBcc.compoundCommits().size() == 1;
+                    shardCommitState.markBccUploaded(uploadedBcc);
                     final long end = threadPool.relativeTimeInNanos();
                     logger.debug(
                         () -> format(
@@ -522,7 +521,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                             uploadedFileBytes.get()
                         )
                     );
-                    l.onResponse(batchedCompoundCommit);
+                    l.onResponse(uploadedBcc);
                 })
             );
         }
@@ -576,17 +575,17 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     }
 
     /**
-     * @param commit the compound commit that was uploaded
+     * @param uploadedBcc the BCC that was uploaded
      * @param filesToRetain the individual files (not blobs) that are still necessary to be able to access, including
      *                      being held by open readers or being part of a commit that is not yet deleted by lucene.
      *                      Always includes all files from the new commit.
      */
-    public record UploadedCommitInfo(StatelessCompoundCommit commit, Set<String> filesToRetain) {}
+    public record UploadedBccInfo(BatchedCompoundCommit uploadedBcc, Set<String> filesToRetain) {}
 
-    public void addConsumerForNewUploadedCommit(ShardId shardId, Consumer<UploadedCommitInfo> listener) {
+    public void addConsumerForNewUploadedBcc(ShardId shardId, Consumer<UploadedBccInfo> listener) {
         requireNonNull(listener, "listener cannot be null");
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
-        commitState.addConsumerForNewUploadedCommit(listener);
+        commitState.addConsumerForNewUploadedBcc(listener);
     }
 
     // Visible for testing
@@ -634,7 +633,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // A VBCC is removed from this map once it is uploaded to the object store.
         private final Map<Long, VirtualBatchedCompoundCommit> pendingUploadBccGenerations = new ConcurrentHashMap<>();
         private List<Tuple<Long, ActionListener<Void>>> generationListeners = null;
-        private List<Consumer<UploadedCommitInfo>> uploadedCommitConsumers = null;
+        private List<Consumer<UploadedBccInfo>> uploadedBccConsumers = null;
         private volatile long recoveredGeneration = -1;
         private volatile long recoveredPrimaryTerm = -1;
         private volatile BatchedCompoundCommit latestUploadedBcc = null; // having the highest generation ever uploaded
@@ -1065,20 +1064,19 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             handleUploadedBcc(batchedCompoundCommit, true);
         }
 
-        private void handleUploadedBcc(BatchedCompoundCommit batchedCompoundCommit, boolean isUpload) {
-            assert isDeleted == false : "shard " + shardId + " is deleted when trying to handle uploaded commit " + batchedCompoundCommit;
-            assert batchedCompoundCommit.size() == 1 : "BCC must have a single CC until it is fully enabled";
-            final long newBccGeneration = batchedCompoundCommit.primaryTermAndGeneration().generation(); // for managing pending uploads
-            final StatelessCompoundCommit commit = batchedCompoundCommit.last();
-            final long newGeneration = commit.generation(); // for notifying generation listeners
+        private void handleUploadedBcc(BatchedCompoundCommit uploadedBcc, boolean isUpload) {
+            assert isDeleted == false : "shard " + shardId + " is deleted when trying to handle uploaded commit " + uploadedBcc;
+            assert uploadedBcc.size() == 1 : "BCC must have a single CC until it is fully enabled";
+            final long newBccGeneration = uploadedBcc.primaryTermAndGeneration().generation(); // for managing pending uploads
+            final long newGeneration = uploadedBcc.last().generation(); // for notifying generation listeners
 
             // We use two synchronized blocks to ensure:
             // 1. Listeners are completed outside the synchronized blocks
-            // 2. Upload consumers are triggered in generation order
-            // 3. latestUploadedBcc, pendingUploadGenerations and generationListeners
+            // 2. BCC upload consumers are triggered in generation order
+            // 3. latestUploadedBcc, pendingUploadBccGenerations and generationListeners
             // are updated in a single synchronized block to avoid racing
 
-            final List<ActionListener<UploadedCommitInfo>> listenersToFire = new ArrayList<>();
+            final List<ActionListener<UploadedBccInfo>> listenersToFire = new ArrayList<>();
             synchronized (this) {
                 if (newBccGeneration <= getMaxUploadedGenerationRange().bccGen) {
                     if (isUpload) {
@@ -1095,18 +1093,18 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     return;
                 }
 
-                if (uploadedCommitConsumers != null) {
-                    for (var consumer : uploadedCommitConsumers) {
+                if (uploadedBccConsumers != null) {
+                    for (var consumer : uploadedBccConsumers) {
                         listenersToFire.add(ActionListener.wrap(consumer::accept, e -> {}));
                     }
                 }
             }
 
-            final UploadedCommitInfo uploadedCommitInfo = new UploadedCommitInfo(commit, Set.copyOf(blobLocations.keySet()));
-            // upload consumers must be triggered in generation order, hence trigger before removing from `pendingUploadGenerations`.
+            final var uploadedBccInfo = new UploadedBccInfo(uploadedBcc, Set.copyOf(blobLocations.keySet()));
+            // upload consumers must be triggered in generation order, hence trigger before removing from `pendingUploadBccGenerations`.
             Exception exception = null;
             try {
-                ActionListener.onResponse(listenersToFire, uploadedCommitInfo);
+                ActionListener.onResponse(listenersToFire, uploadedBccInfo);
             } catch (Exception e) {
                 assert false : e;
                 exception = e;
@@ -1121,7 +1119,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         + getMaxUploadedGenerationRange().bccGen
                         + "] for shard "
                         + shardId;
-                latestUploadedBcc = batchedCompoundCommit;
+                latestUploadedBcc = uploadedBcc;
                 if (isUpload) {
                     // Remove the BCC from the pending list *after* upload consumers but *before* generation listeners are fired
                     var removed = pendingUploadBccGenerations.remove(newBccGeneration);
@@ -1146,7 +1144,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             // It is OK for generation listeners to be completed out of generation order
             try {
-                ActionListener.onResponse(listenersToFire, uploadedCommitInfo);
+                ActionListener.onResponse(listenersToFire, uploadedBccInfo);
             } catch (Exception e) {
                 assert false : e;
                 if (exception != null) {
@@ -1325,13 +1323,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          * Register a consumer that is invoked everytime a new commit has been uploaded to the object store
          * @param consumer the consumer
          */
-        public void addConsumerForNewUploadedCommit(Consumer<UploadedCommitInfo> consumer) {
+        public void addConsumerForNewUploadedBcc(Consumer<UploadedBccInfo> consumer) {
             synchronized (this) {
                 if (closedOrRelocated(state) == false) {
-                    if (uploadedCommitConsumers == null) {
-                        uploadedCommitConsumers = new ArrayList<>();
+                    if (uploadedBccConsumers == null) {
+                        uploadedBccConsumers = new ArrayList<>();
                     }
-                    uploadedCommitConsumers.add(consumer);
+                    uploadedBccConsumers.add(consumer);
                 }
             }
         }
@@ -1343,7 +1341,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 state = newState;
                 listenersToFail = generationListeners;
                 generationListeners = null;
-                uploadedCommitConsumers = null;
+                uploadedBccConsumers = null;
             }
 
             if (listenersToFail != null) {

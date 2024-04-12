@@ -185,16 +185,19 @@ class StatelessIndexEventListener implements IndexEventListener {
             if (batchedCompoundCommit != null) {
                 statelessCommitService.markRecoveredBcc(indexShard.shardId(), batchedCompoundCommit, unreferencedFiles);
             }
-            // TODO: indexDirectory.updateCommit must be called for not uploaded CC as well
-            statelessCommitService.addConsumerForNewUploadedCommit(
+            // TODO: indexDirectory.updateCommit must be called for all uploaded CCs once BCC is fully enabled. See also ES-8261
+            statelessCommitService.addConsumerForNewUploadedBcc(
                 indexShard.shardId(),
-                info -> indexDirectory.updateCommit(info.commit(), info.filesToRetain())
+                info -> indexDirectory.updateCommit(info.uploadedBcc().last(), info.filesToRetain())
             );
 
             final TranslogReplicator localTranslogReplicator = translogReplicator.get();
-            statelessCommitService.addConsumerForNewUploadedCommit(
+            statelessCommitService.addConsumerForNewUploadedBcc(
                 indexShard.shardId(),
-                info -> localTranslogReplicator.markShardCommitUploaded(indexShard.shardId(), info.commit().translogRecoveryStartFile())
+                info -> localTranslogReplicator.markShardCommitUploaded(
+                    indexShard.shardId(),
+                    info.uploadedBcc().last().translogRecoveryStartFile()
+                )
             );
             return null;
         });

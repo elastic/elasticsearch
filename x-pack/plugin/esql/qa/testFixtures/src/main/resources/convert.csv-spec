@@ -1,0 +1,153 @@
+// Conversion-specific tests
+
+convertToBoolean
+required_feature: esql.casting_operator
+ROW zero=0::boolean, one=1::bool
+;
+
+ zero:boolean  | one:boolean
+false          |true
+;
+
+convertToInteger
+required_feature: esql.casting_operator
+ROW zero="0"::integer, one="1"::int
+;
+
+ zero:integer  | one:integer
+0              |1
+;
+
+convertToIP
+required_feature: esql.casting_operator
+ROW ip="1.1.1.1"::ip
+;
+
+ ip:ip       
+1.1.1.1        
+;
+
+convertToLong
+required_feature: esql.casting_operator
+ROW long="-1"::long
+;
+
+long:long
+-1
+;
+
+convertToLongWithWarning
+required_feature: esql.casting_operator
+ROW long="1.1.1.1"::long
+;
+warning:Line 1:10: evaluation of [\"1.1.1.1\"::long] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:10: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [1.1.1.1]
+
+long:long
+null
+;
+
+convertToDouble
+required_feature: esql.casting_operator
+ROW zero="0"::double, one="1"::dbl
+;
+
+ zero:double   | one:double
+0.0            |1.0
+;
+
+convertToString
+required_feature: esql.casting_operator
+ROW one=1::keyword, two=2::kw, three=3::text, four=4::txt, five=5::string, six=6::str
+;
+
+ one:keyword   | two:keyword   | three:keyword | four:keyword  | five:keyword  | six:keyword
+1              |2              |3              |4              |5              |6
+;
+
+convertToDatetime
+required_feature: esql.casting_operator
+ROW zero="1985-01-01T00:00:00Z"::datetime, one="1985-01-01T00:00:00Z"::dt, two=0::dt
+;
+
+ zero:datetime          | one:datetime           | two:datetime
+1985-01-01T00:00:00.000Z|1985-01-01T00:00:00.000Z|1970-01-01T00:00:00.000Z
+;
+
+convertToVersion
+required_feature: esql.casting_operator
+ROW zero="1.2.3"::version, one="4"::ver
+;
+
+ zero:version  | one:version
+1.2.3          |4              
+;
+
+convertToUnsignedLong
+required_feature: esql.casting_operator
+ROW zero="0"::unsigned_long, one=1::ul, two=abs(-2)::UnsigneD_LOng
+;
+
+ zero:unsigned_long | one:unsigned_long | two:unsigned_long
+0                   |1                  |2
+;
+
+convertToGeoPoint
+required_feature: esql.casting_operator
+ROW zero="POINT(0 0)"::geo_point, one="POINT(1 1)"::gpoint, two="POINT(2 2)"::gp
+;
+
+ zero:geo_point| one:geo_point | two:geo_point      
+POINT (0.0 0.0)|POINT (1.0 1.0)|POINT (2.0 2.0)
+;
+
+convertToGeoShape
+required_feature: esql.casting_operator
+ROW zero="POINT(0 0)"::geo_shape, one="POINT(1 1)"::gshape, two="POINT(2 2)"::gs
+;
+
+ zero:geo_shape| one:geo_shape | two:geo_shape      
+POINT (0.0 0.0)|POINT (1.0 1.0)|POINT (2.0 2.0)
+;
+
+convertToCartesianPoint
+required_feature: esql.casting_operator
+ROW zero="POINT(0 0)"::cartesian_point, one="POINT(1 1)"::cpoint, two="POINT(2 2)"::cp
+;
+
+ zero:cartesian_point| one:cartesian_point | two:cartesian_point      
+POINT (0.0 0.0)|POINT (1.0 1.0)|POINT (2.0 2.0)
+;
+
+convertToCartesianShape
+required_feature: esql.casting_operator
+ROW zero="POINT(0 0)"::cartesian_shape, one="POINT(1 1)"::cshape, two="POINT(2 2)"::cs
+;
+
+ zero:cartesian_shape| one:cartesian_shape | two:cartesian_shape      
+POINT (0.0 0.0)|POINT (1.0 1.0)|POINT (2.0 2.0)
+;
+
+convertChained
+required_feature: esql.casting_operator
+ROW one=1::STR::LONG::BOOL
+;
+
+one:boolean
+true
+;
+
+convertWithIndexMultipleConversionsInSameExpressionAndConversionInFiltering
+required_feature: esql.casting_operator
+ FROM employees
+| EVAL en_str=emp_no::STRING, bd=abs(birth_date::LONG)::STRING
+| KEEP en_str, emp_no, bd, birth_date
+| WHERE abs(birth_date::LONG) < 176169600000
+| SORT emp_no
+;
+
+ en_str:keyword| emp_no:integer| bd:keyword    | birth_date:datetime       
+10092          |10092          |164246400000   |1964-10-18T00:00:00.000Z
+10093          |10093          |175392000000   |1964-06-11T00:00:00.000Z
+10095          |10095          |157593600000   |1965-01-03T00:00:00.000Z
+;

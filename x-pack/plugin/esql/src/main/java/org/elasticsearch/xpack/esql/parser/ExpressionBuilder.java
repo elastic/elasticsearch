@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Less
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -484,6 +485,28 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             }
         }
         return new UnresolvedFunction(source(ctx), name, FunctionResolutionStrategy.DEFAULT, args);
+    }
+
+    @Override
+    public Expression visitInlineCast(EsqlBaseParser.InlineCastContext ctx) {
+        Source source = source(ctx);
+        DataType dataType = typedParsing(this, ctx.dataType(), DataType.class);
+        var converterToFactory = ConvertUtils.converterFactory(dataType);
+        if (converterToFactory == null) {
+            throw new ParsingException(source, "Unsupported conversion to type [{}]", dataType);
+        }
+        Expression expr = expression(ctx.primaryExpression());
+        return converterToFactory.apply(source, expr);
+    }
+
+    @Override
+    public DataType visitToDataType(EsqlBaseParser.ToDataTypeContext ctx) {
+        String typeName = visitIdentifier(ctx.identifier());
+        DataType dataType = EsqlDataTypes.fromNameOrAlias(typeName);
+        if (dataType == DataTypes.UNSUPPORTED) {
+            throw new ParsingException(source(ctx), "Unknown data type named [{}]", typeName);
+        }
+        return dataType;
     }
 
     @Override

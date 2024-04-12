@@ -971,16 +971,26 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             }""", false)));
         assertThat(fetchResponse.evaluate("api_keys.0.limited_by"), nullValue());
 
-        final Request deleteRequest = new Request("DELETE", "/_security/api_key");
-        deleteRequest.setJsonEntity(Strings.format("""
-            {"ids": ["%s"]}""", apiKeyId));
-        if (randomBoolean()) {
+        {
+            final Request deleteRequest = new Request("DELETE", "/_security/api_key");
+            deleteRequest.setJsonEntity(Strings.format("""
+                {"ids": ["%s"]}""", apiKeyId));
             setUserForRequest(deleteRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
-        } else {
-            setUserForRequest(deleteRequest, MANAGE_API_KEY_USER, END_USER_PASSWORD);
+
+            final ObjectPath deleteResponse = assertOKAndCreateObjectPath(client().performRequest(deleteRequest));
+            assertThat(deleteResponse.evaluate("invalidated_api_keys"), equalTo(List.of(apiKeyId)));
         }
-        final ObjectPath deleteResponse = assertOKAndCreateObjectPath(client().performRequest(deleteRequest));
-        assertThat(deleteResponse.evaluate("invalidated_api_keys"), equalTo(List.of(apiKeyId)));
+
+        // manage API key user can't invalidate
+        {
+            final Request deleteRequest = new Request("DELETE", "/_security/api_key");
+            deleteRequest.setJsonEntity(Strings.format("""
+                {"ids": ["%s"]}""", apiKeyId));
+            setUserForRequest(deleteRequest, MANAGE_API_KEY_USER, END_USER_PASSWORD);
+
+            final ObjectPath deleteResponse = assertOKAndCreateObjectPath(client().performRequest(deleteRequest));
+            assertThat(deleteResponse.evaluate("invalidated_api_keys"), is(empty()));
+        }
 
         // Cannot create cross-cluster API keys with either manage_api_key or manage_own_api_key privilege
         if (randomBoolean()) {

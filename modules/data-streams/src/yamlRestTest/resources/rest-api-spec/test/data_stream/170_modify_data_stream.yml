@@ -94,7 +94,7 @@
   - requires:
       cluster_features: [ "gte_v8.14.0" ]
       reason: "this API was released in 8.14.0"
-      test_runner_features: [ "allowed_warnings" ]:
+      test_runner_features: [ "allowed_warnings" ]
 
   - do:
       allowed_warnings:

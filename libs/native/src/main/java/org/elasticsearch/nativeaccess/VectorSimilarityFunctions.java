@@ -8,55 +8,17 @@
 
 package org.elasticsearch.nativeaccess;
 
-import org.elasticsearch.nativeaccess.lib.VectorLibrary;
-
 import java.lang.invoke.MethodHandle;
 
 /**
- * Utility class providing vector similarity functions.
+ * Utility class interface vector similarity functions.
  *
  * <p> MethodHandles are returned to avoid a static reference to MemorySegment,
  * which is not in the currently lowest compile version, JDK 17. Code consuming
  * the method handles will, by definition, require access to MemorySegment.
  */
-public final class VectorSimilarityFunctions implements VectorLibrary {
+public interface VectorSimilarityFunctions {
+    MethodHandle dotProductHandle();
 
-    private final VectorLibrary vectorLibrary;
-
-    VectorSimilarityFunctions(VectorLibrary vectorLibrary) {
-        this.vectorLibrary = vectorLibrary;
-    }
-
-    /**
-     * Produces a method handle returning the dot product of byte (signed int8) vectors.
-     *
-     * <p> The type of the method handle will have {@code int} as return type, The type of
-     * its first and second arguments will be {@code MemorySegment}, whose contents is the
-     * vector data bytes. The third argument is the length of the vector data.
-     */
-    public MethodHandle dotProductHandle() {
-        return vectorLibrary.dotProductHandle();
-    }
-
-    /**
-     * Produces a method handle returning the square distance of byte (signed int8) vectors.
-     *
-     * <p> The type of the method handle will have {@code int} as return type, The type of
-     * its first and second arguments will be {@code MemorySegment}, whose contents is the
-     * vector data bytes. The third argument is the length of the vector data.
-     */
-    public MethodHandle squareDistanceHandle() {
-        return vectorLibrary.squareDistanceHandle();
-    }
-
-    /**
-     * Returns a boolean telling if the CPU we are running on is "vector capable".
-     * "Vector capable" means that the CPU supports the SIMD/vector instruction set used
-     * to implement the native methods referenced by the MethodHandles exposed by this interface.
-     */
-    @Override
-    public boolean isCpuVectorCapable() {
-        return vectorLibrary.isCpuVectorCapable();
-    }
-
+    MethodHandle squareDistanceHandle();
 }

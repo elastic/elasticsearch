@@ -25,11 +25,10 @@ import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 
 /**
  * A fetch sub-phase for high-level field retrieval. Given a list of fields, it
@@ -64,8 +63,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         if (storedFieldsContext != null
             && storedFieldsContext.fieldNames() != null
             && storedFieldsContext.fieldNames().isEmpty() == false) {
-            final Set<FieldAndFormat> metadataFields = new TreeSet<>(Comparator.comparing(fieldAndFormat -> fieldAndFormat.field));
-            metadataFields.addAll(DEFAULT_METADATA_FIELDS);
+            final Set<FieldAndFormat> metadataFields = new HashSet<>(DEFAULT_METADATA_FIELDS);
             for (final String storedField : storedFieldsContext.fieldNames()) {
                 final Set<String> matchingFieldNames = searchExecutionContext.getMatchingFieldNames(storedField);
                 for (final String matchingFieldName : matchingFieldNames) {

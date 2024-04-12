@@ -32,7 +32,6 @@ final class FetchSearchPhase extends SearchPhase {
     private final BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
     private final SearchPhaseContext context;
     private final Logger logger;
-    private final SearchPhaseResults<SearchPhaseResult> resultConsumer;
     private final SearchProgressListener progressListener;
     private final AggregatedDfs aggregatedDfs;
     private final SearchPhaseController.ReducedQueryPhase reducedQueryPhase;
@@ -79,7 +78,6 @@ final class FetchSearchPhase extends SearchPhase {
         this.nextPhaseFactory = nextPhaseFactory;
         this.context = context;
         this.logger = context.getLogger();
-        this.resultConsumer = resultConsumer;
         this.progressListener = context.getTask().getProgressListener();
         this.reducedQueryPhase = reducedQueryPhase;
     }

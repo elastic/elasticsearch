@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.action.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -22,11 +20,9 @@ import org.elasticsearch.search.dfs.AggregatedDfs;
  */
 public final class RankFeaturePhase extends SearchPhase {
 
-    private static final Logger logger = LogManager.getLogger(RankFeaturePhase.class);
     private final SearchPhaseContext context;
     private final SearchPhaseResults<SearchPhaseResult> queryPhaseResults;
     private final SearchPhaseResults<SearchPhaseResult> rankPhaseResults;
-    private final SearchProgressListener progressListener;
 
     private final AggregatedDfs aggregatedDfs;
 
@@ -45,7 +41,6 @@ public final class RankFeaturePhase extends SearchPhase {
         this.aggregatedDfs = aggregatedDfs;
         this.rankPhaseResults = new ArraySearchPhaseResults<>(context.getNumShards());
         context.addReleasable(rankPhaseResults);
-        this.progressListener = context.getTask().getProgressListener();
     }
 
     @Override

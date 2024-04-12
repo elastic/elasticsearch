@@ -8,11 +8,9 @@ package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor;
@@ -23,8 +21,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.ZoneId;
 import java.util.Map;
-
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
 public class Equals extends EsqlBinaryComparison implements Negatable<BinaryComparison> {
     private static final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap = Map.ofEntries(

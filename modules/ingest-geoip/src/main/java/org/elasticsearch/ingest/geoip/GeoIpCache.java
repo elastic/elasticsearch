@@ -73,8 +73,7 @@ final class GeoIpCache {
             response = retrieveFunction.apply(ip);
             long databaseRequestTime = System.nanoTime() - start;
             storeQueryTimeInNanos.addAndGet(databaseRequestTime);
-            missesTimeInNanos.addAndGet(cacheRequestTime);
-            missesTimeInNanos.addAndGet(databaseRequestTime);
+            missesTimeInNanos.addAndGet(cacheRequestTime + databaseRequestTime);
             // if the response from the database was null, then use the no-result sentinel value
             if (response == null) {
                 response = NO_RESULT;

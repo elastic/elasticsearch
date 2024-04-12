@@ -25,7 +25,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.network.InetAddresses;
@@ -232,11 +231,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
     public void testTermsQuery() throws IOException {
         try (
             Directory directory = newDirectory();
-            RandomIndexWriter iw = new RandomIndexWriter(
-                random(),
-                directory,
-                LuceneTestCase.newIndexWriterConfig().setMergePolicy(LuceneTestCase.newMergePolicy(random(), false))
-            );
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
         ) {
             addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.0.1\"]}"))));
             addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"192.168.1.1\"]}"))));

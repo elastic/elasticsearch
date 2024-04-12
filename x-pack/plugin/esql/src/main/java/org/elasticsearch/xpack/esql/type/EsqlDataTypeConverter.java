@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.NumericUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -69,15 +70,41 @@ public class EsqlDataTypeConverter {
 
     public static Converter converterFor(DataType from, DataType to) {
         // TODO move EXPRESSION_TO_LONG here if there is no regression
+        if (isString(from)) {
+            if (to == DataTypes.DATETIME) {
+                return EsqlConverter.STRING_TO_DATETIME;
+            }
+            if (to == DataTypes.IP) {
+                return EsqlConverter.STRING_TO_IP;
+            }
+            if (to == DataTypes.VERSION) {
+                return EsqlConverter.STRING_TO_VERSION;
+            }
+            if (to == DataTypes.DOUBLE) {
+                return EsqlConverter.STRING_TO_DOUBLE;
+            }
+            if (to == DataTypes.LONG) {
+                return EsqlConverter.STRING_TO_LONG;
+            }
+            if (to == DataTypes.INTEGER) {
+                return EsqlConverter.STRING_TO_INT;
+            }
+            if (to == DataTypes.BOOLEAN) {
+                return EsqlConverter.STRING_TO_BOOLEAN;
+            }
+            if (EsqlDataTypes.isSpatial(to)) {
+                return EsqlConverter.STRING_TO_SPATIAL;
+            }
+            if (to == EsqlDataTypes.TIME_DURATION) {
+                return EsqlConverter.STRING_TO_TIME_DURATION;
+            }
+            if (to == EsqlDataTypes.DATE_PERIOD) {
+                return EsqlConverter.STRING_TO_DATE_PERIOD;
+            }
+        }
         Converter converter = DataTypeConverter.converterFor(from, to);
         if (converter != null) {
             return converter;
-        }
-        if (isString(from) && to == EsqlDataTypes.TIME_DURATION) {
-            return EsqlConverter.STRING_TO_TIME_DURATION;
-        }
-        if (isString(from) && to == EsqlDataTypes.DATE_PERIOD) {
-            return EsqlConverter.STRING_TO_DATE_PERIOD;
         }
         return null;
     }
@@ -215,6 +242,10 @@ public class EsqlDataTypeConverter {
         return new Version(field.utf8ToString()).toBytesRef();
     }
 
+    public static Version stringToVersion(String field) {
+        return new Version(field);
+    }
+
     public static String versionToString(BytesRef field) {
         return new Version(field).toString();
     }
@@ -349,7 +380,15 @@ public class EsqlDataTypeConverter {
 
         STRING_TO_DATE_PERIOD(x -> EsqlDataTypeConverter.parseTemporalAmount(x, EsqlDataTypes.DATE_PERIOD)),
         STRING_TO_TIME_DURATION(x -> EsqlDataTypeConverter.parseTemporalAmount(x, EsqlDataTypes.TIME_DURATION)),
-        STRING_TO_CHRONO_FIELD(EsqlDataTypeConverter::stringToChrono);
+        STRING_TO_CHRONO_FIELD(EsqlDataTypeConverter::stringToChrono),
+        STRING_TO_DATETIME(x -> EsqlDataTypeConverter.dateTimeToLong((String) x)),
+        STRING_TO_IP(x -> EsqlDataTypeConverter.stringToIP((String) x)),
+        STRING_TO_VERSION(x -> EsqlDataTypeConverter.stringToVersion((String) x)),
+        STRING_TO_DOUBLE(x -> EsqlDataTypeConverter.stringToDouble((String) x)),
+        STRING_TO_LONG(x -> EsqlDataTypeConverter.stringToLong((String) x)),
+        STRING_TO_INT(x -> EsqlDataTypeConverter.stringToInt((String) x)),
+        STRING_TO_BOOLEAN(x -> EsqlDataTypeConverter.stringToBoolean((String) x)),
+        STRING_TO_SPATIAL(x -> EsqlDataTypeConverter.stringToSpatial((String) x));
 
         private static final String NAME = "esql-converter";
         private final Function<Object, Object> converter;

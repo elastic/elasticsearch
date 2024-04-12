@@ -28,8 +28,8 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 /**
  * Locate function, given a string 'a' and a substring 'b', it returns the index of the first occurrence of the substring 'b' in 'a'.
@@ -80,7 +80,7 @@ public class Locate extends EsqlScalarFunction implements OptionalArgument {
             return resolution;
         }
 
-        return start == null ? TypeResolution.TYPE_RESOLVED : isInteger(start, sourceText(), THIRD);
+        return start == null ? TypeResolution.TYPE_RESOLVED : isType(start, dt -> dt == DataTypes.INTEGER, sourceText(), THIRD, "integer");
     }
 
     @Override
@@ -96,7 +96,11 @@ public class Locate extends EsqlScalarFunction implements OptionalArgument {
         int codePointCount = UnicodeUtil.codePointCount(str);
         int indexStart = indexStart(codePointCount, start);
         String utf8ToString = str.utf8ToString();
-        return 1 + utf8ToString.indexOf(substr.utf8ToString(), utf8ToString.offsetByCodePoints(0, indexStart));
+        int idx = utf8ToString.indexOf(substr.utf8ToString(), utf8ToString.offsetByCodePoints(0, indexStart));
+        if (idx == -1) {
+            return 0;
+        }
+        return 1 + utf8ToString.codePointCount(0, idx);
     }
 
     @Evaluator(extraName = "NoStart")

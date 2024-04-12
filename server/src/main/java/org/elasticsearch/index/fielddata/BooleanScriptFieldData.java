@@ -90,6 +90,11 @@ public final class BooleanScriptFieldData extends IndexNumericFieldData {
         return true;
     }
 
+    @Override
+    protected boolean isIndexed() {
+        return false;
+    }
+
     public static class BooleanScriptLeafFieldData extends LeafLongFieldData {
         private final BooleanScriptDocValues booleanScriptDocValues;
         protected final ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory;

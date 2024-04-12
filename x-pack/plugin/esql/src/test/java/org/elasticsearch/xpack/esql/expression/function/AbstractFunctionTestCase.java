@@ -855,6 +855,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Map.entry(Set.of(DataTypes.INTEGER, DataTypes.NULL), "integer"),
         Map.entry(Set.of(DataTypes.IP, DataTypes.NULL), "ip"),
         Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE, DataTypes.NULL), "numeric"),
+        Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE), "numeric"),
         Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.VERSION, DataTypes.NULL), "string or version"),
         Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "string"),
         Map.entry(Set.of(DataTypes.IP, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "ip or string"),
@@ -1109,6 +1110,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             table.add(b.toString());
         }
         Collections.sort(table);
+        if (table.isEmpty()) {
+            table.add(signatures.values().iterator().next().typeName());
+        }
 
         String rendered = DOCS_WARNING + """
             *Supported types*
@@ -1209,7 +1213,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
             """);
         builder.append("### ").append(name.toUpperCase(Locale.ROOT)).append("\n");
-        builder.append(info.description()).append("\n\n");
+        builder.append(removeAsciidocLinks(info.description())).append("\n\n");
 
         if (info.examples().length > 0) {
             Example example = info.examples()[0];
@@ -1218,7 +1222,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             builder.append("```\n");
         }
         if (Strings.isNullOrEmpty(info.note()) == false) {
-            builder.append("Note: ").append(info.note()).append("\n");
+            builder.append("Note: ").append(removeAsciidocLinks(info.note())).append("\n");
         }
         String rendered = builder.toString();
         LogManager.getLogger(getTestClass()).info("Writing kibana inline docs for [{}]:\n{}", functionName(), rendered);

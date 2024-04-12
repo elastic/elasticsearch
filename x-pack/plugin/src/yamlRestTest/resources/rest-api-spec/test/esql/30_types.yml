@@ -1,9 +1,9 @@
 ---
 setup:
-  - skip:
-      version: " - 8.11.99"
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
       reason: "more field loading added in 8.12+"
-      features: allowed_warnings_regex
+      test_runner_features: allowed_warnings_regex
 
 ---
 constant_keyword:
@@ -621,8 +621,8 @@ version:
 
 ---
 id:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "_source is available in 8.13+"
   - do:
       indices.create:
@@ -685,8 +685,8 @@ unsigned_long:
 
 ---
 _source:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "_source is available in 8.13+"
 
   - do:
@@ -713,8 +713,8 @@ _source:
 
 ---
 _source keep all:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "_source is available in 8.13+"
 
   - do:
@@ -748,8 +748,8 @@ _source keep all:
 
 ---
 _source disabled:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "_source is available in 8.13+"
 
   - do:
@@ -871,8 +871,8 @@ synthetic _source text with parent keyword:
 
 ---
 geo_point:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "geo_point precision changed in 8.13.0"
   - do:
       indices.create:
@@ -904,8 +904,8 @@ geo_point:
 
 ---
 cartesian_point:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "cartesian_point precision changed in 8.13.0"
   - do:
       indices.create:

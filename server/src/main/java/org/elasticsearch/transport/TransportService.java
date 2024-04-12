@@ -855,7 +855,7 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     private void handleSendRequestException(TransportResponseHandler<?> handler, TransportException transportException) {
-        handler.executor().execute(new AbstractRunnable() {
+        getInternalSendExceptionExecutor(handler.executor()).execute(new AbstractRunnable() {
             @Override
             public boolean isForceExecution() {
                 return true; // we must complete every pending listener

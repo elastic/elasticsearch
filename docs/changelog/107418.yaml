@@ -1,0 +1,9 @@
+pr: 107418
+summary: "Add release highlight for #106068"
+area: Search
+type: enhancement
+issues: []
+highlight:
+  title: "Add release highlight for #106068"
+  body: "Add release highlight for #106068"
+  notable: true

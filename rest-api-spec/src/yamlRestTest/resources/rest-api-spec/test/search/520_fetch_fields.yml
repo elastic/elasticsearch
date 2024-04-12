@@ -143,6 +143,10 @@ fetch _seq_no via fields:
 
 ---
 fetch fields with none stored_fields:
+  - skip:
+      version: " - 7.99.99"
+      reason: "from illegal_argument_exception to action_request_validation_exception"
+
   - do:
       catch: "bad_request"
       search:

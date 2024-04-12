@@ -26,8 +26,8 @@ dependencies {
 GradleUtils.extendSourceSet(project, "javaRestTest", "yamlRestTest")
 
 def supportedVersion = bwcVersion -> {
-  // ESQL is available in 8.11 or later
-  return bwcVersion.onOrAfter(Version.fromString("8.11.0"));
+  // ESQL is available in 8.11 or later, but nodes older than 8.13.3 fail because of unknown `version` parameter in requests to /_query.
+  return bwcVersion.onOrAfter(Version.fromString("8.13.3"));
 }
 
 BuildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->

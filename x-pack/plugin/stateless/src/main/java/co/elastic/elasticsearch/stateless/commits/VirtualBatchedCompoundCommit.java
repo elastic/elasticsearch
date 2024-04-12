@@ -219,7 +219,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             header,
             reference,
             internalFiles,
-            createStatelessCompoundCommit(reference, header.length + compoundCommitFilesSize)
+            createStatelessCompoundCommit(reference, header.length + compoundCommitFilesSize, internalFiles)
         );
         pendingCompoundCommits.add(pendingCompoundCommit);
         logger.debug("appended new CC [{}] to VBCC [{}]", pendingCompoundCommit, primaryTermAndGeneration);
@@ -234,7 +234,11 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         return true;
     }
 
-    private StatelessCompoundCommit createStatelessCompoundCommit(StatelessCommitRef reference, long sizeInBytes) {
+    private StatelessCompoundCommit createStatelessCompoundCommit(
+        StatelessCommitRef reference,
+        long sizeInBytes,
+        List<StatelessCompoundCommit.InternalFile> internalFiles
+    ) {
         Map<String, BlobLocation> commitLocations = Maps.newMapWithExpectedSize(reference.getCommitFiles().size());
         for (String commitFile : reference.getCommitFiles()) {
             var blobLocation = getBlobLocation(commitFile);
@@ -247,7 +251,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             reference.getTranslogRecoveryStartFile(),
             nodeEphemeralId,
             Collections.unmodifiableMap(commitLocations),
-            sizeInBytes
+            sizeInBytes,
+            internalFiles.stream().map(StatelessCompoundCommit.InternalFile::name).collect(Collectors.toSet())
         );
     }
 

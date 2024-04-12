@@ -292,7 +292,8 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
                     1L,
                     "_na_",
                     Map.of(fileName, new BlobLocation(primaryTerm, "stateless_commit_1", 0L, bytes.length)),
-                    bytes.length
+                    bytes.length,
+                    Set.of(fileName)
                 ),
                 Set.of(fileName)
             );
@@ -403,7 +404,8 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
                         1L,
                         "_na_",
                         Map.of(fileName, new BlobLocation(1L, blobName, 0L, length)),
-                        length
+                        length,
+                        Set.of(fileName)
                     ),
                     null
                 );

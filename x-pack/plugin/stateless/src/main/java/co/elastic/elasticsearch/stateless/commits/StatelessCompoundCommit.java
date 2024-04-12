@@ -63,6 +63,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.COMPOUND_COMMIT_WITH_INTERNAL_FILES;
 import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.COMPOUND_COMMIT_WITH_SIZE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -78,7 +79,8 @@ public record StatelessCompoundCommit(
     String nodeEphemeralId,
     Map<String, BlobLocation> commitFiles,
     // the size of the compound commit including codec, header, checksums and all files
-    long sizeInBytes
+    long sizeInBytes,
+    Set<String> internalFiles
 ) implements Writeable {
 
     public StatelessCompoundCommit(
@@ -87,9 +89,14 @@ public record StatelessCompoundCommit(
         long primaryTerm,
         String nodeEphemeralId,
         Map<String, BlobLocation> commitFiles,
-        long sizeInBytes
+        long sizeInBytes,
+        Set<String> internalFiles
     ) {
-        this(shardId, new PrimaryTermAndGeneration(primaryTerm, generation), 0, nodeEphemeralId, commitFiles, sizeInBytes);
+        this(shardId, new PrimaryTermAndGeneration(primaryTerm, generation), 0, nodeEphemeralId, commitFiles, sizeInBytes, internalFiles);
+    }
+
+    public StatelessCompoundCommit {
+        assert commitFiles.keySet().containsAll(internalFiles);
     }
 
     private static final String PREFIX = "stateless_commit_";
@@ -144,16 +151,28 @@ public record StatelessCompoundCommit(
         if (out.getTransportVersion().onOrAfter(COMPOUND_COMMIT_WITH_SIZE)) {
             out.writeVLong(sizeInBytes);
         }
+        if (out.getTransportVersion().onOrAfter(COMPOUND_COMMIT_WITH_INTERNAL_FILES)) {
+            out.writeStringCollection(internalFiles);
+        }
     }
 
     public static StatelessCompoundCommit readFromTransport(StreamInput in) throws IOException {
+        ShardId shardId = new ShardId(in);
+        PrimaryTermAndGeneration primaryTermAndGeneration = primaryTermAndGeneration(in);
+        long translogRecoveryStartFile = in.readVLong();
+        String nodeEphemeralId = in.readString();
+        Map<String, BlobLocation> commitFiles = in.readImmutableMap(StreamInput::readString, BlobLocation::readFromTransport);
+        long sizeInBytes = in.getTransportVersion().onOrAfter(COMPOUND_COMMIT_WITH_SIZE) ? in.readVLong() : 0;
         return new StatelessCompoundCommit(
-            new ShardId(in),
-            primaryTermAndGeneration(in),
-            in.readVLong(),
-            in.readString(),
-            in.readImmutableMap(StreamInput::readString, BlobLocation::readFromTransport),
-            in.getTransportVersion().onOrAfter(COMPOUND_COMMIT_WITH_SIZE) ? in.readVLong() : 0
+            shardId,
+            primaryTermAndGeneration,
+            translogRecoveryStartFile,
+            nodeEphemeralId,
+            commitFiles,
+            sizeInBytes,
+            in.getTransportVersion().onOrAfter(COMPOUND_COMMIT_WITH_INTERNAL_FILES)
+                ? in.readCollectionAsImmutableSet(StreamInput::readString)
+                : computeInternalFilesForLegacyCC(primaryTermAndGeneration, commitFiles)
         );
     }
 
@@ -165,8 +184,15 @@ public record StatelessCompoundCommit(
     }
 
     public Set<String> getInternalFiles() {
+        return internalFiles;
+    }
+
+    private static Set<String> computeInternalFilesForLegacyCC(
+        PrimaryTermAndGeneration primaryTermAndGeneration,
+        Map<String, BlobLocation> commitFiles
+    ) {
         final String compoundCommitBlobName = StatelessCompoundCommit.blobNameFromGeneration(primaryTermAndGeneration.generation());
-        return commitFiles().entrySet()
+        return commitFiles.entrySet()
             .stream()
             .filter(commitFile -> compoundCommitBlobName.equals(commitFile.getValue().blobName()))
             .map(Map.Entry::getKey)
@@ -430,13 +456,15 @@ public record StatelessCompoundCommit(
             translogRecoveryStartFile,
             nodeEphemeralId,
             Collections.unmodifiableMap(commitFiles),
-            totalSizeInBytes
+            totalSizeInBytes,
+            internalFiles.stream().map(InternalFile::name).collect(Collectors.toSet())
         );
     }
 
     // This method combines the pre-existing blob locations with the files internally uploaded in this commit
     // to one map of commit file locations.
-    private static Map<String, BlobLocation> combineCommitFiles(
+    // visible for testing
+    static Map<String, BlobLocation> combineCommitFiles(
         String blobName,
         long primaryTerm,
         List<InternalFile> internalFiles,

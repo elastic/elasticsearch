@@ -1155,7 +1155,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 2,
                 "xx",
                 Map.of("segments_2", new BlobLocation(new BlobFile(2, StatelessCompoundCommit.blobNameFromGeneration(1)), 12, 12)),
-                10
+                10,
+                Set.of("segments_2")
             );
             int count = rarely() ? 50000 : 10000;
             var unreferencedFiles = IntStream.range(1, count)

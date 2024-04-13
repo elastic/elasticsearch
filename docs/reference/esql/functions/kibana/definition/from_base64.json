@@ -30,6 +30,6 @@
     }
   ],
   "examples" : [
-    "row a = \"aGVsbG8=\" \n| eval d = from_base64(a)"
+    "row a = \"ZWxhc3RpYw==\" \n| eval d = from_base64(a)"
   ]
 }

@@ -4,107 +4,116 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToBase64}.
  * This class is generated. Do not edit it.
  */
-public final class ToBase64Evaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToBase64Evaluator(EvalOperator.ExpressionEvaluator field, Source source,
-      DriverContext driverContext) {
-    super(driverContext, field, source);
+public final class ToBase64Evaluator implements EvalOperator.ExpressionEvaluator {
+  private final Warnings warnings;
+
+  private final EvalOperator.ExpressionEvaluator field;
+
+  private final BytesRefBuilder oScratch;
+
+  private final DriverContext driverContext;
+
+  public ToBase64Evaluator(Source source, EvalOperator.ExpressionEvaluator field,
+      BytesRefBuilder oScratch, DriverContext driverContext) {
+    this.warnings = new Warnings(source);
+    this.field = field;
+    this.oScratch = oScratch;
+    this.driverContext = driverContext;
   }
 
   @Override
-  public String name() {
-    return "ToBase64";
-  }
-
-  @Override
-  public Block evalVector(Vector v) {
-    BytesRefVector vector = (BytesRefVector) v;
-    int positionCount = v.getPositionCount();
-    BytesRef scratchPad = new BytesRef();
-    if (vector.isConstant()) {
-      return driverContext.blockFactory().newConstantBytesRefBlockWith(evalValue(vector, 0, scratchPad), positionCount);
-    }
-    try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-      for (int p = 0; p < positionCount; p++) {
-        builder.appendBytesRef(evalValue(vector, p, scratchPad));
+  public Block eval(Page page) {
+    try (BytesRefBlock fieldBlock = (BytesRefBlock) field.eval(page)) {
+      BytesRefVector fieldVector = fieldBlock.asVector();
+      if (fieldVector == null) {
+        return eval(page.getPositionCount(), fieldBlock);
       }
-      return builder.build();
+      return eval(page.getPositionCount(), fieldVector).asBlock();
     }
   }
 
-  private static BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
-    BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToBase64.process(value);
-  }
-
-  @Override
-  public Block evalBlock(Block b) {
-    BytesRefBlock block = (BytesRefBlock) b;
-    int positionCount = block.getPositionCount();
-    try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-      BytesRef scratchPad = new BytesRef();
-      for (int p = 0; p < positionCount; p++) {
-        int valueCount = block.getValueCount(p);
-        int start = block.getFirstValueIndex(p);
-        int end = start + valueCount;
-        boolean positionOpened = false;
-        boolean valuesAppended = false;
-        for (int i = start; i < end; i++) {
-          BytesRef value = evalValue(block, i, scratchPad);
-          if (positionOpened == false && valueCount > 1) {
-            builder.beginPositionEntry();
-            positionOpened = true;
+  public BytesRefBlock eval(int positionCount, BytesRefBlock fieldBlock) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+      BytesRef fieldScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        if (fieldBlock.isNull(p)) {
+          result.appendNull();
+          continue position;
+        }
+        if (fieldBlock.getValueCount(p) != 1) {
+          if (fieldBlock.getValueCount(p) > 1) {
+            warnings.registerException(new IllegalArgumentException("single-value function encountered multi-value"));
           }
-          builder.appendBytesRef(value);
-          valuesAppended = true;
+          result.appendNull();
+          continue position;
         }
-        if (valuesAppended == false) {
-          builder.appendNull();
-        } else if (positionOpened) {
-          builder.endPositionEntry();
-        }
+        result.appendBytesRef(ToBase64.process(fieldBlock.getBytesRef(fieldBlock.getFirstValueIndex(p), fieldScratch), oScratch));
       }
-      return builder.build();
+      return result.build();
     }
   }
 
-  private static BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
-    BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToBase64.process(value);
+  public BytesRefVector eval(int positionCount, BytesRefVector fieldVector) {
+    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
+      BytesRef fieldScratch = new BytesRef();
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendBytesRef(ToBase64.process(fieldVector.getBytesRef(p, fieldScratch), oScratch));
+      }
+      return result.build();
+    }
   }
 
-  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  @Override
+  public String toString() {
+    return "ToBase64Evaluator[" + "field=" + field + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(field);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
     private final EvalOperator.ExpressionEvaluator.Factory field;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    private final BytesRefBuilder oScratch;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field,
+        BytesRefBuilder oScratch) {
       this.source = source;
+      this.field = field;
+      this.oScratch = oScratch;
     }
 
     @Override
     public ToBase64Evaluator get(DriverContext context) {
-      return new ToBase64Evaluator(field.get(context), source, context);
+      return new ToBase64Evaluator(source, field.get(context), oScratch, context);
     }
 
     @Override
     public String toString() {
-      return "ToBase64Evaluator[field=" + field + "]";
+      return "ToBase64Evaluator[" + "field=" + field + "]";
     }
   }
 }

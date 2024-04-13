@@ -30,6 +30,6 @@
     }
   ],
   "examples" : [
-    "row a = \"hello\" \n| eval e = to_base64(a)"
+    "row a = \"elastic\" \n| eval e = to_base64(a)"
   ]
 }

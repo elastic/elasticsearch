@@ -8,29 +8,30 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.ann.ConvertEvaluator;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.Base64;
 import java.util.List;
-import java.util.Map;
+import java.util.function.Function;
 
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 
-public class FromBase64 extends AbstractConvertFunction implements EvaluatorMapper {
-
-    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(KEYWORD, FromBase64Evaluator.Factory::new),
-        Map.entry(TEXT, FromBase64Evaluator.Factory::new)
-    );
+public class FromBase64 extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
@@ -45,8 +46,11 @@ public class FromBase64 extends AbstractConvertFunction implements EvaluatorMapp
     }
 
     @Override
-    protected Map<DataType, BuildFactory> factories() {
-        return EVALUATORS;
+    protected TypeResolution resolveType() {
+        if (childrenResolved() == false) {
+            return new TypeResolution("Unresolved children");
+        }
+        return isString(field, sourceText(), TypeResolutions.ParamOrdinal.DEFAULT);
     }
 
     @Override
@@ -64,10 +68,24 @@ public class FromBase64 extends AbstractConvertFunction implements EvaluatorMapp
         return NodeInfo.create(this, FromBase64::new, field());
     }
 
-    @ConvertEvaluator()
-    static BytesRef process(BytesRef input) {
-        byte[] bytes = new byte[input.length];
-        System.arraycopy(input.bytes, input.offset, bytes, 0, input.length);
-        return new BytesRef(Base64.getDecoder().decode(bytes));
+    @Evaluator()
+    static BytesRef process(BytesRef field, @Fixed(includeInToString = false) BytesRefBuilder oScratch) {
+        byte[] bytes = new byte[field.length];
+        System.arraycopy(field.bytes, field.offset, bytes, 0, field.length);
+        oScratch.clear();
+        oScratch.grow(field.length);
+        int decodedSize = Base64.getDecoder().decode(bytes, oScratch.bytes());
+        return new BytesRef(oScratch.bytes(), 0, decodedSize);
+    }
+
+    @Override
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
+        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
+    ) {
+        return switch (PlannerUtils.toElementType(field.dataType())) {
+            case BYTES_REF -> new FromBase64Evaluator.Factory(source(), toEvaluator.apply(field), new BytesRefBuilder());
+            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
+            default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
+        };
     }
 }

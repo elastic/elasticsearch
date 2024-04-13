@@ -640,7 +640,7 @@ public class MetadataRolloverService {
                 );
             }
             var dataStream = (DataStream) indexAbstraction;
-            if (isFailureStoreRollover && dataStream.isFailureStore() == false) {
+            if (isFailureStoreRollover && dataStream.isFailureStoreEnabled() == false) {
                 throw new IllegalArgumentException(
                     "unable to roll over failure store because [" + indexAbstraction.getName() + "] does not have the failure store enabled"
                 );

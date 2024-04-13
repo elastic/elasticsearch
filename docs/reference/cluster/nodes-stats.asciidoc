@@ -626,6 +626,7 @@ Total time spent performing flush operations.
 (integer)
 Total time in milliseconds
 spent performing flush operations.
+
 =======
 
 `warmer`::

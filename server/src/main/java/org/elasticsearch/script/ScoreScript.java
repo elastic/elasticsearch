@@ -197,7 +197,7 @@ public abstract class ScoreScript extends DocBasedScript {
          */
         boolean needs_score();
 
-        ScoreScript newInstance(DocReader reader) throws IOException;
+        ScoreScript newInstance(DocReader reader, TermStatsReader termStatsReader) throws IOException;
     }
 
     /** A factory to construct stateful {@link ScoreScript} factories for a specific index. */

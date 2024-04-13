@@ -29,6 +29,7 @@ import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScoreScript.ExplanationHolder;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.TermStatsReader;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -164,7 +165,10 @@ public class ScriptScoreQuery extends Query {
             }
 
             private ScoreScript makeScoreScript(LeafReaderContext context) throws IOException {
-                final ScoreScript scoreScript = scriptBuilder.newInstance(new DocValuesDocReader(lookup, context));
+                final ScoreScript scoreScript = scriptBuilder.newInstance(
+                    new DocValuesDocReader(lookup, context),
+                    new TermStatsReader()
+                );
                 scoreScript._setIndexName(indexName);
                 scoreScript._setShard(shardId);
                 return scoreScript;

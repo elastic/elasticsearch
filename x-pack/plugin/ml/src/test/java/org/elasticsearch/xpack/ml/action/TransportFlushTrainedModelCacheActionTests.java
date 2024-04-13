@@ -15,24 +15,21 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.FlushTrainedModelCacheAction;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelCacheMetadataService;
+import org.junit.After;
 import org.junit.Before;
 
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class TransportFlushTrainedModelCacheActionTests extends ESTestCase {
 
@@ -42,21 +39,21 @@ public class TransportFlushTrainedModelCacheActionTests extends ESTestCase {
     @Before
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private void setupMocks() {
-        ExecutorService executorService = mock(ExecutorService.class);
-        threadPool = mock(ThreadPool.class);
-        org.mockito.Mockito.doAnswer(invocation -> {
-            invocation.getArgument(0, Runnable.class).run();
-            return null;
-        }).when(executorService).execute(any(Runnable.class));
-        when(threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)).thenReturn(executorService);
-        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-
+        threadPool = new TestThreadPool(getTestName());
         modelCacheMetadataService = mock(TrainedModelCacheMetadataService.class);
         doAnswer(invocationOnMock -> {
             ActionListener listener = invocationOnMock.getArgument(0, ActionListener.class);
             listener.onResponse(AcknowledgedResponse.TRUE);
             return null;
         }).when(modelCacheMetadataService).refreshCacheVersion(any(ActionListener.class));
+    }
+
+    @After
+    public void shutdown() throws Exception {
+        if (threadPool != null) {
+            threadPool.shutdownNow();
+        }
+        threadPool = null;
     }
 
     public void testOperation() {

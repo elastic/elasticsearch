@@ -30,6 +30,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Numbers;
@@ -1386,6 +1387,16 @@ public class TrainedModelProvider {
     }
 
     private void refreshCacheVersion(ActionListener<Boolean> listener) {
-        modelCacheMetadataService.refreshCacheVersion(ActionListener.wrap(resp -> listener.onResponse(true), listener::onFailure));
+        modelCacheMetadataService.refreshCacheVersion(
+            ActionListener.wrap(
+                resp -> {
+                    // Checking the response is always AcknowledgedResponse.TRUE because AcknowledgedResponse.FALSE does not make sense.
+                    // Errors should be reported through the onFailure method of the listener.
+                    assert resp.equals(AcknowledgedResponse.TRUE);
+                    listener.onResponse(true);
+                },
+                listener::onFailure
+            )
+        );
     }
 }

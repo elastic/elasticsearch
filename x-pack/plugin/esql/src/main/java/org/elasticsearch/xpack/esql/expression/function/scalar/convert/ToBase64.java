@@ -80,7 +80,7 @@ public class ToBase64 extends UnaryScalarFunction {
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
         return switch (PlannerUtils.toElementType(field.dataType())) {
-            case BYTES_REF -> new ToBase64Evaluator.Factory(source(), toEvaluator.apply(field), new BytesRefBuilder());
+            case BYTES_REF -> new ToBase64Evaluator.Factory(source(), toEvaluator.apply(field));
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };

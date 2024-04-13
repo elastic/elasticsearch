@@ -28,15 +28,12 @@ public final class ToBase64Evaluator implements EvalOperator.ExpressionEvaluator
 
   private final EvalOperator.ExpressionEvaluator field;
 
-  private final BytesRefBuilder oScratch;
-
   private final DriverContext driverContext;
 
   public ToBase64Evaluator(Source source, EvalOperator.ExpressionEvaluator field,
-      BytesRefBuilder oScratch, DriverContext driverContext) {
+      DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.field = field;
-    this.oScratch = oScratch;
     this.driverContext = driverContext;
   }
 
@@ -54,6 +51,7 @@ public final class ToBase64Evaluator implements EvalOperator.ExpressionEvaluator
   public BytesRefBlock eval(int positionCount, BytesRefBlock fieldBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef fieldScratch = new BytesRef();
+      BytesRefBuilder oScratch = new BytesRefBuilder();
       position: for (int p = 0; p < positionCount; p++) {
         if (fieldBlock.isNull(p)) {
           result.appendNull();
@@ -75,6 +73,7 @@ public final class ToBase64Evaluator implements EvalOperator.ExpressionEvaluator
   public BytesRefVector eval(int positionCount, BytesRefVector fieldVector) {
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef fieldScratch = new BytesRef();
+      BytesRefBuilder oScratch = new BytesRefBuilder();
       position: for (int p = 0; p < positionCount; p++) {
         result.appendBytesRef(ToBase64.process(fieldVector.getBytesRef(p, fieldScratch), oScratch));
       }
@@ -97,18 +96,14 @@ public final class ToBase64Evaluator implements EvalOperator.ExpressionEvaluator
 
     private final EvalOperator.ExpressionEvaluator.Factory field;
 
-    private final BytesRefBuilder oScratch;
-
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field,
-        BytesRefBuilder oScratch) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field) {
       this.source = source;
       this.field = field;
-      this.oScratch = oScratch;
     }
 
     @Override
     public ToBase64Evaluator get(DriverContext context) {
-      return new ToBase64Evaluator(source, field.get(context), oScratch, context);
+      return new ToBase64Evaluator(source, field.get(context), context);
     }
 
     @Override

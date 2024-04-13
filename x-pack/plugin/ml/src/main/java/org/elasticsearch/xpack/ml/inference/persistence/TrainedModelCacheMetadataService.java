@@ -78,7 +78,7 @@ public class TrainedModelCacheMetadataService implements ClusterStateListener {
 
         @Override
         public void onFailure(@Nullable Exception e) {
-            LOGGER.error(() -> "unexpected failure during [" + getDescription() + "]", e);
+            LOGGER.error("unexpected failure during [" + getDescription() + "]", e);
             listener.onFailure(e);
         }
     }

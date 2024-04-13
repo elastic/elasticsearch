@@ -392,8 +392,8 @@ setup:
 
 ---
 "Date range rounding":
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason:  "This part tests rounding behaviour changed in 7.7"
 
   - do:

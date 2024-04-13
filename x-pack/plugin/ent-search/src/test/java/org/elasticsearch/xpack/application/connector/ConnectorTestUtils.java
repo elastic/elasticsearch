@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.application.connector;
 
+import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentType;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.application.connector.filtering.FilteringRuleCond
 import org.elasticsearch.xpack.application.connector.filtering.FilteringRules;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringValidationInfo;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringValidationState;
+import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobType;
 import org.elasticsearch.xpack.core.scheduler.Cron;
 
@@ -46,10 +48,52 @@ import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomList;
 import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.CONNECTOR_INDEX_NAME_PATTERN;
+import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.CONNECTOR_SYNC_JOBS_INDEX_NAME_PATTERN;
+import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.CONNECTOR_SYNC_JOBS_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.CONNECTOR_TEMPLATE_NAME;
 
 public final class ConnectorTestUtils {
 
     public static final String NULL_STRING = null;
+
+    /**
+     * Registers index templates for instances of {@link Connector} and {@link ConnectorSyncJob} with essential field mappings. This method
+     * only includes mappings for fields relevant to test cases, specifying field types to ensure correct ES query logic behavior.
+     *
+     * @param indicesAdminClient The Elasticsearch indices admin client used for template registration.
+     */
+
+    public static void registerSimplifiedConnectorIndexTemplates(IndicesAdminClient indicesAdminClient) {
+
+        indicesAdminClient.preparePutTemplate(CONNECTOR_TEMPLATE_NAME)
+            .setPatterns(List.of(CONNECTOR_INDEX_NAME_PATTERN))
+            .setVersion(0)
+            .setMapping(
+                "service_type",
+                "type=keyword,store=true",
+                "status",
+                "type=keyword,store=true",
+                "index_name",
+                "type=keyword,store=true",
+                "configuration",
+                "type=object"
+            )
+            .get();
+
+        indicesAdminClient.preparePutTemplate(CONNECTOR_SYNC_JOBS_TEMPLATE_NAME)
+            .setPatterns(List.of(CONNECTOR_SYNC_JOBS_INDEX_NAME_PATTERN))
+            .setVersion(0)
+            .setMapping(
+                "job_type",
+                "type=keyword,store=true",
+                "connector.id",
+                "type=keyword,store=true",
+                "status",
+                "type=keyword,store=true"
+            )
+            .get();
+    }
 
     public static PutConnectorAction.Request getRandomPutConnectorActionRequest() {
         return new PutConnectorAction.Request(
@@ -166,7 +210,6 @@ public final class ConnectorTestUtils {
                 )
                 .build()
         )
-            .setDomain(randomAlphaOfLength(10))
             .setDraft(
                 new FilteringRules.Builder().setAdvancedSnippet(
                     new FilteringAdvancedSnippet.Builder().setAdvancedSnippetCreatedAt(currentTimestamp)

@@ -57,8 +57,8 @@ public class VerifierTests extends ESTestCase {
             error("row a = 1, b = \"c\" | eval x = round(a, 3.5)")
         );
         assertEquals(
-            "1:9: second argument of [round(123.45, \"1\")] must be [integer], found value [\"1\"] type [keyword]",
-            error("row a = round(123.45, \"1\")")
+            "1:23: Cannot convert string [c] to [INTEGER], error [Cannot parse number [c]]",
+            error("row a = round(123.45, \"c\")")
         );
     }
 
@@ -317,7 +317,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testWrongInputParam() {
         assertEquals(
-            "1:19: first argument of [emp_no == ?] is [numeric] so second argument must also be [numeric] but was [keyword]",
+            "1:29: Cannot convert string [foo] to [INTEGER], error [Cannot parse number [foo]]",
             error("from test | where emp_no == ?", "foo")
         );
 

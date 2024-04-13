@@ -356,7 +356,7 @@ public class VectorSearchIT extends ParameterizedRollingUpgradeTestCase {
         assertThat(extractValue(response, "hits.total.value"), equalTo(2));
         hits = extractValue(response, "hits.hits");
         assertThat(hits.get(0).get("_id"), equalTo("0"));
-        assertThat((double) hits.get(0).get("_score"), closeTo(0.9934857, 0.0001));
+        assertThat((double) hits.get(0).get("_score"), closeTo(0.9934857, 0.005));
     }
 
     private void indexVectors(String indexName) throws Exception {

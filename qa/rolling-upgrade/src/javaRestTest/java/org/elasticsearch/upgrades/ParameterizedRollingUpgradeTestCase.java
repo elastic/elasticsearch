@@ -24,6 +24,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.test.rest.TestFeatureService;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -71,7 +72,7 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
     }
 
     private static final Set<Integer> upgradedNodes = new HashSet<>();
-    private static final Set<String> oldClusterFeatures = new HashSet<>();
+    private static TestFeatureService oldClusterTestFeatureService = null;
     private static boolean upgradeFailed = false;
     private static IndexVersion oldIndexVersion;
 
@@ -83,8 +84,8 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
 
     @Before
     public void extractOldClusterFeatures() {
-        if (isOldCluster() && oldClusterFeatures.isEmpty()) {
-            oldClusterFeatures.addAll(testFeatureService.getAllSupportedFeatures());
+        if (isOldCluster() && oldClusterTestFeatureService == null) {
+            oldClusterTestFeatureService = testFeatureService;
         }
     }
 
@@ -149,7 +150,7 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
     public static void resetNodes() {
         oldIndexVersion = null;
         upgradedNodes.clear();
-        oldClusterFeatures.clear();
+        oldClusterTestFeatureService = null;
         upgradeFailed = false;
     }
 
@@ -159,8 +160,8 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
     }
 
     protected static boolean oldClusterHasFeature(String featureId) {
-        assert oldClusterFeatures.isEmpty() == false;
-        return oldClusterFeatures.contains(featureId);
+        assert oldClusterTestFeatureService != null;
+        return oldClusterTestFeatureService.clusterHasFeature(featureId);
     }
 
     protected static boolean oldClusterHasFeature(NodeFeature feature) {

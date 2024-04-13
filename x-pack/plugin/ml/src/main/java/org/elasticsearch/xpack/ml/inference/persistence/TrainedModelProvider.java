@@ -1387,16 +1387,11 @@ public class TrainedModelProvider {
     }
 
     private void refreshCacheVersion(ActionListener<Boolean> listener) {
-        modelCacheMetadataService.refreshCacheVersion(
-            ActionListener.wrap(
-                resp -> {
-                    // Checking the response is always AcknowledgedResponse.TRUE because AcknowledgedResponse.FALSE does not make sense.
-                    // Errors should be reported through the onFailure method of the listener.
-                    assert resp.equals(AcknowledgedResponse.TRUE);
-                    listener.onResponse(true);
-                },
-                listener::onFailure
-            )
-        );
+        modelCacheMetadataService.refreshCacheVersion(ActionListener.wrap(resp -> {
+            // Checking the response is always AcknowledgedResponse.TRUE because AcknowledgedResponse.FALSE does not make sense.
+            // Errors should be reported through the onFailure method of the listener.
+            assert resp.equals(AcknowledgedResponse.TRUE);
+            listener.onResponse(true);
+        }, listener::onFailure));
     }
 }

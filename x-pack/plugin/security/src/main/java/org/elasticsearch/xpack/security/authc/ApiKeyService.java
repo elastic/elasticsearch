@@ -1514,21 +1514,10 @@ public class ApiKeyService {
         }
     }
 
-    public void invalidateApiKeys(
-        String[] realmNames,
-        String username,
-        String apiKeyName,
-        String[] apiKeyIds,
-        ActionListener<InvalidateApiKeyResponse> invalidateListener
-    ) {
-        // TODO
-        invalidateApiKeys(realmNames, username, apiKeyName, apiKeyIds, false, invalidateListener);
-    }
-
     /**
      * Invalidate API keys for given realm, user name, API key name and id.
      * @param realmNames realm names
-     * @param username user name
+     * @param username username
      * @param apiKeyName API key name
      * @param apiKeyIds API key ids
      * @param invalidateListener listener for {@link InvalidateApiKeyResponse}
@@ -1538,7 +1527,7 @@ public class ApiKeyService {
         String username,
         String apiKeyName,
         String[] apiKeyIds,
-        boolean filterOutCrossClusterKeys,
+        boolean includeCrossClusterApiKeys,
         ActionListener<InvalidateApiKeyResponse> invalidateListener
     ) {
         ensureEnabled();
@@ -1558,7 +1547,7 @@ public class ApiKeyService {
                 apiKeyIds,
                 true,
                 false,
-                filterOutCrossClusterKeys,
+                false == includeCrossClusterApiKeys,
                 // TODO: instead of parsing the entire API key document, we can just convert the hit to the API key ID
                 this::convertSearchHitToApiKeyInfo,
                 ActionListener.wrap(apiKeys -> {
@@ -1640,6 +1629,7 @@ public class ApiKeyService {
             apiKeyIds,
             false,
             false,
+            false,
             ApiKeyService::convertSearchHitToVersionedApiKeyDoc,
             listener
         );
@@ -1652,31 +1642,7 @@ public class ApiKeyService {
         String[] apiKeyIds,
         boolean filterOutInvalidatedKeys,
         boolean filterOutExpiredKeys,
-        Function<SearchHit, T> hitParser,
-        ActionListener<Collection<T>> listener
-    ) {
-        findApiKeysForUserRealmApiKeyIdAndNameCombination(
-            realmNames,
-            userName,
-            apiKeyName,
-            apiKeyIds,
-            filterOutInvalidatedKeys,
-            filterOutExpiredKeys,
-            // TODO
-            false,
-            hitParser,
-            listener
-        );
-    }
-
-    private <T> void findApiKeysForUserRealmApiKeyIdAndNameCombination(
-        String[] realmNames,
-        String userName,
-        String apiKeyName,
-        String[] apiKeyIds,
-        boolean filterOutInvalidatedKeys,
-        boolean filterOutExpiredKeys,
-        boolean filterOutCrossClusterKeys,
+        boolean filterOutCrossClusterApiKeys,
         Function<SearchHit, T> hitParser,
         ActionListener<Collection<T>> listener
     ) {
@@ -1704,9 +1670,8 @@ public class ApiKeyService {
             if (apiKeyIds != null && apiKeyIds.length > 0) {
                 boolQuery.filter(QueryBuilders.idsQuery().addIds(apiKeyIds));
             }
-            if (filterOutCrossClusterKeys) {
-                // TODO would instead filter out CROSS_CLUSTER type, to account for `null`
-                boolQuery.filter(QueryBuilders.termQuery("type", ApiKey.Type.REST.value()));
+            if (filterOutCrossClusterApiKeys) {
+                boolQuery.mustNot(QueryBuilders.termQuery("type", ApiKey.Type.CROSS_CLUSTER.value()));
             }
 
             findApiKeys(boolQuery, filterOutInvalidatedKeys, filterOutExpiredKeys, hitParser, listener);
@@ -1956,6 +1921,7 @@ public class ApiKeyService {
             apiKeyIds,
             activeOnly,
             activeOnly,
+            false,
             hit -> convertSearchHitToApiKeyInfo(hit, withLimitedBy),
             ActionListener.wrap(apiKeyInfos -> {
                 if (apiKeyInfos.isEmpty() && logger.isDebugEnabled()) {

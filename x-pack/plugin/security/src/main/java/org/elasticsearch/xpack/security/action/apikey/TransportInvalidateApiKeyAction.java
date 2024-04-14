@@ -22,8 +22,10 @@ import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyReque
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 public final class TransportInvalidateApiKeyAction extends HandledTransportAction<InvalidateApiKeyRequest, InvalidateApiKeyResponse> {
@@ -54,36 +56,52 @@ public final class TransportInvalidateApiKeyAction extends HandledTransportActio
 
     @Override
     protected void doExecute(Task task, InvalidateApiKeyRequest request, ActionListener<InvalidateApiKeyResponse> listener) {
-        String[] apiKeyIds = request.getIds();
-        String apiKeyName = request.getName();
-        String username = request.getUserName();
-        String[] realms = Strings.hasText(request.getRealmName()) ? new String[] { request.getRealmName() } : null;
-
         final Authentication authentication = securityContext.getAuthentication();
         if (authentication == null) {
             listener.onFailure(new IllegalStateException("authentication is required"));
+            return;
         }
-        if (request.ownedByAuthenticatedUser()) {
-            assert username == null;
-            assert realms == null;
-            // restrict username and realm to current authenticated user.
-            username = authentication.getEffectiveSubject().getUser().principal();
-            realms = ApiKeyService.getOwnersRealmNames(authentication);
-        }
-
-        final var finalUsername = username;
-        final var finalRealms = realms;
-        final var hasPrivilegesRequest = new HasPrivilegesRequest();
-        hasPrivilegesRequest.username(securityContext.getUser().principal());
-        hasPrivilegesRequest.clusterPrivileges("manage_security");
-        hasPrivilegesRequest.indexPrivileges(new RoleDescriptor.IndicesPrivileges[0]);
-        hasPrivilegesRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
-        // TODO
-        client.execute(HasPrivilegesAction.INSTANCE, hasPrivilegesRequest, ActionListener.wrap(res -> {
-            final boolean completeMatch = res.isCompleteMatch();
-            apiKeyService.invalidateApiKeys(finalRealms, finalUsername, apiKeyName, apiKeyIds, false == completeMatch, listener);
-        }, listener::onFailure));
-
+        final String[] apiKeyIds = request.getIds();
+        final String apiKeyName = request.getName();
+        final String username = getUsername(authentication, request);
+        final String[] realms = getRealms(authentication, request);
+        checkHasManageSecurityPrivilege(
+            ActionListener.wrap(
+                hasPrivilegesResponse -> apiKeyService.invalidateApiKeys(
+                    realms,
+                    username,
+                    apiKeyName,
+                    apiKeyIds,
+                    hasPrivilegesResponse.isCompleteMatch(),
+                    listener
+                ),
+                listener::onFailure
+            )
+        );
     }
 
+    private String getUsername(Authentication authentication, InvalidateApiKeyRequest request) {
+        if (request.ownedByAuthenticatedUser()) {
+            assert request.getUserName() == null;
+            return authentication.getEffectiveSubject().getUser().principal();
+        }
+        return request.getUserName();
+    }
+
+    private String[] getRealms(Authentication authentication, InvalidateApiKeyRequest request) {
+        if (request.ownedByAuthenticatedUser()) {
+            assert request.getRealmName() == null;
+            return ApiKeyService.getOwnersRealmNames(authentication);
+        }
+        return Strings.hasText(request.getRealmName()) ? new String[] { request.getRealmName() } : null;
+    }
+
+    private void checkHasManageSecurityPrivilege(ActionListener<HasPrivilegesResponse> listener) {
+        final var hasPrivilegesRequest = new HasPrivilegesRequest();
+        hasPrivilegesRequest.username(securityContext.getUser().principal());
+        hasPrivilegesRequest.clusterPrivileges(ClusterPrivilegeResolver.MANAGE_SECURITY.name());
+        hasPrivilegesRequest.indexPrivileges(new RoleDescriptor.IndicesPrivileges[0]);
+        hasPrivilegesRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
+        client.execute(HasPrivilegesAction.INSTANCE, hasPrivilegesRequest, ActionListener.wrap(listener::onResponse, listener::onFailure));
+    }
 }

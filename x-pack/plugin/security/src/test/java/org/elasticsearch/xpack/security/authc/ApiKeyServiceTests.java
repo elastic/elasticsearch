@@ -474,7 +474,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             randomFrom("", null),
             randomFrom("", null),
             randomFrom(new String[0], null),
-            randomBoolean(),
+            true,
             listener
         );
         ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
@@ -491,7 +491,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             username = randomAlphaOfLengthBetween(3, 8);
         }
         PlainActionFuture<InvalidateApiKeyResponse> invalidateApiKeyResponseListener = new PlainActionFuture<>();
-        service.invalidateApiKeys(realmNames, username, apiKeyName, apiKeyIds, randomBoolean(), invalidateApiKeyResponseListener);
+        service.invalidateApiKeys(realmNames, username, apiKeyName, apiKeyIds, true, invalidateApiKeyResponseListener);
         final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("doc_type", "api_key"));
         if (realmNames != null && realmNames.length > 0) {
             if (realmNames.length == 1) {
@@ -608,7 +608,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         when(clock.instant()).thenReturn(Instant.ofEpochMilli(invalidation));
         final ApiKeyService service = createApiKeyService();
         PlainActionFuture<InvalidateApiKeyResponse> future = new PlainActionFuture<>();
-        service.invalidateApiKeys(null, null, null, new String[] { apiKeyId }, randomBoolean(), future);
+        service.invalidateApiKeys(null, null, null, new String[] { apiKeyId }, true, future);
         final InvalidateApiKeyResponse invalidateApiKeyResponse = future.actionGet();
 
         assertThat(invalidateApiKeyResponse.getInvalidatedApiKeys(), equalTo(List.of(apiKeyId)));

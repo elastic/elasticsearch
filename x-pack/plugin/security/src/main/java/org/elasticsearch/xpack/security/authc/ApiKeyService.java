@@ -99,6 +99,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -121,6 +122,7 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -1547,8 +1549,6 @@ public class ApiKeyService {
                 apiKeyIds,
                 true,
                 false,
-                false == includeCrossClusterApiKeys,
-                // TODO: instead of parsing the entire API key document, we can just convert the hit to the API key ID
                 this::convertSearchHitToApiKeyInfo,
                 ActionListener.wrap(apiKeys -> {
                     if (apiKeys.isEmpty()) {
@@ -1561,7 +1561,7 @@ public class ApiKeyService {
                         );
                         invalidateListener.onResponse(InvalidateApiKeyResponse.emptyResponse());
                     } else {
-                        indexInvalidation(apiKeys.stream().map(ApiKey::getId).collect(Collectors.toSet()), invalidateListener);
+                        indexInvalidation(apiKeys, includeCrossClusterApiKeys, invalidateListener);
                     }
                 }, invalidateListener::onFailure)
             );
@@ -1629,7 +1629,6 @@ public class ApiKeyService {
             apiKeyIds,
             false,
             false,
-            false,
             ApiKeyService::convertSearchHitToVersionedApiKeyDoc,
             listener
         );
@@ -1642,7 +1641,6 @@ public class ApiKeyService {
         String[] apiKeyIds,
         boolean filterOutInvalidatedKeys,
         boolean filterOutExpiredKeys,
-        boolean filterOutCrossClusterApiKeys,
         Function<SearchHit, T> hitParser,
         ActionListener<Collection<T>> listener
     ) {
@@ -1670,9 +1668,6 @@ public class ApiKeyService {
             if (apiKeyIds != null && apiKeyIds.length > 0) {
                 boolQuery.filter(QueryBuilders.idsQuery().addIds(apiKeyIds));
             }
-            if (filterOutCrossClusterApiKeys) {
-                boolQuery.mustNot(QueryBuilders.termQuery("type", ApiKey.Type.CROSS_CLUSTER.value()));
-            }
 
             findApiKeys(boolQuery, filterOutInvalidatedKeys, filterOutExpiredKeys, hitParser, listener);
         }
@@ -1681,22 +1676,44 @@ public class ApiKeyService {
     /**
      * Performs the actual invalidation of a collection of api keys
      *
-     * @param apiKeyIds the api keys to invalidate
+     * @param apiKeys the api keys to invalidate
      * @param listener  the listener to notify upon completion
      */
-    private void indexInvalidation(Collection<String> apiKeyIds, ActionListener<InvalidateApiKeyResponse> listener) {
+    private void indexInvalidation(
+        Collection<ApiKey> apiKeys,
+        boolean includeCrossClusterApiKeys,
+        ActionListener<InvalidateApiKeyResponse> listener
+    ) {
         maybeStartApiKeyRemover();
-        if (apiKeyIds.isEmpty()) {
+        if (apiKeys.isEmpty()) {
             listener.onFailure(new ElasticsearchSecurityException("No api key ids provided for invalidation"));
         } else {
-            BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
+            final BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             final long invalidationTime = clock.instant().toEpochMilli();
-            for (String apiKeyId : apiKeyIds) {
-                UpdateRequest request = client.prepareUpdate(SECURITY_MAIN_ALIAS, apiKeyId)
-                    .setDoc(Map.of("api_key_invalidated", true, "invalidation_time", invalidationTime))
-                    .request();
-                bulkRequestBuilder.add(request);
+            final Set<String> apiKeyIdsToInvalidate = new HashSet<>();
+            final Set<String> crossClusterApiKeyIdsSkipped = new HashSet<>();
+            for (ApiKey apiKey : apiKeys) {
+                final String apiKeyId = apiKey.getId();
+                if (apiKeyIdsToInvalidate.contains(apiKeyId) || crossClusterApiKeyIdsSkipped.contains(apiKeyId)) {
+                    continue;
+                }
+                // TODO double check condition
+                if (includeCrossClusterApiKeys || false == ApiKey.Type.CROSS_CLUSTER.equals(apiKey.getType())) {
+                    UpdateRequest request = client.prepareUpdate(SECURITY_MAIN_ALIAS, apiKeyId)
+                        .setDoc(Map.of("api_key_invalidated", true, "invalidation_time", invalidationTime))
+                        .request();
+                    bulkRequestBuilder.add(request);
+                    apiKeyIdsToInvalidate.add(apiKeyId);
+                } else {
+                    crossClusterApiKeyIdsSkipped.add(apiKeyId);
+                }
             }
+            if (apiKeyIdsToInvalidate.isEmpty()) {
+                // TODO message
+                listener.onFailure(new ElasticsearchSecurityException("No api key ids provided for invalidation"));
+                return;
+            }
+            assert bulkRequestBuilder.numberOfActions() > 0;
             bulkRequestBuilder.setRefreshPolicy(defaultCreateDocRefreshPolicy(settings));
             securityIndex.prepareIndexIfNeededThenExecute(
                 ex -> listener.onFailure(traceLog("prepare security index", ex)),
@@ -1723,6 +1740,20 @@ public class ApiKeyService {
                                     previouslyInvalidated.add(updateResponse.getId());
                                 }
                             }
+                        }
+                        for (var skippedCrossClusterApiKeyId : crossClusterApiKeyIdsSkipped) {
+                            failedRequestResponses.add(
+                                new ElasticsearchException(
+                                    "Error invalidating api key",
+                                    new IllegalArgumentException(
+                                        "invalidation of cross-cluster API key ["
+                                            + skippedCrossClusterApiKeyId
+                                            + "] requires ["
+                                            + ClusterPrivilegeResolver.MANAGE_SECURITY.name()
+                                            + "] privilege or higher"
+                                    )
+                                )
+                            );
                         }
                         InvalidateApiKeyResponse result = new InvalidateApiKeyResponse(
                             invalidated,
@@ -1921,7 +1952,6 @@ public class ApiKeyService {
             apiKeyIds,
             activeOnly,
             activeOnly,
-            false,
             hit -> convertSearchHitToApiKeyInfo(hit, withLimitedBy),
             ActionListener.wrap(apiKeyInfos -> {
                 if (apiKeyInfos.isEmpty() && logger.isDebugEnabled()) {

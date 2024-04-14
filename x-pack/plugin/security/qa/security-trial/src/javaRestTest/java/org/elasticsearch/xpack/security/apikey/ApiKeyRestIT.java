@@ -1034,9 +1034,10 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
             final ObjectPath deleteResponse = assertOKAndCreateObjectPath(client().performRequest(deleteRequest));
             assertThat(deleteResponse.evaluate("invalidated_api_keys"), containsInAnyOrder(id1, id2, id4));
+            // TODO assert no errors
         }
         // TODO test invalidate owned, by username, and realm
-
+        // TODO test authenticate call with API key
         // TODO test user that loses manage_security cannot invalidate owned cross cluster API key
     }
 

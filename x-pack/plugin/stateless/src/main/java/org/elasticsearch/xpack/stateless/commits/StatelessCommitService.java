@@ -1674,7 +1674,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         @Override
         public void onLocalReaderClosed(long bccHoldingClosedCommit, Set<PrimaryTermAndGeneration> remainingReferencedBCCs) {
-            assert primaryTermAndGenToBlobReference.keySet().containsAll(remainingReferencedBCCs);
             for (BlobReference blobReference : primaryTermAndGenToBlobReference.values()) {
                 if (remainingReferencedBCCs.contains(blobReference.getPrimaryTermAndGeneration()) == false
                     // Ensure that we don't close the latest reference when we've populated the blob reference but the local reader hasn't

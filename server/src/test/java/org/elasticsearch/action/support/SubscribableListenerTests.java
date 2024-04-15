@@ -12,8 +12,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -25,6 +27,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -605,6 +608,32 @@ public class SubscribableListenerTests extends ESTestCase {
 
         initialListener.onFailure(new ElasticsearchException("simulated"));
         assertComplete(chainedListener, "simulated");
+    }
+
+    public void testRejection() {
+        final var initialListener = new SubscribableListener<>();
+
+        final Executor executor = r -> asInstanceOf(AbstractRunnable.class, r).onRejection(
+            new EsRejectedExecutionException("simulated rejection", randomBoolean())
+        );
+
+        final var subscribedListener = SubscribableListener.newForked(l -> initialListener.addListener(l, executor, null));
+        final var andThenListener = initialListener.andThen(executor, null, (l, x) -> fail("should not be called"));
+
+        assertFalse(subscribedListener.isDone());
+        assertFalse(andThenListener.isDone());
+
+        if (randomBoolean()) {
+            initialListener.onResponse(new Object());
+        } else {
+            initialListener.onFailure(new ElasticsearchException("test"));
+        }
+
+        assertTrue(subscribedListener.isDone());
+        assertTrue(andThenListener.isDone());
+
+        assertEquals("simulated rejection", expectThrows(EsRejectedExecutionException.class, subscribedListener::rawResult).getMessage());
+        assertEquals("simulated rejection", expectThrows(EsRejectedExecutionException.class, andThenListener::rawResult).getMessage());
     }
 
     public void testJavaDocExample() {

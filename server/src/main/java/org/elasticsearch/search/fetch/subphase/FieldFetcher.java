@@ -60,7 +60,7 @@ public class FieldFetcher {
             for (String field : context.getMatchingFieldNames(fieldPattern)) {
                 MappedFieldType ft = context.getFieldType(field);
                 // we want to skip metadata fields if we have a wildcard pattern
-                if (matchingPattern != null && patternIncludePredicate.test(ft)) {
+                if (matchingPattern == null || patternIncludePredicate.test(ft)) {
                     resolvedFields.add(new ResolvedField(field, matchingPattern, ft, fieldAndFormat.format));
                 }
             }

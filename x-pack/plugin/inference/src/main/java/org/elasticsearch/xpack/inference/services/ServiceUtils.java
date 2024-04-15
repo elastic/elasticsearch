@@ -13,6 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -123,8 +124,14 @@ public class ServiceUtils {
         return Strings.format("[%s] Invalid value empty string. [%s] must be a non-empty string", scope, settingName);
     }
 
-    public static String mustBeNonNonNull(String settingName, String scope) {
-        return Strings.format("[%s] Invalid value empty string. [%s] must be non-null", scope, settingName);
+    public static String invalidTimeValueMsg(String timeValueStr, String settingName, String scope, String exceptionMsg) {
+        return Strings.format(
+            "[%s] Invalid time value [%s]. [%s] must be a valid time value string: %s",
+            scope,
+            timeValueStr,
+            settingName,
+            exceptionMsg
+        );
     }
 
     public static String invalidValue(String settingName, String scope, String invalidType, String[] requiredValues) {
@@ -316,6 +323,23 @@ public class ServiceUtils {
         }
 
         return optionalField;
+    }
+
+    public static TimeValue extractOptionalTimeValue(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        var timeValueString = extractOptionalString(map, settingName, scope, validationException);
+
+        try {
+            return TimeValue.parseTimeValue(timeValueString, settingName);
+        } catch (Exception e) {
+            validationException.addValidationError(invalidTimeValueMsg(timeValueString, settingName, scope, e.getMessage()));
+        }
+
+        return null;
     }
 
     private static <E extends Enum<E>> void validateEnumValue(E enumValue, EnumSet<E> validValues) {

@@ -9,17 +9,13 @@ package org.elasticsearch.xpack.esql.qa.mixed;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
-import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestClient;
-import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.yaml.ImpersonateOfficialClientTestClient;
-import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
@@ -29,11 +25,9 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiPredicate;
 
 public class EsqlClientYamlIT extends ESClientYamlSuiteTestCase {
     @ClassRule
@@ -83,6 +77,7 @@ public class EsqlClientYamlIT extends ESClientYamlSuiteTestCase {
         }
         for (Map<String, Object> body : doSection.getApiCallSection().getBodies()) {
             body.remove("version");
+            // TODO if the version isn't the earliest we should skip the test - ES isn't going to support it.
         }
         return e;
     }

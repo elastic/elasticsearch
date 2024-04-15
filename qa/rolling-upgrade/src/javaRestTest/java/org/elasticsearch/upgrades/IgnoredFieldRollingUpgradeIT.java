@@ -14,7 +14,9 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -24,16 +26,20 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class IgnoredFieldMixedClusterUpgradeIT extends ParameterizedRollingUpgradeTestCase {
+public class IgnoredFieldRollingUpgradeIT extends ParameterizedRollingUpgradeTestCase {
     private static List<Map<String, Object>> oldHits;
     private static final String INDEX_NAME = "exists-index";
 
-    public IgnoredFieldMixedClusterUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+    public IgnoredFieldRollingUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }
 
     @SuppressWarnings("unchecked")
     public void testIgnoredMetaFieldExistsQuery() throws IOException {
+        assumeTrue(
+            "_ignored metadata field used stored fields up to version 8.14, then started using doc values fields from version 8.15",
+            getOldClusterIndexVersion().before(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)
+        );
         if (isOldCluster()) {
             assertRestStatus(client().performRequest(createNewIndex(INDEX_NAME)), RestStatus.OK);
             assertRestStatus(client().performRequest(indexDocument(INDEX_NAME, "1", "foofoo")), RestStatus.CREATED);
@@ -67,8 +73,32 @@ public class IgnoredFieldMixedClusterUpgradeIT extends ParameterizedRollingUpgra
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testIgnoredMetaFieldGetQuery() throws IOException {
+        assumeTrue(
+            "_ignored metadata field used stored fields up to version 8.14, then started using doc values fields from version 8.15",
+            getOldClusterIndexVersion().before(IndexVersions.DOC_VALUES_FOR_IGNORED_META_FIELD)
+        );
+        if (isOldCluster()) {
+            assertRestStatus(client().performRequest(createNewIndex(INDEX_NAME)), RestStatus.OK);
+            assertRestStatus(client().performRequest(indexDocument(INDEX_NAME, "1", "foofoo")), RestStatus.CREATED);
+            final Map<String, Object> doc = entityAsMap(get(INDEX_NAME, "1"));
+            assertThat(((List<?>) doc.get(IgnoredFieldMapper.NAME)).get(0), Matchers.equalTo("keyword"));
+        } else if (isUpgradedCluster()) {
+            assertRestStatus(client().performRequest(indexDocument(INDEX_NAME, "2", "foobar")), RestStatus.CREATED);
+            final Map<String, Object> doc = entityAsMap(get(INDEX_NAME, "2"));
+            // NOTE: from version 8.15 _ignored is not returned anymore by default when using the get api since
+            // `get` only allows fetching stored fields via `stored_fields` and _ignored is not stored anymore.
+            assertNull(doc.get(IgnoredFieldMapper.NAME));
+        }
+    }
+
     private static Response matchAll(final String index) throws IOException {
         return client().performRequest(new Request("POST", "/" + index + "/_search"));
+    }
+
+    private static Response get(final String index, final String docId) throws IOException {
+        return client().performRequest(new Request("GET", "/" + index + "/_doc/" + docId));
     }
 
     private static Response existsQuery(final String index) throws IOException {
@@ -103,10 +133,9 @@ public class IgnoredFieldMixedClusterUpgradeIT extends ParameterizedRollingUpgra
     }
 
     private static Request indexDocument(final String index, final String id, final String keywordValue) throws IOException {
-        final Request indexRequest = new Request("POST", "/" + index + "/_doc/");
+        final Request indexRequest = new Request("POST", "/" + index + "/_doc/" + id);
         final XContentBuilder doc = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
-            .field("id", id)
             .field("keyword", keywordValue)
             .endObject();
         indexRequest.addParameter("refresh", "true");

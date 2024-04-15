@@ -207,13 +207,14 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                     Snapshot snapshot = new Snapshot(this.metadata.name(), SNAPSHOT_ID);
 
                     // RestoreService will validate the snapshot is restorable based on the max index version.
-                    // However, we do not increment index version on patch releases.
-                    // To prevent attempting to restore an index of a future patch version, we reject the restore
+                    // However, we do not increment index version on every single release.
+                    // To prevent attempting to restore an index of a future version, we reject the restore
                     // already when building the snapshot info from newer nodes matching the current index version.
                     IndexVersion maxIndexVersion = response.getNodes().getMaxDataNodeCompatibleIndexVersion();
-                    if (IndexVersion.current().id() == maxIndexVersion.id()) {
+                    if (IndexVersion.current().equals(maxIndexVersion)) {
                         for (var node : response.nodes()) {
-                            if (node.canContainData() && node.getMaxIndexVersion().id() == maxIndexVersion.id()) {
+                            if (node.canContainData() && node.getMaxIndexVersion().equals(maxIndexVersion)) {
+                                // TODO: Revisit when looking into removing release version from DiscoveryNode
                                 BuildVersion remoteVersion = BuildVersion.fromVersionId(node.getVersion().id);
                                 if (remoteVersion.isFutureVersion()) {
                                     throw new SnapshotException(

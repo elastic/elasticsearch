@@ -1155,11 +1155,8 @@ public class RoleDescriptorTests extends ESTestCase {
 
         RemoteClusterPermissions remoteClusters = RemoteClusterPermissions.NONE;
         if (allowRemoteClusters && randomBoolean()) {
-            remoteClusters = new RemoteClusterPermissions().addGroup(
-                new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "*" })
-            );
+            randomRemoteClusterPermissions(randomIntBetween(1, 5));
         }
-
 
         return new RoleDescriptor(
             randomAlphaOfLengthBetween(3, 90),
@@ -1237,6 +1234,20 @@ public class RoleDescriptorTests extends ESTestCase {
             applicationPrivileges[i] = builder.build();
         }
         return applicationPrivileges;
+    }
+
+    public static RemoteClusterPermissions randomRemoteClusterPermissions(int maxGroups){
+        final RemoteClusterPermissions remoteClusterPermissions = new RemoteClusterPermissions();
+        final String[] supportedPermissions = RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]);
+         for (int i = 0; i <  maxGroups; i++) {
+            remoteClusterPermissions.addGroup(
+                new RemoteClusterPermissionGroup(
+                    randomNonEmptySubsetOf(Arrays.asList(supportedPermissions)).toArray(new String[0]),
+                    generateRandomStringArray(5, randomIntBetween(3, 9), false, false)
+                )
+            );
+        }
+        return remoteClusterPermissions;
     }
 
     public static RoleDescriptor.RemoteIndicesPrivileges[] randomRemoteIndicesPrivileges(int min, int max) {

@@ -992,6 +992,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1675")
     public void testStatelessCommitServiceClusterStateListenerHandlesNewShardAssignmentsCorrectly() throws Exception {
         startMasterOnlyNode();
         var indexNode = startIndexNode();

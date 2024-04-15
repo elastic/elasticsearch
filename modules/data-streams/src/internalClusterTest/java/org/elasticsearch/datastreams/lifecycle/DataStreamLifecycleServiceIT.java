@@ -885,8 +885,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
         // Let's verify the merge settings
         ClusterGetSettingsAction.Response response = client().execute(
-                ClusterGetSettingsAction.INSTANCE,
-                new ClusterGetSettingsAction.Request()
+            ClusterGetSettingsAction.INSTANCE,
+            new ClusterGetSettingsAction.Request()
         ).get();
         Settings clusterSettings = response.persistentSettings();
 
@@ -897,12 +897,12 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(firstGenerationIndex).includeDefaults(true);
             GetSettingsResponse getSettingsResponse = client().execute(GetSettingsAction.INSTANCE, getSettingsRequest).actionGet();
             assertThat(
-                    getSettingsResponse.getSetting(firstGenerationIndex, MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey()),
-                    is(targetFactor.toString())
+                getSettingsResponse.getSetting(firstGenerationIndex, MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey()),
+                is(targetFactor.toString())
             );
             assertThat(
-                    getSettingsResponse.getSetting(firstGenerationIndex, MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey()),
-                    is(targetFloor.getStringRep())
+                getSettingsResponse.getSetting(firstGenerationIndex, MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey()),
+                is(targetFloor.getStringRep())
             );
         });
 
@@ -910,7 +910,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         assertBusy(() -> {
             GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
             GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-                    .actionGet();
+                .actionGet();
             assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
             assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
             List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
@@ -933,7 +933,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     private static List<String> getFailureIndices(String dataStreamName) {
         GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
         GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-                .actionGet();
+            .actionGet();
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
         return getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices().stream().map(Index::getName).toList();

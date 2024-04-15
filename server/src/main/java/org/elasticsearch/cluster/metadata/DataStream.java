@@ -834,7 +834,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 olderIndices.add(index);
             }
         }
-        if (DataStream.isFailureStoreEnabled() && failureIndices.isEmpty() == false) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled() && failureIndices.isEmpty() == false) {
             for (Index index : failureIndices) {
                 if (isIndexOderThan(index, retentionPeriod.getMillis(), nowSupplier.getAsLong(), indicesPredicate, indexMetadataSupplier)) {
                     olderIndices.add(index);

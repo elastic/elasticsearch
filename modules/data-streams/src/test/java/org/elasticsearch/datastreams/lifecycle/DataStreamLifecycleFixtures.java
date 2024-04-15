@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 
 import java.io.IOException;
@@ -33,7 +32,10 @@ import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.test.ESIntegTestCase.client;
-import static org.elasticsearch.test.ESTestCase.*;
+import static org.elasticsearch.test.ESTestCase.frequently;
+import static org.elasticsearch.test.ESTestCase.randomInt;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -45,12 +47,12 @@ import static org.junit.Assert.assertTrue;
 public class DataStreamLifecycleFixtures {
 
     public static DataStream createDataStream(
-            Metadata.Builder builder,
-            String dataStreamName,
-            int backingIndicesCount,
-            Settings.Builder backingIndicesSettings,
-            @Nullable DataStreamLifecycle lifecycle,
-            Long now
+        Metadata.Builder builder,
+        String dataStreamName,
+        int backingIndicesCount,
+        Settings.Builder backingIndicesSettings,
+        @Nullable DataStreamLifecycle lifecycle,
+        Long now
     ) {
         return createDataStream(builder, dataStreamName, backingIndicesCount, backingIndicesSettings, lifecycle, now, false);
     }

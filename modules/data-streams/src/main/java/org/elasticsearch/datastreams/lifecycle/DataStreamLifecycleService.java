@@ -793,7 +793,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private Set<Index> maybeExecuteRollover(ClusterState state, DataStream dataStream) {
         Set<Index> currentRunWriteIndices = new HashSet<>();
         currentRunWriteIndices.add(maybeExecuteRollover(state, dataStream, false));
-        if (DataStream.isFailureStoreEnabled() && dataStream.isFailureStore()) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled() && dataStream.isFailureStoreEnabled()) {
             currentRunWriteIndices.add(maybeExecuteRollover(state, dataStream, true));
         }
         return currentRunWriteIndices;
@@ -926,8 +926,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             if ((configuredFloorSegmentMerge == null || configuredFloorSegmentMerge.equals(targetMergePolicyFloorSegment) == false)
                 || (configuredMergeFactor == null || configuredMergeFactor.equals(targetMergePolicyFactor) == false)) {
                 UpdateSettingsRequest updateMergePolicySettingsRequest = new UpdateSettingsRequest();
-                updateMergePolicySettingsRequest.indicesOptions(IndicesOptions.builder(updateMergePolicySettingsRequest.indicesOptions())
-                        .failureStoreOptions(new IndicesOptions.FailureStoreOptions(true, true)).build());
+                updateMergePolicySettingsRequest.indicesOptions(
+                    IndicesOptions.builder(updateMergePolicySettingsRequest.indicesOptions())
+                        .failureStoreOptions(new IndicesOptions.FailureStoreOptions(true, true))
+                        .build()
+                );
                 updateMergePolicySettingsRequest.indices(indexName);
                 updateMergePolicySettingsRequest.settings(
                     Settings.builder()

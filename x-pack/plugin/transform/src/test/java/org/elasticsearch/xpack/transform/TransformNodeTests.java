@@ -7,19 +7,20 @@
 
 package org.elasticsearch.xpack.transform;
 
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class TransformNodeTests extends ESTestCase {
     private static final String SHUTTING_DOWN_ID = "shuttingDownNodeId";
@@ -82,20 +83,30 @@ public class TransformNodeTests extends ESTestCase {
     }
 
     private Supplier<Optional<ClusterState>> clusterState(String nodeId) {
-        var clusterState = mock(ClusterState.class);
+        var nodesShutdownMetadata = new NodesShutdownMetadata(
+            Map.of(
+                SHUTTING_DOWN_ID,
+                SingleNodeShutdownMetadata.builder()
+                    .setNodeId(SHUTTING_DOWN_ID)
+                    .setReason("shutdown for a unit test")
+                    .setType(SingleNodeShutdownMetadata.Type.RESTART)
+                    .setStartedAtMillis(randomNonNegativeLong())
+                    .setGracePeriod(null)
+                    .build()
+            )
+        );
 
-        var nodeShutdowns = mock(NodesShutdownMetadata.class);
-        when(nodeShutdowns.contains(anyString())).thenReturn(SHUTTING_DOWN_ID.equals(nodeId));
+        var nodes = DiscoveryNodes.builder().add(DiscoveryNodeUtils.create(SHUTTING_DOWN_ID)).localNodeId(nodeId).masterNodeId(nodeId);
 
-        var metadata = mock(Metadata.class);
-        when(metadata.nodeShutdowns()).thenReturn(nodeShutdowns);
-        when(clusterState.metadata()).thenReturn(metadata);
+        if (SHUTTING_DOWN_ID.equals(nodeId) == false && nodeId != null) {
+            nodes.add(DiscoveryNodeUtils.create(nodeId));
+        }
 
-        var discoveryNodes = mock(DiscoveryNodes.class);
+        var state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata).build())
+            .nodes(nodes)
+            .build();
 
-        when(discoveryNodes.getLocalNodeId()).thenReturn(nodeId);
-        when(clusterState.nodes()).thenReturn(discoveryNodes);
-
-        return () -> Optional.of(clusterState);
+        return () -> Optional.of(state);
     }
 }

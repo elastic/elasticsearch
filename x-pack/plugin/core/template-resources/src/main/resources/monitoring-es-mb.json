@@ -2366,7 +2366,7 @@
                 "shards_stats": {
                   "properties": {
                     "total_count": {
-                      "type": long
+                      "type": "long"
                     }
                   }
                 },

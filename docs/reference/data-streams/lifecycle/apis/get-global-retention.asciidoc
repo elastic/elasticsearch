@@ -28,9 +28,9 @@ Gets the global retention configuration that is applied on data streams managed 
 [[get-global-retention-api-query-parms]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=local]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[get-global-retention-api-response-body]]
 ==== {api-response-body-title}

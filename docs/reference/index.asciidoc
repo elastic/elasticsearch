@@ -2,7 +2,6 @@
 = Elasticsearch Guide
 
 :include-xpack:         true
-:es-repo-dir:           {elasticsearch-root}/docs/reference
 
 include::../Versions.asciidoc[]
 include::links.asciidoc[]

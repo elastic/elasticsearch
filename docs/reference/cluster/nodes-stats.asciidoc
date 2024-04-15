@@ -127,31 +127,31 @@ using metrics.
     * `dense_vector`
 --
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 
 [[cluster-nodes-stats-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=completion-fields]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=completion-fields]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=fielddata-fields]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=fielddata-fields]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=fields]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=fields]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=groups]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=groups]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=level]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=level]
 
 `types`::
     (Optional, string) A comma-separated list of document types for the
     `indexing` index metric.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=include-unloaded-segments]
 
 [role="child_attributes"]
 [[cluster-nodes-stats-api-response-body]]
@@ -244,11 +244,11 @@ node.
 =======
 `count`::
 (integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-count]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=docs-count]
 
 `deleted`::
 (integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
 =======
 
 `store`::

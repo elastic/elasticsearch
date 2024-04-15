@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.version;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.esql.version.EsqlVersion;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -75,7 +74,7 @@ public class EsqlVersionTests extends ESTestCase {
         do {
             int length = randomIntBetween(1, 10);
             invalidVersionString[0] = randomAlphaOfLength(length);
-        } while (EsqlVersion.parse(invalidVersionString[0]) != null);
+        } while (EsqlVersion.VERSION_MAP_WITH_AND_WITHOUT_EMOJI.containsKey(invalidVersionString[0]));
 
         return invalidVersionString[0];
     }

@@ -1,5 +1,4 @@
 apply plugin: 'elasticsearch.java'
-apply plugin: 'elasticsearch.internal-es-plugin'
 
 description = 'Integration tests for ESQL'
 
@@ -10,6 +9,5 @@ dependencies {
   api project(xpackModule('ql:test-fixtures'))
   // Requirement for some ESQL-specific utilities
   implementation project(':x-pack:plugin:esql')
-  implementation project(path: xpackModule('core'))
   api project(xpackModule('esql:qa:testFixtures'))
 }

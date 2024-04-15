@@ -5,11 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.esql.version;
+package org.elasticsearch.xpack.esql.version;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.VersionId;
 import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -26,7 +27,7 @@ import java.util.Map;
  *     settle down to one change every couple of years after that.
  * </p>
  * <p>
- *     For example, maybe we realize we've made a mistake with the {@code MV_AVG}
+ *     For example, maybe we realize we've made a mistake with the {@link MvAvg}
  *     function and decide it should return the type of its input field rather
  *     than always returning a {@code double}. If we decide to make this change
  *     we'd have to bump the language version. We plan to batch changes like this
@@ -60,7 +61,7 @@ public enum EsqlVersion implements VersionId<EsqlVersion> {
     SNAPSHOT(Integer.MAX_VALUE, 12, 99, "📷"),
     ROCKET(2024, 4, "🚀");
 
-    private static final Map<String, EsqlVersion> VERSION_MAP_WITH_AND_WITHOUT_EMOJI = versionMapWithAndWithoutEmoji();
+    static final Map<String, EsqlVersion> VERSION_MAP_WITH_AND_WITHOUT_EMOJI = versionMapWithAndWithoutEmoji();
     private static final EsqlVersion[] RELEASED_ASCENDING = createReleasedAscending();
 
     private static Map<String, EsqlVersion> versionMapWithAndWithoutEmoji() {

@@ -24,8 +24,8 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.esql.version.EsqlVersion;
 import org.elasticsearch.xpack.esql.parser.TypedParamValue;
+import org.elasticsearch.xpack.esql.version.EsqlVersion;
 import org.elasticsearch.xpack.esql.version.EsqlVersionTests;
 
 import java.io.IOException;

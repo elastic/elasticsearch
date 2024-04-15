@@ -93,7 +93,7 @@ public class EsqlClientYamlIT extends ESClientYamlSuiteTestCase {
     static DoSection setVersion(DoSection doSection) {
         ApiCallSection copy = doSection.getApiCallSection().copyWithNewApi(doSection.getApiCallSection().getApi());
         for (Map<String, Object> body : copy.getBodies()) {
-            body.putIfAbsent("version", EsqlTestUtils.LOWEST_ESQL_VERSION);
+            body.putIfAbsent("version", EsqlTestUtils.latestEsqlVersionOrSnapshot());
         }
         doSection.setApiCallSection(copy);
         return doSection;

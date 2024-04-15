@@ -102,7 +102,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         this.testCase = testCase;
         this.mode = mode;
         // TODO: Read applicable versions from csv-spec files/make it part of testCase.
-        this.versions = Build.current().isSnapshot() ? Set.of(EsqlVersion.values()) : Set.of(EsqlVersion.releasedAscending());
+        this.versions = allAvailableVersions();
+    }
+
+    public static Set<EsqlVersion> allAvailableVersions() {
+        return Build.current().isSnapshot() ? Set.of(EsqlVersion.values()) : Set.of(EsqlVersion.releasedAscending());
     }
 
     @Before

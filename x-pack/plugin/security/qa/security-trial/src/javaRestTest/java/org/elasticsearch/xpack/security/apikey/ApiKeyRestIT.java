@@ -60,6 +60,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
@@ -982,6 +983,12 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
             final ObjectPath deleteResponse = assertOKAndCreateObjectPath(client().performRequest(deleteRequest));
             assertThat(deleteResponse.evaluate("invalidated_api_keys"), is(empty()));
+            final List<Map<String, ?>> errors = deleteResponse.evaluate("error_details");
+            assertThat(errors, hasSize(1));
+            assertThat(
+                ObjectPath.evaluate(errors.get(0), "reason"),
+                containsString("Cannot invalidate cross-cluster API key [" + apiKeyId + "]")
+            );
         }
 
         {
@@ -992,6 +999,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
             final ObjectPath deleteResponse = assertOKAndCreateObjectPath(client().performRequest(deleteRequest));
             assertThat(deleteResponse.evaluate("invalidated_api_keys"), equalTo(List.of(apiKeyId)));
+            assertThat(deleteResponse.evaluate("error_count"), equalTo(0));
         }
 
         // Cannot create cross-cluster API keys with either manage_api_key or manage_own_api_key privilege
@@ -1021,7 +1029,14 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
             final ObjectPath deleteResponse = assertOKAndCreateObjectPath(client().performRequest(deleteRequest));
             assertThat(deleteResponse.evaluate("invalidated_api_keys"), contains(id3));
-            // TODO assert errors
+            final List<Map<String, ?>> errors = deleteResponse.evaluate("error_details");
+            assertThat(
+                getErrorReasons(errors),
+                containsInAnyOrder(
+                    containsString("Cannot invalidate cross-cluster API key [" + id1 + "]"),
+                    containsString("Cannot invalidate cross-cluster API key [" + id2 + "]")
+                )
+            );
         }
 
         // `manage_security` user can delete both cross-cluster and REST API keys
@@ -1034,11 +1049,21 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
             final ObjectPath deleteResponse = assertOKAndCreateObjectPath(client().performRequest(deleteRequest));
             assertThat(deleteResponse.evaluate("invalidated_api_keys"), containsInAnyOrder(id1, id2, id4));
-            // TODO assert no errors
+            assertThat(deleteResponse.evaluate("error_count"), equalTo(0));
         }
         // TODO test invalidate owned, by username, and realm
         // TODO test authenticate call with API key
         // TODO test user that loses manage_security cannot invalidate owned cross cluster API key
+    }
+
+    private static List<String> getErrorReasons(List<Map<String, ?>> errors) {
+        return errors.stream().map(e -> {
+            try {
+                return (String) ObjectPath.evaluate(e, "reason");
+            } catch (IOException ex) {
+                throw new RuntimeException(ex);
+            }
+        }).collect(Collectors.toList());
     }
 
     private String createCrossClusterApiKey(String user) throws IOException {

@@ -45,6 +45,7 @@ final class GeoIpCache {
     private final AtomicLong hitsTimeInNanos = new AtomicLong(0);
     private final AtomicLong missesTimeInNanos = new AtomicLong(0);
     private final AtomicLong storeQueryTimeInNanos = new AtomicLong(0);
+    private final AtomicLong cachePutTimeInNanos = new AtomicLong(0);
 
     // package private for testing
     GeoIpCache(long maxSize) {
@@ -82,6 +83,7 @@ final class GeoIpCache {
             cache.put(cacheKey, response);
             long cachePutTime = System.nanoTime() - cachePutStart;
             missesTimeInNanos.addAndGet(cacheRequestTime + databaseRequestTime + cachePutTime);
+            cachePutTimeInNanos.addAndGet(cachePutTime);
         } else {
             hitsTimeInNanos.addAndGet(cacheRequestTime);
         }
@@ -129,7 +131,8 @@ final class GeoIpCache {
             stats.getEvictions(),
             TimeValue.nsecToMSec(hitsTimeInNanos.get()),
             TimeValue.nsecToMSec(missesTimeInNanos.get()),
-            TimeValue.nsecToMSec(storeQueryTimeInNanos.get())
+            TimeValue.nsecToMSec(storeQueryTimeInNanos.get()),
+            TimeValue.nsecToMSec(cachePutTimeInNanos.get())
         );
     }
 

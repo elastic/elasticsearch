@@ -835,7 +835,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                     try {
                                         Transport.Connection lowLevelConnection = connection.getConnection();
                                         assertNotNull(lowLevelConnection);
-                                    } catch (NoSuchRemoteClusterException e) {
+                                    } catch (ConnectTransportException e) {
                                         // ignore, this is an expected exception
                                     }
                                 }
@@ -855,7 +855,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                     DiscoveryNode node = randomFrom(discoverableNodes);
                                     try {
                                         connection.getConnectionManager().getConnection(node);
-                                    } catch (NoSuchRemoteClusterException e) {
+                                    } catch (ConnectTransportException e) {
                                         // Ignore
                                     }
                                 }

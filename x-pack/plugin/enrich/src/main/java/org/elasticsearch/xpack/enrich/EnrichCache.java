@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.enrich;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -24,6 +25,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 /**
  * A simple cache for enrich that uses {@link Cache}. There is one instance of this cache and
@@ -50,6 +52,24 @@ public final class EnrichCache {
 
     EnrichCache(long maxSize) {
         this.cache = CacheBuilder.<CacheKey, List<Map<?, ?>>>builder().setMaximumWeight(maxSize).build();
+    }
+
+    void putIfAbsent(
+        SearchRequest searchRequest,
+        BiConsumer<SearchRequest, ActionListener<SearchResponse>> consumer,
+        ActionListener<List<Map<?, ?>>> listener
+    ) {
+        // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
+        List<Map<?, ?>> response = get(searchRequest);
+        if (response != null) {
+            listener.onResponse(response);
+        } else {
+            consumer.accept(searchRequest, ActionListener.wrap(resp -> {
+                List<Map<?, ?>> value = toCacheValue(resp);
+                put(searchRequest, value);
+                listener.onResponse(deepCopy(value, false));
+            }, listener::onFailure));
+        }
     }
 
     List<Map<?, ?>> get(SearchRequest searchRequest) {

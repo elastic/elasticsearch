@@ -51,7 +51,6 @@ public class TransportStopRollupAction extends TransportTasksAction<
             actionFilters,
             StopRollupJobAction.Request::new,
             StopRollupJobAction.Response::new,
-            StopRollupJobAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.threadPool = threadPool;

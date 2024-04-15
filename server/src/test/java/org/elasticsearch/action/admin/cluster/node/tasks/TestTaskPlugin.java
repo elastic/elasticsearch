@@ -391,7 +391,6 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
                 transportService,
                 new ActionFilters(new HashSet<>()),
                 UnblockTestTasksRequest::new,
-                UnblockTestTasksResponse::new,
                 UnblockTestTaskResponse::new,
                 transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
             );

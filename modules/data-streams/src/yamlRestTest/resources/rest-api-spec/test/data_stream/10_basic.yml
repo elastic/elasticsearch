@@ -29,8 +29,8 @@ setup:
 
 ---
 "Create data stream":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
 
   - do:
@@ -113,8 +113,8 @@ setup:
 
 ---
 "Create hidden data stream":
-  - skip:
-      version: " - 7.10.99"
+  - requires:
+      cluster_features: ["gte_v7.11.0"]
       reason: "hidden data streams only available in 7.11"
   - do:
       allowed_warnings:
@@ -209,8 +209,8 @@ setup:
 
 ---
 "Create data stream with failure store":
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason: "data stream failure stores only creatable in 8.11+"
 
   - do:
@@ -303,10 +303,15 @@ setup:
         name: failure-data-stream2
   - is_true: acknowledged
 
+  - do:
+      indices.delete_index_template:
+        name: my-template4
+  - is_true: acknowledged
+
 ---
 "Create data stream with invalid name":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
 
   - do:
@@ -320,8 +325,8 @@ setup:
 
 ---
 "Create existing data stream":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
 
   - do:
@@ -345,8 +350,8 @@ setup:
 
 ---
 "Get data stream":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
 
   - do:
@@ -410,8 +415,8 @@ setup:
 
 ---
 "Get data stream and check DSL and ILM information":
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason: "data streams DSL and ILM mixing information available in 8.11+"
 
   - do:
@@ -481,8 +486,8 @@ setup:
 
 ---
 "Delete data stream with backing indices":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
 
   - do:
@@ -531,9 +536,83 @@ setup:
         index: $idx0name
 
 ---
+"Delete data stream with failure stores":
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: "data stream failure stores only supported in 8.12+"
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template4] has index patterns [failure-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template4] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template4
+        body:
+          index_patterns: [ failure-data-stream1 ]
+          data_stream:
+            failure_store: true
+
+  - do:
+      indices.create_data_stream:
+        name: failure-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 1
+
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: failure-data-stream1
+
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+  - set: { data_streams.0.failure_indices.0.index_name: fs0name }
+
+  - do:
+      indices.get:
+        index: ['.ds-failure-data-stream1-*000001', 'test_index']
+
+  - is_true: test_index.settings
+  - is_true: .$idx0name.settings
+
+  - do:
+      indices.get_data_stream: {}
+  - match: { data_streams.0.name: failure-data-stream1 }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-failure-data-stream1-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - length: { data_streams.0.failure_indices: 1 }
+  - match: { data_streams.0.failure_indices.0.index_name: '/\.fs-failure-data-stream1-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+
+  - do:
+      indices.delete_data_stream:
+        name: failure-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      catch: missing
+      indices.get:
+        index: $idx0name
+
+  - do:
+      catch: missing
+      indices.get:
+        index: $fs0name
+
+  - do:
+      indices.delete_index_template:
+        name: my-template4
+  - is_true: acknowledged
+
+---
 "Delete data stream missing behaviour":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
 
   - do:
@@ -577,8 +656,8 @@ setup:
 
 ---
 "Delete data stream by wildcard":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams supported only in 7.9+"
 
   - do:
@@ -614,10 +693,10 @@ setup:
 
 ---
 "append-only writes to backing indices prohibited":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -676,10 +755,10 @@ setup:
 
 ---
 "Indexing a document into a data stream without a timestamp field":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -725,10 +804,10 @@ setup:
 
 ---
 "Include metadata in a data stream":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "re-enable in 7.11 when backported"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -767,10 +846,10 @@ setup:
 
 ---
 "Create index into a namespace that is governed by a data stream template":
-  - skip:
-      version: " - 7.9.1"
+  - requires:
+      cluster_features: ["gte_v7.9.2"]
       reason: "validation added in 7.9.2"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -795,8 +874,8 @@ setup:
 
 ---
 "Get data stream api check existence of replicated field":
-  - skip:
-      version: " - 7.16.0"
+  - requires:
+      cluster_features: ["gte_v7.16.1"]
       reason: "replicated field only supported in 7.16+"
 
   - do:
@@ -846,8 +925,8 @@ setup:
 
 ---
 "Get data stream api check existence of allow_custom_routing field":
-  - skip:
-      version: " - 8.0.0"
+  - requires:
+      cluster_features: ["gte_v8.0.1"]
       reason: "allow_custom_routing field only supported in 8.0+"
 
   - do:

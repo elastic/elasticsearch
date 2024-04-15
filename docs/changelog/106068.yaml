@@ -1,0 +1,21 @@
+pr: 106068
+summary: Add `modelId` and `modelText` to `KnnVectorQueryBuilder`
+area: Search
+type: enhancement
+issues: []
+highlight:
+  title: Query phase KNN now supports query_vector_builder
+  body: |-
+    It is now possible to pass `model_text` and `model_id` within a `knn` query
+    in the [query DSL](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-knn-query.html) to convert a text query into a dense vector and run the
+    nearest neighbor query on it, instead of requiring the dense vector to be
+    directly passed (within the `query_vector` parameter). Similar to the
+    [top-level knn query](https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html) (executed in the DFS phase), it is possible to supply
+    a `query_vector_builder` object containing a `text_embedding` object with
+    `model_text` (the text query to be converted into a dense vector) and
+    `model_id` (the identifier of a deployed model responsible for transforming
+    the text query into a dense vector). Note that an embedding model with the
+    referenced `model_id` needs to be [deployed on a ML node](https://www.elastic.co/guide/en/machine-learning/current/ml-nlp-deploy-models.html).
+    in the cluster.
+  notable: true
+

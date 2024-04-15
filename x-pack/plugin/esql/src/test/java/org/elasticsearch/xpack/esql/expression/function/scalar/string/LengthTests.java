@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -32,7 +33,8 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("length basic test", () -> {
+        List<TestCaseSupplier> cases = new ArrayList<>();
+        cases.addAll(List.of(new TestCaseSupplier("length basic test", () -> {
             BytesRef value = new BytesRef(randomAlphaOfLength(between(0, 10000)));
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(value, DataTypes.KEYWORD, "f")),
@@ -40,23 +42,37 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
                 DataTypes.INTEGER,
                 equalTo(UnicodeUtil.codePointCount(value))
             );
-        }),
-            new TestCaseSupplier("empty string", () -> makeTestCase("", 0)),
-            new TestCaseSupplier("single ascii character", () -> makeTestCase("a", 1)),
-            new TestCaseSupplier("ascii string", () -> makeTestCase("clump", 5)),
-            new TestCaseSupplier("3 bytes, 1 code point", () -> makeTestCase("☕", 1)),
-            new TestCaseSupplier("6 bytes, 2 code points", () -> makeTestCase("❗️", 2)),
-            new TestCaseSupplier("100 random alpha", () -> makeTestCase(randomAlphaOfLength(100), 100)),
-            new TestCaseSupplier("100 random code points", () -> makeTestCase(randomUnicodeOfCodepointLength(100), 100))
-        ));
+        })));
+        cases.addAll(makeTestCases("empty string", () -> "", 0));
+        cases.addAll(makeTestCases("single ascii character", () -> "a", 1));
+        cases.addAll(makeTestCases("ascii string", () -> "clump", 5));
+        cases.addAll(makeTestCases("3 bytes, 1 code point", () -> "☕", 1));
+        cases.addAll(makeTestCases("6 bytes, 2 code points", () -> "❗️", 2));
+        cases.addAll(makeTestCases("100 random alpha", () -> randomAlphaOfLength(100), 100));
+        cases.addAll(makeTestCases("100 random code points", () -> randomUnicodeOfCodepointLength(100), 100));
+        return parameterSuppliersFromTypedData(cases);
     }
 
-    private static TestCaseSupplier.TestCase makeTestCase(String text, int expectedLength) {
-        return new TestCaseSupplier.TestCase(
-            List.of(new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "f")),
-            "LengthEvaluator[val=Attribute[channel=0]]",
-            DataTypes.INTEGER,
-            equalTo(expectedLength)
+    private static List<TestCaseSupplier> makeTestCases(String title, Supplier<String> text, int expectedLength) {
+        return List.of(
+            new TestCaseSupplier(
+                title + " with keyword",
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataTypes.KEYWORD, "f")),
+                    "LengthEvaluator[val=Attribute[channel=0]]",
+                    DataTypes.INTEGER,
+                    equalTo(expectedLength)
+                )
+            ),
+            new TestCaseSupplier(
+                title + " with text",
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataTypes.TEXT, "f")),
+                    "LengthEvaluator[val=Attribute[channel=0]]",
+                    DataTypes.INTEGER,
+                    equalTo(expectedLength)
+                )
+            )
         );
     }
 

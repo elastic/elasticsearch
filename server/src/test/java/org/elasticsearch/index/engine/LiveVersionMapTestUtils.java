@@ -61,6 +61,14 @@ public class LiveVersionMapTestUtils {
         map.pruneTombstones(maxTimestampToPrune, maxSeqNoToPrune);
     }
 
+    public static long reclaimableRefreshRamBytes(LiveVersionMap map) {
+        return map.reclaimableRefreshRamBytes();
+    }
+
+    public static long refreshingBytes(LiveVersionMap map) {
+        return map.getRefreshingBytes();
+    }
+
     public static IndexVersionValue randomIndexVersionValue() {
         return new IndexVersionValue(randomTranslogLocation(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }

@@ -1,6 +1,0 @@
-pr: 103611
-summary: Fix NPE on missing event queries
-area: EQL
-type: bug
-issues:
- - 103608

@@ -103,7 +103,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
     private void registerMlNodeMetrics(MeterRegistry meterRegistry) {
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.native_memory.limit",
+                "es.ml.native_memory.limit.size",
                 "ML native memory limit on this node.",
                 "bytes",
                 () -> new LongWithAttributes(nativeMemLimit, Map.of())
@@ -111,7 +111,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         );
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.native_memory.usage.anomaly_detectors",
+                "es.ml.native_memory.anomaly_detectors.usage",
                 "ML native memory used by anomaly detection jobs on this node.",
                 "bytes",
                 () -> new LongWithAttributes(nativeMemAdUsage, Map.of())
@@ -119,7 +119,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         );
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.native_memory.usage.data_frame_analytics",
+                "es.ml.native_memory.data_frame_analytics.usage",
                 "ML native memory used by data frame analytics jobs on this node.",
                 "bytes",
                 () -> new LongWithAttributes(nativeMemDfaUsage, Map.of())
@@ -127,7 +127,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         );
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.native_memory.usage.trained_models",
+                "es.ml.native_memory.trained_models.usage",
                 "ML native memory used by trained models on this node.",
                 "bytes",
                 () -> new LongWithAttributes(nativeMemTrainedModelUsage, Map.of())
@@ -135,7 +135,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         );
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.native_memory.free",
+                "es.ml.native_memory.free.size",
                 "Free ML native memory on this node.",
                 "bytes",
                 () -> new LongWithAttributes(nativeMemFree, Map.of())
@@ -146,7 +146,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
     private void registerMasterNodeMetrics(MeterRegistry meterRegistry) {
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.anomaly_detectors.opening.count",
+                "es.ml.anomaly_detectors.opening.current",
                 "Count of anomaly detection jobs in the opening state cluster-wide.",
                 "jobs",
                 () -> new LongWithAttributes(mlTaskStatusCounts.adOpeningCount, isMasterMap)
@@ -154,7 +154,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         );
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.anomaly_detectors.opened.count",
+                "es.ml.anomaly_detectors.opened.current",
                 "Count of anomaly detection jobs in the opened state cluster-wide.",
                 "jobs",
                 () -> new LongWithAttributes(mlTaskStatusCounts.adOpenedCount, isMasterMap)
@@ -162,7 +162,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         );
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.anomaly_detectors.closing.count",
+                "es.ml.anomaly_detectors.closing.current",
                 "Count of anomaly detection jobs in the closing state cluster-wide.",
                 "jobs",
                 () -> new LongWithAttributes(mlTaskStatusCounts.adClosingCount, isMasterMap)
@@ -170,7 +170,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         );
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.anomaly_detectors.failed.count",
+                "es.ml.anomaly_detectors.failed.current",
                 "Count of anomaly detection jobs in the failed state cluster-wide.",
                 "jobs",
                 () -> new LongWithAttributes(mlTaskStatusCounts.adFailedCount, isMasterMap)
@@ -178,7 +178,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         );
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.datafeeds.starting.count",
+                "es.ml.datafeeds.starting.current",
                 "Count of datafeeds in the starting state cluster-wide.",
                 "datafeeds",
                 () -> new LongWithAttributes(mlTaskStatusCounts.datafeedStartingCount, isMasterMap)
@@ -186,7 +186,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         );
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.datafeeds.started.count",
+                "es.ml.datafeeds.started.current",
                 "Count of datafeeds in the started state cluster-wide.",
                 "datafeeds",
                 () -> new LongWithAttributes(mlTaskStatusCounts.datafeedStartedCount, isMasterMap)
@@ -194,7 +194,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         );
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.datafeeds.stopping.count",
+                "es.ml.datafeeds.stopping.current",
                 "Count of datafeeds in the stopping state cluster-wide.",
                 "datafeeds",
                 () -> new LongWithAttributes(mlTaskStatusCounts.datafeedStoppingCount, isMasterMap)
@@ -202,7 +202,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         );
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.data_frame_analytics.starting.count",
+                "es.ml.data_frame_analytics.starting.current",
                 "Count of data frame analytics jobs in the starting state cluster-wide.",
                 "jobs",
                 () -> new LongWithAttributes(mlTaskStatusCounts.dfaStartingCount, isMasterMap)
@@ -210,7 +210,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         );
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.data_frame_analytics.started.count",
+                "es.ml.data_frame_analytics.started.current",
                 "Count of data frame analytics jobs in the started state cluster-wide.",
                 "jobs",
                 () -> new LongWithAttributes(mlTaskStatusCounts.dfaStartedCount, isMasterMap)
@@ -218,7 +218,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         );
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.data_frame_analytics.reindexing.count",
+                "es.ml.data_frame_analytics.reindexing.current",
                 "Count of data frame analytics jobs in the reindexing state cluster-wide.",
                 "jobs",
                 () -> new LongWithAttributes(mlTaskStatusCounts.dfaReindexingCount, isMasterMap)
@@ -226,7 +226,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         );
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.data_frame_analytics.analyzing.count",
+                "es.ml.data_frame_analytics.analyzing.current",
                 "Count of data frame analytics jobs in the analyzing state cluster-wide.",
                 "jobs",
                 () -> new LongWithAttributes(mlTaskStatusCounts.dfaAnalyzingCount, isMasterMap)
@@ -234,7 +234,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         );
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.data_frame_analytics.stopping.count",
+                "es.ml.data_frame_analytics.stopping.current",
                 "Count of data frame analytics jobs in the stopping state cluster-wide.",
                 "jobs",
                 () -> new LongWithAttributes(mlTaskStatusCounts.dfaStoppingCount, isMasterMap)
@@ -242,7 +242,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         );
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.data_frame_analytics.failed.count",
+                "es.ml.data_frame_analytics.failed.current",
                 "Count of data frame analytics jobs in the failed state cluster-wide.",
                 "jobs",
                 () -> new LongWithAttributes(mlTaskStatusCounts.dfaFailedCount, isMasterMap)
@@ -250,7 +250,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         );
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.trained_models.deployment.target_allocations.count",
+                "es.ml.trained_models.deployment.target_allocations.current",
                 "Sum of target trained model allocations across all deployments cluster-wide.",
                 "allocations",
                 () -> new LongWithAttributes(trainedModelAllocationCounts.trainedModelsTargetAllocations, isMasterMap)
@@ -258,7 +258,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         );
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.trained_models.deployment.current_allocations.count",
+                "es.ml.trained_models.deployment.current_allocations.current",
                 "Sum of current trained model allocations across all deployments cluster-wide.",
                 "allocations",
                 () -> new LongWithAttributes(trainedModelAllocationCounts.trainedModelsCurrentAllocations, isMasterMap)
@@ -266,7 +266,7 @@ public final class MlMetrics extends AbstractLifecycleComponent implements Clust
         );
         metrics.add(
             meterRegistry.registerLongGauge(
-                "es.ml.trained_models.deployment.failed_allocations.count",
+                "es.ml.trained_models.deployment.failed_allocations.current",
                 "Sum of failed trained model allocations across all deployments cluster-wide.",
                 "allocations",
                 () -> new LongWithAttributes(trainedModelAllocationCounts.trainedModelsFailedAllocations, isMasterMap)

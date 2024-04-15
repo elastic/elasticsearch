@@ -26,6 +26,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 
@@ -33,8 +34,64 @@ import java.util.concurrent.Executor;
  * An {@link ActionListener} to which other {@link ActionListener} instances can subscribe, such that when this listener is completed it
  * fans-out its result to the subscribed listeners.
  * <p>
- * Similar to {@link ListenableActionFuture} and {@link ListenableFuture} except for its handling of exceptions: if this listener is
- * completed exceptionally then the exception is passed to subscribed listeners without modification.
+ * Exceptions are passed to subscribed listeners without modification. {@link ListenableActionFuture} and {@link ListenableFuture} are child
+ * classes that provide additional exception handling.
+ * <p>
+ * A sequence of async steps can be chained together using a series of {@link SubscribableListener}s, similar to {@link CompletionStage}
+ * (without the {@code catch (Throwable t)}). Listeners can be created for each step, where the next step subscribes to the result of the
+ * previous, using utilities like {@link #andThen(CheckedBiConsumer)}. The following example demonstrates how this might be used:
+ * <pre>{@code
+ * private void exampleAsyncMethod(String request, List<Long> items, ActionListener<Boolean> finalListener) {
+ *     SubscribableListener
+ *
+ *         // Start the chain and run the first step by creating a SubscribableListener using newForked():
+ *         .<String>newForked(l -> firstAsyncStep(request, l))
+ *
+ *         // Run a second step when the first step completes using andThen(); if the first step fails then the exception falls through to
+ *         // the end without executing the intervening steps.
+ *         .<Integer>andThen((l, firstStepResult) -> secondAsyncStep(request, firstStepResult, l))
+ *
+ *         // Run another step when the second step completes with another andThen() call; as above this only runs if the first two steps
+ *         // succeed.
+ *         .<Boolean>andThen((l, secondStepResult) -> {
+ *             if (condition) {
+ *                 // Steps are exception-safe: an exception thrown here will be passed to the listener rather than escaping to the
+ *                 // caller.
+ *                 throw new IOException("failure");
+ *             }
+ *
+ *             // Steps can fan out to multiple subsidiary async actions using utilities like RefCountingListener.
+ *             final var result = new AtomicBoolean();
+ *             try (var listeners = new RefCountingListener(l.map(v -> result.get()))) {
+ *                 for (final var item : items) {
+ *                     thirdAsyncStep(secondStepResult, item, listeners.acquire());
+ *                 }
+ *             }
+ *         })
+ *
+ *         // Synchronous (non-forking) steps which do not return a result can be expressed using andThenAccept() with a consumer:
+ *         .andThenAccept(thirdStepResult -> {
+ *             if (condition) {
+ *                 // andThenAccept() is also exception-safe
+ *                 throw new ElasticsearchException("some other problem");
+ *             }
+ *             consumeThirdStepResult(thirdStepResult);
+ *         })
+ *
+ *         // Synchronous (non-forking) steps which do return a result can be expressed using andThenApply() with a function:
+ *         .andThenApply(voidFromStep4 -> {
+ *             if (condition) {
+ *                 // andThenApply() is also exception-safe
+ *                 throw new IllegalArgumentException("failure");
+ *             }
+ *             return computeFifthStepResult();
+ *         })
+ *
+ *         // To complete the chain, add the outer listener which will be completed with the result of the previous step if all steps were
+ *         // successful, or the exception if any step failed.
+ *         .addListener(finalListener);
+ * }
+ * }</pre>
  */
 public class SubscribableListener<T> implements ActionListener<T> {
 
@@ -102,7 +159,12 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * (or after) the completion of this listener.
      * <p>
      * If the subscribed listener is not completed immediately then it will be completed on the thread, and in the {@link ThreadContext}, of
-     * the thread which completes this listener.
+     * the thread which completes this listener. In other words, if you want to ensure that {@code listener} is completed using a particular
+     * executor, then you must do both of:
+     * <ul>
+     * <li>Ensure that this {@link SubscribableListener} is always completed using that executor, and</li>
+     * <li>Invoke {@link #addListener} using that executor.</li>
+     * </ul>
      */
     public final void addListener(ActionListener<T> listener) {
         addListener(listener, EsExecutors.DIRECT_EXECUTOR_SERVICE, null);
@@ -122,6 +184,13 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * @param executor      If not {@link EsExecutors#DIRECT_EXECUTOR_SERVICE}, and the subscribing listener is not completed immediately,
      *                      then it will be completed using the given executor. If the subscribing listener is completed immediately then
      *                      this completion happens on the subscribing thread.
+     *                      <p>
+     *                      In other words, if you want to ensure that {@code listener} is completed using a particular executor, then you
+     *                      must do both of:
+     *                      <ul>
+     *                      <li>Pass the desired executor in as {@code executor}, and</li>
+     *                      <li>Invoke {@link #addListener} using that executor.</li>
+     *                      </ul>
      * @param threadContext If not {@code null}, and the subscribing listener is not completed immediately, then it will be completed in
      *                      the given thread context. If {@code null}, and the subscribing listener is not completed immediately, then it
      *                      will be completed in the {@link ThreadContext} of the completing thread. If the subscribing listener is
@@ -348,7 +417,13 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * <p>
      * The threading of the {@code nextStep} callback is the same as for listeners added with {@link #addListener}: if this listener is
      * already complete then {@code nextStep} is invoked on the thread calling {@link #andThen} and in its thread context, but if this
-     * listener is incomplete then {@code nextStep} is invoked on the completing thread and in its thread context.
+     * listener is incomplete then {@code nextStep} is invoked on the completing thread and in its thread context. In other words, if you
+     * want to ensure that {@code nextStep} is invoked using a particular executor, then you must do
+     * both of:
+     * <ul>
+     * <li>Ensure that this {@link SubscribableListener} is always completed using that executor, and</li>
+     * <li>Invoke {@link #andThen} using that executor.</li>
+     * </ul>
      */
     public <U> SubscribableListener<U> andThen(CheckedBiConsumer<ActionListener<U>, T, ? extends Exception> nextStep) {
         return andThen(EsExecutors.DIRECT_EXECUTOR_SERVICE, null, nextStep);
@@ -370,7 +445,12 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * The threading of the {@code nextStep} callback is the same as for listeners added with {@link #addListener}: if this listener is
      * already complete then {@code nextStep} is invoked on the thread calling {@link #andThen} and in its thread context, but if this
      * listener is incomplete then {@code nextStep} is invoked using {@code executor}, in a thread context captured when {@link #andThen}
-     * was called.
+     * was called. In other words, if you want to ensure that {@code nextStep} is invoked using a particular executor, then you must do
+     * both of:
+     * <ul>
+     * <li>Pass the desired executor in as {@code executor}, and</li>
+     * <li>Invoke {@link #andThen} using that executor.</li>
+     * </ul>
      */
     public <U> SubscribableListener<U> andThen(
         Executor executor,

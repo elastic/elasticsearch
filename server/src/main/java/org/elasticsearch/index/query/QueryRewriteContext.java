@@ -8,6 +8,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -37,6 +38,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
@@ -59,6 +61,7 @@ public class QueryRewriteContext {
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
+    private final ResolvedIndices resolvedIndices;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -67,14 +70,14 @@ public class QueryRewriteContext {
         final MapperService mapperService,
         final MappingLookup mappingLookup,
         final Map<String, MappedFieldType> runtimeMappings,
-        final Predicate<String> allowedFields,
         final IndexSettings indexSettings,
         final Index fullyQualifiedIndex,
         final Predicate<String> indexNameMatcher,
         final NamedWriteableRegistry namedWriteableRegistry,
         final ValuesSourceRegistry valuesSourceRegistry,
         final BooleanSupplier allowExpensiveQueries,
-        final ScriptCompiler scriptService
+        final ScriptCompiler scriptService,
+        final ResolvedIndices resolvedIndices
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -84,7 +87,6 @@ public class QueryRewriteContext {
         this.mappingLookup = Objects.requireNonNull(mappingLookup);
         this.allowUnmappedFields = indexSettings == null || indexSettings.isDefaultAllowUnmappedFields();
         this.runtimeMappings = runtimeMappings;
-        this.allowedFields = allowedFields;
         this.indexSettings = indexSettings;
         this.fullyQualifiedIndex = fullyQualifiedIndex;
         this.indexNameMatcher = indexNameMatcher;
@@ -92,6 +94,7 @@ public class QueryRewriteContext {
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.scriptService = scriptService;
+        this.resolvedIndices = resolvedIndices;
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -110,6 +113,30 @@ public class QueryRewriteContext {
             null,
             null,
             null
+        );
+    }
+
+    public QueryRewriteContext(
+        final XContentParserConfiguration parserConfiguration,
+        final Client client,
+        final LongSupplier nowInMillis,
+        final ResolvedIndices resolvedIndices
+    ) {
+        this(
+            parserConfiguration,
+            client,
+            nowInMillis,
+            null,
+            MappingLookup.EMPTY,
+            Collections.emptyMap(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            resolvedIndices
         );
     }
 
@@ -159,6 +186,10 @@ public class QueryRewriteContext {
         return null;
     }
 
+    public InnerHitsRewriteContext convertToInnerHitsRewriteContext() {
+        return null;
+    }
+
     /**
      * Returns the {@link MappedFieldType} for the provided field name.
      * If the field is not mapped, the behaviour depends on the index.query.parse.allow_unmapped_fields setting, which defaults to true.
@@ -192,7 +223,11 @@ public class QueryRewriteContext {
         if (fieldMapping != null || allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
-            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, getIndexAnalyzers());
+            TextFieldMapper.Builder builder = new TextFieldMapper.Builder(
+                name,
+                getIndexAnalyzers(),
+                getIndexSettings() != null && getIndexSettings().getMode().isSyntheticSourceEnabled()
+            );
             return builder.build(MapperBuilderContext.root(false, false)).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
@@ -286,6 +321,13 @@ public class QueryRewriteContext {
     }
 
     /**
+     * Returns the MappingLookup for the queried index.
+     */
+    public MappingLookup getMappingLookup() {
+        return mappingLookup;
+    }
+
+    /**
      *  Given an index pattern, checks whether it matches against the current shard. The pattern
      *  may represent a fully qualified index name if the search targets remote shards.
      */
@@ -303,35 +345,49 @@ public class QueryRewriteContext {
      * @param pattern the field name pattern
      */
     public Set<String> getMatchingFieldNames(String pattern) {
+        Set<String> matches;
         if (runtimeMappings.isEmpty()) {
-            return mappingLookup.getMatchingFieldNames(pattern);
-        }
-        Set<String> matches = new HashSet<>(mappingLookup.getMatchingFieldNames(pattern));
-        if ("*".equals(pattern)) {
-            matches.addAll(runtimeMappings.keySet());
-        } else if (Regex.isSimpleMatchPattern(pattern) == false) {
-            // no wildcard
-            if (runtimeMappings.containsKey(pattern)) {
-                matches.add(pattern);
-            }
+            matches = mappingLookup.getMatchingFieldNames(pattern);
         } else {
-            for (String name : runtimeMappings.keySet()) {
-                if (Regex.simpleMatch(pattern, name)) {
-                    matches.add(name);
+            matches = new HashSet<>(mappingLookup.getMatchingFieldNames(pattern));
+            if ("*".equals(pattern)) {
+                matches.addAll(runtimeMappings.keySet());
+            } else if (Regex.isSimpleMatchPattern(pattern) == false) {
+                // no wildcard
+                if (runtimeMappings.containsKey(pattern)) {
+                    matches.add(pattern);
+                }
+            } else {
+                for (String name : runtimeMappings.keySet()) {
+                    if (Regex.simpleMatch(pattern, name)) {
+                        matches.add(name);
+                    }
                 }
             }
         }
-        return matches;
+        // If the field is not allowed, behave as if it is not mapped
+        return allowedFields == null ? matches : matches.stream().filter(allowedFields).collect(Collectors.toSet());
     }
 
     /**
-     * Same as {@link #getMatchingFieldNames(String)} with pattern {@code *} but returns an {@link Iterable} instead of a set.
+     * @return An {@link Iterable} with key the field name and value the MappedFieldType
      */
-    public Iterable<String> getAllFieldNames() {
-        var allFromMapping = mappingLookup.getMatchingFieldNames("*");
+    public Iterable<Map.Entry<String, MappedFieldType>> getAllFields() {
+        Map<String, MappedFieldType> allFromMapping = mappingLookup.getFullNameToFieldType();
+        Set<Map.Entry<String, MappedFieldType>> allEntrySet = allowedFields == null
+            ? allFromMapping.entrySet()
+            : allFromMapping.entrySet().stream().filter(entry -> allowedFields.test(entry.getKey())).collect(Collectors.toSet());
+        if (runtimeMappings.isEmpty()) {
+            return allEntrySet;
+        }
+        Set<Map.Entry<String, MappedFieldType>> runtimeEntrySet = allowedFields == null
+            ? runtimeMappings.entrySet()
+            : runtimeMappings.entrySet().stream().filter(entry -> allowedFields.test(entry.getKey())).collect(Collectors.toSet());
         // runtime mappings and non-runtime fields don't overlap, so we can simply concatenate the iterables here
-        return runtimeMappings.isEmpty()
-            ? allFromMapping
-            : () -> Iterators.concat(allFromMapping.iterator(), runtimeMappings.keySet().iterator());
+        return () -> Iterators.concat(allEntrySet.iterator(), runtimeEntrySet.iterator());
+    }
+
+    public ResolvedIndices getResolvedIndices() {
+        return resolvedIndices;
     }
 }

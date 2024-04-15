@@ -35,11 +35,9 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction<
-    TransportDeleteDesiredNodesAction.Request,
-    ActionResponse.Empty> {
+public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction<AcknowledgedRequest.Plain, ActionResponse.Empty> {
 
-    public static final ActionType<ActionResponse.Empty> TYPE = ActionType.emptyResponse("cluster:admin/desired_nodes/delete");
+    public static final ActionType<ActionResponse.Empty> TYPE = new ActionType<>("cluster:admin/desired_nodes/delete");
     private final MasterServiceTaskQueue<DeleteDesiredNodesTask> taskQueue;
 
     @Inject
@@ -56,7 +54,7 @@ public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction
             clusterService,
             threadPool,
             actionFilters,
-            Request::new,
+            AcknowledgedRequest.Plain::new,
             indexNameExpressionResolver,
             in -> ActionResponse.Empty.INSTANCE,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
@@ -65,13 +63,17 @@ public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction
     }
 
     @Override
-    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<ActionResponse.Empty> listener)
-        throws Exception {
+    protected void masterOperation(
+        Task task,
+        AcknowledgedRequest.Plain request,
+        ClusterState state,
+        ActionListener<ActionResponse.Empty> listener
+    ) throws Exception {
         taskQueue.submitTask("delete-desired-nodes", new DeleteDesiredNodesTask(listener), request.masterNodeTimeout());
     }
 
     @Override
-    protected ClusterBlockException checkBlock(Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(AcknowledgedRequest.Plain request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 

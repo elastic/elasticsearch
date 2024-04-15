@@ -598,6 +598,11 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        return syntheticSourceSupport(ignoreMalformed, false);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed, boolean columnReader) {
         assumeFalse("synthetic _source for geo_point doesn't support ignore_malformed", ignoreMalformed);
         return new SyntheticSourceSupport() {
             private final boolean ignoreZValue = usually();
@@ -607,6 +612,9 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             public SyntheticSourceExample example(int maxVals) {
                 if (randomBoolean()) {
                     Tuple<Object, GeoPoint> v = generateValue();
+                    if (columnReader) {
+                        return new SyntheticSourceExample(v.v1(), decode(encode(v.v2())), encode(v.v2()), this::mapping);
+                    }
                     return new SyntheticSourceExample(v.v1(), v.v2(), v.v2().toWKT(), this::mapping);
                 }
                 List<Tuple<Object, GeoPoint>> values = randomList(1, maxVals, this::generateValue);
@@ -616,12 +624,20 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                     .sorted((a, b) -> Long.compare(encode(a.v2()), encode(b.v2())))
                     .toList();
                 List<Object> in = sorted.stream().map(Tuple::v1).toList();
-                List<GeoPoint> outList = sorted.stream().map(v -> encode(v.v2())).sorted().map(this::decode).toList();
+                List<GeoPoint> outList = sorted.stream().map(Tuple::v2).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
 
-                List<String> outBlockList = outList.stream().map(GeoPoint::toWKT).toList();
-                Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
-                return new SyntheticSourceExample(in, out, outBlock, this::mapping);
+                if (columnReader) {
+                    // When reading doc-values, the block is a list of encoded longs
+                    List<Long> outBlockList = outList.stream().map(this::encode).toList();
+                    Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
+                    return new SyntheticSourceExample(in, out, outBlock, this::mapping);
+                } else {
+                    // When reading row-stride, the block is a list of WKT encoded BytesRefs
+                    List<String> outBlockList = outList.stream().map(GeoPoint::toWKT).toList();
+                    Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
+                    return new SyntheticSourceExample(in, out, outBlock, this::mapping);
+                }
             }
 
             private Tuple<Object, GeoPoint> generateValue() {
@@ -705,13 +721,18 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         throw new AssumptionViolatedException("not supported");
     }
 
-    private boolean useDocValues = false;
-
     @Override
     protected Function<Object, Object> loadBlockExpected() {
-        if (useDocValues) {
+        throw new IllegalStateException("Should never reach here, call loadBlockExpected(BlockReaderSupport, boolean) instead");
+    }
+
+    @Override
+    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
+        if (columnReader) {
+            // When using column reader, we expect the output to be doc-values (which means encoded longs)
             return v -> asJacksonNumberOutput(((Number) v).longValue());
         } else {
+            // When using row-stride reader, we expect the output to be WKT encoded BytesRef
             return v -> asWKT((BytesRef) v);
         }
     }
@@ -732,13 +753,8 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected boolean supportsColumnAtATimeReader(MapperService mapper, MappedFieldType ft) {
-        // Currently ESQL support for geo_point is limited to source values
-        return false;
-    }
-
-    @Override
-    public void testBlockLoaderFromRowStrideReaderWithSyntheticSource() {
-        assumeTrue("Synthetic source not completed supported for geo_point", false);
+    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
+        MappedFieldType ft = mapper.fieldType(loaderFieldName);
+        return new BlockReaderSupport(ft.hasDocValues(), false, mapper, loaderFieldName);
     }
 }

@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -29,8 +30,24 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
  *     an integer ala {@link Math#floor}.
  * </p>
  */
-public class Floor extends UnaryScalarFunction implements EvaluatorMapper {
-    public Floor(Source source, @Param(name = "n", type = { "integer", "long", "double", "unsigned_long" }) Expression n) {
+public class Floor extends UnaryScalarFunction {
+    @FunctionInfo(
+        returnType = { "double", "integer", "long", "unsigned_long" },
+        description = "Round a number down to the nearest integer.",
+        note = """
+            This is a noop for `long` (including unsigned) and `integer`.
+            For `double` this picks the closest `double` value to the integer
+            similar to {javadoc}/java.base/java/lang/Math.html#floor(double)[Math.floor].""",
+        examples = @Example(file = "math", tag = "floor")
+    )
+    public Floor(
+        Source source,
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "Numeric expression. If `null`, the function returns `null`."
+        ) Expression n
+    ) {
         super(source, n);
     }
 
@@ -40,11 +57,6 @@ public class Floor extends UnaryScalarFunction implements EvaluatorMapper {
             return toEvaluator.apply(field());
         }
         return new FloorDoubleEvaluator.Factory(source(), toEvaluator.apply(field()));
-    }
-
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
     }
 
     @Override

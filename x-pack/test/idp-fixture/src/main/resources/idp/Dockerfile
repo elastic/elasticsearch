@@ -20,12 +20,13 @@ ENV JETTY_HOME=/opt/jetty-home \
     JETTY_BASE=/opt/shib-jetty-base \
     PATH=$PATH:$JAVA_HOME/bin \
     JETTY_BROWSER_SSL_KEYSTORE_PASSWORD=secret \
-    JETTY_BACKCHANNEL_SSL_KEYSTORE_PASSWORD=secret
-
+    JETTY_BACKCHANNEL_SSL_KEYSTORE_PASSWORD=secret \
+    JETTY_MAX_HEAP=64m
+    
 # Manually override the jetty keystore otherwise it will attempt to download and fail
 RUN mkdir -p /opt/shib-jetty-base/modules
-COPY ./idp/jetty-custom/ssl.mod /opt/shib-jetty-base/modules/ssl.mod
-COPY ./idp/jetty-custom/keystore /opt/shib-jetty-base/etc/keystore
+COPY ./jetty-custom/ssl.mod /opt/shib-jetty-base/modules/ssl.mod
+COPY ./jetty-custom/keystore /opt/shib-jetty-base/etc/keystore
 
 # Download Jetty, verify the hash, and install, initialize a new base
 RUN wget -q https://repo.maven.apache.org/maven2/org/eclipse/jetty/jetty-distribution/$jetty_version/jetty-distribution-$jetty_version.tar.gz \
@@ -71,9 +72,9 @@ RUN wget -q https://repo.maven.apache.org/maven2/ch/qos/logback/logback-access/$
     && mv logback-access-$logback_version.jar /opt/shib-jetty-base/lib/logging/
 
 ## Copy local files
-COPY idp/shib-jetty-base/ /opt/shib-jetty-base/
-COPY idp/shibboleth-idp/ /opt/shibboleth-idp/
-COPY idp/bin/ /usr/local/bin/
+COPY shib-jetty-base/ /opt/shib-jetty-base/
+COPY shibboleth-idp/ /opt/shibboleth-idp/
+COPY bin/ /usr/local/bin/
 
 # Setting owner ownership and permissions
 RUN useradd jetty -U -s /bin/false \
@@ -85,6 +86,8 @@ RUN useradd jetty -U -s /bin/false \
 
 RUN chmod 750 /usr/local/bin/run-jetty.sh /usr/local/bin/init-idp.sh
 RUN chmod +x /opt/jetty-home/bin/jetty.sh
+
+RUN apt-get update && apt-get install -y netcat
 
 # Opening 4443 (browser TLS), 8443 (mutual auth TLS)
 EXPOSE 4443 8443

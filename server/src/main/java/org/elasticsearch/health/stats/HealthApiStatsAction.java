@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.metrics.Counters;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
@@ -36,7 +35,7 @@ public class HealthApiStatsAction extends ActionType<HealthApiStatsAction.Respon
     public static final String NAME = "cluster:monitor/health_api/stats";
 
     private HealthApiStatsAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 
     public static class Request extends BaseNodesRequest<Request> {

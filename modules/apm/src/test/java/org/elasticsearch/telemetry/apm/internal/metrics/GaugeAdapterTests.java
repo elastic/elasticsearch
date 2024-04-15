@@ -38,7 +38,7 @@ public class GaugeAdapterTests extends ESTestCase {
     // testing that a value reported is then used in a callback
     public void testLongGaugeRecord() throws Exception {
         AtomicReference<LongWithAttributes> attrs = new AtomicReference<>();
-        LongGauge gauge = registry.registerLongGauge("name", "desc", "unit", attrs::get);
+        LongGauge gauge = registry.registerLongGauge("es.test.name.total", "desc", "unit", attrs::get);
 
         attrs.set(new LongWithAttributes(1L, Map.of("k", 1L)));
 
@@ -71,7 +71,7 @@ public class GaugeAdapterTests extends ESTestCase {
     // testing that a value reported is then used in a callback
     public void testDoubleGaugeRecord() throws Exception {
         AtomicReference<DoubleWithAttributes> attrs = new AtomicReference<>();
-        DoubleGauge gauge = registry.registerDoubleGauge("name", "desc", "unit", attrs::get);
+        DoubleGauge gauge = registry.registerDoubleGauge("es.test.name.total", "desc", "unit", attrs::get);
 
         attrs.set(new DoubleWithAttributes(1.0d, Map.of("k", 1L)));
 
@@ -102,12 +102,17 @@ public class GaugeAdapterTests extends ESTestCase {
     }
 
     public void testNullGaugeRecord() throws Exception {
-        DoubleGauge dgauge = registry.registerDoubleGauge("name", "desc", "unit", new AtomicReference<DoubleWithAttributes>()::get);
+        DoubleGauge dgauge = registry.registerDoubleGauge(
+            "es.test.name.total",
+            "desc",
+            "unit",
+            new AtomicReference<DoubleWithAttributes>()::get
+        );
         otelMeter.collectMetrics();
         List<Measurement> metrics = otelMeter.getRecorder().getMeasurements(dgauge);
         assertThat(metrics, hasSize(0));
 
-        LongGauge lgauge = registry.registerLongGauge("name", "desc", "unit", new AtomicReference<LongWithAttributes>()::get);
+        LongGauge lgauge = registry.registerLongGauge("es.test.name.total", "desc", "unit", new AtomicReference<LongWithAttributes>()::get);
         otelMeter.collectMetrics();
         metrics = otelMeter.getRecorder().getMeasurements(lgauge);
         assertThat(metrics, hasSize(0));

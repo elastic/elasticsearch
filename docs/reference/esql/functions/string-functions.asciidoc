@@ -11,22 +11,28 @@
 * <<esql-concat>>
 * <<esql-left>>
 * <<esql-length>>
+* <<esql-locate>>
 * <<esql-ltrim>>
 * <<esql-replace>>
 * <<esql-right>>
 * <<esql-rtrim>>
 * <<esql-split>>
 * <<esql-substring>>
+* <<esql-to_lower>>
+* <<esql-to_upper>>
 * <<esql-trim>>
 // end::string_list[]
 
 include::concat.asciidoc[]
-include::left.asciidoc[]
+include::layout/left.asciidoc[]
 include::length.asciidoc[]
+include::layout/locate.asciidoc[]
 include::ltrim.asciidoc[]
 include::replace.asciidoc[]
 include::right.asciidoc[]
 include::rtrim.asciidoc[]
 include::split.asciidoc[]
 include::substring.asciidoc[]
+include::to_lower.asciidoc[]
+include::to_upper.asciidoc[]
 include::trim.asciidoc[]

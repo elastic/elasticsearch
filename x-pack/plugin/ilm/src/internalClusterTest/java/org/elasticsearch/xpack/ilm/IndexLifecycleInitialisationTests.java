@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -431,7 +432,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         assertAcked(client().execute(ILMActions.STOP, new StopILMRequest()).get());
         assertBusy(() -> {
-            OperationMode mode = client().execute(GetStatusAction.INSTANCE, new GetStatusAction.Request()).get().getMode();
+            OperationMode mode = client().execute(GetStatusAction.INSTANCE, new AcknowledgedRequest.Plain()).get().getMode();
             logger.info("--> waiting for STOPPED, currently: {}", mode);
             assertThat(mode, equalTo(OperationMode.STOPPED));
         });
@@ -455,7 +456,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
             is(both(greaterThanOrEqualTo(lowerBoundModifiedDate)).and(lessThanOrEqualTo(upperBoundModifiedDate)))
         );
         // assert ILM is still stopped
-        GetStatusAction.Response statusResponse = client().execute(GetStatusAction.INSTANCE, new GetStatusAction.Request()).get();
+        GetStatusAction.Response statusResponse = client().execute(GetStatusAction.INSTANCE, new AcknowledgedRequest.Plain()).get();
         assertThat(statusResponse.getMode(), equalTo(OperationMode.STOPPED));
     }
 

@@ -104,6 +104,21 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
                 equalTo(str.endsWith(suffix))
             );
         }));
+        suppliers.add(new TestCaseSupplier("ends_with with text args", () -> {
+            String str = randomAlphaOfLength(5);
+            String suffix = randomAlphaOfLength(1);
+            str = str + suffix;
+
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(str), DataTypes.TEXT, "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(suffix), DataTypes.TEXT, "suffix")
+                ),
+                "EndsWithEvaluator[str=Attribute[channel=0], suffix=Attribute[channel=1]]",
+                DataTypes.BOOLEAN,
+                equalTo(str.endsWith(suffix))
+            );
+        }));
         return parameterSuppliersFromTypedData(suppliers);
     }
 

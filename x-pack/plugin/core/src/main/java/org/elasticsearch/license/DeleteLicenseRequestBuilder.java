@@ -6,17 +6,17 @@
  */
 package org.elasticsearch.license;
 
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.ElasticsearchClient;
-import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 
 public class DeleteLicenseRequestBuilder extends AcknowledgedRequestBuilder<
-    DeleteLicenseRequest,
+    AcknowledgedRequest.Plain,
     AcknowledgedResponse,
     DeleteLicenseRequestBuilder> {
 
     public DeleteLicenseRequestBuilder(ElasticsearchClient client) {
-        super(client, TransportDeleteLicenseAction.TYPE, new DeleteLicenseRequest());
+        super(client, TransportDeleteLicenseAction.TYPE, new AcknowledgedRequest.Plain());
     }
 }

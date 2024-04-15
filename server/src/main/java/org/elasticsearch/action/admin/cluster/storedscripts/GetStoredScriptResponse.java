@@ -13,18 +13,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.StoredScriptSource;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
-
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class GetStoredScriptResponse extends ActionResponse implements ToXContentObject {
 
@@ -32,30 +26,8 @@ public class GetStoredScriptResponse extends ActionResponse implements ToXConten
     public static final ParseField FOUND_PARSE_FIELD = new ParseField("found");
     public static final ParseField SCRIPT = new ParseField("script");
 
-    private static final ConstructingObjectParser<GetStoredScriptResponse, String> PARSER = new ConstructingObjectParser<>(
-        "GetStoredScriptResponse",
-        true,
-        (a, c) -> {
-            String id = (String) a[0];
-            boolean found = (Boolean) a[1];
-            StoredScriptSource scriptSource = (StoredScriptSource) a[2];
-            return found ? new GetStoredScriptResponse(id, scriptSource) : new GetStoredScriptResponse(id, null);
-        }
-    );
-
-    static {
-        PARSER.declareField(constructorArg(), (p, c) -> p.text(), _ID_PARSE_FIELD, ObjectParser.ValueType.STRING);
-        PARSER.declareField(constructorArg(), (p, c) -> p.booleanValue(), FOUND_PARSE_FIELD, ObjectParser.ValueType.BOOLEAN);
-        PARSER.declareField(
-            optionalConstructorArg(),
-            (p, c) -> StoredScriptSource.fromXContent(p, true),
-            SCRIPT,
-            ObjectParser.ValueType.OBJECT
-        );
-    }
-
-    private String id;
-    private StoredScriptSource source;
+    private final String id;
+    private final StoredScriptSource source;
 
     public GetStoredScriptResponse(StreamInput in) throws IOException {
         super(in);
@@ -101,10 +73,6 @@ public class GetStoredScriptResponse extends ActionResponse implements ToXConten
 
         builder.endObject();
         return builder;
-    }
-
-    public static GetStoredScriptResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
     }
 
     @Override

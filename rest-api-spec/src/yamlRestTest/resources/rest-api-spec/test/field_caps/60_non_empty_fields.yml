@@ -1,0 +1,39 @@
+---
+setup:
+  - do:
+        indices.create:
+          index: test
+          body:
+            mappings:
+              properties:
+                foo:
+                  type: long
+                empty-baz:
+                  type: text
+
+  - do:
+      index:
+        index:  test
+        body:   { foo: "42", unmapped-bar: "bar" }
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+---
+"Field caps with with include_empty_fields false":
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: include_empty_fields has been added in 8.13.0
+
+  - do:
+      field_caps:
+        include_empty_fields: false
+        index: test
+        fields: "*"
+
+  - match: {indices: ["test"]}
+  - is_true: fields.foo
+  - is_false: fields.empty-baz
+  - is_true: fields.unmapped-bar
+  - is_true: fields._index

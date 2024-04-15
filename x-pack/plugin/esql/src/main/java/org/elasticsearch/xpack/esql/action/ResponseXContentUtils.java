@@ -12,6 +12,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -23,10 +24,12 @@ import java.util.function.Function;
  */
 final class ResponseXContentUtils {
 
-    /** Returns the column headings for the given columns. */
-    static Iterator<? extends ToXContent> columnHeadings(List<ColumnInfo> columns) {
+    /**
+     * Returns the column headings for the given columns.
+     */
+    static Iterator<? extends ToXContent> allColumns(List<ColumnInfo> columns, String name) {
         return ChunkedToXContentHelper.singleChunk((builder, params) -> {
-            builder.startArray("columns");
+            builder.startArray(name);
             for (ColumnInfo col : columns) {
                 col.toXContent(builder, params);
             }
@@ -34,55 +37,80 @@ final class ResponseXContentUtils {
         });
     }
 
+    /**
+     * Returns the column headings for the given columns, moving the heading
+     * for always-null columns to a {@code null_columns} section.
+     */
+    static Iterator<? extends ToXContent> nonNullColumns(List<ColumnInfo> columns, boolean[] nullColumns, String name) {
+        return ChunkedToXContentHelper.singleChunk((builder, params) -> {
+            builder.startArray(name);
+            for (int c = 0; c < columns.size(); c++) {
+                if (nullColumns[c] == false) {
+                    columns.get(c).toXContent(builder, params);
+                }
+            }
+            return builder.endArray();
+        });
+    }
+
     /** Returns the column values for the given pages (described by the column infos). */
-    static Iterator<? extends ToXContent> columnValues(List<ColumnInfo> columns, List<Page> pages, boolean columnar) {
+    static Iterator<? extends ToXContent> columnValues(
+        List<ColumnInfo> columns,
+        List<Page> pages,
+        boolean columnar,
+        boolean[] nullColumns
+    ) {
         if (pages.isEmpty()) {
             return Collections.emptyIterator();
         } else if (columnar) {
-            return columnarValues(columns, pages);
+            return columnarValues(columns, pages, nullColumns);
         } else {
-            return rowValues(columns, pages);
+            return rowValues(columns, pages, nullColumns);
         }
     }
 
     /** Returns a columnar based representation of the values in the given pages (described by the column infos). */
-    static Iterator<? extends ToXContent> columnarValues(List<ColumnInfo> columns, List<Page> pages) {
+    static Iterator<? extends ToXContent> columnarValues(List<ColumnInfo> columns, List<Page> pages, boolean[] nullColumns) {
         final BytesRef scratch = new BytesRef();
-        return Iterators.flatMap(
-            Iterators.forRange(
-                0,
-                columns.size(),
-                column -> Iterators.concat(
-                    Iterators.single(((builder, params) -> builder.startArray())),
-                    Iterators.flatMap(pages.iterator(), page -> {
-                        ColumnInfo.PositionToXContent toXContent = columns.get(column).positionToXContent(page.getBlock(column), scratch);
-                        return Iterators.forRange(
-                            0,
-                            page.getPositionCount(),
-                            position -> (builder, params) -> toXContent.positionToXContent(builder, params, position)
-                        );
-                    }),
-                    ChunkedToXContentHelper.endArray()
-                )
-            ),
-            Function.identity()
-        );
+        return Iterators.flatMap(Iterators.forRange(0, columns.size(), column -> {
+            if (nullColumns != null && nullColumns[column]) {
+                return Collections.emptyIterator();
+            }
+            return Iterators.concat(
+                Iterators.single(((builder, params) -> builder.startArray())),
+                Iterators.flatMap(pages.iterator(), page -> {
+                    PositionToXContent toXContent = PositionToXContent.positionToXContent(
+                        columns.get(column),
+                        page.getBlock(column),
+                        scratch
+                    );
+                    return Iterators.forRange(
+                        0,
+                        page.getPositionCount(),
+                        position -> (builder, params) -> toXContent.positionToXContent(builder, params, position)
+                    );
+                }),
+                ChunkedToXContentHelper.endArray()
+            );
+        }), Function.identity());
     }
 
     /** Returns a row based representation of the values in the given pages (described by the column infos). */
-    static Iterator<? extends ToXContent> rowValues(List<ColumnInfo> columns, List<Page> pages) {
+    static Iterator<? extends ToXContent> rowValues(List<ColumnInfo> columns, List<Page> pages, boolean[] nullColumns) {
         final BytesRef scratch = new BytesRef();
         return Iterators.flatMap(pages.iterator(), page -> {
             final int columnCount = columns.size();
             assert page.getBlockCount() == columnCount : page.getBlockCount() + " != " + columnCount;
-            final ColumnInfo.PositionToXContent[] toXContents = new ColumnInfo.PositionToXContent[columnCount];
+            final PositionToXContent[] toXContents = new PositionToXContent[columnCount];
             for (int column = 0; column < columnCount; column++) {
-                toXContents[column] = columns.get(column).positionToXContent(page.getBlock(column), scratch);
+                toXContents[column] = PositionToXContent.positionToXContent(columns.get(column), page.getBlock(column), scratch);
             }
             return Iterators.forRange(0, page.getPositionCount(), position -> (builder, params) -> {
                 builder.startArray();
                 for (int c = 0; c < columnCount; c++) {
-                    toXContents[c].positionToXContent(builder, params, position);
+                    if (nullColumns == null || nullColumns[c] == false) {
+                        toXContents[c].positionToXContent(builder, params, position);
+                    }
                 }
                 return builder.endArray();
             });

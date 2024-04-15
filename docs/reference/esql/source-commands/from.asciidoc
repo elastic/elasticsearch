@@ -6,7 +6,7 @@
 
 [source,esql]
 ----
-FROM index_pattern [METADATA fields]
+FROM index_pattern [METADATA fields] [OPTIONS options]
 ----
 
 *Parameters*
@@ -17,6 +17,10 @@ A list of indices, data streams or aliases. Supports wildcards and date math.
 `fields`::
 A comma-separated list of <<esql-metadata-fields,metadata fields>> to retrieve.
 
+`options`::
+A comma-separated list of <<esql-index-options,index options>> to configure
+data access.
+
 *Description*
 
 The `FROM` source command returns a table with data from a data stream, index,
@@ -26,7 +30,7 @@ corresponds to a field, and can be accessed by the name of that field.
 [NOTE]
 ====
 By default, an {esql} query without an explicit <<esql-limit>> uses an implicit
-limit of 500. This applies to `FROM` too. A `FROM` command without `LIMIT`:
+limit of 1000. This applies to `FROM` too. A `FROM` command without `LIMIT`:
 
 [source,esql]
 ----
@@ -38,7 +42,7 @@ is executed as:
 [source,esql]
 ----
 FROM employees
-| LIMIT 500
+| LIMIT 1000
 ----
 ====
 
@@ -66,9 +70,27 @@ or aliases:
 FROM employees-00001,other-employees-*
 ----
 
-Use the `METADATA` directive to enable <<esql-metadata-fields,metadata fields>>:
+Use the format `<remote_cluster_name>:<target>` to query data streams and indices
+on remote clusters:
 
 [source,esql]
 ----
-FROM employees [METADATA _id]
+FROM cluster_one:employees-00001,cluster_two:other-employees-*
+----
+
+See <<esql-cross-clusters, using {esql} across clusters>>.
+
+Use the optional `METADATA` directive to enable <<esql-metadata-fields,metadata fields>>:
+
+[source,esql]
+----
+FROM employees METADATA _id
+----
+
+Use the optional `OPTIONS` directive to specify <<esql-index-options,index access options>>.
+This directive must follow `METADATA`, if both are specified:
+
+[source,esql]
+----
+FROM employees* METADATA _index OPTIONS "ignore_unavailable"="true"
 ----

@@ -1,5 +1,0 @@
-pr: 102925
-summary: Add ldap user metadata mappings for full name and email
-area: Authentication
-type: enhancement
-issues: []

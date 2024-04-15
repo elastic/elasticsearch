@@ -50,6 +50,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
@@ -140,12 +141,12 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     BulkRequest bulkRequest,
                     long startTimeNanos,
                     ActionListener<BulkResponse> listener,
-                    String executorName,
+                    Executor executor,
                     AtomicArray<BulkItemResponse> responses,
                     Map<String, IndexNotFoundException> indicesThatCannotBeCreated
                 ) {
                     expected.set(1000000);
-                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, executorName, responses, indicesThatCannotBeCreated);
+                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, executor, responses, indicesThatCannotBeCreated);
                 }
             };
         } else {
@@ -165,13 +166,13 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     BulkRequest bulkRequest,
                     long startTimeNanos,
                     ActionListener<BulkResponse> listener,
-                    String executorName,
+                    Executor executor,
                     AtomicArray<BulkItemResponse> responses,
                     Map<String, IndexNotFoundException> indicesThatCannotBeCreated
                 ) {
                     long elapsed = spinForAtLeastOneMillisecond();
                     expected.set(elapsed);
-                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, executorName, responses, indicesThatCannotBeCreated);
+                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, executor, responses, indicesThatCannotBeCreated);
                 }
             };
         }
@@ -246,6 +247,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
                 threadPool,
                 transportService,
                 clusterService,
+                null,
                 null,
                 client,
                 actionFilters,

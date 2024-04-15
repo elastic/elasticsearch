@@ -127,7 +127,7 @@ public class TextSimilarityConfigUpdateTests extends AbstractNlpConfigUpdateTest
                 originalConfig.getResultsField(),
                 originalConfig.getSpanScoreFunction()
             ),
-            equalTo(new TextSimilarityConfigUpdate.Builder().setText("Are you my mother?").build().apply(originalConfig))
+            equalTo(originalConfig.apply(new TextSimilarityConfigUpdate.Builder().setText("Are you my mother?").build()))
         );
         assertThat(
             new TextSimilarityConfig(
@@ -138,10 +138,9 @@ public class TextSimilarityConfigUpdateTests extends AbstractNlpConfigUpdateTest
                 originalConfig.getSpanScoreFunction()
             ),
             equalTo(
-                new TextSimilarityConfigUpdate.Builder().setText("Are you my mother?")
-                    .setResultsField("updated-field")
-                    .build()
-                    .apply(originalConfig)
+                originalConfig.apply(
+                    new TextSimilarityConfigUpdate.Builder().setText("Are you my mother?").setResultsField("updated-field").build()
+                )
             )
         );
 
@@ -156,10 +155,11 @@ public class TextSimilarityConfigUpdateTests extends AbstractNlpConfigUpdateTest
                 originalConfig.getSpanScoreFunction()
             ),
             equalTo(
-                new TextSimilarityConfigUpdate.Builder().setText("Are you my mother?")
-                    .setTokenizationUpdate(createTokenizationUpdate(originalConfig.getTokenization(), truncate, null))
-                    .build()
-                    .apply(originalConfig)
+                originalConfig.apply(
+                    new TextSimilarityConfigUpdate.Builder().setText("Are you my mother?")
+                        .setTokenizationUpdate(createTokenizationUpdate(originalConfig.getTokenization(), truncate, null))
+                        .build()
+                )
             )
         );
     }

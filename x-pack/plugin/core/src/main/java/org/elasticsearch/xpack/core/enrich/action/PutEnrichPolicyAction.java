@@ -24,7 +24,7 @@ public class PutEnrichPolicyAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/enrich/put";
 
     private PutEnrichPolicyAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static Request fromXContent(XContentParser parser, String name) throws IOException {

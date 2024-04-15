@@ -1,8 +1,8 @@
 ---
 "binary":
-    - skip:
-        features: ["headers"]
-        version: " - 7.99.99"
+    - requires:
+        test_runner_features: ["headers"]
+        cluster_features: ["gte_v8.0.0"]
         reason: "docvalues_fields on binary field were corrected in 8.0"
     - do:
         indices.create:

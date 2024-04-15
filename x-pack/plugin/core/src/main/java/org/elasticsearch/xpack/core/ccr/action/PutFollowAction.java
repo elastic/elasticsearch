@@ -37,7 +37,7 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
     public static final String NAME = "indices:admin/xpack/ccr/put_follow";
 
     private PutFollowAction() {
-        super(NAME, PutFollowAction.Response::new);
+        super(NAME);
     }
 
     public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest, ToXContentObject {
@@ -64,13 +64,10 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             FollowParameters.initParser(PARSER);
         }
 
-        public static Request fromXContent(final XContentParser parser, final String followerIndex, ActiveShardCount waitForActiveShards)
-            throws IOException {
+        public static Request fromXContent(final XContentParser parser) throws IOException {
             PutFollowParameters parameters = PARSER.parse(parser, null);
 
             Request request = new Request();
-            request.waitForActiveShards(waitForActiveShards);
-            request.setFollowerIndex(followerIndex);
             request.setRemoteCluster(parameters.remoteCluster);
             request.setLeaderIndex(parameters.leaderIndex);
             request.setDataStreamName(parameters.dataStreamName);

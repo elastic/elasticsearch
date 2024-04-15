@@ -186,7 +186,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             GeoPointFieldScript.Factory factory = scriptCompiler.compile(this.script.get(), GeoPointFieldScript.CONTEXT);
             return factory == null
                 ? null
-                : (lookup, ctx, doc, consumer) -> factory.newFactory(name, script.get().getParams(), lookup, OnScriptError.FAIL)
+                : (lookup, ctx, doc, consumer) -> factory.newFactory(name(), script.get().getParams(), lookup, OnScriptError.FAIL)
                     .newInstance(ctx)
                     .runForDoc(doc, consumer);
         }
@@ -194,7 +194,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         @Override
         public FieldMapper build(MapperBuilderContext context) {
             Parser<GeoPoint> geoParser = new GeoPointParser(
-                name,
+                name(),
                 (parser) -> GeoUtils.parseGeoPoint(parser, ignoreZValue.get().value()),
                 nullValue.get(),
                 ignoreZValue.get().value(),
@@ -202,7 +202,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 metric.get() != TimeSeriesParams.MetricType.POSITION
             );
             GeoPointFieldType ft = new GeoPointFieldType(
-                context.buildFullName(name),
+                context.buildFullName(name()),
                 indexed.get() && indexCreatedVersion.isLegacyIndexVersion() == false,
                 stored.get(),
                 hasDocValues.get(),
@@ -214,9 +214,9 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 indexMode
             );
             if (this.script.get() == null) {
-                return new GeoPointFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, geoParser, this);
+                return new GeoPointFieldMapper(name(), ft, multiFieldsBuilder.build(this, context), copyTo, geoParser, this);
             }
-            return new GeoPointFieldMapper(name, ft, geoParser, this);
+            return new GeoPointFieldMapper(name(), ft, geoParser, this);
         }
 
     }

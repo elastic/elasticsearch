@@ -40,7 +40,7 @@ public class CancelJobModelSnapshotUpgradeAction extends ActionType<CancelJobMod
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/upgrade/cancel";
 
     private CancelJobModelSnapshotUpgradeAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

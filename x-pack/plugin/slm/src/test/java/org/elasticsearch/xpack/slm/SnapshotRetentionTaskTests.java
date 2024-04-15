@@ -243,9 +243,9 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                     Request request,
                     ActionListener<Response> listener
                 ) {
-                    if (action == SLMGetExpiredSnapshotsAction.INSTANCE) {
+                    if (action == TransportSLMGetExpiredSnapshotsAction.INSTANCE) {
                         logger.info("--> called");
-                        listener.onResponse((Response) new SLMGetExpiredSnapshotsAction.Response(Map.of()));
+                        listener.onResponse((Response) new TransportSLMGetExpiredSnapshotsAction.Response(Map.of()));
                     } else {
                         super.doExecute(action, request, listener);
                     }

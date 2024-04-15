@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.tsdb;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.index.codec.ForUtil;
 
 import java.io.IOException;
 
@@ -19,7 +20,6 @@ public class DocValuesForUtil {
     private static final int BITS_IN_FIVE_BYTES = 5 * Byte.SIZE;
     private static final int BITS_IN_SIX_BYTES = 6 * Byte.SIZE;
     private static final int BITS_IN_SEVEN_BYTES = 7 * Byte.SIZE;
-    private final ForUtil forUtil = new ForUtil();
     private final int blockSize;
     private final byte[] encoded;
 
@@ -49,7 +49,7 @@ public class DocValuesForUtil {
 
     public void encode(long[] in, int bitsPerValue, final DataOutput out) throws IOException {
         if (bitsPerValue <= 24) { // these bpvs are handled efficiently by ForUtil
-            forUtil.encode(in, bitsPerValue, out);
+            ForUtil.encode(in, bitsPerValue, out);
         } else if (bitsPerValue <= 32) {
             collapse32(in);
             for (int i = 0; i < blockSize / 2; ++i) {
@@ -75,7 +75,7 @@ public class DocValuesForUtil {
 
     public void decode(int bitsPerValue, final DataInput in, long[] out) throws IOException {
         if (bitsPerValue <= 24) {
-            forUtil.decode(bitsPerValue, in, out);
+            ForUtil.decode(bitsPerValue, in, out);
         } else if (bitsPerValue <= 32) {
             in.readLongs(out, 0, blockSize / 2);
             expand32(out);

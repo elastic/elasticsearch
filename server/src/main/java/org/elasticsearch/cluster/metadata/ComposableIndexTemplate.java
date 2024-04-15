@@ -125,7 +125,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     ) {
         this.indexPatterns = indexPatterns;
         this.template = template;
-        this.componentTemplates = componentTemplates;
+        this.componentTemplates = componentTemplates == null ? List.of() : componentTemplates;
         this.priority = priority;
         this.version = version;
         this.metadata = metadata;
@@ -153,7 +153,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         } else {
             this.ignoreMissingComponentTemplates = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.DEPRECATED_COMPONENT_TEMPLATES_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.deprecated = in.readOptionalBoolean();
         } else {
             this.deprecated = null;
@@ -252,26 +252,30 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             out.writeOptionalStringCollection(ignoreMissingComponentTemplates);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.DEPRECATED_COMPONENT_TEMPLATES_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalBoolean(deprecated);
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params, null);
+        return toXContent(builder, params, null, null);
     }
 
     /**
      * Converts the composable index template to XContent and passes the RolloverConditions, when provided, to the template.
      */
-    public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
-        throws IOException {
+    public XContentBuilder toXContent(
+        XContentBuilder builder,
+        Params params,
+        @Nullable RolloverConfiguration rolloverConfiguration,
+        @Nullable DataStreamGlobalRetention globalRetention
+    ) throws IOException {
         builder.startObject();
         builder.stringListField(INDEX_PATTERNS.getPreferredName(), this.indexPatterns);
         if (this.template != null) {
             builder.field(TEMPLATE.getPreferredName());
-            this.template.toXContent(builder, params, rolloverConfiguration);
+            this.template.toXContent(builder, params, rolloverConfiguration, globalRetention);
         }
         if (this.componentTemplates != null) {
             builder.stringListField(COMPOSED_OF.getPreferredName(), this.componentTemplates);
@@ -372,14 +376,14 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             args -> new DataStreamTemplate(
                 args[0] != null && (boolean) args[0],
                 args[1] != null && (boolean) args[1],
-                DataStream.isFailureStoreEnabled() && args[2] != null && (boolean) args[2]
+                DataStream.isFailureStoreFeatureFlagEnabled() && args[2] != null && (boolean) args[2]
             )
         );
 
         static {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN);
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
-            if (DataStream.isFailureStoreEnabled()) {
+            if (DataStream.isFailureStoreFeatureFlagEnabled()) {
                 PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE);
             }
         }
@@ -474,7 +478,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             builder.startObject();
             builder.field("hidden", hidden);
             builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), allowCustomRouting);
-            if (DataStream.isFailureStoreEnabled()) {
+            if (DataStream.isFailureStoreFeatureFlagEnabled()) {
                 builder.field(FAILURE_STORE.getPreferredName(), failureStore);
             }
             builder.endObject();

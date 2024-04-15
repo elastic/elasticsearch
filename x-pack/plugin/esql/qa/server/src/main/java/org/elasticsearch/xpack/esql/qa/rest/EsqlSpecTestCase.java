@@ -9,16 +9,22 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.http.HttpEntity;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
+import org.elasticsearch.xpack.esql.version.EsqlVersion;
 import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.ql.SpecReader;
 import org.junit.After;
@@ -29,8 +35,15 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
 
+import static org.apache.lucene.geo.GeoEncodingUtils.decodeLatitude;
+import static org.apache.lucene.geo.GeoEncodingUtils.decodeLongitude;
+import static org.apache.lucene.geo.GeoEncodingUtils.encodeLatitude;
+import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.CsvAssert.assertData;
@@ -45,6 +58,9 @@ import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
 
 public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
+    // To avoid referencing the main module, we replicate EsqlFeatures.ASYNC_QUERY.id() here
+    protected static final String ASYNC_QUERY_FEATURE_ID = "esql.async_query";
+
     private static final Logger LOGGER = LogManager.getLogger(EsqlSpecTestCase.class);
     private final String fileName;
     private final String groupName;
@@ -52,13 +68,14 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     private final Integer lineNumber;
     protected final CsvTestCase testCase;
     protected final Mode mode;
+    protected final Set<EsqlVersion> versions;
 
     public enum Mode {
         SYNC,
         ASYNC
     }
 
-    @ParametersFactory(argumentFormatting = "%2$s.%3$s")
+    @ParametersFactory(argumentFormatting = "%2$s.%3$s %6$s")
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/*.csv-spec");
         assertTrue("Not enough specs found " + urls, urls.size() > 0);
@@ -84,6 +101,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         this.lineNumber = lineNumber;
         this.testCase = testCase;
         this.mode = mode;
+        // TODO: Read applicable versions from csv-spec files/make it part of testCase.
+        this.versions = Build.current().isSnapshot() ? Set.of(EsqlVersion.values()) : Set.of(EsqlVersion.releasedAscending());
     }
 
     @Before
@@ -94,7 +113,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected boolean supportsAsync() {
-        return Version.CURRENT.onOrAfter(Version.V_8_13_0); // the Async API was introduced in 8.13.0
+        return clusterHasFeature(ASYNC_QUERY_FEATURE_ID); // the Async API was introduced in 8.13.0
     }
 
     @AfterClass
@@ -122,13 +141,22 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
     }
 
-    protected void shouldSkipTest(String testName) {
+    protected void shouldSkipTest(String testName) throws IOException {
+        for (String feature : testCase.requiredFeatures) {
+            assumeTrue("Test " + testName + " requires " + feature, clusterHasFeature(feature));
+        }
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
     }
 
     protected final void doTest() throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
-        Map<String, Object> answer = runEsql(builder.query(testCase.query), testCase.expectedWarnings(false));
+        EsqlVersion version = randomFrom(versions);
+        String versionString = randomBoolean() ? version.toString() : version.versionStringWithoutEmoji();
+        Map<String, Object> answer = runEsql(
+            builder.query(testCase.query).version(versionString),
+            testCase.expectedWarnings(false),
+            testCase.expectedWarningsRegex()
+        );
         var expectedColumnsWithValues = loadCsvSpecValues(testCase.expectedResults);
 
         var metadata = answer.get("columns");
@@ -145,12 +173,16 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         assertResults(expectedColumnsWithValues, actualColumns, actualValues, testCase.ignoreOrder, logger);
     }
 
-    private Map<String, Object> runEsql(RequestObjectBuilder requestObject, List<String> expectedWarnings) throws IOException {
+    private Map<String, Object> runEsql(
+        RequestObjectBuilder requestObject,
+        List<String> expectedWarnings,
+        List<Pattern> expectedWarningsRegex
+    ) throws IOException {
         if (mode == Mode.ASYNC) {
             assert supportsAsync();
-            return RestEsqlTestCase.runEsqlAsync(requestObject, expectedWarnings);
+            return RestEsqlTestCase.runEsqlAsync(requestObject, expectedWarnings, expectedWarningsRegex);
         } else {
-            return RestEsqlTestCase.runEsqlSync(requestObject, expectedWarnings);
+            return RestEsqlTestCase.runEsqlSync(requestObject, expectedWarnings, expectedWarningsRegex);
         }
     }
 
@@ -162,31 +194,38 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         Logger logger
     ) {
         assertMetadata(expected, actualColumns, logger);
-        assertData(expected, actualValues, testCase.ignoreOrder, logger, EsqlSpecTestCase::valueToString);
+        assertData(expected, actualValues, testCase.ignoreOrder, logger, EsqlSpecTestCase::valueMapper);
     }
 
-    /**
-     * Unfortunately the GeoPoint.toString method returns the old format, but cannot be changed due to BWC.
-     * So we need to custom format GeoPoint as well as wrap Lists to ensure this custom conversion applies to multi-value fields
-     */
-    private static String valueToString(Object value) {
+    private static Object valueMapper(CsvTestUtils.Type type, Object value) {
         if (value == null) {
             return "null";
-        } else if (value instanceof List<?> list) {
-            StringBuilder sb = new StringBuilder("[");
-            for (Object field : list) {
-                if (sb.length() > 1) {
-                    sb.append(", ");
-                }
-                sb.append(valueToString(field));
-            }
-            return sb.append("]").toString();
-        } else if (value instanceof SpatialPoint point) {
-            // Alternatively we could just change GeoPoint.toString() to use WKT, but that has other side-effects
-            return point.toWKT();
-        } else {
-            return value.toString();
         }
+        if (type == CsvTestUtils.Type.GEO_POINT || type == CsvTestUtils.Type.CARTESIAN_POINT) {
+            // Point tests are failing in clustered integration tests because of tiny precision differences at very small scales
+            if (value instanceof String wkt) {
+                try {
+                    Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt);
+                    if (geometry instanceof Point point) {
+                        return normalizedPoint(type, point.getX(), point.getY());
+                    }
+                } catch (Throwable ignored) {}
+            }
+        }
+        return value.toString();
+    }
+
+    private static String normalizedPoint(CsvTestUtils.Type type, double x, double y) {
+        if (type == CsvTestUtils.Type.GEO_POINT) {
+            return normalizedGeoPoint(x, y);
+        }
+        return String.format(Locale.ROOT, "POINT (%f %f)", (float) x, (float) y);
+    }
+
+    private static String normalizedGeoPoint(double x, double y) {
+        x = decodeLongitude(encodeLongitude(x));
+        y = decodeLatitude(encodeLatitude(y));
+        return String.format(Locale.ROOT, "POINT (%f %f)", x, y);
     }
 
     private Throwable reworkException(Throwable th) {
@@ -219,7 +258,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 Map<?, ?> node = (Map<?, ?>) n;
                 Map<?, ?> breakers = (Map<?, ?>) node.get("breakers");
                 Map<?, ?> request = (Map<?, ?>) breakers.get("request");
-                assertMap(request, matchesMap().extraOk().entry("estimated_size_in_bytes", 0).entry("estimated_size", "0b"));
+                assertMap(
+                    "circuit breakers not reset to 0",
+                    request,
+                    matchesMap().extraOk().entry("estimated_size_in_bytes", 0).entry("estimated_size", "0b")
+                );
             }
         });
     }

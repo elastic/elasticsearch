@@ -395,6 +395,13 @@ public abstract class Engine implements Closeable {
      */
     public abstract void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException;
 
+    /**
+     * Returns the total time flushes have been executed excluding waiting on locks.
+     */
+    public long getTotalFlushTimeExcludingWaitingOnLockInMillis() {
+        return 0;
+    }
+
     /** A Lock implementation that always allows the lock to be acquired */
     protected static final class NoOpLock implements Lock {
 
@@ -627,11 +634,6 @@ public abstract class Engine implements Closeable {
         public DeleteResult(Exception failure, long version, long term, long seqNo, boolean found, String id) {
             super(Operation.TYPE.DELETE, failure, version, term, seqNo, id);
             this.found = found;
-        }
-
-        public DeleteResult(Mapping requiredMappingUpdate, String id) {
-            super(Operation.TYPE.DELETE, requiredMappingUpdate, id);
-            this.found = false;
         }
 
         public boolean isFound() {
@@ -1007,7 +1009,8 @@ public abstract class Engine implements Closeable {
         stats.addIndexWriterMemoryInBytes(0);
     }
 
-    /** How much heap is used that would be freed by a refresh.  Note that this may throw {@link AlreadyClosedException}. */
+    /** How much heap is used that would be freed by a refresh. This includes both the current memory being freed and any remaining
+     * memory usage that could be freed, e.g., by refreshing. Note that this may throw {@link AlreadyClosedException}. */
     public abstract long getIndexBufferRAMBytesUsed();
 
     final Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos) {

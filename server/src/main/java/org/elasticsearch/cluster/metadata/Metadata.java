@@ -51,6 +51,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.Transports;
@@ -233,6 +234,16 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     private final Map<String, MappingMetadata> mappingsByHash;
 
     private final IndexVersion oldestIndexVersion;
+
+    // Used in the findAliases and findDataStreamAliases functions
+    private interface AliasInfoGetter {
+        List<? extends AliasInfo> get(String entityName);
+    }
+
+    // Used in the findAliases and findDataStreamAliases functions
+    private interface AliasInfoSetter {
+        void put(String entityName, List<AliasInfo> aliases);
+    }
 
     private Metadata(
         String clusterUUID,
@@ -799,11 +810,63 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
      * aliases then the result will <b>not</b> include the index's key.
      */
     public Map<String, List<AliasMetadata>> findAliases(final String[] aliases, final String[] concreteIndices) {
+        ImmutableOpenMap.Builder<String, List<AliasMetadata>> mapBuilder = ImmutableOpenMap.builder();
+
+        AliasInfoGetter getter = index -> indices.get(index).getAliases().values().stream().toList();
+
+        AliasInfoSetter setter = (index, foundAliases) -> {
+            List<AliasMetadata> d = new ArrayList<>();
+            foundAliases.forEach(i -> d.add((AliasMetadata) i));
+            mapBuilder.put(index, d);
+        };
+
+        findAliasInfo(aliases, concreteIndices, getter, setter);
+
+        return mapBuilder.build();
+    }
+
+    /**
+     * Finds the specific data stream aliases that match with the specified aliases directly or partially via wildcards, and
+     * that point to the specified data streams (directly or matching data streams via wildcards).
+     *
+     * @param aliases The aliases to look for. Might contain include or exclude wildcards.
+     * @param dataStreams The data streams that the aliases must point to in order to be returned
+     * @return A map of data stream name to the list of DataStreamAlias objects that match. If a data stream does not have matching
+     * aliases then the result will <b>not</b> include the data stream's key.
+     */
+    public Map<String, List<DataStreamAlias>> findDataStreamAliases(final String[] aliases, final String[] dataStreams) {
+        ImmutableOpenMap.Builder<String, List<DataStreamAlias>> mapBuilder = ImmutableOpenMap.builder();
+        Map<String, List<DataStreamAlias>> dataStreamAliases = dataStreamAliasesByDataStream();
+
+        AliasInfoGetter getter = dataStream -> dataStreamAliases.getOrDefault(dataStream, Collections.emptyList());
+
+        AliasInfoSetter setter = (dataStream, foundAliases) -> {
+            List<DataStreamAlias> dsAliases = new ArrayList<>();
+            foundAliases.forEach(alias -> dsAliases.add((DataStreamAlias) alias));
+            mapBuilder.put(dataStream, dsAliases);
+        };
+
+        findAliasInfo(aliases, dataStreams, getter, setter);
+
+        return mapBuilder.build();
+    }
+
+    /**
+     * Find the aliases that point to the specified data streams or indices. Called from findAliases or findDataStreamAliases.
+     *
+     * @param aliases The aliases to look for. Might contain include or exclude wildcards.
+     * @param possibleMatches The data streams or indices that the aliases must point to in order to be returned
+     * @param getter A function that is used to get the alises for a given data stream or index
+     * @param setter A function that is used to keep track of the found aliases
+     */
+    private void findAliasInfo(final String[] aliases, final String[] possibleMatches, AliasInfoGetter getter, AliasInfoSetter setter) {
         assert aliases != null;
-        assert concreteIndices != null;
-        if (concreteIndices.length == 0) {
-            return ImmutableOpenMap.of();
+        assert possibleMatches != null;
+        if (possibleMatches.length == 0) {
+            return;
         }
+
+        // create patterns to use to search for targets
         String[] patterns = new String[aliases.length];
         boolean[] include = new boolean[aliases.length];
         for (int i = 0; i < aliases.length; i++) {
@@ -816,14 +879,16 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                 include[i] = true;
             }
         }
+
         boolean matchAllAliases = patterns.length == 0;
-        ImmutableOpenMap.Builder<String, List<AliasMetadata>> mapBuilder = ImmutableOpenMap.builder();
-        for (String index : concreteIndices) {
-            IndexMetadata indexMetadata = indices.get(index);
-            List<AliasMetadata> filteredValues = new ArrayList<>();
-            for (AliasMetadata aliasMetadata : indexMetadata.getAliases().values()) {
+
+        for (String index : possibleMatches) {
+            List<AliasInfo> filteredValues = new ArrayList<>();
+
+            List<? extends AliasInfo> entities = getter.get(index);
+            for (AliasInfo aliasInfo : entities) {
                 boolean matched = matchAllAliases;
-                String alias = aliasMetadata.alias();
+                String alias = aliasInfo.getAlias();
                 for (int i = 0; i < patterns.length; i++) {
                     if (include[i]) {
                         if (matched == false) {
@@ -835,16 +900,15 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                     }
                 }
                 if (matched) {
-                    filteredValues.add(aliasMetadata);
+                    filteredValues.add(aliasInfo);
                 }
             }
             if (filteredValues.isEmpty() == false) {
                 // Make the list order deterministic
-                CollectionUtil.timSort(filteredValues, Comparator.comparing(AliasMetadata::alias));
-                mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
+                CollectionUtil.timSort(filteredValues, Comparator.comparing(AliasInfo::getAlias));
+                setter.put(index, Collections.unmodifiableList(filteredValues));
             }
         }
-        return mapBuilder.build();
     }
 
     /**
@@ -858,7 +922,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
      */
     public Map<String, MappingMetadata> findMappings(
         String[] concreteIndices,
-        Function<String, Predicate<String>> fieldFilter,
+        Function<String, ? extends Predicate<String>> fieldFilter,
         Runnable onNextIndex
     ) {
         assert Transports.assertNotTransportThread("decompressing mappings is too expensive for a transport thread");
@@ -897,12 +961,21 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         return builder.build();
     }
 
+    /**
+     * Checks whether the provided index is a data stream.
+     */
+    public boolean indexIsADataStream(String indexName) {
+        final SortedMap<String, IndexAbstraction> lookup = getIndicesLookup();
+        IndexAbstraction abstraction = lookup.get(indexName);
+        return abstraction != null && abstraction.getType() == IndexAbstraction.Type.DATA_STREAM;
+    }
+
     @SuppressWarnings("unchecked")
     private static MappingMetadata filterFields(MappingMetadata mappingMetadata, Predicate<String> fieldPredicate) {
         if (mappingMetadata == null) {
             return MappingMetadata.EMPTY_MAPPINGS;
         }
-        if (fieldPredicate == MapperPlugin.NOOP_FIELD_PREDICATE) {
+        if (fieldPredicate == FieldPredicate.ACCEPT_ALL) {
             return mappingMetadata;
         }
         Map<String, Object> sourceAsMap = XContentHelper.convertToMap(mappingMetadata.source().compressedReference(), true).v2();
@@ -925,7 +998,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
 
     @SuppressWarnings("unchecked")
     private static boolean filterFields(String currentPath, Map<String, Object> fields, Predicate<String> fieldPredicate) {
-        assert fieldPredicate != MapperPlugin.NOOP_FIELD_PREDICATE;
+        assert fieldPredicate != FieldPredicate.ACCEPT_ALL;
         Iterator<Map.Entry<String, Object>> entryIterator = fields.entrySet().iterator();
         while (entryIterator.hasNext()) {
             Map.Entry<String, Object> entry = entryIterator.next();
@@ -1262,6 +1335,25 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
 
     public Map<String, DataStreamAlias> dataStreamAliases() {
         return this.custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY).getDataStreamAliases();
+    }
+
+    /**
+     * Return a map of DataStreamAlias objects by DataStream name
+     * @return a map of DataStreamAlias objects by DataStream name
+     */
+    public Map<String, List<DataStreamAlias>> dataStreamAliasesByDataStream() {
+        Map<String, List<DataStreamAlias>> dataStreamAliases = new HashMap<>();
+
+        for (DataStreamAlias dsAlias : dataStreamAliases().values()) {
+            for (String dataStream : dsAlias.getDataStreams()) {
+                if (dataStreamAliases.containsKey(dataStream) == false) {
+                    dataStreamAliases.put(dataStream, new ArrayList<>());
+                }
+                dataStreamAliases.get(dataStream).add(dsAlias);
+            }
+        }
+
+        return dataStreamAliases;
     }
 
     public NodesShutdownMetadata nodeShutdowns() {
@@ -2432,7 +2524,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                         reported = true;
                     }
                 }
-                // This is for adding an error message for when a data steam alias has the same name as a data stream.
+                // This is for adding an error message for when a data stream alias has the same name as a data stream.
                 if (reported == false && dataStreamMetadata != null && dataStreamMetadata.dataStreams().containsKey(alias)) {
                     duplicates.add("data stream alias and data stream have the same name (" + alias + ")");
                 }
@@ -2506,6 +2598,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         private static boolean assertContainsIndexIfDataStream(DataStream parent, IndexMetadata indexMetadata) {
             assert parent == null
                 || parent.getIndices().stream().anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName()))
+                || (DataStream.isFailureStoreFeatureFlagEnabled()
+                    && parent.isFailureStoreEnabled()
+                    && parent.getFailureIndices().stream().anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName())))
                 : "Expected data stream [" + parent.getName() + "] to contain index " + indexMetadata.getIndex();
             return true;
         }
@@ -2526,6 +2621,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
 
                 for (Index i : dataStream.getIndices()) {
                     indexToDataStreamLookup.put(i.getName(), dataStream);
+                }
+                if (DataStream.isFailureStoreFeatureFlagEnabled() && dataStream.isFailureStoreEnabled()) {
+                    for (Index i : dataStream.getFailureIndices()) {
+                        indexToDataStreamLookup.put(i.getName(), dataStream);
+                    }
                 }
             }
         }

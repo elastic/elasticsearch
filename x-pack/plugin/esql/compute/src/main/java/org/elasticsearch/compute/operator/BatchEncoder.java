@@ -49,7 +49,8 @@ public abstract class BatchEncoder implements Accountable {
             case DOUBLE -> new DoublesDecoder();
             case BYTES_REF -> new BytesRefsDecoder();
             case BOOLEAN -> new BooleansDecoder();
-            default -> throw new IllegalArgumentException("can't encode " + elementType);
+            case NULL -> new NullsDecoder();
+            default -> throw new IllegalArgumentException("can't decode " + elementType);
         };
     }
 
@@ -649,6 +650,19 @@ public abstract class BatchEncoder implements Accountable {
         protected int readValueAtBlockIndex(int valueIndex, BytesRefBuilder dst) {
             assert false : "all positions all nulls";
             throw new IllegalStateException("all positions all nulls");
+        }
+    }
+
+    private static class NullsDecoder implements Decoder {
+        @Override
+        public void decode(Block.Builder builder, IsNull isNull, BytesRef[] encoded, int count) {
+            for (int i = 0; i < count; i++) {
+                if (isNull.isNull(i)) {
+                    builder.appendNull();
+                } else {
+                    throw new IllegalArgumentException("NullsDecoder requires that all positions are null");
+                }
+            }
         }
     }
 }

@@ -15,6 +15,6 @@ public class ReindexAction extends ActionType<BulkByScrollResponse> {
     public static final String NAME = "indices:data/write/reindex";
 
     private ReindexAction() {
-        super(NAME, BulkByScrollResponse::new);
+        super(NAME);
     }
 }

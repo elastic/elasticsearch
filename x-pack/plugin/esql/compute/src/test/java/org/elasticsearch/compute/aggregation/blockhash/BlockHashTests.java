@@ -27,7 +27,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.MockBlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockFactory;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -604,6 +603,20 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
+    public void testNullHash() {
+        Object[] values = new Object[] { null, null, null, null };
+        hash(ordsAndKeys -> {
+            if (forcePackedHash) {
+                assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:NULL], entries=1, size="));
+            } else {
+                assertThat(ordsAndKeys.description, equalTo("NullBlockHash{channel=0, seenNull=true}"));
+            }
+            assertOrds(ordsAndKeys.ords, 0, 0, 0, 0);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(TestBlockFactory.getNonBreakingInstance().newConstantIntVector(0, 1)));
+            assertKeys(ordsAndKeys.keys, new Object[][] { new Object[] { null } });
+        }, blockFactory.newConstantNullBlock(values.length));
+    }
+
     public void testLongLongHash() {
         long[] values1 = new long[] { 0, 1, 0, 1, 0, 1 };
         long[] values2 = new long[] { 0, 0, 0, 1, 1, 1 };
@@ -1083,6 +1096,22 @@ public class BlockHashTests extends ESTestCase {
         }
     }
 
+    public void testLongNull() {
+        long[] values = new long[] { 0, 1, 0, 2, 3, 1 };
+        hash(ordsAndKeys -> {
+            Object[][] expectedKeys = {
+                new Object[] { 0L, null },
+                new Object[] { 1L, null },
+                new Object[] { 2L, null },
+                new Object[] { 3L, null } };
+
+            assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:LONG, 1:NULL], entries=4, size="));
+            assertOrds(ordsAndKeys.ords, 0, 1, 0, 2, 3, 1);
+            assertKeys(ordsAndKeys.keys, expectedKeys);
+            assertThat(ordsAndKeys.nonEmpty, equalTo(intRange(0, 4)));
+        }, blockFactory.newLongArrayVector(values, values.length).asBlock(), blockFactory.newConstantNullBlock(values.length));
+    }
+
     record OrdsAndKeys(String description, int positionOffset, IntBlock ords, Block[] keys, IntVector nonEmpty) {}
 
     /**
@@ -1126,11 +1155,10 @@ public class BlockHashTests extends ESTestCase {
             for (int c = 0; c < values.length; c++) {
                 specs.add(new HashAggregationOperator.GroupSpec(c, values[c].elementType()));
             }
-            DriverContext driverContext = new DriverContext(bigArrays, blockFactory);
             try (
                 BlockHash blockHash = forcePackedHash
-                    ? new PackedValuesBlockHash(specs, driverContext, emitBatchSize)
-                    : BlockHash.build(specs, driverContext, emitBatchSize, true)
+                    ? new PackedValuesBlockHash(specs, blockFactory, emitBatchSize)
+                    : BlockHash.build(specs, blockFactory, emitBatchSize, true)
             ) {
                 hash(true, blockHash, callback, values);
             }

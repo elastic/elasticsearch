@@ -90,7 +90,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -524,12 +523,12 @@ public final class RestoreService implements ClusterStateApplier {
                         ActionListener.releaseAfter(new ActionListener<>() {
                             @Override
                             public void onResponse(RepositoryData repositoryData) {
-                                logger.debug(() -> format("repository UUID [{}] refresh completed", repositoryName));
+                                logger.debug(() -> format("repository UUID [%s] refresh completed", repositoryName));
                             }
 
                             @Override
                             public void onFailure(Exception e) {
-                                logger.debug(() -> format("repository UUID [{}] refresh failed", repositoryName), e);
+                                logger.debug(() -> format("repository UUID [%s] refresh failed", repositoryName), e);
                             }
                         }, refs.acquire())
                     );
@@ -705,20 +704,7 @@ public final class RestoreService implements ClusterStateApplier {
             .stream()
             .map(i -> metadata.get(renameIndex(i.getName(), request, true)).getIndex())
             .toList();
-        return new DataStream(
-            dataStreamName,
-            updatedIndices,
-            dataStream.getGeneration(),
-            dataStream.getMetadata(),
-            dataStream.isHidden(),
-            dataStream.isReplicated(),
-            dataStream.isSystem(),
-            dataStream.isAllowCustomRouting(),
-            dataStream.getIndexMode(),
-            dataStream.getLifecycle(),
-            dataStream.isFailureStore(),
-            dataStream.getFailureIndices()
-        );
+        return dataStream.copy().setName(dataStreamName).setIndices(updatedIndices).build();
     }
 
     public static RestoreInProgress updateRestoreStateWithDeletedIndices(RestoreInProgress oldRestore, Set<Index> deletedIndices) {
@@ -975,10 +961,10 @@ public final class RestoreService implements ClusterStateApplier {
         if (IndexVersion.current().before(snapshotInfo.version())) {
             throw new SnapshotRestoreException(
                 new Snapshot(repository.name(), snapshotInfo.snapshotId()),
-                "the snapshot was created with index version ["
-                    + snapshotInfo.version()
-                    + "] which is higher than the version used by this node ["
-                    + IndexVersion.current()
+                "the snapshot was created with version ["
+                    + snapshotInfo.version().toReleaseVersion()
+                    + "] which is higher than the version of this node ["
+                    + IndexVersion.current().toReleaseVersion()
                     + "]"
             );
         }
@@ -1121,8 +1107,7 @@ public final class RestoreService implements ClusterStateApplier {
                 if (Objects.equals(previous, changed) == false) {
                     throw new SnapshotRestoreException(
                         snapshot,
-                        String.format(
-                            Locale.ROOT,
+                        format(
                             "cannot change value of [%s] when restoring searchable snapshot [%s:%s] as index %s",
                             SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION,
                             snapshot.getRepository(),
@@ -1761,8 +1746,7 @@ public final class RestoreService implements ClusterStateApplier {
                 throw new SnapshotRestoreException(
                     repositoryName,
                     snapshotInfo.snapshotId().getName(),
-                    String.format(
-                        Locale.ROOT,
+                    format(
                         "cannot mount snapshot [%s/%s:%s] as index [%s] with the deletion of snapshot on index removal enabled "
                             + "[index.store.snapshot.delete_searchable_snapshot: true]; snapshot contains [%d] indices instead of 1.",
                         repositoryName,
@@ -1796,8 +1780,7 @@ public final class RestoreService implements ClusterStateApplier {
                     throw new SnapshotRestoreException(
                         repositoryName,
                         snapshotInfo.snapshotId().getName(),
-                        String.format(
-                            Locale.ROOT,
+                        format(
                             "cannot mount snapshot [%s/%s:%s] as index [%s] with [index.store.snapshot.delete_searchable_snapshot: %b]; "
                                 + "another index %s is mounted with [index.store.snapshot.delete_searchable_snapshot: %b].",
                             repositoryName,

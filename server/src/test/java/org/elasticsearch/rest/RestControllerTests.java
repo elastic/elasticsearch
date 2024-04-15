@@ -286,22 +286,25 @@ public class RestControllerTests extends ESTestCase {
         assertThat(exception.getMessage(), equalTo("Trying to use conflicting wildcard names for same path: wildcard1 and wildcard2"));
     }
 
-    public void testRestHandlerWrapper() throws Exception {
+    public void testRestInterceptor() throws Exception {
         AtomicBoolean handlerCalled = new AtomicBoolean(false);
         AtomicBoolean wrapperCalled = new AtomicBoolean(false);
+        final boolean callHandler = randomBoolean();
         final RestHandler handler = (RestRequest request, RestChannel channel, NodeClient client) -> handlerCalled.set(true);
         final HttpServerTransport httpServerTransport = new TestHttpServerTransport();
-        final RestController restController = new RestController(h -> {
-            assertSame(handler, h);
-            return (RestRequest request, RestChannel channel, NodeClient client) -> wrapperCalled.set(true);
-        }, client, circuitBreakerService, usageService, tracer);
+        final RestInterceptor interceptor = (request, channel, targetHandler, listener) -> {
+            assertSame(handler, targetHandler);
+            wrapperCalled.set(true);
+            listener.onResponse(callHandler);
+        };
+        final RestController restController = new RestController(interceptor, client, circuitBreakerService, usageService, tracer);
         restController.registerHandler(new Route(GET, "/wrapped"), handler);
         RestRequest request = testRestRequest("/wrapped", "{}", XContentType.JSON);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.BAD_REQUEST);
         restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
         httpServerTransport.start();
-        assertTrue(wrapperCalled.get());
-        assertFalse(handlerCalled.get());
+        assertThat(wrapperCalled.get(), is(true));
+        assertThat(handlerCalled.get(), is(callHandler));
     }
 
     public void testDispatchRequestAddsAndFreesBytesOnSuccess() {

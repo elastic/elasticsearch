@@ -16,6 +16,6 @@ public class IndicesSegmentsAction extends ActionType<IndicesSegmentResponse> {
     public static final String NAME = "indices:monitor/segments";
 
     private IndicesSegmentsAction() {
-        super(NAME, IndicesSegmentResponse::new);
+        super(NAME);
     }
 }

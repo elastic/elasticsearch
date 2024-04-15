@@ -7,11 +7,18 @@
  */
 package org.elasticsearch.preallocate;
 
+import java.io.IOException;
+
 final class NoNativePreallocator implements Preallocator {
 
     @Override
     public boolean useNative() {
         return false;
+    }
+
+    @Override
+    public NativeFileHandle open(String path) throws IOException {
+        throw new UnsupportedOperationException();
     }
 
     @Override

@@ -4,6 +4,9 @@
 <titleabbrev>Create connector sync job</titleabbrev>
 ++++
 
+preview::[]
+
+
 Creates a connector sync job.
 
 [source, console]

@@ -47,6 +47,21 @@ public class UpdateConnectorSyncJobIngestionStatsActionRequestTests extends ESTe
         assertThat(exception.getMessage(), containsString(EMPTY_CONNECTOR_SYNC_JOB_ID_ERROR_MESSAGE));
     }
 
+    public void testValidate_WhenConnectorSyncJobIdIsNull_ExpectValidationError() {
+        UpdateConnectorSyncJobIngestionStatsAction.Request request = new UpdateConnectorSyncJobIngestionStatsAction.Request(
+            null,
+            0L,
+            0L,
+            0L,
+            0L,
+            Instant.now()
+        );
+        ActionRequestValidationException exception = request.validate();
+
+        assertThat(exception, notNullValue());
+        assertThat(exception.getMessage(), containsString(EMPTY_CONNECTOR_SYNC_JOB_ID_ERROR_MESSAGE));
+    }
+
     public void testValidate_WhenDeletedDocumentCountIsNegative_ExpectValidationError() {
         UpdateConnectorSyncJobIngestionStatsAction.Request request = new UpdateConnectorSyncJobIngestionStatsAction.Request(
             randomAlphaOfLength(10),

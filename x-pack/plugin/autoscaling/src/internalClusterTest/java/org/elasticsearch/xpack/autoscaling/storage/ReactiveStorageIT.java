@@ -13,6 +13,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -337,7 +338,8 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         assertBusy(() -> {
             refreshClusterInfo();
             final ClusterInfo clusterInfo = getClusterInfo();
-            final long freeBytes = clusterInfo.getNodeMostAvailableDiskUsages().get(dataNode2Id).getFreeBytes();
+            DiskUsage usage = clusterInfo.getNodeMostAvailableDiskUsages().get(dataNode2Id);
+            final long freeBytes = usage.freeBytes();
             assertThat(freeBytes, is(equalTo(enoughSpaceForColocation)));
         });
 

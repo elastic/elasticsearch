@@ -44,10 +44,7 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
     ClusterAllocationExplainRequest,
     ClusterAllocationExplainResponse> {
 
-    public static final ActionType<ClusterAllocationExplainResponse> TYPE = new ActionType<>(
-        "cluster:monitor/allocation/explain",
-        ClusterAllocationExplainResponse::new
-    );
+    public static final ActionType<ClusterAllocationExplainResponse> TYPE = new ActionType<>("cluster:monitor/allocation/explain");
     private static final Logger logger = LogManager.getLogger(TransportClusterAllocationExplainAction.class);
 
     private final ClusterInfoService clusterInfoService;
@@ -69,6 +66,7 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
     ) {
         super(
             TYPE.name(),
+            false,
             transportService,
             clusterService,
             threadPool,

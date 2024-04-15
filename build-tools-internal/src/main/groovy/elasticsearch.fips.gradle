@@ -79,7 +79,6 @@ if (BuildParams.inFipsJvm) {
           // with no x-pack. Tests having security explicitly enabled/disabled will override this setting
           setting 'xpack.security.enabled', 'false'
           setting 'xpack.security.fips_mode.enabled', 'true'
-          setting 'xpack.security.fips_mode.required_providers', '["BCFIPS", "BCJSSE"]'
           setting 'xpack.license.self_generated.type', 'trial'
           setting 'xpack.security.authc.password_hashing.algorithm', 'pbkdf2_stretch'
           keystorePassword 'keystore-password'

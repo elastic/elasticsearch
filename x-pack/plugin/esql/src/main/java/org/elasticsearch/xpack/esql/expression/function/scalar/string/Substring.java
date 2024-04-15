@@ -11,11 +11,12 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -28,14 +29,23 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 
-public class Substring extends ScalarFunction implements OptionalArgument, EvaluatorMapper {
+public class Substring extends EsqlScalarFunction implements OptionalArgument {
 
     private final Expression str, start, length;
 
-    public Substring(Source source, Expression str, Expression start, Expression length) {
+    @FunctionInfo(
+        returnType = "keyword",
+        description = "Returns a substring of a string, specified by a start position and an optional length"
+    )
+    public Substring(
+        Source source,
+        @Param(name = "string", type = { "keyword", "text" }) Expression str,
+        @Param(name = "start", type = { "integer" }) Expression start,
+        @Param(optional = true, name = "length", type = { "integer" }) Expression length
+    ) {
         super(source, length == null ? Arrays.asList(str, start) : Arrays.asList(str, start, length));
         this.str = str;
         this.start = start;
@@ -58,12 +68,15 @@ public class Substring extends ScalarFunction implements OptionalArgument, Evalu
             return resolution;
         }
 
-        resolution = isInteger(start, sourceText(), SECOND);
+        resolution = TypeResolutions.isType(start, dt -> dt == INTEGER, sourceText(), SECOND, "integer");
+
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        return length == null ? TypeResolution.TYPE_RESOLVED : isInteger(length, sourceText(), THIRD);
+        return length == null
+            ? TypeResolution.TYPE_RESOLVED
+            : TypeResolutions.isType(length, dt -> dt == INTEGER, sourceText(), THIRD, "integer");
     }
 
     @Override
@@ -71,19 +84,11 @@ public class Substring extends ScalarFunction implements OptionalArgument, Evalu
         return str.foldable() && start.foldable() && (length == null || length.foldable());
     }
 
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
-    }
-
     @Evaluator(extraName = "NoLength")
     static BytesRef process(BytesRef str, int start) {
-        if (str.length == 0) {
-            return null;
-        }
-        int codePointCount = UnicodeUtil.codePointCount(str);
-        int indexStart = indexStart(codePointCount, start);
-        return new BytesRef(str.utf8ToString().substring(indexStart));
+        int length = str.length; // we just need a value at least the length of the string
+        return process(str, start, length);
+
     }
 
     @Evaluator
@@ -123,11 +128,6 @@ public class Substring extends ScalarFunction implements OptionalArgument, Evalu
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, Substring::new, str, start, length);
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
     }
 
     @Override

@@ -8,8 +8,11 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -17,8 +20,11 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RootObjectMapperTests extends MapperServiceTestCase {
@@ -160,6 +166,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         }));
         MapperService mapperService = createMapperService(mapping);
         assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
+        assertEquals(3, mapperService.documentMapper().mapping().getRoot().getTotalFieldsCount());
     }
 
     public void testRuntimeSectionRejectedUpdate() throws IOException {
@@ -339,6 +346,262 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         assertEquals("Failed to parse mapping: unknown parameter [unsupported] on runtime field [field] of type [keyword]", e.getMessage());
     }
 
+    public void testPassThroughObjectWithAliases() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("labels").field("type", "passthrough");
+            {
+                b.startObject("properties");
+                b.startObject("dim").field("type", "keyword").endObject();
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        assertThat(mapperService.mappingLookup().getMapper("dim"), instanceOf(FieldAliasMapper.class));
+        assertThat(mapperService.mappingLookup().getMapper("labels.dim"), instanceOf(KeywordFieldMapper.class));
+    }
+
+    public void testPassThroughObjectNested() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("resource").field("type", "object");
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("attributes").field("type", "passthrough");
+                    {
+                        b.startObject("properties");
+                        b.startObject("dim").field("type", "keyword").endObject();
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+            b.startObject("attributes").field("type", "passthrough");
+            {
+                b.startObject("properties");
+                b.startObject("another.dim").field("type", "keyword").endObject();
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        assertThat(mapperService.mappingLookup().getMapper("dim"), instanceOf(FieldAliasMapper.class));
+        assertThat(mapperService.mappingLookup().getMapper("resource.attributes.dim"), instanceOf(KeywordFieldMapper.class));
+        assertThat(mapperService.mappingLookup().objectMappers().get("another").getMapper("dim"), instanceOf(FieldAliasMapper.class));
+        assertThat(mapperService.mappingLookup().getMapper("attributes.another.dim"), instanceOf(KeywordFieldMapper.class));
+    }
+
+    public void testPassThroughObjectNestedWithDuplicateNames() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("resource").field("type", "object");
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("attributes").field("type", "passthrough");
+                    {
+                        b.startObject("properties");
+                        b.startObject("dim").field("type", "keyword").endObject();
+                        b.startObject("more.attributes.another.dimA").field("type", "keyword").endObject();
+                        b.startObject("more.attributes.another.dimB").field("type", "keyword").endObject();
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+            b.startObject("attributes").field("type", "passthrough");
+            {
+                b.startObject("properties");
+                b.startObject("another.dim").field("type", "keyword").endObject();
+                b.startObject("more.attributes.another.dimC").field("type", "keyword").endObject();
+                b.startObject("more.attributes.another.dimD").field("type", "keyword").endObject();
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        assertThat(mapperService.mappingLookup().getMapper("dim"), instanceOf(FieldAliasMapper.class));
+        assertThat(mapperService.mappingLookup().getMapper("resource.attributes.dim"), instanceOf(KeywordFieldMapper.class));
+        assertThat(
+            mapperService.mappingLookup().objectMappers().get("more.attributes.another").getMapper("dimA"),
+            instanceOf(FieldAliasMapper.class)
+        );
+        assertThat(
+            mapperService.mappingLookup().getMapper("resource.attributes.more.attributes.another.dimA"),
+            instanceOf(KeywordFieldMapper.class)
+        );
+        assertThat(
+            mapperService.mappingLookup().objectMappers().get("more.attributes.another").getMapper("dimB"),
+            instanceOf(FieldAliasMapper.class)
+        );
+        assertThat(
+            mapperService.mappingLookup().getMapper("resource.attributes.more.attributes.another.dimB"),
+            instanceOf(KeywordFieldMapper.class)
+        );
+
+        assertThat(mapperService.mappingLookup().objectMappers().get("another").getMapper("dim"), instanceOf(FieldAliasMapper.class));
+        assertThat(mapperService.mappingLookup().getMapper("attributes.another.dim"), instanceOf(KeywordFieldMapper.class));
+        assertThat(
+            mapperService.mappingLookup().objectMappers().get("more.attributes.another").getMapper("dimC"),
+            instanceOf(FieldAliasMapper.class)
+        );
+        assertThat(
+            mapperService.mappingLookup().getMapper("attributes.more.attributes.another.dimC"),
+            instanceOf(KeywordFieldMapper.class)
+        );
+        assertThat(
+            mapperService.mappingLookup().objectMappers().get("more.attributes.another").getMapper("dimD"),
+            instanceOf(FieldAliasMapper.class)
+        );
+        assertThat(
+            mapperService.mappingLookup().getMapper("attributes.more.attributes.another.dimD"),
+            instanceOf(KeywordFieldMapper.class)
+        );
+    }
+
+    public void testPassThroughObjectNestedWithConflictingNames() throws IOException {
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
+            b.startObject("resource").field("type", "object");
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("attributes").field("type", "passthrough");
+                    {
+                        b.startObject("properties");
+                        b.startObject("dim").field("type", "keyword").endObject();
+                        b.startObject("resource.attributes.another.dim").field("type", "keyword").endObject();
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertEquals(
+            "Failed to parse mapping: Conflicting objects created during alias generation for pass-through field: [resource]",
+            e.getMessage()
+        );
+    }
+
+    public void testAliasMappersCreatesAlias() throws Exception {
+        var context = MapperBuilderContext.root(false, false);
+        Map<String, Mapper> aliases = new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(
+            Map.of(
+                "labels",
+                new PassThroughObjectMapper(
+                    "labels",
+                    "labels",
+                    Explicit.EXPLICIT_TRUE,
+                    ObjectMapper.Dynamic.FALSE,
+                    Map.of("host", new KeywordFieldMapper.Builder("host", IndexVersion.current()).build(context)),
+                    Explicit.EXPLICIT_FALSE
+                )
+            ),
+            context
+        );
+        assertEquals(1, aliases.size());
+        assertThat(aliases.get("host"), instanceOf(FieldAliasMapper.class));
+    }
+
+    public void testAliasMappersCreatesAliasNested() throws Exception {
+        var context = MapperBuilderContext.root(false, false);
+        Map<String, Mapper> aliases = new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(
+            Map.of(
+                "outer",
+                new ObjectMapper(
+                    "outer",
+                    "outer",
+                    Explicit.EXPLICIT_TRUE,
+                    Explicit.EXPLICIT_TRUE,
+                    ObjectMapper.Dynamic.FALSE,
+                    Map.of(
+                        "inner",
+                        new PassThroughObjectMapper(
+                            "inner",
+                            "outer.inner",
+                            Explicit.EXPLICIT_TRUE,
+                            ObjectMapper.Dynamic.FALSE,
+                            Map.of("host", new KeywordFieldMapper.Builder("host", IndexVersion.current()).build(context)),
+                            Explicit.EXPLICIT_FALSE
+                        )
+                    )
+                )
+            ),
+            context
+        );
+        assertEquals(1, aliases.size());
+        assertThat(aliases.get("host"), instanceOf(FieldAliasMapper.class));
+    }
+
+    public void testAliasMappersExitsInDeepNesting() throws Exception {
+        var context = MapperBuilderContext.root(false, false);
+        Map<String, Mapper> aliases = new HashMap<>();
+        var objectIntermediates = new HashMap<String, ObjectMapper.Builder>(1);
+        var objectIntermediatesFullPath = new HashMap<String, ObjectMapper.Builder>(1);
+        new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(
+            Map.of(
+                "labels",
+                new PassThroughObjectMapper(
+                    "labels",
+                    "labels",
+                    Explicit.EXPLICIT_TRUE,
+                    ObjectMapper.Dynamic.FALSE,
+                    Map.of("host", new KeywordFieldMapper.Builder("host", IndexVersion.current()).build(context)),
+                    Explicit.EXPLICIT_FALSE
+                )
+            ),
+            Map.of(),
+            aliases,
+            objectIntermediates,
+            objectIntermediatesFullPath,
+            context,
+            1_000_000
+        );
+        assertTrue(aliases.isEmpty());
+    }
+
+    public void testAliasMappersCreatesNoAliasForRegularObject() throws Exception {
+        var context = MapperBuilderContext.root(false, false);
+        Map<String, Mapper> aliases = new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(
+            Map.of(
+                "labels",
+                new ObjectMapper(
+                    "labels",
+                    "labels",
+                    Explicit.EXPLICIT_TRUE,
+                    Explicit.EXPLICIT_FALSE,
+                    ObjectMapper.Dynamic.FALSE,
+                    Map.of("host", new KeywordFieldMapper.Builder("host", IndexVersion.current()).build(context))
+                )
+            ),
+            context
+        );
+        assertTrue(aliases.isEmpty());
+    }
+
+    public void testAliasMappersConflictingField() throws Exception {
+        var context = MapperBuilderContext.root(false, false);
+        Map<String, Mapper> aliases = new RootObjectMapper.Builder("root", Explicit.EXPLICIT_FALSE).getAliasMappers(
+            Map.of(
+                "labels",
+                new PassThroughObjectMapper(
+                    "labels",
+                    "labels",
+                    Explicit.EXPLICIT_TRUE,
+                    ObjectMapper.Dynamic.FALSE,
+                    Map.of("host", new KeywordFieldMapper.Builder("host", IndexVersion.current()).build(context)),
+                    Explicit.EXPLICIT_FALSE
+                ),
+                "host",
+                new KeywordFieldMapper.Builder("host", IndexVersion.current()).build(context)
+            ),
+            context
+        );
+        assertTrue(aliases.isEmpty());
+    }
+
     public void testEmptyType() throws Exception {
         String mapping = Strings.toString(
             XContentFactory.jsonBuilder()
@@ -356,6 +619,53 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         // Empty name not allowed in index created after 5.0
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
         assertThat(e.getMessage(), containsString("type cannot be an empty string"));
+    }
+
+    public void testWithoutMappers() throws IOException {
+        RootObjectMapper shallowRoot = createRootObjectMapperWithAllParametersSet(b -> {}, b -> {});
+        RootObjectMapper root = createRootObjectMapperWithAllParametersSet(b -> {
+            b.startObject("keyword");
+            {
+                b.field("type", "keyword");
+            }
+            b.endObject();
+        }, b -> {
+            b.startObject("runtime");
+            b.startObject("field").field("type", "keyword").endObject();
+            b.endObject();
+        });
+        assertThat(root.withoutMappers().toString(), equalTo(shallowRoot.toString()));
+    }
+
+    private RootObjectMapper createRootObjectMapperWithAllParametersSet(
+        CheckedConsumer<XContentBuilder, IOException> buildProperties,
+        CheckedConsumer<XContentBuilder, IOException> buildRuntimeFields
+    ) throws IOException {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("enabled", false);
+            b.field("subobjects", false);
+            b.field("dynamic", false);
+            b.field("date_detection", false);
+            b.field("numeric_detection", false);
+            b.field("dynamic_date_formats", Collections.singletonList("yyyy-MM-dd"));
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("my_template");
+                    {
+                        b.startObject("mapping").field("type", "keyword").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+            b.startObject("properties");
+            buildProperties.accept(b);
+            b.endObject();
+        }));
+        return mapper.mapping().getRoot();
     }
 
 }

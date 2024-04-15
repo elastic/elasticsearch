@@ -13,6 +13,8 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
@@ -23,16 +25,20 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 
 /**
  * Splits a string on some delimiter into a multivalued string field.
  */
 public class Split extends BinaryScalarFunction implements EvaluatorMapper {
-    public Split(Source source, Expression str, Expression delim) {
+    @FunctionInfo(returnType = "keyword", description = "Split a single valued string into multiple strings.")
+    public Split(
+        Source source,
+        @Param(name = "string", type = { "keyword", "text" }) Expression str,
+        @Param(name = "delim", type = { "keyword", "text" }) Expression delim
+    ) {
         super(source, str, delim);
     }
 
@@ -52,7 +58,7 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
             return resolution;
         }
 
-        return isString(right(), sourceText(), SECOND);
+        return isStringAndExact(right(), sourceText(), SECOND);
     }
 
     @Override

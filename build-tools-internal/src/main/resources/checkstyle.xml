@@ -194,5 +194,12 @@
             value="Do not negate boolean expressions with '!', but check explicitly with '== false' as it is more explicit"/>
     </module>
 
+    <module name="NeedBraces">
+        <!-- We have many generated equals classes with LITERAL_IF and no braces, so we don't check IF or ELSE -->
+        <property name="tokens" value="LITERAL_DO,LITERAL_FOR,LITERAL_WHILE"/>
+        <property name="allowSingleLineStatement" value="false"/>
+        <property name="allowEmptyLoopBody" value="true"/>
+    </module>
+
   </module>
 </module>

@@ -55,6 +55,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.transport.RemoteClusterService;
 
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -78,7 +79,7 @@ public interface Client extends ElasticsearchClient {
             case "node", "transport" -> s;
             default -> throw new IllegalArgumentException("Can't parse [client.type] must be one of [node, transport]");
         };
-    }, Property.NodeScope);
+    }, Property.NodeScope, Property.Deprecated);
 
     /**
      * The admin client that can be used to perform administrative operations.
@@ -413,7 +414,11 @@ public interface Client extends ElasticsearchClient {
      * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      * @throws UnsupportedOperationException if this functionality is not available on this client.
      */
-    default Client getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
+    default RemoteClusterClient getRemoteClusterClient(
+        String clusterAlias,
+        Executor responseExecutor,
+        RemoteClusterService.DisconnectedStrategy disconnectedStrategy
+    ) {
         throw new UnsupportedOperationException("this client doesn't support remote cluster connections");
     }
 }

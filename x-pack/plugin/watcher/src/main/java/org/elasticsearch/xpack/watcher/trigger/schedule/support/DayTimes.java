@@ -68,11 +68,11 @@ public final class DayTimes implements Times {
         }
         int[] hour;
         int[] minute;
-        int i = time.indexOf(":");
+        int i = time.indexOf(':');
         if (i < 0) {
             throw new ElasticsearchParseException("could not parse time [{}]. time format must be in the form of hh:mm", time);
         }
-        if (i == time.length() - 1 || time.indexOf(":", i + 1) >= 0) {
+        if (i == time.length() - 1 || time.indexOf(':', i + 1) >= 0) {
             throw new ElasticsearchParseException("could not parse time [{}]. time format must be in the form of hh:mm", time);
         }
         String hrStr = time.substring(0, i);

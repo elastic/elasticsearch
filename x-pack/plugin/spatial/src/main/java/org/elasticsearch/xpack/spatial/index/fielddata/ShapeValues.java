@@ -22,10 +22,16 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.ShapeIndexer;
+import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
+import org.elasticsearch.lucene.spatial.Component2DVisitor;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.DimensionalShapeType;
+import org.elasticsearch.lucene.spatial.Extent;
+import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
+import org.elasticsearch.lucene.spatial.TriangleTreeVisitor;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.spatial.index.mapper.BinaryShapeDocValuesField;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -202,7 +208,7 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.SHAPE_VALUE_SERIALIZATION_ADDED;
+            return TransportVersions.V_8_12_0;
         }
 
         @Override

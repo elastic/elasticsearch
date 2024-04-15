@@ -22,6 +22,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.geoip.Database.Property;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
@@ -37,9 +38,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -51,6 +51,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -99,7 +100,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
         assertThat(processor.getDatabaseType(), equalTo("GeoLite2-City"));
-        assertThat(processor.getProperties(), sameInstance(GeoIpProcessor.Factory.DEFAULT_CITY_PROPERTIES));
+        assertThat(processor.getProperties(), sameInstance(Database.City.defaultProperties()));
         assertFalse(processor.isIgnoreMissing());
     }
 
@@ -116,7 +117,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
         assertThat(processor.getDatabaseType(), equalTo("GeoLite2-City"));
-        assertThat(processor.getProperties(), sameInstance(GeoIpProcessor.Factory.DEFAULT_CITY_PROPERTIES));
+        assertThat(processor.getProperties(), sameInstance(Database.City.defaultProperties()));
         assertTrue(processor.isIgnoreMissing());
     }
 
@@ -134,7 +135,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
         assertThat(processor.getDatabaseType(), equalTo("GeoLite2-Country"));
-        assertThat(processor.getProperties(), sameInstance(GeoIpProcessor.Factory.DEFAULT_COUNTRY_PROPERTIES));
+        assertThat(processor.getProperties(), sameInstance(Database.Country.defaultProperties()));
         assertFalse(processor.isIgnoreMissing());
     }
 
@@ -152,7 +153,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
         assertThat(processor.getDatabaseType(), equalTo("GeoLite2-ASN"));
-        assertThat(processor.getProperties(), sameInstance(GeoIpProcessor.Factory.DEFAULT_ASN_PROPERTIES));
+        assertThat(processor.getProperties(), sameInstance(Database.Asn.defaultProperties()));
         assertFalse(processor.isIgnoreMissing());
     }
 
@@ -176,7 +177,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
         assertThat(processor.getDatabaseType(), equalTo("GeoLite2-Country"));
-        assertThat(processor.getProperties(), sameInstance(GeoIpProcessor.Factory.DEFAULT_COUNTRY_PROPERTIES));
+        assertThat(processor.getProperties(), sameInstance(Database.Country.defaultProperties()));
         assertFalse(processor.isIgnoreMissing());
     }
 
@@ -185,10 +186,10 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("database_file", "GeoLite2-Country.mmdb");
-        EnumSet<GeoIpProcessor.Property> asnOnlyProperties = EnumSet.copyOf(GeoIpProcessor.Property.ALL_ASN_PROPERTIES);
-        asnOnlyProperties.remove(GeoIpProcessor.Property.IP);
+        Set<Property> asnOnlyProperties = new HashSet<>(Database.Asn.properties());
+        asnOnlyProperties.remove(Property.IP);
         String asnProperty = RandomPicks.randomFrom(Randomness.get(), asnOnlyProperties).toString();
-        config.put("properties", Collections.singletonList(asnProperty));
+        config.put("properties", List.of(asnProperty));
         Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
         assertThat(
             e.getMessage(),
@@ -205,10 +206,10 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("database_file", "GeoLite2-ASN.mmdb");
-        EnumSet<GeoIpProcessor.Property> cityOnlyProperties = EnumSet.copyOf(GeoIpProcessor.Property.ALL_CITY_PROPERTIES);
-        cityOnlyProperties.remove(GeoIpProcessor.Property.IP);
+        Set<Property> cityOnlyProperties = new HashSet<>(Database.City.properties());
+        cityOnlyProperties.remove(Property.IP);
         String cityProperty = RandomPicks.randomFrom(Randomness.get(), cityOnlyProperties).toString();
-        config.put("properties", Collections.singletonList(cityProperty));
+        config.put("properties", List.of(cityProperty));
         Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
         assertThat(
             e.getMessage(),
@@ -245,12 +246,12 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     public void testBuildFields() throws Exception {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseNodeService);
 
-        Set<GeoIpProcessor.Property> properties = EnumSet.noneOf(GeoIpProcessor.Property.class);
+        Set<Property> properties = new HashSet<>();
         List<String> fieldNames = new ArrayList<>();
 
         int counter = 0;
-        int numFields = scaledRandomIntBetween(1, GeoIpProcessor.Property.values().length);
-        for (GeoIpProcessor.Property property : GeoIpProcessor.Property.ALL_CITY_PROPERTIES) {
+        int numFields = scaledRandomIntBetween(1, Property.values().length);
+        for (Property property : Database.City.properties()) {
             properties.add(property);
             fieldNames.add(property.name().toLowerCase(Locale.ROOT));
             if (++counter >= numFields) {
@@ -271,7 +272,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
         Map<String, Object> config1 = new HashMap<>();
         config1.put("field", "_field");
-        config1.put("properties", Collections.singletonList("invalid"));
+        config1.put("properties", List.of("invalid"));
         Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config1));
         assertThat(
             e.getMessage(),
@@ -286,6 +287,41 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config2.put("properties", "invalid");
         e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config2));
         assertThat(e.getMessage(), equalTo("[properties] property isn't a list, but of type [java.lang.String]"));
+    }
+
+    public void testBuildUnsupportedDatabase() throws Exception {
+        // mock up some unsupported database (it has a databaseType that we don't recognize)
+        GeoIpDatabase database = mock(GeoIpDatabase.class);
+        when(database.getDatabaseType()).thenReturn("some-unsupported-database");
+        GeoIpDatabaseProvider provider = mock(GeoIpDatabaseProvider.class);
+        when(provider.getDatabase(anyString())).thenReturn(database);
+
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(provider);
+
+        Map<String, Object> config1 = new HashMap<>();
+        config1.put("field", "_field");
+        config1.put("properties", List.of("ip"));
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config1));
+        assertThat(
+            e.getMessage(),
+            equalTo("[database_file] Unsupported database type [some-unsupported-database] for file [GeoLite2-City.mmdb]")
+        );
+    }
+
+    public void testBuildNullDatabase() throws Exception {
+        // mock up a provider that returns a null databaseType
+        GeoIpDatabase database = mock(GeoIpDatabase.class);
+        when(database.getDatabaseType()).thenReturn(null);
+        GeoIpDatabaseProvider provider = mock(GeoIpDatabaseProvider.class);
+        when(provider.getDatabase(anyString())).thenReturn(database);
+
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(provider);
+
+        Map<String, Object> config1 = new HashMap<>();
+        config1.put("field", "_field");
+        config1.put("properties", List.of("ip"));
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config1));
+        assertThat(e.getMessage(), equalTo("[database_file] Unsupported database type [null] for file [GeoLite2-City.mmdb]"));
     }
 
     @SuppressWarnings("HiddenField")
@@ -314,7 +350,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             assertNull(lazyLoader.databaseReader.get());
         }
 
-        final Map<String, Object> field = Collections.singletonMap("_field", "1.1.1.1");
+        final Map<String, Object> field = Map.of("_field", "1.1.1.1");
         final IngestDocument document = new IngestDocument("index", "id", 1L, "routing", VersionType.EXTERNAL, field);
 
         Map<String, Object> config = new HashMap<>();
@@ -384,7 +420,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             assertNull(lazyLoader.databaseReader.get());
         }
 
-        final Map<String, Object> field = Collections.singletonMap("_field", "1.1.1.1");
+        final Map<String, Object> field = Map.of("_field", "1.1.1.1");
         final IngestDocument document = new IngestDocument("index", "id", 1L, "routing", VersionType.EXTERNAL, field);
 
         Map<String, Object> config = new HashMap<>();

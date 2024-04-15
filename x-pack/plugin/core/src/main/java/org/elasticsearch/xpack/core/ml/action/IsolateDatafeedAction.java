@@ -38,7 +38,7 @@ public class IsolateDatafeedAction extends ActionType<IsolateDatafeedAction.Resp
     public static final String NAME = "cluster:internal/xpack/ml/datafeed/isolate";
 
     private IsolateDatafeedAction() {
-        super(NAME, IsolateDatafeedAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {

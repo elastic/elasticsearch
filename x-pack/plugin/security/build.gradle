@@ -31,8 +31,10 @@ dependencies {
   testImplementation project(path: ':modules:analysis-common')
   testImplementation project(path: ':modules:reindex')
   testImplementation project(':modules:data-streams')
+  testImplementation project(':modules:lang-mustache')
+  testImplementation project(':modules:mapper-extras')
+  testImplementation project(':modules:parent-join')
   testImplementation project(':modules:rest-root')
-  testImplementation project(":client:rest-high-level")
 
   testImplementation(testArtifact(project(xpackModule('core'))))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
@@ -149,6 +151,10 @@ dependencies {
   testImplementation('org.apache.directory.server:ldap-client-test:2.0.0-M24')
   testImplementation('org.apache.directory.server:apacheds-interceptor-kerberos:2.0.0-M24')
   testImplementation('org.apache.directory.mavibot:mavibot:1.0.0-M8')
+}
+
+tasks.named("test").configure {
+  systemProperty 'es.insecure_network_trace_enabled', 'true'
 }
 
 tasks.named("processInternalClusterTestResources").configure {

@@ -41,7 +41,6 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
         wipeMonitoringIndices();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96374")
     public void testMultipleNodes() throws Exception {
         int nodes = 0;
 
@@ -88,9 +87,7 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
                         assertThat(((StringTerms) aggregation).getBuckets().size(), equalTo(nbNodes));
 
                         for (String nodeName : internalCluster().getNodeNames()) {
-                            StringTerms.Bucket bucket = ((StringTerms) aggregation).getBucketByKey(
-                                internalCluster().clusterService(nodeName).localNode().getId()
-                            );
+                            StringTerms.Bucket bucket = ((StringTerms) aggregation).getBucketByKey(getNodeId(nodeName));
                             // At least 1 doc must exist per node, but it can be more than 1
                             // because the first node may have already collected many node stats documents
                             // whereas the last node just started to collect node stats.

@@ -4,32 +4,42 @@
 
 experimental[]
 
-Deletes an {infer} model deployment.
+Deletes an {infer} endpoint.
+
+IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in
+{ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, or
+Hugging Face. For built-in models and models uploaded though Eland, the {infer}
+APIs offer an alternative way to use and manage trained models. However, if you
+do not plan to use the {infer} APIs to use these models or if you want to use
+non-NLP models, use the <<ml-df-trained-models-apis>>.
 
 
 [discrete]
 [[delete-inference-api-request]]
 ==== {api-request-title}
 
-`DELETE /_inference/<task_type>/<model_id>`
+`DELETE /_inference/<inference_id>`
+
+`DELETE /_inference/<task_type>/<inference_id>`
 
 [discrete]
 [[delete-inference-api-prereqs]]
 ==== {api-prereq-title}
 
-* Requires the `manage` <<privileges-list-cluster,cluster privilege>>.
+* Requires the `manage_inference` <<privileges-list-cluster,cluster privilege>>
+(the built-in `inference_admin` role grants this privilege)
 
 
 [discrete]
 [[delete-inference-api-path-params]]
 ==== {api-path-parms-title}
 
-<model_id>::
+<inference_id>::
 (Required, string)
-The unique identifier of the {infer} model to delete.
+The unique identifier of the {infer} endpoint to delete.
 
 <task_type>::
-(Required, string)
+(Optional, string)
 The type of {infer} task that the model performs.
 
 
@@ -37,7 +47,7 @@ The type of {infer} task that the model performs.
 [[delete-inference-api-example]]
 ==== {api-examples-title}
 
-The following API call deletes the `my-elser-model` {infer} model that can 
+The following API call deletes the `my-elser-model` {infer} model that can
 perform `sparse_embedding` tasks.
 
 

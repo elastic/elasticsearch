@@ -410,18 +410,14 @@ public class GeoUtils {
      */
     public static GeoPoint parseGeoPoint(XContentParser parser, final boolean ignoreZValue, final EffectivePoint effectivePoint)
         throws IOException, ElasticsearchParseException {
-        return geoPointParser.parsePoint(parser, ignoreZValue, value -> {
-            GeoPoint point = new GeoPoint();
-            point.resetFromString(value, ignoreZValue, effectivePoint);
-            return point;
-        }, value -> {
-            GeoPoint point = new GeoPoint();
-            point.parseGeoHash(value, effectivePoint);
-            return point;
-        });
+        return geoPointParser.parsePoint(
+            parser,
+            ignoreZValue,
+            value -> new GeoPoint().resetFromString(value, ignoreZValue, effectivePoint)
+        );
     }
 
-    private static GenericPointParser<GeoPoint> geoPointParser = new GenericPointParser<>("geo_point", "lon", "lat", true) {
+    private static final GenericPointParser<GeoPoint> geoPointParser = new GenericPointParser<>("geo_point", "lon", "lat") {
 
         @Override
         public void assertZValue(boolean ignoreZValue, double zValue) {

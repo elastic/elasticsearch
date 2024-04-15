@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -19,7 +20,6 @@ import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequestBuilder;
-import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
@@ -30,10 +30,8 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -56,7 +54,6 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryRequestBuilder;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequestBuilder;
@@ -71,7 +68,6 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequestBuilder;
-import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -85,6 +81,7 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateReque
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.elasticsearch.core.Nullable;
@@ -251,7 +248,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     /**
      * Opens one or more indices based on their index name.
      *
-     * @param indices The name of the indices to close
+     * @param indices The name of the indices to open
      */
     OpenIndexRequestBuilder prepareOpen(String... indices);
 
@@ -261,7 +258,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param request The refresh request
      * @return The result future
      */
-    ActionFuture<RefreshResponse> refresh(RefreshRequest request);
+    ActionFuture<BroadcastResponse> refresh(RefreshRequest request);
 
     /**
      * Explicitly refresh one or more indices (making the content indexed since the last refresh searchable).
@@ -269,7 +266,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param request  The refresh request
      * @param listener A listener to be notified with a result
      */
-    void refresh(RefreshRequest request, ActionListener<RefreshResponse> listener);
+    void refresh(RefreshRequest request, ActionListener<BroadcastResponse> listener);
 
     /**
      * Explicitly refresh one or more indices (making the content indexed since the last refresh searchable).
@@ -282,7 +279,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param request The flush request
      * @return A result future
      */
-    ActionFuture<FlushResponse> flush(FlushRequest request);
+    ActionFuture<BroadcastResponse> flush(FlushRequest request);
 
     /**
      * Explicitly flush one or more indices (releasing memory from the node).
@@ -290,7 +287,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param request  The flush request
      * @param listener A listener to be notified with a result
      */
-    void flush(FlushRequest request, ActionListener<FlushResponse> listener);
+    void flush(FlushRequest request, ActionListener<BroadcastResponse> listener);
 
     /**
      * Explicitly flush one or more indices (releasing memory from the node).
@@ -303,7 +300,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param request The optimize request
      * @return A result future
      */
-    ActionFuture<ForceMergeResponse> forceMerge(ForceMergeRequest request);
+    ActionFuture<BroadcastResponse> forceMerge(ForceMergeRequest request);
 
     /**
      * Explicitly force merge one or more indices into a the number of segments.
@@ -311,7 +308,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param request  The force merge request
      * @param listener A listener to be notified with a result
      */
-    void forceMerge(ForceMergeRequest request, ActionListener<ForceMergeResponse> listener);
+    void forceMerge(ForceMergeRequest request, ActionListener<BroadcastResponse> listener);
 
     /**
      * Explicitly force merge one or more indices into a the number of segments.
@@ -375,7 +372,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param request The index aliases request
      * @return The result future
      */
-    ActionFuture<AcknowledgedResponse> aliases(IndicesAliasesRequest request);
+    ActionFuture<IndicesAliasesResponse> aliases(IndicesAliasesRequest request);
 
     /**
      * Allows to add/remove aliases from indices.
@@ -383,7 +380,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param request  The index aliases request
      * @param listener A listener to be notified with a result
      */
-    void aliases(IndicesAliasesRequest request, ActionListener<AcknowledgedResponse> listener);
+    void aliases(IndicesAliasesRequest request, ActionListener<IndicesAliasesResponse> listener);
 
     /**
      * Allows to add/remove aliases from indices.
@@ -436,7 +433,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param request The clear indices cache request
      * @return The result future
      */
-    ActionFuture<ClearIndicesCacheResponse> clearCache(ClearIndicesCacheRequest request);
+    ActionFuture<BroadcastResponse> clearCache(ClearIndicesCacheRequest request);
 
     /**
      * Clear indices cache.
@@ -444,7 +441,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param request  The clear indices cache request
      * @param listener A listener to be notified with a result
      */
-    void clearCache(ClearIndicesCacheRequest request, ActionListener<ClearIndicesCacheResponse> listener);
+    void clearCache(ClearIndicesCacheRequest request, ActionListener<BroadcastResponse> listener);
 
     /**
      * Clear indices cache.
@@ -591,7 +588,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     /**
      * Shrinks an index using an explicit request allowing to specify the settings, mappings and aliases of the target index of the index.
      */
-    void resizeIndex(ResizeRequest request, ActionListener<ResizeResponse> listener);
+    void resizeIndex(ResizeRequest request, ActionListener<CreateIndexResponse> listener);
 
     /**
      * Swaps the index pointed to by an alias given all provided conditions are satisfied

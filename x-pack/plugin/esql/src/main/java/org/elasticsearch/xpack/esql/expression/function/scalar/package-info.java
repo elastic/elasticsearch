@@ -73,7 +73,7 @@
  *     </li>
  *     <li>
  *         Add your function to {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.
- *         This links it into the language and {@code SHOW FUNCTIONS}. Also add your function to
+ *         This links it into the language and {@code META FUNCTIONS}. Also add your function to
  *         {@link org.elasticsearch.xpack.esql.io.stream.PlanNamedTypes}. This makes your function
  *         serializable over the wire. Mostly you can copy existing implementations for both.
  *     </li>
@@ -100,7 +100,7 @@
  *         {@code ./gradlew -p x-pack/plugin/esql/ check}
  *     </li>
  *     <li>
- *         Now it's time to write some docs! Open {@code docs/reference/esql/esql-functions.asciidoc}
+ *         Now it's time to write some docs! Open {@code docs/reference/esql/esql-functions-operators.asciidoc}
  *         and add your function in alphabetical order to the list at the top and then add it to
  *         the includes below.
  *     </li>
@@ -127,12 +127,21 @@
  *     <li>
  *         Generate a syntax diagram and a table with supported types by running the tests via
  *         gradle: {@code ./gradlew x-pack:plugin:esql:test}
- *         The generated files can be found here
- *         {@code docs/reference/esql/functions/signature/myfunction.svg }
- *         and here
- *         {@code docs/reference/esql/functions/types/myfunction.asciidoc}
- *         Make sure to commit them and reference them in your doc file. There are plenty of examples on how
- *         to reference those files e.g. {@code docs/reference/esql/functions/sin.asciidoc}.
+ *         The generated files are
+ *         <ol>
+ *              <li>{@code docs/reference/esql/functions/description/myfunction.asciidoc}</li>
+ *              <li>{@code docs/reference/esql/functions/examples/myfunction.asciidoc}</li>
+ *              <li>{@code docs/reference/esql/functions/layout/myfunction.asciidoc}</li>
+ *              <li>{@code docs/reference/esql/functions/parameters/myfunction.asciidoc}</li>
+ *              <li>{@code docs/reference/esql/functions/signature/myfunction.svg}</li>
+ *              <li>{@code docs/reference/esql/functions/types/myfunction.asciidoc}</li>
+ *         </ol>
+ *
+ *         Make sure to commit them. Add a reference to the
+ *         {@code docs/reference/esql/functions/layout/myfunction.asciidoc} in the function list
+ *         docs. There are plenty of examples on how
+ *         to reference those files e.g. if you are writing a Math function, you will want to
+ *         list it in {@code docs/reference/esql/functions/math-functions.asciidoc}.
  *     </li>
  *     <li>
  *          Build the docs by cloning the <a href="https://github.com/elastic/docs">docs repo</a>

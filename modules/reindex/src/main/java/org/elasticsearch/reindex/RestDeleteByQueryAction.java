@@ -9,8 +9,8 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.rest.RestRequest;
@@ -23,14 +23,18 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<DeleteByQueryRequest, DeleteByQueryAction> {
 
-    public RestDeleteByQueryAction() {
+    private final Predicate<NodeFeature> clusterSupportsFeature;
+
+    public RestDeleteByQueryAction(Predicate<NodeFeature> clusterSupportsFeature) {
         super(DeleteByQueryAction.INSTANCE);
+        this.clusterSupportsFeature = clusterSupportsFeature;
     }
 
     @Override
@@ -55,7 +59,7 @@ public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<Dele
     }
 
     @Override
-    protected DeleteByQueryRequest buildRequest(RestRequest request, NamedWriteableRegistry namedWriteableRegistry) throws IOException {
+    protected DeleteByQueryRequest buildRequest(RestRequest request) throws IOException {
         /*
          * Passing the search request through DeleteByQueryRequest first allows
          * it to set its own defaults which differ from SearchRequest's
@@ -67,7 +71,7 @@ public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<Dele
         consumers.put("conflicts", o -> internal.setConflicts((String) o));
         consumers.put("max_docs", s -> setMaxDocsValidateIdentical(internal, ((Number) s).intValue()));
 
-        parseInternalRequest(internal, request, namedWriteableRegistry, consumers);
+        parseInternalRequest(internal, request, clusterSupportsFeature, consumers);
 
         return internal;
     }

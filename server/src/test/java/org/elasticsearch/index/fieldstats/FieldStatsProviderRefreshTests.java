@@ -9,8 +9,8 @@
 package org.elasticsearch.index.fieldstats;
 
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.rest.RestStatus;
@@ -88,7 +88,7 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
     }
 
     private void refreshIndex() {
-        RefreshResponse refreshResponse = indicesAdmin().prepareRefresh("index").get();
+        BroadcastResponse refreshResponse = indicesAdmin().prepareRefresh("index").get();
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(refreshResponse.getSuccessfulShards()));
     }
 

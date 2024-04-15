@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.11.99"
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
       reason: Introduced in 8.12.0
 
   - do:
@@ -29,6 +29,23 @@ setup:
         connector_id: test-connector
 
   - match: { name: test-name }
+
+---
+"Update Connector Description":
+  - do:
+      connector.update_name:
+        connector_id: test-connector
+        body:
+          description: test-description
+
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { description: test-description }
 
 ---
 "Update Connector Name and Description":

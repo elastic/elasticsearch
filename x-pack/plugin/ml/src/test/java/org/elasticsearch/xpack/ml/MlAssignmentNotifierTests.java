@@ -253,6 +253,7 @@ public class MlAssignmentNotifierTests extends ESTestCase {
         Instant eightHoursAgo = now.minus(Duration.ofHours(8));
         Instant sevenHoursAgo = eightHoursAgo.plus(Duration.ofHours(1));
         Instant twoHoursAgo = sevenHoursAgo.plus(Duration.ofHours(5));
+        Instant tomorrow = now.plus(Duration.ofHours(24));
 
         PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
         addJobTask("job1", "node1", JobState.OPENED, tasksBuilder);
@@ -304,5 +305,44 @@ public class MlAssignmentNotifierTests extends ESTestCase {
                 "[xpack/ml/job]/[job3] unassigned for [28800] seconds"
             )
         );
+
+        tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask("job1", null, JobState.FAILED, tasksBuilder);
+        addJobTask("job2", null, JobState.FAILED, tasksBuilder);
+        addJobTask("job3", null, JobState.FAILED, tasksBuilder);
+        addJobTask("job4", null, JobState.FAILED, tasksBuilder);
+        addJobTask("job5", "node1", JobState.FAILED, tasksBuilder);
+        itemsToReport = notifier.findLongTimeUnassignedTasks(tomorrow, tasksBuilder.build());
+        // We still have unassigned jobs, but now all the jobs are failed, so none should be reported as unassigned
+        // as it doesn't make any difference whether they're assigned or not and autoscaling will ignore them
+        assertThat(itemsToReport, empty());
+    }
+
+    public void testFindLongTimeUnassignedTasks_WithNullState() {
+        MlAssignmentNotifier notifier = new MlAssignmentNotifier(
+            anomalyDetectionAuditor,
+            dataFrameAnalyticsAuditor,
+            threadPool,
+            clusterService
+        );
+        var now = Instant.now();
+        var sevenHoursAgo = now.minus(Duration.ofHours(7));
+        var eightHoursAgo = now.minus(Duration.ofHours(8));
+
+        {
+            // run once with valid state to add unassigned job to the history
+            PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+            addJobTask("job1", null, JobState.OPENED, tasksBuilder);
+            List<String> itemsToReport = notifier.findLongTimeUnassignedTasks(eightHoursAgo, tasksBuilder.build());
+            // Nothing reported because unassigned jobs only just detected
+            assertThat(itemsToReport, empty());
+        }
+        {
+            PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+            addJobTask("job1", null, null, tasksBuilder); // this time the job has no state
+            // one hour later the job would be detected as unassigned if not for the missing state
+            List<String> itemsToReport = notifier.findLongTimeUnassignedTasks(sevenHoursAgo, tasksBuilder.build());
+            assertThat(itemsToReport, empty());
+        }
     }
 }

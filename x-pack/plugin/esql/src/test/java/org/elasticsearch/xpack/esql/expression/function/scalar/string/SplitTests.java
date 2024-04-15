@@ -57,6 +57,22 @@ public class SplitTests extends AbstractScalarFunctionTestCase {
                 DataTypes.KEYWORD,
                 equalTo(strings.size() == 1 ? strings.get(0) : strings)
             );
+        }), new TestCaseSupplier("split basic test with text input", () -> {
+            String delimiter = randomAlphaOfLength(1);
+            List<BytesRef> strings = IntStream.range(0, between(1, 5))
+                .mapToObj(i -> randomValueOtherThanMany(s -> s.contains(delimiter), () -> randomAlphaOfLength(4)))
+                .map(BytesRef::new)
+                .collect(Collectors.toList());
+            String str = strings.stream().map(BytesRef::utf8ToString).collect(joining(delimiter));
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(str), DataTypes.TEXT, "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(delimiter), DataTypes.TEXT, "delim")
+                ),
+                "SplitVariableEvaluator[str=Attribute[channel=0], delim=Attribute[channel=1]]",
+                DataTypes.KEYWORD,
+                equalTo(strings.size() == 1 ? strings.get(0) : strings)
+            );
         })));
     }
 

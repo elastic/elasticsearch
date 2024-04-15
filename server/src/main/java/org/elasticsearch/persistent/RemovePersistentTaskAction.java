@@ -34,7 +34,7 @@ public class RemovePersistentTaskAction extends ActionType<PersistentTaskRespons
     public static final String NAME = "cluster:admin/persistent/remove";
 
     private RemovePersistentTaskAction() {
-        super(NAME, PersistentTaskResponse::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {

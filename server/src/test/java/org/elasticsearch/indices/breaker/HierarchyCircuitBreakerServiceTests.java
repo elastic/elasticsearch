@@ -80,7 +80,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         };
         final BreakerSettings settings = new BreakerSettings(CircuitBreaker.REQUEST, (BYTES_PER_THREAD * NUM_THREADS) - 1, 1.0);
         final ChildMemoryCircuitBreaker breaker = new ChildMemoryCircuitBreaker(
-            CircuitBreakerMetrics.NOOP.getParentTripCountTotal(),
+            CircuitBreakerMetrics.NOOP.getTripCount(),
             settings,
             logger,
             (HierarchyCircuitBreakerService) service,
@@ -158,7 +158,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         };
         final BreakerSettings settings = new BreakerSettings(CircuitBreaker.REQUEST, childLimit, 1.0);
         final ChildMemoryCircuitBreaker breaker = new ChildMemoryCircuitBreaker(
-            CircuitBreakerMetrics.NOOP.getParentTripCountTotal(),
+            CircuitBreakerMetrics.NOOP.getTripCount(),
             settings,
             logger,
             (HierarchyCircuitBreakerService) service,
@@ -628,14 +628,17 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         })).toList();
 
         threads.forEach(Thread::start);
-        safeAwait(barrier);
 
         int iterationCount = randomIntBetween(1, 5);
+        int lastIterationTriggerCount = leaderTriggerCount.get();
+
+        safeAwait(barrier);
         for (int i = 0; i < iterationCount; ++i) {
             memoryUsage.set(randomLongBetween(0, 100));
             safeAwait(countDown.get());
             assertThat(leaderTriggerCount.get(), lessThanOrEqualTo(i + 1));
-            assertThat(leaderTriggerCount.get(), greaterThanOrEqualTo(i / 2 + 1));
+            assertThat(leaderTriggerCount.get(), greaterThanOrEqualTo(lastIterationTriggerCount));
+            lastIterationTriggerCount = leaderTriggerCount.get();
             time.addAndGet(randomLongBetween(interval, interval * 2));
             countDown.set(new CountDownLatch(randomIntBetween(1, 20)));
         }

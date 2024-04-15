@@ -368,7 +368,7 @@ public class InferenceProcessor extends AbstractProcessor {
 
         private final Client client;
         private final InferenceAuditor auditor;
-        private volatile int currentInferenceProcessors;
+        private volatile ClusterState clusterState = ClusterState.EMPTY_STATE;
         private volatile int maxIngestProcessors;
         private volatile MlConfigVersion minNodeVersion = MlConfigVersion.CURRENT;
 
@@ -381,9 +381,9 @@ public class InferenceProcessor extends AbstractProcessor {
 
         @Override
         public void accept(ClusterState state) {
-            minNodeVersion = MlConfigVersion.getMinMlConfigVersion(state.nodes());
             try {
-                currentInferenceProcessors = InferenceProcessorInfoExtractor.countInferenceProcessors(state);
+                this.clusterState = state;
+                this.minNodeVersion = MlConfigVersion.getMinMlConfigVersion(state.nodes());
             } catch (Exception ex) {
                 // We cannot throw any exception here. It might break other pipelines.
                 logger.debug("failed gathering processors for pipelines", ex);
@@ -397,6 +397,7 @@ public class InferenceProcessor extends AbstractProcessor {
             String description,
             Map<String, Object> config
         ) {
+            final var currentInferenceProcessors = InferenceProcessorInfoExtractor.countInferenceProcessors(clusterState);
             if (this.maxIngestProcessors <= currentInferenceProcessors) {
                 throw new ElasticsearchStatusException(
                     "Max number of inference processors reached, total inference processors [{}]. "

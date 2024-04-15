@@ -10,7 +10,6 @@ apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
   testImplementation project(':x-pack:qa')
-  testImplementation project(':client:rest-high-level')
 }
 
 Version ccsCompatVersion = new Version(VersionProperties.getElasticsearchVersion().getMajor(), VersionProperties.getElasticsearchVersion().getMinor() - 1, 0)
@@ -54,29 +53,17 @@ testClusters.register('mixed-cluster') {
 tasks.register('remote-cluster', RestIntegTestTask) {
   mustRunAfter("precommit")
   systemProperty 'tests.rest.suite', 'remote_cluster'
-  maybeDisableForFips(it)
 }
 
 tasks.register('mixed-cluster', RestIntegTestTask) {
   dependsOn 'remote-cluster'
   useCluster remoteCluster
   systemProperty 'tests.rest.suite', 'multi_cluster'
-  maybeDisableForFips(it)
 }
 
 tasks.register("integTest") {
   dependsOn 'mixed-cluster'
-  maybeDisableForFips(it)
 }
 
 tasks.named("check").configure { dependsOn("integTest") }
 
-//TODO: remove with version 8.14. A new FIPS setting was added in 8.13. Since FIPS configures all test clusters and this specific integTest uses
-// the previous minor version, that setting is not available when running in FIPS until 8.14.
-def maybeDisableForFips(task) {
-  if (BuildParams.inFipsJvm) {
-    if(Version.fromString(project.version).before(Version.fromString('8.14.0'))) {
-      task.enabled = false
-    }
-  }
-}

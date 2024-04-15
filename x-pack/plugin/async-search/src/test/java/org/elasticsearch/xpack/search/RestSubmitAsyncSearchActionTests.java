@@ -29,11 +29,9 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
 
-    private RestSubmitAsyncSearchAction action;
-
     @Before
     public void setUpAction() {
-        action = new RestSubmitAsyncSearchAction(new UsageService().getSearchUsageHolder());
+        RestSubmitAsyncSearchAction action = new RestSubmitAsyncSearchAction(new UsageService().getSearchUsageHolder(), nf -> false);
         controller().registerHandler(action);
     }
 

@@ -11,7 +11,9 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -25,6 +27,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.CARTESIAN;
 
+@FunctionName("to_cartesianpoint")
 public class ToCartesianPointTests extends AbstractFunctionTestCase {
     public ToCartesianPointTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -38,23 +41,6 @@ public class ToCartesianPointTests extends AbstractFunctionTestCase {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         TestCaseSupplier.forUnaryCartesianPoint(suppliers, attribute, EsqlDataTypes.CARTESIAN_POINT, v -> v, List.of());
-        TestCaseSupplier.forUnaryLong(suppliers, evaluatorName.apply("FromLong"), EsqlDataTypes.CARTESIAN_POINT, l -> {
-            try {
-                return CARTESIAN.longAsWKB(l);
-            } catch (IllegalArgumentException e) {
-                return null;
-            }
-        }, Long.MIN_VALUE, Long.MAX_VALUE, l -> {
-            try {
-                CARTESIAN.longAsWKB(l.longValue());
-                return List.of();
-            } catch (IllegalArgumentException exception) {
-                return List.of(
-                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line -1:-1: " + exception
-                );
-            }
-        });
         // random strings that don't look like a cartesian point
         TestCaseSupplier.forUnaryStrings(
             suppliers,
@@ -62,7 +48,7 @@ public class ToCartesianPointTests extends AbstractFunctionTestCase {
             EsqlDataTypes.CARTESIAN_POINT,
             bytesRef -> null,
             bytesRef -> {
-                var exception = expectThrows(Exception.class, () -> CARTESIAN.stringAsWKB(bytesRef.utf8ToString()));
+                var exception = expectThrows(Exception.class, () -> CARTESIAN.wktToWkb(bytesRef.utf8ToString()));
                 return List.of(
                     "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                     "Line -1:-1: " + exception
@@ -76,12 +62,12 @@ public class ToCartesianPointTests extends AbstractFunctionTestCase {
             List.of(
                 new TestCaseSupplier.TypedDataSupplier(
                     "<cartesian point as string>",
-                    () -> new BytesRef(CARTESIAN.pointAsString(randomCartesianPoint())),
+                    () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomPoint())),
                     DataTypes.KEYWORD
                 )
             ),
             EsqlDataTypes.CARTESIAN_POINT,
-            bytesRef -> CARTESIAN.stringAsWKB(((BytesRef) bytesRef).utf8ToString()),
+            bytesRef -> CARTESIAN.wktToWkb(((BytesRef) bytesRef).utf8ToString()),
             List.of()
         );
 

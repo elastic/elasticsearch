@@ -1,5 +1,0 @@
-pr: 103427
-summary: "[Connector API] Fix bug with nullable tooltip field in parser"
-area: Application
-type: bug
-issues: []

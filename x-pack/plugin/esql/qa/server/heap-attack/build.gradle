@@ -1,9 +1,0 @@
-apply plugin: 'elasticsearch.internal-java-rest-test'
-
-dependencies {
-  javaRestTestImplementation project(xpackModule('esql:qa:server'))
-}
-
-tasks.named('javaRestTest') {
-  usesDefaultDistribution()
-}

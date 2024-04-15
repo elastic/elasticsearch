@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.cluster.routing.allocation;
 
 import joptsimple.internal.Strings;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -203,7 +202,16 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     )
                 );
             }
+        }
+        {
+            final var state = clusterStateWithIndexAndNodes("data_warm", DiscoveryNodes.builder().add(DATA_NODE).build(), null);
 
+            assertAllocationDecision(
+                state,
+                DATA_NODE,
+                Decision.Type.YES,
+                "index has a preference for tiers [data_warm] and node has tier [data]"
+            );
         }
     }
 
@@ -896,8 +904,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                 .build(),
             1,
             ByteSizeValue.ONE,
-            ByteSizeValue.ONE,
-            Version.CURRENT
+            ByteSizeValue.ONE
         );
     }
 

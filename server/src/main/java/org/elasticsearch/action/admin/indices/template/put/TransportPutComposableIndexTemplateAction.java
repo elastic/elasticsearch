@@ -52,7 +52,7 @@ import static org.elasticsearch.core.Strings.format;
 public class TransportPutComposableIndexTemplateAction extends AcknowledgedTransportMasterNodeAction<
     TransportPutComposableIndexTemplateAction.Request> {
 
-    public static final ActionType<AcknowledgedResponse> TYPE = ActionType.localOnly("indices:admin/index_template/put");
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/index_template/put");
     private final MetadataIndexTemplateService indexTemplateService;
 
     @Inject

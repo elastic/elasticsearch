@@ -1,19 +1,23 @@
 = Elasticsearch
 
-Elasticsearch is a distributed, RESTful search engine optimized for speed and relevance on production-scale workloads. You can use Elasticsearch to perform real-time search over massive datasets for applications including:
+Elasticsearch is a distributed search and analytics engine optimized for speed and relevance on production-scale workloads. Elasticsearch is the foundation of Elastic's open Stack platform. Search in near real-time over massive datasets, perform vector searches, integrate with generative AI applications, and much more.
 
-* Vector search
+Use cases enabled by Elasticsearch include:
+
+* https://www.elastic.co/search-labs/blog/articles/retrieval-augmented-generation-rag[Retrieval Augmented Generation (RAG)] 
+* https://www.elastic.co/search-labs/blog/categories/vector-search[Vector search]
 * Full-text search
 * Logs
 * Metrics
 * Application performance monitoring (APM)
 * Security logs
 
-
 \... and more!
 
 To learn more about Elasticsearch's features and capabilities, see our
 https://www.elastic.co/products/elasticsearch[product page].
+
+To access information on https://www.elastic.co/search-labs/blog/categories/ml-research[machine learning innovations] and the latest https://www.elastic.co/search-labs/blog/categories/lucene[Lucene contributions from Elastic], more information can be found in https://www.elastic.co/search-labs[Search Labs]. 
 
 [[get-started]]
 == Get started

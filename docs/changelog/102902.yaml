@@ -1,5 +1,0 @@
-pr: 102902
-summary: Fast path for reading single doc with ordinals
-area: ES|QL
-type: enhancement
-issues: []

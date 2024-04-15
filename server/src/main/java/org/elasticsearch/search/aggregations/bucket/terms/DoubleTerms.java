@@ -9,15 +9,16 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -187,32 +188,29 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        boolean promoteToDouble = false;
-        for (InternalAggregation agg : aggregations) {
-            if (agg instanceof LongTerms
-                && (((LongTerms) agg).format == DocValueFormat.RAW || ((LongTerms) agg).format == DocValueFormat.UNSIGNED_LONG_SHIFTED)) {
-                /*
-                 * this terms agg mixes longs and doubles, we must promote longs to doubles to make the internal aggs
-                 * compatible
-                 */
-                promoteToDouble = true;
-                break;
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            private final AggregatorReducer processor = termsAggregationReducer(reduceContext, size);
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                if (aggregation instanceof LongTerms longTerms) {
+                    processor.accept(LongTerms.convertLongTermsToDouble(longTerms, format));
+                } else {
+                    processor.accept(aggregation);
+                }
             }
-        }
-        if (promoteToDouble == false) {
-            return super.reduce(aggregations, reduceContext);
-        }
-        List<InternalAggregation> newAggs = new ArrayList<>(aggregations.size());
-        for (InternalAggregation agg : aggregations) {
-            if (agg instanceof LongTerms) {
-                DoubleTerms dTerms = LongTerms.convertLongTermsToDouble((LongTerms) agg, format);
-                newAggs.add(dTerms);
-            } else {
-                newAggs.add(agg);
+
+            @Override
+            public InternalAggregation get() {
+                return processor.get();
             }
-        }
-        return newAggs.get(0).reduce(newAggs, reduceContext);
+
+            @Override
+            public void close() {
+                Releasables.close(processor);
+            }
+        };
     }
 
     @Override

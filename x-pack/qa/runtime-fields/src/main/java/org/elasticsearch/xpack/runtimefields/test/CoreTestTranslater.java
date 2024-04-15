@@ -67,7 +67,7 @@ public abstract class CoreTestTranslater {
             ClientYamlTestSection modified = new ClientYamlTestSection(
                 candidate.getTestSection().getLocation(),
                 candidate.getTestSection().getName(),
-                candidate.getTestSection().getSkipSection(),
+                candidate.getTestSection().getPrerequisiteSection(),
                 candidate.getTestSection().getExecutableSections()
             );
             result.add(new Object[] { new ClientYamlTestCandidate(suite.modified, modified) });
@@ -169,7 +169,7 @@ public abstract class CoreTestTranslater {
                 candidate.getApi(),
                 candidate.getName(),
                 candidate.getRestTestSuite().getFile(),
-                new SetupSection(candidate.getSetupSection().getSkipSection(), setup),
+                new SetupSection(candidate.getSetupSection().getPrerequisiteSection(), setup),
                 candidate.getTeardownSection(),
                 List.of()
             );
@@ -350,6 +350,7 @@ public abstract class CoreTestTranslater {
                     defaultRouting,
                     null,
                     defaultPipeline,
+                    null,
                     null,
                     null,
                     true,

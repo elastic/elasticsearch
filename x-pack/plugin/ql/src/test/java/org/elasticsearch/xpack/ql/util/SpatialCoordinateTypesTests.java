@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.ql.util;
 
-import org.elasticsearch.common.geo.SpatialPoint;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.test.ESTestCase;
 
@@ -22,10 +23,10 @@ public class SpatialCoordinateTypesTests extends ESTestCase {
 
     private static final Map<SpatialCoordinateTypes, TestTypeFunctions> types = new LinkedHashMap<>();
     static {
-        types.put(SpatialCoordinateTypes.GEO, new TestTypeFunctions(ESTestCase::randomGeoPoint, v -> 1e-5));
+        types.put(SpatialCoordinateTypes.GEO, new TestTypeFunctions(GeometryTestUtils::randomPoint, v -> 1e-5));
         types.put(
             SpatialCoordinateTypes.CARTESIAN,
-            new TestTypeFunctions(ESTestCase::randomCartesianPoint, SpatialCoordinateTypesTests::cartesianError)
+            new TestTypeFunctions(ShapeTestUtils::randomPoint, SpatialCoordinateTypesTests::cartesianError)
         );
     }
 
@@ -34,15 +35,15 @@ public class SpatialCoordinateTypesTests extends ESTestCase {
         return (abs < 1) ? 1e-5 : abs / 1e7;
     }
 
-    record TestTypeFunctions(Supplier<SpatialPoint> randomPoint, Function<Double, Double> error) {}
+    record TestTypeFunctions(Supplier<Point> randomPoint, Function<Double, Double> error) {}
 
     public void testEncoding() {
         for (var type : types.entrySet()) {
             for (int i = 0; i < 10; i++) {
                 SpatialCoordinateTypes coordType = type.getKey();
-                SpatialPoint original = type.getValue().randomPoint().get();
+                Point original = type.getValue().randomPoint().get();
                 var error = type.getValue().error;
-                SpatialPoint point = coordType.longAsPoint(coordType.pointAsLong(original));
+                Point point = coordType.longAsPoint(coordType.pointAsLong(original.getX(), original.getY()));
                 assertThat(coordType + ": Y[" + i + "]", point.getY(), closeTo(original.getY(), error.apply(original.getY())));
                 assertThat(coordType + ": X[" + i + "]", point.getX(), closeTo(original.getX(), error.apply(original.getX())));
             }
@@ -53,10 +54,8 @@ public class SpatialCoordinateTypesTests extends ESTestCase {
         for (var type : types.entrySet()) {
             for (int i = 0; i < 10; i++) {
                 SpatialCoordinateTypes coordType = type.getKey();
-                SpatialPoint geoPoint = type.getValue().randomPoint.get();
-                Point point = coordType.stringAsPoint(coordType.pointAsString(geoPoint));
-                assertThat(coordType + ": Y[" + i + "]", point.getY(), closeTo(geoPoint.getY(), 1e-5));
-                assertThat(coordType + ": X[" + i + "]", point.getX(), closeTo(geoPoint.getX(), 1e-5));
+                Point point = type.getValue().randomPoint.get();
+                assertEquals(coordType.wkbToWkt(coordType.asWkb(point)), coordType.asWkt(point));
             }
         }
     }

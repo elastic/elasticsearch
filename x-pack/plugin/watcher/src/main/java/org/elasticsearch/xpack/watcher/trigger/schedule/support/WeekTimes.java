@@ -158,7 +158,7 @@ public class WeekTimes implements Times {
 
     public static class Builder {
 
-        private final Set<DayOfWeek> days = new HashSet<>();
+        private final Set<DayOfWeek> days = EnumSet.noneOf(DayOfWeek.class);
         private final Set<DayTimes> times = new HashSet<>();
 
         private Builder() {}

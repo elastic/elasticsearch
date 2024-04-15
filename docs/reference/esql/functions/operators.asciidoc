@@ -15,9 +15,6 @@ Boolean operators for comparing against one or multiple expressions.
 * <<esql-cidr_match>>
 * <<esql-ends_with>>
 * <<esql-in-operator>>
-* <<esql-is_finite>>
-* <<esql-is_infinite>>
-* <<esql-is_nan>>
 * <<esql-like-operator>>
 * <<esql-rlike-operator>>
 * <<esql-starts_with>>
@@ -30,9 +27,6 @@ include::predicates.asciidoc[]
 include::cidr_match.asciidoc[]
 include::ends_with.asciidoc[]
 include::in.asciidoc[]
-include::is_finite.asciidoc[]
-include::is_infinite.asciidoc[]
-include::is_nan.asciidoc[]
 include::like.asciidoc[]
 include::rlike.asciidoc[]
 include::starts_with.asciidoc[]

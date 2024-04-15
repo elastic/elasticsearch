@@ -1,13 +1,36 @@
 [discrete]
 [[esql-to_datetime]]
 === `TO_DATETIME`
+
+*Alias*
+
+`TO_DT`
+
+*Syntax*
+
+[source,esql]
+----
+TO_DATETIME(v)
+----
+
+*Parameters*
+
+`v`::
+Input value. The input can be a single- or multi-valued column or an expression.
+
+*Description*
+
 Converts an input value to a date value.
 
-The input can be a single- or multi-valued field or an expression. The input
-type must be of a string or numeric type.
-
 A string will only be successfully converted if it's respecting the format
-`yyyy-MM-dd'T'HH:mm:ss.SSS'Z'` (to convert dates in other formats, use <<esql-date_parse>>). For example:
+`yyyy-MM-dd'T'HH:mm:ss.SSS'Z'`. To convert dates in other formats, use
+<<esql-date_parse>>.
+
+*Supported types*
+
+The input type must be of a string or numeric type.
+
+*Examples*
 
 [source.merge.styled,esql]
 ----
@@ -30,10 +53,8 @@ A following header will contain the failure reason and the offending value:
 
 `"java.lang.IllegalArgumentException: failed to parse date field [1964-06-02 00:00:00] with format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']"`
 
-
 If the input parameter is of a numeric type, its value will be interpreted as
-milliseconds since the https://en.wikipedia.org/wiki/Unix_time[Unix epoch].
-For example:
+milliseconds since the {wikipedia}/Unix_time[Unix epoch]. For example:
 
 [source.merge.styled,esql]
 ----
@@ -43,5 +64,3 @@ include::{esql-specs}/date.csv-spec[tag=to_datetime-int]
 |===
 include::{esql-specs}/date.csv-spec[tag=to_datetime-int-result]
 |===
-
-Alias: TO_DT

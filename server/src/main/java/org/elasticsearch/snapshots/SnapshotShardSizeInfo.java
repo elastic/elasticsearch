@@ -46,4 +46,9 @@ public class SnapshotShardSizeInfo {
         }
         return shardSize;
     }
+
+    @Override
+    public String toString() {
+        return "SnapshotShardSizeInfo{snapshotShardSizes=" + snapshotShardSizes + '}';
+    }
 }

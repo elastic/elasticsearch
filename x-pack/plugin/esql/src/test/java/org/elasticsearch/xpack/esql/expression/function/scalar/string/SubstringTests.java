@@ -25,6 +25,7 @@ import org.hamcrest.Matcher;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -50,7 +51,46 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
                 DataTypes.KEYWORD,
                 equalTo(new BytesRef(text.substring(start - 1, start + length - 1)))
             );
-        })));
+        }), new TestCaseSupplier("Substring basic test with text input", () -> {
+            int start = between(1, 8);
+            int length = between(1, 10 - start);
+            String text = randomAlphaOfLength(10);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.TEXT, "str"),
+                    new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
+                    new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "end")
+                ),
+                "SubstringEvaluator[str=Attribute[channel=0], start=Attribute[channel=1], length=Attribute[channel=2]]",
+                DataTypes.KEYWORD,
+                equalTo(new BytesRef(text.substring(start - 1, start + length - 1)))
+            );
+        }),
+            new TestCaseSupplier(
+                "Substring basic test with start long",
+                List.of(DataTypes.KEYWORD, DataTypes.LONG, DataTypes.INTEGER),
+                () -> TestCaseSupplier.TestCase.typeError(
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BytesRef("text"), DataTypes.KEYWORD, "str"),
+                        new TestCaseSupplier.TypedData(1L, DataTypes.LONG, "start"),
+                        new TestCaseSupplier.TypedData(2, DataTypes.INTEGER, "length")
+                    ),
+                    "second argument of [] must be [integer], found value [start] type [long]"
+                )
+            ),
+            new TestCaseSupplier(
+                "Substring basic test with length double",
+                List.of(DataTypes.KEYWORD, DataTypes.INTEGER, DataTypes.DOUBLE),
+                () -> TestCaseSupplier.TestCase.typeError(
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BytesRef("text"), DataTypes.KEYWORD, "str"),
+                        new TestCaseSupplier.TypedData(1L, DataTypes.INTEGER, "start"),
+                        new TestCaseSupplier.TypedData(2.0, DataTypes.DOUBLE, "length")
+                    ),
+                    "third argument of [] must be [integer], found value [length] type [double]"
+                )
+            )
+        ));
     }
 
     @Override
@@ -76,7 +116,7 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected List<AbstractScalarFunctionTestCase.ArgumentSpec> argSpec() {
-        return List.of(required(strings()), required(integers()), optional(integers()));
+        return List.of(required(strings()), required(DataTypes.INTEGER), optional(DataTypes.INTEGER));
     }
 
     @Override
@@ -122,6 +162,19 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
         assert s.length() == 8 && s.codePointCount(0, s.length()) == 7;
         assertThat(process(s, 3, 1000), equalTo("tiger"));
         assertThat(process(s, -6, 1000), equalTo("\ud83c\udf09tiger"));
+        assert "🐱".length() == 2 && "🐶".length() == 2;
+        assert "🐱".codePointCount(0, 2) == 1 && "🐶".codePointCount(0, 2) == 1;
+        assert "🐱".getBytes(UTF_8).length == 4 && "🐶".getBytes(UTF_8).length == 4;
+
+        for (Integer len : new Integer[] { null, 100, 100000 }) {
+            assertThat(process(s, 3, len), equalTo("tiger"));
+            assertThat(process(s, -6, len), equalTo("\ud83c\udf09tiger"));
+
+            assertThat(process("🐱Meow!🐶Woof!", 0, len), equalTo("🐱Meow!🐶Woof!"));
+            assertThat(process("🐱Meow!🐶Woof!", 1, len), equalTo("🐱Meow!🐶Woof!"));
+            assertThat(process("🐱Meow!🐶Woof!", 2, len), equalTo("Meow!🐶Woof!"));
+            assertThat(process("🐱Meow!🐶Woof!", 3, len), equalTo("eow!🐶Woof!"));
+        }
     }
 
     public void testNegativeLength() {

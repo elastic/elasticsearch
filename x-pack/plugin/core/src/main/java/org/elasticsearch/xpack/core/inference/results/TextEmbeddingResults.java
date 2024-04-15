@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -14,10 +15,12 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +43,7 @@ import java.util.stream.Collectors;
  *     ]
  * }
  */
-public record TextEmbeddingResults(List<Embedding> embeddings) implements InferenceServiceResults {
+public record TextEmbeddingResults(List<Embedding> embeddings) implements InferenceServiceResults, TextEmbedding {
     public static final String NAME = "text_embedding_service_results";
     public static final String TEXT_EMBEDDING = TaskType.TEXT_EMBEDDING.toString();
 
@@ -56,6 +59,35 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
                 .map(embedding -> new Embedding(embedding.values()))
                 .collect(Collectors.toList())
         );
+    }
+
+    public static TextEmbeddingResults of(List<? extends InferenceResults> results) {
+        List<Embedding> embeddings = new ArrayList<>(results.size());
+        for (InferenceResults result : results) {
+            if (result instanceof org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults embeddingResult) {
+                embeddings.add(Embedding.of(embeddingResult));
+            } else if (result instanceof org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults errorResult) {
+                if (errorResult.getException() instanceof ElasticsearchStatusException statusException) {
+                    throw statusException;
+                } else {
+                    throw new ElasticsearchStatusException(
+                        "Received error inference result.",
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        errorResult.getException()
+                    );
+                }
+            } else {
+                throw new IllegalArgumentException(
+                    "Received invalid inference result, of type " + result.getClass().getName() + " but expected TextEmbeddingResults."
+                );
+            }
+        }
+        return new TextEmbeddingResults(embeddings);
+    }
+
+    @Override
+    public int getFirstEmbeddingSize() {
+        return TextEmbeddingUtils.getFirstEmbeddingSize(new ArrayList<>(embeddings));
     }
 
     @Override
@@ -103,11 +135,25 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
         return map;
     }
 
-    public record Embedding(List<Float> values) implements Writeable, ToXContentObject {
+    public record Embedding(List<Float> values) implements Writeable, ToXContentObject, EmbeddingInt {
         public static final String EMBEDDING = "embedding";
 
         public Embedding(StreamInput in) throws IOException {
             this(in.readCollectionAsImmutableList(StreamInput::readFloat));
+        }
+
+        public static Embedding of(org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults embeddingResult) {
+            List<Float> embeddingAsList = new ArrayList<>();
+            float[] embeddingAsArray = embeddingResult.getInferenceAsFloat();
+            for (float dim : embeddingAsArray) {
+                embeddingAsList.add(dim);
+            }
+            return new Embedding(embeddingAsList);
+        }
+
+        @Override
+        public int getSize() {
+            return values.size();
         }
 
         @Override

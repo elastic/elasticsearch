@@ -14,7 +14,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -101,7 +101,7 @@ public class TrainTestSplitterFactory {
                 searchRequestBuilder::get
             );
             try {
-                Aggregations aggs = searchResponse.getAggregations();
+                InternalAggregations aggs = searchResponse.getAggregations();
                 Terms terms = aggs.get(aggName);
                 Map<String, Long> classCounts = new HashMap<>();
                 for (Terms.Bucket bucket : terms.getBuckets()) {

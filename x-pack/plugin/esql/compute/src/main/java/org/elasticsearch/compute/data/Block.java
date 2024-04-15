@@ -107,8 +107,7 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     boolean mayHaveMultivaluedFields();
 
     /**
-     * Creates a new block that only exposes the positions provided. Materialization of the selected positions is avoided.
-     * The new block may hold a reference to this block, increasing this block's reference count.
+     * Creates a new block that only exposes the positions provided.
      * @param positions the positions to retain
      * @return a filtered block
      * TODO: pass BlockFactory
@@ -185,12 +184,6 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
         Builder endPositionEntry();
 
         /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition(Block block);
-
-        /**
          * Copy the values in {@code block} from {@code beginInclusive} to
          * {@code endExclusive} into this builder.
          */
@@ -240,4 +233,13 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
             ConstantNullBlock.ENTRY
         );
     }
+
+    /**
+     * Serialization type for blocks: 0 and 1 replace false/true used in pre-8.14
+     */
+    byte SERIALIZE_BLOCK_VALUES = 0;
+    byte SERIALIZE_BLOCK_VECTOR = 1;
+    byte SERIALIZE_BLOCK_ARRAY = 2;
+    byte SERIALIZE_BLOCK_BIG_ARRAY = 3;
+    byte SERIALIZE_BLOCK_ORDINAL = 3;
 }

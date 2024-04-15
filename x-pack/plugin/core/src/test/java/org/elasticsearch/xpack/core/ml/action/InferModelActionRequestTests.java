@@ -35,6 +35,9 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfi
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdateTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdateTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdateTests;
 
@@ -132,18 +135,52 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
 
     public static InferenceConfigUpdate randomInferenceConfigUpdate() {
         return randomFrom(
-            RegressionConfigUpdateTests.randomRegressionConfigUpdate(),
             ClassificationConfigUpdateTests.randomClassificationConfigUpdate(),
+            EmptyConfigUpdateTests.testInstance(),
+            FillMaskConfigUpdateTests.randomUpdate(),
+            NerConfigUpdateTests.randomUpdate(),
+            PassThroughConfigUpdateTests.randomUpdate(),
+            QuestionAnsweringConfigUpdateTests.randomUpdate(),
+            RegressionConfigUpdateTests.randomRegressionConfigUpdate(),
             ResultsFieldUpdateTests.randomUpdate(),
             TextClassificationConfigUpdateTests.randomUpdate(),
             TextEmbeddingConfigUpdateTests.randomUpdate(),
-            NerConfigUpdateTests.randomUpdate(),
-            FillMaskConfigUpdateTests.randomUpdate(),
-            ZeroShotClassificationConfigUpdateTests.randomUpdate(),
-            PassThroughConfigUpdateTests.randomUpdate(),
-            QuestionAnsweringConfigUpdateTests.randomUpdate(),
-            EmptyConfigUpdateTests.testInstance()
+            TextExpansionConfigUpdateTests.randomUpdate(),
+            TextSimilarityConfigUpdateTests.randomUpdate(),
+            TokenizationConfigUpdateTests.randomUpdate(),
+            ZeroShotClassificationConfigUpdateTests.randomUpdate()
         );
+    }
+
+    public static InferenceConfigUpdate mutateInferenceConfigUpdate(InferenceConfigUpdate currentUpdate, TransportVersion version) {
+        InferenceConfigUpdate adjustedUpdate;
+        if (currentUpdate instanceof NlpConfigUpdate nlpConfigUpdate) {
+            if (nlpConfigUpdate instanceof TextClassificationConfigUpdate update) {
+                adjustedUpdate = TextClassificationConfigUpdateTests.mutateForVersion(update, version);
+            } else if (nlpConfigUpdate instanceof TextEmbeddingConfigUpdate update) {
+                adjustedUpdate = TextEmbeddingConfigUpdateTests.mutateForVersion(update, version);
+            } else if (nlpConfigUpdate instanceof NerConfigUpdate update) {
+                adjustedUpdate = NerConfigUpdateTests.mutateForVersion(update, version);
+            } else if (nlpConfigUpdate instanceof FillMaskConfigUpdate update) {
+                adjustedUpdate = FillMaskConfigUpdateTests.mutateForVersion(update, version);
+            } else if (nlpConfigUpdate instanceof ZeroShotClassificationConfigUpdate update) {
+                adjustedUpdate = ZeroShotClassificationConfigUpdateTests.mutateForVersion(update, version);
+            } else if (nlpConfigUpdate instanceof PassThroughConfigUpdate update) {
+                adjustedUpdate = PassThroughConfigUpdateTests.mutateForVersion(update, version);
+            } else if (nlpConfigUpdate instanceof QuestionAnsweringConfigUpdate update) {
+                adjustedUpdate = QuestionAnsweringConfigUpdateTests.mutateForVersion(update, version);
+            } else if (nlpConfigUpdate instanceof TextExpansionConfigUpdate update) {
+                adjustedUpdate = TextExpansionConfigUpdateTests.mutateForVersion(update, version);
+            } else if (nlpConfigUpdate instanceof TextSimilarityConfigUpdate update) {
+                adjustedUpdate = TextSimilarityConfigUpdateTests.mutateForVersion(update, version);
+            } else {
+                throw new IllegalArgumentException("Unknown update [" + currentUpdate.getName() + "]");
+            }
+        } else {
+            adjustedUpdate = currentUpdate;
+        }
+
+        return adjustedUpdate;
     }
 
     private static Map<String, Object> randomMap() {
@@ -166,31 +203,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
 
     @Override
     protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
-        InferenceConfigUpdate adjustedUpdate;
-        InferenceConfigUpdate currentUpdate = instance.getUpdate();
-        if (currentUpdate instanceof NlpConfigUpdate nlpConfigUpdate) {
-            if (nlpConfigUpdate instanceof TextClassificationConfigUpdate update) {
-                adjustedUpdate = TextClassificationConfigUpdateTests.mutateForVersion(update, version);
-            } else if (nlpConfigUpdate instanceof TextEmbeddingConfigUpdate update) {
-                adjustedUpdate = TextEmbeddingConfigUpdateTests.mutateForVersion(update, version);
-            } else if (nlpConfigUpdate instanceof NerConfigUpdate update) {
-                adjustedUpdate = NerConfigUpdateTests.mutateForVersion(update, version);
-            } else if (nlpConfigUpdate instanceof FillMaskConfigUpdate update) {
-                adjustedUpdate = FillMaskConfigUpdateTests.mutateForVersion(update, version);
-            } else if (nlpConfigUpdate instanceof ZeroShotClassificationConfigUpdate update) {
-                adjustedUpdate = ZeroShotClassificationConfigUpdateTests.mutateForVersion(update, version);
-            } else if (nlpConfigUpdate instanceof PassThroughConfigUpdate update) {
-                adjustedUpdate = PassThroughConfigUpdateTests.mutateForVersion(update, version);
-            } else if (nlpConfigUpdate instanceof QuestionAnsweringConfigUpdate update) {
-                adjustedUpdate = QuestionAnsweringConfigUpdateTests.mutateForVersion(update, version);
-            } else if (nlpConfigUpdate instanceof TextExpansionConfigUpdate update) {
-                adjustedUpdate = TextExpansionConfigUpdateTests.mutateForVersion(update, version);
-            } else {
-                throw new IllegalArgumentException("Unknown update [" + currentUpdate.getName() + "]");
-            }
-        } else {
-            adjustedUpdate = currentUpdate;
-        }
+        InferenceConfigUpdate adjustedUpdate = mutateInferenceConfigUpdate(instance.getUpdate(), version);
 
         if (version.before(TransportVersions.V_8_3_0)) {
             return new Request(
@@ -221,7 +234,7 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
             );
             r.setHighPriority(false);
             return r;
-        } else if (version.before(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+        } else if (version.before(TransportVersions.V_8_12_0)) {
             var r = new Request(
                 instance.getId(),
                 adjustedUpdate,

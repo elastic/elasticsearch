@@ -56,7 +56,7 @@ public class MultivalueDedupeTests extends ESTestCase {
     public static List<ElementType> supportedTypes() {
         List<ElementType> supported = new ArrayList<>();
         for (ElementType elementType : ElementType.values()) {
-            if (oneOf(elementType, ElementType.UNKNOWN, ElementType.NULL, ElementType.DOC)) {
+            if (oneOf(elementType, ElementType.UNKNOWN, ElementType.DOC)) {
                 continue;
             }
             supported.add(elementType);
@@ -77,9 +77,6 @@ public class MultivalueDedupeTests extends ESTestCase {
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
         for (ElementType elementType : supportedTypes()) {
-            if (oneOf(elementType, ElementType.UNKNOWN, ElementType.NULL, ElementType.DOC)) {
-                continue;
-            }
             for (boolean nullAllowed : new boolean[] { false, true }) {
                 for (int max : new int[] { 10, 100, 1000 }) {
                     params.add(new Object[] { elementType, 1000, nullAllowed, 1, max, 0, 0 });
@@ -138,7 +135,7 @@ public class MultivalueDedupeTests extends ESTestCase {
         return BasicBlockTests.randomBlock(
             elementType,
             positionCount,
-            nullAllowed,
+            elementType == ElementType.NULL ? true : nullAllowed,
             minValuesPerPosition,
             maxValuesPerPosition,
             minDupsPerPosition,
@@ -164,8 +161,8 @@ public class MultivalueDedupeTests extends ESTestCase {
     }
 
     public void testHash() {
+        assumeFalse("not hash for null", elementType == ElementType.NULL);
         BasicBlockTests.RandomBlock b = randomBlock();
-
         switch (b.block().elementType()) {
             case BOOLEAN -> assertBooleanHash(Set.of(), b);
             case BYTES_REF -> assertBytesRefHash(Set.of(), b);
@@ -177,8 +174,8 @@ public class MultivalueDedupeTests extends ESTestCase {
     }
 
     public void testHashWithPreviousValues() {
+        assumeFalse("not hash for null", elementType == ElementType.NULL);
         BasicBlockTests.RandomBlock b = randomBlock();
-
         switch (b.block().elementType()) {
             case BOOLEAN -> {
                 Set<Boolean> previousValues = switch (between(0, 2)) {
@@ -227,6 +224,7 @@ public class MultivalueDedupeTests extends ESTestCase {
     }
 
     public void testBatchEncodeAll() {
+        assumeFalse("null only direct encodes", elementType == ElementType.NULL);
         int initCapacity = Math.toIntExact(ByteSizeValue.ofKb(10).getBytes());
         BasicBlockTests.RandomBlock b = randomBlock();
         var encoder = (BatchEncoder.MVEncoder) MultivalueDedupe.batchEncoder(b.block(), initCapacity, false);
@@ -245,6 +243,7 @@ public class MultivalueDedupeTests extends ESTestCase {
 
     public void testBatchEncoderStartSmall() {
         assumeFalse("Booleans don't grow in the same way", elementType == ElementType.BOOLEAN);
+        assumeFalse("Nulls don't grow", elementType == ElementType.NULL);
         BasicBlockTests.RandomBlock b = randomBlock();
         var encoder = (BatchEncoder.MVEncoder) MultivalueDedupe.batchEncoder(b.block(), 0, false);
 

@@ -26,14 +26,12 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class DeleteAnalyticsCollectionAction extends ActionType<AcknowledgedResponse> {
+public class DeleteAnalyticsCollectionAction {
 
-    public static final DeleteAnalyticsCollectionAction INSTANCE = new DeleteAnalyticsCollectionAction();
     public static final String NAME = "cluster:admin/xpack/application/analytics/delete";
+    public static final ActionType<AcknowledgedResponse> INSTANCE = new ActionType<>(NAME);
 
-    private DeleteAnalyticsCollectionAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
-    }
+    private DeleteAnalyticsCollectionAction() {/* no instances */}
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
         private final String collectionName;

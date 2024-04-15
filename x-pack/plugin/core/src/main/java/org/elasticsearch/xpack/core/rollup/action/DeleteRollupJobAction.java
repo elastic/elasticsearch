@@ -33,7 +33,7 @@ public class DeleteRollupJobAction extends ActionType<DeleteRollupJobAction.Resp
     public static final String NAME = "cluster:admin/xpack/rollup/delete";
 
     private DeleteRollupJobAction() {
-        super(NAME, DeleteRollupJobAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentFragment {

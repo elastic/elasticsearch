@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -32,7 +33,7 @@ public class SpatialPointTests extends ESTestCase {
 
     public void testCompareTo() {
         for (int i = 0; i < 100; i++) {
-            SpatialPoint point = randomValueOtherThanMany(p -> p.getX() < -170 || p.getX() > 170, ESTestCase::randomGeoPoint);
+            SpatialPoint point = randomValueOtherThanMany(p -> p.getX() < -170 || p.getX() > 170, SpatialPointTests::randomGeoPoint);
             GeoPoint smaller = new GeoPoint(point.getY(), point.getX() - 1);
             GeoPoint bigger = new GeoPoint(point.getY(), point.getX() + 1);
             TestPoint testSmaller = new TestPoint(smaller);
@@ -56,6 +57,10 @@ public class SpatialPointTests extends ESTestCase {
         assertThat("Equals: " + message, a, not(equalTo(b)));
         assertThat("Hashcode: " + message, a.hashCode(), not(equalTo(b.hashCode())));
         assertThat("Compare: " + message, a.compareTo(b), not(equalTo(0)));
+    }
+
+    private static GeoPoint randomGeoPoint() {
+        return new GeoPoint(GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude());
     }
 
     /**

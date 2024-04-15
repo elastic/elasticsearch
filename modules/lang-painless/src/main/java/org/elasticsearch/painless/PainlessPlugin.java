@@ -13,11 +13,14 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.painless.action.PainlessContextAction;
 import org.elasticsearch.painless.action.PainlessExecuteAction;
 import org.elasticsearch.painless.spi.PainlessExtension;
@@ -42,6 +45,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -49,71 +53,50 @@ import java.util.function.Supplier;
  */
 public final class PainlessPlugin extends Plugin implements ScriptPlugin, ExtensiblePlugin, ActionPlugin {
 
-    private static final Map<ScriptContext<?>, List<Whitelist>> whitelists;
-    private static final String[] BASE_WHITELIST_FILES = new String[] {
-        "org.elasticsearch.txt",
-        "org.elasticsearch.net.txt",
-        "org.elasticsearch.script.fields.txt",
-        "java.lang.txt",
-        "java.math.txt",
-        "java.text.txt",
-        "java.time.txt",
-        "java.time.chrono.txt",
-        "java.time.format.txt",
-        "java.time.temporal.txt",
-        "java.time.zone.txt",
-        "java.util.txt",
-        "java.util.function.txt",
-        "java.util.regex.txt",
-        "java.util.stream.txt",
-        "java.nio.txt" };
-    public static final List<Whitelist> BASE_WHITELISTS = Collections.singletonList(
-        WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, WhitelistAnnotationParser.BASE_ANNOTATION_PARSERS, BASE_WHITELIST_FILES)
-    );
-
-    /*
-     * Contexts from Core that need custom whitelists can add them to the map below.
-     * Whitelist resources should be added as appropriately named, separate files
-     * under Painless' resources
-     */
-    static {
-        whitelists = new HashMap<>();
-
-        for (ScriptContext<?> context : ScriptModule.CORE_CONTEXTS.values()) {
-            List<Whitelist> contextWhitelists = new ArrayList<>();
-            if (PainlessPlugin.class.getResource("org.elasticsearch.script." + context.name.replace('-', '_') + ".txt") != null) {
-                contextWhitelists.add(
-                    WhitelistLoader.loadFromResourceFiles(
-                        PainlessPlugin.class,
-                        "org.elasticsearch.script." + context.name.replace('-', '_') + ".txt"
-                    )
-                );
-            }
-
-            whitelists.put(context, contextWhitelists);
-        }
-
-        List<Whitelist> testWhitelists = new ArrayList<>();
-        for (ScriptContext<?> context : ScriptModule.CORE_CONTEXTS.values()) {
-            if (ScriptModule.RUNTIME_FIELDS_CONTEXTS.contains(context) == false) {
-                testWhitelists.addAll(whitelists.get(context));
-            }
-        }
-        testWhitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.json.txt"));
-        whitelists.put(PainlessTestScript.CONTEXT, testWhitelists);
-    }
+    private volatile Map<ScriptContext<?>, List<Whitelist>> whitelists;
 
     private final SetOnce<PainlessScriptEngine> painlessScriptEngine = new SetOnce<>();
 
+    public static List<Whitelist> baseWhiteList() {
+        return List.of(
+            WhitelistLoader.loadFromResourceFiles(
+                PainlessPlugin.class,
+                WhitelistAnnotationParser.BASE_ANNOTATION_PARSERS,
+                "org.elasticsearch.txt",
+                "org.elasticsearch.net.txt",
+                "org.elasticsearch.script.fields.txt",
+                "java.lang.txt",
+                "java.math.txt",
+                "java.text.txt",
+                "java.time.txt",
+                "java.time.chrono.txt",
+                "java.time.format.txt",
+                "java.time.temporal.txt",
+                "java.time.zone.txt",
+                "java.util.txt",
+                "java.util.function.txt",
+                "java.util.regex.txt",
+                "java.util.stream.txt",
+                "java.nio.txt"
+            )
+        );
+    }
+
     @Override
     public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+        final var wl = whitelists;
+        whitelists = null;
+        assert wl != null;
         Map<ScriptContext<?>, List<Whitelist>> contextsWithWhitelists = new HashMap<>();
+        final List<Whitelist> baseWhiteList = baseWhiteList();
         for (ScriptContext<?> context : contexts) {
             // we might have a context that only uses the base whitelists, so would not have been filled in by reloadSPI
-            List<Whitelist> mergedWhitelists = new ArrayList<>(BASE_WHITELISTS);
-            List<Whitelist> contextWhitelists = whitelists.get(context);
-            if (contextWhitelists != null) {
-                mergedWhitelists.addAll(contextWhitelists);
+            List<Whitelist> contextWhitelists = wl.get(context);
+            final List<Whitelist> mergedWhitelists;
+            if (contextWhitelists != null && contextWhitelists.isEmpty() == false) {
+                mergedWhitelists = CollectionUtils.concatLists(baseWhiteList, contextWhitelists);
+            } else {
+                mergedWhitelists = baseWhiteList;
             }
             contextsWithWhitelists.put(context, mergedWhitelists);
         }
@@ -135,13 +118,43 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
+        final Map<ScriptContext<?>, List<Whitelist>> whitelistsBuilder = new HashMap<>();
+        /*
+         * Contexts from Core that need custom whitelists can add them to the map below.
+         * Whitelist resources should be added as appropriately named, separate files
+         * under Painless' resources
+         */
+        for (ScriptContext<?> context : ScriptModule.CORE_CONTEXTS.values()) {
+            List<Whitelist> contextWhitelists = new ArrayList<>();
+            if (PainlessPlugin.class.getResource("org.elasticsearch.script." + context.name.replace('-', '_') + ".txt") != null) {
+                contextWhitelists.add(
+                    WhitelistLoader.loadFromResourceFiles(
+                        PainlessPlugin.class,
+                        "org.elasticsearch.script." + context.name.replace('-', '_') + ".txt"
+                    )
+                );
+            }
+
+            whitelistsBuilder.put(context, contextWhitelists);
+        }
+
+        List<Whitelist> testWhitelists = new ArrayList<>();
+        for (ScriptContext<?> context : ScriptModule.CORE_CONTEXTS.values()) {
+            if (ScriptModule.RUNTIME_FIELDS_CONTEXTS.contains(context) == false) {
+                testWhitelists.addAll(whitelistsBuilder.get(context));
+            }
+        }
+        testWhitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.json.txt"));
+        whitelistsBuilder.put(PainlessTestScript.CONTEXT, testWhitelists);
         loader.loadExtensions(PainlessExtension.class)
             .stream()
             .flatMap(extension -> extension.getContextWhitelists().entrySet().stream())
             .forEach(entry -> {
-                List<Whitelist> existing = whitelists.computeIfAbsent(entry.getKey(), c -> new ArrayList<>());
+                List<Whitelist> existing = whitelistsBuilder.computeIfAbsent(entry.getKey(), c -> new ArrayList<>());
                 existing.addAll(entry.getValue());
             });
+
+        this.whitelists = whitelistsBuilder;
     }
 
     @Override
@@ -160,12 +173,14 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new PainlessExecuteAction.RestAction());

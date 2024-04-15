@@ -18,7 +18,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -75,6 +74,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         return new AbstractSearchAsyncAction<SearchPhaseResult>(
             "test",
             logger,
+            null,
             null,
             nodeIdToConnection,
             Collections.singletonMap("foo", AliasFilter.of(new MatchAllQueryBuilder())),
@@ -134,8 +134,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
 
     private void runTestTook(final boolean controlled) {
         final AtomicLong expected = new AtomicLong();
-        var result = new ArraySearchPhaseResults<>(10);
-        try {
+        try (var result = new ArraySearchPhaseResults<>(10)) {
             AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(new SearchRequest(), result, null, controlled, expected);
             final long actual = action.buildTookInMillis();
             if (controlled) {
@@ -145,16 +144,13 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 // with a real clock, the best we can say is that it took as long as we spun for
                 assertThat(actual, greaterThanOrEqualTo(TimeUnit.NANOSECONDS.toMillis(expected.get())));
             }
-        } finally {
-            result.decRef();
         }
     }
 
     public void testBuildShardSearchTransportRequest() {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(randomBoolean());
         final AtomicLong expected = new AtomicLong();
-        var result = new ArraySearchPhaseResults<>(10);
-        try {
+        try (var result = new ArraySearchPhaseResults<>(10)) {
             AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, result, null, false, expected);
             String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
             SearchShardIterator iterator = new SearchShardIterator(
@@ -170,8 +166,6 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             assertEquals(2.0f, shardSearchTransportRequest.indexBoost(), 0.0f);
             assertArrayEquals(new String[] { "name", "name1" }, shardSearchTransportRequest.indices());
             assertEquals(clusterAlias, shardSearchTransportRequest.getClusterAlias());
-        } finally {
-            result.decRef();
         }
     }
 
@@ -194,10 +188,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 new IllegalArgumentException()
             );
         }
-        action.sendSearchResponse(
-            new SearchResponseSections(SearchHits.EMPTY_WITH_TOTAL_HITS, null, null, false, null, null, 1),
-            phaseResults.results
-        );
+        action.sendSearchResponse(SearchResponseSections.EMPTY_WITH_TOTAL_HITS, phaseResults.results);
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertEquals(0, searchPhaseExecutionException.getSuppressed().length);

@@ -30,7 +30,6 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * to execute, and if so, executes it
  *
  * @see org.elasticsearch.client.internal.IndicesAdminClient#forceMerge(ForceMergeRequest)
- * @see ForceMergeResponse
  */
 public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
 

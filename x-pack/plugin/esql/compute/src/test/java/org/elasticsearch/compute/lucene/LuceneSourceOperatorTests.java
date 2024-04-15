@@ -27,26 +27,19 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
-import org.elasticsearch.index.fielddata.FieldDataContext;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.sort.SortAndFormats;
+import org.elasticsearch.search.sort.SortBuilder;
 import org.junit.After;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.both;
@@ -55,10 +48,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     private static final MappedFieldType S_FIELD = new NumberFieldMapper.NumberFieldType("s", NumberFieldMapper.NumberType.LONG);
@@ -97,24 +86,8 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
             throw new RuntimeException(e);
         }
 
-        SearchContext ctx = mockSearchContext(reader, 0);
-        when(ctx.getSearchExecutionContext().getFieldType(anyString())).thenAnswer(inv -> {
-            String name = inv.getArgument(0);
-            return switch (name) {
-                case "s" -> S_FIELD;
-                default -> throw new IllegalArgumentException("don't support [" + name + "]");
-            };
-        });
-        when(ctx.getSearchExecutionContext().getForField(any(), any())).thenAnswer(inv -> {
-            MappedFieldType ft = inv.getArgument(0);
-            IndexFieldData.Builder builder = ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test"));
-            // This breaker is for fielddata from text fields. We don't test it so it won't break not test not to use a breaker here.
-            return builder.build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
-        });
-        when(ctx.getSearchExecutionContext().nestedScope()).thenReturn(new NestedScope());
-        when(ctx.getSearchExecutionContext().nestedLookup()).thenReturn(NestedLookup.EMPTY);
-        when(ctx.getSearchExecutionContext().getIndexReader()).thenReturn(reader);
-        Function<SearchContext, Query> queryFunction = c -> new MatchAllDocsQuery();
+        ShardContext ctx = new MockShardContext(reader, 0);
+        Function<ShardContext, Query> queryFunction = c -> new MatchAllDocsQuery();
         int maxPageSize = between(10, Math.max(10, numDocs));
         return new LuceneSourceOperator.Factory(List.of(ctx), queryFunction, dataPartitioning, 1, maxPageSize, limit);
     }
@@ -206,24 +179,43 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
      * Creates a mock search context with the given index reader.
      * The returned mock search context can be used to test with {@link LuceneOperator}.
      */
-    public static SearchContext mockSearchContext(IndexReader reader, int shardId) {
-        try {
-            ContextIndexSearcher searcher = new ContextIndexSearcher(
-                reader,
-                IndexSearcher.getDefaultSimilarity(),
-                IndexSearcher.getDefaultQueryCache(),
-                TrivialQueryCachingPolicy.NEVER,
-                true
-            );
-            SearchContext searchContext = mock(SearchContext.class);
-            when(searchContext.searcher()).thenReturn(searcher);
-            SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-            when(searchContext.getSearchExecutionContext()).thenReturn(searchExecutionContext);
-            when(searchExecutionContext.getFullyQualifiedIndex()).thenReturn(new Index("test", "uid"));
-            when(searchExecutionContext.getShardId()).thenReturn(shardId);
-            return searchContext;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+    public static class MockShardContext implements ShardContext {
+        private final int index;
+        private final ContextIndexSearcher searcher;
+
+        public MockShardContext(IndexReader reader, int index) {
+            this.index = index;
+            try {
+                this.searcher = new ContextIndexSearcher(
+                    reader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    TrivialQueryCachingPolicy.NEVER,
+                    true
+                );
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        }
+
+        @Override
+        public int index() {
+            return index;
+        }
+
+        @Override
+        public IndexSearcher searcher() {
+            return searcher;
+        }
+
+        @Override
+        public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sorts) {
+            return Optional.empty();
+        }
+
+        @Override
+        public String shardIdentifier() {
+            return "test";
         }
     }
 }

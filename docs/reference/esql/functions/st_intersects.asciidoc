@@ -1,0 +1,31 @@
+[discrete]
+[[esql-st_intersects]]
+=== `ST_INTERSECTS`
+
+experimental::[]
+
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/st_intersects.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`geomA`::
+Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. If `null`, the function returns `null`.
+
+`geomB`::
+Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. If `null`, the function returns `null`.
+The second parameter must also have the same coordinate system as the first.
+This means it is not possible to combine `geo_*` and `cartesian_*` parameters.
+
+*Description*
+
+Returns true if two geometries intersect.
+They intersect if they have any point in common, including their interior points
+(points along lines or within polygons).
+This is the inverse of the <<esql-st_disjoint,ST_DISJOINT>> function.
+In mathematical terms: ST_Intersects(A, B) ⇔ A ⋂ B ≠ ∅
+
+include::types/st_intersects.asciidoc[]
+include::examples/st_intersects.asciidoc[]

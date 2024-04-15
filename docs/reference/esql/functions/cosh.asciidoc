@@ -12,14 +12,11 @@ image::esql/functions/signature/cosh.svg[Embedded,opts=inline]
 `n`::
 Numeric expression. If `null`, the function returns `null`.
 
-*Supported types*
-
-include::types/cosh.asciidoc[]
-
 *Description*
 
-Returns the https://en.wikipedia.org/wiki/Hyperbolic_functions[hyperbolic
-cosine].
+Returns the {wikipedia}/Hyperbolic_functions[hyperbolic cosine].
+
+include::types/cosh.asciidoc[]
 
 *Example*
 

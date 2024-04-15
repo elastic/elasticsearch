@@ -376,6 +376,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             .allShards(shardRouting.index().getName())
             .stream()
             .filter(sr -> sr.id() == shardRouting.id())
+            .filter(sr -> sr.role().equals(shardRouting.role()))
             // If any shards are both 1) `STARTED` and 2) are not on a node that's shutting down, we have at least one copy
             // of this shard safely on a node that's not shutting down, so we don't want to report `STALLED` because of this shard.
             .filter(ShardRouting::started)

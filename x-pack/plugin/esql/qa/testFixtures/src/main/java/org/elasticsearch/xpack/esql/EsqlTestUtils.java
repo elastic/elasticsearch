@@ -54,9 +54,9 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertTrue;
 
 public final class EsqlTestUtils {
+    public static String LOWEST_ESQL_VERSION = "2024.04.01.🚀";
 
     public static class TestSearchStats extends SearchStats {
-
         public TestSearchStats() {
             super(emptyList());
         }

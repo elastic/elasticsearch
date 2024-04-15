@@ -15,6 +15,7 @@ import org.elasticsearch.test.rest.yaml.section.ApiCallSection;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -26,8 +27,6 @@ import java.util.Map;
 import java.util.function.Function;
 
 abstract class AbstractEsqlClientYamlIT extends ESClientYamlSuiteTestCase {
-    static String ESQL_VERSION = "2024.04.01.🚀";
-
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -94,7 +93,7 @@ abstract class AbstractEsqlClientYamlIT extends ESClientYamlSuiteTestCase {
     static DoSection setVersion(DoSection doSection) {
         ApiCallSection copy = doSection.getApiCallSection().copyWithNewApi(doSection.getApiCallSection().getApi());
         for (Map<String, Object> body : copy.getBodies()) {
-            body.putIfAbsent("version", ESQL_VERSION);
+            body.putIfAbsent("version", EsqlTestUtils.LOWEST_ESQL_VERSION);
         }
         doSection.setApiCallSection(copy);
         return doSection;

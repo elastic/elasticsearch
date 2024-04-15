@@ -32,7 +32,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
-import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -1691,26 +1691,25 @@ public class ApiKeyService {
             final BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             final long invalidationTime = clock.instant().toEpochMilli();
             final Set<String> apiKeyIdsToInvalidate = new HashSet<>();
-            final Set<String> crossClusterApiKeyIdsSkipped = new HashSet<>();
+            final Set<String> crossClusterApiKeyIdsToSkip = new HashSet<>();
             final ArrayList<ElasticsearchException> failedRequestResponses = new ArrayList<>();
             for (ApiKey apiKey : apiKeys) {
                 final String apiKeyId = apiKey.getId();
-                if (apiKeyIdsToInvalidate.contains(apiKeyId) || crossClusterApiKeyIdsSkipped.contains(apiKeyId)) {
+                if (apiKeyIdsToInvalidate.contains(apiKeyId) || crossClusterApiKeyIdsToSkip.contains(apiKeyId)) {
                     continue;
                 }
                 if (false == includeCrossClusterApiKeys && ApiKey.Type.CROSS_CLUSTER.equals(apiKey.getType())) {
-                    logger.debug("Skipping invalidating cross cluster api key [{}]", apiKey);
+                    logger.debug("Skipping invalidation of cross cluster API key [{}]", apiKey);
                     failedRequestResponses.add(cannotInvalidateCrossClusterApiKeyException(apiKeyId));
-                    crossClusterApiKeyIdsSkipped.add(apiKeyId);
+                    crossClusterApiKeyIdsToSkip.add(apiKeyId);
                 } else {
-                    final UpdateRequest request = client.prepareUpdate(SECURITY_MAIN_ALIAS, apiKeyId)
-                        .setDoc(Map.of("api_key_invalidated", true, "invalidation_time", invalidationTime))
-                        .request();
-                    bulkRequestBuilder.add(request);
+                    final UpdateRequestBuilder updateRequestBuilder = client.prepareUpdate(SECURITY_MAIN_ALIAS, apiKeyId)
+                        .setDoc(Map.of("api_key_invalidated", true, "invalidation_time", invalidationTime));
+                    bulkRequestBuilder.add(updateRequestBuilder);
                     apiKeyIdsToInvalidate.add(apiKeyId);
                 }
             }
-            assert false == apiKeyIdsToInvalidate.isEmpty() || false == crossClusterApiKeyIdsSkipped.isEmpty();
+            assert false == apiKeyIdsToInvalidate.isEmpty() || false == crossClusterApiKeyIdsToSkip.isEmpty();
             if (apiKeyIdsToInvalidate.isEmpty()) {
                 listener.onResponse(new InvalidateApiKeyResponse(Collections.emptyList(), Collections.emptyList(), failedRequestResponses));
                 return;

@@ -1,0 +1,6 @@
+pr: 107121
+summary: Add a flag to re-enable writes on the final index after an ILM shrink action.
+area: ILM+SLM
+type: enhancement
+issues:
+  - 106599

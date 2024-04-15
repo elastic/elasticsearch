@@ -233,7 +233,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
     public void testRequestedStopInShrinkActionButNotShrinkStep() {
         // test all the shrink action steps that ILM can be stopped during (basically all of them minus the actual shrink)
-        ShrinkAction action = new ShrinkAction(1, null);
+        ShrinkAction action = new ShrinkAction(1, null, false);
         action.toSteps(mock(Client.class), "warm", randomStepKey())
             .stream()
             .map(sk -> sk.getKey().name())

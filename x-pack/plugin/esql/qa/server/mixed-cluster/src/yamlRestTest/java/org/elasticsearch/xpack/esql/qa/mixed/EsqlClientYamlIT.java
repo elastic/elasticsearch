@@ -9,9 +9,14 @@ package org.elasticsearch.xpack.esql.qa.mixed;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.http.HttpHost;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestClient;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.elasticsearch.test.rest.yaml.ImpersonateOfficialClientTestClient;
+import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.elasticsearch.test.rest.yaml.section.ApiCallSection;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
@@ -42,6 +47,10 @@ public class EsqlClientYamlIT extends ESClientYamlSuiteTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
+        if ("true".equals(System.getProperty("tests.version_parameter_unsupported"))) {
+            // TODO: skip tests with explicitly set version and/or strip the version if it's 2024.04.01.
+            return createParameters();
+        }
         return updateEsqlQueryDoSections(createParameters(), EsqlClientYamlIT::setVersion);
     }
 
@@ -97,5 +106,17 @@ public class EsqlClientYamlIT extends ESClientYamlSuiteTestCase {
         }
         doSection.setApiCallSection(copy);
         return doSection;
+    }
+
+    @Override
+    protected ClientYamlTestClient initClientYamlTestClient(
+        final ClientYamlSuiteRestSpec restSpec,
+        final RestClient restClient,
+        final List<HttpHost> hosts
+    ) {
+        if ("true".equals(System.getProperty("tests.version_parameter_unsupported"))) {
+            return new ImpersonateOfficialClientTestClient(restSpec, restClient, hosts, this::getClientBuilderWithSniffedHosts, "es=8.13");
+        }
+        return super.initClientYamlTestClient(restSpec, restClient, hosts);
     }
 }

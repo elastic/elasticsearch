@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.version.EsqlVersion;
 import org.junit.After;
 import org.junit.Before;
 
@@ -113,6 +114,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     public static class RequestObjectBuilder {
         private final XContentBuilder builder;
         private boolean isBuilt = false;
+        private String version;
 
         private Boolean keepOnCompletion = null;
 
@@ -123,6 +125,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         public RequestObjectBuilder(XContentType type) throws IOException {
             builder = XContentBuilder.builder(type, emptySet(), emptySet());
             builder.startObject();
+            if ("false".equals(System.getProperty("tests.version_parameter_unsupported"))) {
+                EsqlVersion version = randomFrom(EsqlSpecTestCase.VERSIONS);
+                this.version = randomBoolean() ? version.toString() : version.versionStringWithoutEmoji();
+            }
         }
 
         public RequestObjectBuilder query(String query) throws IOException {
@@ -131,7 +137,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
 
         public RequestObjectBuilder version(String version) throws IOException {
-            builder.field("version", version);
+            this.version = version;
             return this;
         }
 
@@ -179,6 +185,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         public RequestObjectBuilder build() throws IOException {
             if (isBuilt == false) {
+                if (version != null) {
+                    builder.field("version", version);
+                }
                 builder.endObject();
                 isBuilt = true;
             }
@@ -698,6 +707,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.setWarningsHandler(WarningsHandler.PERMISSIVE); // We assert the warnings ourselves
         options.addHeader("Content-Type", mediaType);
+        if ("true".equals(System.getProperty("tests.version_parameter_unsupported"))) {
+            // Masquerade as an old version of the official client, so we get the oldest version by default
+            options.addHeader("x-elastic-client-meta", "es=8.13");
+        }
 
         if (randomBoolean()) {
             options.addHeader("Accept", mediaType);
@@ -723,6 +736,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.setWarningsHandler(WarningsHandler.PERMISSIVE); // We assert the warnings ourselves
         options.addHeader("Content-Type", mediaType);
+        if ("true".equals(System.getProperty("tests.version_parameter_unsupported"))) {
+            // Masquerade as an old version of the official client, so we get the oldest version by default
+            options.addHeader("x-elastic-client-meta", "es=8.13");
+        }
 
         if (randomBoolean()) {
             options.addHeader("Accept", mediaType);

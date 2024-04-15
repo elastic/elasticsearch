@@ -656,8 +656,8 @@ public class ConnectorIndexService {
         FilteringValidationInfo validation,
         ActionListener<UpdateResponse> listener
     ) {
-        try {
-            getConnector(connectorId, listener.delegateFailure((l, connector) -> {
+        getConnector(connectorId, listener.delegateFailure((l, connector) -> {
+            try {
                 List<ConnectorFiltering> connectorFilteringList = fromXContentBytesConnectorFiltering(
                     connector.getSourceRef(),
                     XContentType.JSON
@@ -679,17 +679,18 @@ public class ConnectorIndexService {
                         .source(Map.of(Connector.FILTERING_FIELD.getPreferredName(), List.of(activatedConnectorFiltering)))
                 );
 
-                client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (ll, updateResponse) -> {
+                client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, l, (ll, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
                         ll.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
                     ll.onResponse(updateResponse);
                 }));
-            }));
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+            } catch (Exception e) {
+                l.onFailure(e);
+            }
+        }));
+
     }
 
     /**
@@ -699,8 +700,8 @@ public class ConnectorIndexService {
      * @param listener     Listener to respond to a successful response or an error.
      */
     public void activateConnectorDraftFiltering(String connectorId, ActionListener<UpdateResponse> listener) {
-        try {
-            getConnector(connectorId, listener.delegateFailure((l, connector) -> {
+        getConnector(connectorId, listener.delegateFailure((l, connector) -> {
+            try {
                 List<ConnectorFiltering> connectorFilteringList = fromXContentBytesConnectorFiltering(
                     connector.getSourceRef(),
                     XContentType.JSON
@@ -711,13 +712,15 @@ public class ConnectorIndexService {
                 FilteringValidationState currentValidationState = connectorFilteringSingleton.getDraft()
                     .getFilteringValidationInfo()
                     .getValidationState();
+
                 if (currentValidationState != FilteringValidationState.VALID) {
                     throw new ElasticsearchStatusException(
-                        "Current filtering draft validation state, ["
+                        "Filtering draft needs to be validated by the framework before activation. "
+                            + "Current filtering draft validation state ["
                             + currentValidationState.toString()
-                            + "], does not equal to ["
+                            + "] is not equal to ["
                             + FilteringValidationState.VALID
-                            + "]. Filtering draft needs to be validated by the framework before activation.",
+                            + "].",
                         RestStatus.BAD_REQUEST
                     );
                 }
@@ -733,17 +736,18 @@ public class ConnectorIndexService {
                         .source(Map.of(Connector.FILTERING_FIELD.getPreferredName(), List.of(activatedConnectorFiltering)))
                 );
 
-                client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, listener, (ll, updateResponse) -> {
+                client.update(updateRequest, new DelegatingIndexNotFoundActionListener<>(connectorId, l, (ll, updateResponse) -> {
                     if (updateResponse.getResult() == UpdateResponse.Result.NOT_FOUND) {
                         ll.onFailure(new ResourceNotFoundException(connectorNotFoundErrorMsg(connectorId)));
                         return;
                     }
                     ll.onResponse(updateResponse);
                 }));
-            }));
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+            } catch (Exception e) {
+                l.onFailure(e);
+            }
+        }));
+
     }
 
     /**

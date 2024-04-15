@@ -12,7 +12,8 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.*;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -26,7 +27,7 @@ public class UpdateConnectorActiveFilteringAction {
 
     private UpdateConnectorActiveFilteringAction() {/* no instances */}
 
-    public static class Request extends ConnectorActionRequest {
+    public static class Request extends ConnectorActionRequest implements ToXContentObject {
 
         private final String connectorId;
 
@@ -72,6 +73,13 @@ public class UpdateConnectorActiveFilteringAction {
         @Override
         public int hashCode() {
             return Objects.hash(connectorId);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.endObject();
+            return builder;
         }
     }
 }

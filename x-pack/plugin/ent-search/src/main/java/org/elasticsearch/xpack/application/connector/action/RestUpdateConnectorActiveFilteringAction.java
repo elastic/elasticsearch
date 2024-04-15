@@ -38,7 +38,7 @@ public class RestUpdateConnectorActiveFilteringAction extends BaseRestHandler {
             restRequest.param("connector_id")
         );
         return channel -> client.execute(
-            UpdateConnectorFilteringAction.INSTANCE,
+            UpdateConnectorActiveFilteringAction.INSTANCE,
             request,
             new RestToXContentListener<>(channel, ConnectorUpdateActionResponse::status)
         );

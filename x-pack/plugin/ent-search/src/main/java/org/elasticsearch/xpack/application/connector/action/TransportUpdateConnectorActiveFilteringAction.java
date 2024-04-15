@@ -32,7 +32,7 @@ public class TransportUpdateConnectorActiveFilteringAction extends HandledTransp
         Client client
     ) {
         super(
-            UpdateConnectorFilteringAction.NAME,
+            UpdateConnectorActiveFilteringAction.NAME,
             transportService,
             actionFilters,
             UpdateConnectorActiveFilteringAction.Request::new,

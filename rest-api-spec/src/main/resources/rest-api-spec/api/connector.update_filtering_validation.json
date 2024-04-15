@@ -1,5 +1,5 @@
 {
-  "connector.update_filtering": {
+  "connector.update_filtering_validation": {
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/update-connector-filtering-api.html",
       "description": "Updates the validation info of the draft filtering rules."
@@ -17,7 +17,7 @@
     "url": {
       "paths": [
         {
-          "path": "/_connector/{connector_id}/_filtering/_draft_validation",
+          "path": "/_connector/{connector_id}/_filtering/_validation",
           "methods": [
             "PUT"
           ],

@@ -29,7 +29,7 @@ public class RestUpdateConnectorFilteringValidationAction extends BaseRestHandle
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/" + EnterpriseSearch.CONNECTOR_API_ENDPOINT + "/{connector_id}/_filtering/_draft_validation"));
+        return List.of(new Route(PUT, "/" + EnterpriseSearch.CONNECTOR_API_ENDPOINT + "/{connector_id}/_filtering/_validation"));
     }
 
     @Override
@@ -40,7 +40,7 @@ public class RestUpdateConnectorFilteringValidationAction extends BaseRestHandle
             restRequest.getXContentType()
         );
         return channel -> client.execute(
-            UpdateConnectorFilteringAction.INSTANCE,
+            UpdateConnectorFilteringValidationAction.INSTANCE,
             request,
             new RestToXContentListener<>(channel, ConnectorUpdateActionResponse::status)
         );

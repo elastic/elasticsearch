@@ -246,3 +246,149 @@ setup:
           advanced_snippet:
             updated_at: "wrong datetime"
             value: { }
+
+
+---
+"Update Connector Filtering - Update filtering draft validation":
+  - do:
+      connector.update_filtering_validation:
+        connector_id: test-connector
+        body:
+          validation:
+            state: invalid
+            errors:
+              - ids: ["1", "2"]
+                messages: ["some error 1", "some error 2"]
+              - ids: [ "3", "4" ]
+                messages: [ "some error 3", "some error 4" ]
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { filtering.0.draft.validation.state: invalid }
+  - match: { filtering.0.draft.validation.errors.0.ids.0: "1"}
+  - match: { filtering.0.draft.validation.errors.0.messages.1: "some error 2"}
+  - match: { filtering.0.draft.validation.errors.1.ids.0: "3"}
+  - match: { filtering.0.draft.validation.errors.1.messages.1: "some error 4"}
+
+
+---
+"Update Connector Filtering - Update validation missing validation state":
+  - do:
+      catch: "bad_request"
+      connector.update_filtering_validation:
+        connector_id: test-connector
+        body:
+          validation:
+            errors: []
+
+---
+"Update Connector Filtering - Update validation missing validation errors":
+  - do:
+      catch: "bad_request"
+      connector.update_filtering_validation:
+        connector_id: test-connector
+        body:
+          validation:
+            state: "valid"
+
+
+
+---
+"Update Connector Filtering - Activate valid draft":
+
+  - do:
+      connector.update_filtering:
+        connector_id: test-connector
+        body:
+          advanced_snippet:
+            created_at: "2023-05-25T12:30:00.000Z"
+            updated_at: "2023-05-25T12:30:00.000Z"
+            value:
+              - tables:
+                  - some_table
+                query: 'SELECT id, st_geohash(coordinates) FROM my_db.some_table;'
+          rules:
+            - created_at: "2023-06-25T12:30:00.000Z"
+              field: _
+              id: DEFAULT
+              order: 0
+              policy: include
+              rule: regex
+              updated_at: "2023-05-25T12:30:00.000Z"
+              value: ".*"
+
+  - match: { result: updated }
+
+  - do:
+      connector.update_filtering_validation:
+        connector_id: test-connector
+        body:
+          validation:
+            state: valid
+            errors: []
+
+  - match: { result: updated }
+
+
+  - do:
+      connector.update_active_filtering:
+        connector_id: test-connector
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { filtering.0.draft.advanced_snippet.created_at: "2023-05-25T12:30:00.000Z" }
+  - match: { filtering.0.draft.advanced_snippet.value.0.tables.0.: "some_table" }
+  - match: { filtering.0.draft.rules.0.created_at: "2023-06-25T12:30:00.000Z" }
+  - match: { filtering.0.active.advanced_snippet.created_at: "2023-05-25T12:30:00.000Z" }
+  - match: { filtering.0.active.advanced_snippet.value.0.tables.0.: "some_table" }
+  - match: { filtering.0.active.rules.0.created_at: "2023-06-25T12:30:00.000Z" }
+
+---
+"Update Connector Filtering - Activate invalid draft":
+
+  - do:
+      connector.update_filtering_validation:
+        connector_id: test-connector
+        body:
+          validation:
+            state: invalid
+            errors: []
+
+  - match: { result: updated }
+
+  - do:
+      catch: "bad_request"
+      connector.update_active_filtering:
+        connector_id: test-connector
+
+
+---
+"Update Connector Filtering - Activate edited draft":
+
+  - do:
+      connector.update_filtering:
+        connector_id: test-connector
+        body:
+          advanced_snippet:
+            created_at: "2023-05-25T12:30:00.000Z"
+            updated_at: "2023-05-25T12:30:00.000Z"
+            value:
+              - tables:
+                  - some_table
+                query: 'SELECT id, st_geohash(coordinates) FROM my_db.some_table;'
+
+  - match: { result: updated }
+
+
+  - do:
+      catch: "bad_request"
+      connector.update_active_filtering:
+        connector_id: test-connector

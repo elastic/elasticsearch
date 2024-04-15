@@ -32,7 +32,7 @@ public class TransportUpdateConnectorFilteringValidationAction extends HandledTr
         Client client
     ) {
         super(
-            UpdateConnectorFilteringAction.NAME,
+            UpdateConnectorFilteringValidationAction.NAME,
             transportService,
             actionFilters,
             UpdateConnectorFilteringValidationAction.Request::new,

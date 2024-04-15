@@ -88,7 +88,7 @@ public class UpdateConnectorFilteringValidationAction {
             );
 
         static {
-            PARSER.declareObjectArray(constructorArg(), (p, c) -> FilteringValidationInfo.fromXContent(p), FilteringRules.VALIDATION_FIELD);
+            PARSER.declareObject(constructorArg(), (p, c) -> FilteringValidationInfo.fromXContent(p), FilteringRules.VALIDATION_FIELD);
         }
 
         public static UpdateConnectorFilteringValidationAction.Request fromXContentBytes(

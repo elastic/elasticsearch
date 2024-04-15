@@ -16,6 +16,7 @@ apply plugin: 'elasticsearch.rest-resources'
 
 ext.docsFileTree = fileTree(projectDir) {
   include '**/*.asciidoc'
+  include '**/*.mdx'
   // That is where the snippets go, not where they come from!
   exclude 'build/**'
   exclude 'build-idea/**'

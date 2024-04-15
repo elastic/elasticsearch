@@ -301,12 +301,12 @@ public class ShrinkAction implements LifecycleAction {
         );
         DeleteStep deleteSourceIndexStep = new DeleteStep(deleteIndexKey, isShrunkIndexKey, client);
         ShrunkenIndexCheckStep waitOnShrinkTakeover = new ShrunkenIndexCheckStep(isShrunkIndexKey, lastOrNextStep);
-        UpdateSettingsStep allowWriteAfterShrinkStep = new UpdateSettingsStep(
+        UpdateSettingsStep allowWriteAfterShrinkStep = allowWriteAfterShrink ? new UpdateSettingsStep(
             allowWriteKey,
             nextStepKey,
             client,
             CLEAR_WRITE_BLOCK_SETTINGS
-        );
+        ) : null;
 
         Stream<Step> steps = Stream.of(
             conditionalSkipShrinkStep,
@@ -327,7 +327,7 @@ public class ShrinkAction implements LifecycleAction {
             waitOnShrinkTakeover,
             replaceDataStreamBackingIndex,
             deleteSourceIndexStep,
-            allowWriteAfterShrink ? allowWriteAfterShrinkStep : null
+            allowWriteAfterShrinkStep
         );
 
         return steps.filter(Objects::nonNull).collect(Collectors.toList());

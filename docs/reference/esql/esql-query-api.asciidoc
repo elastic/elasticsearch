@@ -17,7 +17,7 @@ POST /_query
     | SORT year
     | LIMIT 5
   """,
-  "version": "2024.04.01.🚀"
+  "version": "2024.04.01"
 }
 ----
 // TEST[setup:library]

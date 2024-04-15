@@ -25,7 +25,7 @@ POST /_query/async
     | LIMIT 5
   """,
   "wait_for_completion_timeout": "2s",
-  "version": "2024.04.01.🚀"
+  "version": "2024.04.01"
 }
 ----
 // TEST[setup:library]

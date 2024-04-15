@@ -17,7 +17,7 @@ The <<esql-query-api,{esql} query API>> accepts an {esql} query string in the
 POST /_query?format=txt
 {
   "query": "FROM library | KEEP author, name, page_count, release_date | SORT page_count DESC | LIMIT 5",
-  "version": "2024.04.01.🚀"
+  "version": "2024.04.01"
 }
 ----
 // TEST[setup:library]
@@ -57,7 +57,7 @@ POST /_query?format=txt
     | SORT page_count DESC
     | LIMIT 5
   """,
-  "version": "2024.04.01.🚀"
+  "version": "2024.04.01"
 }
 ----
 // TEST[setup:library]
@@ -146,7 +146,7 @@ POST /_query?format=txt
       }
     }
   },
-  "version": "2024.04.01.🚀"
+  "version": "2024.04.01"
 }
 ----
 // TEST[setup:library]
@@ -183,7 +183,7 @@ POST /_query?format=json
     | LIMIT 5
   """,
   "columnar": true,
-  "version": "2024.04.01.🚀"
+  "version": "2024.04.01"
 }
 ----
 // TEST[setup:library]
@@ -231,7 +231,7 @@ POST /_query
           | EVAL month_of_birth = DATE_FORMAT("MMMM",birth_date)
           | LIMIT 5
    """,
-  "version": "2024.04.01.🚀"
+  "version": "2024.04.01"
 }
 ----
 // TEST[setup:library]
@@ -255,7 +255,7 @@ POST /_query
     | WHERE count > 0
     | LIMIT 5
   """,
-  "version": "2024.04.01.🚀"
+  "version": "2024.04.01"
 }
 ----
 // TEST[setup:library]
@@ -277,7 +277,7 @@ POST /_query
     | LIMIT 5
   """,
   "params": [300, "Frank Herbert", 0],
-  "version": "2024.04.01.🚀"
+  "version": "2024.04.01"
 }
 ----
 // TEST[setup:library]
@@ -312,7 +312,7 @@ POST /_query/async
     | LIMIT 5
   """,
   "wait_for_completion_timeout": "2s",
-  "version": "2024.04.01.🚀"
+  "version": "2024.04.01"
 }
 ----
 // TEST[setup:library]

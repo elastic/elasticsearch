@@ -9,7 +9,7 @@
 [[esql-versions-released]]
 ==== Released versions
 
-* Version `2024.04.01.🚀`
+* Version `2024.04.01`
 
 [discrete]
 [[esql-versions-explanation]]
@@ -25,7 +25,7 @@ For instance, the following query
 ----
 POST /_query?format=txt
 {
-  "version": "2024.04.01.🚀",
+  "version": "2024.04.01",
   "query": """
     FROM library
     | EVAL release_month = DATE_TRUNC(1 month, release_date)
@@ -42,6 +42,6 @@ syntax changes or changes how the used commands or functions work.
 
 We won't make breaking changes to released {esql} versions and
 versions will remain supported until they are deprecated.
-New features, bug fixes, and performance improvements 
-will be continue to be added to released {esql} versions, 
+New features, bug fixes, and performance improvements
+will be continue to be added to released {esql} versions,
 provided they do not involve breaking changes.

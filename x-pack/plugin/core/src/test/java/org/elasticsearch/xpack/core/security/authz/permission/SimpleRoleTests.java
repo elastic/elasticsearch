@@ -178,13 +178,14 @@ public class SimpleRoleTests extends ESTestCase {
                 IndexPrivilege.get(Set.of(randomFrom(IndexPrivilege.names()))),
                 randomBoolean(),
                 randomAlphaOfLength(9)
-            ).addRemoteClusterPermissions(
+            )
+            .addRemoteClusterPermissions(
                 new RemoteClusterPermissions().addGroup(
-                        new RemoteClusterPermissionGroup(
-                            RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
-                            new String[] {"remote-cluster-a"}
-                        )
+                    new RemoteClusterPermissionGroup(
+                        RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                        new String[] { "remote-cluster-a" }
                     )
+                )
                     // this group should be ignored (wrong alias)
                     .addGroup(
                         new RemoteClusterPermissionGroup(

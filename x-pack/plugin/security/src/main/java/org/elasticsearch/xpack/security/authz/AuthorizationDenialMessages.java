@@ -118,7 +118,8 @@ public interface AuthorizationDenialMessages {
         ) {
             String userText = successfulAuthenticationDescription(authentication, authorizationInfo);
             String remoteClusterText = remoteClusterText(clusterAlias);
-            String message = isIndexAction(action) ? " because no remote indices privileges apply for the target cluster"
+            String message = isIndexAction(action)
+                ? " because no remote indices privileges apply for the target cluster"
                 : " because no remote cluster privileges apply for the target cluster";
             return actionIsUnauthorizedMessage(action, remoteClusterText, userText) + message;
         }

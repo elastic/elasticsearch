@@ -512,9 +512,9 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             randomBoolean()
                 ? Settings.builder().put("cluster.remote.invalid_remote.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0)).build()
                 : Settings.builder()
-                .put("cluster.remote.invalid_remote.mode", "proxy")
-                .put("cluster.remote.invalid_remote.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
-                .build()
+                    .put("cluster.remote.invalid_remote.mode", "proxy")
+                    .put("cluster.remote.invalid_remote.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                    .build()
         );
 
         // invalid remote with local index should return local results
@@ -849,6 +849,5 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             )
         );
     }
-
 
 }

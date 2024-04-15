@@ -705,7 +705,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(usageStats.get("remote_indices"), is(1L));
         assertThat(usageStats.get("fls"), is(flsDlsEnabled));
         assertThat(usageStats.get("dls"), is(flsDlsEnabled));
-        //TODO: add more tests here
+        // TODO: add more tests here
     }
 
     public void testExists() throws Exception {

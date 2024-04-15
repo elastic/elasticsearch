@@ -68,6 +68,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
+
 //TODO: add remote cluster tests here too (don't rely on NONE)
 public class RoleDescriptorTests extends ESTestCase {
 
@@ -1145,7 +1146,12 @@ public class RoleDescriptorTests extends ESTestCase {
         return randomRoleDescriptor(allowReservedMetadata, false, false, false);
     }
 
-    public static RoleDescriptor randomRoleDescriptor(boolean allowReservedMetadata, boolean allowRemoteIndices, boolean allowWorkflows, boolean allowRemoteClusters) {
+    public static RoleDescriptor randomRoleDescriptor(
+        boolean allowReservedMetadata,
+        boolean allowRemoteIndices,
+        boolean allowWorkflows,
+        boolean allowRemoteClusters
+    ) {
         final RoleDescriptor.RemoteIndicesPrivileges[] remoteIndexPrivileges;
         if (false == allowRemoteIndices || randomBoolean()) {
             remoteIndexPrivileges = null;
@@ -1236,10 +1242,10 @@ public class RoleDescriptorTests extends ESTestCase {
         return applicationPrivileges;
     }
 
-    public static RemoteClusterPermissions randomRemoteClusterPermissions(int maxGroups){
+    public static RemoteClusterPermissions randomRemoteClusterPermissions(int maxGroups) {
         final RemoteClusterPermissions remoteClusterPermissions = new RemoteClusterPermissions();
         final String[] supportedPermissions = RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]);
-         for (int i = 0; i <  maxGroups; i++) {
+        for (int i = 0; i < maxGroups; i++) {
             remoteClusterPermissions.addGroup(
                 new RemoteClusterPermissionGroup(
                     randomNonEmptySubsetOf(Arrays.asList(supportedPermissions)).toArray(new String[0]),

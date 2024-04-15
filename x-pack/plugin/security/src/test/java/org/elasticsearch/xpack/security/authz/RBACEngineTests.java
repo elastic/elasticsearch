@@ -1379,15 +1379,20 @@ public class RBACEngineTests extends ESTestCase {
         assert allRemoteClusterPermissions.length == 1
             : "if more remote cluster permissions are added this test needs to be updated to ensure the correct remotes receive the "
                 + "correct permissions. ";
-        //2 groups with 3 aliases
+        // 2 groups with 3 aliases
         assertThat(response.getRemoteClusterPermissions().groups(), iterableWithSize(2));
         assertEquals(
             3,
-            response.getRemoteClusterPermissions().groups().stream()
-                .map(RemoteClusterPermissionGroup::remoteClusterAliases).flatMap(Arrays::stream).distinct().count()
+            response.getRemoteClusterPermissions()
+                .groups()
+                .stream()
+                .map(RemoteClusterPermissionGroup::remoteClusterAliases)
+                .flatMap(Arrays::stream)
+                .distinct()
+                .count()
         );
 
-        for(String permission : RemoteClusterPermissions.getSupportRemoteClusterPermissions()){
+        for (String permission : RemoteClusterPermissions.getSupportRemoteClusterPermissions()) {
             assertThat(Arrays.asList(remoteClusterPermissions.privilegeNames("remote-1")), hasItem(permission));
             assertThat(Arrays.asList(remoteClusterPermissions.privilegeNames("remote-2")), hasItem(permission));
             assertThat(Arrays.asList(remoteClusterPermissions.privilegeNames("remote-3")), hasItem(permission));

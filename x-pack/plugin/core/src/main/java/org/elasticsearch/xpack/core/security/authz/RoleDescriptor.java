@@ -456,7 +456,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         if (out.getTransportVersion().onOrAfter(WORKFLOWS_RESTRICTION_VERSION)) {
             restriction.writeTo(out);
         }
-        if(out.getTransportVersion().onOrAfter(TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS)) {
             remoteClusterPermissions.writeTo(out);
         }
     }

@@ -188,7 +188,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
                     )
                 );
 
-                return new GetUserPrivilegesResponse(cluster, conditionalCluster, index, application, runAs, remoteIndex,remoteCluster);
+                return new GetUserPrivilegesResponse(cluster, conditionalCluster, index, application, runAs, remoteIndex, remoteCluster);
             }
 
             private <T> Set<T> maybeMutate(int random, int index, Set<T> original, Supplier<T> supplier) {
@@ -240,7 +240,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
             : Set.of();
 
         RemoteClusterPermissions remoteCluster = allowRemoteClusters ? new RemoteClusterPermissions() : RemoteClusterPermissions.NONE;
-        if(allowRemoteClusters) {
+        if (allowRemoteClusters) {
             remoteCluster.addGroup(
                 new RemoteClusterPermissionGroup(
                     RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),

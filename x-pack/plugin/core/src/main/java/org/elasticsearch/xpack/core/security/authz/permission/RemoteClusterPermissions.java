@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -58,14 +57,14 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
     public static final String NAME = "remote_cluster_permissions";
     private final List<RemoteClusterPermissionGroup> remoteClusterPermissionGroups;
     private static final Set<String> allowedRemoteClusterPermissions = Set.of("monitor_enrich");
-    static{
+    static {
         assert ClusterPrivilegeResolver.names().containsAll(allowedRemoteClusterPermissions);
     }
 
     public static final RemoteClusterPermissions NONE = new RemoteClusterPermissions();
 
     public static Set<String> getSupportRemoteClusterPermissions() {
-        //if there are ever more than 1 allowed permission make related logs/error messages plural
+        // if there are ever more than 1 allowed permission make related logs/error messages plural
         return allowedRemoteClusterPermissions;
     }
 
@@ -121,7 +120,7 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
     /**
      * Returns the unsupported privileges in the remote cluster permissions. Empty set if all privileges are supported.
      */
-    public Set<String> getUnsupportedPrivileges(){
+    public Set<String> getUnsupportedPrivileges() {
         Set<String> invalid = new HashSet<>();
         for (RemoteClusterPermissionGroup group : remoteClusterPermissionGroups) {
             for (String namedPrivilege : group.clusterPrivileges()) {
@@ -174,9 +173,7 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
 
     @Override
     public String toString() {
-        return "RemoteClusterPermissions{" +
-            "remoteClusterPermissionGroups=" + remoteClusterPermissionGroups +
-            '}';
+        return "RemoteClusterPermissions{" + "remoteClusterPermissionGroups=" + remoteClusterPermissionGroups + '}';
     }
 
     @Override

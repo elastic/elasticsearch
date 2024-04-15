@@ -110,13 +110,14 @@ public class LimitedRoleTests extends ESTestCase {
                 randomIndexPrivilege(),
                 randomBoolean(),
                 randomAlphaOfLengthBetween(4, 6)
-            ).addRemoteClusterPermissions(
+            )
+            .addRemoteClusterPermissions(
                 new RemoteClusterPermissions().addGroup(
-                        new RemoteClusterPermissionGroup(
-                            RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
-                            new String[] {remoteClusterAlias}
-                        )
+                    new RemoteClusterPermissionGroup(
+                        RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                        new String[] { remoteClusterAlias }
                     )
+                )
                     // this group should be ignored (wrong alias)
                     .addGroup(
                         new RemoteClusterPermissionGroup(
@@ -157,11 +158,11 @@ public class LimitedRoleTests extends ESTestCase {
             )
             .addRemoteClusterPermissions(
                 new RemoteClusterPermissions().addGroup(
-                        new RemoteClusterPermissionGroup(
-                            RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
-                            altAliases.toArray(new String[0])
-                        )
+                    new RemoteClusterPermissionGroup(
+                        RemoteClusterPermissions.getSupportRemoteClusterPermissions().toArray(new String[0]),
+                        altAliases.toArray(new String[0])
                     )
+                )
                     // this group should be ignored (wrong alias)
                     .addGroup(
                         new RemoteClusterPermissionGroup(

@@ -23,21 +23,21 @@ public class RemoteClusterPermissionGroupTests extends AbstractXContentSerializi
 
     @Override
     protected RemoteClusterPermissionGroup createTestInstance() {
-        return new RemoteClusterPermissionGroup(new String[]{"monitor_enrich"}, new String[]{"*"});
+        return new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "*" });
     }
 
     @Override
     protected RemoteClusterPermissionGroup mutateInstance(RemoteClusterPermissionGroup instance) throws IOException {
-        if(randomBoolean()) {
-            return new RemoteClusterPermissionGroup(new String[]{"monitor_enrich"}, new String[]{"foo", "bar"});
+        if (randomBoolean()) {
+            return new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "foo", "bar" });
         } else {
-            return new RemoteClusterPermissionGroup(new String[]{"foobar"}, new String[]{"*"});
+            return new RemoteClusterPermissionGroup(new String[] { "foobar" }, new String[] { "*" });
         }
     }
 
     @Override
     protected RemoteClusterPermissionGroup doParseInstance(XContentParser parser) throws IOException {
-        //fromXContent/parsing isn't supported since we still do old school manual parsing of the role descriptor
+        // fromXContent/parsing isn't supported since we still do old school manual parsing of the role descriptor
         return createTestInstance();
     }
 

@@ -50,7 +50,9 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
                 new NamedWriteableRegistry.Entry(
                     RemoteClusterPermissionGroup.class,
                     RemoteClusterPermissionGroup.NAME,
-                    RemoteClusterPermissionGroup::new))
+                    RemoteClusterPermissionGroup::new
+                )
+            )
         );
     }
 }

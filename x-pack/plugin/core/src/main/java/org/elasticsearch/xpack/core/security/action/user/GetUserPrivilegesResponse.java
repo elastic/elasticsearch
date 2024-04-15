@@ -136,7 +136,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS)) {
             remoteClusterPermissions.writeTo(out);
-        } else if(hasRemoteClusterPrivileges()){
+        } else if (hasRemoteClusterPrivileges()) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
                     + TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS

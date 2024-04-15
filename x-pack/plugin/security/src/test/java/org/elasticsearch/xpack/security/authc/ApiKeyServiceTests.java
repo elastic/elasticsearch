@@ -2505,11 +2505,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             TransportVersionUtils.getPreviousVersion(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
         );
 
-        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemotePrivileges(
-            userRoleDescriptors,
-            minTransportVersion,
-            apiKeyId
-        );
+        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemotePrivileges(userRoleDescriptors, minTransportVersion, apiKeyId);
         assertThat(result.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges), equalTo(false));
         assertThat(result.size(), equalTo(userRoleDescriptors.size()));
 
@@ -2546,11 +2542,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             TransportVersionUtils.getPreviousVersion(ROLE_REMOTE_CLUSTER_PRIVS)
         );
 
-        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemotePrivileges(
-            userRoleDescriptors,
-            minTransportVersion,
-            apiKeyId
-        );
+        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemotePrivileges(userRoleDescriptors, minTransportVersion, apiKeyId);
         assertThat(result.stream().anyMatch(RoleDescriptor::hasRemoteClusterPermissions), equalTo(false));
         assertThat(result.size(), equalTo(userRoleDescriptors.size()));
 
@@ -2583,11 +2575,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             TransportVersion.current()
         );
 
-        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemotePrivileges(
-            userRoleDescriptors,
-            minTransportVersion,
-            apiKeyId
-        );
+        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemotePrivileges(userRoleDescriptors, minTransportVersion, apiKeyId);
 
         // User roles should be unchanged.
         assertThat(result, equalTo(userRoleDescriptors));
@@ -2891,7 +2879,9 @@ public class ApiKeyServiceTests extends ESTestCase {
             RoleDescriptorTests.randomRoleDescriptorMetadata(randomBoolean()),
             Map.of(),
             RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 3),
-            new RemoteClusterPermissions().addGroup(new RemoteClusterPermissionGroup(new String[]{"monitor_enrich"}, new String[]{"*"})),
+            new RemoteClusterPermissions().addGroup(
+                new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "*" })
+            ),
             RoleRestrictionTests.randomWorkflowsRestriction(1, 3)
         );
     }

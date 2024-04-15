@@ -263,7 +263,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                             + "] or higher to support remote indices privileges"
                     )
                 );
-            } else if (role.hasRemoteClusterPermissions() 
+            } else if (role.hasRemoteClusterPermissions()
                 && clusterService.state().getMinTransportVersion().before(ROLE_REMOTE_CLUSTER_PRIVS)) {
                     listener.onFailure(
                         new IllegalStateException(

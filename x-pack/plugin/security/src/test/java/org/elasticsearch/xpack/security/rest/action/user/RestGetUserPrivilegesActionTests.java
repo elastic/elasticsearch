@@ -209,7 +209,7 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
                 }
               ]""";
 
-        String remoteClusterPermissionsSection =  hasRemoteClusterPermissions ? """
+        String remoteClusterPermissionsSection = hasRemoteClusterPermissions ? """
             ,"remote_cluster":[
                     {
                        "privileges":[

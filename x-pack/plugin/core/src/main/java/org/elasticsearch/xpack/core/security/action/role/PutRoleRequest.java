@@ -47,7 +47,6 @@ public class PutRoleRequest extends ActionRequest {
     private RemoteClusterPermissions remoteClusterPermissions = RemoteClusterPermissions.NONE;
     private boolean restrictRequest = false;
 
-
     public PutRoleRequest() {}
 
     @Override

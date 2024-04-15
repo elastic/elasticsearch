@@ -125,10 +125,9 @@ public class PutRoleRequestTests extends ESTestCase {
     public void testValidationErrorWithEmptyClustersInRemoteCluster() {
         final PutRoleRequest request = new PutRoleRequest();
         request.name(randomAlphaOfLengthBetween(4, 9));
-        RemoteClusterPermissions remoteClusterPermissions = new RemoteClusterPermissions()
-            .addGroup(new RemoteClusterPermissionGroup( new String[] { "monitor_enrich" }, new String[] { "valid" }))
-            .addGroup(new RemoteClusterPermissionGroup( new String[] { "monitor_enrich" }, new String[] { "" })
-        );
+        RemoteClusterPermissions remoteClusterPermissions = new RemoteClusterPermissions().addGroup(
+            new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "valid" })
+        ).addGroup(new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "" }));
         request.addRemoteCluster(remoteClusterPermissions);
         assertValidationError("remote_cluster - cluster alias cannot be an empty string", request);
     }
@@ -157,13 +156,14 @@ public class PutRoleRequestTests extends ESTestCase {
         final PutRoleRequest request = new PutRoleRequest();
         request.name(randomAlphaOfLengthBetween(4, 9));
         RemoteClusterPermissions remoteClusterPermissions = new RemoteClusterPermissions();
-        for(int i = 0; i < randomIntBetween(1, 10); i++) {
+        for (int i = 0; i < randomIntBetween(1, 10); i++) {
             List<String> aliases = new ArrayList<>();
-            for(int j =0; j< randomIntBetween(1, 10); j++) {
+            for (int j = 0; j < randomIntBetween(1, 10); j++) {
                 aliases.add(randomAlphaOfLengthBetween(1, 10));
             }
-            remoteClusterPermissions
-                .addGroup(new RemoteClusterPermissionGroup(new String[]{"monitor_enrich"}, aliases.toArray(new String[0])));
+            remoteClusterPermissions.addGroup(
+                new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, aliases.toArray(new String[0]))
+            );
         }
         request.addRemoteCluster(remoteClusterPermissions);
         assertSuccessfulValidation(request);

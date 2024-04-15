@@ -126,7 +126,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -327,8 +326,7 @@ public class ApiKeyService {
                 );
                 return;
             }
-            if (transportVersion.before(ROLE_REMOTE_CLUSTER_PRIVS)
-                && hasRemoteCluster(request.getRoleDescriptors())) {
+            if (transportVersion.before(ROLE_REMOTE_CLUSTER_PRIVS) && hasRemoteCluster(request.getRoleDescriptors())) {
                 // Creating API keys with roles which define remote cluster privileges is not allowed in a mixed cluster.
                 listener.onFailure(
                     new IllegalArgumentException(
@@ -360,7 +358,7 @@ public class ApiKeyService {
                 return;
             }
 
-            //TODO: test this !
+            // TODO: test this !
             final Set<RoleDescriptor> filteredUserRoleDescriptors = maybeRemoveRemotePrivileges(
                 userRoleDescriptors,
                 transportVersion,
@@ -654,11 +652,10 @@ public class ApiKeyService {
         final String... apiKeyIds
     ) {
         if (transportVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
-            || transportVersion.before(ROLE_REMOTE_CLUSTER_PRIVS) ) {
+            || transportVersion.before(ROLE_REMOTE_CLUSTER_PRIVS)) {
             final Set<RoleDescriptor> affectedRoles = new HashSet<>();
             final Set<RoleDescriptor> result = userRoleDescriptors.stream().map(roleDescriptor -> {
-                if (roleDescriptor.hasRemoteIndicesPrivileges()
-                || roleDescriptor.hasRemoteClusterPermissions()) {
+                if (roleDescriptor.hasRemoteIndicesPrivileges() || roleDescriptor.hasRemoteClusterPermissions()) {
                     affectedRoles.add(roleDescriptor);
                     return new RoleDescriptor(
                         roleDescriptor.getName(),
@@ -924,10 +921,10 @@ public class ApiKeyService {
                 return false;
             }
 
-            if(newRoleDescriptors.size() == currentRoleDescriptors.size()){
-                for(int i = 0; i < currentRoleDescriptors.size(); i++) {
-                    //if remote cluster permissions are not equal, then it is not a noop
-                    if(currentRoleDescriptors.get(i)
+            if (newRoleDescriptors.size() == currentRoleDescriptors.size()) {
+                for (int i = 0; i < currentRoleDescriptors.size(); i++) {
+                    // if remote cluster permissions are not equal, then it is not a noop
+                    if (currentRoleDescriptors.get(i)
                         .getRemoteClusterPermissions()
                         .equals(newRoleDescriptors.get(i).getRemoteClusterPermissions()) == false) {
                         return false;

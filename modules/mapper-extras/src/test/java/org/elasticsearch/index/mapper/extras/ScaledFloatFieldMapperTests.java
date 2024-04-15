@@ -395,6 +395,11 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         private double round(double d) {
             long encoded = Math.round(d * scalingFactor);
             double decoded = encoded / scalingFactor;
+            // Special case due to rounding, see implementation.
+            if (Double.isInfinite(decoded)) {
+                return decoded;
+            }
+
             long reencoded = Math.round(decoded * scalingFactor);
             if (encoded != reencoded) {
                 if (encoded > reencoded) {
@@ -406,6 +411,10 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         }
 
         private double roundDocValues(double d) {
+            if (Double.isInfinite(d)) {
+                return d;
+            }
+
             long encoded = Math.round(d * scalingFactor);
             return encoded * (1 / scalingFactor);
         }

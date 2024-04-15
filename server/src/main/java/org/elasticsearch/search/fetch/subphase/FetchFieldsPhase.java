@@ -32,9 +32,11 @@ import java.util.Set;
 
 /**
  * A fetch sub-phase for high-level field retrieval. Given a list of fields, it
- * retrieves the field values and returns them as document fields.
+ * retrieves the field values through the relevant {@link org.elasticsearch.index.mapper.ValueFetcher}
+ * and returns them as document fields.
  */
 public final class FetchFieldsPhase implements FetchSubPhase {
+
     private static final List<FieldAndFormat> DEFAULT_METADATA_FIELDS = List.of(
         new FieldAndFormat(IgnoredFieldMapper.NAME, null),
         new FieldAndFormat(RoutingFieldMapper.NAME, null),

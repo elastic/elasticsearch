@@ -9,7 +9,6 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -22,11 +21,6 @@ public final class OpenPointInTimeResponse extends ActionResponse implements ToX
 
     public OpenPointInTimeResponse(String pointInTimeId) {
         this.pointInTimeId = Objects.requireNonNull(pointInTimeId, "Point in time parameter must be not null");
-    }
-
-    public OpenPointInTimeResponse(StreamInput in) throws IOException {
-        super(in);
-        pointInTimeId = in.readString();
     }
 
     @Override

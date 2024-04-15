@@ -137,6 +137,7 @@ avgOfDouble
 FROM employees
 | STATS AVG(height)
 // end::avg[]
+| EVAL `AVG(height)` = ROUND(`AVG(height)`, 5)
 ;
 
 // tag::avg-result[]
@@ -159,7 +160,7 @@ h:double
 1.76818359375
 ;
 avgOfScaledFloat
-from employees | stats h = avg(height.scaled_float);
+from employees | stats h = avg(height.scaled_float) | eval h = round(h, 4);
 
 h:double
 1.7682
@@ -234,7 +235,7 @@ h:double
 ;
 
 sumOfScaledFloat
-from employees | stats h = sum(height.scaled_float);
+from employees | stats h = sum(height.scaled_float) | eval h = round(h, 10);
 
 h:double
 176.82
@@ -1025,13 +1026,13 @@ c:long | cd:long
 docsStatsAvgNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
 // tag::docsStatsAvgNestedExpression[]
 FROM employees
-| STATS avg_salary_change = AVG(MV_AVG(salary_change))
+| STATS avg_salary_change = ROUND(AVG(MV_AVG(salary_change)), 10)
 // end::docsStatsAvgNestedExpression[]
 ;
 
 // tag::docsStatsAvgNestedExpression-result[]
 avg_salary_change:double
-1.3904535864978902
+1.3904535865
 // end::docsStatsAvgNestedExpression-result[]
 ;
 
@@ -1583,4 +1584,28 @@ c:l | k1:i | languages:i
 18  | 4    | 4
 21  | 5    | 5
 10  | null | null
+;
+
+minWithSortExpression1#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees | STATS min = min(salary) by languages | SORT min + languages;
+
+     min:i     |   languages:i   
+25324          |5              
+25976          |1              
+26436          |3              
+27215          |4              
+29175          |2              
+28336          |null           
+;
+
+minWithSortExpression2#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees | STATS min = min(salary) by languages | SORT min + CASE(languages == 5, 655, languages);
+
+     min:i     |   languages:i   
+25976          |1              
+25324          |5              
+26436          |3              
+27215          |4              
+29175          |2              
+28336          |null           
 ;

@@ -757,6 +757,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final AtomicBoolean primaryReplicaResyncInProgress = new AtomicBoolean();
 
+    // temporary compatibility shim while adding targetNodeId parameter to dependencies
+    @Deprecated(forRemoval = true)
+    public void relocated(
+        final String targetAllocationId,
+        final BiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>> consumer,
+        final ActionListener<Void> listener
+    ) throws IllegalIndexShardStateException, IllegalStateException {
+        relocated(null, targetAllocationId, consumer, listener);
+    }
+
     /**
      * Completes the relocation. Operations are blocked and current operations are drained before changing state to relocated. The provided
      * {@link BiConsumer} is executed after all operations are successfully blocked.
@@ -768,6 +778,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws IllegalStateException           if the relocation target is no longer part of the replication group
      */
     public void relocated(
+        final String targetNodeId,
         final String targetAllocationId,
         final BiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>> consumer,
         final ActionListener<Void> listener
@@ -788,7 +799,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                          * context via a network operation. Doing this under the mutex can implicitly block the cluster state update thread
                          * on network operations.
                          */
-                        verifyRelocatingState();
+                        verifyRelocatingState(targetNodeId);
                         final ReplicationTracker.PrimaryContext primaryContext = replicationTracker.startRelocationHandoff(
                             targetAllocationId
                         );
@@ -803,7 +814,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 try {
                                     // make changes to primaryMode and relocated flag only under mutex
                                     synchronized (mutex) {
-                                        verifyRelocatingState();
+                                        verifyRelocatingState(targetNodeId);
                                         replicationTracker.completeRelocationHandoff();
                                     }
                                     wrappedInnerListener.onResponse(null);
@@ -857,7 +868,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private void verifyRelocatingState() {
+    // TODO only nullable temporarily, remove once deprecated relocated() override is removed, see ES-6725
+    private void verifyRelocatingState(@Nullable String targetNodeId) {
         if (state != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(shardId, state);
         }
@@ -869,6 +881,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         if (shardRouting.relocating() == false) {
             throw new IllegalIndexShardStateException(shardId, IndexShardState.STARTED, ": shard is no longer relocating " + shardRouting);
+        }
+
+        if (targetNodeId != null) {
+            if (targetNodeId.equals(shardRouting.relocatingNodeId()) == false) {
+                throw new IllegalIndexShardStateException(
+                    shardId,
+                    IndexShardState.STARTED,
+                    ": shard is no longer relocating to node [" + targetNodeId + "]: " + shardRouting
+                );
+            }
         }
 
         if (primaryReplicaResyncInProgress.get()) {
@@ -1307,7 +1329,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public FlushStats flushStats() {
-        return new FlushStats(flushMetric.count(), periodicFlushMetric.count(), TimeUnit.NANOSECONDS.toMillis(flushMetric.sum()));
+        return new FlushStats(
+            flushMetric.count(),
+            periodicFlushMetric.count(),
+            TimeUnit.NANOSECONDS.toMillis(flushMetric.sum()),
+            getEngineOrNull() != null ? getEngineOrNull().getTotalFlushTimeExcludingWaitingOnLockInMillis() : 0L
+        );
     }
 
     public DocsStats docStats() {

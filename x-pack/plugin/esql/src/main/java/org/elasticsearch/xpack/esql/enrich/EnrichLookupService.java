@@ -37,7 +37,6 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OutputOperator;
-import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
@@ -271,6 +270,7 @@ public class EnrichLookupService {
             };
             var queryOperator = new EnrichQuerySourceOperator(
                 driverContext.blockFactory(),
+                EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE,
                 queryList,
                 searchExecutionContext.getIndexReader()
             );
@@ -318,22 +318,10 @@ public class EnrichLookupService {
                     0
                 )
             );
-
-            // drop docs block
-            intermediateOperators.add(droppingBlockOperator(extractFields.size() + 2, 0));
-            boolean singleLeaf = searchContext.searcher().getLeafContexts().size() == 1;
-
             // merging field-values by position
-            final int[] mergingChannels = IntStream.range(0, extractFields.size()).map(i -> i + 1).toArray();
+            final int[] mergingChannels = IntStream.range(0, extractFields.size()).map(i -> i + 2).toArray();
             intermediateOperators.add(
-                new MergePositionsOperator(
-                    singleLeaf,
-                    inputPage.getPositionCount(),
-                    0,
-                    mergingChannels,
-                    mergingTypes,
-                    driverContext.blockFactory()
-                )
+                new MergePositionsOperator(inputPage.getPositionCount(), 1, mergingChannels, mergingTypes, driverContext.blockFactory())
             );
             AtomicReference<Page> result = new AtomicReference<>();
             OutputOperator outputOperator = new OutputOperator(List.of(), Function.identity(), result::set);
@@ -390,17 +378,6 @@ public class EnrichLookupService {
                 Releasables.close(blocks);
             }
         }
-    }
-
-    private static Operator droppingBlockOperator(int totalBlocks, int droppingPosition) {
-        var size = totalBlocks - 1;
-        var projection = new ArrayList<Integer>(size);
-        for (int i = 0; i < totalBlocks; i++) {
-            if (i != droppingPosition) {
-                projection.add(i);
-            }
-        }
-        return new ProjectOperator(projection);
     }
 
     private class TransportHandler implements TransportRequestHandler<LookupRequest> {

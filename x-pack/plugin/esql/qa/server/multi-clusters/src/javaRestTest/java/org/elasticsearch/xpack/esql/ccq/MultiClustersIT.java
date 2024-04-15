@@ -133,13 +133,11 @@ public class MultiClustersIT extends ESRestTestCase {
 
     private Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject) throws IOException {
         if (supportsAsync()) {
-            return RestEsqlTestCase.runEsqlAsync(requestObject, NO_WARNINGS);
+            return RestEsqlTestCase.runEsqlAsync(requestObject);
         } else {
-            return RestEsqlTestCase.runEsqlSync(requestObject, NO_WARNINGS);
+            return RestEsqlTestCase.runEsqlSync(requestObject);
         }
     }
-
-    private static final List<String> NO_WARNINGS = List.of();
 
     public void testCount() throws Exception {
         {

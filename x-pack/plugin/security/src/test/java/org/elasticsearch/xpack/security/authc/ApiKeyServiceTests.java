@@ -158,7 +158,6 @@ import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
-import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequestTests.randomCrossClusterApiKeyAccessField;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_METADATA_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_TYPE_KEY;
@@ -200,6 +199,29 @@ import static org.mockito.Mockito.when;
 
 public class ApiKeyServiceTests extends ESTestCase {
 
+    private static final List<String> ACCESS_CANDIDATES = List.of("""
+        {
+          "search": [ {"names": ["logs"]} ]
+        }""", """
+        {
+          "search": [ {"names": ["logs"], "query": "abc" } ]
+        }""", """
+        {
+          "search": [ {"names": ["logs"], "field_security": {"grant": ["*"], "except": ["private"]} } ]
+        }""", """
+        {
+          "search": [ {"names": ["logs"], "query": "abc", "field_security": {"grant": ["*"], "except": ["private"]} } ]
+        }""", """
+        {
+          "replication": [ {"names": ["archive"], "allow_restricted_indices": true } ]
+        }""", """
+        {
+          "replication": [ {"names": ["archive"]} ]
+        }""", """
+        {
+          "search": [ {"names": ["logs"]} ],
+          "replication": [ {"names": ["archive"]} ]
+        }""");
     private ThreadPool threadPool;
     private Client client;
     private SecurityIndexManager securityIndex;
@@ -2843,6 +2865,10 @@ public class ApiKeyServiceTests extends ESTestCase {
             null,
             RoleRestrictionTests.randomWorkflowsRestriction(1, 3)
         );
+    }
+
+    public static String randomCrossClusterApiKeyAccessField() {
+        return randomFrom(ACCESS_CANDIDATES);
     }
 
     public static class Utils {

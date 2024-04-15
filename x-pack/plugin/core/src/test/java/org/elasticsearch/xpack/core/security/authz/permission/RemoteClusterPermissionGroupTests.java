@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -26,7 +27,7 @@ public class RemoteClusterPermissionGroupTests extends AbstractXContentSerializi
         RemoteClusterPermissionGroup remoteClusterPermissionGroup = new RemoteClusterPermissionGroup(privileges, clusters);
         String output = Strings.toString(remoteClusterPermissionGroup);
         assertEquals(
-            XContentHelper.stripWhitespace(String.format("""
+            XContentHelper.stripWhitespace(String.format(Locale.ROOT, """
                     {
                       "privileges" : [
                         "%s"

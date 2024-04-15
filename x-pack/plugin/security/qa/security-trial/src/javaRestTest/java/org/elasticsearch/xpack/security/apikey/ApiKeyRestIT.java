@@ -975,12 +975,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
         // Cannot invalidate cross cluster API keys with manage_api_key
         {
-            final Request deleteRequest = new Request("DELETE", "/_security/api_key");
-            deleteRequest.setJsonEntity(Strings.format("""
-                {"ids": ["%s"]}""", apiKeyId));
-            setUserForRequest(deleteRequest, MANAGE_API_KEY_USER, END_USER_PASSWORD);
-
-            final ObjectPath deleteResponse = assertOKAndCreateObjectPath(client().performRequest(deleteRequest));
+            final ObjectPath deleteResponse = invalidateApiKeys(MANAGE_API_KEY_USER, apiKeyId);
             final List<Map<String, ?>> errors = deleteResponse.evaluate("error_details");
             assertThat(
                 getErrorReasons(errors),
@@ -989,12 +984,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         }
 
         {
-            final Request deleteRequest = new Request("DELETE", "/_security/api_key");
-            deleteRequest.setJsonEntity(Strings.format("""
-                {"ids": ["%s"]}""", apiKeyId));
-            setUserForRequest(deleteRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
-
-            final ObjectPath deleteResponse = assertOKAndCreateObjectPath(client().performRequest(deleteRequest));
+            final ObjectPath deleteResponse = invalidateApiKeys(MANAGE_SECURITY_USER, apiKeyId);
             assertThat(deleteResponse.evaluate("invalidated_api_keys"), equalTo(List.of(apiKeyId)));
             assertThat(deleteResponse.evaluate("error_count"), equalTo(0));
         }
@@ -1072,7 +1062,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             }
 
             // also test other invalidation options, e.g., username and realm_name
-
             {
                 final ObjectPath deleteResponse = invalidateApiKeysWithPayload(user, """
                     {"username": "temp_manage_security_user"}""");
@@ -1109,7 +1098,8 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             {
                 final ObjectPath deleteResponse = invalidateApiKeysWithPayload(MANAGE_SECURITY_USER, randomFrom("""
                     {"username": "temp_manage_security_user"}""", """
-                    {"realm_name": "default_native"}"""));
+                    {"realm_name": "default_native"}""", """
+                    {"realm_name": "default_native", "username": "temp_manage_security_user"}"""));
                 assertThat(deleteResponse.evaluate("invalidated_api_keys"), containsInAnyOrder(apiKeyId));
                 assertThat(deleteResponse.evaluate("error_count"), equalTo(0));
             }

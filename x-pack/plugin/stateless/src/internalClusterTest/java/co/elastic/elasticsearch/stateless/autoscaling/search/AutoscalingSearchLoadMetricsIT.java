@@ -54,6 +54,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCase {
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1670")
     public void testSearchMetricsArePublishedEventually() throws Exception {
         startMasterAndIndexNode();
         startSearchNode(

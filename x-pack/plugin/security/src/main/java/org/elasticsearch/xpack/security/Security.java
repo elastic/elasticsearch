@@ -813,6 +813,7 @@ public class Security extends Plugin
         components.add(new PluginComponentBinding<>(NativeRoleMappingStore.class, nativeRoleMappingStore));
         components.add(new PluginComponentBinding<>(UserRoleMapper.class, userRoleMapper));
         components.add(reservedRealm);
+        components.add(realms);
         this.realms.set(realms);
 
         systemIndices.getMainIndexManager().addStateListener(nativeRoleMappingStore::onSecurityIndexStateChange);

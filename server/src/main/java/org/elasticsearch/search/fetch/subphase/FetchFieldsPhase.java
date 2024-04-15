@@ -13,7 +13,6 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -57,7 +56,10 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         final FieldFetcher fieldFetcher = fetchFieldsContext == null ? null
             : fetchFieldsContext.fields() == null ? null
             : fetchFieldsContext.fields().isEmpty() ? null
-            : FieldFetcher.create(searchExecutionContext, fetchFieldsContext.fields());
+            : FieldFetcher.create(searchExecutionContext, fetchFieldsContext.fields(), ft -> {
+                // we want to skip metadata fields if we have a wildcard pattern
+                return searchExecutionContext.isMetadataField(ft.name()) == false;
+            });
 
         final FieldFetcher metadataFieldFetcher;
         if (storedFieldsContext != null
@@ -65,23 +67,18 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             && storedFieldsContext.fieldNames().isEmpty() == false) {
             final Set<FieldAndFormat> metadataFields = new HashSet<>(DEFAULT_METADATA_FIELDS);
             for (final String storedField : storedFieldsContext.fieldNames()) {
-                final Set<String> matchingFieldNames = searchExecutionContext.getMatchingFieldNames(storedField);
-                for (final String matchingFieldName : matchingFieldNames) {
-                    if (SourceFieldMapper.NAME.equals(matchingFieldName) || IdFieldMapper.NAME.equals(matchingFieldName)) {
-                        continue;
-                    }
-                    final MappedFieldType fieldType = searchExecutionContext.getFieldType(matchingFieldName);
-                    // NOTE: checking if the field is stored is required for backward compatibility reasons and to make
-                    // sure we also handle here stored fields requested via `stored_fields`, which was previously a
-                    // responsibility of StoredFieldsPhase.
-                    if (searchExecutionContext.isMetadataField(matchingFieldName) && fieldType.isStored()) {
-                        metadataFields.add(new FieldAndFormat(matchingFieldName, null));
-                    }
-                }
+                metadataFields.add(new FieldAndFormat(storedField, null));
             }
-            metadataFieldFetcher = FieldFetcher.create(searchExecutionContext, metadataFields);
+            metadataFieldFetcher = FieldFetcher.create(
+                searchExecutionContext,
+                metadataFields,
+                ft -> ft.name().equals(SourceFieldMapper.NAME) == false
+                    && ft.name().equals(IdFieldMapper.NAME)
+                    && searchExecutionContext.isMetadataField(ft.name())
+                    && ft.isStored()
+            );
         } else {
-            metadataFieldFetcher = FieldFetcher.create(searchExecutionContext, DEFAULT_METADATA_FIELDS);
+            metadataFieldFetcher = FieldFetcher.create(searchExecutionContext, DEFAULT_METADATA_FIELDS, ft -> true);
         }
         return new FetchSubPhaseProcessor() {
             @Override

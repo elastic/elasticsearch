@@ -28,6 +28,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * A helper class to {@link FetchFieldsPhase} that's initialized with a list of field patterns to fetch.
@@ -40,7 +41,11 @@ public class FieldFetcher {
     /**
      * Build a FieldFetcher for a given search context and collection of fields and formats
      */
-    public static FieldFetcher create(SearchExecutionContext context, Collection<FieldAndFormat> fieldAndFormats) {
+    public static FieldFetcher create(
+        SearchExecutionContext context,
+        Collection<FieldAndFormat> fieldAndFormats,
+        Predicate<MappedFieldType> patternIncludePredicate
+    ) {
 
         List<String> unmappedFetchPattern = new ArrayList<>();
         List<ResolvedField> resolvedFields = new ArrayList<>();
@@ -55,10 +60,9 @@ public class FieldFetcher {
             for (String field : context.getMatchingFieldNames(fieldPattern)) {
                 MappedFieldType ft = context.getFieldType(field);
                 // we want to skip metadata fields if we have a wildcard pattern
-                if (context.isMetadataField(field) && matchingPattern != null) {
-                    continue;
+                if (matchingPattern != null && patternIncludePredicate.test(ft)) {
+                    resolvedFields.add(new ResolvedField(field, matchingPattern, ft, fieldAndFormat.format));
                 }
-                resolvedFields.add(new ResolvedField(field, matchingPattern, ft, fieldAndFormat.format));
             }
         }
 

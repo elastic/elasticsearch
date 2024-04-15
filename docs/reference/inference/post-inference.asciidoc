@@ -54,6 +54,7 @@ The unique identifier of the {infer} endpoint.
 (Optional, string)
 The type of {infer} task that the model performs.
 
+
 [discrete]
 [[post-inference-api-query-params]]
 ==== {api-query-parms-title}

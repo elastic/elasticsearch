@@ -9,9 +9,17 @@
     - is_true:    version.number
 
 ---
-"Info build flavor":
+"Info build flavor (pre 8.3.0)":
     - skip:
-        version: "8.3.0 - 8.3.2"
+        cluster_features: ["gte_v8.3.0"]
         reason: "build flavor in info was missing in 8.3.0 to 8.3.2"
     - do:         {info: {}}
     - match:      { version.build_flavor: default }
+
+---
+"Info build flavor (after 8.3.2)":
+  - requires:
+      cluster_features: ["gte_v8.3.3"]
+      reason: "build flavor in info was missing in 8.3.0 to 8.3.2"
+  - do:         {info: {}}
+  - match:      { version.build_flavor: default }

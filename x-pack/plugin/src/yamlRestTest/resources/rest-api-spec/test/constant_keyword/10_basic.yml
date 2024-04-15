@@ -417,8 +417,8 @@ setup:
 
 ---
 Cardinality agg:
-  - skip:
-      version: " - 7.6.99, 8.9.00 - 8.10.99"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason: "constant_keyword was added in 7.7, bug introduced in 8.9 and fixed in 8.11"
 
   - do:
@@ -450,6 +450,46 @@ Cardinality agg:
                 field: test
 
   - match: { aggregations.card.value: 1 }
+
+---
+Cardinality agg (pre 8.9):
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
+      reason: "constant_keyword was added in 7.7, bug introduced in 8.9 and fixed in 8.11"
+  - skip:
+      cluster_features: ["gte_v8.9.0"]
+      reason: "constant_keyword was added in 7.7, bug introduced in 8.9 and fixed in 8.11"
+
+  - do:
+      indices.create:
+        index: test3
+        body:
+          mappings:
+            properties:
+              test:
+                type: constant_keyword
+                value: value1
+
+  - do:
+      bulk:
+        index: test3
+        refresh: true
+        body: |
+          {"index":{}}
+          { "test": "value1" }
+
+  - do:
+      search:
+        index: test3
+        body:
+          size: 0
+          aggs:
+            card:
+              cardinality:
+                field: test
+
+  - match: { aggregations.card.value: 1 }
+
 ---
 "deprecated use of multi-fields":
   - requires:

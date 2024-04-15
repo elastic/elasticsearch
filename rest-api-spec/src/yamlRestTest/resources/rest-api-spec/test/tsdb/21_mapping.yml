@@ -1,7 +1,7 @@
 ---
 setup:
-  - requires:
-      cluster_features: ["gte_v8.10.0"]
+  - skip:
+      cluster_features: ["gte_v8.7.0"]
       reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
 
 ---

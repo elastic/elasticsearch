@@ -1,7 +1,10 @@
 ---
 setup:
   - requires:
-      cluster_features: ["gte_v8.13.0"]
+      cluster_features: "gte_v8.2.0"
+      reason: _tsid hashing introduced in 8.13
+  - skip:
+      cluster_features: "gte_v8.7.0"
       reason: _tsid hashing introduced in 8.13
 
   - do:

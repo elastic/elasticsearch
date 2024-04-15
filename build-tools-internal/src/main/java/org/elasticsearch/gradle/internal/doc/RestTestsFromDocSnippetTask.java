@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.internal.doc;
 
 import groovy.transform.PackageScope;
 
+import org.gradle.api.GradleException;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.internal.file.FileOperations;
@@ -31,7 +32,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
 import javax.inject.Inject;
 
 public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
@@ -39,6 +39,13 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
     private Map<String, String> setups = new HashMap<>();
 
     private Map<String, String> teardowns = new HashMap();
+
+    private boolean migrationMode = Boolean.getBoolean("gradle.docs.migration");
+
+    @Input
+    public boolean isMigrationMode() {
+        return migrationMode;
+    }
 
     /**
      * Test setups defined in the build instead of the docs so they can be
@@ -127,6 +134,9 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
         doLast(task -> {
             builder.finishLastTest();
             builder.checkUnconverted();
+            if(migrationMode) {
+                assertEqualTestSnippetFromMigratedDocs();
+            }
         });
     }
 
@@ -254,7 +264,6 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
             if (snippet.test() || snippet.language().equals("console")) {
                 test(snippet);
                 previousTest = snippet;
-                return;
             }
             // Must be an unmarked snippet....
         }
@@ -431,7 +440,6 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
                 }
                 emitDo(method, pathAndQuery, body, catchPart, snippet.warnings(), inSetup, snippet.skipShardsFailures());
             });
-
         }
 
         private PrintWriter setupCurrent(Snippet test) {
@@ -442,12 +450,27 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
             finishLastTest();
             lastDocsPath = test.path();
 
+
             // Make the destination file:
             // Shift the path into the destination directory tree
             Path dest = getOutputRoot().toPath().resolve(test.path());
             // Replace the extension
             String fileName = dest.getName(dest.getNameCount() - 1).toString();
-            dest = dest.getParent().resolve(fileName.replace(".asciidoc", ".yml"));
+
+            if (hasMultipleDocImplementations(test.path())) {
+                if(migrationMode == false) {
+                    String replace = dest.getName(dest.getNameCount() - 1).toString().replace(".asciidoc", "").replace(".mdx", "");
+                    throw new InvalidUserDataException(
+                        "Multiple doc files found for same content found: " + replace + ".ascidocc / " + replace + ".mdx."
+                    );
+                }
+                getLogger().warn("Found multiple doc file types for " + test.path() + ". Generating tests for all of them.");
+                dest = dest.getParent().resolve(fileName + ".yml");
+
+            } else {
+                dest = dest.getParent().resolve(fileName.replace(".asciidoc", ".yml").replace(".mdx", ".yml"));
+
+            }
 
             // Now setup the writer
             try {
@@ -521,6 +544,43 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
                 current = null;
             }
         }
+    }
+
+
+    private void assertEqualTestSnippetFromMigratedDocs() {
+        getTestRoot().getAsFileTree().matching(patternSet -> {
+            patternSet.include("**/*asciidoc.yml");
+        }).forEach(asciidocFile -> {
+            File mdxFile = new File(asciidocFile.getAbsolutePath().replace(".asciidoc.yml", ".mdx.yml"));
+            if(mdxFile.exists() == false) {
+                throw new InvalidUserDataException("Couldn't find the corresponding mdx file for " + asciidocFile.getAbsolutePath());
+            }
+            try {
+                List<String> asciidocLines = Files.readAllLines(asciidocFile.toPath());
+                List<String> mdxLines = Files.readAllLines(mdxFile.toPath());
+                if (asciidocLines.size() != mdxLines.size()) {
+                    throw new GradleException("Files are not equal, different line count");
+                }
+                for (int i = 0; i < asciidocLines.size(); i++) {
+                    if (asciidocLines.get(i).replaceAll("line_\\d+", "line_0").equals(mdxLines.get(i).replaceAll("line_\\d+", "line_0")) == false) {
+                        throw new GradleException("Files are not equal, difference on line: " + (i + 1));
+                    }
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+
+    private boolean hasMultipleDocImplementations(Path path) {
+        String fileName = path.getName(path.getNameCount() - 1).toString();
+        if (fileName.endsWith("asciidoc")) {
+            return Files.exists(path.getParent().resolve(fileName.replace(".asciidoc", ".mdx")));
+        } else if (fileName.endsWith("mdx")) {
+            return Files.exists(path.getParent().resolve(fileName.replace(".mdx", ".asciidoc")));
+        }
+        return false;
     }
 
 }

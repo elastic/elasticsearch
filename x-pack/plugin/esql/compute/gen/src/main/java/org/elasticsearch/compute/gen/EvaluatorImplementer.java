@@ -39,7 +39,6 @@ import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF_BLOCK;
-import static org.elasticsearch.compute.gen.Types.BYTES_REF_BUILDER;
 import static org.elasticsearch.compute.gen.Types.DOUBLE_BLOCK;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
@@ -235,6 +234,7 @@ public class EvaluatorImplementer {
                 if (processFunction.warnExceptions.isEmpty() == false) {
                     builder.beginControlFlow("try");
                 }
+
                 builder.addStatement(builtPattern, args.toArray());
 
                 if (processFunction.warnExceptions.isEmpty() == false) {
@@ -714,34 +714,22 @@ public class EvaluatorImplementer {
 
         @Override
         public void declareField(TypeSpec.Builder builder) {
-            if (type.equals(BYTES_REF_BUILDER)) {
-                return;
-            }
             builder.addField(type, name, Modifier.PRIVATE, Modifier.FINAL);
         }
 
         @Override
         public void declareFactoryField(TypeSpec.Builder builder) {
-            if (type.equals(BYTES_REF_BUILDER)) {
-                return;
-            }
             builder.addField(factoryFieldType(), name, Modifier.PRIVATE, Modifier.FINAL);
         }
 
         @Override
         public void implementCtor(MethodSpec.Builder builder) {
-            if (type.equals(BYTES_REF_BUILDER)) {
-                return;
-            }
             builder.addParameter(type, name);
             builder.addStatement("this.$L = $L", name, name);
         }
 
         @Override
         public void implementFactoryCtor(MethodSpec.Builder builder) {
-            if (type.equals(BYTES_REF_BUILDER)) {
-                return;
-            }
             builder.addParameter(factoryFieldType(), name);
             builder.addStatement("this.$L = $L", name, name);
         }
@@ -752,7 +740,7 @@ public class EvaluatorImplementer {
 
         @Override
         public String factoryInvocation(MethodSpec.Builder factoryMethodBuilder) {
-            return type.equals(BYTES_REF_BUILDER) ? null : build ? name + ".apply(context)" : name;
+            return build ? name + ".apply(context)" : name;
         }
 
         @Override
@@ -772,9 +760,7 @@ public class EvaluatorImplementer {
 
         @Override
         public void createScratch(MethodSpec.Builder builder) {
-            if (type.equals(BYTES_REF_BUILDER)) {
-                builder.addStatement("$T $L = new $T()", BYTES_REF_BUILDER, name, BYTES_REF_BUILDER);
-            }
+            // nothing to do
         }
 
         @Override

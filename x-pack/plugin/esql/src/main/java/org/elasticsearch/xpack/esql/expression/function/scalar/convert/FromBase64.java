@@ -69,11 +69,11 @@ public class FromBase64 extends UnaryScalarFunction {
     }
 
     @Evaluator()
-    static BytesRef process(BytesRef field, @Fixed(includeInToString = false) BytesRefBuilder oScratch) {
+    static BytesRef process(BytesRef field, @Fixed(includeInToString = false, build = true) BytesRefBuilder oScratch) {
         byte[] bytes = new byte[field.length];
         System.arraycopy(field.bytes, field.offset, bytes, 0, field.length);
-        oScratch.clear();
         oScratch.grow(field.length);
+        oScratch.clear();
         int decodedSize = Base64.getDecoder().decode(bytes, oScratch.bytes());
         return new BytesRef(oScratch.bytes(), 0, decodedSize);
     }
@@ -83,7 +83,7 @@ public class FromBase64 extends UnaryScalarFunction {
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
         return switch (PlannerUtils.toElementType(field.dataType())) {
-            case BYTES_REF -> new FromBase64Evaluator.Factory(source(), toEvaluator.apply(field));
+            case BYTES_REF -> new FromBase64Evaluator.Factory(source(), toEvaluator.apply(field), context -> new BytesRefBuilder());
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };

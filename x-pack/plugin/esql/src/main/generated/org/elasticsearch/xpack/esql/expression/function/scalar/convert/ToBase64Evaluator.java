@@ -4,9 +4,11 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.compute.data.Block;
@@ -28,12 +30,15 @@ public final class ToBase64Evaluator implements EvalOperator.ExpressionEvaluator
 
   private final EvalOperator.ExpressionEvaluator field;
 
+  private final BytesRefBuilder oScratch;
+
   private final DriverContext driverContext;
 
   public ToBase64Evaluator(Source source, EvalOperator.ExpressionEvaluator field,
-      DriverContext driverContext) {
+      BytesRefBuilder oScratch, DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.field = field;
+    this.oScratch = oScratch;
     this.driverContext = driverContext;
   }
 
@@ -44,14 +49,13 @@ public final class ToBase64Evaluator implements EvalOperator.ExpressionEvaluator
       if (fieldVector == null) {
         return eval(page.getPositionCount(), fieldBlock);
       }
-      return eval(page.getPositionCount(), fieldVector).asBlock();
+      return eval(page.getPositionCount(), fieldVector);
     }
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock fieldBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef fieldScratch = new BytesRef();
-      BytesRefBuilder oScratch = new BytesRefBuilder();
       position: for (int p = 0; p < positionCount; p++) {
         if (fieldBlock.isNull(p)) {
           result.appendNull();
@@ -64,18 +68,27 @@ public final class ToBase64Evaluator implements EvalOperator.ExpressionEvaluator
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(ToBase64.process(fieldBlock.getBytesRef(fieldBlock.getFirstValueIndex(p), fieldScratch), oScratch));
+        try {
+          result.appendBytesRef(ToBase64.process(fieldBlock.getBytesRef(fieldBlock.getFirstValueIndex(p), fieldScratch), oScratch));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
   }
 
-  public BytesRefVector eval(int positionCount, BytesRefVector fieldVector) {
-    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
+  public BytesRefBlock eval(int positionCount, BytesRefVector fieldVector) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef fieldScratch = new BytesRef();
-      BytesRefBuilder oScratch = new BytesRefBuilder();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(ToBase64.process(fieldVector.getBytesRef(p, fieldScratch), oScratch));
+        try {
+          result.appendBytesRef(ToBase64.process(fieldVector.getBytesRef(p, fieldScratch), oScratch));
+        } catch (ArithmeticException e) {
+          warnings.registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
@@ -96,14 +109,18 @@ public final class ToBase64Evaluator implements EvalOperator.ExpressionEvaluator
 
     private final EvalOperator.ExpressionEvaluator.Factory field;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field) {
+    private final Function<DriverContext, BytesRefBuilder> oScratch;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field,
+        Function<DriverContext, BytesRefBuilder> oScratch) {
       this.source = source;
       this.field = field;
+      this.oScratch = oScratch;
     }
 
     @Override
     public ToBase64Evaluator get(DriverContext context) {
-      return new ToBase64Evaluator(source, field.get(context), context);
+      return new ToBase64Evaluator(source, field.get(context), oScratch.apply(context), context);
     }
 
     @Override

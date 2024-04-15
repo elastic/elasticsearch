@@ -40,6 +40,7 @@ public class ToBase64 extends UnaryScalarFunction {
     )
     public ToBase64(Source source, @Param(name = "string", type = { "keyword", "text" }, description = "A string.") Expression string) {
         super(source, string);
+
     }
 
     @Override
@@ -65,12 +66,13 @@ public class ToBase64 extends UnaryScalarFunction {
         return NodeInfo.create(this, ToBase64::new, field);
     }
 
-    @Evaluator()
-    static BytesRef process(BytesRef field, @Fixed(includeInToString = false) BytesRefBuilder oScratch) {
+    @Evaluator(warnExceptions = { ArithmeticException.class })
+    static BytesRef process(BytesRef field, @Fixed(includeInToString = false, build = true) BytesRefBuilder oScratch) {
+        int outLength = Math.multiplyExact(4, (Math.addExact(field.length, 2) / 3));
         byte[] bytes = new byte[field.length];
         System.arraycopy(field.bytes, field.offset, bytes, 0, field.length);
+        oScratch.grow(outLength);
         oScratch.clear();
-        oScratch.grow(field.length * 2);
         int encodedSize = Base64.getEncoder().encode(bytes, oScratch.bytes());
         return new BytesRef(oScratch.bytes(), 0, encodedSize);
     }
@@ -80,7 +82,7 @@ public class ToBase64 extends UnaryScalarFunction {
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
         return switch (PlannerUtils.toElementType(field.dataType())) {
-            case BYTES_REF -> new ToBase64Evaluator.Factory(source(), toEvaluator.apply(field));
+            case BYTES_REF -> new ToBase64Evaluator.Factory(source(), toEvaluator.apply(field), context -> new BytesRefBuilder());
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };

@@ -13,6 +13,8 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
+ *
+ * This file was contributed to by generative AI
  */
 
 package co.elastic.elasticsearch.stateless;
@@ -48,6 +50,9 @@ import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheNodesResponse;
 import co.elastic.elasticsearch.stateless.cache.action.TransportClearBlobCacheAction;
+import co.elastic.elasticsearch.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
+import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
+import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterStateCleanupService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy;
@@ -244,12 +249,11 @@ public class Stateless extends Plugin
         + "_thread_pool";
 
     public static final Set<DiscoveryNodeRole> STATELESS_ROLES = Set.of(DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
-
-    private final SetOnce<Client> client = new SetOnce<>();
     private final SetOnce<StatelessCommitService> commitService = new SetOnce<>();
     private final SetOnce<ClosedShardService> closedShardService = new SetOnce<>();
     private final SetOnce<ObjectStoreService> objectStoreService = new SetOnce<>();
     private final SetOnce<StatelessSharedBlobCacheService> sharedBlobCacheService = new SetOnce<>();
+    private final SetOnce<CacheBlobReaderService> cacheBlobReaderService = new SetOnce<>();
     private final SetOnce<SharedBlobCacheWarmingService> sharedBlobCacheWarmingService = new SetOnce<>();
     private final SetOnce<BlobStoreHealthIndicator> blobStoreHealthIndicator = new SetOnce<>();
     private final SetOnce<TranslogReplicator> translogReplicator = new SetOnce<>();
@@ -380,7 +384,6 @@ public class Stateless extends Plugin
     @Override
     public Collection<Object> createComponents(PluginServices services) {
         Client client = services.client();
-        setAndGet(this.client, client);
         ClusterService clusterService = services.clusterService();
         ThreadPool threadPool = services.threadPool();
         Environment environment = services.environment();
@@ -398,6 +401,8 @@ public class Stateless extends Plugin
         var cacheService = createSharedBlobCacheService(services, nodeEnvironment, settings, threadPool);
         var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(setAndGet(this.sharedBlobCacheService, cacheService));
         components.add(sharedBlobCacheServiceSupplier);
+        var cacheBlobReaderService = setAndGet(this.cacheBlobReaderService, new CacheBlobReaderService(cacheService, client));
+        components.add(cacheBlobReaderService);
         var cacheWarmingService = createSharedBlobCacheWarmingService(cacheService, threadPool);
         setAndGet(this.sharedBlobCacheWarmingService, cacheWarmingService);
         var statelessElectionStrategy = setAndGet(
@@ -820,7 +825,13 @@ public class Stateless extends Plugin
             indexModule.setDirectoryWrapper((in, shardRouting) -> {
                 if (shardRouting.isPromotableToPrimary()) {
                     Lucene.cleanLuceneIndex(in);
-                    return new IndexDirectory(in, createSearchDirectory(sharedBlobCacheService.get(), shardRouting.shardId()));
+                    SearchDirectory searchDirectory = createSearchDirectory(
+                        sharedBlobCacheService.get(),
+                        cacheBlobReaderService.get(),
+                        MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
+                        shardRouting.shardId()
+                    );
+                    return new IndexDirectory(in, searchDirectory);
                 } else {
                     return in;
                 }
@@ -843,7 +854,12 @@ public class Stateless extends Plugin
             indexModule.setDirectoryWrapper((in, shardRouting) -> {
                 if (shardRouting.isSearchable()) {
                     in.close();
-                    return createSearchDirectory(sharedBlobCacheService.get(), shardRouting.shardId());
+                    return createSearchDirectory(
+                        sharedBlobCacheService.get(),
+                        cacheBlobReaderService.get(),
+                        new AtomicMutableObjectStoreUploadTracker(),
+                        shardRouting.shardId()
+                    );
                 } else {
                     return in;
                 }
@@ -931,7 +947,7 @@ public class Stateless extends Plugin
                     refreshThrottlingService.get().createRefreshThrottlerFactory(indexSettings)
                 );
             } else {
-                return new SearchEngine(config, client.get(), getClosedShardService());
+                return new SearchEngine(config, getClosedShardService());
             }
         });
     }
@@ -981,8 +997,13 @@ public class Stateless extends Plugin
     }
 
     // protected to allow tests to override
-    protected SearchDirectory createSearchDirectory(StatelessSharedBlobCacheService cacheService, ShardId shardId) {
-        return new SearchDirectory(cacheService, shardId);
+    protected SearchDirectory createSearchDirectory(
+        StatelessSharedBlobCacheService cacheService,
+        CacheBlobReaderService cacheBlobReaderService,
+        MutableObjectStoreUploadTracker objectStoreUploadTracker,
+        ShardId shardId
+    ) {
+        return new SearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
     }
 
     private ClosedShardService getClosedShardService() {

@@ -13,14 +13,16 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
+ *
+ * This file was contributed to by generative AI
  */
 
 package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
+import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreCacheBlobReader;
 
-import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
@@ -64,8 +66,11 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                     fileName,
                     sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, fileName), input.length),
                     randomIOContext(),
-                    TestUtils.singleBlobContainer(fileName, input),
-                    (position, length) -> BlobCacheUtils.computeRange(sharedBlobCacheService.getRangeSize(), position, length),
+                    new ObjectStoreCacheBlobReader(
+                        TestUtils.singleBlobContainer(fileName, input),
+                        fileName,
+                        sharedBlobCacheService.getRangeSize()
+                    ),
                     input.length,
                     0
                 );
@@ -98,8 +103,11 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                 fileName,
                 sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, fileName), input.length),
                 randomIOContext(),
-                TestUtils.singleBlobContainer(fileName, input),
-                (position, length) -> BlobCacheUtils.computeRange(sharedBlobCacheService.getRangeSize(), position, length),
+                new ObjectStoreCacheBlobReader(
+                    TestUtils.singleBlobContainer(fileName, input),
+                    fileName,
+                    sharedBlobCacheService.getRangeSize()
+                ),
                 input.length,
                 0
             );

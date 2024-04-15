@@ -13,6 +13,8 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
+ *
+ * This file was contributed to by generative AI
  */
 
 package co.elastic.elasticsearch.stateless;
@@ -236,6 +238,8 @@ class StatelessIndexEventListener implements IndexEventListener {
                         );
                         var searchDirectory = SearchDirectory.unwrapDirectory(store.directory());
                         var compoundCommit = commit;
+                        // TODO - If commitToUse is on the indexing node, return a StatelessCompoundCommit from the indexing node. Maybe
+                        // also consider returning the latest uploaded BCC to pass it to the updateCommit method as well (ES-8200)
                         if (commitToRegister.equals(commitToUse) == false) {
                             // TODO: This won't work once we fully enable BCC, ES-8200
                             compoundCommit = ObjectStoreService.readStatelessCompoundCommit(
@@ -244,7 +248,10 @@ class StatelessIndexEventListener implements IndexEventListener {
                             );
                         }
                         assert compoundCommit != null;
-                        searchDirectory.updateCommit(compoundCommit);
+                        // TODO once we have multi-CC VBCCs, using commitToUse for the "last BCC uploaded" argument will be wrong, as it
+                        // may not be on the object store yet. Either use commitToRegister to be safe (it is definitely on the object store)
+                        // or extend the registration action's response to receive the last BCC uploaded as well. (ES-8200)
+                        searchDirectory.updateCommit(compoundCommit, commitToUse);
                         var warmingService = sharedBlobCacheWarmingService.get();
                         warmingService.warmCacheForShardRecovery(indexShard, commit);
                         return null;

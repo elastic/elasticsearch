@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommit
 import co.elastic.elasticsearch.stateless.commits.CommitBCCResolver;
 import co.elastic.elasticsearch.stateless.commits.IndexEngineLocalReaderListener;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
+import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
@@ -402,10 +403,18 @@ public class IndexEngine extends InternalEngine {
 
     public void readVirtualBatchedCompoundCommitChunk(final GetVirtualBatchedCompoundCommitChunkRequest request, final StreamOutput output)
         throws IOException {
-        // TODO: return real data from the indirection layer (ES-7769)
-        byte b = 1;
-        for (int i = 0; i < request.getLength(); i++) {
-            output.write(b++);
+        PrimaryTermAndGeneration vbccTermGen = new PrimaryTermAndGeneration(
+            request.getPrimaryTerm(),
+            request.getVirtualBatchedCompoundCommitGeneration()
+        );
+        var vbcc = statelessCommitService.getVirtualBatchedCompoundCommit(shardId, vbccTermGen);
+        if (vbcc == null) {
+            // If the VBCC was not found, then it is already uploaded, so let the search shard query the blob store
+            throw new VirtualBatchedCompoundCommit.BatchedCompoundCommitAlreadyUploaded(shardId, vbccTermGen);
+        } else {
+            // This length adjustment is needed because the last CC is not padded in a vBCC
+            int length = Math.min(request.getLength(), Math.toIntExact(vbcc.getTotalSizeInBytes() - request.getOffset()));
+            vbcc.getBytesByRange(request.getOffset(), length, output);
         }
     }
 

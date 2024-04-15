@@ -13,12 +13,16 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
+ *
+ * This file was contributed to by generative AI
  */
 
 package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
+import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
+import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
@@ -31,6 +35,7 @@ import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.mockfile.HandleTrackingFS;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -76,6 +81,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
 
 public class ReopeningIndexInputTests extends ESIndexInputTestCase {
 
@@ -101,7 +107,12 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
             FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
             IndexDirectory indexDirectory = new IndexDirectory(
                 newFSDirectory(indexDataPath),
-                new SearchDirectory(sharedBlobCacheService, shardId)
+                new SearchDirectory(
+                    sharedBlobCacheService,
+                    new CacheBlobReaderService(sharedBlobCacheService, mock(Client.class)),
+                    MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
+                    shardId
+                )
             )
         ) {
             final FsBlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobStorePath);
@@ -171,7 +182,12 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
             FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
             IndexDirectory indexDirectory = new IndexDirectory(
                 newFSDirectory(indexDataPath),
-                new SearchDirectory(sharedBlobCacheService, shardId)
+                new SearchDirectory(
+                    sharedBlobCacheService,
+                    new CacheBlobReaderService(sharedBlobCacheService, mock(Client.class)),
+                    MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
+                    shardId
+                )
             )
         ) {
             final FsBlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobStorePath);

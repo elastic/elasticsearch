@@ -13,6 +13,8 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
+ *
+ * This file was contributed to by generative AI
  */
 
 package co.elastic.elasticsearch.stateless.commits;
@@ -21,30 +23,38 @@ import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
+import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
+import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.cache.reader.IndexingShardCacheBlobReader;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
-import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
+import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
+import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -52,6 +62,7 @@ import org.elasticsearch.transport.ConnectTransportException;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -60,7 +71,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
+import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.greaterThan;
@@ -77,8 +90,11 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
      * - produce file not found failures when given offset is of a specific value (Long.MAX_VALUE)
      * - otherwise, simulate the returned bytes with a certain pattern that can be validated with the
      *   validateSimulatedVirtualBatchedCompoundCommitChunkResponse function
+     *
+     * Also, the plugin customizes {@link StatelessCommitService} to pinpoint the last virtual batched compound commit to be uploaded.
      */
     public static class TestStateless extends Stateless {
+        public volatile TestStatelessCommitService statelessCommitService;
         private volatile boolean simulateReadVirtualBatchedCompoundCommitChunk = false;
 
         public TestStateless(Settings settings) {
@@ -111,8 +127,10 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
                         if (request.getOffset() == Long.MAX_VALUE) {
                             throw randomFrom(new FileNotFoundException("simulated"), new NoSuchFileException("simulated"));
                         }
-                        // TODO: return the simulated data here instead of calling the indirection layer once it is implemented (ES-7769)
-                        super.readVirtualBatchedCompoundCommitChunk(request, output);
+                        byte b = 1;
+                        for (int i = 0; i < request.getLength(); i++) {
+                            output.write(b++);
+                        }
                     } else {
                         super.readVirtualBatchedCompoundCommitChunk(request, output);
                     }
@@ -126,6 +144,69 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
 
         public static void enableSimulationOfReadVirtualBatchedCompoundCommitChunk(String node) {
             getPlugin(node).simulateReadVirtualBatchedCompoundCommitChunk = true;
+        }
+
+        @Override
+        public Collection<Object> createComponents(PluginServices services) {
+            final Collection<Object> components = super.createComponents(services);
+            components.add(
+                new PluginComponentBinding<>(
+                    StatelessCommitService.class,
+                    components.stream().filter(c -> c instanceof TestStatelessCommitService).findFirst().orElseThrow()
+                )
+            );
+            return components;
+        }
+
+        @Override
+        protected StatelessCommitService createStatelessCommitService(
+            Settings settings,
+            ObjectStoreService objectStoreService,
+            ClusterService clusterService,
+            Client client,
+            StatelessCommitCleaner commitCleaner
+        ) {
+            statelessCommitService = new TestStatelessCommitService(settings, objectStoreService, clusterService, client, commitCleaner);
+            return statelessCommitService;
+        }
+    }
+
+    public static class TestStatelessCommitService extends StatelessCommitService {
+        public volatile VirtualBatchedCompoundCommit lastVirtualBccToBeUploaded = null;
+
+        public TestStatelessCommitService(
+            Settings settings,
+            ObjectStoreService objectStoreService,
+            ClusterService clusterService,
+            Client client,
+            StatelessCommitCleaner commitCleaner
+        ) {
+            super(settings, objectStoreService, clusterService, client, commitCleaner);
+        }
+
+        @Override
+        protected ShardCommitState createShardCommitState(ShardId shardId, long primaryTerm) {
+            return new ShardCommitState(shardId, primaryTerm) {
+                @Override
+                protected boolean shouldUploadVirtualBcc(VirtualBatchedCompoundCommit virtualBcc) {
+                    if (super.shouldUploadVirtualBcc(virtualBcc)) {
+                        lastVirtualBccToBeUploaded = virtualBcc;
+                        return true;
+                    }
+                    return false;
+                }
+            };
+        }
+
+        @Override
+        public VirtualBatchedCompoundCommit getVirtualBatchedCompoundCommit(
+            ShardId shardId,
+            PrimaryTermAndGeneration primaryTermAndGeneration
+        ) {
+            if (lastVirtualBccToBeUploaded != null) {
+                return lastVirtualBccToBeUploaded;
+            }
+            return super.getVirtualBatchedCompoundCommit(shardId, primaryTermAndGeneration);
         }
     }
 
@@ -146,30 +227,27 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         startMasterOnlyNode();
         final var indexNode = startIndexNode();
         TestStateless.enableSimulationOfReadVirtualBatchedCompoundCommitChunk(indexNode);
-        startSearchNode();
+        var searchNode = startSearchNode();
         final String indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
         ensureGreen(indexName);
 
-        final var index = resolveIndex(indexName);
-        final var searchShard = findSearchShard(index, 0);
-        final var searchEngine = getShardEngine(searchShard, SearchEngine.class);
         int length = randomIntBetween(5, 20);
-        searchEngine.getVirtualBatchedCompoundCommitChunk(
+        var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
+            findSearchShard(indexName).shardId(),
             new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
-            randomLongBetween(0, Long.MAX_VALUE - 1),
-            length,
-            ActionListener.wrap(response -> validateSimulatedVirtualBatchedCompoundCommitChunkResponse(response, length), e -> {
-                assert false : e;
-            })
+            client(searchNode)
         );
+        try (var inputStream = indexingShardCacheBlobReader.getRangeInputStream(randomLongBetween(0, Long.MAX_VALUE - 1), length)) {
+            validateSimulatedVirtualBatchedCompoundCommitChunkResponse(inputStream, length);
+        }
     }
 
     public void testSimulatedGetVirtualBatchedCompoundCommitChunkWaitsForPrimaryRelocation() throws Exception {
         startMasterOnlyNode();
         final var indexNodeA = startIndexNode();
         TestStateless.enableSimulationOfReadVirtualBatchedCompoundCommitChunk(indexNodeA);
-        startSearchNode();
+        var searchNode = startSearchNode();
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
         ensureGreen(indexName);
@@ -192,20 +270,22 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
         safeAwait(relocationStarted);
 
-        final var index = resolveIndex(indexName);
-        final var searchShard = findSearchShard(index, 0);
-        final var searchEngine = getShardEngine(searchShard, SearchEngine.class);
         int length = randomIntBetween(5, 20);
-        CountDownLatch validated = new CountDownLatch(1);
-        searchEngine.getVirtualBatchedCompoundCommitChunk(
+        var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
+            findSearchShard(indexName).shardId(),
             new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
-            randomLongBetween(0, Long.MAX_VALUE - 1),
-            length,
-            ActionListener.wrap(response -> {
-                validateSimulatedVirtualBatchedCompoundCommitChunkResponse(response, length);
-                validated.countDown();
-            }, e -> { assert false : e; })
+            client(searchNode)
         );
+        CountDownLatch validated = new CountDownLatch(1);
+
+        new Thread(() -> {
+            try (var inputStream = indexingShardCacheBlobReader.getRangeInputStream(randomLongBetween(0, Long.MAX_VALUE - 1), length)) {
+                validateSimulatedVirtualBatchedCompoundCommitChunkResponse(inputStream, length);
+                validated.countDown();
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        }).start();
         actionSent.countDown();
 
         assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
@@ -238,21 +318,20 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
             connection.sendRequest(requestId, action, request, options);
         });
 
-        final var index = resolveIndex(indexName);
-        final var searchShard = findSearchShard(index, 0);
-        final var searchEngine = getShardEngine(searchShard, SearchEngine.class);
+        var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
+            findSearchShard(indexName).shardId(),
+            new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
+            client(searchNode)
+        );
         int length = randomIntBetween(5, 20);
         CountDownLatch validated = new CountDownLatch(1);
         new Thread(() -> {
-            searchEngine.getVirtualBatchedCompoundCommitChunk(
-                new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
-                randomLongBetween(0, Long.MAX_VALUE - 1),
-                length,
-                ActionListener.wrap(response -> {
-                    validateSimulatedVirtualBatchedCompoundCommitChunkResponse(response, length);
-                    validated.countDown();
-                }, e -> { assert false : e; })
-            );
+            try (var inputStream = indexingShardCacheBlobReader.getRangeInputStream(randomLongBetween(0, Long.MAX_VALUE - 1), length)) {
+                validateSimulatedVirtualBatchedCompoundCommitChunkResponse(inputStream, length);
+                validated.countDown();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }).start();
 
         safeAwait(actionAppeared);
@@ -288,26 +367,23 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
             connection.sendRequest(requestId, action, request, options);
         });
 
-        final var index = resolveIndex(indexName);
-        final var searchShard = findSearchShard(index, 0);
-        final var searchEngine = getShardEngine(searchShard, SearchEngine.class);
+        var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
+            findSearchShard(indexName).shardId(),
+            new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
+            client(searchNode)
+        );
         int length = randomIntBetween(5, 20);
         CountDownLatch exceptionThrown = new CountDownLatch(1);
         new Thread(() -> {
-            searchEngine.getVirtualBatchedCompoundCommitChunk(
-                new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
-                randomLongBetween(0, Long.MAX_VALUE - 1),
-                length,
-                ActionListener.wrap(response -> {
-                    assert false : "exception expected";
-                }, e -> {
-                    assertThat(
-                        e.getCause(),
-                        instanceOf(failureType == FailureType.INDEX_CLOSED ? IndexClosedException.class : IndexNotFoundException.class)
-                    );
-                    exceptionThrown.countDown();
-                })
-            );
+            try (var inputStream = indexingShardCacheBlobReader.getRangeInputStream(randomLongBetween(0, Long.MAX_VALUE - 1), length)) {
+                assert false : "exception expected";
+            } catch (Exception e) {
+                assertThat(
+                    e.getCause(),
+                    instanceOf(failureType == FailureType.INDEX_CLOSED ? IndexClosedException.class : IndexNotFoundException.class)
+                );
+                exceptionThrown.countDown();
+            }
         }).start();
 
         safeAwait(actionAppeared);
@@ -360,26 +436,25 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
         safeAwait(relocationStarted);
 
-        final var index = resolveIndex(indexName);
-        final var searchShard = findSearchShard(index, 0);
-        final var searchEngine = getShardEngine(searchShard, SearchEngine.class);
+        var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
+            findSearchShard(indexName).shardId(),
+            new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
+            client(searchNode)
+        );
         int length = randomIntBetween(5, 20);
         CountDownLatch exceptionThrown = new CountDownLatch(1);
-        searchEngine.getVirtualBatchedCompoundCommitChunk(
-            new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
-            randomLongBetween(0, Long.MAX_VALUE - 1),
-            length,
-            ActionListener.wrap(response -> {
+        new Thread(() -> {
+            try (var inputStream = indexingShardCacheBlobReader.getRangeInputStream(randomLongBetween(0, Long.MAX_VALUE - 1), length)) {
                 assert false : "exception expected";
-            }, e -> {
+            } catch (Exception e) {
                 if (failureType == FailureType.INDEX_CLOSED) {
                     assertThat(e.getCause(), instanceOf(IndexClosedException.class));
                 } else {
                     assertThat(e, instanceOf(IndexNotFoundException.class));
                 }
                 exceptionThrown.countDown();
-            })
-        );
+            }
+        }).start();
 
         switch (failureType) {
             case INDEX_NOT_FOUND_WHEN_INDEX_DELETED:
@@ -409,7 +484,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         startMasterOnlyNode();
         final var indexNode = startIndexNode();
         TestStateless.enableSimulationOfReadVirtualBatchedCompoundCommitChunk(indexNode);
-        startSearchNode();
+        var searchNode = startSearchNode();
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
         ensureGreen(indexName);
@@ -437,27 +512,24 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
             }
         );
 
-        final var searchShard = findSearchShard(index, 0);
-        final var searchEngine = getShardEngine(searchShard, SearchEngine.class);
-        int length = randomIntBetween(5, 20);
-        CountDownLatch validated = new CountDownLatch(1);
-        searchEngine.getVirtualBatchedCompoundCommitChunk(
+        var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
+            findSearchShard(indexName).shardId(),
             new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
-            randomLongBetween(0, Long.MAX_VALUE - 1),
-            length,
-            ActionListener.wrap(response -> {
-                validateSimulatedVirtualBatchedCompoundCommitChunkResponse(response, length);
-                validated.countDown();
-            }, e -> { assert false : e; })
+            client(searchNode)
         );
-        safeAwait(validated);
+        int length = randomIntBetween(5, 20);
+        try (var inputStream = indexingShardCacheBlobReader.getRangeInputStream(randomLongBetween(0, Long.MAX_VALUE - 1), length)) {
+            validateSimulatedVirtualBatchedCompoundCommitChunkResponse(inputStream, length);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public void testSimulatedGetVirtualBatchedCompoundCommitChunkFileError() throws Exception {
         startMasterOnlyNode();
         final var indexNodeA = startIndexNode();
         TestStateless.enableSimulationOfReadVirtualBatchedCompoundCommitChunk(indexNodeA);
-        startSearchNode();
+        var searchNode = startSearchNode();
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
         ensureGreen(indexName);
@@ -465,22 +537,17 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
 
         final var index = resolveIndex(indexName);
         long primaryTermStart = findIndexShard(index, 0).getOperationPrimaryTerm();
-        final var searchShard = findSearchShard(index, 0);
-        final var searchEngine = getShardEngine(searchShard, SearchEngine.class);
-        int length = randomIntBetween(5, 20);
-        CountDownLatch exceptionThrown = new CountDownLatch(1);
-        searchEngine.getVirtualBatchedCompoundCommitChunk(
+        var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
+            findSearchShard(indexName).shardId(),
             new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
-            Long.MAX_VALUE,
-            length,
-            ActionListener.wrap(response -> {
-                assert false : "exception expected";
-            }, e -> {
-                assertThat(e.getCause(), either(instanceOf(FileNotFoundException.class)).or(instanceOf(NoSuchFileException.class)));
-                exceptionThrown.countDown();
-            })
+            client(searchNode)
         );
-        safeAwait(exceptionThrown);
+        int length = randomIntBetween(5, 20);
+        try (var inputStream = indexingShardCacheBlobReader.getRangeInputStream(Long.MAX_VALUE, length)) {
+            assert false : "exception expected";
+        } catch (Exception e) {
+            assertThat(e.getCause(), either(instanceOf(FileNotFoundException.class)).or(instanceOf(NoSuchFileException.class)));
+        }
         assertBusy(() -> {
             long primaryTermEnd = findIndexShard(index, 0).getOperationPrimaryTerm();
             assertThat("failed shard should be re-allocated with new primary term", primaryTermEnd, greaterThan(primaryTermStart));
@@ -509,23 +576,21 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         });
 
         final var index = resolveIndex(indexName);
-        final var searchShard = findSearchShard(index, 0);
-        final var searchEngine = getShardEngine(searchShard, SearchEngine.class);
+        var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
+            findSearchShard(indexName).shardId(),
+            new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
+            client(searchNode)
+        );
         int length = randomIntBetween(5, 20);
         CountDownLatch exceptionThrown = new CountDownLatch(1);
         new Thread(() -> {
-            searchEngine.getVirtualBatchedCompoundCommitChunk(
-                new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
-                randomLongBetween(0, Long.MAX_VALUE - 1),
-                length,
-                ActionListener.wrap(response -> {
-                    assert false : "exception expected";
-                }, e -> {
-                    assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
-                    assertThat(e.getCause().getMessage(), containsStringIgnoringCase("primary term mismatch"));
-                    exceptionThrown.countDown();
-                })
-            );
+            try (var inputStream = indexingShardCacheBlobReader.getRangeInputStream(randomLongBetween(0, Long.MAX_VALUE - 1), length)) {
+                assert false : "exception expected";
+            } catch (Exception e) {
+                assertThat(e.getCause(), instanceOf(ElasticsearchException.class));
+                assertThat(e.getCause().getMessage(), containsStringIgnoringCase("primary term mismatch"));
+                exceptionThrown.countDown();
+            }
         }).start();
 
         safeAwait(actionSent);
@@ -537,18 +602,85 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         safeAwait(exceptionThrown);
     }
 
-    private void validateSimulatedVirtualBatchedCompoundCommitChunkResponse(ReleasableBytesReference response, int length) {
-        try (ReleasableBytesReference reference = response.retain()) {
-            BytesRef referenceBytes = reference.toBytesRef();
-            byte[] referenceArray = referenceBytes.bytes;
-            int referenceOffset = referenceBytes.offset;
-            assert reference.length() == length : "length " + reference.length();
-            byte b = 1;
-            for (int i = 0; i < reference.length(); i++) {
-                byte value = referenceArray[i + referenceOffset];
-                assert value == b : "value " + value + " at " + i + " with offset " + referenceOffset + " vs " + b;
-                b++;
+    // TODO - Once multi-CC VBCCs work completely, simplify testing: remove forcing the search node to consider a last uploaded.
+    // Simply ensure the search works by counting the correct number of docs, which means it calls correctly
+    // the get chunk action from the indexing node. Also remove the
+    // `VirtualBatchedCompoundCommitsIT.TestStatelessCommitService.getVirtualBatchedCompoundCommit` function.
+    public void testGetVirtualBatchedCompoundCommitChunkOnLastVbcc() throws Exception {
+        startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        var searchNode = startSearchNode();
+        final String indexName = randomIdentifier();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+
+        assertNoFailuresAndResponse(
+            prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()),
+            searchResponse -> assertEquals(0L, searchResponse.getHits().getTotalHits().value)
+        );
+
+        var plugin = TestStateless.getPlugin(indexNode);
+
+        var indexShard = findIndexShard(indexName);
+        var indexEngine = ((IndexEngine) indexShard.getEngineOrNull());
+        var lastUploadedTermAndGen = new PrimaryTermAndGeneration(indexShard.getOperationPrimaryTerm(), indexEngine.getCurrentGeneration());
+        final var searchShard = findSearchShard(indexName);
+        final var searchDirectory = SearchDirectory.unwrapDirectory(searchShard.store().directory());
+
+        int totalDocs = randomIntBetween(1, 10);
+        indexDocs(indexName, totalDocs);
+
+        AtomicInteger getVbccChunkActions = new AtomicInteger(0);
+        MockTransportService.getInstance(searchNode).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
+                getVbccChunkActions.incrementAndGet();
             }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        MockTransportService.getInstance(indexNode).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.startsWith(TransportNewCommitNotificationAction.NAME)) {
+                assert plugin.statelessCommitService.lastVirtualBccToBeUploaded != null
+                    : "the rolling capability has been enabled so this test should be redone, see TODO at the top of the integration test";
+                plugin.statelessCommitService.lastVirtualBccToBeUploaded.incRef();
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        MockTransportService.getInstance(searchNode)
+            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
+                NewCommitNotificationRequest oldRequest = (NewCommitNotificationRequest) request;
+                // Force the search node to consider that the last uploaded BCC is the one from before
+                var newRequest = new NewCommitNotificationRequest(
+                    IndexShardRoutingTable.builder(oldRequest.shardId())
+                        .addShard(newShardRouting(oldRequest.shardId(), "_node", true, ShardRoutingState.STARTED))
+                        .build(),
+                    oldRequest.getCompoundCommit(),
+                    oldRequest.getBatchedCompoundCommitGeneration(),
+                    lastUploadedTermAndGen
+                );
+                handler.messageReceived(newRequest, channel, task);
+            });
+
+        refresh(indexName);
+
+        assertNoFailuresAndResponse(
+            prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()),
+            searchResponse -> assertEquals(totalDocs, searchResponse.getHits().getTotalHits().value)
+        );
+
+        plugin.statelessCommitService.lastVirtualBccToBeUploaded.decRef();
+        assertThat(getVbccChunkActions.get(), greaterThan(0));
+    }
+
+    private void validateSimulatedVirtualBatchedCompoundCommitChunkResponse(InputStream inputStream, int length) throws IOException {
+        var bytes = inputStream.readAllBytes();
+        assert bytes.length == length : "length " + bytes.length;
+        byte b = 1;
+        for (int i = 0; i < bytes.length; i++) {
+            byte value = bytes[i];
+            assert value == b : "value " + value + " at " + i + " vs " + b;
+            b++;
         }
     }
 }

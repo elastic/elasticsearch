@@ -15,7 +15,7 @@ setup:
 ---
 'Get connector sync job':
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: test-connector
           job_type: access_control
@@ -23,7 +23,7 @@ setup:
   - set: { id: id }
   - match: { id: $id }
   - do:
-      connector_sync_job.get:
+      connector.sync_job_get:
         connector_sync_job_id: $id
   - match: { job_type: access_control }
   - match: { trigger_method: scheduled }
@@ -31,7 +31,7 @@ setup:
 ---
 'Get connector sync job - Missing sync job id':
   - do:
-      connector_sync_job.get:
+      connector.sync_job_get:
         connector_sync_job_id: non-existing-sync-job-id
       catch: missing
 
@@ -42,7 +42,7 @@ setup:
       features: headers
 
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: test-connector
           job_type: full
@@ -52,7 +52,7 @@ setup:
 
   - do:
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user with read-only access
-      connector_sync_job.get:
+      connector.sync_job_get:
         connector_sync_job_id: $sync-job-id
 
   - match: { job_type: full }
@@ -66,7 +66,7 @@ setup:
       features: headers
 
   - do:
-      connector_sync_job.post:
+      connector.sync_job_post:
         body:
           id: test-connector
           job_type: full
@@ -77,6 +77,6 @@ setup:
   - do:
       catch: forbidden
       headers: { Authorization: "Basic ZW50c2VhcmNoLXVucHJpdmlsZWdlZDplbnRzZWFyY2gtdW5wcml2aWxlZ2VkLXBhc3N3b3Jk" }  # entsearch-unprivileged user
-      connector_sync_job.get:
+      connector.sync_job_get:
         connector_sync_job_id: $sync-job-id
 

@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 
 import java.io.IOException;
@@ -32,10 +33,7 @@ import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.test.ESIntegTestCase.client;
-import static org.elasticsearch.test.ESTestCase.frequently;
-import static org.elasticsearch.test.ESTestCase.randomInt;
-import static org.elasticsearch.test.ESTestCase.randomIntBetween;
-import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
+import static org.elasticsearch.test.ESTestCase.*;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -47,14 +45,27 @@ import static org.junit.Assert.assertTrue;
 public class DataStreamLifecycleFixtures {
 
     public static DataStream createDataStream(
+            Metadata.Builder builder,
+            String dataStreamName,
+            int backingIndicesCount,
+            Settings.Builder backingIndicesSettings,
+            @Nullable DataStreamLifecycle lifecycle,
+            Long now
+    ) {
+        return createDataStream(builder, dataStreamName, backingIndicesCount, backingIndicesSettings, lifecycle, now, false);
+    }
+
+    public static DataStream createDataStream(
         Metadata.Builder builder,
         String dataStreamName,
         int backingIndicesCount,
         Settings.Builder backingIndicesSettings,
         @Nullable DataStreamLifecycle lifecycle,
-        Long now
+        Long now,
+        boolean withFailureStore
     ) {
         final List<Index> backingIndices = new ArrayList<>();
+        final List<Index> failureIndices = new ArrayList<>();
         for (int k = 1; k <= backingIndicesCount; k++) {
             IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k))
                 .settings(backingIndicesSettings)
@@ -70,7 +81,7 @@ public class DataStreamLifecycleFixtures {
             builder.put(indexMetadata, false);
             backingIndices.add(indexMetadata.getIndex());
         }
-        return newInstance(dataStreamName, backingIndices, backingIndicesCount, null, false, lifecycle);
+        return newInstance(dataStreamName, backingIndices, backingIndicesCount, null, false, lifecycle, failureIndices);
     }
 
     static void putComposableIndexTemplate(

@@ -866,6 +866,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
         indexInvalidFlagDocs(dataStreamName, 1);
 
+        // Let's verify the rollover
         assertBusy(() -> {
             GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
             GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
@@ -877,6 +878,47 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             List<Index> failureIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices();
             assertThat(failureIndices.size(), equalTo(2));
         });
+
+        List<String> indices = getFailureIndices(dataStreamName);
+        String firstGenerationIndex = indices.get(0);
+        String secondGenerationIndex = indices.get(1);
+
+        // Let's verify the merge settings
+        ClusterGetSettingsAction.Response response = client().execute(
+                ClusterGetSettingsAction.INSTANCE,
+                new ClusterGetSettingsAction.Request()
+        ).get();
+        Settings clusterSettings = response.persistentSettings();
+
+        Integer targetFactor = DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING.get(clusterSettings);
+        ByteSizeValue targetFloor = DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING.get(clusterSettings);
+
+        assertBusy(() -> {
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(firstGenerationIndex).includeDefaults(true);
+            GetSettingsResponse getSettingsResponse = client().execute(GetSettingsAction.INSTANCE, getSettingsRequest).actionGet();
+            assertThat(
+                    getSettingsResponse.getSetting(firstGenerationIndex, MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey()),
+                    is(targetFactor.toString())
+            );
+            assertThat(
+                    getSettingsResponse.getSetting(firstGenerationIndex, MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey()),
+                    is(targetFloor.getStringRep())
+            );
+        });
+
+        // And finally apply retention
+        assertBusy(() -> {
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+                    .actionGet();
+            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
+            List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
+            assertThat(backingIndices.size(), equalTo(1));
+            List<Index> failureIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices();
+            assertThat(failureIndices.size(), equalTo(1));
+            assertThat(failureIndices.get(0).getName(), equalTo(secondGenerationIndex));
+        });
     }
 
     private static List<String> getBackingIndices(String dataStreamName) {
@@ -886,6 +928,15 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
         return getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().stream().map(Index::getName).toList();
+    }
+
+    private static List<String> getFailureIndices(String dataStreamName) {
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+        GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+                .actionGet();
+        assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
+        return getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices().stream().map(Index::getName).toList();
     }
 
     static void indexDocs(String dataStream, int numDocs) {

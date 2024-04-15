@@ -233,6 +233,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
+            3,
             settings(IndexVersion.current()),
             new DataStreamLifecycle(),
             now

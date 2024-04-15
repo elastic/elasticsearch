@@ -49,8 +49,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.function.Supplier;
-import java.util.stream.IntStream;
 
 import static co.elastic.elasticsearch.stateless.lucene.SearchDirectory.unwrapDirectory;
 import static org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput.BUFFER_SIZE;
@@ -175,40 +173,51 @@ public class SharedBlobCacheWarmingService {
             } else if (LuceneFilesExtensions.fromFile(fileName) == LuceneFilesExtensions.CFE) {
                 SubscribableListener
                     // warm entire CFE file
-                    .<Void>newForked(forked -> {
-                        try (var refCounterListener = new RefCountingListener(forked)) {
-                            findRegionsFor(blobLocation.offset(), blobLocation.offset() + blobLocation.fileLength()).forEach(
-                                region -> addRegion(new BlobRegion(blobLocation.blobFile(), region), fileName, refCounterListener::acquire)
-                            );
-                        }
-                    })
+                    .<Void>newForked(listener -> addLocation(blobLocation, fileName, listener))
                     // parse it and schedule warming of corresponding parts of CFS file
                     .andThenAccept(ignored -> addCfe(fileName))
                     .addListener(listeners.acquire());
             } else if (shouldFullyWarmUp(fileName) || blobLocation.fileLength() <= BUFFER_SIZE) {
-                // warm entire file when small
-                findRegionsFor(blobLocation.offset(), blobLocation.offset() + blobLocation.fileLength()).forEach(
-                    region -> addRegion(new BlobRegion(blobLocation.blobFile(), region), fileName, listeners::acquire)
-                );
+                // warm entire file when it is small
+                addLocation(blobLocation, fileName, listeners.acquire());
             } else {
-                // headers
-                findRegionsFor(blobLocation.offset(), blobLocation.offset() + BUFFER_SIZE).forEach(
-                    region -> addRegion(new BlobRegion(blobLocation.blobFile(), region), fileName, listeners::acquire)
-                );
-                // footer
-                findRegionsFor(
+                var header = new BlobLocation(blobLocation.blobFile(), blobLocation.offset(), BUFFER_SIZE);
+                addLocation(header, fileName, listeners.acquire());
+                var footer = new BlobLocation(
+                    blobLocation.blobFile(),
                     blobLocation.offset() + blobLocation.fileLength() - CodecUtil.footerLength(),
-                    blobLocation.offset() + blobLocation.fileLength()
-                ).forEach(region -> addRegion(new BlobRegion(blobLocation.blobFile(), region), fileName, listeners::acquire));
+                    CodecUtil.footerLength()
+                );
+                addLocation(footer, fileName, listeners.acquire());
             }
         }
 
-        private void addRegion(BlobRegion region, String fileName, Supplier<ActionListener<Void>> listener) {
-            tasks.computeIfAbsent(region, k -> {
-                var t = new CacheRegionWarmingTask(indexShard, region, listener.get());
+        private void addLocation(BlobLocation location, String fileName, ActionListener<Void> listener) {
+            final long start = location.offset();
+            final long end = location.offset() + location.fileLength();
+            final int regionSize = cacheService.getRegionSize();
+            final int startRegion = (int) (start / regionSize);
+            final int endRegion = (int) ((end - (end % regionSize == 0 ? 1 : 0)) / regionSize);
+
+            if (startRegion == endRegion) {
+                addRegion(new BlobRegion(location.blobFile(), startRegion), fileName, listener);
+            } else {
+                try (var listeners = new RefCountingListener(listener)) {
+                    for (int r = startRegion; r <= endRegion; r++) {
+                        addRegion(new BlobRegion(location.blobFile(), r), fileName, listeners.acquire());
+                    }
+                }
+            }
+        }
+
+        private void addRegion(BlobRegion region, String fileName, ActionListener<Void> listener) {
+            var task = tasks.computeIfAbsent(region, k -> {
+                var t = new CacheRegionWarmingTask(indexShard, region);
                 throttledTaskRunner.enqueueTask(t);
                 return t;
-            }).files.add(fileName);
+            });
+            task.files.add(fileName);
+            task.listener.addListener(listener);
         }
 
         private void addCfe(String fileName) {
@@ -237,20 +246,6 @@ public class SharedBlobCacheWarmingService {
                 return null;
             });
         }
-
-        /**
-         * @param start, end represent a range of bytes that can cover more than one region
-         * @return a stream of region ids
-         */
-        private IntStream findRegionsFor(long start, long end) {
-            final int regionSize = cacheService.getRegionSize();
-            int startRegion = (int) (start / regionSize);
-            int endRegion = (int) ((end - (end % regionSize == 0 ? 1 : 0)) / regionSize);
-            if (startRegion != endRegion) {
-                return IntStream.rangeClosed(startRegion, endRegion);
-            }
-            return IntStream.of(startRegion);
-        }
     }
 
     private record BlobRegion(BlobFile blob, int region) {}
@@ -262,13 +257,12 @@ public class SharedBlobCacheWarmingService {
 
         private final IndexShard indexShard;
         private final BlobRegion target;
-        private final ActionListener<Void> listener;
+        private final SubscribableListener<Void> listener = new SubscribableListener<>();
         private final Set<String> files = new HashSet<>();
 
-        CacheRegionWarmingTask(IndexShard indexShard, BlobRegion target, ActionListener<Void> listener) {
+        CacheRegionWarmingTask(IndexShard indexShard, BlobRegion target) {
             this.indexShard = indexShard;
             this.target = target;
-            this.listener = listener;
             logger.trace("{}: scheduled {}", indexShard.shardId(), target);
         }
 

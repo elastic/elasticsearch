@@ -151,8 +151,8 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
             assertThat(
                 actual.getMessage(),
                 equalTo(
-                    "Role descriptor for cross cluster access can only contain index and " +
-                        "cluster privileges but other privileges found for subject ["
+                    "Role descriptor for cross cluster access can only contain index and "
+                        + "cluster privileges but other privileges found for subject ["
                         + expectedPrincipal
                         + "]"
                 )

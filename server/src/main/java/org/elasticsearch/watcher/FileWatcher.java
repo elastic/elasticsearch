@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
-import java.nio.file.AccessDeniedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -89,7 +88,9 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
         }
 
         abstract void checkAndNotify() throws IOException;
+
         abstract void onDirectoryDeleted();
+
         abstract void onFileDeleted();
     }
 

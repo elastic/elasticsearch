@@ -201,6 +201,86 @@ public class MaxMindSupportTests extends ESTestCase {
         "traits.userType"
     );
 
+    private static final Set<String> ENTERPRISE_SUPPORTED_FIELDS = Set.of(
+        "city.name",
+        "continent.name",
+        "country.isoCode",
+        "country.name",
+        "location.latitude",
+        "location.longitude",
+        "location.timeZone",
+        "mostSpecificSubdivision.isoCode",
+        "mostSpecificSubdivision.name",
+        "traits.anonymous",
+        "traits.anonymousVpn",
+        "traits.autonomousSystemNumber",
+        "traits.autonomousSystemOrganization",
+        "traits.hostingProvider",
+        "traits.network",
+        "traits.publicProxy",
+        "traits.residentialProxy",
+        "traits.torExitNode"
+    );
+    private static final Set<String> ENTERPRISE_UNSUPPORTED_FIELDS = Set.of(
+        "city.confidence",
+        "city.geoNameId",
+        "city.names",
+        "continent.code",
+        "continent.geoNameId",
+        "continent.names",
+        "country.confidence",
+        "country.geoNameId",
+        "country.inEuropeanUnion",
+        "country.names",
+        "leastSpecificSubdivision.confidence",
+        "leastSpecificSubdivision.geoNameId",
+        "leastSpecificSubdivision.isoCode",
+        "leastSpecificSubdivision.name",
+        "leastSpecificSubdivision.names",
+        "location.accuracyRadius",
+        "location.averageIncome",
+        "location.metroCode",
+        "location.populationDensity",
+        "maxMind",
+        "mostSpecificSubdivision.confidence",
+        "mostSpecificSubdivision.geoNameId",
+        "mostSpecificSubdivision.names",
+        "postal.code",
+        "postal.confidence",
+        "registeredCountry.confidence",
+        "registeredCountry.geoNameId",
+        "registeredCountry.inEuropeanUnion",
+        "registeredCountry.isoCode",
+        "registeredCountry.name",
+        "registeredCountry.names",
+        "representedCountry.confidence",
+        "representedCountry.geoNameId",
+        "representedCountry.inEuropeanUnion",
+        "representedCountry.isoCode",
+        "representedCountry.name",
+        "representedCountry.names",
+        "representedCountry.type",
+        "subdivisions.confidence",
+        "subdivisions.geoNameId",
+        "subdivisions.isoCode",
+        "subdivisions.name",
+        "subdivisions.names",
+        "traits.anonymousProxy",
+        "traits.anycast",
+        "traits.connectionType",
+        "traits.domain",
+        "traits.ipAddress",
+        "traits.isp",
+        "traits.legitimateProxy",
+        "traits.mobileCountryCode",
+        "traits.mobileNetworkCode",
+        "traits.organization",
+        "traits.satelliteProvider",
+        "traits.staticIpScore",
+        "traits.userCount",
+        "traits.userType"
+    );
+
     private static final Map<Database, Set<String>> TYPE_TO_SUPPORTED_FIELDS_MAP = Map.of(
         Database.AnonymousIp,
         ANONYMOUS_IP_SUPPORTED_FIELDS,
@@ -209,7 +289,9 @@ public class MaxMindSupportTests extends ESTestCase {
         Database.City,
         CITY_SUPPORTED_FIELDS,
         Database.Country,
-        COUNTRY_SUPPORTED_FIELDS
+        COUNTRY_SUPPORTED_FIELDS,
+        Database.Enterprise,
+        ENTERPRISE_SUPPORTED_FIELDS
     );
     private static final Map<Database, Set<String>> TYPE_TO_UNSUPPORTED_FIELDS_MAP = Map.of(
         Database.AnonymousIp,
@@ -219,7 +301,9 @@ public class MaxMindSupportTests extends ESTestCase {
         Database.City,
         CITY_UNSUPPORTED_FIELDS,
         Database.Country,
-        COUNTRY_UNSUPPORTED_FIELDS
+        COUNTRY_UNSUPPORTED_FIELDS,
+        Database.Enterprise,
+        ENTERPRISE_UNSUPPORTED_FIELDS
     );
     private static final Map<Database, Class<? extends AbstractResponse>> TYPE_TO_MAX_MIND_CLASS = Map.of(
         Database.AnonymousIp,
@@ -229,13 +313,14 @@ public class MaxMindSupportTests extends ESTestCase {
         Database.City,
         CityResponse.class,
         Database.Country,
-        CountryResponse.class
+        CountryResponse.class,
+        Database.Enterprise,
+        EnterpriseResponse.class
     );
 
     private static final Set<Class<? extends AbstractResponse>> KNOWN_UNSUPPORTED_RESPONSE_CLASSES = Set.of(
         ConnectionTypeResponse.class,
         DomainResponse.class,
-        EnterpriseResponse.class,
         IspResponse.class,
         IpRiskResponse.class
     );

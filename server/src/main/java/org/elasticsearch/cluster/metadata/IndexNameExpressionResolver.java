@@ -387,7 +387,7 @@ public class IndexNameExpressionResolver {
                     resolveIndicesForDataStream(context, (DataStream) indexAbstraction, concreteIndicesResult);
                 } else if (indexAbstraction.getType() == Type.ALIAS
                     && indexAbstraction.isDataStreamRelated()
-                    && DataStream.isFailureStoreEnabled()
+                    && DataStream.isFailureStoreFeatureFlagEnabled()
                     && context.getOptions().includeFailureIndices()) {
                         // Collect the data streams involved
                         Set<DataStream> aliasDataStreams = new HashSet<>();
@@ -453,11 +453,13 @@ public class IndexNameExpressionResolver {
     }
 
     private static boolean shouldIncludeRegularIndices(IndicesOptions indicesOptions) {
-        return DataStream.isFailureStoreEnabled() == false || indicesOptions.includeRegularIndices();
+        return DataStream.isFailureStoreFeatureFlagEnabled() == false || indicesOptions.includeRegularIndices();
     }
 
     private static boolean shouldIncludeFailureIndices(IndicesOptions indicesOptions, DataStream dataStream) {
-        return DataStream.isFailureStoreEnabled() && indicesOptions.includeFailureIndices() && dataStream.isFailureStore();
+        return DataStream.isFailureStoreFeatureFlagEnabled()
+            && indicesOptions.includeFailureIndices()
+            && dataStream.isFailureStoreEnabled();
     }
 
     private static boolean resolvesToMoreThanOneIndex(IndexAbstraction indexAbstraction, Context context) {
@@ -566,11 +568,11 @@ public class IndexNameExpressionResolver {
             // Exclude this one as it's a net-new system index, and we explicitly don't want those.
             return false;
         }
-        if (DataStream.isFailureStoreEnabled()) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
             IndexAbstraction indexAbstraction = context.getState().metadata().getIndicesLookup().get(index.getName());
             if (context.options.allowFailureIndices() == false) {
                 DataStream parentDataStream = indexAbstraction.getParentDataStream();
-                if (parentDataStream != null && parentDataStream.isFailureStore()) {
+                if (parentDataStream != null && parentDataStream.isFailureStoreEnabled()) {
                     if (parentDataStream.isFailureStoreIndex(index.getName())) {
                         if (options.ignoreUnavailable()) {
                             return false;

@@ -1,0 +1,31 @@
+{
+  "connector.sync_job_cancel": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/cancel-connector-sync-job-api.html",
+      "description": "Cancels a connector sync job."
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_connector/_sync_job/{connector_sync_job_id}/_cancel",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "connector_sync_job_id": {
+              "type": "string",
+              "description": "The unique identifier of the connector sync job to be canceled"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

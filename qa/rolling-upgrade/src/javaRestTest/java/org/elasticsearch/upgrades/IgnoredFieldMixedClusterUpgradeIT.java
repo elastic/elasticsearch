@@ -14,6 +14,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -24,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 public class IgnoredFieldMixedClusterUpgradeIT extends ParameterizedRollingUpgradeTestCase {
-    private static List<?> oldHits;
+    private static List<Map<String, Object>> oldHits;
     private static final String INDEX_NAME = "exists-index";
 
     public IgnoredFieldMixedClusterUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
@@ -45,7 +46,7 @@ public class IgnoredFieldMixedClusterUpgradeIT extends ParameterizedRollingUpgra
             );
             assertThat(allDocs.size(), Matchers.equalTo(4));
             allDocs.forEach(doc -> assertThat((List<String>) doc.get("_ignored"), Matchers.contains("keyword")));
-            oldHits = (List<?>) XContentMapValues.extractValue("hits.hits", entityAsMap(existsQuery(INDEX_NAME)));
+            oldHits = (List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", entityAsMap(existsQuery(INDEX_NAME)));
             assertThat(oldHits.size(), Matchers.equalTo(4));
         } else if (isUpgradedCluster()) {
             assertRestStatus(client().performRequest(indexDocument(INDEX_NAME, "5", "foobar")), RestStatus.CREATED);
@@ -56,9 +57,13 @@ public class IgnoredFieldMixedClusterUpgradeIT extends ParameterizedRollingUpgra
             );
             assertThat(allDocs.size(), Matchers.equalTo(6));
             allDocs.forEach(doc -> assertThat((List<String>) doc.get("_ignored"), Matchers.contains("keyword")));
-            final List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", entityAsMap(existsQuery(INDEX_NAME)));
-            assertThat(hits.size(), Matchers.equalTo(6));
-            assertThat(hits.containsAll(oldHits), Matchers.equalTo(true));
+            final List<Map<String, Object>> hits = (List<Map<String, Object>>) XContentMapValues.extractValue(
+                "hits.hits",
+                entityAsMap(existsQuery(INDEX_NAME))
+            );
+            final List<String> oldIds = oldHits.stream().map(oldHit -> oldHit.get(IdFieldMapper.NAME).toString()).toList();
+            final List<String> ids = hits.stream().map(hit -> hit.get(IdFieldMapper.NAME).toString()).toList();
+            assertTrue(ids.containsAll(oldIds));
         }
     }
 

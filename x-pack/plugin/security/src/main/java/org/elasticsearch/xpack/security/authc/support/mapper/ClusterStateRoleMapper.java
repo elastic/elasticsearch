@@ -26,6 +26,8 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.Strings.format;
+
 public final class ClusterStateRoleMapper implements UserRoleMapper, ClusterStateListener {
 
     // TODO Is this a good name??
@@ -54,11 +56,13 @@ public final class ClusterStateRoleMapper implements UserRoleMapper, ClusterStat
             .filter(m -> m.getExpression().match(model))
             .flatMap(m -> {
                 Set<String> roleNames = m.getRoleNames(scriptService, model);
-                logger.trace("Applying role-mapping [{}] to user-model [{}] produced role-names [{}]", m.getName(), model, roleNames);
+                logger.trace(
+                    () -> format("Applying role-mapping [{}] to user-model [{}] produced role-names [{}]", m.getName(), model, roleNames)
+                );
                 return roleNames.stream();
             })
             .collect(Collectors.toSet());
-        logger.debug("Mapping user [{}] to roles [{}]", user, roles);
+        logger.debug(() -> format("Mapping user [{}] to roles [{}]", user, roles));
         listener.onResponse(roles);
     }
 
@@ -78,7 +82,11 @@ public final class ClusterStateRoleMapper implements UserRoleMapper, ClusterStat
     }
 
     private Set<ExpressionRoleMapping> getMappings() {
-        return RoleMappingMetadata.getFromClusterState(clusterService.state()).getRoleMappings();
+        if (enabled == false) {
+            return Set.of();
+        } else {
+            return RoleMappingMetadata.getFromClusterState(clusterService.state()).getRoleMappings();
+        }
     }
 
     private void notifyClearCache() {

@@ -14,9 +14,11 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.security.AccessControlException;
 import java.util.Arrays;
 
 /**
@@ -75,20 +77,45 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
         rootFileObserver.checkAndNotify();
     }
 
-    private static final FileObserver[] EMPTY_DIRECTORY = new FileObserver[0];
+    private static final Observer[] EMPTY_DIRECTORY = new Observer[0];
 
-    private class FileObserver {
-        private final Path path;
+    private abstract class Observer {
+        final Path path;
+        boolean exists;
+        boolean isDirectory;
 
-        private boolean exists;
+        private Observer(Path path) {
+            this.path = path;
+        }
+
+        abstract void checkAndNotify() throws IOException;
+        abstract void onDirectoryDeleted();
+        abstract void onFileDeleted();
+    }
+
+    private class DeniedObserver extends Observer {
+        private DeniedObserver(Path path) {
+            super(path);
+        }
+
+        @Override
+        void checkAndNotify() throws IOException {}
+
+        @Override
+        void onDirectoryDeleted() {}
+
+        @Override
+        void onFileDeleted() {}
+    }
+
+    private class FileObserver extends Observer {
         private long length;
         private long lastModified;
-        private boolean isDirectory;
-        private FileObserver[] children;
+        private Observer[] children;
         private byte[] digest;
 
         FileObserver(Path path) {
-            this.path = path;
+            super(path);
         }
 
         public void checkAndNotify() throws IOException {
@@ -199,10 +226,15 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
             }
         }
 
-        private FileObserver createChild(Path file, boolean initial) throws IOException {
-            FileObserver child = new FileObserver(file);
-            child.init(initial);
-            return child;
+        private Observer createChild(Path file, boolean initial) throws IOException {
+            try {
+                FileObserver child = new FileObserver(file);
+                child.init(initial);
+                return child;
+            } catch (AccessControlException e) {
+                // don't have permissions
+                return new DeniedObserver(file);
+            }
         }
 
         private Path[] listFiles() throws IOException {
@@ -211,10 +243,10 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
             return files;
         }
 
-        private FileObserver[] listChildren(boolean initial) throws IOException {
+        private Observer[] listChildren(boolean initial) throws IOException {
             Path[] files = listFiles();
             if (CollectionUtils.isEmpty(files) == false) {
-                FileObserver[] childObservers = new FileObserver[files.length];
+                Observer[] childObservers = new Observer[files.length];
                 for (int i = 0; i < files.length; i++) {
                     childObservers[i] = createChild(files[i], initial);
                 }
@@ -227,7 +259,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
         private void updateChildren() throws IOException {
             Path[] files = listFiles();
             if (CollectionUtils.isEmpty(files) == false) {
-                FileObserver[] newChildren = new FileObserver[files.length];
+                Observer[] newChildren = new Observer[files.length];
                 int child = 0;
                 int file = 0;
                 while (file < files.length || child < children.length) {
@@ -294,7 +326,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
             }
         }
 
-        private void onFileDeleted() {
+        void onFileDeleted() {
             for (FileChangesListener listener : listeners()) {
                 try {
                     listener.onFileDeleted(path);
@@ -330,7 +362,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
             children = listChildren(initial);
         }
 
-        private void onDirectoryDeleted() {
+        void onDirectoryDeleted() {
             // First delete all children
             for (int child = 0; child < children.length; child++) {
                 deleteChild(child);

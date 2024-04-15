@@ -108,15 +108,15 @@ final class ESPolicy extends Policy {
                 return true;
             }
 
+            // completely deny access to specific files that are forbidden
+            if (forbiddenFilePermission.implies(permission)) {
+                return false;
+            }
+
             // Special handling for broken Hadoop code: "let me execute or my classes will not load"
             // yeah right, REMOVE THIS when hadoop is fixed
             if ("<<ALL FILES>>".equals(permission.getName())) {
                 hadoopHack();
-            }
-
-            // completely deny access to specific files that are forbidden
-            if (forbiddenFilePermission.implies(permission)) {
-                return false;
             }
         }
 

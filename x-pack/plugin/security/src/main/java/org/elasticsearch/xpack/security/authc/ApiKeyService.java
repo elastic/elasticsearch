@@ -1522,6 +1522,8 @@ public class ApiKeyService {
      * @param username username
      * @param apiKeyName API key name
      * @param apiKeyIds API key ids
+     * @param includeCrossClusterApiKeys whether to include cross-cluster api keys in the invalidation; if false any cross-cluster api keys
+     *                                   will be skipped. skipped API keys will be included in the error details of the response
      * @param invalidateListener listener for {@link InvalidateApiKeyResponse}
      */
     public void invalidateApiKeys(
@@ -1677,6 +1679,8 @@ public class ApiKeyService {
      * Performs the actual invalidation of a collection of api keys
      *
      * @param apiKeys the api keys to invalidate
+     * @param includeCrossClusterApiKeys whether to include cross-cluster api keys in the invalidation; if false any cross-cluster api keys
+     *                                   will be skipped. skipped API keys will be included in the error details of the response
      * @param listener  the listener to notify upon completion
      */
     private void indexInvalidation(
@@ -1758,7 +1762,7 @@ public class ApiKeyService {
         }
     }
 
-    private static ElasticsearchException cannotInvalidateCrossClusterApiKeyException(String apiKeyId) {
+    private ElasticsearchException cannotInvalidateCrossClusterApiKeyException(String apiKeyId) {
         return new ElasticsearchSecurityException(
             "Cannot invalidate cross-cluster API key ["
                 + apiKeyId

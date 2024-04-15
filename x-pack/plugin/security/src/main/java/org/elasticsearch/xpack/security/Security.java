@@ -296,6 +296,7 @@ import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingSt
 import org.elasticsearch.xpack.security.authz.AuthorizationDenialMessages;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.DlsFlsRequestCacheDifferentiator;
+import org.elasticsearch.xpack.security.authz.FileRoleValidator;
 import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
@@ -588,6 +589,7 @@ public class Security extends Plugin
     private final SetOnce<List<ReloadableSecurityComponent>> reloadableComponents = new SetOnce<>();
     private final SetOnce<AuthorizationDenialMessages> authorizationDenialMessages = new SetOnce<>();
     private final SetOnce<ReservedRoleNameChecker.Factory> reservedRoleNameCheckerFactory = new SetOnce<>();
+    private final SetOnce<FileRoleValidator> fileRoleValidator = new SetOnce<>();
     private final SetOnce<SecondaryAuthActions> secondaryAuthActions = new SetOnce<>();
 
     public Security(Settings settings) {
@@ -828,7 +830,6 @@ public class Security extends Plugin
         dlsBitsetCache.set(new DocumentSubsetBitsetCache(settings, threadPool));
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
 
-        this.fileRolesStore.set(new FileRolesStore(settings, environment, resourceWatcherService, getLicenseState(), xContentRegistry));
         final NativeRolesStore nativeRolesStore = new NativeRolesStore(
             settings,
             client,
@@ -859,6 +860,12 @@ public class Security extends Plugin
         if (reservedRoleNameCheckerFactory.get() == null) {
             reservedRoleNameCheckerFactory.set(new ReservedRoleNameChecker.Factory.Default());
         }
+        if (fileRoleValidator.get() == null) {
+            fileRoleValidator.set(new FileRoleValidator.Default());
+        }
+        this.fileRolesStore.set(
+            new FileRolesStore(settings, environment, resourceWatcherService, getLicenseState(), xContentRegistry, fileRoleValidator.get())
+        );
         final ReservedRoleNameChecker reservedRoleNameChecker = reservedRoleNameCheckerFactory.get().create(fileRolesStore.get()::exists);
         components.add(new PluginComponentBinding<>(ReservedRoleNameChecker.class, reservedRoleNameChecker));
 
@@ -2118,6 +2125,7 @@ public class Security extends Plugin
         loadSingletonExtensionAndSetOnce(loader, hasPrivilegesRequestBuilderFactory, HasPrivilegesRequestBuilderFactory.class);
         loadSingletonExtensionAndSetOnce(loader, authorizationDenialMessages, AuthorizationDenialMessages.class);
         loadSingletonExtensionAndSetOnce(loader, reservedRoleNameCheckerFactory, ReservedRoleNameChecker.Factory.class);
+        loadSingletonExtensionAndSetOnce(loader, fileRoleValidator, FileRoleValidator.class);
         loadSingletonExtensionAndSetOnce(loader, secondaryAuthActions, SecondaryAuthActions.class);
     }
 

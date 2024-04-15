@@ -1,9 +1,9 @@
 ---
 setup:
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "resolve index introduced in 7.9"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       indices.create:
@@ -36,8 +36,8 @@ setup:
 
 ---
 "Resolve index with indices and aliases":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "resolve index introduced in 7.9"
 
   - do:
@@ -64,8 +64,8 @@ setup:
 
 ---
 "Resolve index with hidden and closed indices":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "resolve index introduced in 7.9"
 
   - do:

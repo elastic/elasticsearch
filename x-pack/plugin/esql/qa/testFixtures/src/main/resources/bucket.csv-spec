@@ -408,6 +408,19 @@ FROM ul_logs
 2017-11-10T20:34:43.000Z|1.75E19
 ;
 
+bucketMultipleAndExpressions
+FROM employees
+| STATS sumK = (b1k + b2k) / 1000 BY b1k = BUCKET(salary, 1000.), b2k = BUCKET(salary, 2000.)
+| SORT sumK
+| LIMIT 4
+;
+
+ sumK:double   | b1k:double    | b2k:double      
+49.0           |25000.0        |24000.0
+52.0           |26000.0        |26000.0
+53.0           |27000.0        |26000.0
+56.0           |28000.0        |28000.0
+;
 
 //
 // BIN copies

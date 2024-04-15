@@ -121,16 +121,55 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testGroupingInsideAggs() {
+    public void testGroupingInsideAggsAsAgg() {
+        assertEquals(
+            "1:18: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
+            error("from test| stats bucket(emp_no, 5.) by emp_no")
+        );
+        assertEquals(
+            "1:18: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
+            error("from test| stats bucket(emp_no, 5.)")
+        );
+        assertEquals(
+            "1:18: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
+            error("from test| stats bucket(emp_no, 5.) by bucket(emp_no, 6.)")
+        );
         assertEquals(
             "1:22: can only use grouping function [bucket(emp_no, 5.)] part of the BY clause",
             error("from test| stats 3 + bucket(emp_no, 5.) by bucket(emp_no, 6.)")
         );
     }
 
+    public void testGroupingInsideAggsAsGrouping() {
+        assertEquals(
+            "1:18: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
+            error("from test| stats bucket(emp_no, 5.) by bucket(emp_no, 5.)")
+        );
+        assertEquals(
+            "1:18: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
+            error("from test| stats bucket(emp_no, 5.) by emp_no, bucket(emp_no, 5.)")
+        );
+        assertEquals(
+            "1:18: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
+            error("from test| stats bucket(emp_no, 5.) by x = bucket(emp_no, 5.)")
+        );
+        assertEquals(
+            "1:22: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
+            error("from test| stats z = bucket(emp_no, 5.) by x = bucket(emp_no, 5.)")
+        );
+        assertEquals(
+            "1:22: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
+            error("from test| stats y = bucket(emp_no, 5.) by y = bucket(emp_no, 5.)")
+        );
+        assertEquals(
+            "1:22: grouping function [bucket(emp_no, 5.)] cannot be used as an aggregate once declared in the STATS BY clause",
+            error("from test| stats z = bucket(emp_no, 5.) by bucket(emp_no, 5.)")
+        );
+    }
+
     public void testGroupingInsideGrouping() {
         assertEquals(
-            "1:40: cannot imbricate grouping functions; found [bucket(emp_no, 5.)] inside [bucket(bucket(emp_no, 5.), 6.)]",
+            "1:40: cannot nest grouping functions; found [bucket(emp_no, 5.)] inside [bucket(bucket(emp_no, 5.), 6.)]",
             error("from test| stats max(emp_no) by bucket(bucket(emp_no, 5.), 6.)")
         );
     }

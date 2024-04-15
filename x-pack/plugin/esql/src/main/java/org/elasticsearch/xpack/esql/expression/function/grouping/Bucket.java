@@ -79,7 +79,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
     private static final ZoneId DEFAULT_TZ = ZoneOffset.UTC; // TODO: plug in the config
 
     private final Expression field;
-    private final Expression bucket;
+    private final Expression buckets;
     private final Expression from;
     private final Expression to;
 
@@ -89,47 +89,47 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
     public Bucket(
         Source source,
         @Param(name = "field", type = { "integer", "long", "double", "date" }) Expression field,
-        @Param(name = "buckets", type = { "integer", "double", "date_period", "time_duration" }) Expression bucket,
+        @Param(name = "buckets", type = { "integer", "double", "date_period", "time_duration" }) Expression buckets,
         @Param(name = "from", type = { "integer", "long", "double", "date" }, optional = true) Expression from,
         @Param(name = "to", type = { "integer", "long", "double", "date" }, optional = true) Expression to
     ) {
-        super(source, from != null && to != null ? List.of(field, bucket, from, to) : List.of(field, bucket));
+        super(source, from != null && to != null ? List.of(field, buckets, from, to) : List.of(field, buckets));
         this.field = field;
-        this.bucket = bucket;
+        this.buckets = buckets;
         this.from = from;
         this.to = to;
     }
 
     @Override
     public boolean foldable() {
-        return field.foldable() && bucket.foldable() && (from == null || from.foldable()) && (to == null || to.foldable());
+        return field.foldable() && buckets.foldable() && (from == null || from.foldable()) && (to == null || to.foldable());
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         if (field.dataType() == DataTypes.DATETIME) {
             Rounding.Prepared preparedRounding;
-            if (bucket.dataType().isInteger()) {
-                int b = ((Number) bucket.fold()).intValue();
+            if (buckets.dataType().isInteger()) {
+                int b = ((Number) buckets.fold()).intValue();
                 long f = foldToLong(from);
                 long t = foldToLong(to);
                 preparedRounding = new DateRoundingPicker(b, f, t).pickRounding().prepareForUnknown();
             } else {
-                assert EsqlDataTypes.isTemporalAmount(bucket.dataType()) : "Unexpected span data type [" + bucket.dataType() + "]";
-                preparedRounding = DateTrunc.createRounding(bucket.fold(), DEFAULT_TZ);
+                assert EsqlDataTypes.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
+                preparedRounding = DateTrunc.createRounding(buckets.fold(), DEFAULT_TZ);
             }
             return DateTrunc.evaluator(source(), toEvaluator.apply(field), preparedRounding);
         }
         if (field.dataType().isNumeric()) {
             double roundTo;
             if (from != null) {
-                int b = ((Number) bucket.fold()).intValue();
+                int b = ((Number) buckets.fold()).intValue();
                 double f = ((Number) from.fold()).doubleValue();
                 double t = ((Number) to.fold()).doubleValue();
                 roundTo = pickRounding(b, f, t);
             } else {
-                assert bucket.dataType().isRational() : "Unexpected rounding data type [" + bucket.dataType() + "]";
-                roundTo = ((Number) bucket.fold()).doubleValue();
+                assert buckets.dataType().isRational() : "Unexpected rounding data type [" + buckets.dataType() + "]";
+                roundTo = ((Number) buckets.fold()).doubleValue();
             }
             Literal rounding = new Literal(source(), roundTo, DataTypes.DOUBLE);
 
@@ -191,14 +191,14 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
             return new TypeResolution("Unresolved children");
         }
         var fieldType = field.dataType();
-        var bucketsOrSpanType = bucket.dataType();
-        if (fieldType == DataTypes.NULL || bucketsOrSpanType == DataTypes.NULL) {
+        var bucketsType = buckets.dataType();
+        if (fieldType == DataTypes.NULL || bucketsType == DataTypes.NULL) {
             return TypeResolution.TYPE_RESOLVED;
         }
 
         if (fieldType == DataTypes.DATETIME) {
             TypeResolution resolution = isType(
-                bucket,
+                buckets,
                 dt -> dt.isInteger() || EsqlDataTypes.isTemporalAmount(dt),
                 sourceText(),
                 SECOND,
@@ -206,16 +206,16 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
                 "date_period",
                 "time_duration"
             );
-            return bucketsOrSpanType.isInteger()
+            return bucketsType.isInteger()
                 ? resolution.and(checkArgsCount(4))
                     .and(() -> isStringOrDate(from, sourceText(), THIRD))
                     .and(() -> isStringOrDate(to, sourceText(), FOURTH))
                 : resolution.and(checkArgsCount(2)); // temporal amount
         }
         if (fieldType.isNumeric()) {
-            return bucketsOrSpanType.isInteger()
+            return bucketsType.isInteger()
                 ? checkArgsCount(4).and(() -> isNumeric(from, sourceText(), THIRD)).and(() -> isNumeric(to, sourceText(), FOURTH))
-                : isNumeric(bucket, sourceText(), SECOND).and(checkArgsCount(2));
+                : isNumeric(buckets, sourceText(), SECOND).and(checkArgsCount(2));
         }
         return isType(field, e -> false, sourceText(), FIRST, "datetime", "numeric");
     }
@@ -238,7 +238,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
                     "function expects exactly {} arguments when the first one is of type [{}] and the second of type [{}]",
                     expected,
                     field.dataType(),
-                    bucket.dataType()
+                    buckets.dataType()
                 )
             );
     }
@@ -258,7 +258,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
     public void validate(Failures failures) {
         String operation = sourceText();
 
-        failures.add(isFoldable(bucket, operation, SECOND))
+        failures.add(isFoldable(buckets, operation, SECOND))
             .add(from != null ? isFoldable(from, operation, THIRD) : null)
             .add(to != null ? isFoldable(to, operation, FOURTH) : null);
     }
@@ -285,7 +285,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Bucket::new, field, bucket, from, to);
+        return NodeInfo.create(this, Bucket::new, field, buckets, from, to);
     }
 
     public Expression field() {
@@ -293,7 +293,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
     }
 
     public Expression buckets() {
-        return bucket;
+        return buckets;
     }
 
     public Expression from() {
@@ -306,6 +306,6 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
 
     @Override
     public String toString() {
-        return "Bucket{" + "field=" + field + ", bucketsOrSpan=" + bucket + ", from=" + from + ", to=" + to + '}';
+        return "Bucket{" + "field=" + field + ", buckets=" + buckets + ", from=" + from + ", to=" + to + '}';
     }
 }

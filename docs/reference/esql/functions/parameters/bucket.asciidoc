@@ -5,7 +5,7 @@
 `field`::
 
 
-`bucketsOrSpan`::
+`buckets`::
 
 
 `from`::

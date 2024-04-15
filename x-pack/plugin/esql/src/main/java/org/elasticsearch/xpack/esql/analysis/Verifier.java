@@ -56,7 +56,6 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 
 public class Verifier {
 
-    private static GroupingFunction gf;
     private final Metrics metrics;
 
     public Verifier(Metrics metrics) {
@@ -180,7 +179,7 @@ public class Verifier {
                                     inner -> failures.add(
                                         fail(
                                             inner,
-                                            "cannot imbricate grouping functions; found [{}] inside [{}]",
+                                            "cannot nest grouping functions; found [{}] inside [{}]",
                                             inner.sourceText(),
                                             gf.sourceText()
                                         )
@@ -233,14 +232,16 @@ public class Verifier {
         } else if (e instanceof GroupingFunction gf) {
             // optimizer will later unroll expressions with aggs and non-aggs with a grouping function into an EVAL, but that will no longer
             // be verified (by check above in checkAggregate()), so do it explicitly here
-            failures.add(fail(gf, "can only use grouping function [{}] part of the BY clause", gf.sourceText()));
+            if (groups.stream().anyMatch(ex -> ex instanceof Alias a && a.child().semanticEquals(gf)) == false) {
+                failures.add(fail(gf, "can only use grouping function [{}] part of the BY clause", gf.sourceText()));
+            } else if (level == 0) {
+                addFailureOnGroupingUsedNakedInAggs(failures, gf, "function");
+            }
         } else if (e.foldable()) {
             // don't do anything
         } else if (groups.contains(e) || groupRefs.contains(e)) {
             if (level == 0) {
-                failures.add(
-                    fail(e, "grouping key [{}] cannot be used as an aggregate once declared in the STATS BY clause", e.sourceText())
-                );
+                addFailureOnGroupingUsedNakedInAggs(failures, e, "key");
             }
         }
         // if a reference is found, mark it as an error
@@ -270,6 +271,12 @@ public class Verifier {
                 checkInvalidNamedExpressionUsage(child, groups, groupRefs, failures, level + 1);
             }
         }
+    }
+
+    private static void addFailureOnGroupingUsedNakedInAggs(Set<Failure> failures, Expression e, String element) {
+        failures.add(
+            fail(e, "grouping {} [{}] cannot be used as an aggregate once declared in the STATS BY clause", element, e.sourceText())
+        );
     }
 
     private static void checkRegexExtractOnlyOnStrings(LogicalPlan p, Set<Failure> failures) {

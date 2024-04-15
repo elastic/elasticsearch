@@ -117,7 +117,7 @@ public class BucketTests extends AbstractFunctionTestCase {
         suppliers.add(new TestCaseSupplier(name, List.of(DataTypes.DATETIME, spanType), () -> {
             List<TestCaseSupplier.TypedData> args = new ArrayList<>();
             args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataTypes.DATETIME, "field"));
-            args.add(new TestCaseSupplier.TypedData(span, spanType, "bucketsOrSpan").forceLiteral());
+            args.add(new TestCaseSupplier.TypedData(span, spanType, "buckets").forceLiteral());
             return new TestCaseSupplier.TestCase(
                 args,
                 "DateTruncEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",

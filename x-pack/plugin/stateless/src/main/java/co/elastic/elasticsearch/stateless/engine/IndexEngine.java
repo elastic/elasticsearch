@@ -165,8 +165,14 @@ public class IndexEngine extends InternalEngine {
     private void trackOpenLocalReader(ElasticsearchDirectoryReader directoryReader) {
         long generation = getLatestCommittedGeneration(directoryReader);
 
-        ElasticsearchDirectoryReader.addReaderCloseListener(directoryReader, ignored -> onLocalReaderClosed(directoryReader));
         var referencedBCCsForCommit = commitBCCResolver.resolveReferencedBCCsForCommit(generation);
+        // If the set of referenced BCC commits is empty it means that the shard has been relocated or closed,
+        // in that case we're not interested tracking this newly open reader for file deletions.
+        if (referencedBCCsForCommit.isEmpty()) {
+            return;
+        }
+
+        ElasticsearchDirectoryReader.addReaderCloseListener(directoryReader, ignored -> onLocalReaderClosed(directoryReader));
         openReaders.put(directoryReader, referencedBCCsForCommit);
     }
 

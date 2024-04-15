@@ -69,17 +69,19 @@ final class GeoIpCache {
 
         // populate the cache for this key, if necessary
         if (response == null) {
-            long start = System.nanoTime();
+            long retrieveStart = System.nanoTime();
             response = retrieveFunction.apply(ip);
-            long databaseRequestTime = System.nanoTime() - start;
+            long databaseRequestTime = System.nanoTime() - retrieveStart;
             storeQueryTimeInNanos.addAndGet(databaseRequestTime);
-            missesTimeInNanos.addAndGet(cacheRequestTime + databaseRequestTime);
             // if the response from the database was null, then use the no-result sentinel value
             if (response == null) {
                 response = NO_RESULT;
             }
             // store the result or no-result in the cache
+            long cachePutStart = System.nanoTime();
             cache.put(cacheKey, response);
+            long cachePutTime = System.nanoTime() - cachePutStart;
+            missesTimeInNanos.addAndGet(cacheRequestTime + databaseRequestTime + cachePutTime);
         } else {
             hitsTimeInNanos.addAndGet(cacheRequestTime);
         }

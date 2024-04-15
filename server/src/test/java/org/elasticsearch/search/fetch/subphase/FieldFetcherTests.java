@@ -245,7 +245,9 @@ public class FieldFetcherTests extends MapperServiceTestCase {
                     mapperService,
                     (ft, fdc) -> fieldDataLookup(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation())
                 ),
-                fieldList
+                fieldList,
+                (s, mappedFieldType) -> true,
+                (s, mappedFieldType) -> randomBoolean()
             );
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
@@ -271,6 +273,92 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         )) {
             expectThrows(UnsupportedOperationException.class, () -> fetchFields(mapperService, source, fieldname));
         }
+    }
+
+    public void testIncludePredicates() throws IOException {
+        MapperService mapperService = createMapperService();
+        String docId = randomAlphaOfLength(12);
+        String routing = randomAlphaOfLength(12);
+        long version = randomLongBetween(1, 100);
+        withLuceneIndex(mapperService, iw -> {
+            ParsedDocument parsedDocument = mapperService.documentMapper()
+                .parse(source(docId, b -> b.field("integer_field", "value"), routing));
+            parsedDocument.version().setLongValue(version);
+            iw.addDocument(parsedDocument.rootDoc());
+        }, iw -> {
+            {
+                List<FieldAndFormat> fieldList = List.of(
+                    new FieldAndFormat("_id", null),
+                    new FieldAndFormat("_index", null),
+                    new FieldAndFormat("_version", null),
+                    new FieldAndFormat("_routing", null),
+                    new FieldAndFormat("_ignored", null)
+                );
+                FieldFetcher fieldFetcher = FieldFetcher.create(
+                    newSearchExecutionContext(
+                        mapperService,
+                        (ft, fdc) -> fieldDataLookup(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation())
+                    ),
+                    fieldList,
+                    (field, mappedFieldType) -> field.equals("_ignored"),
+                    (field, mappedFieldType) -> randomBoolean()
+                );
+                IndexSearcher searcher = newSearcher(iw);
+                LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
+                fieldFetcher.setNextReader(readerContext);
+
+                Source s = SourceProvider.fromStoredFields().getSource(readerContext, 0);
+
+                Map<String, DocumentField> fetchedFields = fieldFetcher.fetch(s, 0);
+                assertThat(fetchedFields.size(), equalTo(1));
+                assertEquals("integer_field", fetchedFields.get("_ignored").getValue());
+            }
+            {
+                List<FieldAndFormat> fieldList = List.of(new FieldAndFormat("*", null));
+                FieldFetcher fieldFetcher = FieldFetcher.create(
+                    newSearchExecutionContext(
+                        mapperService,
+                        (ft, fdc) -> fieldDataLookup(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation())
+                    ),
+                    fieldList,
+                    (field, mappedFieldType) -> randomBoolean(),
+                    (field, mappedFieldType) -> field.equals(SourceFieldMapper.NAME) == false && mappedFieldType.isStored()
+                );
+                IndexSearcher searcher = newSearcher(iw);
+                LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
+                fieldFetcher.setNextReader(readerContext);
+
+                Source s = SourceProvider.fromStoredFields().getSource(readerContext, 0);
+
+                Map<String, DocumentField> fetchedFields = fieldFetcher.fetch(s, 0);
+                assertThat(fetchedFields.size(), equalTo(3));
+                assertEquals(docId, fetchedFields.get("_id").getValue());
+                assertEquals(routing, fetchedFields.get("_routing").getValue());
+                assertEquals("integer_field", fetchedFields.get("_ignored").getValue());
+            }
+            {
+                List<FieldAndFormat> fieldList = List.of(new FieldAndFormat("*", null));
+                SearchExecutionContext searchExecutionContext = newSearchExecutionContext(
+                    mapperService,
+                    (ft, fdc) -> fieldDataLookup(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation())
+                );
+                FieldFetcher fieldFetcher = FieldFetcher.create(
+                    searchExecutionContext,
+                    fieldList,
+                    (field, mappedFieldType) -> randomBoolean(),
+                    (field, mappedFieldType) -> field.equals("_ignored")
+                );
+                IndexSearcher searcher = newSearcher(iw);
+                LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
+                fieldFetcher.setNextReader(readerContext);
+
+                Source s = SourceProvider.fromStoredFields().getSource(readerContext, 0);
+
+                Map<String, DocumentField> fetchedFields = fieldFetcher.fetch(s, 0);
+                assertThat(fetchedFields.size(), equalTo(1));
+                assertEquals("integer_field", fetchedFields.get("_ignored").getValue());
+            }
+        });
     }
 
     public void testFetchAllFields() throws IOException {
@@ -313,7 +401,12 @@ public class FieldFetcherTests extends MapperServiceTestCase {
                 return sourceFilter.filterBytes(this);
             }
         };
-        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), List.of());
+        FieldFetcher fieldFetcher = FieldFetcher.create(
+            newSearchExecutionContext(mapperService),
+            List.of(),
+            (field, mappedFieldType) -> randomBoolean(),
+            (field, mappedFieldType) -> randomBoolean()
+        );
         Map<String, DocumentField> fields = fieldFetcher.fetch(s, 0);
         assertThat(fields.size(), equalTo(0));
 
@@ -1533,7 +1626,12 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             (ft, fdc) -> fieldDataLookup(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation())
         );
         withLuceneIndex(mapperService, iw -> iw.addDocument(new LuceneDocument()), iw -> {
-            FieldFetcher fieldFetcher = FieldFetcher.create(searchExecutionContext, fieldAndFormatList("runtime_field", null, false));
+            FieldFetcher fieldFetcher = FieldFetcher.create(
+                searchExecutionContext,
+                fieldAndFormatList("runtime_field", null, false),
+                (field, mappedFieldType) -> true,
+                (field, mappedFieldType) -> randomBoolean()
+            );
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
             fieldFetcher.setNextReader(readerContext);
@@ -1566,7 +1664,12 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             ParsedDocument parsedDocument = mapperService.documentMapper().parse(source("{}"));
             iw.addDocument(parsedDocument.rootDoc());
         }, iw -> {
-            FieldFetcher fieldFetcher = FieldFetcher.create(searchExecutionContext, fieldAndFormatList("_id", null, false));
+            FieldFetcher fieldFetcher = FieldFetcher.create(
+                searchExecutionContext,
+                fieldAndFormatList("_id", null, false),
+                (field, mappedFieldType) -> true,
+                (field, mappedFieldType) -> randomBoolean()
+            );
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
             fieldFetcher.setNextReader(readerContext);
@@ -1579,7 +1682,12 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
     public void testStoredFieldsSpec() throws IOException {
         List<FieldAndFormat> fields = List.of(new FieldAndFormat("field", null));
-        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(createMapperService()), fields);
+        FieldFetcher fieldFetcher = FieldFetcher.create(
+            newSearchExecutionContext(createMapperService()),
+            fields,
+            (field, mappedFieldType) -> true,
+            (field, mappedFieldType) -> randomBoolean()
+        );
         assertEquals(StoredFieldsSpec.NEEDS_SOURCE, fieldFetcher.storedFieldsSpec());
     }
 
@@ -1597,13 +1705,25 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         Source s = source == null
             ? Source.empty(randomFrom(XContentType.values()))
             : Source.fromBytes(BytesReference.bytes(source), source.contentType());
-        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), fields);
+        SearchExecutionContext searchExecutionContext = newSearchExecutionContext(mapperService);
+        FieldFetcher fieldFetcher = FieldFetcher.create(
+            searchExecutionContext,
+            fields,
+            (field, mappedFieldType) -> true,
+            (field, mappedFieldType) -> searchExecutionContext.isMetadataField(field) == false
+        );
         return fieldFetcher.fetch(s, -1);
     }
 
     private static Map<String, DocumentField> fetchFields(MapperService mapperService, String source, List<FieldAndFormat> fields)
         throws IOException {
-        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), fields);
+        SearchExecutionContext searchExecutionContext = newSearchExecutionContext(mapperService);
+        FieldFetcher fieldFetcher = FieldFetcher.create(
+            searchExecutionContext,
+            fields,
+            (field, mappedFieldType) -> true,
+            (field, mappedFieldType) -> searchExecutionContext.isMetadataField(field) == false
+        );
         return fieldFetcher.fetch(Source.fromBytes(new BytesArray(source), XContentType.JSON), -1);
     }
 

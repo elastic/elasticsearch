@@ -61,7 +61,8 @@ public class FieldFetcher {
             for (String field : context.getMatchingFieldNames(fieldPattern)) {
                 MappedFieldType ft = context.getFieldType(field);
                 // provide the fields separately, for the case of aliases where field name and ft.name are different
-                if ((matchingPattern == null && explicitIncludePredicate.test(field, ft)) || patternIncludePredicate.test(field, ft)) {
+                if ((matchingPattern == null && explicitIncludePredicate.test(field, ft))
+                    || (matchingPattern != null && patternIncludePredicate.test(field, ft))) {
                     resolvedFields.add(new ResolvedField(field, matchingPattern, ft, fieldAndFormat.format));
                 }
             }

@@ -36,7 +36,7 @@ public class CohereRerankAction implements ExecutableAction {
             model.getServiceSettings().getCommonSettings().uri(),
             "Cohere rerank"
         );
-        requestCreator = new CohereRerankRequestManager(model, threadPool);
+        requestCreator = CohereRerankRequestManager.of(model, threadPool);
     }
 
     @Override

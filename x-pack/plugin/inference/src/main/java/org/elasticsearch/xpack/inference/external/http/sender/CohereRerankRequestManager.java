@@ -39,7 +39,7 @@ public class CohereRerankRequestManager extends CohereRequestManager {
     private final CohereRerankModel model;
 
     private CohereRerankRequestManager(CohereRerankModel model, ThreadPool threadPool) {
-        super(threadPool, model, CohereRerankRequest::buildDefaultUri);
+        super(threadPool, model);
         this.model = model;
     }
 

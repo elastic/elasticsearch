@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.cohere.CohereModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
+import java.net.URI;
 import java.util.Map;
 
 public class CohereEmbeddingsModel extends CohereModel {
@@ -57,7 +58,6 @@ public class CohereEmbeddingsModel extends CohereModel {
         super(
             new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
-            serviceSettings,
             secretSettings
         );
     }
@@ -88,5 +88,10 @@ public class CohereEmbeddingsModel extends CohereModel {
     @Override
     public ExecutableAction accept(CohereActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
         return visitor.create(this, taskSettings, inputType);
+    }
+
+    @Override
+    public URI uri() {
+        return getServiceSettings().getCommonSettings().uri();
     }
 }

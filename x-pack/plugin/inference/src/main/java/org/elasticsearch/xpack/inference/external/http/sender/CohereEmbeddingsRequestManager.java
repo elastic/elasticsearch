@@ -39,7 +39,7 @@ public class CohereEmbeddingsRequestManager extends CohereRequestManager {
     private final CohereEmbeddingsModel model;
 
     private CohereEmbeddingsRequestManager(CohereEmbeddingsModel model, ThreadPool threadPool) {
-        super(threadPool, model, CohereEmbeddingsRequest::buildDefaultUri);
+        super(threadPool, model);
         this.model = Objects.requireNonNull(model);
     }
 

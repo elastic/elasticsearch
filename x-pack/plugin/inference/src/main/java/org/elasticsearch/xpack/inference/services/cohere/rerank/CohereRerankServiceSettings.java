@@ -16,15 +16,13 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.cohere.CohereRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
-public class CohereRerankServiceSettings implements ServiceSettings, CohereRateLimitServiceSettings {
+public class CohereRerankServiceSettings implements ServiceSettings {
     public static final String NAME = "cohere_rerank_service_settings";
 
     public static CohereRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext parseContext) {
@@ -93,10 +91,5 @@ public class CohereRerankServiceSettings implements ServiceSettings, CohereRateL
 
     public CohereServiceSettings getCommonSettings() {
         return commonSettings;
-    }
-
-    @Override
-    public URI uri() {
-        return commonSettings.uri();
     }
 }

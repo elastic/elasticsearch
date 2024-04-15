@@ -20,7 +20,7 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.bu
 public record CohereAccount(URI uri, SecureString apiKey) {
 
     public static CohereAccount of(CohereModel model, CheckedSupplier<URI, URISyntaxException> uriBuilder) {
-        var uri = buildUri(model.rateLimitServiceSettings().uri(), "Cohere", uriBuilder);
+        var uri = buildUri(model.uri(), "Cohere", uriBuilder);
 
         return new CohereAccount(uri, model.apiKey());
     }

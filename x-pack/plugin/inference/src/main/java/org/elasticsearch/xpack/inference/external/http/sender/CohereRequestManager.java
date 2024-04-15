@@ -7,30 +7,27 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.external.cohere.CohereAccount;
 import org.elasticsearch.xpack.inference.services.cohere.CohereModel;
 
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.Objects;
 
 abstract class CohereRequestManager extends BaseRequestManager {
 
-    protected CohereRequestManager(ThreadPool threadPool, CohereModel model, CheckedSupplier<URI, URISyntaxException> uriBuilder) {
-        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model, uriBuilder));
+    protected CohereRequestManager(ThreadPool threadPool, CohereModel model) {
+        super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model));
     }
 
-    record RateLimitGrouping(CohereAccount account) {
-        public static RateLimitGrouping of(CohereModel model, CheckedSupplier<URI, URISyntaxException> uriBuilder) {
+    record RateLimitGrouping(SecureString apiKey) {
+        public static RateLimitGrouping of(CohereModel model) {
             Objects.requireNonNull(model);
 
-            return new RateLimitGrouping(CohereAccount.of(model, uriBuilder));
+            return new RateLimitGrouping(model.apiKey());
         }
 
         public RateLimitGrouping {
-            Objects.requireNonNull(account);
+            Objects.requireNonNull(apiKey);
         }
     }
 }

@@ -50,6 +50,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.EVENT_INGESTED_FIELD_NAME;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -258,27 +259,42 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         final IndexLongFieldRange updatedEventIngestedMillisRange = updatedIndexMetadata.getEventIngestedRange();
 
         fieldTypeMap = indicesService.getTimestampFieldTypeMap(updatedIndexMetadata.getIndex());
-        final DateFieldMapper.DateFieldType dateFieldType = fieldTypeMap.get(DataStream.TIMESTAMP_FIELD_NAME);
-        assertThat(dateFieldType, notNullValue());
-        final DateFieldMapper.Resolution resolution = dateFieldType.resolution();
+
+        final DateFieldMapper.DateFieldType timestampDataFieldType = fieldTypeMap.get(DataStream.TIMESTAMP_FIELD_NAME);
+        assertThat(timestampDataFieldType, notNullValue());
+        final DateFieldMapper.Resolution timestampResolution = timestampDataFieldType.resolution();
         assertThat(updatedTimestampMillisRange.isComplete(), equalTo(true));
-        assertThat(updatedEventIngestedMillisRange.isComplete(), equalTo(true)); /// MP TODO: this sometimes fails - why?
+
+        final DateFieldMapper.DateFieldType eventIngestedFieldType = fieldTypeMap.get(EVENT_INGESTED_FIELD_NAME);
+        assertThat(eventIngestedFieldType, notNullValue());
+        final DateFieldMapper.Resolution eventIngestedResolution = eventIngestedFieldType.resolution();
+        assertThat(updatedEventIngestedMillisRange.isComplete(), equalTo(true));
+
         if (indexDataWithTimestamp) {
+            // @timestamp asserts
             assertThat(updatedTimestampMillisRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
             assertThat(
                 updatedTimestampMillisRange.getMin(),
-                greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z")))
+                greaterThanOrEqualTo(timestampResolution.convert(Instant.parse("2020-11-26T00:00:00Z")))
             );
-            assertThat(updatedTimestampMillisRange.getMax(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
+            assertThat(
+                updatedTimestampMillisRange.getMax(),
+                lessThanOrEqualTo(timestampResolution.convert(Instant.parse("2020-11-27T00:00:00Z")))
+            );
 
+            // event.ingested asserts
             assertThat(updatedEventIngestedMillisRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
             assertThat(
-                updatedEventIngestedMillisRange.getMin(), // MP TODO: this fails
-                greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z")))
+                updatedEventIngestedMillisRange.getMin(), // MP TODO: this fails with -Dtests.seed=F1E8A1AE01294321
+                greaterThanOrEqualTo(eventIngestedResolution.convert(Instant.parse("2020-11-26T00:00:00Z")))
             );
+            /*
+            Expected: a value equal to or greater than <1606348800000000000L>
+                                                  but: <1606348907645L> was less than <1606348800000000000L>
+             */
             assertThat(
                 updatedEventIngestedMillisRange.getMax(),
-                lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z")))
+                lessThanOrEqualTo(eventIngestedResolution.convert(Instant.parse("2020-11-27T00:00:00Z")))
             );
 
         } else {

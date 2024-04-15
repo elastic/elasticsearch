@@ -34,7 +34,7 @@ tasks.named('listConsoleCandidates') {
 
     def "can list snippets"() {
         when:
-        def result = gradleRunner("listSnippets").build()
+        def result = gradleRunner("listSnippets", "--stacktrace").build()
         then:
         result.task(":listSnippets").outcome == TaskOutcome.SUCCESS
         assertOutputContains(result.output, """
@@ -45,9 +45,9 @@ mapper-annotated-text.asciidoc[51:69](console)// TEST[setup:seats]
 """)
     }
 
-    def "can console candidates"() {
+    def "can list console candidates"() {
         when:
-        def result = gradleRunner("listConsoleCandidates").build()
+        def result = gradleRunner("listConsoleCandidates", "--stacktrace").build()
         then:
         result.task(":listConsoleCandidates").outcome == TaskOutcome.SUCCESS
         assertOutputContains(result.output, """

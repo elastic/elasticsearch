@@ -11,12 +11,15 @@ package org.elasticsearch.gradle.internal.doc;
 import org.gradle.api.InvalidUserDataException;
 
 import java.io.File;
-import java.util.Collection;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 public abstract class SnippetParser {
     protected static final String SCHAR = "(?:\\\\\\/|[^\\/])";
@@ -42,56 +45,45 @@ public abstract class SnippetParser {
         + WARNING
         + "|(skip_shard_failures)) ?";
 
-    abstract List<Snippet> parseDoc(File rootDir, File docFile, List<Map.Entry<String, String>> substitutions);
+    protected final Map<String, String> defaultSubstitutions;
 
-    static Snippet finalizeSnippet(
-        final Snippet snippet,
-        String contents,
-        Map<String, String> defaultSubstitutions,
-        Collection<Map.Entry<String, String>> substitutions
-    ) {
-        snippet.setContents(contents.toString());
-        snippet.validate();
-        escapeSubstitutions(snippet, defaultSubstitutions, substitutions);
-        return snippet;
+    protected SnippetBuilder snippetBuilder = null;
+
+    public SnippetParser(Map<String, String> defaultSubstitutions) {
+        this.defaultSubstitutions = defaultSubstitutions;
     }
 
-    private static void escapeSubstitutions(
-        Snippet snippet,
-        Map<String, String> defaultSubstitutions,
-        Collection<Map.Entry<String, String>> substitutions
-    ) {
-        BiConsumer<String, String> doSubstitution = (pattern, subst) -> {
-            /*
-             * $body is really common, but it looks like a
-             * backreference, so we just escape it here to make the
-             * tests cleaner.
-             */
-            subst = subst.replace("$body", "\\$body");
-            subst = subst.replace("$_path", "\\$_path");
-            subst = subst.replace("\\n", "\n");
-            snippet.setContents(snippet.getContents().replaceAll(pattern, subst));
-        };
-        defaultSubstitutions.forEach(doSubstitution);
+    public List<Snippet> parseDoc(File rootDir, File docFile) {
+        List<Snippet> snippets = new ArrayList<>();
+        try (Stream<String> lines = Files.lines(docFile.toPath(), StandardCharsets.UTF_8)) {
+            List<String> linesList = lines.toList();
+            for (int lineNumber = 0; lineNumber < linesList.size(); lineNumber++) {
+                String line = linesList.get(lineNumber);
+                parseLine(snippets, rootDir, docFile, lineNumber, line);
+            }
+            fileParsingFinished(snippets);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return snippets;
+    }
 
-        if (substitutions != null) {
-            substitutions.forEach(e -> doSubstitution.accept(e.getKey(), e.getValue()));
+    private void fileParsingFinished(List<Snippet> snippets) {
+        if (snippetBuilder != null) {
+            snippets.add(snippetBuilder.build());
+            snippetBuilder = null;
         }
     }
 
-    boolean testResponseHandled(
-        String name,
-        int lineNumber,
-        String line,
-        Snippet snippet,
-        final List<Map.Entry<String, String>> substitutions
-    ) {
+    protected abstract void parseLine(List<Snippet> snippets, File rootDir, File docFile, int lineNumber, String line);
+
+    boolean testResponseHandled(String name, int lineNumber, String line, SnippetBuilder snippetBuilder) {
         Matcher matcher = testResponsePattern().matcher(line);
         if (matcher.matches()) {
-            if (snippet == null) {
+            if (snippetBuilder == null) {
                 throw new InvalidUserDataException(name + ":" + lineNumber + ": TESTRESPONSE not paired with a snippet at ");
             }
-            snippet.setTestResponse(true);
+            snippetBuilder.withTestResponse(true);
             if (matcher.group(2) != null) {
                 String loc = name + ":" + lineNumber;
                 ParsingUtils.parse(
@@ -101,16 +93,16 @@ public abstract class SnippetParser {
                     (Matcher m, Boolean last) -> {
                         if (m.group(1) != null) {
                             // TESTRESPONSE[s/adsf/jkl/]
-                            substitutions.add(Map.entry(m.group(1), m.group(2)));
+                            snippetBuilder.withSubstitution(m.group(1), m.group(2));
                         } else if (m.group(3) != null) {
                             // TESTRESPONSE[non_json]
-                            substitutions.add(Map.entry("^", "/"));
-                            substitutions.add(Map.entry("\n$", "\\\\s*/"));
-                            substitutions.add(Map.entry("( +)", "$1\\\\s+"));
-                            substitutions.add(Map.entry("\n", "\\\\s*\n "));
+                            snippetBuilder.withSubstitution("^", "/");
+                            snippetBuilder.withSubstitution("\n$", "\\\\s*/");
+                            snippetBuilder.withSubstitution("( +)", "$1\\\\s+");
+                            snippetBuilder.withSubstitution("\n", "\\\\s*\n ");
                         } else if (m.group(4) != null) {
                             // TESTRESPONSE[skip:reason]
-                            snippet.setSkip(m.group(4));
+                            snippetBuilder.withSkip(m.group(4));
                         }
                     }
                 );
@@ -120,52 +112,46 @@ public abstract class SnippetParser {
         return false;
     }
 
-    protected boolean testHandled(
-        String name,
-        int lineNumber,
-        String line,
-        Snippet snippet,
-        List<Map.Entry<String, String>> substitutions
-    ) {
+    protected boolean testHandled(String name, int lineNumber, String line, SnippetBuilder snippetBuilder) {
         Matcher matcher = testPattern().matcher(line);
         if (matcher.matches()) {
-            if (snippet == null) {
+            if (snippetBuilder == null) {
                 throw new InvalidUserDataException(name + ":" + lineNumber + ": TEST not paired with a snippet at ");
             }
-            snippet.setTest(true);
+            snippetBuilder.withTest(true);
             if (matcher.group(2) != null) {
                 String loc = name + ":" + lineNumber;
                 ParsingUtils.parse(loc, matcher.group(2), TEST_SYNTAX, (Matcher m, Boolean last) -> {
                     if (m.group(1) != null) {
-                        snippet.setCatchPart(m.group(1));
+                        snippetBuilder.withCatchPart(m.group(1));
                         return;
                     }
                     if (m.group(2) != null) {
-                        substitutions.add(Map.entry(m.group(2), m.group(3)));
+                        snippetBuilder.withSubstitution(m.group(2), m.group(3));
                         return;
                     }
                     if (m.group(4) != null) {
-                        snippet.setSkip(m.group(4));
+                        snippetBuilder.withSkip(m.group(4));
                         return;
                     }
                     if (m.group(5) != null) {
-                        snippet.setContinued(true);
+                        snippetBuilder.withContinued(true);
                         return;
                     }
                     if (m.group(6) != null) {
-                        snippet.setSetup(m.group(6));
+                        snippetBuilder.withSetup(m.group(6));
                         return;
                     }
                     if (m.group(7) != null) {
-                        snippet.setTeardown(m.group(7));
+                        snippetBuilder.withTeardown(m.group(7));
                         return;
                     }
                     if (m.group(8) != null) {
-                        snippet.getWarnings().add(m.group(8));
+                        snippetBuilder.withWarning(m.group(8));
                         return;
                     }
                     if (m.group(9) != null) {
-                        snippet.setSkipShardsFailures(true);
+                        snippetBuilder.withSkipShardsFailures(true);
                         return;
                     }
                     throw new InvalidUserDataException("Invalid test marker: " + line);

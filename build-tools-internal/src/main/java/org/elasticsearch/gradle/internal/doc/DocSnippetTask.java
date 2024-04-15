@@ -18,7 +18,6 @@ import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -58,16 +57,16 @@ public abstract class DocSnippetTask extends DefaultTask {
     @TaskAction
     void executeTask() {
         for (File file : docs) {
-            List<Snippet> snippets = parseDocFile(docs.getDir(), file, new ArrayList<>());
+            List<Snippet> snippets = parseDocFile(docs.getDir(), file);
             if (perSnippet != null) {
                 snippets.forEach(perSnippet::execute);
             }
         }
     }
 
-    List<Snippet> parseDocFile(File rootDir, File docFile, List<Map.Entry<String, String>> substitutions) {
+    List<Snippet> parseDocFile(File rootDir, File docFile) {
         SnippetParser parser = parserForFileType(docFile);
-        return parser.parseDoc(rootDir, docFile, substitutions);
+        return parser.parseDoc(rootDir, docFile);
     }
 
     private SnippetParser parserForFileType(File docFile) {

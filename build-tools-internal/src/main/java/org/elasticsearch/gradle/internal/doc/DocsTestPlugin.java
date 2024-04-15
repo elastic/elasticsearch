@@ -76,7 +76,7 @@ public class DocsTestPlugin implements Plugin<Project> {
             task.setGroup("Docs");
             task.setDescription("List each snippet");
             task.setDefaultSubstitutions(commonDefaultSubstitutions);
-            task.setPerSnippet(snippet -> System.out.println(snippet));
+            task.setPerSnippet(System.out::println);
         });
 
         project.getTasks().register("listConsoleCandidates", DocSnippetTask.class, task -> {

@@ -85,8 +85,9 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
                         // This is not a document with a percolator field.
                         continue;
                     }
-                    query = pc.filterNestedDocs(query, fetchContext.getSearchExecutionContext().indexVersionCreated());
                     IndexSearcher percolatorIndexSearcher = pc.percolateQuery.getPercolatorIndexSearcher();
+                    query = pc.filterNestedDocs(query, fetchContext.getSearchExecutionContext().indexVersionCreated());
+                    query = percolatorIndexSearcher.rewrite(query);
                     int memoryIndexMaxDoc = percolatorIndexSearcher.getIndexReader().maxDoc();
                     TopDocs topDocs = percolatorIndexSearcher.search(query, memoryIndexMaxDoc, new Sort(SortField.FIELD_DOC));
                     if (topDocs.totalHits.value == 0) {

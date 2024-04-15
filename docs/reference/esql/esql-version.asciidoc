@@ -9,16 +9,15 @@
 [[esql-versions-released]]
 ==== Released versions
 
-{esql} is released at version `2024.04.01.🚀`.
-This is the only available version for now.
+* Version `2024.04.01.🚀`
 
 [discrete]
 [[esql-versions-explanation]]
 === How versions work
 
-{esql} versions are separate from Elasticsearch versions.
-Their goal is to make sure that queries that were once written
-remain valid even as Elasticsearch and {esql} evolve.
+{esql} language versions are independent of {es} versions.
+Versioning the language ensures that your queries will always
+remain valid for a version, independent of new {es} and {esql} releases.
 
 For instance, the following query
 
@@ -41,8 +40,8 @@ POST /_query?format=txt
 will remain valid, even if a future version of {esql} introduces
 syntax changes or changes how the used commands or functions work.
 
-A released {esql} version will not receive breaking changes and
-will remain supported until it is deprecated.
-Already released {esql} versions will still profit from new features,
-bug fixes and performance improvements as long as those do not
-require breaking changes.
+We won't make breaking changes to released {esql} versions and
+versions will remain supported until they are deprecated.
+New features, bug fixes, and performance improvements 
+will be continue to be added to released {esql} versions, 
+provided they do not involve breaking changes.

@@ -54,8 +54,10 @@ The unique identifier of the {infer} endpoint.
 (Optional, string)
 The type of {infer} task that the model performs.
 
+
+[discrete]
 [[post-inference-api-query-params]]
-== {api-query-parms-title}
+==== {api-query-parms-title}
 
 `timeout`::
 (Optional, timeout)
@@ -64,7 +66,7 @@ seconds.
 
 [discrete]
 [[post-inference-api-request-body]]
-== {api-request-body-title}
+==== {api-request-body-title}
 
 `input`::
 (Required, array of strings)

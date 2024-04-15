@@ -41,6 +41,10 @@ public class RemoteClusterPermissionGroup implements NamedWriteable, ToXContentO
         remoteClusterAliasMatcher = StringMatcher.of(remoteClusterAliases);
     }
 
+    /**
+     * @param clusterPrivileges The list of cluster privileges that are allowed for the remote cluster. must not be null or empty.
+     * @param remoteClusterAliases The list of remote clusters that the privileges apply to. must not be null or empty.
+     */
     public RemoteClusterPermissionGroup(String[] clusterPrivileges, String[] remoteClusterAliases) {
         this(clusterPrivileges, remoteClusterAliases, StringMatcher.of(remoteClusterAliases));
     }
@@ -60,16 +64,26 @@ public class RemoteClusterPermissionGroup implements NamedWriteable, ToXContentO
         this.remoteClusterAliasMatcher = remoteClusterAliasMatcher;
     }
 
+    /**
+     * @param remoteClusterAlias The remote cluster alias to check to see if has privileges defined in this group.
+     * @return true if the remote cluster alias has privileges defined in this group, false otherwise.
+     */
     public boolean hasPrivileges(final String remoteClusterAlias) {
         return remoteClusterAliasMatcher.test(remoteClusterAlias);
     }
 
+    /**
+     * @return A copy of the cluster privileges.
+     */
     public String[] clusterPrivileges() {
-        return clusterPrivileges;
+        return Arrays.copyOf(clusterPrivileges, clusterPrivileges.length);
     }
 
+    /**
+     * @return A copy of the cluster aliases.
+     */
     public String[] remoteClusterAliases() {
-        return remoteClusterAliases;
+        return Arrays.copyOf(remoteClusterAliases, remoteClusterAliases.length);
     }
 
     @Override
@@ -108,12 +122,10 @@ public class RemoteClusterPermissionGroup implements NamedWriteable, ToXContentO
     @Override
     public String toString() {
         return "RemoteClusterPermissionGroup{"
-            + "clusterPrivileges="
+            + "privileges="
             + Arrays.toString(clusterPrivileges)
-            + ", remoteClusterAliases="
+            + ", clusters="
             + Arrays.toString(remoteClusterAliases)
-            + ", remoteClusterAliasMatcher="
-            + remoteClusterAliasMatcher
             + '}';
     }
 

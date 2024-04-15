@@ -243,13 +243,11 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     public void testRetentionNotConfigured() {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
-        int numFailureIndices = 2;
         Metadata.Builder builder = Metadata.builder();
         DataStream dataStream = createDataStream(
             builder,
             dataStreamName,
             numBackingIndices,
-            numFailureIndices,
             settings(IndexVersion.current()),
             new DataStreamLifecycle(),
             now

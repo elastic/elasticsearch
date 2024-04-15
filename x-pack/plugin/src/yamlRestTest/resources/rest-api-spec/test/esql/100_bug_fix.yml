@@ -21,6 +21,7 @@
 
       esql.query:
         body:
+          version: 2024.04.01
           query: 'FROM test | sort emp_no | eval ip = to_ip(coalesce(ip1.keyword, "255.255.255.255")) | keep emp_no, ip'
 
   - match: { columns.0.name: "emp_no" }
@@ -40,6 +41,7 @@
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
+          version: 2024.04.01
           query: 'FROM test | sort emp_no | eval x1 = concat(ip1, ip2), x2 = coalesce(x1, "255.255.255.255"), x3 = to_ip(x2) | keep emp_no, x*'
 
   - match: { columns.0.name: "emp_no" }
@@ -108,6 +110,7 @@
   - do:
       esql.query:
         body:
+          version: 2024.04.01
           query: 'from index* metadata _index | limit 5 | sort _index desc'
   - match: { columns.0.name: http.headers }
   - match: { columns.0.type: unsupported }
@@ -170,6 +173,7 @@
   - do:
       esql.query:
         body:
+          version: 2024.04.01
           query: 'from npe_single_value* | stats x = avg(field1) | limit 10'
   - match: { columns.0.name: x }
   - match: { columns.0.type: double }
@@ -179,6 +183,7 @@
   - do:
       esql.query:
         body:
+          version: 2024.04.01
           query: 'from npe_single_value* | stats x = avg(field2) | limit 10'
   - match: { columns.0.name: x }
   - match: { columns.0.type: double }
@@ -188,6 +193,7 @@
   - do:
       esql.query:
         body:
+          version: 2024.04.01
           query: 'from npe_single_value* | stats x = avg(field3) | limit 10'
   - match: { columns.0.name: x }
   - match: { columns.0.type: double }
@@ -244,6 +250,7 @@
   - do:
       esql.query:
         body:
+          version: 2024.04.01
           query: 'from idx_with_date_ip_txt | where id > 1 | eval x = cidr_match(ip, text) | sort id | keep id, x | limit 2'
   - match: { columns.0.name: id }
   - match: { columns.0.type: long }

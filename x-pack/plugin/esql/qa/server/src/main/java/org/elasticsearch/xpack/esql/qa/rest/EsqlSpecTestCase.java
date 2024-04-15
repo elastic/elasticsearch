@@ -61,6 +61,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     // To avoid referencing the main module, we replicate EsqlFeatures.ASYNC_QUERY.id() here
     protected static final String ASYNC_QUERY_FEATURE_ID = "esql.async_query";
 
+    protected static final Set<EsqlVersion> VERSIONS = Build.current().isSnapshot()
+        ? Set.of(EsqlVersion.values())
+        : Set.of(EsqlVersion.releasedAscending());
+
     private static final Logger LOGGER = LogManager.getLogger(EsqlSpecTestCase.class);
     private final String fileName;
     private final String groupName;
@@ -68,7 +72,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     private final Integer lineNumber;
     protected final CsvTestCase testCase;
     protected final Mode mode;
-    protected final Set<EsqlVersion> versions;
 
     public enum Mode {
         SYNC,
@@ -101,8 +104,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         this.lineNumber = lineNumber;
         this.testCase = testCase;
         this.mode = mode;
-        // TODO: Read applicable versions from csv-spec files/make it part of testCase.
-        this.versions = Build.current().isSnapshot() ? Set.of(EsqlVersion.values()) : Set.of(EsqlVersion.releasedAscending());
     }
 
     @Before
@@ -150,10 +151,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected final void doTest() throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
-        EsqlVersion version = randomFrom(versions);
-        String versionString = randomBoolean() ? version.toString() : version.versionStringWithoutEmoji();
         Map<String, Object> answer = runEsql(
-            builder.query(testCase.query).version(versionString),
+            builder.query(testCase.query),
             testCase.expectedWarnings(false),
             testCase.expectedWarningsRegex()
         );

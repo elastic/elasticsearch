@@ -9,6 +9,14 @@ highlight:
   body: |-
     This introduces a new custom parser for ISO-8601 datetimes, for the `iso8601`, `strict_date_optional_time`, and
     `strict_date_optional_time_nanos` built-in date formats. This provides a performance improvement over the
-    default Java date-time parsing. Note that this will cause some nonsensical date-time values
-    (those with multiple fractional seconds fields, or with multiple timezones) that were previously accepted
-    to be rejected as invalid.
+    default Java date-time parsing.
+breaking:
+  area: Mapping
+  title: Some invalid ISO-8601 datetime strings will no longer be accepted
+  details: |-
+    A new parser has been introduced for the `iso8601`, `strict_date_optional_time`, and
+    `strict_date_optional_time_nanos` built-in date formats. This parser no longer accepts
+    nonsensical date-time strings that have multiple fractional seconds fields or multiple timezone specifiers.
+    These strings are not valid according to ISO-8601, and the parsing behaviour of such strings was undefined.
+  impact: |-
+    If your ingest data contains such invalid strings, they will be rejected as invalid date strings

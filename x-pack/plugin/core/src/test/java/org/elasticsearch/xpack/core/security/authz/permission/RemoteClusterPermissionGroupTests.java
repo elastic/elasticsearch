@@ -57,9 +57,9 @@ public class RemoteClusterPermissionGroupTests extends AbstractXContentSerializi
     public void testMatcher() {
         String[] privileges = generateRandomStringArray(5, 5, false, false);
         String[] clusters = generateRandomStringArray(5, 5, false, false);
-        for(int i = 0; i < clusters.length; i++) {
-            if(randomBoolean()){
-               clusters[i] = clusters[i] + "*";
+        for (int i = 0; i < clusters.length; i++) {
+            if (randomBoolean()) {
+                clusters[i] = clusters[i] + "*";
             }
         }
         RemoteClusterPermissionGroup remoteClusterPermissionGroup = new RemoteClusterPermissionGroup(privileges, clusters);

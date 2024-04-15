@@ -210,7 +210,6 @@ public final class ConnectorTestUtils {
                 )
                 .build()
         )
-            .setDomain(randomAlphaOfLength(10))
             .setDraft(
                 new FilteringRules.Builder().setAdvancedSnippet(
                     new FilteringAdvancedSnippet.Builder().setAdvancedSnippetCreatedAt(currentTimestamp)

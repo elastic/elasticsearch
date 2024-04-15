@@ -53,7 +53,7 @@ public class RestRolloverIndexAction extends BaseRestHandler {
         rolloverIndexRequest.lazy(request.paramAsBoolean("lazy", false));
         rolloverIndexRequest.timeout(request.paramAsTime("timeout", rolloverIndexRequest.timeout()));
         rolloverIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", rolloverIndexRequest.masterNodeTimeout()));
-        if (DataStream.isFailureStoreEnabled()) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
             boolean failureStore = request.paramAsBoolean("target_failure_store", false);
             if (failureStore) {
                 rolloverIndexRequest.setIndicesOptions(

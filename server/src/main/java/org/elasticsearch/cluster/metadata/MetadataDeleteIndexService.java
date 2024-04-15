@@ -137,7 +137,11 @@ public class MetadataDeleteIndexService {
             metadataBuilder.remove(indexName);
             if (backingIndices.containsKey(index)) {
                 DataStream parent = metadataBuilder.dataStream(backingIndices.get(index).getName());
-                metadataBuilder.put(parent.removeBackingIndex(index));
+                if (parent.isFailureStoreIndex(indexName)) {
+                    metadataBuilder.put(parent.removeFailureStoreIndex(index));
+                } else {
+                    metadataBuilder.put(parent.removeBackingIndex(index));
+                }
             }
         }
         // add tombstones to the cluster state for each deleted index

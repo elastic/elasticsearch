@@ -232,7 +232,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
             assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
             List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
-            Set<String> indexNames = backingIndices.stream().map(index -> index.getName()).collect(Collectors.toSet());
+            Set<String> indexNames = backingIndices.stream().map(Index::getName).collect(Collectors.toSet());
             assertTrue(indexNames.contains("index_new"));
             assertFalse(indexNames.contains("index_old"));
         });
@@ -834,7 +834,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     public void testLifecycleAppliedToFailureStore() throws Exception {
         // We configure a lifecycle with downsampling to ensure it doesn't fail
         DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
-            .dataRetention(20_000)
+            .dataRetention(2_000)
             .downsampling(
                 new DataStreamLifecycle.Downsampling(
                     List.of(
@@ -858,7 +858,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                    "type": "boolean"
                  }
              }
-            }""", List.of("metrics-fs*"), null, null, lifecycle, true);
+            }""", List.of("metrics-fs*"), Settings.builder().put("index.number_of_replicas", 0).build(), null, lifecycle, true);
 
         String dataStreamName = "metrics-fs";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);

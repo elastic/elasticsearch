@@ -30,6 +30,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.transport.MockTransportService;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
+
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
@@ -52,6 +55,38 @@ public class StatelessClusterConsistencyServiceIT extends AbstractStatelessInteg
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         consistencyService.ensureClusterStateConsistentWithRootBlob(future, TimeValue.timeValueSeconds(30));
         future.actionGet();
+    }
+
+    public void testValidateClusterStateHandlesContention() throws Exception {
+        startMasterOnlyNode();
+        String indexNode = startIndexNode();
+        ensureStableCluster(2);
+
+        final StatelessClusterConsistencyService consistencyService = internalCluster().getInstance(
+            StatelessClusterConsistencyService.class,
+            indexNode
+        );
+
+        AtomicReference<Exception> unexpectedException = new AtomicReference<>();
+
+        int nThreads = randomIntBetween(5, 15);
+        CountDownLatch latch = new CountDownLatch(nThreads);
+        for (int i = 0; i < nThreads; ++i) {
+            new Thread(() -> {
+                PlainActionFuture<Void> future = new PlainActionFuture<>();
+                consistencyService.ensureClusterStateConsistentWithRootBlob(future, TimeValue.timeValueSeconds(30));
+                try {
+                    future.actionGet();
+                } catch (Exception e) {
+                    unexpectedException.set(e);
+                }
+                latch.countDown();
+            }).start();
+        }
+        safeAwait(latch);
+        if (unexpectedException.get() != null) {
+            throw unexpectedException.get();
+        }
     }
 
     public void testValidateClusterStateTimeout() {

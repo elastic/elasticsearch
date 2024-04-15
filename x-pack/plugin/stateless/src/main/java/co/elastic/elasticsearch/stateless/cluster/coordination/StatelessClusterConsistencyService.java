@@ -21,9 +21,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
@@ -53,14 +55,7 @@ public class StatelessClusterConsistencyService {
             startingClusterState.nodes().getNodeLeftGeneration()
         );
         final var startingClusterStateVersion = startingClusterState.version();
-        electionStrategy.readLease(listener.delegateFailureAndWrap((delegate, optionalLease) -> {
-            if (optionalLease.isEmpty()) {
-                // TODO: Re-enable assertion or remove once that core cause is identified
-                // assert false : "We should not be validating cluster state before root blob written";
-                throw new IllegalStateException("No root blob to validate cluster state.");
-            }
-
-            StatelessElectionStrategy.Lease lease = optionalLease.get();
+        ReadLease readLease = new ReadLease(timeout, listener.delegateFailureAndWrap((delegate, lease) -> {
             if (lease.compareTo(startingStateLease) <= 0) {
                 assert lease.compareTo(startingStateLease) == 0 : lease + " vs " + startingStateLease;
                 listener.onResponse(null);
@@ -107,6 +102,39 @@ public class StatelessClusterConsistencyService {
                 });
             }
         }));
+        readLease.run();
+    }
+
+    private class ReadLease extends RetryableAction<StatelessElectionStrategy.Lease> {
+
+        private ReadLease(TimeValue timeoutValue, ActionListener<StatelessElectionStrategy.Lease> listener) {
+            super(
+                logger,
+                clusterService.threadPool(),
+                TimeValue.timeValueMillis(5),
+                timeoutValue,
+                listener,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            );
+        }
+
+        @Override
+        public void tryAction(ActionListener<StatelessElectionStrategy.Lease> listener) {
+            electionStrategy.readLease(listener.delegateFailureAndWrap((delegate, optionalLease) -> {
+                if (optionalLease.isEmpty()) {
+                    listener.onFailure(new ConcurrentReadLeaseException());
+                } else {
+                    listener.onResponse(optionalLease.get());
+                }
+            }));
+        }
+
+        @Override
+        public boolean shouldRetry(Exception e) {
+            return e instanceof ConcurrentReadLeaseException;
+        }
+
+        private static class ConcurrentReadLeaseException extends RuntimeException {}
     }
 
     public ClusterState state() {

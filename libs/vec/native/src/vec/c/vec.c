@@ -100,7 +100,7 @@ EXPORT int32_t sqr8s(int8_t* a, int8_t* b, size_t dims) {
         res = sqr8s_inner(a, b, i);
     }
     for (; i < dims; i++) {
-        int dist = a[i] - b[i];
+        int32_t dist = a[i] - b[i];
         res += dist * dist;
     }
     return res;

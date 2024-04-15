@@ -91,9 +91,8 @@ public abstract class SystemIndexThreadPoolTestCase extends ESIntegTestCase {
             SearchPhaseExecutionException.class,
             () -> client().prepareSearch(USER_INDEX)
                 .setQuery(QueryBuilders.matchAllQuery())
-                // Don't let the test framework set maxConcurrentShardRequests randomly, because the
-                // request times out if this is set to 1
-                .setMaxConcurrentShardRequests(SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS)
+                // Request times out if max concurrent shard requests is set to 1
+                .setMaxConcurrentShardRequests(usually() ? SearchRequest.DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS : randomIntBetween(2, 10))
                 .get()
         );
         assertThat(e3.getMessage(), containsString("all shards failed"));

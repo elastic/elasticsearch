@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
-public interface EmbeddingInt {
-    int getSize();
+import java.util.List;
+
+public interface EmbeddingResults {
+    List<? extends Embedding<?>> embeddings();
 }

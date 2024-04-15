@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
-public interface TextEmbedding {
+public interface TextEmbedding extends EmbeddingResults {
 
     /**
      * Returns the first text embedding entry in the result list's array size.

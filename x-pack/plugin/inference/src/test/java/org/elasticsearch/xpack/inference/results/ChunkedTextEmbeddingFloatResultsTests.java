@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.inference.results;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingChunk;
+import org.elasticsearch.xpack.core.inference.results.FloatEmbedding;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -19,7 +21,7 @@ public class ChunkedTextEmbeddingFloatResultsTests extends AbstractWireSerializi
 
     public static ChunkedTextEmbeddingFloatResults createRandomResults() {
         int numChunks = randomIntBetween(1, 5);
-        var chunks = new ArrayList<ChunkedTextEmbeddingFloatResults.EmbeddingChunk>(numChunks);
+        var chunks = new ArrayList<EmbeddingChunk<Float>>(numChunks);
 
         for (int i = 0; i < numChunks; i++) {
             chunks.add(createRandomChunk());
@@ -28,7 +30,7 @@ public class ChunkedTextEmbeddingFloatResultsTests extends AbstractWireSerializi
         return new ChunkedTextEmbeddingFloatResults(chunks);
     }
 
-    private static ChunkedTextEmbeddingFloatResults.EmbeddingChunk createRandomChunk() {
+    private static EmbeddingChunk<Float> createRandomChunk() {
         int columns = randomIntBetween(1, 10);
         List<Float> floats = new ArrayList<>(columns);
 
@@ -36,7 +38,7 @@ public class ChunkedTextEmbeddingFloatResultsTests extends AbstractWireSerializi
             floats.add(randomFloat());
         }
 
-        return new ChunkedTextEmbeddingFloatResults.EmbeddingChunk(randomAlphaOfLength(6), floats);
+        return new EmbeddingChunk<Float>(randomAlphaOfLength(6), new FloatEmbedding(floats));
     }
 
     @Override

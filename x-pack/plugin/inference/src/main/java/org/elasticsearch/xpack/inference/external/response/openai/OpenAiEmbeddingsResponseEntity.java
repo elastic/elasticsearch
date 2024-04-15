@@ -13,6 +13,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.FloatEmbedding;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -81,7 +82,7 @@ public class OpenAiEmbeddingsResponseEntity {
 
             positionParserAtTokenAfterField(jsonParser, "data", FAILED_TO_FIND_FIELD_TEMPLATE);
 
-            List<TextEmbeddingResults.Embedding> embeddingList = XContentParserUtils.parseList(
+            List<FloatEmbedding> embeddingList = XContentParserUtils.parseList(
                 jsonParser,
                 OpenAiEmbeddingsResponseEntity::parseEmbeddingObject
             );
@@ -90,7 +91,7 @@ public class OpenAiEmbeddingsResponseEntity {
         }
     }
 
-    private static TextEmbeddingResults.Embedding parseEmbeddingObject(XContentParser parser) throws IOException {
+    private static FloatEmbedding parseEmbeddingObject(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
         positionParserAtTokenAfterField(parser, "embedding", FAILED_TO_FIND_FIELD_TEMPLATE);
@@ -99,7 +100,7 @@ public class OpenAiEmbeddingsResponseEntity {
         // parse and discard the rest of the object
         consumeUntilObjectEnd(parser);
 
-        return new TextEmbeddingResults.Embedding(embeddingValues);
+        return new FloatEmbedding(embeddingValues);
     }
 
     private static float parseEmbeddingList(XContentParser parser) throws IOException {

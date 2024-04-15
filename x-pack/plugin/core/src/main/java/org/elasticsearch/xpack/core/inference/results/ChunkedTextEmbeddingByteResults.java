@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingUtils.validateInputSizeAgainstEmbeddings;
 
-public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk> chunks, boolean isTruncated) implements ChunkedInferenceServiceResults {
+public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk<Byte>> chunks, boolean isTruncated) implements ChunkedInferenceServiceResults {
 
     public static final String NAME = "chunked_text_embedding_service_byte_results";
     public static final String FIELD_NAME = "text_embedding_byte_chunk";
@@ -41,23 +41,22 @@ public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk> chunks, boole
 
         var results = new ArrayList<ChunkedInferenceServiceResults>(inputs.size());
         for (int i = 0; i < inputs.size(); i++) {
-            results.add(of(inputs.get(i), textEmbeddings.embeddings().get(i).values()));
+            results.add(of(inputs.get(i), textEmbeddings.embeddings().get(i).getEmbedding()));
         }
 
         return results;
     }
 
     public static ChunkedTextEmbeddingByteResults of(String input, List<Byte> byteEmbeddings) {
-        return new ChunkedTextEmbeddingByteResults(List.of(new EmbeddingChunk(input, byteEmbeddings)), false);
+        return new ChunkedTextEmbeddingByteResults(List.of(new EmbeddingChunk<>(input, new ByteEmbedding(byteEmbeddings))), false);
     }
 
     public ChunkedTextEmbeddingByteResults(StreamInput in) throws IOException {
-        this(in.readCollectionAsList(EmbeddingChunk::new), in.readBoolean());
+        this(in.readCollectionAsList(in1 -> new EmbeddingChunk<Byte>(in1.readString(), new ByteEmbedding(in1))), in.readBoolean());
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        // TODO add isTruncated flag
         builder.startArray(FIELD_NAME);
         for (var embedding : chunks) {
             embedding.toXContent(builder, params);
@@ -92,47 +91,7 @@ public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk> chunks, boole
         return NAME;
     }
 
-    public List<EmbeddingChunk> getChunks() {
+    public List<EmbeddingChunk<Byte>> getChunks() {
         return chunks;
-    }
-
-    public record EmbeddingChunk(String matchedText, List<Byte> embedding) implements Writeable, ToXContentObject {
-
-        public EmbeddingChunk(StreamInput in) throws IOException {
-            this(in.readString(), in.readCollectionAsImmutableList(StreamInput::readByte));
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(matchedText);
-            out.writeCollection(embedding, StreamOutput::writeByte);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(ChunkedNlpInferenceResults.TEXT, matchedText);
-
-            builder.startArray(ChunkedNlpInferenceResults.INFERENCE);
-            for (Byte value : embedding) {
-                builder.value(value);
-            }
-            builder.endArray();
-
-            builder.endObject();
-            return builder;
-        }
-
-        public Map<String, Object> asMap() {
-            var map = new HashMap<String, Object>();
-            map.put(ChunkedNlpInferenceResults.TEXT, matchedText);
-            map.put(ChunkedNlpInferenceResults.INFERENCE, embedding);
-            return map;
-        }
-
-        @Override
-        public String toString() {
-            return Strings.toString(this);
-        }
     }
 }

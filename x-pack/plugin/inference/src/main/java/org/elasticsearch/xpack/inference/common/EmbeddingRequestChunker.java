@@ -7,19 +7,32 @@
 
 package org.elasticsearch.xpack.inference.common;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.inference.results.ByteEmbedding;
+import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.Embedding;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingChunk;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
+import org.elasticsearch.xpack.core.inference.results.FloatEmbedding;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbedding;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -35,6 +48,8 @@ import java.util.stream.Collectors;
  */
 public class EmbeddingRequestChunker {
 
+    private static final Logger logger = LogManager.getLogger(EmbeddingRequestChunker.class);
+
     public static final int DEFAULT_WORDS_PER_CHUNK = 250;
     public static final int DEFAULT_CHUNK_OVERLAP = 100;
 
@@ -45,9 +60,32 @@ public class EmbeddingRequestChunker {
     private final int chunkOverlap;
 
     private List<List<String>> chunkedInputs;
-    private List<AtomicArray<List<TextEmbeddingResults.Embedding>>> results;
+    private List<AtomicArray<List<? extends Embedding<?>>>> results;
     private AtomicArray<ErrorChunkedInferenceResults> errors;
     private ActionListener<List<ChunkedInferenceServiceResults>> finalListener;
+
+    private enum EmbeddingType {
+        SPARSE {
+            public Class<? extends InferenceServiceResults> matchedClass() {
+                return SparseEmbeddingResults.class;
+            };
+        },
+        FLOAT {
+            public Class<? extends InferenceServiceResults> matchedClass() {
+                return TextEmbeddingResults.class;
+            };
+        },
+
+        BYTE {
+            public Class<? extends InferenceServiceResults> matchedClass() {
+                return TextEmbeddingByteResults.class;
+            };
+        };
+
+        public abstract Class<? extends InferenceServiceResults> matchedClass();
+    }
+
+    private AtomicReference<EmbeddingType> firstResultType = new AtomicReference<>();
 
     public EmbeddingRequestChunker(List<String> inputs, int maxNumberOfInputsPerBatch) {
         this.maxNumberOfInputsPerBatch = maxNumberOfInputsPerBatch;
@@ -160,14 +198,14 @@ public class EmbeddingRequestChunker {
 
         @Override
         public void onResponse(InferenceServiceResults inferenceServiceResults) {
-            if (inferenceServiceResults instanceof TextEmbeddingResults textEmbeddingResults) { // TODO byte embeddings
+            if (inferenceServiceResults instanceof EmbeddingResults embeddingResults) {
                 int numRequests = positions.stream().mapToInt(SubBatchPositionsAndCount::embeddingCount).sum();
-                if (numRequests != textEmbeddingResults.embeddings().size()) {
+                if (numRequests != embeddingResults.embeddings().size()) {
                     onFailure(
                         new ElasticsearchStatusException(
                             "Error the number of embedding responses [{}] does not equal the number of " + "requests [{}]",
                             RestStatus.BAD_REQUEST,
-                            textEmbeddingResults.embeddings().size(),
+                            embeddingResults.embeddings().size(),
                             numRequests
                         )
                     );
@@ -177,8 +215,30 @@ public class EmbeddingRequestChunker {
                 int start = 0;
                 for (var pos : positions) {
                     results.get(pos.inputIndex())
-                        .setOnce(pos.chunkIndex(), textEmbeddingResults.embeddings().subList(start, start + pos.embeddingCount()));
+                        .setOnce(pos.chunkIndex(), embeddingResults.embeddings().subList(start, start + pos.embeddingCount()));
                     start += pos.embeddingCount();
+                }
+
+                if (firstResultType.get() == null) {
+                    if (inferenceServiceResults instanceof TextEmbeddingResults) {
+                        firstResultType.set(EmbeddingType.FLOAT);
+                    } else if (inferenceServiceResults instanceof TextEmbeddingByteResults) {
+                        firstResultType.set(EmbeddingType.BYTE);
+                    } else if (inferenceServiceResults instanceof SparseEmbeddingResults) {
+                        firstResultType.set(EmbeddingType.SPARSE);
+                    }
+                } else {
+                    if (firstResultType.get().matchedClass().equals(inferenceServiceResults.getClass()) == false) {
+                        onFailure(
+                            new ElasticsearchStatusException(
+                                "The embedding response types are different. [{}] does not match the first response type [{}]",
+                                RestStatus.BAD_REQUEST,
+                                inferenceServiceResults.getClass().getSimpleName(),
+                                firstResultType.get().matchedClass().getSimpleName()
+                            )
+                        );
+                        return;
+                    }
                 }
             }
 
@@ -205,31 +265,117 @@ public class EmbeddingRequestChunker {
                 if (errors.get(i) != null) {
                     response.add(errors.get(i));
                 } else {
-                    response.add(merge(chunkedInputs.get(i), results.get(i)));
+                    try {
+                        response.add(mergeResults(firstResultType.get(), chunkedInputs.get(i), results.get(i)));
+                    } catch (Exception e) {
+                        response.add(new ErrorChunkedInferenceResults(e));
+                    }
                 }
             }
 
             finalListener.onResponse(response);
         }
 
-        private ChunkedTextEmbeddingFloatResults merge(
+        ChunkedInferenceServiceResults mergeResults(
+            EmbeddingType embeddingType,
             List<String> chunks,
-            AtomicArray<List<TextEmbeddingResults.Embedding>> debatchedResults
+            AtomicArray<List<? extends Embedding<?>>> embeddings
         ) {
-            var all = new ArrayList<TextEmbeddingResults.Embedding>();
+            return switch (embeddingType) {
+                case FLOAT -> mergeFloatResults(chunks, embeddings);
+                case BYTE -> mergeByteResults(chunks, embeddings);
+                case SPARSE -> mergeSparseResults(chunks, embeddings);
+            };
+        }
+
+        private ChunkedTextEmbeddingFloatResults mergeFloatResults(
+            List<String> chunks,
+            AtomicArray<List<? extends Embedding<?>>> debatchedResults
+        ) {
+            var all = new ArrayList<FloatEmbedding>();
             for (int i = 0; i < debatchedResults.length(); i++) {
                 var subBatch = debatchedResults.get(i);
-                all.addAll(subBatch);
+                for (var result : subBatch) {
+                    if (result instanceof FloatEmbedding fe) {
+                        all.add(fe);
+                    } else {
+                        var message = "Unexpected embedding result type ["
+                            + result.getClass().getSimpleName()
+                            + "], expected a float embedding";
+                        logger.error(message);
+                        throw new IllegalStateException(message);
+                    }
+                }
             }
 
             assert chunks.size() == all.size();
 
-            var embeddingChunks = new ArrayList<ChunkedTextEmbeddingFloatResults.EmbeddingChunk>();
+            var embeddingChunks = new ArrayList<EmbeddingChunk<Float>>();
             for (int i = 0; i < chunks.size(); i++) {
-                embeddingChunks.add(new ChunkedTextEmbeddingFloatResults.EmbeddingChunk(chunks.get(i), all.get(i).values()));
+                embeddingChunks.add(new EmbeddingChunk<Float>(chunks.get(i), all.get(i)));
             }
 
             return new ChunkedTextEmbeddingFloatResults(embeddingChunks);
+        }
+
+        private ChunkedTextEmbeddingByteResults mergeByteResults(
+            List<String> chunks,
+            AtomicArray<List<? extends Embedding<?>>> debatchedResults
+        ) {
+            var all = new ArrayList<ByteEmbedding>();
+            for (int i = 0; i < debatchedResults.length(); i++) {
+                var subBatch = debatchedResults.get(i);
+                for (var result : subBatch) {
+                    if (result instanceof ByteEmbedding be) {
+                        all.add(be);
+                    } else {
+                        var message = "Unexpected embedding result type ["
+                            + result.getClass().getSimpleName()
+                            + "], expected a byte embedding";
+                        logger.error(message);
+                        throw new IllegalStateException(message);
+                    }
+                }
+            }
+
+            assert chunks.size() == all.size();
+
+            var embeddingChunks = new ArrayList<EmbeddingChunk<Byte>>();
+            for (int i = 0; i < chunks.size(); i++) {
+                embeddingChunks.add(new EmbeddingChunk<Byte>(chunks.get(i), all.get(i)));
+            }
+
+            return new ChunkedTextEmbeddingByteResults(embeddingChunks, false);
+        }
+
+        private ChunkedSparseEmbeddingResults mergeSparseResults(
+            List<String> chunks,
+            AtomicArray<List<? extends Embedding<?>>> debatchedResults
+        ) {
+            var all = new ArrayList<SparseEmbedding>();
+            for (int i = 0; i < debatchedResults.length(); i++) {
+                var subBatch = debatchedResults.get(i);
+                for (var result : subBatch) {
+                    if (result instanceof SparseEmbedding se) {
+                        all.add(se);
+                    } else {
+                        var message = "Unexpected embedding result type ["
+                            + result.getClass().getSimpleName()
+                            + "], expected a byte embedding";
+                        logger.error(message);
+                        throw new IllegalStateException(message);
+                    }
+                }
+            }
+
+            assert chunks.size() == all.size();
+
+            var embeddingChunks = new ArrayList<EmbeddingChunk<SparseEmbedding.WeightedToken>>();
+            for (int i = 0; i < chunks.size(); i++) {
+                embeddingChunks.add(new EmbeddingChunk<>(chunks.get(i), all.get(i)));
+            }
+
+            return ChunkedSparseEmbeddingResults.of(embeddingChunks);
         }
     }
 

@@ -49,6 +49,7 @@ for help with resolving watermark issues.
 
     Set to `true` to disable read operations against the index.
 
+[[index-blocks-write]]
 `index.blocks.write`::
 
     Set to `true` to disable data write operations against the index. Unlike

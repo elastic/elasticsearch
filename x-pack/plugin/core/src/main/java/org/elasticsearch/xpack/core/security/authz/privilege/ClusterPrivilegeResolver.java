@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
@@ -180,7 +180,9 @@ public class ClusterPrivilegeResolver {
         RemoteClusterNodesAction.TYPE.name(),
         XPackInfoAction.NAME,
         // esql enrich
-        "cluster:monitor/xpack/enrich/esql/resolve_policy"
+        "cluster:monitor/xpack/enrich/esql/resolve_policy",
+        "cluster:internal:data/read/esql/open_exchange",
+        "cluster:internal:data/read/esql/exchange"
     );
     private static final Set<String> CROSS_CLUSTER_REPLICATION_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
@@ -311,7 +313,10 @@ public class ClusterPrivilegeResolver {
         Set.of("cluster:admin/fleet/secrets/post", "cluster:admin/fleet/secrets/delete")
     );
 
-    public static final NamedClusterPrivilege CANCEL_TASK = new ActionClusterPrivilege("cancel_task", Set.of(CancelTasksAction.NAME + "*"));
+    public static final NamedClusterPrivilege CANCEL_TASK = new ActionClusterPrivilege(
+        "cancel_task",
+        Set.of(TransportCancelTasksAction.NAME + "*")
+    );
 
     public static final NamedClusterPrivilege MANAGE_SEARCH_APPLICATION = new ActionClusterPrivilege(
         "manage_search_application",

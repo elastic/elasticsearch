@@ -133,6 +133,7 @@ public class TransportVersions {
     public static final TransportVersion INDEX_REQUEST_NORMALIZED_BYTES_PARSED = def(8_593_00_0);
     public static final TransportVersion INGEST_GRAPH_STRUCTURE_EXCEPTION = def(8_594_00_0);
     public static final TransportVersion ML_MODEL_IN_SERVICE_SETTINGS = def(8_595_00_0);
+    // 8.14.0+
     public static final TransportVersion RANDOM_AGG_SHARD_SEED = def(8_596_00_0);
     public static final TransportVersion ESQL_TIMINGS = def(8_597_00_0);
     public static final TransportVersion DATA_STREAM_AUTO_SHARDING_EVENT = def(8_598_00_0);
@@ -157,6 +158,22 @@ public class TransportVersions {
     public static final TransportVersion SEARCH_NODE_LOAD_AUTOSCALING = def(8_617_00_0);
     public static final TransportVersion ESQL_ES_SOURCE_OPTIONS = def(8_618_00_0);
     public static final TransportVersion ADD_PERSISTENT_TASK_EXCEPTIONS = def(8_619_00_0);
+    public static final TransportVersion ESQL_REDUCER_NODE_FRAGMENT = def(8_620_00_0);
+    public static final TransportVersion FAILURE_STORE_ROLLOVER = def(8_621_00_0);
+    public static final TransportVersion CCR_STATS_API_TIMEOUT_PARAM = def(8_622_00_0);
+    public static final TransportVersion ESQL_ORDINAL_BLOCK = def(8_623_00_0);
+    public static final TransportVersion ML_INFERENCE_COHERE_RERANK = def(8_624_00_0);
+    public static final TransportVersion INDEXING_PRESSURE_DOCUMENT_REJECTIONS_COUNT = def(8_625_00_0);
+    public static final TransportVersion ALIAS_ACTION_RESULTS = def(8_626_00_0);
+    public static final TransportVersion HISTOGRAM_AGGS_KEY_SORTED = def(8_627_00_0);
+    public static final TransportVersion INFERENCE_FIELDS_METADATA = def(8_628_00_0);
+    public static final TransportVersion ML_INFERENCE_TIMEOUT_ADDED = def(8_629_00_0);
+    public static final TransportVersion MODIFY_DATA_STREAM_FAILURE_STORES = def(8_630_00_0);
+    public static final TransportVersion ML_INFERENCE_RERANK_NEW_RESPONSE_FORMAT = def(8_631_00_0);
+    public static final TransportVersion HIGHLIGHTERS_TAGS_ON_FIELD_LEVEL = def(8_632_00_0);
+    public static final TransportVersion TRACK_FLUSH_TIME_EXCLUDING_WAITING_ON_LOCKS = def(8_633_00_0);
+    public static final TransportVersion ML_INFERENCE_AZURE_OPENAI_EMBEDDINGS = def(8_634_00_0);
+    public static final TransportVersion ILM_SHRINK_ENABLE_WRITE = def(8_635_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

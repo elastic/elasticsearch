@@ -18,11 +18,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -158,7 +158,6 @@ import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
-import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequestTests.randomCrossClusterApiKeyAccessField;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_METADATA_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_TYPE_KEY;
@@ -200,6 +199,29 @@ import static org.mockito.Mockito.when;
 
 public class ApiKeyServiceTests extends ESTestCase {
 
+    private static final List<String> ACCESS_CANDIDATES = List.of("""
+        {
+          "search": [ {"names": ["logs"]} ]
+        }""", """
+        {
+          "search": [ {"names": ["logs"], "query": "abc" } ]
+        }""", """
+        {
+          "search": [ {"names": ["logs"], "field_security": {"grant": ["*"], "except": ["private"]} } ]
+        }""", """
+        {
+          "search": [ {"names": ["logs"], "query": "abc", "field_security": {"grant": ["*"], "except": ["private"]} } ]
+        }""", """
+        {
+          "replication": [ {"names": ["archive"], "allow_restricted_indices": true } ]
+        }""", """
+        {
+          "replication": [ {"names": ["archive"]} ]
+        }""", """
+        {
+          "search": [ {"names": ["logs"]} ],
+          "replication": [ {"names": ["archive"]} ]
+        }""");
     private ThreadPool threadPool;
     private Client client;
     private SecurityIndexManager securityIndex;
@@ -261,7 +283,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertThat(indexRequest.opType(), is(DocWriteRequest.OpType.CREATE));
             bulkActionInvoked.set(true);
             return null;
-        }).when(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
+        }).when(client).execute(eq(TransportBulkAction.TYPE), any(BulkRequest.class), any());
         service.createApiKey(authentication, createApiKeyRequest, Set.of(), new PlainActionFuture<>());
         assertBusy(() -> assertTrue(bulkActionInvoked.get()));
     }
@@ -627,7 +649,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 )
             );
             return null;
-        }).when(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
+        }).when(client).execute(eq(TransportBulkAction.TYPE), any(BulkRequest.class), any());
 
         final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache = service.getApiKeyAuthCache();
         assertNull(apiKeyAuthCache.get(createApiKeyRequest.getId()));
@@ -2843,6 +2865,10 @@ public class ApiKeyServiceTests extends ESTestCase {
             null,
             RoleRestrictionTests.randomWorkflowsRestriction(1, 3)
         );
+    }
+
+    public static String randomCrossClusterApiKeyAccessField() {
+        return randomFrom(ACCESS_CANDIDATES);
     }
 
     public static class Utils {

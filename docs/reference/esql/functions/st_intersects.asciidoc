@@ -2,6 +2,8 @@
 [[esql-st_intersects]]
 === `ST_INTERSECTS`
 
+experimental::[]
+
 *Syntax*
 
 [.text-center]
@@ -22,19 +24,8 @@ This means it is not possible to combine `geo_*` and `cartesian_*` parameters.
 Returns true if two geometries intersect.
 They intersect if they have any point in common, including their interior points
 (points along lines or within polygons).
+This is the inverse of the <<esql-st_disjoint,ST_DISJOINT>> function.
 In mathematical terms: ST_Intersects(A, B) ⇔ A ⋂ B ≠ ∅
 
-*Supported types*
-
 include::types/st_intersects.asciidoc[]
-
-*Example*
-
-[source.merge.styled,esql]
-----
-include::{esql-specs}/spatial.csv-spec[tag=st_intersects-airports]
-----
-[%header.monospaced.styled,format=dsv,separator=|]
-|===
-include::{esql-specs}/spatial.csv-spec[tag=st_intersects-airports-results]
-|===
+include::examples/st_intersects.asciidoc[]

@@ -191,7 +191,6 @@ public class DownsampleActionIT extends ESRestTestCase {
         createIndexWithSettings(client(), index, alias, settings, mapping);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105437")
     public void testRollupIndex() throws Exception {
         createIndex(index, alias, true);
         index(client(), index, true, null, "@timestamp", "2020-01-01T05:10:00Z", "volume", 11.0, "metricset", randomAlphaOfLength(5));
@@ -396,6 +395,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103981")
     @TestLogging(value = "org.elasticsearch.xpack.ilm:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/103981")
     public void testRollupNonTSIndex() throws Exception {
         createIndex(index, alias, false);
@@ -505,7 +505,6 @@ public class DownsampleActionIT extends ESRestTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105485")
     public void testDownsampleTwiceSameInterval() throws Exception {
         // Create the ILM policy
         Request request = new Request("PUT", "_ilm/policy/" + policy);

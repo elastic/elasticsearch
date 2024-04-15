@@ -32,7 +32,6 @@ public class MergePositionsOperatorTests extends ESTestCase {
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         BlockFactory blockFactory = new BlockFactory(breaker, bigArrays);
         MergePositionsOperator mergeOperator = new MergePositionsOperator(
-            randomBoolean(),
             7,
             0,
             new int[] { 1, 2 },

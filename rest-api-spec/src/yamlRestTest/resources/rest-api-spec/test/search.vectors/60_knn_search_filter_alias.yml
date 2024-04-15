@@ -17,6 +17,10 @@ setup:
                 dims: 4
                 index : true
                 similarity : l2_norm
+                index_options:
+                  type: hnsw
+                  m: 16
+                  ef_construction: 200
               name:
                 type: keyword
                 store: true

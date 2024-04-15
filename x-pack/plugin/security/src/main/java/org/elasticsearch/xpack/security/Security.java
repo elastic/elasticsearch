@@ -770,7 +770,7 @@ public class Security extends Plugin
             systemIndices.getMainIndexManager(),
             scriptService
         );
-        final ClusterStateRoleMapper clusterStateRoleMapper = new ClusterStateRoleMapper(scriptService, clusterService);
+        final ClusterStateRoleMapper clusterStateRoleMapper = new ClusterStateRoleMapper(settings, scriptService, clusterService);
         final UserRoleMapper userRoleMapper = new CompositeRoleMapper(nativeRoleMappingStore, clusterStateRoleMapper);
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         components.add(anonymousUser);

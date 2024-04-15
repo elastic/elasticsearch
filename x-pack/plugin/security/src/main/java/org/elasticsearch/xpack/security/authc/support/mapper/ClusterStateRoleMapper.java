@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
@@ -27,16 +28,22 @@ import java.util.stream.Collectors;
 
 public final class ClusterStateRoleMapper implements UserRoleMapper, ClusterStateListener {
 
+    // TODO Is this a good name??
+    public static final String CLUSTER_STATE_ROLE_MAPPINGS_ENABLED = "xpack.security.authc.cluster_state_role_mappings.enabled";
     private static final Logger logger = LogManager.getLogger(ClusterStateRoleMapper.class);
 
     private final ScriptService scriptService;
     private final ClusterService clusterService;
+    private final boolean enabled;
     private final CopyOnWriteArrayList<Runnable> clearCacheListeners = new CopyOnWriteArrayList<>();
 
-    public ClusterStateRoleMapper(ScriptService scriptService, ClusterService clusterService) {
+    public ClusterStateRoleMapper(Settings settings, ScriptService scriptService, ClusterService clusterService) {
         this.scriptService = scriptService;
         this.clusterService = clusterService;
-        clusterService.addListener(this);
+        this.enabled = settings.getAsBoolean(CLUSTER_STATE_ROLE_MAPPINGS_ENABLED, false);
+        if (this.enabled) {
+            clusterService.addListener(this);
+        }
     }
 
     @Override
@@ -60,14 +67,6 @@ public final class ClusterStateRoleMapper implements UserRoleMapper, ClusterStat
         clearCacheListeners.add(realm::expireAll);
     }
 
-    private Set<ExpressionRoleMapping> getMappings() {
-        return RoleMappingMetadata.getFromClusterState(clusterService.state()).getRoleMappings();
-    }
-
-    private void notifyClearCache() {
-        clearCacheListeners.forEach(Runnable::run);
-    }
-
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (false == Objects.equals(
@@ -76,5 +75,13 @@ public final class ClusterStateRoleMapper implements UserRoleMapper, ClusterStat
         )) {
             notifyClearCache();
         }
+    }
+
+    private Set<ExpressionRoleMapping> getMappings() {
+        return RoleMappingMetadata.getFromClusterState(clusterService.state()).getRoleMappings();
+    }
+
+    private void notifyClearCache() {
+        clearCacheListeners.forEach(Runnable::run);
     }
 }

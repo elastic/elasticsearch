@@ -715,7 +715,7 @@ public class ConnectorIndexService {
 
                 if (currentValidationState != FilteringValidationState.VALID) {
                     throw new ElasticsearchStatusException(
-                        "Filtering draft needs to be validated by the framework before activation. "
+                        "Filtering draft needs to be validated by the connector service before activation. "
                             + "Current filtering draft validation state ["
                             + currentValidationState.toString()
                             + "] is not equal to ["

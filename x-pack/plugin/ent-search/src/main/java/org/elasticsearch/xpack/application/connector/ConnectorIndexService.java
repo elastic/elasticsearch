@@ -648,7 +648,7 @@ public class ConnectorIndexService {
     /**
      * Updates the {@link FilteringValidationInfo} of the draft {@link ConnectorFiltering} property of a {@link Connector}.
      *
-     * @param connectorId  Request for updating connector filtering property.
+     * @param connectorId  Request for updating {@link ConnectorFiltering}.
      * @param listener     Listener to respond to a successful response or an error.
      */
     public void updateConnectorDraftFilteringValidation(

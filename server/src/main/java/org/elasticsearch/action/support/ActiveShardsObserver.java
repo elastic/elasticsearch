@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 
@@ -43,7 +44,7 @@ public enum ActiveShardsObserver {
         ClusterService clusterService,
         final String[] indexNames,
         final ActiveShardCount activeShardCount,
-        final TimeValue timeout,
+        @Nullable final TimeValue timeout,
         final ActionListener<Boolean> listener
     ) {
         if (activeShardCount == ActiveShardCount.NONE) {

@@ -16,10 +16,11 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 
-import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToBoolean;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToBoolean;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
@@ -27,7 +28,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public class ToBoolean extends AbstractConvertFunction {
 
@@ -44,7 +44,7 @@ public class ToBoolean extends AbstractConvertFunction {
     @FunctionInfo(returnType = "boolean", description = "Converts an input value to a boolean value.")
     public ToBoolean(
         Source source,
-        @Param(name = "v", type = { "boolean", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field
+        @Param(name = "field", type = { "boolean", "keyword", "text", "double", "long", "unsigned_long", "integer" }) Expression field
     ) {
         super(source, field);
     }
@@ -71,7 +71,7 @@ public class ToBoolean extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString")
     static boolean fromKeyword(BytesRef keyword) {
-        return Boolean.parseBoolean(keyword.utf8ToString());
+        return stringToBoolean(keyword.utf8ToString());
     }
 
     @ConvertEvaluator(extraName = "FromDouble")
@@ -86,8 +86,7 @@ public class ToBoolean extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromUnsignedLong")
     static boolean fromUnsignedLong(long ul) {
-        Number n = unsignedLongAsNumber(ul);
-        return n instanceof BigInteger || n.longValue() != 0;
+        return unsignedLongToBoolean(ul);
     }
 
     @ConvertEvaluator(extraName = "FromInt")

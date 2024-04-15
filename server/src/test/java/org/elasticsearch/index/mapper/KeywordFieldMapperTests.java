@@ -601,15 +601,6 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         return true;
     }
 
-    @Override
-    protected String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
-        return "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-            + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
-            + "without the [script] parameter. ["
-            + mapper.name()
-            + "] was not a dimension.";
-    }
-
     public void testDimensionInRoutingPath() throws IOException {
         MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("time_series_dimension", true)));
         IndexSettings settings = createIndexSettings(

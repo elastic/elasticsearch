@@ -175,8 +175,7 @@ public class MasterServiceTests extends ESTestCase {
         masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
             clusterStateRef.set(clusterStatePublicationEvent.getNewState());
             ClusterServiceUtils.setAllElapsedMillis(clusterStatePublicationEvent);
-            threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC))
-                .execute(() -> publishListener.onResponse(null));
+            randomExecutor(threadPool).execute(() -> publishListener.onResponse(null));
         });
         masterService.setClusterStateSupplier(clusterStateRef::get);
         masterService.start();

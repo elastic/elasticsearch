@@ -20,6 +20,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
 import java.net.URI;
@@ -43,7 +44,7 @@ public class CohereServiceSettings implements ServiceSettings {
     public static final String OLD_MODEL_ID_FIELD = "model";
     public static final String MODEL_ID = "model_id";
 
-    public static CohereServiceSettings fromMap(Map<String, Object> map, boolean logDeprecations) {
+    public static CohereServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
         String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
@@ -56,7 +57,7 @@ public class CohereServiceSettings implements ServiceSettings {
 
         String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        if (logDeprecations && oldModelId != null) {
+        if (context == ConfigurationParseContext.REQUEST && oldModelId != null) {
             logger.info("The cohere [service_settings.model] field is deprecated. Please use [service_settings.model_id] instead.");
         }
 
@@ -64,10 +65,10 @@ public class CohereServiceSettings implements ServiceSettings {
             throw validationException;
         }
 
-        return new CohereServiceSettings(uri, similarity, dims, maxInputTokens, getModelId(oldModelId, modelId));
+        return new CohereServiceSettings(uri, similarity, dims, maxInputTokens, modelId(oldModelId, modelId));
     }
 
-    private static String getModelId(@Nullable String model, @Nullable String modelId) {
+    private static String modelId(@Nullable String model, @Nullable String modelId) {
         return modelId != null ? modelId : model;
     }
 
@@ -109,23 +110,25 @@ public class CohereServiceSettings implements ServiceSettings {
         modelId = in.readOptionalString();
     }
 
-    public URI getUri() {
+    public URI uri() {
         return uri;
     }
 
-    public SimilarityMeasure getSimilarity() {
+    @Override
+    public SimilarityMeasure similarity() {
         return similarity;
     }
 
-    public Integer getDimensions() {
+    @Override
+    public Integer dimensions() {
         return dimensions;
     }
 
-    public Integer getMaxInputTokens() {
+    public Integer maxInputTokens() {
         return maxInputTokens;
     }
 
-    public String getModelId() {
+    public String modelId() {
         return modelId;
     }
 
@@ -178,7 +181,7 @@ public class CohereServiceSettings implements ServiceSettings {
     public void writeTo(StreamOutput out) throws IOException {
         var uriToWrite = uri != null ? uri.toString() : null;
         out.writeOptionalString(uriToWrite);
-        out.writeOptionalEnum(similarity);
+        out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
         out.writeOptionalVInt(dimensions);
         out.writeOptionalVInt(maxInputTokens);
         out.writeOptionalString(modelId);

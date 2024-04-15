@@ -200,11 +200,11 @@ The API returns the following result:
             {
               "type" : "FetchFieldsPhase",
               "description" : "",
-              "time_in_nanos" : 306754,
+              "time_in_nanos" : 238762,
               "breakdown" : {
-                "process_count" : 4,
-                "process" : 271916,
-                "next_reader" : 34838,
+                "process_count" : 5,
+                "process" : 227914,
+                "next_reader" : 10848,
                 "next_reader_count" : 1
               }
             },
@@ -1057,11 +1057,11 @@ And here is the fetch profile:
             {
               "type" : "FetchFieldsPhase",
               "description" : "",
-              "time_in_nanos" : 306754,
+              "time_in_nanos" : 238762,
               "breakdown" : {
-                "process_count" : 4,
-                "process" : 271916,
-                "next_reader" : 34838,
+                "process_count" : 5,
+                "process" : 227914,
+                "next_reader" : 10848,
                 "next_reader_count" : 1
               }
             },

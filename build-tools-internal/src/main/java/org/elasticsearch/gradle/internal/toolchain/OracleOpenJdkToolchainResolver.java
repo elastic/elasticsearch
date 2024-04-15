@@ -19,28 +19,35 @@ import org.gradle.platform.BuildPlatform;
 import org.gradle.platform.OperatingSystem;
 
 import java.net.URI;
+import java.util.List;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaToolchainResolver {
 
+    record JdkBuild(JavaLanguageVersion languageVersion, String version, String buildNumber, String hash) {}
+
     private static final Pattern VERSION_PATTERN = Pattern.compile(
         "(\\d+)(\\.\\d+\\.\\d+(?:\\.\\d+)?)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?"
     );
 
-    // for testing reasons we keep that a package private field
-    String bundledJdkVersion = VersionProperties.getBundledJdkVersion();
-    JavaLanguageVersion bundledJdkMajorVersion = JavaLanguageVersion.of(VersionProperties.getBundledJdkMajorVersion());
+    private static final List<OperatingSystem> supportedOperatingSystems = List.of(
+        OperatingSystem.MAC_OS,
+        OperatingSystem.LINUX,
+        OperatingSystem.WINDOWS
+    );
 
-    /**
-     * We need some place to map JavaLanguageVersion to build, minor version etc.
-     * */
-    @Override
-    public Optional<JavaToolchainDownload> resolve(JavaToolchainRequest request) {
-        if (requestIsSupported(request) == false) {
-            return Optional.empty();
-        }
+    // package private so it can be replaced by tests
+    List<JdkBuild> builds = List.of(
+        getBundledJdkBuild(),
+        // 22 release candidate
+        new JdkBuild(JavaLanguageVersion.of(22), "22", "36", "830ec9fcccef480bb3e73fb7ecafe059")
+    );
+
+    private JdkBuild getBundledJdkBuild() {
+        String bundledJdkVersion = VersionProperties.getBundledJdkVersion();
+        JavaLanguageVersion bundledJdkMajorVersion = JavaLanguageVersion.of(VersionProperties.getBundledJdkMajorVersion());
         Matcher jdkVersionMatcher = VERSION_PATTERN.matcher(bundledJdkVersion);
         if (jdkVersionMatcher.matches() == false) {
             throw new IllegalStateException("Unable to parse bundled JDK version " + bundledJdkVersion);
@@ -48,6 +55,18 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         String baseVersion = jdkVersionMatcher.group(1) + (jdkVersionMatcher.group(2) != null ? (jdkVersionMatcher.group(2)) : "");
         String build = jdkVersionMatcher.group(3);
         String hash = jdkVersionMatcher.group(5);
+        return new JdkBuild(bundledJdkMajorVersion, baseVersion, build, hash);
+    }
+
+    /**
+     * We need some place to map JavaLanguageVersion to buildNumber, minor version etc.
+     * */
+    @Override
+    public Optional<JavaToolchainDownload> resolve(JavaToolchainRequest request) {
+        JdkBuild build = findSupportedBuild(request);
+        if (build == null) {
+            return Optional.empty();
+        }
 
         OperatingSystem operatingSystem = request.getBuildPlatform().getOperatingSystem();
         String extension = operatingSystem.equals(OperatingSystem.WINDOWS) ? "zip" : "tar.gz";
@@ -56,13 +75,13 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         return Optional.of(
             () -> URI.create(
                 "https://download.oracle.com/java/GA/jdk"
-                    + baseVersion
+                    + build.version
                     + "/"
-                    + hash
+                    + build.hash
                     + "/"
-                    + build
+                    + build.buildNumber
                     + "/GPL/openjdk-"
-                    + baseVersion
+                    + build.version
                     + "_"
                     + os
                     + "-"
@@ -80,20 +99,28 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
      * 3. vendor must be any or oracle
      * 4. Aarch64 windows images are not supported
      */
-    private boolean requestIsSupported(JavaToolchainRequest request) {
+    private JdkBuild findSupportedBuild(JavaToolchainRequest request) {
         if (VersionProperties.getBundledJdkVendor().toLowerCase().equals("openjdk") == false) {
-            return false;
+            return null;
         }
         JavaToolchainSpec javaToolchainSpec = request.getJavaToolchainSpec();
-        if (javaToolchainSpec.getLanguageVersion().get().equals(bundledJdkMajorVersion) == false) {
-            return false;
-        }
         if (anyVendorOr(javaToolchainSpec.getVendor().get(), JvmVendorSpec.ORACLE) == false) {
-            return false;
+            return null;
         }
         BuildPlatform buildPlatform = request.getBuildPlatform();
         Architecture architecture = buildPlatform.getArchitecture();
         OperatingSystem operatingSystem = buildPlatform.getOperatingSystem();
-        return Architecture.AARCH64 != architecture || OperatingSystem.WINDOWS != operatingSystem;
+        if (supportedOperatingSystems.contains(operatingSystem) == false
+            || Architecture.AARCH64 == architecture && OperatingSystem.WINDOWS == operatingSystem) {
+            return null;
+        }
+
+        JavaLanguageVersion languageVersion = javaToolchainSpec.getLanguageVersion().get();
+        for (JdkBuild build : builds) {
+            if (build.languageVersion.equals(languageVersion)) {
+                return build;
+            }
+        }
+        return null;
     }
 }

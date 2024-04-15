@@ -41,8 +41,8 @@ public class Concat extends EsqlScalarFunction {
     @FunctionInfo(returnType = "keyword", description = "Concatenates two or more strings.")
     public Concat(
         Source source,
-        @Param(name = "first", type = { "keyword", "text" }) Expression first,
-        @Param(name = "rest", type = { "keyword", "text" }) List<? extends Expression> rest
+        @Param(name = "string1", type = { "keyword", "text" }) Expression first,
+        @Param(name = "string2", type = { "keyword", "text" }) List<? extends Expression> rest
     ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
     }

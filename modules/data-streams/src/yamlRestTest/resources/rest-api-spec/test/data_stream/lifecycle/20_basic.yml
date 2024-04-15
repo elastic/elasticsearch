@@ -1,8 +1,8 @@
 setup:
   - skip:
       features: allowed_warnings
-      version: " - 8.10.99"
-      reason: "Data stream lifecycles only supported in 8.11+"
+      cluster_features: ["datastream_lifecycle", "data_stream.lifecycle.global_retention"]
+      reason: "Data stream lifecycles with global retention are only supported in 8.14+"
   - do:
       allowed_warnings:
         - "index template [my-lifecycle] has index patterns [data-stream-with-lifecycle] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-lifecycle] will take precedence during new index creation"
@@ -47,6 +47,8 @@ setup:
   - length: { data_streams: 1}
   - match: { data_streams.0.name: data-stream-with-lifecycle }
   - match: { data_streams.0.lifecycle.data_retention: '10d' }
+  - match: { data_streams.0.lifecycle.effective_retention: '10d' }
+  - match: { data_streams.0.lifecycle.retention_determined_by: 'data_stream_configuration' }
   - match: { data_streams.0.lifecycle.enabled: true}
 
 ---
@@ -61,6 +63,7 @@ setup:
   - length: { data_streams: 1}
   - match: { data_streams.0.name: simple-data-stream1 }
   - match: { data_streams.0.lifecycle.enabled: true}
+  - is_false: data_streams.0.lifecycle.effective_retention
 
 ---
 "Put data stream lifecycle":
@@ -91,14 +94,16 @@ setup:
         name: "*"
   - length: { data_streams: 2 }
   - match: { data_streams.0.name: data-stream-with-lifecycle }
-  - match: { data_streams.0.lifecycle.data_retention: '30d' }
+  - match: { data_streams.0.lifecycle.data_retention: "30d" }
+  - is_false: data_streams.0.lifecycle.effective_retention
   - match: { data_streams.0.lifecycle.enabled: false}
   - match: { data_streams.0.lifecycle.downsampling.0.after: '10d'}
   - match: { data_streams.0.lifecycle.downsampling.0.fixed_interval: '1h'}
   - match: { data_streams.0.lifecycle.downsampling.1.after: '100d'}
   - match: { data_streams.0.lifecycle.downsampling.1.fixed_interval: '10h'}
   - match: { data_streams.1.name: simple-data-stream1 }
-  - match: { data_streams.1.lifecycle.data_retention: '30d' }
+  - match: { data_streams.1.lifecycle.data_retention: "30d" }
+  - is_false: data_streams.0.lifecycle.effective_retention
   - match: { data_streams.1.lifecycle.enabled: false}
   - match: { data_streams.1.lifecycle.downsampling.0.after: '10d'}
   - match: { data_streams.1.lifecycle.downsampling.0.fixed_interval: '1h'}
@@ -123,7 +128,9 @@ setup:
   - match: { data_streams.0.lifecycle.data_retention: '30d' }
   - match: { data_streams.0.lifecycle.enabled: true}
   - match: { data_streams.1.name: simple-data-stream1 }
-  - match: { data_streams.1.lifecycle.data_retention: '30d' }
+  - match: { data_streams.1.lifecycle.data_retention: "30d" }
+  - match: { data_streams.1.lifecycle.effective_retention: "30d"}
+  - match: { data_streams.1.lifecycle.retention_determined_by: "data_stream_configuration"}
   - match: { data_streams.1.lifecycle.enabled: true}
 
 
@@ -136,7 +143,9 @@ setup:
         include_defaults: true
   - length: { data_streams: 1}
   - match: { data_streams.0.name: data-stream-with-lifecycle }
-  - match: { data_streams.0.lifecycle.data_retention: '10d' }
+  - match: { data_streams.0.lifecycle.data_retention: "10d" }
+  - match: { data_streams.0.lifecycle.effective_retention: "10d"}
+  - match: { data_streams.0.lifecycle.retention_determined_by: "data_stream_configuration"}
   - is_true: data_streams.0.lifecycle.rollover
 
 ---
@@ -153,7 +162,9 @@ setup:
         name: "simple-data-stream1"
   - length: { data_streams: 1 }
   - match: { data_streams.0.name: simple-data-stream1 }
-  - match: { data_streams.0.lifecycle.data_retention: '30d' }
+  - match: { data_streams.0.lifecycle.data_retention: "30d" }
+  - match: { data_streams.0.lifecycle.effective_retention: "30d"}
+  - match: { data_streams.0.lifecycle.retention_determined_by: "data_stream_configuration"}
   - match: { data_streams.0.lifecycle.enabled: true }
 
   - do:

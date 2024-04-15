@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: Introduced in 8.13.0
 
   - do:
@@ -30,6 +30,23 @@ setup:
 
   - match: { index_name: search-2-test }
   - match: { status: created }
+
+---
+"Update Connector Index Name - detach index":
+  - do:
+      connector.update_index_name:
+        connector_id: test-connector
+        body:
+          index_name: null
+
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { index_name: null }
 
 ---
 "Update Connector Index Name - 404 when connector doesn't exist":

@@ -1440,12 +1440,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     private static void createIndex(String name, CheckedConsumer<XContentBuilder, IOException> mapping) throws IOException {
         Request request = new Request("PUT", "/" + name);
         XContentBuilder index = JsonXContent.contentBuilder().prettyPrint().startObject();
-        index.startObject("settings");
-        {
-            index.field("index.number_of_replicas", 0);
-            index.field("index.number_of_shards", 1);
-        }
-        index.endObject();
         index.startObject("mappings");
         mapping.accept(index);
         index.endObject();

@@ -53,7 +53,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_START_FAILED_TRANSFORM;
-import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_STOP_FAILED_TRANSFORM;
+import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_STOP_SINGLE_FAILED_TRANSFORM;
 
 public class TransformTask extends AllocatedPersistentTask implements TransformScheduler.Listener, TransformContext.Listener {
 
@@ -71,7 +71,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     private final SetOnce<ClientTransformIndexer> indexer = new SetOnce<>();
 
     @SuppressWarnings("this-escape")
-    public TransformTask(
+    TransformTask(
         long id,
         String type,
         String action,
@@ -240,9 +240,8 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         logger.debug("[{}] start called with state [{}].", getTransformId(), getState());
         if (context.getTaskState() == TransformTaskState.FAILED) {
             listener.onFailure(
-                new ElasticsearchStatusException(
-                    TransformMessages.getMessage(CANNOT_START_FAILED_TRANSFORM, getTransformId(), context.getStateReason()),
-                    RestStatus.CONFLICT
+                new CannotStartFailedTransformException(
+                    TransformMessages.getMessage(CANNOT_START_FAILED_TRANSFORM, getTransformId(), context.getStateReason())
                 )
             );
             return;
@@ -360,7 +359,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         synchronized (context) {
             if (context.getTaskState() == TransformTaskState.FAILED && force == false) {
                 throw new ElasticsearchStatusException(
-                    TransformMessages.getMessage(CANNOT_STOP_FAILED_TRANSFORM, getTransformId(), context.getStateReason()),
+                    TransformMessages.getMessage(CANNOT_STOP_SINGLE_FAILED_TRANSFORM, getTransformId(), context.getStateReason()),
                     RestStatus.CONFLICT
                 );
             }

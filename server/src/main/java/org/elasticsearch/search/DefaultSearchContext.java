@@ -27,6 +27,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -480,7 +481,6 @@ final class DefaultSearchContext extends SearchContext {
         return this;
     }
 
-    @Override
     public void addSearchExt(SearchExtBuilder searchExtBuilder) {
         // it's ok to use the writeable name here given that we enforce it to be the same as the name of the element that gets
         // parsed by the corresponding parser. There is one single name and one single way to retrieve the parsed object from the context.
@@ -507,7 +507,6 @@ final class DefaultSearchContext extends SearchContext {
         return suggest;
     }
 
-    @Override
     public void suggest(SuggestionSearchContext suggest) {
         this.suggest = suggest;
     }
@@ -612,7 +611,6 @@ final class DefaultSearchContext extends SearchContext {
         return timeout;
     }
 
-    @Override
     public void timeout(TimeValue timeout) {
         this.timeout = timeout;
     }
@@ -687,7 +685,6 @@ final class DefaultSearchContext extends SearchContext {
         return searchAfter;
     }
 
-    @Override
     public SearchContext collapse(CollapseContext collapse) {
         this.collapse = collapse;
         return this;
@@ -785,7 +782,6 @@ final class DefaultSearchContext extends SearchContext {
         return this.groupStats;
     }
 
-    @Override
     public void groupStats(List<String> groupStats) {
         this.groupStats = groupStats;
     }
@@ -897,20 +893,24 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public IdLoader newIdLoader() {
         if (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
-            var indexRouting = (IndexRouting.ExtractFromSource) indexService.getIndexSettings().getIndexRouting();
-            List<String> routingPaths = indexService.getMetadata().getRoutingPaths();
-            for (String routingField : routingPaths) {
-                if (routingField.contains("*")) {
-                    // In case the routing fields include path matches, find any matches and add them as distinct fields
-                    // to the routing path.
-                    Set<String> matchingRoutingPaths = new TreeSet<>(routingPaths);
-                    for (Mapper mapper : indexService.mapperService().mappingLookup().fieldMappers()) {
-                        if (mapper instanceof KeywordFieldMapper && indexRouting.matchesField(mapper.name())) {
-                            matchingRoutingPaths.add(mapper.name());
+            IndexRouting.ExtractFromSource indexRouting = null;
+            List<String> routingPaths = null;
+            if (indexService.getIndexSettings().getIndexVersionCreated().before(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)) {
+                indexRouting = (IndexRouting.ExtractFromSource) indexService.getIndexSettings().getIndexRouting();
+                routingPaths = indexService.getMetadata().getRoutingPaths();
+                for (String routingField : routingPaths) {
+                    if (routingField.contains("*")) {
+                        // In case the routing fields include path matches, find any matches and add them as distinct fields
+                        // to the routing path.
+                        Set<String> matchingRoutingPaths = new TreeSet<>(routingPaths);
+                        for (Mapper mapper : indexService.mapperService().mappingLookup().fieldMappers()) {
+                            if (mapper instanceof KeywordFieldMapper && indexRouting.matchesField(mapper.name())) {
+                                matchingRoutingPaths.add(mapper.name());
+                            }
                         }
+                        routingPaths = new ArrayList<>(matchingRoutingPaths);
+                        break;
                     }
-                    routingPaths = new ArrayList<>(matchingRoutingPaths);
-                    break;
                 }
             }
             return IdLoader.createTsIdLoader(indexRouting, routingPaths);

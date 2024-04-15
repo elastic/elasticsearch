@@ -19,11 +19,11 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.GEO;
 
 public class ToGeoShape extends AbstractConvertFunction {
 
@@ -35,7 +35,7 @@ public class ToGeoShape extends AbstractConvertFunction {
     );
 
     @FunctionInfo(returnType = "geo_shape", description = "Converts an input value to a geo_shape value.")
-    public ToGeoShape(Source source, @Param(name = "v", type = { "geo_point", "geo_shape", "keyword", "text" }) Expression field) {
+    public ToGeoShape(Source source, @Param(name = "field", type = { "geo_point", "geo_shape", "keyword", "text" }) Expression field) {
         super(source, field);
     }
 
@@ -61,6 +61,6 @@ public class ToGeoShape extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static BytesRef fromKeyword(BytesRef in) {
-        return GEO.wktToWkb(in.utf8ToString());
+        return stringToSpatial(in.utf8ToString());
     }
 }

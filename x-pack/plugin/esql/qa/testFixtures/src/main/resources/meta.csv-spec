@@ -26,6 +26,7 @@ synopsis:keyword
 double e()
 "boolean ends_with(str:keyword|text, suffix:keyword|text)"
 "double|integer|long|unsigned_long floor(number:double|integer|long|unsigned_long)"
+"keyword from_base64(string:keyword|text)"
 "integer|long|double|boolean|keyword|text|ip|version greatest(first:integer|long|double|boolean|keyword|text|ip|version, ?rest...:integer|long|double|boolean|keyword|text|ip|version)"
 "integer|long|double|boolean|keyword|text|ip|version least(first:integer|long|double|boolean|keyword|text|ip|version, ?rest...:integer|long|double|boolean|keyword|text|ip|version)"
 "keyword left(string:keyword|text, length:integer)"
@@ -77,6 +78,7 @@ double pi()
 "double tan(angle:double|integer|long|unsigned_long)"
 "double tanh(angle:double|integer|long|unsigned_long)"
 double tau()
+"keyword to_base64(string:keyword|text)"
 "boolean to_bool(field:boolean|keyword|text|double|long|unsigned_long|integer)"
 "boolean to_boolean(field:boolean|keyword|text|double|long|unsigned_long|integer)"
 "cartesian_point to_cartesianpoint(field:cartesian_point|keyword|text)"
@@ -136,6 +138,7 @@ date_trunc    |[interval, date]                    |["date_period|time_duration"
 e             |null                                |null                                                                                                                              |null
 ends_with     |[str, suffix]                       |["keyword|text", "keyword|text"]                                                                                                  |[, ]
 floor         |number                              |"double|integer|long|unsigned_long"                                                                                               |Numeric expression. If `null`, the function returns `null`.
+from_base64   |string                              |"keyword|text"                                                                                                                    |A base64 string.
 greatest      |first                               |"integer|long|double|boolean|keyword|text|ip|version"                                                                             |[""]
 least         |first                               |"integer|long|double|boolean|keyword|text|ip|version"                                                                             |[""]
 left          |[string, length]                    |["keyword|text", integer]                                                                                                         |[The string from which to return a substring., The number of characters to return.]
@@ -187,6 +190,7 @@ sum           |number                              |"double|integer|long"       
 tan           |angle                               |"double|integer|long|unsigned_long"                                                                                               |An angle, in radians. If `null`, the function returns `null`.
 tanh          |angle                               |"double|integer|long|unsigned_long"                                                                                               |An angle, in radians. If `null`, the function returns `null`.
 tau           |null                                |null                                                                                                                              |null
+to_base64     |string                              |"keyword|text"                                                                                                                    |A string.
 to_bool       |field                               |"boolean|keyword|text|double|long|unsigned_long|integer"                                                                          |[""]
 to_boolean    |field                               |"boolean|keyword|text|double|long|unsigned_long|integer"                                                                          |[""]
 to_cartesianpo|field                               |"cartesian_point|keyword|text"                                                                                                    |[""]
@@ -247,6 +251,7 @@ date_trunc    |Rounds down a date to the closest interval.
 e             |Returns {wikipedia}/E_(mathematical_constant)[Euler's number].
 ends_with     |Returns a boolean that indicates whether a keyword string ends with another string
 floor         |Round a number down to the nearest integer.
+from_base64   |Decode a base64 string.
 greatest      |Returns the maximum value from many columns.
 least         |Returns the minimum value from many columns.
 left          |Returns the substring that extracts 'length' chars from 'string' starting from the left.
@@ -298,6 +303,7 @@ sum           |The sum of a numeric field.
 tan           |Returns the {wikipedia}/Sine_and_cosine[Tangent] trigonometric function of an angle.
 tanh          |Returns the {wikipedia}/Hyperbolic_functions[Tangent] hyperbolic function of an angle.
 tau           |The ratio of a circle’s circumference to its radius.
+to_base64     |Encode a string to a base64 string.
 to_bool       |Converts an input value to a boolean value.
 to_boolean    |Converts an input value to a boolean value.
 to_cartesianpo|Converts an input value to a point value.
@@ -359,6 +365,7 @@ date_trunc    |date                                                             
 e             |double                                                                                                                      |null                        |false           |false
 ends_with     |boolean                                                                                                                     |[false, false]              |false           |false
 floor         |"double|integer|long|unsigned_long"                                                                                         |false                       |false           |false
+from_base64   |keyword                                                                                                                     |false                       |false           |false
 greatest      |"integer|long|double|boolean|keyword|text|ip|version"                                                                       |false                       |true            |false
 least         |"integer|long|double|boolean|keyword|text|ip|version"                                                                       |false                       |true            |false
 left          |keyword                                                                                                                     |[false, false]              |false           |false
@@ -410,6 +417,7 @@ sum           |long                                                             
 tan           |double                                                                                                                      |false                       |false           |false
 tanh          |double                                                                                                                      |false                       |false           |false
 tau           |double                                                                                                                      |null                        |false           |false
+to_base64     |keyword                                                                                                                     |false                       |false           |false
 to_bool       |boolean                                                                                                                     |false                       |false           |false
 to_boolean    |boolean                                                                                                                     |false                       |false           |false
 to_cartesianpo|cartesian_point                                                                                                             |false                       |false           |false
@@ -455,5 +463,5 @@ countFunctions#[skip:-8.13.99]
 meta functions |  stats  a = count(*), b = count(*), c = count(*) |  mv_expand c;
 
 a:long | b:long | c:long
-102    | 102    | 102
+104    | 104    | 104
 ;

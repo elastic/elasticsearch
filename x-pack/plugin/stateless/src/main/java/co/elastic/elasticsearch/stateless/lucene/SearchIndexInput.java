@@ -121,7 +121,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
     @Override
     public SearchIndexInput clone() {
         SearchIndexInput searchIndexInput = new SearchIndexInput(
-            "(clone of) " + super.toString(),
+            super.toString(),
             cacheFile,
             context,
             blobContainer,

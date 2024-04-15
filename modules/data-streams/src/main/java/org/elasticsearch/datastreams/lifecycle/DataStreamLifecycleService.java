@@ -735,7 +735,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     /**
      * Returns the data stream lifecycle managed indices that are not part of the set of indices to exclude.
      */
-    private static List<Index> getTargetIndices(
+    // For testing
+    static List<Index> getTargetIndices(
         DataStream dataStream,
         Set<Index> indicesToExcludeForRemainingRun,
         Function<String, IndexMetadata> indexMetadataSupplier,
@@ -748,7 +749,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 targetIndices.add(index);
             }
         }
-        if (withFailureStore && DataStream.isFailureStoreEnabled() && dataStream.getFailureIndices().isEmpty() == false) {
+        if (withFailureStore && DataStream.isFailureStoreFeatureFlagEnabled() && dataStream.getFailureIndices().isEmpty() == false) {
             for (Index index : dataStream.getFailureIndices()) {
                 if (dataStream.isIndexManagedByDataStreamLifecycle(index, indexMetadataSupplier)
                     && indicesToExcludeForRemainingRun.contains(index) == false) {

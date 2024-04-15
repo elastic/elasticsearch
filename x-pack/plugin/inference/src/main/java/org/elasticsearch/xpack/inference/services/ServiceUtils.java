@@ -332,6 +332,9 @@ public class ServiceUtils {
         ValidationException validationException
     ) {
         var timeValueString = extractOptionalString(map, settingName, scope, validationException);
+        if (timeValueString == null) {
+            return null;
+        }
 
         try {
             return TimeValue.parseTimeValue(timeValueString, settingName);

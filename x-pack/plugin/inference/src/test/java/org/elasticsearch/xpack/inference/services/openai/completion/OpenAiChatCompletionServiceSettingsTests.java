@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.openai.completion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -17,6 +18,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
 import java.net.URI;
@@ -49,7 +52,47 @@ public class OpenAiChatCompletionServiceSettingsTests extends AbstractWireSerial
             )
         );
 
-        assertThat(serviceSettings, is(new OpenAiChatCompletionServiceSettings(modelId, ServiceUtils.createUri(url), org, maxInputTokens)));
+        assertThat(
+            serviceSettings,
+            is(new OpenAiChatCompletionServiceSettings(modelId, ServiceUtils.createUri(url), org, maxInputTokens, null))
+        );
+    }
+
+    public void testFromMap_Request_CreatesSettingsCorrectly_WithRateLimit() {
+        var modelId = "some model";
+        var url = "https://www.elastic.co";
+        var org = "organization";
+        var maxInputTokens = 8192;
+        var rateLimit = "2m";
+        var serviceSettings = OpenAiChatCompletionServiceSettings.fromMap(
+            new HashMap<>(
+                Map.of(
+                    ServiceFields.MODEL_ID,
+                    modelId,
+                    ServiceFields.URL,
+                    url,
+                    OpenAiServiceFields.ORGANIZATION,
+                    org,
+                    ServiceFields.MAX_INPUT_TOKENS,
+                    maxInputTokens,
+                    RateLimitSettings.FIELD_NAME,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_TIME_UNIT_NAME, rateLimit))
+                )
+            )
+        );
+
+        assertThat(
+            serviceSettings,
+            is(
+                new OpenAiChatCompletionServiceSettings(
+                    modelId,
+                    ServiceUtils.createUri(url),
+                    org,
+                    maxInputTokens,
+                    new RateLimitSettings(TimeValue.timeValueMinutes(2))
+                )
+            )
+        );
     }
 
     public void testFromMap_MissingUrl_DoesNotThrowException() {
@@ -141,27 +184,46 @@ public class OpenAiChatCompletionServiceSettingsTests extends AbstractWireSerial
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var serviceSettings = new OpenAiChatCompletionServiceSettings("model", "url", "org", 1024);
+        var serviceSettings = new OpenAiChatCompletionServiceSettings("model", "url", "org", 1024, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = org.elasticsearch.common.Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"model_id":"model","url":"url","organization_id":"org","max_input_tokens":1024}"""));
+            {"model_id":"model","url":"url","organization_id":"org",""" + """
+            "max_input_tokens":1024,"rate_limit":{"requests_per_time_unit":"8.3h"}}"""));
+    }
+
+    public void testToXContent_WritesAllValues_WithCustomRateLimit() throws IOException {
+        var serviceSettings = new OpenAiChatCompletionServiceSettings(
+            "model",
+            "url",
+            "org",
+            1024,
+            new RateLimitSettings(TimeValue.timeValueMinutes(2))
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        serviceSettings.toXContent(builder, null);
+        String xContentResult = org.elasticsearch.common.Strings.toString(builder);
+
+        assertThat(xContentResult, is("""
+            {"model_id":"model","url":"url","organization_id":"org",""" + """
+            "max_input_tokens":1024,"rate_limit":{"requests_per_time_unit":"2m"}}"""));
     }
 
     public void testToXContent_DoesNotWriteOptionalValues() throws IOException {
         URI uri = null;
 
-        var serviceSettings = new OpenAiChatCompletionServiceSettings("model", uri, null, null);
+        var serviceSettings = new OpenAiChatCompletionServiceSettings("model", uri, null, null, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"model_id":"model"}"""));
+            {"model_id":"model","rate_limit":{"requests_per_time_unit":"8.3h"}}"""));
     }
 
     @Override
@@ -188,7 +250,13 @@ public class OpenAiChatCompletionServiceSettingsTests extends AbstractWireSerial
         var organizationId = randomFrom(randomAlphaOfLength(15), null);
         var maxInputTokens = randomFrom(randomIntBetween(128, 4096), null);
 
-        return new OpenAiChatCompletionServiceSettings(modelId, ServiceUtils.createUri(url), organizationId, maxInputTokens);
+        return new OpenAiChatCompletionServiceSettings(
+            modelId,
+            ServiceUtils.createUri(url),
+            organizationId,
+            maxInputTokens,
+            RateLimitSettingsTests.createRandom()
+        );
     }
 
 }

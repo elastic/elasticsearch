@@ -308,7 +308,8 @@ public class OpenAiService extends SenderService {
             similarityToUse,
             embeddingSize,
             model.getServiceSettings().maxInputTokens(),
-            model.getServiceSettings().dimensionsSetByUser()
+            model.getServiceSettings().dimensionsSetByUser(),
+            model.getServiceSettings().rateLimitSettings()
         );
 
         return new OpenAiEmbeddingsModel(model, serviceSettings);
@@ -316,7 +317,7 @@ public class OpenAiService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_L2_NORM_SIMILARITY_ADDED;
+        return TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED;
     }
 
     /**

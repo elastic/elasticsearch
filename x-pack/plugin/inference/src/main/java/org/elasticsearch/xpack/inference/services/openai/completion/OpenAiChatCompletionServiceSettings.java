@@ -13,11 +13,13 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiRateLimitServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.net.URI;
@@ -41,6 +43,10 @@ public class OpenAiChatCompletionServiceSettings implements ServiceSettings, Ope
 
     public static final String NAME = "openai_completion_service_settings";
 
+    // The rate limit for usage tier 1 is 500 request per minute for most of the completion models
+    // To find this information you need to access your account's limits https://platform.openai.com/account/limits
+    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(TimeValue.timeValueMinutes(500));
+
     public static OpenAiChatCompletionServiceSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
@@ -52,11 +58,13 @@ public class OpenAiChatCompletionServiceSettings implements ServiceSettings, Ope
 
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
 
+        RateLimitSettings rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException);
+
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new OpenAiChatCompletionServiceSettings(modelId, uri, organizationId, maxInputTokens);
+        return new OpenAiChatCompletionServiceSettings(modelId, uri, organizationId, maxInputTokens, rateLimitSettings);
     }
 
     private final String modelId;
@@ -66,26 +74,30 @@ public class OpenAiChatCompletionServiceSettings implements ServiceSettings, Ope
     private final String organizationId;
 
     private final Integer maxInputTokens;
+    private final RateLimitSettings rateLimitSettings;
 
     public OpenAiChatCompletionServiceSettings(
         String modelId,
         @Nullable URI uri,
         @Nullable String organizationId,
-        @Nullable Integer maxInputTokens
+        @Nullable Integer maxInputTokens,
+        @Nullable RateLimitSettings ratelimitSettings
     ) {
         this.modelId = modelId;
         this.uri = uri;
         this.organizationId = organizationId;
         this.maxInputTokens = maxInputTokens;
+        this.rateLimitSettings = Objects.requireNonNullElse(ratelimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
     OpenAiChatCompletionServiceSettings(
         String modelId,
         @Nullable String uri,
         @Nullable String organizationId,
-        @Nullable Integer maxInputTokens
+        @Nullable Integer maxInputTokens,
+        @Nullable RateLimitSettings rateLimitSettings
     ) {
-        this(modelId, createOptionalUri(uri), organizationId, maxInputTokens);
+        this(modelId, createOptionalUri(uri), organizationId, maxInputTokens, rateLimitSettings);
     }
 
     public OpenAiChatCompletionServiceSettings(StreamInput in) throws IOException {
@@ -93,6 +105,17 @@ public class OpenAiChatCompletionServiceSettings implements ServiceSettings, Ope
         this.uri = createOptionalUri(in.readOptionalString());
         this.organizationId = in.readOptionalString();
         this.maxInputTokens = in.readOptionalVInt();
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+            rateLimitSettings = new RateLimitSettings(in);
+        } else {
+            rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
+        }
+    }
+
+    @Override
+    public RateLimitSettings rateLimitSettings() {
+        return rateLimitSettings;
     }
 
     @Override
@@ -133,6 +156,7 @@ public class OpenAiChatCompletionServiceSettings implements ServiceSettings, Ope
                 builder.field(MAX_INPUT_TOKENS, maxInputTokens);
             }
         }
+        rateLimitSettings.toXContent(builder, params);
 
         builder.endObject();
         return builder;
@@ -154,6 +178,9 @@ public class OpenAiChatCompletionServiceSettings implements ServiceSettings, Ope
         out.writeOptionalString(uri != null ? uri.toString() : null);
         out.writeOptionalString(organizationId);
         out.writeOptionalVInt(maxInputTokens);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+            rateLimitSettings.writeTo(out);
+        }
     }
 
     @Override
@@ -169,11 +196,12 @@ public class OpenAiChatCompletionServiceSettings implements ServiceSettings, Ope
         return Objects.equals(modelId, that.modelId)
             && Objects.equals(uri, that.uri)
             && Objects.equals(organizationId, that.organizationId)
-            && Objects.equals(maxInputTokens, that.maxInputTokens);
+            && Objects.equals(maxInputTokens, that.maxInputTokens)
+            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, uri, organizationId, maxInputTokens);
+        return Objects.hash(modelId, uri, organizationId, maxInputTokens, rateLimitSettings);
     }
 }

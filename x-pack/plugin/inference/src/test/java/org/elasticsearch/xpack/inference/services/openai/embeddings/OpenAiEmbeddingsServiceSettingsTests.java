@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -20,6 +21,8 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
@@ -62,7 +65,8 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             similarityMeasure,
             dims,
             maxInputTokens,
-            randomBoolean()
+            randomBoolean(),
+            RateLimitSettingsTests.createRandom()
         );
     }
 
@@ -103,7 +107,8 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     SimilarityMeasure.DOT_PRODUCT,
                     dims,
                     maxInputTokens,
-                    true
+                    true,
+                    null
                 )
             )
         );
@@ -143,7 +148,8 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     SimilarityMeasure.DOT_PRODUCT,
                     null,
                     maxInputTokens,
-                    false
+                    false,
+                    null
                 )
             )
         );
@@ -188,7 +194,57 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     SimilarityMeasure.DOT_PRODUCT,
                     dims,
                     maxInputTokens,
-                    false
+                    false,
+                    null
+                )
+            )
+        );
+    }
+
+    public void testFromMap_Persistent_CreatesSettingsCorrectly_WithRateLimitSettings() {
+        var modelId = "model-foo";
+        var url = "https://www.abc.com";
+        var org = "organization";
+        var similarity = SimilarityMeasure.DOT_PRODUCT.toString();
+        var dims = 1536;
+        var maxInputTokens = 512;
+        var rateLimit = randomTimeValue();
+        var serviceSettings = OpenAiEmbeddingsServiceSettings.fromMap(
+            new HashMap<>(
+                Map.of(
+                    ServiceFields.MODEL_ID,
+                    modelId,
+                    ServiceFields.URL,
+                    url,
+                    OpenAiServiceFields.ORGANIZATION,
+                    org,
+                    ServiceFields.SIMILARITY,
+                    similarity,
+                    ServiceFields.DIMENSIONS,
+                    dims,
+                    ServiceFields.MAX_INPUT_TOKENS,
+                    maxInputTokens,
+                    OpenAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                    false,
+                    RateLimitSettings.FIELD_NAME,
+                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_TIME_UNIT_NAME, rateLimit))
+                )
+            ),
+            ConfigurationParseContext.PERSISTENT
+        );
+
+        assertThat(
+            serviceSettings,
+            is(
+                new OpenAiEmbeddingsServiceSettings(
+                    modelId,
+                    ServiceUtils.createUri(url),
+                    org,
+                    SimilarityMeasure.DOT_PRODUCT,
+                    dims,
+                    maxInputTokens,
+                    false,
+                    new RateLimitSettings(TimeValue.parseTimeValue(rateLimit, "test"))
                 )
             )
         );
@@ -200,7 +256,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(settings, is(new OpenAiEmbeddingsServiceSettings("m", (URI) null, null, null, null, null, true)));
+        assertThat(settings, is(new OpenAiEmbeddingsServiceSettings("m", (URI) null, null, null, null, null, true, null)));
     }
 
     public void testFromMap_PersistentContext_ThrowsException_WhenDimensionsSetByUserIsNull() {
@@ -313,29 +369,31 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
     }
 
     public void testToXContent_WritesDimensionsSetByUserTrue() throws IOException {
-        var entity = new OpenAiEmbeddingsServiceSettings("model", "url", "org", null, null, null, true);
+        var entity = new OpenAiEmbeddingsServiceSettings("model", "url", "org", null, null, null, true, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, CoreMatchers.is("""
-            {"model_id":"model","url":"url","organization_id":"org","dimensions_set_by_user":true}"""));
+            {"model_id":"model","url":"url","organization_id":"org",""" + """
+            "rate_limit":{"requests_per_time_unit":"2d"},"dimensions_set_by_user":true}"""));
     }
 
     public void testToXContent_WritesDimensionsSetByUserFalse() throws IOException {
-        var entity = new OpenAiEmbeddingsServiceSettings("model", "url", "org", null, null, null, false);
+        var entity = new OpenAiEmbeddingsServiceSettings("model", "url", "org", null, null, null, false, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, CoreMatchers.is("""
-            {"model_id":"model","url":"url","organization_id":"org","dimensions_set_by_user":false}"""));
+            {"model_id":"model","url":"url","organization_id":"org",""" + """
+            "rate_limit":{"requests_per_time_unit":"2d"},"dimensions_set_by_user":false}"""));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var entity = new OpenAiEmbeddingsServiceSettings("model", "url", "org", SimilarityMeasure.DOT_PRODUCT, 1, 2, false);
+        var entity = new OpenAiEmbeddingsServiceSettings("model", "url", "org", SimilarityMeasure.DOT_PRODUCT, 1, 2, false, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -343,11 +401,11 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
         assertThat(xContentResult, CoreMatchers.is("""
             {"model_id":"model","url":"url","organization_id":"org","similarity":"dot_product",""" + """
-            "dimensions":1,"max_input_tokens":2,"dimensions_set_by_user":false}"""));
+            "dimensions":1,"max_input_tokens":2,"rate_limit":{"requests_per_time_unit":"2d"},"dimensions_set_by_user":false}"""));
     }
 
     public void testToFilteredXContent_WritesAllValues_ExceptDimensionsSetByUser() throws IOException {
-        var entity = new OpenAiEmbeddingsServiceSettings("model", "url", "org", SimilarityMeasure.DOT_PRODUCT, 1, 2, false);
+        var entity = new OpenAiEmbeddingsServiceSettings("model", "url", "org", SimilarityMeasure.DOT_PRODUCT, 1, 2, false, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         var filteredXContent = entity.getFilteredXContentObject();
@@ -356,7 +414,29 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
         assertThat(xContentResult, CoreMatchers.is("""
             {"model_id":"model","url":"url","organization_id":"org","similarity":"dot_product",""" + """
-            "dimensions":1,"max_input_tokens":2}"""));
+            "dimensions":1,"max_input_tokens":2,"rate_limit":{"requests_per_time_unit":"2d"}}"""));
+    }
+
+    public void testToFilteredXContent_WritesAllValues_WithSpecifiedRateLimit() throws IOException {
+        var entity = new OpenAiEmbeddingsServiceSettings(
+            "model",
+            "url",
+            "org",
+            SimilarityMeasure.DOT_PRODUCT,
+            1,
+            2,
+            false,
+            new RateLimitSettings(TimeValue.timeValueMinutes(2000))
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        var filteredXContent = entity.getFilteredXContentObject();
+        filteredXContent.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, CoreMatchers.is("""
+            {"model_id":"model","url":"url","organization_id":"org","similarity":"dot_product",""" + """
+            "dimensions":1,"max_input_tokens":2,"rate_limit":{"requests_per_time_unit":"1.3d"}}"""));
     }
 
     @Override

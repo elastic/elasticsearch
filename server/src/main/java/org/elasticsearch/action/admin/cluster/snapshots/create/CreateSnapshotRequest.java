@@ -66,7 +66,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     private String[] indices = EMPTY_ARRAY;
 
-    private IndicesOptions indicesOptions = DataStream.isFailureStoreEnabled()
+    private IndicesOptions indicesOptions = DataStream.isFailureStoreFeatureFlagEnabled()
         ? IndicesOptions.strictExpandHiddenIncludeFailureStore()
         : IndicesOptions.strictExpandHidden();
 

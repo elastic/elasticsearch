@@ -42,7 +42,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private String snapshot;
     private String repository;
     private String[] indices = Strings.EMPTY_ARRAY;
-    private IndicesOptions indicesOptions = DataStream.isFailureStoreEnabled()
+    private IndicesOptions indicesOptions = DataStream.isFailureStoreFeatureFlagEnabled()
         ? IndicesOptions.strictExpandOpenIncludeFailureStore()
         : IndicesOptions.strictExpandOpen();
     private String[] featureStates = Strings.EMPTY_ARRAY;

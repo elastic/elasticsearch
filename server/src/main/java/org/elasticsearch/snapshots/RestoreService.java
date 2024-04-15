@@ -397,7 +397,7 @@ public final class RestoreService implements ClusterStateApplier {
                 .flatMap(ds -> ds.getIndices().stream().map(idx -> new Tuple<>(ds.isSystem(), idx.getName())))
                 .collect(Collectors.partitioningBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toSet())));
             Map<Boolean, Set<String>> failureIndices = Map.of();
-            if (DataStream.isFailureStoreEnabled()) {
+            if (DataStream.isFailureStoreFeatureFlagEnabled()) {
                 failureIndices = dataStreamsToRestore.values()
                     .stream()
                     .flatMap(ds -> ds.getFailureIndices().stream().map(idx -> new Tuple<>(ds.isSystem(), idx.getName())))
@@ -566,7 +566,9 @@ public final class RestoreService implements ClusterStateApplier {
         List<String> requestedDataStreams = filterIndices(
             snapshotInfo.dataStreams(),
             Stream.of(requestIndices, featureStateDataStreams).flatMap(Collection::stream).toArray(String[]::new),
-            DataStream.isFailureStoreEnabled() ? IndicesOptions.lenientExpandIncludeFailureStore() : IndicesOptions.lenientExpand()
+            DataStream.isFailureStoreFeatureFlagEnabled()
+                ? IndicesOptions.lenientExpandIncludeFailureStore()
+                : IndicesOptions.lenientExpand()
         );
         if (requestedDataStreams.isEmpty()) {
             dataStreams = Map.of();
@@ -715,9 +717,9 @@ public final class RestoreService implements ClusterStateApplier {
             .stream()
             .map(i -> metadata.get(renameBackingIndex(i.getName(), request)).getIndex())
             .toList();
-        List<Index> updatedFailureIndices = DataStream.isFailureStoreEnabled()
-                ? dataStream.getFailureIndices().stream().map(i -> metadata.get(renameFailureIndex(i.getName(), request)).getIndex()).toList()
-                : List.of();
+        List<Index> updatedFailureIndices = DataStream.isFailureStoreFeatureFlagEnabled()
+            ? dataStream.getFailureIndices().stream().map(i -> metadata.get(renameFailureIndex(i.getName(), request)).getIndex()).toList()
+            : List.of();
         return dataStream.copy().setName(dataStreamName).setIndices(updatedIndices).setFailureIndices(updatedFailureIndices).build();
     }
 

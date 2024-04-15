@@ -696,7 +696,7 @@ public class ConnectorIndexService {
     /**
      * Activates the draft {@link ConnectorFiltering} property of a {@link Connector}.
      *
-     * @param connectorId  Request for updating connector filtering property.
+     * @param connectorId  Request for updating {@link ConnectorFiltering} property.
      * @param listener     Listener to respond to a successful response or an error.
      */
     public void activateConnectorDraftFiltering(String connectorId, ActionListener<UpdateResponse> listener) {

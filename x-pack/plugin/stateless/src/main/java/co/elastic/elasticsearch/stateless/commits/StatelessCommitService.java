@@ -628,18 +628,31 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         private final ShardId shardId;
         private final long allocationPrimaryTerm;
-        // A map of VBCC generation to VBCC to keep track of the VBCCs that are pending to upload.
-        // The VBCCs are used to serve data fetching request from search nodes.
-        // A VBCC is removed from this map once it is uploaded to the object store.
+
+        // The following three fields represent the state of a batched compound commit can have in its lifecycle.
+        // 1. currentVirtualBcc - A BCC starts its lifecycle from here. It is used to append new CCs. The field itself begins from null,
+        // gets assigned at commit appending time, and gets resets back to null again by freeze, then starts over. Mutating this field
+        // MUST be performed with synchronization.
+        // 2. pendingUploadBccGenerations - When the current VBCC is frozen, it is added to the pending list for upload. This is a map of
+        // VBCC generation to VBCC to keep track of the VBCCs that are pending to upload. The VBCCs are also used to serve data fetching
+        // request from search nodes. A VBCC is removed from this list once it is uploaded.
+        // 3. latestUploadedBcc - This field tracks highest generation BCC ever uploaded. It is updated with the VBCC that just gets
+        // uploaded which is then removed from pendingUploadBccGenerations.
+        private volatile VirtualBatchedCompoundCommit currentVirtualBcc = null;
         private final Map<Long, VirtualBatchedCompoundCommit> pendingUploadBccGenerations = new ConcurrentHashMap<>();
+        private volatile BatchedCompoundCommit latestUploadedBcc = null;
+        // NOTE When moving a VBCC through its lifecycle, we must update it first in the new state before remove it from the old state.
+        // That is, we must first add it to the `pendingUploadBccGenerations` before un-assigning it from `currentVirtualBcc`,
+        // and we must set it to `latestUploadedBcc` before removing it from `pendingUploadBccGenerations`. This is to ensure the VBCC
+        // is visible to the outside of the world throughout its lifecycle. See `maybeFreezeAndUploadCurrentVirtualBcc` and
+        // `handleUploadedBcc`.
+        // The order must be reversed when reading a BCC based on its generation, i.e. we must first check `currentVirtualBcc`,
+        // then `pendingUploadBccGenerations` and lastly `latestUploadedBcc`, to have full coverage _without_ using synchronization.
+
         private List<Tuple<Long, ActionListener<Void>>> generationListeners = null;
         private List<Consumer<UploadedBccInfo>> uploadedBccConsumers = null;
         private volatile long recoveredGeneration = -1;
         private volatile long recoveredPrimaryTerm = -1;
-        private volatile BatchedCompoundCommit latestUploadedBcc = null; // having the highest generation ever uploaded
-        // The VBCC to append new CCs. It begins from null, assigned at commit appending time, reset back to null again by freeze,
-        // then starts over. Mutating this field MUST be performed with synchronization.
-        private volatile VirtualBatchedCompoundCommit currentVirtualBcc = null;
 
         /**
          * The highest generation number that we have received from a commit notification response from search shards.
@@ -914,15 +927,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     );
                     return;
                 }
-                currentVirtualBcc = null;
-                logger.trace(
-                    () -> Strings.format(
-                        "%s reset current VBCC generation [%s] for freeze",
-                        shardId,
-                        expectedVirtualBcc.getPrimaryTermAndGeneration().generation()
-                    )
-                );
-
                 final boolean frozen = expectedVirtualBcc.freeze();
                 assert frozen : "freeze must be successful since it is invoked exclusively";
                 final var previous = pendingUploadBccGenerations.put(
@@ -930,6 +934,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     expectedVirtualBcc
                 );
                 assert previous == null : "expected null, but got " + previous;
+                // reset after add to pending list so that vbcc is always visible as either pending or current
+                currentVirtualBcc = null;
+                logger.trace(
+                    () -> Strings.format(
+                        "%s reset current VBCC generation [%s] after freeze",
+                        shardId,
+                        expectedVirtualBcc.getPrimaryTermAndGeneration().generation()
+                    )
+                );
                 // Create the blobReference which updates blobLocations, init search nodes commit usage tracking
                 blobReference = createBlobReference(expectedVirtualBcc);
             }
@@ -1174,18 +1187,16 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         private boolean assertGenerationIsUploadedOrPending(long generation) {
-            synchronized (this) {
-                final var maxUploadedCcGen = getMaxUploadedGenerationRange().ccGen;
-                final var maxPendingUploadBcc = getMaxPendingUploadBcc();
-                final String message = format(
-                    "generation [%s] is not covered by either maxUploadedGeneration [%s] or maxPendingUploadBcc [%s]",
-                    generation,
-                    maxUploadedCcGen,
-                    maxPendingUploadBcc
-                );
-                assert maxUploadedCcGen >= generation
-                    || maxPendingUploadBcc.orElseThrow(() -> new AssertionError(message)).getMaxGeneration() >= generation : message;
-            }
+            final var maxPendingUploadBcc = getMaxPendingUploadBcc();
+            final var maxUploadedCcGen = getMaxUploadedGenerationRange().ccGen;
+            final String message = format(
+                "generation [%s] is not covered by either maxUploadedGeneration [%s] or maxPendingUploadBcc [%s]",
+                generation,
+                maxUploadedCcGen,
+                maxPendingUploadBcc
+            );
+            assert maxUploadedCcGen >= generation
+                || maxPendingUploadBcc.orElseThrow(() -> new AssertionError(message)).getMaxGeneration() >= generation : message;
             return true;
         }
 

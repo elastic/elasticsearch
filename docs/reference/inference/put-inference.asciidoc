@@ -71,7 +71,7 @@ The type of the {infer} task that the model will perform. Available task types:
 (Required, string)
 The type of service supported for the specified task type.
 Available services:
-* `cohere`: specify the `text_embedding` or the `rerank `task type to use the
+* `cohere`: specify the `text_embedding` or the `rerank` task type to use the
 Cohere service.
 * `elser`: specify the `sparse_embedding` task type to use the ELSER service.
 * `hugging_face`: specify the `text_embedding` task type to use the Hugging Face
@@ -113,11 +113,8 @@ Valid values are:
 `model_id`::
 (Optional, string)
 The name of the model to use for the {infer} task.
-Available values for `rerank`:
-* `rerank-english-v3.0`,
-* `rerank-multilingual-v3.0`,
-* `rerank-english-v2.0`,
-* `rerank-multilingual-v2.0`.
+To review the availble `rerank` models, refer to the
+https://docs.cohere.com/reference/rerank-1[Cohere docs].
 
 To review the available `text_embedding` models, refer to the
 https://docs.cohere.com/reference/embed[Cohere docs]. The default value for
@@ -234,11 +231,8 @@ used for abuse detection.
 =====
 `return_documents`::
 (Optional, boolean)
-For `cohere` service only. Specifies whether to return results with the doc
-text. If `false`, the API returns a list of `index` and `relevance score` value
-where `index`` is inferred from the doc list passed into the request. If `ture`, 
-the API returns an ordered list of `index`, `text` and `relevance score` values
-where `index` and `text` refers to the doc list passed into the request.
+For `cohere` service only. Specify whether to return doc text within the 
+results.
 
 `top_n`::
 (Optional, integer)
@@ -325,6 +319,9 @@ PUT _inference/rerank/cohere-rerank
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
+
+For more examples, also review the 
+https://docs.cohere.com/docs/elasticsearch-and-cohere#rerank-search-results-with-cohere-and-elasticsearch[Cohere documentation].
 
 
 [discrete]

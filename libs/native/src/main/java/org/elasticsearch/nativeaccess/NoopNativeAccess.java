@@ -11,6 +11,8 @@ package org.elasticsearch.nativeaccess;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.util.Optional;
+
 class NoopNativeAccess implements NativeAccess {
 
     private static final Logger logger = LogManager.getLogger(NativeAccess.class);
@@ -39,5 +41,11 @@ class NoopNativeAccess implements NativeAccess {
     public CloseableByteBuffer newBuffer(int len) {
         logger.warn("cannot allocate buffer because native access is not available");
         return null;
+    }
+
+    @Override
+    public Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions() {
+        logger.warn("cannot get vector distance because native access is not available");
+        return Optional.empty();
     }
 }

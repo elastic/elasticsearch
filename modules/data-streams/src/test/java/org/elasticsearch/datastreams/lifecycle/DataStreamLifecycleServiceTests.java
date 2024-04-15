@@ -26,6 +26,7 @@ import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -212,7 +213,19 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         dataStreamLifecycleService.run(state);
         assertThat(clientSeenRequests.size(), is(5));
         assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
-        assertThat(((RolloverRequest) clientSeenRequests.get(0)).getRolloverTarget(), is(dataStreamName));
+        RolloverRequest rolloverBackingIndexRequest = (RolloverRequest) clientSeenRequests.get(0);
+        assertThat(rolloverBackingIndexRequest.getRolloverTarget(), is(dataStreamName));
+        assertThat(
+            rolloverBackingIndexRequest.indicesOptions().failureStoreOptions(),
+            equalTo(new IndicesOptions.FailureStoreOptions(true, false))
+        );
+        assertThat(clientSeenRequests.get(1), instanceOf(RolloverRequest.class));
+        RolloverRequest rolloverFailureIndexRequest = (RolloverRequest) clientSeenRequests.get(1);
+        assertThat(rolloverFailureIndexRequest.getRolloverTarget(), is(dataStreamName));
+        assertThat(
+            rolloverFailureIndexRequest.indicesOptions().failureStoreOptions(),
+            equalTo(new IndicesOptions.FailureStoreOptions(false, true))
+        );
         List<DeleteIndexRequest> deleteRequests = clientSeenRequests.subList(2, 5)
             .stream()
             .map(transportRequest -> (DeleteIndexRequest) transportRequest)
@@ -1439,7 +1452,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             settings(IndexVersion.current()),
             new DataStreamLifecycle(),
             now
-        );
+        ).copy().setFailureStoreEnabled(randomBoolean()).build(); // failure store is managed even when disabled
         builder.put(dataStream);
         Metadata metadata = builder.build();
         Set<Index> indicesToExclude = Set.of(dataStream.getIndices().get(0), dataStream.getFailureIndices().get(0));
@@ -1455,6 +1468,42 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             targetIndices,
             equalTo(List.of(dataStream.getIndices().get(1), dataStream.getIndices().get(2), dataStream.getFailureIndices().get(1)))
         );
+    }
+
+    public void testFailureStoreIsManagedEvenWhenDisabled() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        int numBackingIndices = 1;
+        Metadata.Builder builder = Metadata.builder();
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            numBackingIndices,
+            2,
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.newBuilder().dataRetention(0).build(),
+            now
+        ).copy().setFailureStoreEnabled(false).build(); // failure store is managed even when it is disabled
+        builder.put(dataStream);
+
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
+
+        dataStreamLifecycleService.run(state);
+        assertThat(clientSeenRequests.size(), is(3));
+        assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
+        RolloverRequest rolloverBackingIndexRequest = (RolloverRequest) clientSeenRequests.get(0);
+        assertThat(rolloverBackingIndexRequest.getRolloverTarget(), is(dataStreamName));
+        assertThat(
+            rolloverBackingIndexRequest.indicesOptions().failureStoreOptions(),
+            equalTo(new IndicesOptions.FailureStoreOptions(true, false))
+        );
+        assertThat(clientSeenRequests.get(1), instanceOf(RolloverRequest.class));
+        RolloverRequest rolloverFailureIndexRequest = (RolloverRequest) clientSeenRequests.get(1);
+        assertThat(rolloverFailureIndexRequest.getRolloverTarget(), is(dataStreamName));
+        assertThat(
+            rolloverFailureIndexRequest.indicesOptions().failureStoreOptions(),
+            equalTo(new IndicesOptions.FailureStoreOptions(false, true))
+        );
+        assertThat(((DeleteIndexRequest) clientSeenRequests.get(2)).indices()[0], is(dataStream.getFailureIndices().get(0).getName()));
     }
 
     /*

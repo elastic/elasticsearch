@@ -794,7 +794,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private Set<Index> maybeExecuteRollover(ClusterState state, DataStream dataStream) {
         Set<Index> currentRunWriteIndices = new HashSet<>();
         currentRunWriteIndices.add(maybeExecuteRollover(state, dataStream, false));
-        if (DataStream.isFailureStoreFeatureFlagEnabled() && dataStream.isFailureStoreEnabled()) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
             currentRunWriteIndices.add(maybeExecuteRollover(state, dataStream, true));
         }
         return currentRunWriteIndices;
@@ -802,7 +802,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
     @Nullable
     private Index maybeExecuteRollover(ClusterState state, DataStream dataStream, boolean rolloverFailureStore) {
-        Index currentRunWriteIndex = rolloverFailureStore ? dataStream.getFailureStoreWriteIndex() : dataStream.getWriteIndex();
+        Index currentRunWriteIndex = rolloverFailureStore ? dataStream.unsafeGetFailureStoreWriteIndex() : dataStream.getWriteIndex();
         if (currentRunWriteIndex == null) {
             return null;
         }

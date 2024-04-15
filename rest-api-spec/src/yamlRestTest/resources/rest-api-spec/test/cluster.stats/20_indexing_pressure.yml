@@ -1,7 +1,7 @@
 ---
 "Indexing pressure cluster stats":
   - requires:
-      cluster_features: ["cluster_stats_indexing_pressure"]
+      cluster_features: ["gte_v8.1.0"]
       reason: "indexing_pressure in cluster was added in 8.1"
 
   - do:

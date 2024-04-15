@@ -1,5 +1,9 @@
 ---
 "_ignored field through get api using stored_fields":
+  - skip:
+      #TODO(101373): this will actually be introduced in 8.15 so change this skip version accordingly after we branch
+      reason: "_ignored metadata field uses doc values instead of stored field from version 8.14"
+      version: " 8.14.0 -"
   - do:
       indices.create:
         index: test
@@ -135,11 +139,7 @@
   - match: { _id: "2" }
   - match: { _version: 1 }
   - match: { found: true }
-  - match:
-      _ignored:
-        - ip
-        - keyword
-        - value
+  - match: { _ignored: null}
 
   - do:
       get:
@@ -152,8 +152,4 @@
   - match: { _id: "3" }
   - match: { _version: 1 }
   - match: { found: true }
-  - match:
-      _ignored:
-        - ip
-        - keyword
-        - value
+  - match: { _ignored: null}

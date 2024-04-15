@@ -22,7 +22,7 @@ public record CacheStats(
     long hitsTimeInMillis,
     long missesTimeInMillis,
     long storeQueryTimeInMillis,
-    long cachePutTimeInMillis
+    long cachePutsTimeInMillis
 ) implements Writeable {
 
     public CacheStats(StreamInput streamInput) throws IOException {
@@ -47,6 +47,6 @@ public record CacheStats(
         out.writeLong(hitsTimeInMillis);
         out.writeLong(missesTimeInMillis);
         out.writeLong(storeQueryTimeInMillis);
-        out.writeLong(cachePutTimeInMillis);
+        out.writeLong(cachePutsTimeInMillis);
     }
 }

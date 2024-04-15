@@ -34,7 +34,7 @@ public class CacheStatsSerializingTests extends AbstractWireSerializingTestCase<
         long hitsTimeInMillis = instance.hitsTimeInMillis();
         long missesTimeInMillis = instance.missesTimeInMillis();
         long storeQueryTimeInMillis = instance.storeQueryTimeInMillis();
-        long cachePutTimeInMillis = instance.cachePutTimeInMillis();
+        long cachePutTimeInMillis = instance.cachePutsTimeInMillis();
         return switch (between(0, 7)) {
             case 0 -> new CacheStats(
                 randomValueOtherThan(count, ESTestCase::randomLong),

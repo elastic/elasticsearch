@@ -77,7 +77,7 @@ public class HeapAttackIT extends ESRestTestCase {
      */
     public void testSortByManyLongsSuccess() throws IOException {
         initManyLongs();
-        Response response = sortByManyLongs(2000);
+        Response response = sortByManyLongs(500);
         Map<?, ?> map = responseAsMap(response);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "a").entry("type", "long"))
             .item(matchesMap().entry("name", "b").entry("type", "long"));

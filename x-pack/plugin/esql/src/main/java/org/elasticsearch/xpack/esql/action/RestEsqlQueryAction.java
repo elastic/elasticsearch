@@ -86,12 +86,14 @@ public class RestEsqlQueryAction extends BaseRestHandler {
         }
         String product = restRequest.header(PRODUCT_ORIGIN);
         if ("kibana".equals(product)) {
+            /*
+             * Kibana 8.11 to 8.13 used the 8.9 version of the javascript client.
+             * Kibana 8.14, the version we *want* to send the versions is on the
+             * 8.13 version of the javascript client.
+             */
             if (clientMeta.contains("es=8.9")) {
                 esqlRequest.esqlVersion(EsqlVersion.ROCKET.versionStringWithoutEmoji());
             }
-            return;
-        }
-        if (clientMeta.contains("es=8.1") == false) {
             return;
         }
         if (clientMeta.contains("es=8.13") || clientMeta.contains("es=8.12") || clientMeta.contains("es=8.11")) {

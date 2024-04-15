@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.version.EsqlVersion;
 import org.hamcrest.Matcher;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.action.RestEsqlQueryAction.CLIENT_META;
 import static org.elasticsearch.xpack.esql.action.RestEsqlQueryAction.PRODUCT_ORIGIN;
@@ -29,13 +30,26 @@ public class RestEsqlQueryActionTests extends ESTestCase {
         EsqlQueryRequest esqlRequest = new EsqlQueryRequest();
         esqlRequest.esqlVersion("whatever");
         FakeRestRequest restRequest = new FakeRestRequest();
+        Supplier<String> version = randomFrom(
+            () -> "es=8.1" + between(0, 3), // Versions we would rewrite.
+            () -> "es=8.1" + between(4, 9), // We wouldn't rewrite these anyway, but let's try it sometimes.
+            () -> "es=8." + between(0, 9) + between(0, 9), // These will rarely spit out versions we would rewrite. Either is fine.
+            () -> "es=" + between(0, 9) + "." + between(0, 9) + between(0, 9)
+        );
         restRequest.getHttpRequest().getHeaders().put(CLIENT_META, List.of("es=8.13.0"));
         defaultVersionForOldClients(esqlRequest, restRequest);
         assertThat(esqlRequest.esqlVersion(), equalTo("whatever"));
     }
 
     public void testNoVersionForNewClient() {
-        assertEsqlVersion("es=8.14", randomProduct(), nullValue(String.class));
+        Supplier<String> version = randomFrom(
+            () -> "es=8.14",
+            () -> "es=8.2" + between(0, 9),
+            () -> "es=8." + between(3, 9) + between(0, 9),
+            () -> "es=9." + between(0, 9) + between(0, 9),
+            () -> "es=" + between(0, 9) + between(0, 9) + "." + between(0, 9) + between(0, 9)
+        );
+        assertEsqlVersion(version.get(), randomProduct(), nullValue(String.class));
     }
 
     public void testAddsVersionForPython813() {

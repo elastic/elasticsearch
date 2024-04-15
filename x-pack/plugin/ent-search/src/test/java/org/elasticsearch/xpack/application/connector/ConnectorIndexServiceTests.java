@@ -308,7 +308,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(validationInfo, equalTo(indexedConnector.getFiltering().get(0).getDraft().getFilteringValidationInfo()));
     }
 
-    public void testActivateConnectorDraftFiltering_draftValid() throws Exception {
+    public void testActivateConnectorDraftFiltering_draftValid_shouldActivate() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();
 

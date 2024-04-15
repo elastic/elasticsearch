@@ -67,6 +67,15 @@ public class RestEsqlQueryAction extends BaseRestHandler {
     static final String PRODUCT_ORIGIN = "x-elastic-product-origin";
     static final String CLIENT_META = "x-elastic-client-meta";
 
+    /**
+     * Default the {@link EsqlQueryRequest#esqlVersion()} to the oldest version
+     * if we can detect that the request comes from an older version of the
+     * official client or an older version of kibana. These versions supported
+     * ESQL but ESQL was not GA, so, <strong>technically</strong> we can break
+     * them. But it's not hugely complicated to make them work smoothly on the
+     * upgrade that starts to require the {@code version} field. This does
+     * just that.
+     */
     static void defaultVersionForOldClients(EsqlQueryRequest esqlRequest, RestRequest restRequest) {
         if (esqlRequest.esqlVersion() != null) {
             return;

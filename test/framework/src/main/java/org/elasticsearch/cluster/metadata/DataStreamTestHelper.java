@@ -153,7 +153,7 @@ public final class DataStreamTestHelper {
             .setMetadata(metadata)
             .setReplicated(replicated)
             .setLifecycle(lifecycle)
-            .setFailureStore(failureStores.isEmpty() == false)
+            .setFailureStoreEnabled(failureStores.isEmpty() == false)
             .setFailureIndices(failureStores)
             .build();
     }
@@ -460,7 +460,11 @@ public final class DataStreamTestHelper {
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("*"))
                 .dataStreamTemplate(
-                    new ComposableIndexTemplate.DataStreamTemplate(false, false, DataStream.isFailureStoreEnabled() && storeFailures)
+                    new ComposableIndexTemplate.DataStreamTemplate(
+                        false,
+                        false,
+                        DataStream.isFailureStoreFeatureFlagEnabled() && storeFailures
+                    )
                 )
                 .build()
         );
@@ -476,7 +480,7 @@ public final class DataStreamTestHelper {
             allIndices.addAll(backingIndices);
 
             List<IndexMetadata> failureStores = new ArrayList<>();
-            if (DataStream.isFailureStoreEnabled() && storeFailures) {
+            if (DataStream.isFailureStoreFeatureFlagEnabled() && storeFailures) {
                 for (int failureStoreNumber = 1; failureStoreNumber <= dsTuple.v2(); failureStoreNumber++) {
                     failureStores.add(
                         createIndexMetadata(

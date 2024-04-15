@@ -186,6 +186,7 @@ public class EnrichCacheTests extends ESTestCase {
             enrichCache.putIfAbsent(searchRequest1, (searchRequest, searchResponseActionListener) -> {
                 SearchResponse searchResponse = convertToSearchResponse(searchResponseMap);
                 searchResponseActionListener.onResponse(searchResponse);
+                searchResponse.decRef();
                 queriedDatabaseLatch.countDown();
             }, new ActionListener<>() {
                 @Override

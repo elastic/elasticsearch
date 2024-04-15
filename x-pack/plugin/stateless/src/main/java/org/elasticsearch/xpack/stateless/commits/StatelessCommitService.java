@@ -109,7 +109,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         TimeValue.timeValueMinutes(30),
         Setting.Property.NodeScope
     );
-    private static final long DELETED_INDEX_NOTIFICATION_GENERATION_SENTINEL = Long.MAX_VALUE;
 
     private final ObjectStoreService objectStoreService;
     private final Supplier<String> ephemeralNodeIdSupplier;
@@ -618,6 +617,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     }
 
     private class ShardCommitState implements IndexEngineLocalReaderListener, CommitBCCResolver {
+        private static final long EMPTY_GENERATION_NOTIFIED_SENTINEL = -1;
 
         private enum State {
             RUNNING,
@@ -657,7 +657,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         /**
          * The highest generation number that we have received from a commit notification response from search shards.
          */
-        private final AtomicLong generationNotified = new AtomicLong(-1);
+        private final AtomicLong generationNotified = new AtomicLong(EMPTY_GENERATION_NOTIFIED_SENTINEL);
         private volatile long maxGenerationToUpload = Long.MAX_VALUE;
         private final AtomicLong maxGenerationToUploadForFlush = new AtomicLong(-1);
         private volatile State state = State.RUNNING;
@@ -1025,11 +1025,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         @Override
         public Set<PrimaryTermAndGeneration> resolveReferencedBCCsForCommit(long generation) {
-            // TODO: handle close case better
             // It's possible that a background task such as force merge creates a commit after the shard
             // has relocated or closed and these commits are not appended into VBCCs nor uploaded.
             // In such cases we just respond back with an empty set since we're not tracking these.
-            if (closedOrRelocated(state) || generation == DELETED_INDEX_NOTIFICATION_GENERATION_SENTINEL) {
+            if (closedOrRelocated(state)) {
                 return Set.of();
             }
             PrimaryTermAndGeneration primaryTermAndGeneration = resolvePrimaryTermForGeneration(generation);
@@ -1221,9 +1220,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 uploadedBcc.primaryTermAndGeneration().generation(),
                 uploadedBcc.primaryTermAndGeneration()
             );
+            var notificationCommitBCCDependencies = resolveReferencedBCCsForCommit(uploadedBcc.primaryTermAndGeneration().generation());
             client.execute(TransportNewCommitNotificationAction.TYPE, request, ActionListener.wrap(response -> {
                 onNewCommitNotificationResponse(
                     uploadedBcc.primaryTermAndGeneration().generation(),
+                    notificationCommitBCCDependencies,
                     nodesWithAssignedSearchShards,
                     response.getPrimaryTermAndGenerationsInUse()
                 );
@@ -1376,7 +1377,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             if (isDeleted) {
                 // clear all unpromotable references
-                updateUnpromotableShardAssignedNodes(Set.of(), DELETED_INDEX_NOTIFICATION_GENERATION_SENTINEL);
+                updateUnpromotableShardAssignedNodes(Set.of(), Long.MAX_VALUE, Set.of());
                 primaryTermAndGenToBlobReference.values().forEach(blobReference -> {
                     blobReference.closedLocalReaders();
                     blobReference.deleted();
@@ -1459,6 +1460,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          */
         void onNewCommitNotificationResponse(
             long notificationGeneration,
+            Set<PrimaryTermAndGeneration> notificationCommitBCCDependencies,
             Set<String> searchNodes,
             Set<PrimaryTermAndGeneration> primaryTermAndGenerationsInUse
         ) {
@@ -1471,7 +1473,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 // (but would be safe - and we rely on it, this check is just an optimistic check)
                 return;
             }
-
             if (allNodesResolveBCCReferencesLocally() == false) {
                 // Ignore notification responses until all nodes report the full set of BCCs that are in use
                 return;
@@ -1485,18 +1486,26 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     && primaryTermAndGenerationsInUse.contains(blobReference.getPrimaryTermAndGeneration()) == false) {
                     // remove nodes from the search nodes set. Any search shard registered during initialization will be left until it
                     // starts responding.
-                    blobReference.removeSearchNodes(searchNodes, notificationGeneration);
+                    blobReference.removeSearchNodes(searchNodes, notificationGeneration, notificationCommitBCCDependencies);
                 }
             }
         }
 
         void updateUnpromotableShardAssignedNodes(Set<String> currentUnpromotableNodes) {
-            updateUnpromotableShardAssignedNodes(currentUnpromotableNodes, this.generationNotified.get());
+            long generationNotified = this.generationNotified.get();
+            Set<PrimaryTermAndGeneration> generationNotifiedBCCDependencies = generationNotified == EMPTY_GENERATION_NOTIFIED_SENTINEL
+                ? Set.of()
+                : resolveReferencedBCCsForCommit(generationNotified);
+            updateUnpromotableShardAssignedNodes(currentUnpromotableNodes, generationNotified, generationNotifiedBCCDependencies);
         }
 
-        void updateUnpromotableShardAssignedNodes(Set<String> currentUnpromotableNodes, long generationNotified) {
+        void updateUnpromotableShardAssignedNodes(
+            Set<String> currentUnpromotableNodes,
+            long generationNotified,
+            Set<PrimaryTermAndGeneration> generationNotifiedBCCDependencies
+        ) {
             for (BlobReference blobReference : primaryTermAndGenToBlobReference.values()) {
-                blobReference.retainSearchNodes(currentUnpromotableNodes, generationNotified);
+                blobReference.retainSearchNodes(currentUnpromotableNodes, generationNotified, generationNotifiedBCCDependencies);
             }
         }
 
@@ -1663,12 +1672,19 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
              * Decref the blob reference if it is no longer used by any search nodes and the latest notified generation is newer.
              * The blob reference may be removed and released if the decref releases the last refcount.
              */
-            private void closedExternalReadersIfNoSearchNodesRemain(long notificationGeneration, Set<String> remainingSearchNodes) {
+            private void closedExternalReadersIfNoSearchNodesRemain(
+                long notificationGeneration,
+                Set<PrimaryTermAndGeneration> notificationGenerationBCCDependencies,
+                Set<String> remainingSearchNodes
+            ) {
                 if (remainingSearchNodes != null && remainingSearchNodes.isEmpty()
                 // only mark it closed for readers if it is not the newest commit, since we want a new search shard to be able to use at
                 // least that commit (relevant only in case there are no search shards currently).
                     && notificationGeneration > primaryTermAndGeneration.generation()
-                    && isReferencedByNotificationGeneration(notificationGeneration) == false) {
+                    // This prevents closing the external readers reference for a blob when the notificationGeneration
+                    // commit uses files from a prior BCC reference, and no search nodes are available
+                    // (e.g., when all replicas are down due to a transient issue)
+                    && notificationGenerationBCCDependencies.contains(primaryTermAndGeneration) == false) {
                     final Set<String> previousSearchNodes = searchNodesRef.getAndUpdate(existing -> {
                         if (existing == null) {
                             // a concurrent thread already updated it to null. that's ok. assume the other thread handles it
@@ -1687,18 +1703,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         decRef();
                     }
                 }
-            }
-
-            /**
-             * Checks if this blob is referenced by the commit indicated by {@param notificationGeneration}.
-             * This prevents closing the external readers reference for a blob when the {@param notificationGeneration} commit
-             * utilizes files from a prior BCC reference, and no search nodes are available
-             * (e.g., when all replicas are down due to a transient issue).
-             */
-            boolean isReferencedByNotificationGeneration(long notificationGeneration) {
-                var referencedBCCsForNotificationGeneration = resolveReferencedBCCsForCommit(notificationGeneration);
-                assert referencedBCCsForNotificationGeneration != null : notificationGeneration + " " + commitReferencesInfos;
-                return referencedBCCsForNotificationGeneration.contains(primaryTermAndGeneration);
             }
 
             public boolean isExternalReadersClosed() {
@@ -1720,17 +1724,33 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             /**
              * Remove the nodeIds from the search nodes set. It may mark the external readers to be closed if the result set is empty.
              */
-            public void removeSearchNodes(Set<String> searchNodes, long notificationGeneration) {
+            public void removeSearchNodes(
+                Set<String> searchNodes,
+                long notificationGeneration,
+                Set<PrimaryTermAndGeneration> notificationGenerationDependencies
+            ) {
                 Set<String> remainingSearchNodes = updateSearchNodes(searchNodes, Sets::difference);
-                closedExternalReadersIfNoSearchNodesRemain(notificationGeneration, remainingSearchNodes);
+                closedExternalReadersIfNoSearchNodesRemain(
+                    notificationGeneration,
+                    notificationGenerationDependencies,
+                    remainingSearchNodes
+                );
             }
 
             /**
              * Retain the nodeIds in the search nodes set. It may mark the external readers to be closed if the result set is empty.
              */
-            public void retainSearchNodes(Set<String> searchNodes, long notificationGeneration) {
+            public void retainSearchNodes(
+                Set<String> searchNodes,
+                long notificationGeneration,
+                Set<PrimaryTermAndGeneration> notificationGenerationBCCDependencies
+            ) {
                 Set<String> remainingSearchNodes = updateSearchNodes(searchNodes, Sets::intersection);
-                closedExternalReadersIfNoSearchNodesRemain(notificationGeneration, remainingSearchNodes);
+                closedExternalReadersIfNoSearchNodesRemain(
+                    notificationGeneration,
+                    notificationGenerationBCCDependencies,
+                    remainingSearchNodes
+                );
             }
 
             @Nullable

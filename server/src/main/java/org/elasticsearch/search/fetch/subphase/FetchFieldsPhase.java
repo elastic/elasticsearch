@@ -13,6 +13,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.LegacyTypeFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -28,6 +29,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiPredicate;
+import java.util.function.Predicate;
 
 /**
  * A fetch sub-phase for high-level field retrieval. Given a list of fields, it
@@ -56,10 +59,8 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         final FieldFetcher fieldFetcher = fetchFieldsContext == null ? null
             : fetchFieldsContext.fields() == null ? null
             : fetchFieldsContext.fields().isEmpty() ? null
-            : FieldFetcher.create(searchExecutionContext, fetchFieldsContext.fields(), ft -> {
-                // we want to skip metadata fields if we have a wildcard pattern
-                return searchExecutionContext.isMetadataField(ft.name()) == false;
-            });
+            // we want to skip metadata fields if we have a wildcard pattern
+            : FieldFetcher.create(searchExecutionContext, fetchFieldsContext.fields(), (field, ft) -> true, (field, ft) -> searchExecutionContext.isMetadataField(field) == false);
 
         final FieldFetcher metadataFieldFetcher;
         if (storedFieldsContext != null
@@ -69,16 +70,18 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             for (final String storedField : storedFieldsContext.fieldNames()) {
                 metadataFields.add(new FieldAndFormat(storedField, null));
             }
+            BiPredicate<String, MappedFieldType> includePredicate = (field, ft) -> field.equals(SourceFieldMapper.NAME) == false
+                && field.equals(IdFieldMapper.NAME) == false
+                && searchExecutionContext.isMetadataField(field)
+                && ft.isStored();
             metadataFieldFetcher = FieldFetcher.create(
                 searchExecutionContext,
                 metadataFields,
-                ft -> ft.name().equals(SourceFieldMapper.NAME) == false
-                    && ft.name().equals(IdFieldMapper.NAME) == false
-                    && searchExecutionContext.isMetadataField(ft.name())
-                    && ft.isStored()
+                includePredicate,
+                includePredicate
             );
         } else {
-            metadataFieldFetcher = FieldFetcher.create(searchExecutionContext, DEFAULT_METADATA_FIELDS, ft -> true);
+            metadataFieldFetcher = FieldFetcher.create(searchExecutionContext, DEFAULT_METADATA_FIELDS, (ft, s) -> true, (field, ft) -> true);
         }
         return new FetchSubPhaseProcessor() {
             @Override

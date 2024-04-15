@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiPredicate;
-import java.util.function.Predicate;
 
 /**
  * A fetch sub-phase for high-level field retrieval. Given a list of fields, it
@@ -60,7 +59,12 @@ public final class FetchFieldsPhase implements FetchSubPhase {
             : fetchFieldsContext.fields() == null ? null
             : fetchFieldsContext.fields().isEmpty() ? null
             // we want to skip metadata fields if we have a wildcard pattern
-            : FieldFetcher.create(searchExecutionContext, fetchFieldsContext.fields(), (field, ft) -> true, (field, ft) -> searchExecutionContext.isMetadataField(field) == false);
+            : FieldFetcher.create(
+                searchExecutionContext,
+                fetchFieldsContext.fields(),
+                (field, ft) -> true,
+                (field, ft) -> searchExecutionContext.isMetadataField(field) == false
+            );
 
         final FieldFetcher metadataFieldFetcher;
         if (storedFieldsContext != null
@@ -74,14 +78,14 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                 && field.equals(IdFieldMapper.NAME) == false
                 && searchExecutionContext.isMetadataField(field)
                 && ft.isStored();
+            metadataFieldFetcher = FieldFetcher.create(searchExecutionContext, metadataFields, includePredicate, includePredicate);
+        } else {
             metadataFieldFetcher = FieldFetcher.create(
                 searchExecutionContext,
-                metadataFields,
-                includePredicate,
-                includePredicate
+                DEFAULT_METADATA_FIELDS,
+                (ft, s) -> true,
+                (field, ft) -> true
             );
-        } else {
-            metadataFieldFetcher = FieldFetcher.create(searchExecutionContext, DEFAULT_METADATA_FIELDS, (ft, s) -> true, (field, ft) -> true);
         }
         return new FetchSubPhaseProcessor() {
             @Override

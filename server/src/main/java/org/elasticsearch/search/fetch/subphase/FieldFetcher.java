@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiPredicate;
-import java.util.function.Predicate;
 
 /**
  * A helper class to {@link FetchFieldsPhase} that's initialized with a list of field patterns to fetch.
@@ -61,9 +60,8 @@ public class FieldFetcher {
 
             for (String field : context.getMatchingFieldNames(fieldPattern)) {
                 MappedFieldType ft = context.getFieldType(field);
-                //provide the fields separately, for the case of aliases where field name and ft.name are different
-                if ( (matchingPattern == null && explicitIncludePredicate.test(field, ft))
-                ||patternIncludePredicate.test(field, ft)) {
+                // provide the fields separately, for the case of aliases where field name and ft.name are different
+                if ((matchingPattern == null && explicitIncludePredicate.test(field, ft)) || patternIncludePredicate.test(field, ft)) {
                     resolvedFields.add(new ResolvedField(field, matchingPattern, ft, fieldAndFormat.format));
                 }
             }

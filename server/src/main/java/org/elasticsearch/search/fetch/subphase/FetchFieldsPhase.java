@@ -73,7 +73,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                 searchExecutionContext,
                 metadataFields,
                 ft -> ft.name().equals(SourceFieldMapper.NAME) == false
-                    && ft.name().equals(IdFieldMapper.NAME)
+                    && ft.name().equals(IdFieldMapper.NAME) == false
                     && searchExecutionContext.isMetadataField(ft.name())
                     && ft.isStored()
             );

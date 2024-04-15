@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
 import java.util.Map;
 
@@ -44,5 +45,9 @@ public class SearchDirectoryTestUtils {
 
     public static StatelessSharedBlobCacheService getCacheService(SearchDirectory target) {
         return target.getCacheService();
+    }
+
+    public static void updateLastUploadedTermAndGen(SearchDirectory target, PrimaryTermAndGeneration termAndGeneration) {
+        target.updateLatestUploadedTermAndGen(termAndGeneration);
     }
 }

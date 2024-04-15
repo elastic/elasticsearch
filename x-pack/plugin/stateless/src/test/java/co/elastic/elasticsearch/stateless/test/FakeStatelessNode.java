@@ -13,6 +13,8 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
+ *
+ * This file was contributed to by generative AI
  */
 
 package co.elastic.elasticsearch.stateless.test;
@@ -22,6 +24,9 @@ import co.elastic.elasticsearch.stateless.TestUtils;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
+import co.elastic.elasticsearch.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
+import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
+import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
@@ -41,7 +46,6 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoDeletionPolicy;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -125,7 +129,7 @@ public class FakeStatelessNode implements Closeable {
     public final IndexDirectory indexingDirectory;
     public final Store indexingStore;
     public final ShardPath searchShardPath;
-    public final Directory searchDirectory;
+    public final SearchDirectory searchDirectory;
     public final Store searchStore;
     public final TransportService transportService;
     public final RepositoriesService repoService;
@@ -198,14 +202,27 @@ public class FakeStatelessNode implements Closeable {
             localCloseables.add(nodeEnvironment);
             final var sharedCacheService = createCacheService(nodeEnvironment, nodeSettings, threadPool);
             localCloseables.add(sharedCacheService);
+            final var cacheBlobReaderService = createCacheBlobReaderService(sharedCacheService);
             indexingDirectory = localCloseables.add(
                 new IndexDirectory(
                     new FsDirectoryFactory().newDirectory(indexSettings, indexingShardPath),
-                    createSearchDirectory(sharedCacheService, shardId)
+                    createSearchDirectory(
+                        sharedCacheService,
+                        shardId,
+                        cacheBlobReaderService,
+                        MutableObjectStoreUploadTracker.ALWAYS_UPLOADED
+                    )
                 )
             );
             indexingStore = localCloseables.add(new Store(shardId, indexSettings, indexingDirectory, new DummyShardLock(shardId)));
-            searchDirectory = localCloseables.add(createSearchDirectory(sharedCacheService, searchShardPath.getShardId()));
+            searchDirectory = localCloseables.add(
+                createSearchDirectory(
+                    sharedCacheService,
+                    searchShardPath.getShardId(),
+                    cacheBlobReaderService,
+                    new AtomicMutableObjectStoreUploadTracker()
+                )
+            );
             searchStore = localCloseables.add(new Store(shardId, indexSettings, searchDirectory, new DummyShardLock(shardId)));
 
             transportService = transport.createTransportService(
@@ -277,8 +294,13 @@ public class FakeStatelessNode implements Closeable {
         }
     }
 
-    protected SearchDirectory createSearchDirectory(StatelessSharedBlobCacheService sharedCacheService, ShardId shardId) {
-        return new SearchDirectory(sharedCacheService, shardId);
+    protected SearchDirectory createSearchDirectory(
+        StatelessSharedBlobCacheService sharedCacheService,
+        ShardId shardId,
+        CacheBlobReaderService cacheBlobReaderService,
+        MutableObjectStoreUploadTracker objectStoreUploadTracker
+    ) {
+        return new SearchDirectory(sharedCacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
     }
 
     protected StatelessSharedBlobCacheService createCacheService(
@@ -287,6 +309,10 @@ public class FakeStatelessNode implements Closeable {
         ThreadPool threadPool
     ) {
         return TestUtils.newCacheService(nodeEnvironment, settings, threadPool);
+    }
+
+    protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
+        return new CacheBlobReaderService(cacheService, client);
     }
 
     public List<StatelessCommitRef> generateIndexCommits(int commitsNumber) throws IOException {

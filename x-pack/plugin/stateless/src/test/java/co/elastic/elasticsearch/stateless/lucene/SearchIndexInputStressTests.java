@@ -13,16 +13,18 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
+ *
+ * This file was contributed to by generative AI
  */
 
 package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
+import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreCacheBlobReader;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 
 import org.apache.lucene.codecs.CodecUtil;
-import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
@@ -162,8 +164,11 @@ public class SearchIndexInputStressTests extends ESIndexInputTestCase {
                     fileName,
                     sharedBlobCacheService.getCacheFile(new FileCacheKey(shardId, primaryTerm, compoundFileName), allBytes.length),
                     randomIOContext(),
-                    TestUtils.singleBlobContainer(compoundFileName, allBytes),
-                    (position, length) -> BlobCacheUtils.computeRange(sharedBlobCacheService.getRangeSize(), position, length),
+                    new ObjectStoreCacheBlobReader(
+                        TestUtils.singleBlobContainer(fileName, allBytes),
+                        fileName,
+                        sharedBlobCacheService.getRangeSize()
+                    ),
                     checksumAndLength.length,
                     offset
                 ),

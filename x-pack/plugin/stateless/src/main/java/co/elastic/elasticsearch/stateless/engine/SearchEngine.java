@@ -19,9 +19,7 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
-import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
-import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
@@ -37,8 +35,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -71,7 +67,6 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.TreeSet;
@@ -102,11 +97,10 @@ public class SearchEngine extends Engine {
     private final ClosedShardService closedShardService;
     private final Map<PrimaryTermAndGeneration, SubscribableListener<Long>> segmentGenerationListeners = ConcurrentCollections
         .newConcurrentMap();
-    private final LinkedBlockingQueue<StatelessCompoundCommit> commitNotifications = new LinkedBlockingQueue<>();
+    private final LinkedBlockingQueue<NewCommitNotificationRequest> commitNotifications = new LinkedBlockingQueue<>();
     private final AtomicInteger pendingCommitNotifications = new AtomicInteger();
     private final ReferenceManager<ElasticsearchDirectoryReader> readerManager;
     private final SearchDirectory directory;
-    private final Client client;
 
     private volatile SegmentInfosAndCommit segmentInfosAndCommit;
     private volatile PrimaryTermAndGeneration currentPrimaryTermGeneration;
@@ -115,10 +109,9 @@ public class SearchEngine extends Engine {
 
     private final Map<DirectoryReader, OpenReaderInfo> openReaders = new ConcurrentHashMap<>();
 
-    public SearchEngine(EngineConfig config, Client client, ClosedShardService closedShardService) {
+    public SearchEngine(EngineConfig config, ClosedShardService closedShardService) {
         super(config);
         assert config.isPromotableToPrimary() == false;
-        this.client = Objects.requireNonNull(client);
         this.closedShardService = closedShardService;
 
         ElasticsearchDirectoryReader directoryReader = null;
@@ -227,9 +220,8 @@ public class SearchEngine extends Engine {
      * is visible to searches.
      */
     public void onCommitNotification(NewCommitNotificationRequest request, ActionListener<Void> listener) {
-        StatelessCompoundCommit commit = request.getCompoundCommit();
-        if (addOrExecuteSegmentGenerationListener(commit.primaryTermAndGeneration(), listener.map(g -> null))) {
-            commitNotifications.add(commit);
+        if (addOrExecuteSegmentGenerationListener(request.getCompoundCommit().primaryTermAndGeneration(), listener.map(g -> null))) {
+            commitNotifications.add(request);
             if (pendingCommitNotifications.incrementAndGet() == 1) {
                 processCommitNotifications();
             }
@@ -264,12 +256,13 @@ public class SearchEngine extends Engine {
                         primaryTerm(current),
                         currentPrimaryTermGeneration
                     );
-                StatelessCompoundCommit latestCommit = findLatestCommit(current);
-                if (latestCommit == null) {
+                NewCommitNotificationRequest latestRequest = findLatestNotification(current);
+                if (latestRequest == null) {
                     logger.trace("directory is on most recent commit generation [{}]", current.getGeneration());
                     // TODO should we assert that we have no segment listeners with minGen <= current.getGeneration()?
                     return;
                 }
+                StatelessCompoundCommit latestCommit = latestRequest.getCompoundCommit();
                 if (directory.isMarkedAsCorrupted()) {
                     logger.trace("directory is marked as corrupted, ignoring all future commit notifications");
                     failSegmentGenerationListeners();
@@ -279,7 +272,7 @@ public class SearchEngine extends Engine {
                 store.incRef();
                 try {
                     logger.trace("updating directory with commit {}", latestCommit);
-                    if (directory.updateCommit(latestCommit)) {
+                    if (directory.updateCommit(latestCommit, latestRequest.getLatestUploadedBatchedCompoundCommitTermAndGen())) {
                         // if this index has been recently searched, and this commit hasn't been superseded, then
                         // prefetch the new commit files
                         // todo: disabled pre-fetching new commits, see https://github.com/elastic/elasticsearch-serverless/issues/1006
@@ -328,14 +321,15 @@ public class SearchEngine extends Engine {
                 }
             }
 
-            private StatelessCompoundCommit findLatestCommit(SegmentInfos current) throws IOException {
+            private NewCommitNotificationRequest findLatestNotification(SegmentInfos current) throws IOException {
                 PrimaryTermAndGeneration currentPrimaryTermGeneration = new PrimaryTermAndGeneration(
                     primaryTerm(current),
                     current.getGeneration()
                 );
-                StatelessCompoundCommit latestCommit = null;
+                NewCommitNotificationRequest latestRequest = null;
                 for (int i = batchSize; i > 0; i--) {
-                    StatelessCompoundCommit commit = commitNotifications.poll();
+                    NewCommitNotificationRequest request = commitNotifications.poll();
+                    StatelessCompoundCommit commit = request.getCompoundCommit();
                     assert commit != null;
                     if (commit.primaryTermAndGeneration().compareTo(currentPrimaryTermGeneration) <= 0) {
                         assert commit.primaryTermAndGeneration().compareTo(currentPrimaryTermGeneration) < 0
@@ -347,11 +341,12 @@ public class SearchEngine extends Engine {
                         );
                         continue;
                     }
-                    if (latestCommit == null || commit.primaryTermAndGeneration().compareTo(latestCommit.primaryTermAndGeneration()) > 0) {
-                        latestCommit = commit;
+                    if (latestRequest == null
+                        || commit.primaryTermAndGeneration().compareTo(latestRequest.getCompoundCommit().primaryTermAndGeneration()) > 0) {
+                        latestRequest = request;
                     }
                 }
-                return latestCommit;
+                return latestRequest;
             }
 
             private void updateInternalState(StatelessCompoundCommit latestCommit, SegmentInfos current) {
@@ -907,20 +902,4 @@ public class SearchEngine extends Engine {
         }
     }
 
-    public void getVirtualBatchedCompoundCommitChunk(
-        final PrimaryTermAndGeneration virtualBccPrimaryTermAndGen,
-        final long offset,
-        final int length,
-        final ActionListener<ReleasableBytesReference> listener
-    ) {
-        // Notice that the action takes care to retry certain errors such as when the primary shard relocates
-        GetVirtualBatchedCompoundCommitChunkRequest request = new GetVirtualBatchedCompoundCommitChunkRequest(
-            shardId,
-            virtualBccPrimaryTermAndGen.primaryTerm(),
-            virtualBccPrimaryTermAndGen.generation(),
-            offset,
-            length
-        );
-        client.execute(TransportGetVirtualBatchedCompoundCommitChunkAction.TYPE, request, listener.map(r -> r.getData()));
-    }
 }

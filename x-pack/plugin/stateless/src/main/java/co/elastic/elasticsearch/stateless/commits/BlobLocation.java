@@ -13,9 +13,13 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
+ *
+ * This file was contributed to by generative AI
  */
 
 package co.elastic.elasticsearch.stateless.commits;
+
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -67,6 +71,10 @@ public record BlobLocation(BlobFile blobFile, long offset, long fileLength) impl
      */
     public long compoundFileGeneration() {
         return StatelessCompoundCommit.parseGenerationFromBlobName(blobName());
+    }
+
+    public PrimaryTermAndGeneration getBatchedCompoundCommitTermAndGeneration() {
+        return new PrimaryTermAndGeneration(primaryTerm(), compoundFileGeneration());
     }
 
     /**

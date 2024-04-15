@@ -1,0 +1,81 @@
+/*
+ * ELASTICSEARCH CONFIDENTIAL
+ * __________________
+ *
+ * Copyright Elasticsearch B.V. All rights reserved.
+ *
+ * NOTICE:  All information contained herein is, and remains
+ * the property of Elasticsearch B.V. and its suppliers, if any.
+ * The intellectual and technical concepts contained herein
+ * are proprietary to Elasticsearch B.V. and its suppliers and
+ * may be covered by U.S. and Foreign Patents, patents in
+ * process, and are protected by trade secret or copyright
+ * law.  Dissemination of this information or reproduction of
+ * this material is strictly forbidden unless prior written
+ * permission is obtained from Elasticsearch B.V.
+ *
+ * This file was contributed to by generative AI
+ */
+
+package co.elastic.elasticsearch.stateless.cache.reader;
+
+import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
+import co.elastic.elasticsearch.stateless.commits.BlobLocation;
+
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.index.shard.ShardId;
+
+import java.util.function.LongFunction;
+
+/**
+ * Service to get a {@link CacheBlobReader} for a shard and a {@link BlobLocation}. Automatically switches to fetching from the primary
+ * shard if the blob has not been uploaded to the object store.
+ */
+public class CacheBlobReaderService {
+
+    private final StatelessSharedBlobCacheService cacheService;
+    private final Client client;
+
+    // TODO consider specializing the CacheBlobReaderService for the indexing node to always consider blobs as uploaded (ES-8248)
+    // TODO refactor CacheBlobReaderService to keep track of shard's upload info itself (ES-8248)
+    public CacheBlobReaderService(StatelessSharedBlobCacheService cacheService, Client client) {
+        this.cacheService = cacheService;
+        this.client = client;
+    }
+
+    /**
+     * Returns a {@link CacheBlobReader} for the given shard and the blob specified by the given {@link BlobLocation}.
+     * @param shardId the shard id
+     * @param blobContainer the blob container where the location's blob can be read from
+     * @param location the blob's location. only the blob name, and the BCC primary term and generation are used. the offset and fileLength
+     *                 is disregarded.
+     * @param objectStoreUploadTracker the tracker to determine if the blob has been uploaded to the object store
+     * @return a {@link CacheBlobReader} for the given shard and blob
+     */
+    public CacheBlobReader getCacheBlobReader(
+        ShardId shardId,
+        LongFunction<BlobContainer> blobContainer,
+        BlobLocation location,
+        ObjectStoreUploadTracker objectStoreUploadTracker
+    ) {
+        final var locationPrimaryTermAndGeneration = location.getBatchedCompoundCommitTermAndGeneration();
+        final long rangeSize = cacheService.getRangeSize();
+        var objectStoreCacheBlobReader = new ObjectStoreCacheBlobReader(
+            blobContainer.apply(location.primaryTerm()),
+            location.blobName(),
+            rangeSize
+        );
+        if (objectStoreUploadTracker.isUploaded(locationPrimaryTermAndGeneration)) {
+            return objectStoreCacheBlobReader;
+        } else {
+            var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(shardId, locationPrimaryTermAndGeneration, client);
+            return new SwitchingCacheBlobReader(
+                locationPrimaryTermAndGeneration,
+                objectStoreUploadTracker,
+                objectStoreCacheBlobReader,
+                indexingShardCacheBlobReader
+            );
+        }
+    }
+}

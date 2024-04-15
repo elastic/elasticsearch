@@ -17,7 +17,7 @@ import org.gradle.api.InvalidUserDataException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -31,7 +31,8 @@ class SnippetBuilder {
     private int end = NOT_FINISHED;
     private boolean testSetup;
     private boolean testTeardown;
-    private Map<String, String> substitutions = new HashMap<>();
+    // order matters for substitutions. therefore we pick linkedHashMap
+    private Map<String, String> substitutions = new LinkedHashMap<>();
     private String catchPart;
     private boolean test;
     private String skip;

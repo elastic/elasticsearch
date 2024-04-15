@@ -34,14 +34,14 @@ import java.util.Set;
  * Context used when parsing incoming documents. Holds everything that is needed to parse a document as well as
  * the lucene data structures and mappings to be dynamically created as the outcome of parsing a document.
  */
-public abstract class DocumentParserContext {
+public abstract class DocumentParserContext implements AutoCloseable {
     /**
      * Wraps a given context while allowing to override some of its behaviour by re-implementing some of the non final methods
      */
-    private static class Wrapper extends DocumentParserContext {
+    public static class Wrapper extends DocumentParserContext {
         private final DocumentParserContext in;
 
-        private Wrapper(ObjectMapper parent, DocumentParserContext in) {
+        public Wrapper(ObjectMapper parent, DocumentParserContext in) {
             super(parent, parent.dynamic == null ? in.dynamic : parent.dynamic, in);
             this.in = in;
         }
@@ -637,6 +637,11 @@ public abstract class DocumentParserContext {
 
     protected abstract void addDoc(LuceneDocument doc);
 
+    @Override
+    public void close() throws Exception {
+
+    }
+
     /**
      * Find a dynamic mapping template for the given field and its matching type
      *
@@ -702,4 +707,6 @@ public abstract class DocumentParserContext {
             return field;
         }
     }
+
+
 }

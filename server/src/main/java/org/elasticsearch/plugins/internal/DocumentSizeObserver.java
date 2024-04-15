@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugins.internal;
 
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.xcontent.XContentParser;
 
 /**
@@ -28,6 +29,12 @@ public interface DocumentSizeObserver {
         public long normalisedBytesParsed() {
             return 0;
         }
+
+        @Override
+        public void onParsingFinished(LuceneDocument luceneDocument) {
+
+        }
+
     };
 
     /**
@@ -43,4 +50,6 @@ public interface DocumentSizeObserver {
      * @return a number representing a state parsed
      */
     long normalisedBytesParsed();
+
+    void onParsingFinished(LuceneDocument luceneDocument);
 }

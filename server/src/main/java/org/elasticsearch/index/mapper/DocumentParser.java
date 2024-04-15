@@ -85,6 +85,8 @@ public final class DocumentParser {
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
             internalParseDocument(metadataFieldsMappers, context);
             validateEnd(context.parser());
+            documentSizeObserver.onParsingFinished(context.rootDoc());
+
         } catch (XContentParseException e) {
             throw new DocumentParsingException(e.getLocation(), e.getMessage(), e);
         } catch (IOException e) {

@@ -53,6 +53,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeObserver;
@@ -1201,6 +1203,11 @@ public class IngestServiceTests extends ESTestCase {
                     public long normalisedBytesParsed() {
                         parsedValueWasUsed.incrementAndGet();
                         return 0;
+                    }
+
+                    @Override
+                    public void onParsingFinished(LuceneDocument luceneDocument) {
+
                     }
                 };
             }

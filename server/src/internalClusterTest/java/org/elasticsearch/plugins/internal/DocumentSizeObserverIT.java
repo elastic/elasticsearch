@@ -9,6 +9,8 @@
 package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -120,6 +122,11 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
         @Override
         public long normalisedBytesParsed() {
             return counter;
+        }
+
+        @Override
+        public void onParsingFinished(LuceneDocument luceneDocument) {
+
         }
     }
 }

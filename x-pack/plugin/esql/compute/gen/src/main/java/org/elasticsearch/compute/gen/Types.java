@@ -124,8 +124,6 @@ public class Types {
 
     static final ClassName BYTES_REF = ClassName.get("org.apache.lucene.util", "BytesRef");
 
-    static final ClassName BYTES_REF_BUILDER = ClassName.get("org.apache.lucene.util", "BytesRefBuilder");
-
     static final ClassName RELEASABLE = ClassName.get("org.elasticsearch.core", "Releasable");
     static final ClassName RELEASABLES = ClassName.get("org.elasticsearch.core", "Releasables");
 

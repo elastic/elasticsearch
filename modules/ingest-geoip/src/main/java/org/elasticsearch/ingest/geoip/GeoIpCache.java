@@ -19,6 +19,7 @@ import java.net.InetAddress;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 /**
  * The in-memory cache for the geoip data. There should only be 1 instance of this class.
@@ -41,6 +42,7 @@ final class GeoIpCache {
         }
     };
 
+    private final LongSupplier relativeNanoTimeProvider;
     private final Cache<CacheKey, AbstractResponse> cache;
     private final AtomicLong hitsTimeInNanos = new AtomicLong(0);
     private final AtomicLong missesTimeInNanos = new AtomicLong(0);
@@ -48,11 +50,16 @@ final class GeoIpCache {
     private final AtomicLong cachePutTimeInNanos = new AtomicLong(0);
 
     // package private for testing
-    GeoIpCache(long maxSize) {
+    GeoIpCache(long maxSize, LongSupplier relativeNanoTimeProvider) {
         if (maxSize < 0) {
             throw new IllegalArgumentException("geoip max cache size must be 0 or greater");
         }
+        this.relativeNanoTimeProvider = relativeNanoTimeProvider;
         this.cache = CacheBuilder.<CacheKey, AbstractResponse>builder().setMaximumWeight(maxSize).build();
+    }
+
+    GeoIpCache(long maxSize) {
+        this(maxSize, System::nanoTime);
     }
 
     @SuppressWarnings("unchecked")
@@ -63,25 +70,25 @@ final class GeoIpCache {
     ) {
         // can't use cache.computeIfAbsent due to the elevated permissions for the jackson (run via the cache loader)
         CacheKey cacheKey = new CacheKey(ip, databasePath);
-        long cacheStart = System.nanoTime();
+        long cacheStart = relativeNanoTimeProvider.getAsLong();
         // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
         AbstractResponse response = cache.get(cacheKey);
-        long cacheRequestTime = System.nanoTime() - cacheStart;
+        long cacheRequestTime = relativeNanoTimeProvider.getAsLong() - cacheStart;
 
         // populate the cache for this key, if necessary
         if (response == null) {
-            long retrieveStart = System.nanoTime();
+            long retrieveStart = relativeNanoTimeProvider.getAsLong();
             response = retrieveFunction.apply(ip);
-            long databaseRequestTime = System.nanoTime() - retrieveStart;
+            long databaseRequestTime = relativeNanoTimeProvider.getAsLong() - retrieveStart;
             storeQueryTimeInNanos.addAndGet(databaseRequestTime);
             // if the response from the database was null, then use the no-result sentinel value
             if (response == null) {
                 response = NO_RESULT;
             }
             // store the result or no-result in the cache
-            long cachePutStart = System.nanoTime();
+            long cachePutStart = relativeNanoTimeProvider.getAsLong();
             cache.put(cacheKey, response);
-            long cachePutTime = System.nanoTime() - cachePutStart;
+            long cachePutTime = relativeNanoTimeProvider.getAsLong() - cachePutStart;
             missesTimeInNanos.addAndGet(cacheRequestTime + databaseRequestTime + cachePutTime);
             cachePutTimeInNanos.addAndGet(cachePutTime);
         } else {

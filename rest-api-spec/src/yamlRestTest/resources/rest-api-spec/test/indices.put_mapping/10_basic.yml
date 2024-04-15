@@ -64,7 +64,7 @@
 
 ---
 "Put mappings with explicit _doc type":
-  - skip:
+  - requires:
       cluster_features: ["gte_v8.0.0"]
       reason: "deprecation message changed in 8.0"
   - do:

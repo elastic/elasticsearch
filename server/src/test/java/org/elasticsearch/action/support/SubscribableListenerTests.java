@@ -610,19 +610,22 @@ public class SubscribableListenerTests extends ESTestCase {
         assertComplete(chainedListener, "simulated");
     }
 
-    public void testRejection() {
+    public void testRejectedExecutionThreading() {
         final var initialListener = new SubscribableListener<>();
 
-        final Executor executor = r -> asInstanceOf(AbstractRunnable.class, r).onRejection(
+        final Executor rejectingExecutor = r -> asInstanceOf(AbstractRunnable.class, r).onRejection(
             new EsRejectedExecutionException("simulated rejection", randomBoolean())
         );
 
-        final var subscribedListener = SubscribableListener.newForked(l -> initialListener.addListener(l, executor, null));
-        final var andThenListener = initialListener.andThen(executor, null, (l, x) -> fail("should not be called"));
+        final var subscribedListener = SubscribableListener.newForked(l -> initialListener.addListener(l, rejectingExecutor, null));
+        final var andThenListener = initialListener.andThen(rejectingExecutor, null, (l, x) -> fail("should not be called"));
 
         assertFalse(subscribedListener.isDone());
         assertFalse(andThenListener.isDone());
 
+        // It doesn't matter whether we complete initialListener successfully or exceptionally: either way the completion of the subscribed
+        // listeners will try and use rejectingExecutor, be rejected, and therefore turn into an onFailure(EsRejectedExecutionException)
+        // call on this thread instead.
         if (randomBoolean()) {
             initialListener.onResponse(new Object());
         } else {

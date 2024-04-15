@@ -120,7 +120,7 @@ public class RemoteClusterPermissions implements NamedWriteable, ToXContentObjec
     /**
      * Returns the unsupported privileges in the remote cluster permissions. Empty set if all privileges are supported.
      */
-    public Set<String> getUnsupportedPrivileges() {
+    private Set<String> getUnsupportedPrivileges() {
         Set<String> invalid = new HashSet<>();
         for (RemoteClusterPermissionGroup group : remoteClusterPermissionGroups) {
             for (String namedPrivilege : group.clusterPrivileges()) {

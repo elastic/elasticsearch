@@ -716,24 +716,9 @@ public final class RestoreService implements ClusterStateApplier {
             .map(i -> metadata.get(renameBackingIndex(i.getName(), request)).getIndex())
             .toList();
         List<Index> updatedFailureIndices = DataStream.isFailureStoreEnabled()
-            ? dataStream.getFailureIndices().stream().map(i -> metadata.get(renameFailureIndex(i.getName(), request)).getIndex()).toList()
-            : List.of();
-        return new DataStream(
-            dataStreamName,
-            updatedIndices,
-            dataStream.getGeneration(),
-            dataStream.getMetadata(),
-            dataStream.isHidden(),
-            dataStream.isReplicated(),
-            dataStream.isSystem(),
-            dataStream.isAllowCustomRouting(),
-            dataStream.getIndexMode(),
-            dataStream.getLifecycle(),
-            DataStream.isFailureStoreEnabled() && dataStream.isFailureStore(),
-            updatedFailureIndices,
-            dataStream.rolloverOnWrite(),
-            dataStream.getAutoShardingEvent()
-        );
+                ? dataStream.getFailureIndices().stream().map(i -> metadata.get(renameFailureIndex(i.getName(), request)).getIndex()).toList()
+                : List.of();
+        return dataStream.copy().setName(dataStreamName).setIndices(updatedIndices).setFailureIndices(updatedFailureIndices).build();
     }
 
     public static RestoreInProgress updateRestoreStateWithDeletedIndices(RestoreInProgress oldRestore, Set<Index> deletedIndices) {

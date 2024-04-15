@@ -270,6 +270,7 @@ public class EnrichLookupService {
             };
             var queryOperator = new EnrichQuerySourceOperator(
                 driverContext.blockFactory(),
+                EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE,
                 queryList,
                 searchExecutionContext.getIndexReader()
             );

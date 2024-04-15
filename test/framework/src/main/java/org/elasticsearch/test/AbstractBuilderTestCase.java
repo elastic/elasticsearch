@@ -621,12 +621,15 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         }
 
         CoordinatorRewriteContext createCoordinatorContext(DateFieldMapper.DateFieldType dateFieldType, long min, long max) {
-            var timestampRangeInfo = new CoordinatorRewriteContext.DateFieldRange(
+            var tsRangeInfo = new CoordinatorRewriteContext.DateFieldRange(
                 dateFieldType,
                 IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max))
             );
-            /// MP TODO: FIXME - need to adjust these tests to specify which timestamp field is being used, not just assume @timestamp
-            return new CoordinatorRewriteContext(parserConfiguration, this.client, () -> nowInMillis, timestampRangeInfo, null);
+            var eventIngestedRangeInfo = new CoordinatorRewriteContext.DateFieldRange(
+                dateFieldType,
+                IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max))
+            );
+            return new CoordinatorRewriteContext(parserConfiguration, this.client, () -> nowInMillis, tsRangeInfo, eventIngestedRangeInfo);
         }
 
         DataRewriteContext createDataContext() {

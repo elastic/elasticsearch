@@ -923,12 +923,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * @return copy of this instance with updated timestamp range
      */
     public IndexMetadata withTimestampRanges(IndexLongFieldRange timestampRange, IndexLongFieldRange eventIngestedRange) {
-        /// MP TODO - remove these null checks and replace with non-null asserts?
-        if (timestampRange != null && timestampRange.equals(this.timestampRange)) {
-            if (eventIngestedRange == null || this.eventIngestedRange.equals(eventIngestedRange)) {
-                return this;
-            }
-        } else if (this.eventIngestedRange.equals(eventIngestedRange) && timestampRange == null) {
+        if (timestampRange.equals(this.timestampRange) && eventIngestedRange.equals(this.eventIngestedRange)) {
             return this;
         }
         return new IndexMetadata(
@@ -959,8 +954,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.rolloverInfos,
             this.isSystem,
             this.isHidden,
-            timestampRange == null ? this.timestampRange : timestampRange,
-            eventIngestedRange == null ? this.eventIngestedRange : eventIngestedRange,
+            timestampRange,
+            eventIngestedRange,
             this.priority,
             this.creationDate,
             this.ignoreDiskWatermarks,
@@ -1910,6 +1905,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.rolloverInfos = ImmutableOpenMap.builder(indexMetadata.rolloverInfos);
             this.isSystem = indexMetadata.isSystem;
             this.timestampRange = indexMetadata.timestampRange;
+            this.eventIngestedRange = indexMetadata.eventIngestedRange;
             this.lifecycleExecutionState = indexMetadata.lifecycleExecutionState;
             this.stats = indexMetadata.stats;
             this.indexWriteLoadForecast = indexMetadata.writeLoadForecast;

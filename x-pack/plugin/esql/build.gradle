@@ -48,7 +48,7 @@ dependencies {
  * them and *then* compile them.
  */
 tasks.named("compileJava").configure {
-  options.compilerArgs.addAll(["-s", "${projectDir}/src/main/java/generated"])
+  options.generatedSourceOutputDirectory = file("src/main/java/generated")
 }
 
 tasks.named("javadoc").configure {

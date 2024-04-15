@@ -10,8 +10,9 @@ dependencies {
   testImplementation(project(xpackModule('ql')))
 }
 
+
 tasks.named("compileJava").configure {
-  options.compilerArgs.addAll(["-s", "${projectDir}/src/main/generated"])
+  options.generatedSourceOutputDirectory = file("src/main/generated")
 }
 
 tasks.named('checkstyleMain').configure {

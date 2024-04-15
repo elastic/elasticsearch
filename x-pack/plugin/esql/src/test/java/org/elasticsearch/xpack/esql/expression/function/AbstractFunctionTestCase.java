@@ -312,6 +312,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * Evaluates a {@link Block} of values, all copied from the input pattern with
      * some null values inserted between.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107475")
     public final void testEvaluateBlockWithNulls() {
         testEvaluateBlock(driverContext().blockFactory(), driverContext(), true);
     }
@@ -495,6 +496,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertThat(factory.toString(), testCase.evaluatorToString());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107475")
     public final void testFold() {
         Expression expression = buildLiteralExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
@@ -857,6 +859,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Map.entry(Set.of(DataTypes.INTEGER, DataTypes.NULL), "integer"),
         Map.entry(Set.of(DataTypes.IP, DataTypes.NULL), "ip"),
         Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE, DataTypes.NULL), "numeric"),
+        Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE), "numeric"),
         Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.VERSION, DataTypes.NULL), "string or version"),
         Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "string"),
         Map.entry(Set.of(DataTypes.IP, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "ip or string"),

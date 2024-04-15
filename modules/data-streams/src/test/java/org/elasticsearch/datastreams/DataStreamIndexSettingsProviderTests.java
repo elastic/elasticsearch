@@ -301,24 +301,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             ).getMetadata()
         );
         DataStream ds = mb.dataStream(dataStreamName);
-        mb.put(
-            new DataStream(
-                ds.getName(),
-                ds.getIndices(),
-                ds.getGeneration(),
-                ds.getMetadata(),
-                ds.isHidden(),
-                ds.isReplicated(),
-                ds.isSystem(),
-                ds.isAllowCustomRouting(),
-                IndexMode.TIME_SERIES,
-                ds.getLifecycle(),
-                ds.isFailureStore(),
-                ds.getFailureIndices(),
-                ds.rolloverOnWrite(),
-                ds.getAutoShardingEvent()
-            )
-        );
+        mb.put(ds.copy().setIndexMode(IndexMode.TIME_SERIES).build());
         Metadata metadata = mb.build();
 
         Instant now = twoHoursAgo.plus(2, ChronoUnit.HOURS);

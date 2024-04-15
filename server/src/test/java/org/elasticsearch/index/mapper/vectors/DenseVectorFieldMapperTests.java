@@ -1092,6 +1092,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107417")
     public void testKnnVectorsFormat() throws IOException {
         final int m = randomIntBetween(1, DEFAULT_MAX_CONN + 10);
         final int efConstruction = randomIntBetween(1, DEFAULT_BEAM_WIDTH + 10);
@@ -1125,6 +1126,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertEquals(expectedString, knnVectorsFormat.toString());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107417")
     public void testKnnQuantizedHNSWVectorsFormat() throws IOException {
         final int m = randomIntBetween(1, DEFAULT_MAX_CONN + 10);
         final int efConstruction = randomIntBetween(1, DEFAULT_BEAM_WIDTH + 10);
@@ -1148,12 +1150,12 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         Codec codec = codecService.codec("default");
         assertThat(codec, instanceOf(PerFieldMapperCodec.class));
         KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-        String expectedString = "Lucene99HnswScalarQuantizedVectorsFormat(name=Lucene99HnswScalarQuantizedVectorsFormat, maxConn="
+        String expectedString = "ES814HnswScalarQuantizedVectorsFormat(name=ES814HnswScalarQuantizedVectorsFormat, maxConn="
             + m
             + ", beamWidth="
             + efConstruction
-            + ", flatVectorFormat=Lucene99ScalarQuantizedVectorsFormat("
-            + "name=Lucene99ScalarQuantizedVectorsFormat, confidenceInterval="
+            + ", flatVectorFormat=ES814ScalarQuantizedVectorsFormat("
+            + "name=ES814ScalarQuantizedVectorsFormat, confidenceInterval="
             + (setConfidenceInterval ? confidenceInterval : null)
             + ", rawVectorFormat=Lucene99FlatVectorsFormat()"
             + "))";

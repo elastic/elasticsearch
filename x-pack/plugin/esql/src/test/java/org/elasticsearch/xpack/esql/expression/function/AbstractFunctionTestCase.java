@@ -312,6 +312,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * Evaluates a {@link Block} of values, all copied from the input pattern with
      * some null values inserted between.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107475")
     public final void testEvaluateBlockWithNulls() {
         testEvaluateBlock(driverContext().blockFactory(), driverContext(), true);
     }
@@ -495,6 +496,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertThat(factory.toString(), testCase.evaluatorToString());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107475")
     public final void testFold() {
         Expression expression = buildLiteralExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {

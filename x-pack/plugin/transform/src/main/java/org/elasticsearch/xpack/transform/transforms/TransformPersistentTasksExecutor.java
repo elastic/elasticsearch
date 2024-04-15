@@ -497,7 +497,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             transformServices.getScheduler(),
             auditor,
             threadPool,
-            headers
+            headers,
+            transformServices.getTransformNode()
         );
     }
 }

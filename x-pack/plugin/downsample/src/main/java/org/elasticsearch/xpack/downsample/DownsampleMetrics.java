@@ -46,7 +46,7 @@ public class DownsampleMetrics extends AbstractLifecycleComponent {
         meterRegistry.registerLongHistogram(LATENCY_SHARD, "Downsampling action latency per shard", "ms");
         meterRegistry.registerLongHistogram(LATENCY_TOTAL, "Downsampling latency end-to-end", "ms");
         meterRegistry.registerLongCounter(ACTIONS_SHARD, "Number of shard-level downsampling actions", "count");
-        meterRegistry.registerLongCounter(ACTIONS, "Number of index-level downsampling actions", "count");
+        meterRegistry.registerLongCounter(ACTIONS, "Number of downsampling operations", "count");
     }
 
     @Override

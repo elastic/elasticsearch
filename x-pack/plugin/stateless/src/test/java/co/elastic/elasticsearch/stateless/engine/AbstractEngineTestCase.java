@@ -13,6 +13,8 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
+ *
+ * This file was contributed to by generative AI
  */
 
 package co.elastic.elasticsearch.stateless.engine;
@@ -20,6 +22,8 @@ package co.elastic.elasticsearch.stateless.engine;
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
+import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
+import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
@@ -280,7 +284,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     }
 
     protected SearchEngine newSearchEngineFromIndexEngine(final EngineConfig searchConfig) {
-        return new SearchEngine(searchConfig, mock(Client.class), new ClosedShardService()) {
+        return new SearchEngine(searchConfig, new ClosedShardService()) {
             @Override
             public void close() throws IOException {
                 try {
@@ -308,7 +312,12 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             Stateless.SHARD_READ_THREAD_POOL,
             BlobCacheMetrics.NOOP
         );
-        var directory = new SearchDirectory(cache, shardId);
+        var directory = new SearchDirectory(
+            cache,
+            new CacheBlobReaderService(cache, mock(Client.class)),
+            MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
+            shardId
+        );
         directory.setBlobContainer(primaryTerm -> storeBlobContainer(indexEngine.getEngineConfig().getStore()));
         if (copyInitialMetadata) {
             Store.MetadataSnapshot latestMetadata = indexEngine.getEngineConfig().getStore().getMetadata(null);
@@ -349,7 +358,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             null,
             false
         );
-        return new SearchEngine(searchConfig, mock(Client.class), new ClosedShardService()) {
+        return new SearchEngine(searchConfig, new ClosedShardService()) {
             @Override
             public void close() throws IOException {
                 try {
@@ -366,7 +375,12 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         var shardId = new ShardId(new Index(randomAlphaOfLengthBetween(5, 10), UUIDs.randomBase64UUID(random())), randomInt(10));
         var indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
         var threadPool = registerThreadPool(new TestThreadPool(getTestName() + "[" + shardId + "][search]"));
-        var directory = new SearchDirectory(sharedBlobCacheService, shardId);
+        var directory = new SearchDirectory(
+            sharedBlobCacheService,
+            new CacheBlobReaderService(sharedBlobCacheService, mock(Client.class)),
+            MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
+            shardId
+        );
         var store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
         return new EngineConfig(
             shardId,

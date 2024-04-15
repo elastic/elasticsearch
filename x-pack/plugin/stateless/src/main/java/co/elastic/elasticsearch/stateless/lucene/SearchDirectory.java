@@ -13,13 +13,18 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
+ *
+ * This file was contributed to by generative AI
  */
 
 package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
+import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
+import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -41,6 +46,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ByteSizeDirectory;
 import org.elasticsearch.index.store.ImmutableDirectoryException;
@@ -69,6 +75,7 @@ public class SearchDirectory extends ByteSizeDirectory {
     private final ShardId shardId;
 
     private final StatelessSharedBlobCacheService cacheService;
+    private final CacheBlobReaderService cacheBlobReaderService;
 
     private final SetOnce<LongFunction<BlobContainer>> blobContainer = new SetOnce<>();
     private final AtomicReference<String> corruptionMarker = new AtomicReference<>();
@@ -78,10 +85,18 @@ public class SearchDirectory extends ByteSizeDirectory {
     private final AtomicReference<StatelessCompoundCommit> currentCommit = new AtomicReference<>(null);
     private volatile Map<String, BlobLocation> currentMetadata = Map.of();
     private volatile long currentDataSetSizeInBytes = 0L;
+    private final MutableObjectStoreUploadTracker objectStoreUploadTracker;
 
-    public SearchDirectory(StatelessSharedBlobCacheService cacheService, ShardId shardId) {
+    public SearchDirectory(
+        StatelessSharedBlobCacheService cacheService,
+        CacheBlobReaderService cacheBlobReaderService,
+        MutableObjectStoreUploadTracker objectStoreUploadTracker,
+        ShardId shardId
+    ) {
         super(EmptyDirectory.INSTANCE);
         this.cacheService = cacheService;
+        this.cacheBlobReaderService = cacheBlobReaderService;
+        this.objectStoreUploadTracker = objectStoreUploadTracker;
         this.shardId = shardId;
     }
 
@@ -92,6 +107,11 @@ public class SearchDirectory extends ByteSizeDirectory {
 
     public void setBlobContainer(LongFunction<BlobContainer> blobContainer) {
         this.blobContainer.set(blobContainer);
+    }
+
+    // package-private for testing
+    void updateLatestUploadedTermAndGen(PrimaryTermAndGeneration termAndGen) {
+        objectStoreUploadTracker.updateLatestUploaded(termAndGen);
     }
 
     public boolean containsFile(String name) {
@@ -117,11 +137,13 @@ public class SearchDirectory extends ByteSizeDirectory {
      * Moves the directory to a new commit by setting the newly valid map of files and their metadata.
      *
      * @param newCommit map of file name to store metadata
+     * @param latestUploadedTermAndGen the last uploaded term and generation, can be null if none yet uploaded
      * @return true if this update advanced the commit tracked by this directory
      */
-    public boolean updateCommit(StatelessCompoundCommit newCommit) {
+    public boolean updateCommit(StatelessCompoundCommit newCommit, @Nullable PrimaryTermAndGeneration latestUploadedTermAndGen) {
         assert blobContainer.get() != null : shardId + " must have the blob container set before any commit update";
         assert assertCompareAndSetUpdatingCommitThread(null, Thread.currentThread());
+        updateLatestUploadedTermAndGen(latestUploadedTermAndGen);
         try {
             final Map<String, BlobLocation> updated = new HashMap<>(currentMetadata);
             long commitSize = 0L;
@@ -334,27 +356,10 @@ public class SearchDirectory extends ByteSizeDirectory {
                 location.offset() + location.fileLength()
             ),
             context,
-            blobContainer.get().apply(location.primaryTerm()),
-            (position, length) -> getCacheRange(location, position, length),
+            cacheBlobReaderService.getCacheBlobReader(shardId, blobContainer.get(), location, objectStoreUploadTracker),
             location.fileLength(),
             location.offset()
         );
-    }
-
-    /**
-     * Computes the range of bytes to fetch and to write in cache.
-     *
-     * @param blobLocation the location of the file in the blob
-     * @param position the absolute position in the blob
-     * @param length the length of bytes to be read from the position
-     *
-     * @return the range of bytes to fetch and to write in cache.
-     */
-    protected ByteRange getCacheRange(BlobLocation blobLocation, long position, int length) {
-        // TODO request a smaller range if the blob is not yet uploaded
-
-        // Blob is uploaded, we can request complete regions to serve the read operation
-        return BlobCacheUtils.computeRange(cacheService.getRangeSize(), position, length);
     }
 
     @Override

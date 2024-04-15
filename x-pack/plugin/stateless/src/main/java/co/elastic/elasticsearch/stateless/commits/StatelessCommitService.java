@@ -13,6 +13,8 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
+ *
+ * This file was contributed to by generative AI
  */
 
 package co.elastic.elasticsearch.stateless.commits;
@@ -204,6 +206,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 commitState.markRelocationFailed();
             }
         };
+    }
+
+    public @Nullable VirtualBatchedCompoundCommit getVirtualBatchedCompoundCommit(
+        ShardId shardId,
+        PrimaryTermAndGeneration primaryTermAndGeneration
+    ) {
+        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
+        return commitState.getVirtualBatchedCompoundCommit(primaryTermAndGeneration);
     }
 
     public long getRecoveredGeneration(ShardId shardId) {
@@ -532,8 +542,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     }
 
     public void register(ShardId shardId, long primaryTerm) {
-        ShardCommitState existing = shardsCommitsStates.put(shardId, new ShardCommitState(shardId, primaryTerm));
+        ShardCommitState existing = shardsCommitsStates.put(shardId, createShardCommitState(shardId, primaryTerm));
         assert existing == null : shardId + " already registered";
+    }
+
+    protected ShardCommitState createShardCommitState(ShardId shardId, long primaryTerm) {
+        return new ShardCommitState(shardId, primaryTerm);
     }
 
     public void unregister(ShardId shardId) {
@@ -616,7 +630,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return state == ShardCommitState.State.CLOSED || state == ShardCommitState.State.RELOCATED;
     }
 
-    private class ShardCommitState implements IndexEngineLocalReaderListener, CommitBCCResolver {
+    // Visible for testing
+    class ShardCommitState implements IndexEngineLocalReaderListener, CommitBCCResolver {
         private static final long EMPTY_GENERATION_NOTIFIED_SENTINEL = -1;
 
         private enum State {
@@ -671,7 +686,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // Map commits to BCCs
         private final Map<PrimaryTermAndGeneration, CommitReferencesInfo> commitReferencesInfos = new ConcurrentHashMap<>();
 
-        private ShardCommitState(ShardId shardId, long allocationPrimaryTerm) {
+        // Visible for testing
+        ShardCommitState(ShardId shardId, long allocationPrimaryTerm) {
             this.shardId = shardId;
             this.allocationPrimaryTerm = allocationPrimaryTerm;
         }
@@ -819,6 +835,43 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             return currentVirtualBcc;
         }
 
+        /**
+         * Get the current {@link VirtualBatchedCompoundCommit}, or one of the {@link VirtualBatchedCompoundCommit} that are being
+         * uploaded. Else, return null.
+         *
+         * Note the requested generation must correspond to either the current VBCC, one of the VBCC pending to be uploaded, or less than
+         * or equal to the max uploaded generation.
+         */
+        public @Nullable VirtualBatchedCompoundCommit getVirtualBatchedCompoundCommit(PrimaryTermAndGeneration primaryTermAndGeneration) {
+            var currentVirtualBcc = getCurrentVirtualBcc();
+            if (currentVirtualBcc != null && currentVirtualBcc.getPrimaryTermAndGeneration().equals(primaryTermAndGeneration)) {
+                return currentVirtualBcc;
+            }
+            var pendingUploadVirtualBcc = pendingUploadBccGenerations.get(primaryTermAndGeneration.generation());
+            if (pendingUploadVirtualBcc != null) {
+                assert pendingUploadVirtualBcc.getPrimaryTermAndGeneration().equals(primaryTermAndGeneration);
+                return pendingUploadVirtualBcc;
+            }
+
+            // We did not find the generation, so it should be already uploaded.
+            if (getMaxUploadedGenerationRange().ccGen >= 0) {
+                checkGenerationIsUploadedOrPending(primaryTermAndGeneration.generation());
+            } else {
+                var recoveredGeneration = this.recoveredGeneration;
+                if (primaryTermAndGeneration.generation() <= recoveredGeneration) {
+                    throw new IllegalStateException(
+                        "requested generation ["
+                            + primaryTermAndGeneration.generation()
+                            + "] is less than or equal to the recovered generation ["
+                            + recoveredGeneration
+                            + "]"
+                    );
+                }
+            }
+
+            return null;
+        }
+
         private Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBcc() {
             return pendingUploadBccGenerations.values()
                 .stream()
@@ -950,7 +1003,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         // TODO: expand for more criteria such as size, time interval
-        private boolean shouldUploadVirtualBcc(VirtualBatchedCompoundCommit virtualBcc) {
+        protected boolean shouldUploadVirtualBcc(VirtualBatchedCompoundCommit virtualBcc) {
             assert virtualBcc.getPendingCompoundCommits().size() == 1 : "must contain a single CC till BCC is in full motion";
             return virtualBcc.getPendingCompoundCommits().isEmpty() == false;
         }
@@ -1185,18 +1238,44 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 );
         }
 
-        private boolean assertGenerationIsUploadedOrPending(long generation) {
+        /**
+         * Ensures that the provided generation is uploaded or pending and returns null. Otherwise, returns an error message.
+         */
+        private @Nullable String isUploadedOrPending(long generation) {
             final var maxPendingUploadBcc = getMaxPendingUploadBcc();
             final var maxUploadedCcGen = getMaxUploadedGenerationRange().ccGen;
-            final String message = format(
-                "generation [%s] is not covered by either maxUploadedGeneration [%s] or maxPendingUploadBcc [%s]",
-                generation,
-                maxUploadedCcGen,
-                maxPendingUploadBcc
-            );
-            assert maxUploadedCcGen >= generation
-                || maxPendingUploadBcc.orElseThrow(() -> new AssertionError(message)).getMaxGeneration() >= generation : message;
+            if (generation > maxUploadedCcGen) {
+                final String message = format(
+                    "generation [%s] is not covered by either maxUploadedGeneration [%s] or maxPendingUploadBcc [%s]",
+                    generation,
+                    maxUploadedCcGen,
+                    maxPendingUploadBcc
+                );
+                assert maxPendingUploadBcc.isPresent() : message;
+                final var maxPendingUploadBccGen = maxPendingUploadBcc.isPresent()
+                    ? maxPendingUploadBcc.get().getPrimaryTermAndGeneration().generation()
+                    : -1L;
+                if (generation > maxPendingUploadBccGen) {
+                    return message;
+                }
+            }
+            return null;
+        }
+
+        private boolean assertGenerationIsUploadedOrPending(long generation) {
+            var errorMessage = isUploadedOrPending(generation);
+            if (errorMessage != null) {
+                assert false : errorMessage;
+            }
             return true;
+        }
+
+        private void checkGenerationIsUploadedOrPending(long generation) {
+            var errorMessage = isUploadedOrPending(generation);
+            if (errorMessage != null) {
+                assert false : errorMessage;
+                throw new IllegalStateException(errorMessage);
+            }
         }
 
         /**

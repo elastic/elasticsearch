@@ -13,12 +13,15 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
+ *
+ * This file was contributed to by generative AI
  */
 
 package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
+import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -30,8 +33,6 @@ import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBytes;
-import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -51,34 +52,19 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
     private final StatelessSharedBlobCacheService.CacheFile cacheFile;
 
     private final long length;
-    private final BlobContainer blobContainer;
-    private final CacheRangeSupplier cacheRangeSupplier;
+    private final CacheBlobReader cacheBlobReader;
     private final long offset;
-
-    @FunctionalInterface
-    interface CacheRangeSupplier {
-        /**
-         * Computes the range of bytes to fetch and to write in cache
-         *
-         * @param position the position of the read
-         * @param length the length of the read
-         * @return a range of bytes to write in cache
-         */
-        ByteRange getCacheRange(long position, int length);
-    }
 
     public SearchIndexInput(
         String name,
         StatelessSharedBlobCacheService.CacheFile cacheFile,
         IOContext context,
-        BlobContainer blobContainer,
-        CacheRangeSupplier rangeSupplier,
+        CacheBlobReader cacheBlobReader,
         long length,
         long offset
     ) {
         super(name, context);
-        this.blobContainer = blobContainer;
-        this.cacheRangeSupplier = rangeSupplier;
+        this.cacheBlobReader = cacheBlobReader;
         this.length = length;
         this.offset = offset;
         this.context = context;
@@ -111,8 +97,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
             "(" + sliceDescription + ") " + super.toString(),
             cacheFile,
             context,
-            blobContainer,
-            cacheRangeSupplier,
+            cacheBlobReader,
             length,
             this.offset + offset
         );
@@ -120,15 +105,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
 
     @Override
     public SearchIndexInput clone() {
-        SearchIndexInput searchIndexInput = new SearchIndexInput(
-            super.toString(),
-            cacheFile,
-            context,
-            blobContainer,
-            cacheRangeSupplier,
-            length,
-            offset
-        );
+        SearchIndexInput searchIndexInput = new SearchIndexInput(super.toString(), cacheFile, context, cacheBlobReader, length, offset);
         try {
             searchIndexInput.seek(getFilePointer());
         } catch (IOException e) {
@@ -177,7 +154,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
             // The range represents one or more full regions to fetch. It can also be larger (in both directions) than the file opened by
             // the current SearchIndexInput instance. The range can also be larger than the real length of the blob in the object store.
             // This is OK, we rely on the object store to return as many bytes as possible without failing.
-            final ByteRange rangeToWrite = cacheRangeSupplier.getCacheRange(position, length);
+            final ByteRange rangeToWrite = cacheBlobReader.getRange(position, length);
 
             assert rangeToWrite.start() <= position && position + length <= rangeToWrite.end()
                 : "[" + position + "-" + (position + length) + "] vs " + rangeToWrite;
@@ -197,14 +174,9 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
                 }, (channel, channelPos, relativePos, len, progressUpdater) -> {
                     final long streamStartPosition = rangeToWrite.start() + relativePos;
                     try (
-                        InputStream in = blobContainer.readBlob(
-                            OperationPurpose.INDICES,
-                            this.cacheFile.getCacheKey().fileName(),
-                            streamStartPosition,
-                            // this length is computed from the rangeToWrite and the sum of "streamStartPosition + len" can exceed the real
-                            // length of the blob in the object store
-                            len
-                        )
+                        // this length is computed from the rangeToWrite and the sum of "streamStartPosition + len" can exceed the real
+                        // length of the blob
+                        InputStream in = cacheBlobReader.getRangeInputStream(streamStartPosition, len)
                     ) {
                         assert ThreadPool.assertCurrentThreadPool(Stateless.SHARD_READ_THREAD_POOL);
                         logger.debug(
@@ -232,14 +204,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
                 if (e instanceof AlreadyClosedException || e.getCause() instanceof AlreadyClosedException) {
                     assert bytesRead == 0 : "expecting bytes read to be 0 but got: " + bytesRead + " for " + cacheFile.getCacheKey();
                     int len = length - bytesRead;
-                    try (
-                        InputStream in = blobContainer.readBlob(
-                            OperationPurpose.INDICES,
-                            this.cacheFile.getCacheKey().fileName(),
-                            position,
-                            len
-                        )
-                    ) {
+                    try (InputStream in = cacheBlobReader.getRangeInputStream(position, len)) {
                         final int read = Streams.read(in, b, len);
                         if (read == -1) {
                             BlobCacheUtils.throwEOF(position, len);

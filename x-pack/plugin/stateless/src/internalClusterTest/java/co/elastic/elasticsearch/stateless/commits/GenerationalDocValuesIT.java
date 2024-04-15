@@ -13,6 +13,8 @@
  * law.  Dissemination of this information or reproduction of
  * this material is strictly forbidden unless prior written
  * permission is obtained from Elasticsearch B.V.
+ *
+ * This file was contributed to by generative AI
  */
 
 package co.elastic.elasticsearch.stateless.commits;
@@ -21,6 +23,8 @@ import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
+import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
+import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
@@ -93,16 +97,27 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         }
 
         @Override
-        protected SearchDirectory createSearchDirectory(StatelessSharedBlobCacheService cacheService, ShardId shardId) {
-            return new TrackingSearchDirectory(cacheService, shardId, inputs);
+        protected SearchDirectory createSearchDirectory(
+            StatelessSharedBlobCacheService cacheService,
+            CacheBlobReaderService cacheBlobReaderService,
+            MutableObjectStoreUploadTracker objectStoreUploadTracker,
+            ShardId shardId
+        ) {
+            return new TrackingSearchDirectory(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId, inputs);
         }
 
         private static class TrackingSearchDirectory extends SearchDirectory {
 
             private final Set<IndexInput> inputs;
 
-            TrackingSearchDirectory(StatelessSharedBlobCacheService cacheService, ShardId shardId, Set<IndexInput> inputs) {
-                super(cacheService, shardId);
+            TrackingSearchDirectory(
+                StatelessSharedBlobCacheService cacheService,
+                CacheBlobReaderService cacheBlobReaderService,
+                MutableObjectStoreUploadTracker objectStoreUploadTracker,
+                ShardId shardId,
+                Set<IndexInput> inputs
+            ) {
+                super(cacheService, cacheBlobReaderService, objectStoreUploadTracker, shardId);
                 this.inputs = Objects.requireNonNull(inputs);
             }
 

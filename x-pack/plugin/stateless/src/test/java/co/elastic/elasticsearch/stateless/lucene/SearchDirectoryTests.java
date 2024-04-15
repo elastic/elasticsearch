@@ -19,8 +19,13 @@ package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
+import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
+import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
+import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
+import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
 import org.apache.lucene.codecs.CodecUtil;
@@ -31,6 +36,7 @@ import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -52,6 +58,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
@@ -90,15 +97,42 @@ public class SearchDirectoryTests extends ESTestCase {
             }
 
             @Override
-            protected SearchDirectory createSearchDirectory(StatelessSharedBlobCacheService sharedCacheService, ShardId shardId) {
-                return new SearchDirectory(sharedCacheService, shardId) {
+            protected SearchDirectory createSearchDirectory(
+                StatelessSharedBlobCacheService sharedCacheService,
+                ShardId shardId,
+                CacheBlobReaderService cacheBlobReaderService,
+                MutableObjectStoreUploadTracker objectStoreUploadTracker
+            ) {
+                var customCacheBlobReaderService = new CacheBlobReaderService(sharedCacheService, client) {
                     @Override
-                    protected ByteRange getCacheRange(BlobLocation blobLocation, long position, int length) {
-                        var start = BlobCacheUtils.toPageAlignedSize(Math.max(position - SharedBytes.PAGE_SIZE + 1L, 0L));
-                        var end = BlobCacheUtils.toPageAlignedSize(position + length);
-                        return ByteRange.of(start, end);
+                    public CacheBlobReader getCacheBlobReader(
+                        ShardId shardId,
+                        LongFunction<BlobContainer> blobContainer,
+                        BlobLocation location,
+                        ObjectStoreUploadTracker objectStoreUploadTracker
+                    ) {
+                        var originalCacheBlobReader = cacheBlobReaderService.getCacheBlobReader(
+                            shardId,
+                            blobContainer,
+                            location,
+                            objectStoreUploadTracker
+                        );
+                        return new CacheBlobReader() {
+                            @Override
+                            public ByteRange getRange(long position, int length) {
+                                var start = BlobCacheUtils.toPageAlignedSize(Math.max(position - SharedBytes.PAGE_SIZE + 1L, 0L));
+                                var end = BlobCacheUtils.toPageAlignedSize(position + length);
+                                return ByteRange.of(start, end);
+                            }
+
+                            @Override
+                            public InputStream getRangeInputStream(long position, int length) throws IOException {
+                                return originalCacheBlobReader.getRangeInputStream(position, length);
+                            }
+                        };
                     }
                 };
+                return super.createSearchDirectory(sharedCacheService, shardId, customCacheBlobReaderService, objectStoreUploadTracker);
             }
 
             @Override
@@ -199,7 +233,8 @@ public class SearchDirectoryTests extends ESTestCase {
                             ),
                         blobLength,
                         files.stream().map(ChecksummedFile::fileName).collect(Collectors.toSet())
-                    )
+                    ),
+                    randomBoolean() ? null : new PrimaryTermAndGeneration(primaryTerm, generation)
                 );
                 generation += 1L;
 

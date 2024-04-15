@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
@@ -96,7 +97,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.SEMANTIC_TEXT_FIELD_ADDED;
+        return TransportVersions.INFERENCE_FIELDS_METADATA;
     }
 
     @Override
@@ -167,7 +168,10 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             return inferenceResults != null ? new SemanticQueryBuilder(this, inferenceResultsSupplier, inferenceResults) : this;
         }
 
-        String inferenceId = getInferenceIdForForField(queryRewriteContext.getIndexMetadataMap().values(), fieldName);
+        String inferenceId = getInferenceIdForForField(
+            queryRewriteContext.getResolvedIndices().getConcreteLocalIndicesMetadata().values(),
+            fieldName
+        );
         SetOnce<InferenceServiceResults> inferenceResultsSupplier;
         if (inferenceId != null) {
             InferenceAction.Request inferenceRequest = new InferenceAction.Request(
@@ -176,7 +180,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 null,
                 List.of(query),
                 Map.of(),
-                InputType.SEARCH
+                InputType.SEARCH,
+                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
             );
 
             inferenceResultsSupplier = new SetOnce<>();

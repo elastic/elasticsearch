@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.InferencePlugin;
-import org.elasticsearch.xpack.inference.mapper.InferenceMetadataFieldMapper;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -71,14 +70,14 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     private static final String SPARSE_EMBEDDING_INFERENCE_RESULTS = Strings.format("""
             {
                 "%s": {
-                    "%s": {
+                    "inference": {
                         "inference_id": "test_service",
                         "model_settings": {
                             "task_type": "SPARSE_EMBEDDING"
                         },
                         "chunks": [
                             {
-                                "inference": {
+                                "embeddings": {
                                     "feature_0": 1.0
                                 },
                                 "text": "feature_0"
@@ -87,13 +86,13 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                     }
                 }
             }
-        """, InferenceMetadataFieldMapper.NAME, SEMANTIC_TEXT_FIELD);
+        """, SEMANTIC_TEXT_FIELD);
 
     private static final String TEXT_EMBEDDING_INFERENCE_RESULTS = Strings.format(
         """
                 {
                     "%s": {
-                        "%s": {
+                        "inference": {
                             "inference_id": "test_service",
                             "model_settings": {
                                 "task_type": "TEXT_EMBEDDING",
@@ -102,7 +101,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                             },
                             "chunks": [
                                 {
-                                    "inference": %s,
+                                    "embeddings": %s,
                                     "text": "feature_0"
                                 }
                             ]
@@ -110,7 +109,6 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                     }
                 }
             """,
-        InferenceMetadataFieldMapper.NAME,
         SEMANTIC_TEXT_FIELD,
         TEXT_EMBEDDING_DIMENSION_COUNT,
         generateTextEmbeddingVector(TEXT_EMBEDDING_DIMENSION_COUNT)

@@ -67,6 +67,8 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_ID_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOriginalTextFieldName;
 
 /**
@@ -333,8 +335,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
 
         public QueryBuilder semanticQuery(InferenceResults inferenceResults, float boost, String queryName) {
-            String nestedFieldPath = name() + "." + CHUNKS;
-            String inferenceResultsFieldName = nestedFieldPath + "." + INFERENCE_CHUNKS_RESULTS;
+            String nestedFieldPath = getChunksFieldName(name());
+            String inferenceResultsFieldName = getEmbeddingsFieldName(name());
             QueryBuilder childQueryBuilder;
 
             if (modelSettings == null) {

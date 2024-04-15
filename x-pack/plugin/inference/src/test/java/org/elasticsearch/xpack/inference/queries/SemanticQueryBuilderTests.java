@@ -88,31 +88,26 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             }
         """, SEMANTIC_TEXT_FIELD);
 
-    private static final String TEXT_EMBEDDING_INFERENCE_RESULTS = Strings.format(
-        """
-                {
-                    "%s": {
-                        "inference": {
-                            "inference_id": "test_service",
-                            "model_settings": {
-                                "task_type": "TEXT_EMBEDDING",
-                                "dimensions": %d,
-                                "similarity": "cosine"
-                            },
-                            "chunks": [
-                                {
-                                    "embeddings": %s,
-                                    "text": "feature_0"
-                                }
-                            ]
-                        }
+    private static final String TEXT_EMBEDDING_INFERENCE_RESULTS = Strings.format("""
+            {
+                "%s": {
+                    "inference": {
+                        "inference_id": "test_service",
+                        "model_settings": {
+                            "task_type": "TEXT_EMBEDDING",
+                            "dimensions": %d,
+                            "similarity": "cosine"
+                        },
+                        "chunks": [
+                            {
+                                "embeddings": %s,
+                                "text": "feature_0"
+                            }
+                        ]
                     }
                 }
-            """,
-        SEMANTIC_TEXT_FIELD,
-        TEXT_EMBEDDING_DIMENSION_COUNT,
-        generateTextEmbeddingVector(TEXT_EMBEDDING_DIMENSION_COUNT)
-    );
+            }
+        """, SEMANTIC_TEXT_FIELD, TEXT_EMBEDDING_DIMENSION_COUNT, generateTextEmbeddingVector(TEXT_EMBEDDING_DIMENSION_COUNT));
 
     private static InferenceResultType inferenceResultType;
 

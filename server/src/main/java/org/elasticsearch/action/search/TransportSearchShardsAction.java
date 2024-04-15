@@ -10,8 +10,8 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RemoteClusterActionType;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,7 +28,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 
@@ -38,8 +37,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 
 /**
  * An internal search shards API performs the can_match phase and returns target shards of indices that might match a query.
@@ -104,31 +101,23 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
             System::nanoTime
         );
 
-        ClusterState clusterState = clusterService.state();
-        final Map<String, OriginalIndices> groupedIndices = remoteClusterService.groupIndices(
-            original.indicesOptions(),
-            original.indices()
+        final ClusterState clusterState = clusterService.state();
+        final ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndicesRequest(
+            searchShardsRequest,
+            clusterState,
+            indexNameExpressionResolver,
+            remoteClusterService,
+            timeProvider.absoluteStartMillis()
         );
-        final OriginalIndices originalIndices = groupedIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        if (groupedIndices.isEmpty() == false) {
-            throw new UnsupportedOperationException("search_shards API doesn't support remote indices " + original);
+        if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false) {
+            throw new UnsupportedOperationException("search_shards API doesn't support remote indices " + searchShardsRequest);
         }
-
-        final AtomicReference<Index[]> resolvedLocalIndices = new AtomicReference<>();
-        final Supplier<Index[]> resolvedLocalIndicesSupplier = () -> {
-            resolvedLocalIndices.compareAndSet(
-                null,
-                transportSearchAction.resolveLocalIndices(originalIndices, clusterState, timeProvider)
-            );
-            return resolvedLocalIndices.get();
-        };
 
         Rewriteable.rewriteAndFetch(
             original,
-            searchService.getRewriteContext(timeProvider::absoluteStartMillis, resolvedLocalIndicesSupplier),
+            searchService.getRewriteContext(timeProvider::absoluteStartMillis, resolvedIndices),
             listener.delegateFailureAndWrap((delegate, searchRequest) -> {
-                // TODO: Move a share stuff out of the TransportSearchAction.
-                Index[] concreteIndices = resolvedLocalIndicesSupplier.get();
+                Index[] concreteIndices = resolvedIndices.getConcreteLocalIndices();
                 final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, searchRequest.indices());
                 final Map<String, AliasFilter> aliasFilters = transportSearchAction.buildIndexAliasFilters(
                     clusterState,

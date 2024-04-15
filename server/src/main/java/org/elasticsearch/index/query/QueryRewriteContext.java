@@ -8,8 +8,8 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
@@ -38,7 +38,6 @@ import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -62,7 +61,7 @@ public class QueryRewriteContext {
     protected boolean allowUnmappedFields;
     protected boolean mapUnmappedFieldAsString;
     protected Predicate<String> allowedFields;
-    private final Supplier<Map<String, IndexMetadata>> indexMetadataMapSupplier;
+    private final ResolvedIndices resolvedIndices;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -78,7 +77,7 @@ public class QueryRewriteContext {
         final ValuesSourceRegistry valuesSourceRegistry,
         final BooleanSupplier allowExpensiveQueries,
         final ScriptCompiler scriptService,
-        final Supplier<Map<String, IndexMetadata>> indexMetadataMapSupplier
+        final ResolvedIndices resolvedIndices
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -95,7 +94,7 @@ public class QueryRewriteContext {
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.scriptService = scriptService;
-        this.indexMetadataMapSupplier = indexMetadataMapSupplier;
+        this.resolvedIndices = resolvedIndices;
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -121,7 +120,7 @@ public class QueryRewriteContext {
         final XContentParserConfiguration parserConfiguration,
         final Client client,
         final LongSupplier nowInMillis,
-        final Supplier<Map<String, IndexMetadata>> indexMetadataMapSupplier
+        final ResolvedIndices resolvedIndices
     ) {
         this(
             parserConfiguration,
@@ -137,7 +136,7 @@ public class QueryRewriteContext {
             null,
             null,
             null,
-            indexMetadataMapSupplier
+            resolvedIndices
         );
     }
 
@@ -388,8 +387,7 @@ public class QueryRewriteContext {
         return () -> Iterators.concat(allEntrySet.iterator(), runtimeEntrySet.iterator());
     }
 
-    public Map<String, IndexMetadata> getIndexMetadataMap() {
-        Map<String, IndexMetadata> indexMetadataMap = indexMetadataMapSupplier != null ? indexMetadataMapSupplier.get() : null;
-        return indexMetadataMap != null ? indexMetadataMap : Collections.emptyMap();
+    public ResolvedIndices getResolvedIndices() {
+        return resolvedIndices;
     }
 }

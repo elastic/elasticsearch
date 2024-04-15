@@ -18,6 +18,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
@@ -169,7 +170,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -1724,24 +1724,8 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, Supplier<Index[]> resolvedLocalIndicesSupplier) {
-        Objects.requireNonNull(resolvedLocalIndicesSupplier);
-
-        Supplier<Map<String, IndexMetadata>> indexMetadataMapSupplier = () -> {
-            Map<String, IndexMetadata> indexMetadataMap = new HashMap<>();
-            for (Index index : resolvedLocalIndicesSupplier.get()) {
-                IndexMetadata indexMetadata = clusterService.state().metadata().index(index);
-                if (indexMetadata == null) {
-                    throw new IndexNotFoundException(index);
-                }
-
-                indexMetadataMap.put(index.getName(), indexMetadata);
-            }
-
-            return indexMetadataMap;
-        };
-
-        return new QueryRewriteContext(parserConfig, client, nowInMillis, indexMetadataMapSupplier);
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices) {
+        return new QueryRewriteContext(parserConfig, client, nowInMillis, resolvedIndices);
     }
 
     public DataRewriteContext getDataRewriteContext(LongSupplier nowInMillis) {

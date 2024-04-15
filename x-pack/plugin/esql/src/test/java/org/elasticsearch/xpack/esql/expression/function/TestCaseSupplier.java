@@ -72,7 +72,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         this(nameFromTypes(types), types, supplier);
     }
 
-    static String nameFromTypes(List<DataType> types) {
+    public static String nameFromTypes(List<DataType> types) {
         return types.stream().map(t -> "<" + t.typeName() + ">").collect(Collectors.joining(", "));
     }
 
@@ -194,7 +194,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return suppliers;
     }
 
-    private static void casesCrossProduct(
+    public static void casesCrossProduct(
         BinaryOperator<Object> expected,
         List<TypedDataSupplier> lhsSuppliers,
         List<TypedDataSupplier> rhsSuppliers,
@@ -251,10 +251,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
     public static List<TypedDataSupplier> castToDoubleSuppliersFromRange(Double Min, Double Max) {
         List<TypedDataSupplier> suppliers = new ArrayList<>();
-        suppliers.addAll(intCases(Min.intValue(), Max.intValue()));
-        suppliers.addAll(longCases(Min.longValue(), Max.longValue()));
-        suppliers.addAll(ulongCases(BigInteger.valueOf((long) Math.ceil(Min)), BigInteger.valueOf((long) Math.floor(Max))));
-        suppliers.addAll(doubleCases(Min, Max));
+        suppliers.addAll(intCases(Min.intValue(), Max.intValue(), true));
+        suppliers.addAll(longCases(Min.longValue(), Max.longValue(), true));
+        suppliers.addAll(ulongCases(BigInteger.valueOf((long) Math.ceil(Min)), BigInteger.valueOf((long) Math.floor(Max)), true));
+        suppliers.addAll(doubleCases(Min, Max, true));
         return suppliers;
     }
 
@@ -279,7 +279,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
     }
 
-    private static DataType widen(DataType lhs, DataType rhs) {
+    public static DataType widen(DataType lhs, DataType rhs) {
         if (lhs == rhs) {
             return lhs;
         }
@@ -292,21 +292,22 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         throw new IllegalArgumentException("Invalid numeric widening lhs: [" + lhs + "] rhs: [" + rhs + "]");
     }
 
-    private static List<TypedDataSupplier> getSuppliersForNumericType(DataType type, Number min, Number max) {
+    public static List<TypedDataSupplier> getSuppliersForNumericType(DataType type, Number min, Number max, boolean includeZero) {
         if (type == DataTypes.INTEGER) {
-            return intCases(NumericUtils.saturatingIntValue(min), NumericUtils.saturatingIntValue(max));
+            return intCases(NumericUtils.saturatingIntValue(min), NumericUtils.saturatingIntValue(max), includeZero);
         }
         if (type == DataTypes.LONG) {
-            return longCases(min.longValue(), max.longValue());
+            return longCases(min.longValue(), max.longValue(), includeZero);
         }
         if (type == DataTypes.UNSIGNED_LONG) {
             return ulongCases(
                 min instanceof BigInteger ? (BigInteger) min : BigInteger.valueOf(Math.max(min.longValue(), 0L)),
-                max instanceof BigInteger ? (BigInteger) max : BigInteger.valueOf(Math.max(max.longValue(), 0L))
+                max instanceof BigInteger ? (BigInteger) max : BigInteger.valueOf(Math.max(max.longValue(), 0L)),
+                includeZero
             );
         }
         if (type == DataTypes.DOUBLE) {
-            return doubleCases(min.doubleValue(), max.doubleValue());
+            return doubleCases(min.doubleValue(), max.doubleValue(), includeZero);
         }
         throw new IllegalArgumentException("bogus numeric type [" + type + "]");
     }
@@ -315,7 +316,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         NumericTypeTestConfigs typeStuff,
         String lhsName,
         String rhsName,
-        List<String> warnings
+        List<String> warnings,
+        boolean allowRhsZero
     ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         List<DataType> numericTypes = List.of(DataTypes.INTEGER, DataTypes.LONG, DataTypes.DOUBLE);
@@ -336,13 +338,13 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                     + "]";
                 casesCrossProduct(
                     (l, r) -> expectedTypeStuff.expected().apply((Number) l, (Number) r),
-                    getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max()),
-                    getSuppliersForNumericType(rhsType, expectedTypeStuff.min(), expectedTypeStuff.max()),
+                    getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), true),
+                    getSuppliersForNumericType(rhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), allowRhsZero),
                     evaluatorToString,
                     warnings,
                     suppliers,
                     expected,
-                    true
+                    false
                 );
             }
         }
@@ -358,7 +360,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         DataType expectedType,
         List<TypedDataSupplier> lhsSuppliers,
         List<TypedDataSupplier> rhsSuppliers,
-        List<String> warnings
+        List<String> warnings,
+        boolean symmetric
     ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         casesCrossProduct(
@@ -369,7 +372,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             warnings,
             suppliers,
             expectedType,
-            true
+            symmetric
         );
         return suppliers;
     }
@@ -389,7 +392,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         unaryNumeric(
             suppliers,
             expectedEvaluatorToString,
-            intCases(lowerBound, upperBound),
+            intCases(lowerBound, upperBound, true),
             expectedType,
             n -> expectedValue.apply(n.intValue()),
             n -> expectedWarnings.apply(n.intValue())
@@ -423,7 +426,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         unaryNumeric(
             suppliers,
             expectedEvaluatorToString,
-            longCases(lowerBound, upperBound),
+            longCases(lowerBound, upperBound, true),
             expectedType,
             n -> expectedValue.apply(n.longValue()),
             expectedWarnings
@@ -457,7 +460,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         unaryNumeric(
             suppliers,
             expectedEvaluatorToString,
-            ulongCases(lowerBound, upperBound),
+            ulongCases(lowerBound, upperBound, true),
             expectedType,
             n -> expectedValue.apply((BigInteger) n),
             n -> expectedWarnings.apply((BigInteger) n)
@@ -503,7 +506,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         unaryNumeric(
             suppliers,
             expectedEvaluatorToString,
-            doubleCases(lowerBound, upperBound),
+            doubleCases(lowerBound, upperBound, true),
             expectedType,
             n -> expectedValue.apply(n.doubleValue()),
             n -> expectedWarnings.apply(n.doubleValue())
@@ -729,9 +732,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         unary(suppliers, expectedEvaluatorToString, valueSuppliers, expectedOutputType, expected, unused -> warnings);
     }
 
-    public static List<TypedDataSupplier> intCases(int min, int max) {
+    public static List<TypedDataSupplier> intCases(int min, int max, boolean includeZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
-        if (0 <= max && 0 >= min) {
+        if (0 <= max && 0 >= min && includeZero) {
             cases.add(new TypedDataSupplier("<0 int>", () -> 0, DataTypes.INTEGER));
         }
 
@@ -753,9 +756,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
-    public static List<TypedDataSupplier> longCases(long min, long max) {
+    public static List<TypedDataSupplier> longCases(long min, long max, boolean includeZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
-        if (0L <= max && 0L >= min) {
+        if (0L <= max && 0L >= min && includeZero) {
             cases.add(new TypedDataSupplier("<0 long>", () -> 0L, DataTypes.LONG));
         }
 
@@ -778,11 +781,11 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
-    public static List<TypedDataSupplier> ulongCases(BigInteger min, BigInteger max) {
+    public static List<TypedDataSupplier> ulongCases(BigInteger min, BigInteger max, boolean includeZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
         // Zero
-        if (BigInteger.ZERO.compareTo(max) <= 0 && BigInteger.ZERO.compareTo(min) >= 0) {
+        if (BigInteger.ZERO.compareTo(max) <= 0 && BigInteger.ZERO.compareTo(min) >= 0 && includeZero) {
             cases.add(new TypedDataSupplier("<0 unsigned long>", () -> BigInteger.ZERO, DataTypes.UNSIGNED_LONG));
         }
 
@@ -818,11 +821,11 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
-    public static List<TypedDataSupplier> doubleCases(double min, double max) {
+    public static List<TypedDataSupplier> doubleCases(double min, double max, boolean includeZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
         // Zeros
-        if (0d <= max && 0d >= min) {
+        if (0d <= max && 0d >= min && includeZero) {
             cases.add(new TypedDataSupplier("<0 double>", () -> 0.0d, DataTypes.DOUBLE));
             cases.add(new TypedDataSupplier("<-0 double>", () -> -0.0d, DataTypes.DOUBLE));
         }
@@ -1046,7 +1049,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
-    private static String getCastEvaluator(String original, DataType current, DataType target) {
+    public static String getCastEvaluator(String original, DataType current, DataType target) {
         if (current == target) {
             return original;
         }
@@ -1323,6 +1326,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
          */
         public TypedData forceLiteral() {
             return new TypedData(data, type, name, true);
+        }
+
+        /**
+         * Return a {@link TypedData} that always returns {@code null} for it's
+         * value without modifying anything else in the supplier.
+         */
+        public TypedData forceValueToNull() {
+            return new TypedData(null, type, name, forceLiteral);
         }
 
         @Override

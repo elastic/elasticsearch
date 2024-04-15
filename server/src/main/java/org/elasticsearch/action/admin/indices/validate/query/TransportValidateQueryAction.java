@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.indices.validate.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -28,7 +28,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
@@ -40,7 +39,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 
@@ -49,10 +47,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 
 public class TransportValidateQueryAction extends TransportBroadcastAction<
     ValidateQueryRequest,
@@ -90,11 +86,14 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         request.nowInMillis = System.currentTimeMillis();
         LongSupplier timeProvider = () -> request.nowInMillis;
 
-        final AtomicReference<Index[]> resolvedLocalIndices = new AtomicReference<>();
-        Supplier<Index[]> resolvedLocalIndicesSupplier = () -> {
-            resolvedLocalIndices.compareAndSet(null, resolveLocalIndices(request));
-            return resolvedLocalIndices.get();
-        };
+        // Indices are resolved twice (they are resolved again later by the base class), but that's ok for this action type
+        ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndicesRequest(
+            request,
+            clusterService.state(),
+            indexNameExpressionResolver,
+            remoteClusterService,
+            request.nowInMillis
+        );
 
         ActionListener<org.elasticsearch.index.query.QueryBuilder> rewriteListener = ActionListener.wrap(rewrittenQuery -> {
             request.query(rewrittenQuery);
@@ -122,11 +121,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         if (request.query() == null) {
             rewriteListener.onResponse(request.query());
         } else {
-            Rewriteable.rewriteAndFetch(
-                request.query(),
-                searchService.getRewriteContext(timeProvider, resolvedLocalIndicesSupplier),
-                rewriteListener
-            );
+            Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(timeProvider, resolvedIndices), rewriteListener);
         }
     }
 
@@ -244,17 +239,5 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         } else {
             return query.toString();
         }
-    }
-
-    private Index[] resolveLocalIndices(ValidateQueryRequest request) {
-        OriginalIndices localIndices = remoteClusterService.groupIndices(request.indicesOptions(), request.indices())
-            .get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-
-        if (localIndices == null) {
-            return Index.EMPTY_ARRAY;
-        }
-
-        // TODO: Need to provide start time?
-        return indexNameExpressionResolver.concreteIndices(clusterService.state(), localIndices);
     }
 }

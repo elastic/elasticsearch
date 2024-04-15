@@ -12,6 +12,8 @@ setup:
                 type: keyword
               b:
                 type: keyword
+          aliases:
+            myalias: {}
 
   - do:
       bulk:
@@ -104,3 +106,84 @@ enrich documents over _bulk:
       _source:
         baz: slow
         c: 3
+
+---
+enrich documents over _bulk via an alias:
+  - do:
+      enrich.put_policy:
+        name: test_alias_policy
+        body:
+          match:
+            indices: ["myalias"]
+            match_field: baz
+            enrich_fields: ["a", "b"]
+
+  - do:
+      enrich.execute_policy:
+        name: test_alias_policy
+
+  - do:
+      ingest.put_pipeline:
+        id: test_alias_pipeline
+        body:
+          processors:
+            - enrich:
+                policy_name: test_alias_policy
+                field: baz
+                target_field: target
+
+
+  - do:
+      bulk:
+        refresh: true
+        index: target
+        pipeline: test_alias_pipeline
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"baz": "quick", "c": 1}'
+          - '{"index": {"_id": "2"}}'
+          - '{"baz": "lazy", "c": 2}'
+          - '{"index": {"_id": "3"}}'
+          - '{"baz": "slow", "c": 3}'
+
+  - do:
+      get:
+        index: target
+        id: "1"
+  - match:
+      _source:
+        baz: quick
+        target:
+          baz: quick
+          a: brown
+          b: fox
+        c: 1
+
+  - do:
+      get:
+        index: target
+        id: "2"
+  - match:
+      _source:
+        baz: lazy
+        target:
+          baz: lazy
+          a: dog
+        c: 2
+
+  - do:
+      get:
+        index: target
+        id: "3"
+  - match:
+      _source:
+        baz: slow
+        c: 3
+
+  - do:
+      ingest.delete_pipeline:
+        id: test_alias_pipeline
+
+  - do:
+      enrich.delete_policy:
+        name: test_alias_policy

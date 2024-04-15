@@ -12,7 +12,7 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
@@ -38,16 +37,13 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 
 /**
  * Explain transport action. Computes the explain on the targeted shard.
@@ -86,11 +82,14 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     protected void doExecute(Task task, ExplainRequest request, ActionListener<ExplainResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
 
-        final AtomicReference<Index[]> resolvedLocalIndices = new AtomicReference<>();
-        Supplier<Index[]> resolvedLocalIndicesSupplier = () -> {
-            resolvedLocalIndices.compareAndSet(null, resolveLocalIndices(request));
-            return resolvedLocalIndices.get();
-        };
+        // Indices are resolved twice (they are resolved again later by the base class), but that's ok for this action type
+        ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndicesRequest(
+            request,
+            clusterService.state(),
+            indexNameExpressionResolver,
+            remoteClusterService,
+            request.nowInMillis
+        );
 
         ActionListener<QueryBuilder> rewriteListener = listener.delegateFailureAndWrap((l, rewrittenQuery) -> {
             request.query(rewrittenQuery);
@@ -99,11 +98,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
         assert request.query() != null;
         LongSupplier timeProvider = () -> request.nowInMillis;
-        Rewriteable.rewriteAndFetch(
-            request.query(),
-            searchService.getRewriteContext(timeProvider, resolvedLocalIndicesSupplier),
-            rewriteListener
-        );
+        Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(timeProvider, resolvedIndices), rewriteListener);
     }
 
     @Override
@@ -192,17 +187,5 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         return indexService.getIndexSettings().isSearchThrottled()
             ? threadPool.executor(ThreadPool.Names.SEARCH_THROTTLED)
             : super.getExecutor(request, shardId);
-    }
-
-    private Index[] resolveLocalIndices(ExplainRequest request) {
-        OriginalIndices localIndices = remoteClusterService.groupIndices(request.indicesOptions(), request.indices())
-            .get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-
-        if (localIndices == null) {
-            return Index.EMPTY_ARRAY;
-        }
-
-        // TODO: Need to provide start time?
-        return indexNameExpressionResolver.concreteIndices(clusterService.state(), localIndices);
     }
 }

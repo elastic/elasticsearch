@@ -9,6 +9,12 @@
     </button>
     <button role="tab"
             aria-selected="false"
+            aria-controls="infer-api-requirements-hf-tab"
+            id="infer-api-requirements-hf">
+      HuggingFace
+    </button>
+    <button role="tab"
+            aria-selected="false"
             aria-controls="infer-api-requirements-openai-tab"
             id="infer-api-requirements-openai">
       OpenAI
@@ -21,6 +27,17 @@
 ++++
 
 include::infer-api-requirements.asciidoc[tag=cohere]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-requirements-hf-tab"
+       aria-labelledby="infer-api-requirements-hf"
+       hidden="">
+++++
+
+include::infer-api-requirements.asciidoc[tag=hugging-face]
 
 ++++
   </div>

@@ -182,6 +182,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         this.statelessUploadDelayed = STATELESS_UPLOAD_DELAYED.get(settings);
     }
 
+    public boolean isStatelessUploadDelayed() {
+        return statelessUploadDelayed;
+    }
+
     public void markRecoveredBcc(ShardId shardId, BatchedCompoundCommit recoveredBcc, Set<BlobFile> unreferencedFiles) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         assert recoveredBcc != null;

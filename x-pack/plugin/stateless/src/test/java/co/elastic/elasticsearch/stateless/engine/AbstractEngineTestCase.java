@@ -161,11 +161,11 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
     }
 
     protected IndexEngine newIndexEngine(final EngineConfig indexConfig, final TranslogReplicator translogReplicator) {
-        StatelessCommitService commitService = mockCommitService();
+        StatelessCommitService commitService = mockCommitService(indexConfig.getIndexSettings().getNodeSettings());
         return newIndexEngine(indexConfig, translogReplicator, mock(ObjectStoreService.class), commitService);
     }
 
-    protected static StatelessCommitService mockCommitService() {
+    protected static StatelessCommitService mockCommitService(Settings settings) {
         StatelessCommitService commitService = mock(StatelessCommitService.class);
         doAnswer(invocation -> {
             ActionListener<Void> argument = invocation.getArgument(2);
@@ -178,6 +178,9 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         when(commitService.getCommitBCCResolverForShard(any(ShardId.class))).thenReturn(
             generation -> Set.of(new PrimaryTermAndGeneration(1, generation))
         );
+        if (StatelessCommitService.STATELESS_UPLOAD_DELAYED.get(settings)) {
+            when(commitService.isStatelessUploadDelayed()).thenReturn(true);
+        }
 
         return commitService;
     }

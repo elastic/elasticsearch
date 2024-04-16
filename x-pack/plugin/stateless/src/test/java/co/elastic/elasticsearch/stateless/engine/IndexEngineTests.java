@@ -39,12 +39,17 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.LongStream;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -150,6 +155,131 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         }
     }
 
+    public void testRefreshesWaitForUploadByDefault() throws IOException {
+        Settings nodeSettings = Settings.builder().put(Stateless.STATELESS_ENABLED.getKey(), true).build();
+
+        try (
+            var engine = newIndexEngine(
+                indexConfig(
+                    Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build(),
+                    nodeSettings,
+                    () -> 1L,
+                    NoMergePolicy.INSTANCE
+                )
+            )
+        ) {
+            final var statelessCommitService = engine.getStatelessCommitService();
+            assertThat(statelessCommitService.isStatelessUploadDelayed(), is(false));
+            doTestRefreshesWaitForUploadBehaviours(engine);
+        }
+    }
+
+    public void testRefreshesDoesNotWaitForUploadWithStatelessUploadDelayed() throws IOException {
+        Settings nodeSettings = Settings.builder()
+            .put(Stateless.STATELESS_ENABLED.getKey(), true)
+            .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
+            .build();
+
+        try (
+            var engine = newIndexEngine(
+                indexConfig(
+                    Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build(),
+                    nodeSettings,
+                    () -> 1L,
+                    NoMergePolicy.INSTANCE
+                )
+            )
+        ) {
+            final var statelessCommitService = engine.getStatelessCommitService();
+            assertThat(statelessCommitService.isStatelessUploadDelayed(), is(true));
+            doTestRefreshesWaitForUploadBehaviours(engine);
+        }
+    }
+
+    private void doTestRefreshesWaitForUploadBehaviours(IndexEngine engine) throws IOException {
+        var statelessCommitService = engine.getStatelessCommitService();
+
+        // External refresh
+        engine.index(randomDoc(String.valueOf(0)));
+        assertTrue(engine.refreshNeeded());
+        var future = new PlainActionFuture<Engine.RefreshResult>();
+        engine.externalRefresh("test", future);
+        Engine.RefreshResult refreshResult = future.actionGet();
+        assertFalse(engine.refreshNeeded());
+        if (statelessCommitService.isStatelessUploadDelayed() == false) {
+            verify(statelessCommitService, times(1)).addListenerForUploadedGeneration(
+                any(),
+                eq(refreshResult.generation()),
+                anyActionListener()
+            );
+        } else {
+            verify(statelessCommitService, never()).addListenerForUploadedGeneration(any(), anyLong(), anyActionListener());
+        }
+
+        // Scheduled refresh
+        engine.index(randomDoc(String.valueOf(1)));
+        assertTrue(engine.refreshNeeded());
+        future = new PlainActionFuture<>();
+        engine.maybeRefresh("test", future);
+        refreshResult = future.actionGet();
+        assertFalse(engine.refreshNeeded());
+        if (statelessCommitService.isStatelessUploadDelayed() == false) {
+            verify(statelessCommitService, times(1)).addListenerForUploadedGeneration(
+                any(),
+                eq(refreshResult.generation()),
+                anyActionListener()
+            );
+        } else {
+            verify(statelessCommitService, never()).addListenerForUploadedGeneration(any(), anyLong(), anyActionListener());
+        }
+
+        // Internal refresh RTG
+        engine.index(randomDoc(String.valueOf(2)));
+        assertTrue(engine.refreshNeeded());
+        refreshResult = engine.refreshInternalSearcher(randomFrom("realtime_get", "unsafe_version_map"), true);
+        if (statelessCommitService.isStatelessUploadDelayed() == false) {
+            verify(statelessCommitService, times(1)).addListenerForUploadedGeneration(
+                any(),
+                eq(refreshResult.generation()),
+                anyActionListener()
+            );
+        } else {
+            verify(statelessCommitService, never()).addListenerForUploadedGeneration(any(), anyLong(), anyActionListener());
+        }
+    }
+
+    public void testFlushesWaitForUpload() throws IOException {
+        Settings nodeSettings = Settings.builder()
+            .put(Stateless.STATELESS_ENABLED.getKey(), true)
+            .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), randomBoolean())
+            .build();
+
+        try (
+            var engine = newIndexEngine(
+                indexConfig(
+                    Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build(),
+                    nodeSettings,
+                    () -> 1L,
+                    NoMergePolicy.INSTANCE
+                )
+            )
+        ) {
+            final var statelessCommitService = engine.getStatelessCommitService();
+            when(statelessCommitService.isStatelessUploadDelayed()).thenReturn(randomBoolean());
+
+            engine.index(randomDoc(String.valueOf(0)));
+            final PlainActionFuture<Engine.FlushResult> future = new PlainActionFuture<>();
+            final boolean force = randomBoolean();
+            engine.flush(force, force || randomBoolean(), future);
+            final Engine.FlushResult flushResult = future.actionGet();
+            verify(statelessCommitService, times(1)).addListenerForUploadedGeneration(
+                any(),
+                eq(flushResult.generation()),
+                anyActionListener()
+            );
+        }
+    }
+
     public void testStartingTranslogFileIsPlaceInUserData() throws Exception {
         Settings nodeSettings = Settings.builder().put(Stateless.STATELESS_ENABLED.getKey(), true).build();
 
@@ -184,7 +314,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
      */
     public void testClosedReaders() throws IOException {
         TranslogReplicator translogReplicator = mock(TranslogReplicator.class);
-        StatelessCommitService commitService = mockCommitService();
+        StatelessCommitService commitService = mockCommitService(Settings.EMPTY);
         Set<PrimaryTermAndGeneration> openReaderGenerations = new HashSet<>();
         Set<Long> closedReaderGenerations = new HashSet<>();
         when(commitService.getCommitBCCResolverForShard(any())).thenReturn(commitGeneration -> {

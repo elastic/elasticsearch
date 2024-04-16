@@ -124,6 +124,28 @@ public class StatelessCommitServiceTests extends ESTestCase {
         super.tearDown();
     }
 
+    public void testStatelessUploadDelayedFlag() throws IOException {
+        final long primaryTerm = randomLongBetween(1L, 1000L);
+        final boolean statelessUploadDelayed = randomBoolean();
+        // Randomly leave the setting un-configured for its default value
+        final boolean explicitConfiguration = statelessUploadDelayed || randomBoolean();
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                if (explicitConfiguration) {
+                    return Settings.builder()
+                        .put(super.nodeSettings())
+                        .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), statelessUploadDelayed)
+                        .build();
+                } else {
+                    return super.nodeSettings();
+                }
+            }
+        }) {
+            assertThat(testHarness.commitService.isStatelessUploadDelayed(), is(statelessUploadDelayed));
+        }
+    }
+
     public void testCommitUpload() throws Exception {
         Set<String> uploadedBlobs = Collections.newSetFromMap(new ConcurrentHashMap<>());
         try (var testHarness = createNode(fileCapture(uploadedBlobs), fileCapture(uploadedBlobs))) {

@@ -18,8 +18,6 @@ import org.elasticsearch.script.Script;
 
 import java.util.Objects;
 
-import static org.elasticsearch.search.runtime.AbstractIpScriptFieldQuery.decode;
-
 public class IpScriptFieldTermsQuery extends AbstractIpScriptFieldQuery {
     private final BytesRefHash terms;
 
@@ -38,7 +36,7 @@ public class IpScriptFieldTermsQuery extends AbstractIpScriptFieldQuery {
     }
 
     @Override
-    protected boolean matches(BytesRef[] values, int count) {
+    protected final boolean matches(BytesRef[] values, int count) {
         throw new UnsupportedOperationException("This leads to non-thread safe usage of BytesRefHash; use createTwoPhaseIterator instead");
     }
 
@@ -49,12 +47,12 @@ public class IpScriptFieldTermsQuery extends AbstractIpScriptFieldQuery {
 
     protected final TwoPhaseIterator createTwoPhaseIterator(IpFieldScript scriptContext, DocIdSetIterator approximation) {
         return new TwoPhaseIterator(approximation) {
-            private final BytesRef bytesRef = new BytesRef();
+            private final BytesRefHash.Finder finder = terms.newFinder();
 
             @Override
             public boolean matches() {
                 // We need to use a thread safe finder, as this can be called from multiple threads
-                return IpScriptFieldTermsQuery.this.matches(scriptContext, approximation.docID(), terms.newFinder());
+                return IpScriptFieldTermsQuery.this.matches(scriptContext, approximation.docID(), finder);
             }
 
             @Override

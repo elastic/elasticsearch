@@ -129,13 +129,13 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         return bytesRefs.get(id, dest);
     }
 
+    /**
+     * Get the id associated with <code>key</code>
+     */
     public long find(BytesRef key, int code) {
         return find(key, code, spare);
     }
 
-    /**
-     * Get the id associated with <code>key</code>
-     */
     private long find(BytesRef key, int code, BytesRef intermediate) {
         final long slot = slot(rehash(code), mask);
         for (long index = slot;; index = nextSlot(index, mask)) {
@@ -249,13 +249,13 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         return BASE_RAM_BYTES_USED + bytesRefs.ramBytesUsed() + ids.ramBytesUsed() + hashes.ramBytesUsed() + spare.bytes.length;
     }
 
+    /**
+     * Returns a finder class that can be used to find keys in the hash in a thread-safe manner
+     */
     public Finder newFinder() {
         return new Finder();
     }
 
-    /**
-     * Returns a finder class that can be used to find keys in the hash in a thread-safe manner
-     */
     public class Finder {
         private final BytesRef intermediate = new BytesRef();
 

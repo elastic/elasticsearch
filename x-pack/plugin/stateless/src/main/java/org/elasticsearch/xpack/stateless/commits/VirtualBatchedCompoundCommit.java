@@ -356,6 +356,11 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         return internalLocations;
     }
 
+    public StatelessCompoundCommit lastCompoundCommit() {
+        assert pendingCompoundCommits.isEmpty() == false;
+        return pendingCompoundCommits.last().getStatelessCompoundCommit();
+    }
+
     public long getMaxGeneration() {
         assert pendingCompoundCommits.isEmpty() == false;
         return pendingCompoundCommits.last().getGeneration();

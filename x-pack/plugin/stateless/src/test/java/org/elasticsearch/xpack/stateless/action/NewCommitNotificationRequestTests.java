@@ -39,6 +39,7 @@ import java.util.Set;
 import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.NEW_COMMIT_NOTIFICATION_WITH_BCC_INFO;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class NewCommitNotificationRequestTests extends AbstractWireSerializingTestCase<NewCommitNotificationRequest> {
@@ -175,6 +176,40 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
                     + "]"
             )
         );
+    }
+
+    public void testIsUpload() {
+        final long primaryTerm = randomLongBetween(10, 42);
+        final long generation = randomLongBetween(10, 100);
+        final long bccGeneration = randomLongBetween(5, generation);
+        final StatelessCompoundCommit statelessCompoundCommit = new StatelessCompoundCommit(
+            indexShardRoutingTable.shardId(),
+            generation,
+            primaryTerm,
+            randomUUID(),
+            Map.of(),
+            randomLongBetween(10, 100),
+            Set.of()
+        );
+
+        var request = new NewCommitNotificationRequest(indexShardRoutingTable, statelessCompoundCommit, bccGeneration, null);
+        assertThat(request.toString(), request.isUpload(), is(false));
+
+        request = new NewCommitNotificationRequest(
+            indexShardRoutingTable,
+            statelessCompoundCommit,
+            bccGeneration,
+            new PrimaryTermAndGeneration(randomLongBetween(1, primaryTerm), randomLongBetween(1, bccGeneration - 1))
+        );
+        assertThat(request.toString(), request.isUpload(), is(false));
+
+        request = new NewCommitNotificationRequest(
+            indexShardRoutingTable,
+            statelessCompoundCommit,
+            bccGeneration,
+            new PrimaryTermAndGeneration(primaryTerm, bccGeneration)
+        );
+        assertThat(request.toString(), request.isUpload(), is(true));
     }
 
     private IndexShardRoutingTable randomIndexShardRoutingTable() {

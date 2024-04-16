@@ -126,12 +126,20 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
             })
 
             // Step 3: notify the engine of the new commit, and wait for it to finish processing this notification
-            .<SearchEngine>andThen((l, searchEngine) -> searchEngine.onCommitNotification(request, l.map(v -> searchEngine)))
+            .<SearchEngine>andThen((l, searchEngine) -> {
+                // TODO: Enable processing of non-upload notification once search nodes know how to fetch data from indexing node
+                if (request.isUpload()) {
+                    searchEngine.onCommitNotification(request, l.map(v -> searchEngine));
+                }
+            })
 
             // Step 4: update the things that need updating, and compute the final response containing the commits that are still in use
             .<NewCommitNotificationResponse>andThen((l, searchEngine) -> {
-                shard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "new commit notification");
-                shardSizeCollector.collectShardSize(shard.shardId());
+                // TODO: Enable processing of non-upload notification once search nodes know how to fetch data from indexing node
+                if (request.isUpload()) {
+                    shard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "new commit notification");
+                    shardSizeCollector.collectShardSize(shard.shardId());
+                }
                 l.onResponse(new NewCommitNotificationResponse(searchEngine.getAcquiredPrimaryTermAndGenerations()));
             })
 

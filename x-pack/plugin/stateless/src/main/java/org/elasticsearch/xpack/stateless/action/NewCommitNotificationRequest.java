@@ -85,6 +85,14 @@ public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
         return latestUploadedBatchedCompoundCommitTermAndGen;
     }
 
+    /**
+     * Whether the request is for an uploaded commit
+     */
+    public boolean isUpload() {
+        return latestUploadedBatchedCompoundCommitTermAndGen != null
+            && latestUploadedBatchedCompoundCommitTermAndGen.generation() == batchedCompoundCommitGeneration;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();

@@ -753,6 +753,7 @@ public class Stateless extends Plugin
             SearchLoadProbe.MAX_QUEUE_CONTRIBUTION_FACTOR,
             StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING,
             StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING,
+            StatelessCommitService.STATELESS_UPLOAD_DELAYED,
             IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING,
             IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING,
             BlobStoreHealthIndicator.POLL_INTERVAL_SETTING,

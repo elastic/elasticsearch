@@ -112,6 +112,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Boolean> STATELESS_UPLOAD_DELAYED = Setting.boolSetting(
+        "stateless.upload.delayed",
+        false,
+        Setting.Property.NodeScope
+    );
+
     private final ObjectStoreService objectStoreService;
     private final Supplier<String> ephemeralNodeIdSupplier;
     private final Function<ShardId, IndexShardRoutingTable> shardRoutingFinder;
@@ -130,6 +136,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private final BooleanSupplier allNodesResolveBCCReferencesLocally;
     private final ShardInactivityMonitor shardInactivityMonitor;
     private Scheduler.Cancellable scheduledShardInactivityMonitorFuture;
+    private final boolean statelessUploadDelayed;
 
     public StatelessCommitService(
         Settings settings,
@@ -172,6 +179,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         this.shardInactivityDuration = SHARD_INACTIVITY_DURATION_TIME_SETTING.get(settings);
         this.shardInactivityMonitorInterval = SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING.get(settings);
         this.shardInactivityMonitor = new ShardInactivityMonitor();
+        this.statelessUploadDelayed = STATELESS_UPLOAD_DELAYED.get(settings);
     }
 
     public void markRecoveredBcc(ShardId shardId, BatchedCompoundCommit recoveredBcc, Set<BlobFile> unreferencedFiles) {
@@ -305,6 +313,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             final var virtualBcc = commitState.appendCommit(reference);
 
+            if (statelessUploadDelayed) {
+                commitState.sendNewCommitNotification(
+                    virtualBcc.lastCompoundCommit(),
+                    virtualBcc.getPrimaryTermAndGeneration().generation()
+                );
+            }
+
             if (commitState.shouldUploadVirtualBcc(virtualBcc) == false) {
                 assert false : "must always upload till BCC is in full motion";
                 return;
@@ -344,42 +359,45 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         var bccUpload = new BatchedCompoundCommitUpload(
             commitState,
             ActionListener.runAfter(
-                ActionListener.wrap(uploadedBcc -> commitState.sendNewCommitNotification(blobReference, uploadedBcc), new Consumer<>() {
-                    @Override
-                    public void accept(Exception e) {
-                        assert assertClosedOrRejectionFailure(e);
-                        ShardCommitState.State state = commitState.state;
-                        if (closedOrRelocated(state)) {
-                            logger.debug(
-                                () -> format(
-                                    "%s failed to upload BCC [%s] to object store because shard has invalid state %s",
-                                    virtualBcc.getShardId(),
-                                    virtualBcc.getPrimaryTermAndGeneration().generation(),
-                                    state
-                                ),
-                                e
-                            );
-                        } else {
-                            logger.warn(
-                                () -> format(
-                                    "%s failed to upload BCC [%s] to object store for unexpected reason",
-                                    virtualBcc.getShardId(),
-                                    virtualBcc.getPrimaryTermAndGeneration().generation()
-                                ),
-                                e
-                            );
+                ActionListener.wrap(
+                    uploadedBcc -> commitState.sendNewUploadedCommitNotification(blobReference, uploadedBcc),
+                    new Consumer<>() {
+                        @Override
+                        public void accept(Exception e) {
+                            assert assertClosedOrRejectionFailure(e);
+                            ShardCommitState.State state = commitState.state;
+                            if (closedOrRelocated(state)) {
+                                logger.debug(
+                                    () -> format(
+                                        "%s failed to upload BCC [%s] to object store because shard has invalid state %s",
+                                        virtualBcc.getShardId(),
+                                        virtualBcc.getPrimaryTermAndGeneration().generation(),
+                                        state
+                                    ),
+                                    e
+                                );
+                            } else {
+                                logger.warn(
+                                    () -> format(
+                                        "%s failed to upload BCC [%s] to object store for unexpected reason",
+                                        virtualBcc.getShardId(),
+                                        virtualBcc.getPrimaryTermAndGeneration().generation()
+                                    ),
+                                    e
+                                );
+                            }
+                        }
+
+                        private boolean assertClosedOrRejectionFailure(final Exception e) {
+                            final var closed = closedOrRelocated(commitState.state);
+                            assert closed
+                                || e instanceof EsRejectedExecutionException
+                                || e instanceof IndexNotFoundException
+                                || e instanceof ShardNotFoundException : closed + " vs " + e;
+                            return true;
                         }
                     }
-
-                    private boolean assertClosedOrRejectionFailure(final Exception e) {
-                        final var closed = closedOrRelocated(commitState.state);
-                        assert closed
-                            || e instanceof EsRejectedExecutionException
-                            || e instanceof IndexNotFoundException
-                            || e instanceof ShardNotFoundException : closed + " vs " + e;
-                        return true;
-                    }
-                }),
+                ),
                 () -> {
                     IOUtils.closeWhileHandlingException(virtualBcc);
                     blobReference.decRef();
@@ -670,9 +688,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private volatile long recoveredPrimaryTerm = -1;
 
         /**
-         * The highest generation number that we have received from a commit notification response from search shards.
+         * The highest generation number that we have received from an uploaded commit notification response from search shards.
          */
-        private final AtomicLong generationNotified = new AtomicLong(EMPTY_GENERATION_NOTIFIED_SENTINEL);
+        private final AtomicLong uploadedGenerationNotified = new AtomicLong(EMPTY_GENERATION_NOTIFIED_SENTINEL);
         private volatile long maxGenerationToUpload = Long.MAX_VALUE;
         private final AtomicLong maxGenerationToUploadForFlush = new AtomicLong(-1);
         private volatile State state = State.RUNNING;
@@ -854,7 +872,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
 
             // We did not find the generation, so it should be already uploaded.
-            if (getMaxUploadedGenerationRange().ccGen >= 0) {
+            if (getMaxUploadedGeneration() >= 0) {
                 checkGenerationIsUploadedOrPending(primaryTermAndGeneration.generation());
             } else {
                 var recoveredGeneration = this.recoveredGeneration;
@@ -1143,7 +1161,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             final List<ActionListener<UploadedBccInfo>> listenersToFire = new ArrayList<>();
             synchronized (this) {
-                if (newBccGeneration <= getMaxUploadedGenerationRange().bccGen) {
+                if (newBccGeneration <= getMaxUploadedBccGeneration()) {
                     if (isUpload) {
                         // Remove the BCC from the pending list regardless just in case
                         pendingUploadBccGenerations.remove(newBccGeneration);
@@ -1152,7 +1170,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         : "out of order BCC generation ["
                             + newBccGeneration
                             + "] <= ["
-                            + getMaxUploadedGenerationRange().bccGen
+                            + getMaxUploadedBccGeneration()
                             + "] for shard "
                             + shardId;
                     return;
@@ -1177,11 +1195,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             listenersToFire.clear();
             synchronized (this) {
-                assert newBccGeneration > getMaxUploadedGenerationRange().bccGen
+                assert newBccGeneration > getMaxUploadedBccGeneration()
                     : "out of order BCC generation ["
                         + newBccGeneration
                         + "] <= ["
-                        + getMaxUploadedGenerationRange().bccGen
+                        + getMaxUploadedBccGeneration()
                         + "] for shard "
                         + shardId;
                 latestUploadedBcc = uploadedBcc;
@@ -1225,17 +1243,19 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         /**
-         * Gets the max uploaded generation range for a BCC, by accessing the latest uploaded {@link BatchedCompoundCommit}
-         * without synchronization, or (-1, -1) otherwise.
+         * Gets the max uploaded BCC generation, by accessing the latest uploaded {@link BatchedCompoundCommit}
+         * without synchronization, or -1 if no upload has happened.
          */
-        public GenerationRange getMaxUploadedGenerationRange() {
-            final var latestUploadedCommitCopy = latestUploadedBcc; // read the volatile once
-            return latestUploadedCommitCopy == null
-                ? new GenerationRange(-1L, -1L)
-                : new GenerationRange(
-                    latestUploadedCommitCopy.primaryTermAndGeneration().generation(),
-                    latestUploadedCommitCopy.last().generation()
-                );
+        public long getMaxUploadedBccGeneration() {
+            return latestUploadedBcc == null ? -1 : latestUploadedBcc.primaryTermAndGeneration().generation();
+        }
+
+        /**
+         * Gets the max uploaded generation, i.e. the generation of the last CC in the BCC, by accessing the
+         * latest uploaded {@link BatchedCompoundCommit} without synchronization, or -1 if no upload has happened.
+         */
+        public long getMaxUploadedGeneration() {
+            return latestUploadedBcc == null ? -1 : latestUploadedBcc.last().generation();
         }
 
         /**
@@ -1243,7 +1263,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          */
         private @Nullable String isUploadedOrPending(long generation) {
             final var maxPendingUploadBcc = getMaxPendingUploadBcc();
-            final var maxUploadedCcGen = getMaxUploadedGenerationRange().ccGen;
+            final var maxUploadedCcGen = getMaxUploadedGeneration();
             if (generation > maxUploadedCcGen) {
                 final String message = format(
                     "generation [%s] is not covered by either maxUploadedGeneration [%s] or maxPendingUploadBcc [%s]",
@@ -1252,10 +1272,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     maxPendingUploadBcc
                 );
                 assert maxPendingUploadBcc.isPresent() : message;
-                final var maxPendingUploadBccGen = maxPendingUploadBcc.isPresent()
-                    ? maxPendingUploadBcc.get().getPrimaryTermAndGeneration().generation()
-                    : -1L;
-                if (generation > maxPendingUploadBccGen) {
+                final var maxPendingUploadCcGen = maxPendingUploadBcc.isPresent() ? maxPendingUploadBcc.get().getMaxGeneration() : -1L;
+                if (generation > maxPendingUploadCcGen) {
                     return message;
                 }
             }
@@ -1278,10 +1296,34 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
         }
 
+        // TODO: merge this method with sendNewCommitNotification
+        private void sendNewCommitNotification(StatelessCompoundCommit compoundCommit, long bccGeneration) {
+            var shardRoutingTable = shardRoutingFinder.apply(shardId);
+            lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
+            final var request = new NewCommitNotificationRequest(
+                shardRoutingTable,
+                compoundCommit,
+                bccGeneration,
+                latestUploadedBcc == null ? null : latestUploadedBcc.primaryTermAndGeneration()
+            );
+            assert request.isUpload() == false;
+            client.execute(TransportNewCommitNotificationAction.TYPE, request, ActionListener.wrap(response -> {
+                // Do NOT update uploadedGenerationNotified since it is used for file deleting tracking
+                // TODO: Process the response for old commits that are no-longer-in-use similar to how it is done on upload notification
+                // TODO: enable the listener once search nodes know how to fetch data from indexing nodes
+                if (false) {
+                    var consumer = commitNotificationSuccessListeners.get(shardId);
+                    if (consumer != null) {
+                        consumer.accept(compoundCommit.generation());
+                    }
+                }
+            }, e -> logNotificationException(compoundCommit.generation(), bccGeneration, "create", e)));
+        }
+
         /**
          * Broadcasts notification of a new uploaded BCC to all the search nodes hosting a replica shard for the given shard commit.
          */
-        private void sendNewCommitNotification(BlobReference blobReference, BatchedCompoundCommit uploadedBcc) {
+        private void sendNewUploadedCommitNotification(BlobReference blobReference, BatchedCompoundCommit uploadedBcc) {
             assert uploadedBcc != null;
 
             var shardRoutingTable = shardRoutingFinder.apply(uploadedBcc.shardId());
@@ -1299,40 +1341,53 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 uploadedBcc.primaryTermAndGeneration().generation(),
                 uploadedBcc.primaryTermAndGeneration()
             );
+            assert request.isUpload();
             var notificationCommitBCCDependencies = resolveReferencedBCCsForCommit(uploadedBcc.primaryTermAndGeneration().generation());
             client.execute(TransportNewCommitNotificationAction.TYPE, request, ActionListener.wrap(response -> {
-                onNewCommitNotificationResponse(
+                onNewUploadedCommitNotificationResponse(
                     uploadedBcc.primaryTermAndGeneration().generation(),
                     notificationCommitBCCDependencies,
                     nodesWithAssignedSearchShards,
                     response.getPrimaryTermAndGenerationsInUse()
                 );
+                // TODO: this should not be called on upload to avoid double notification
                 var consumer = commitNotificationSuccessListeners.get(shardId);
                 if (consumer != null) {
-                    consumer.accept(uploadedBcc.primaryTermAndGeneration().generation());
+                    consumer.accept(uploadedBcc.last().generation());
                 }
-            }, e -> {
-                Throwable cause = ExceptionsHelper.unwrapCause(e);
-                if (cause instanceof ConnectTransportException) {
-                    logger.debug(
-                        () -> format(
-                            "%s failed to notify search shards after upload of batched compound commit [%s] due to connection issues",
-                            shardId,
-                            uploadedBcc.primaryTermAndGeneration().generation()
-                        ),
-                        e
-                    );
-                } else {
-                    logger.warn(
-                        () -> format(
-                            "%s failed to notify search shards after upload of batched compound commit [%s]",
-                            shardId,
-                            uploadedBcc.primaryTermAndGeneration().generation()
-                        ),
-                        e
-                    );
-                }
-            }));
+            },
+                e -> logNotificationException(
+                    uploadedBcc.last().generation(),
+                    uploadedBcc.primaryTermAndGeneration().generation(),
+                    "upload",
+                    e
+                )
+            ));
+        }
+
+        private void logNotificationException(long generation, long bccGeneration, String verb, Exception e) {
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause instanceof ConnectTransportException) {
+                logger.debug(
+                    () -> format(
+                        "%s failed to notify search shards after " + verb + " commit of gen [%s] (BCC [%s]) due to connection issues",
+                        shardId,
+                        generation,
+                        bccGeneration
+                    ),
+                    e
+                );
+            } else {
+                logger.warn(
+                    () -> format(
+                        "%s failed to notify search shards after " + verb + " commit of gen [%s] (BCC [%s])",
+                        shardId,
+                        generation,
+                        bccGeneration
+                    ),
+                    e
+                );
+            }
         }
 
         /**
@@ -1362,7 +1417,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // Resend the notification if older blob references are still in use
             if (anyOldBlobReferencesStillInUse) {
                 logger.debug("sending new commit notifications for inactive shard [{}]", shardId);
-                sendNewCommitNotification(latestBlobReference, latestBatchedCompoundCommitUploaded);
+                sendNewUploadedCommitNotification(latestBlobReference, latestBatchedCompoundCommitUploaded);
             } else {
                 lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
             }
@@ -1381,7 +1436,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             synchronized (this) {
                 if (closedOrRelocated(state)) {
                     completeListenerClosed = true;
-                } else if (getMaxUploadedGenerationRange().ccGen >= generation) {
+                } else if (getMaxUploadedGeneration() >= generation) {
                     // TODO: different listeners may want ccGen or bccGen and should be handled separately. See also ES-8261
                     // Location already visible, just call the listener
                     completeListenerSuccess = true;
@@ -1537,7 +1592,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          * @param searchNodes combined set of all the search nodes with shard replicas.
          * @param primaryTermAndGenerationsInUse combined set of all the PrimaryTermAndGeneration commits in use by all search shards.
          */
-        void onNewCommitNotificationResponse(
+        void onNewUploadedCommitNotificationResponse(
             long notificationGeneration,
             Set<PrimaryTermAndGeneration> notificationCommitBCCDependencies,
             Set<String> searchNodes,
@@ -1547,7 +1602,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 return;
             }
 
-            if (generationNotified.getAndAccumulate(notificationGeneration, Math::max) > notificationGeneration) {
+            if (uploadedGenerationNotified.getAndAccumulate(notificationGeneration, Math::max) > notificationGeneration) {
                 // no need to process backwards commit notifications
                 // (but would be safe - and we rely on it, this check is just an optimistic check)
                 return;
@@ -1571,7 +1626,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
 
         void updateUnpromotableShardAssignedNodes(Set<String> currentUnpromotableNodes) {
-            long generationNotified = this.generationNotified.get();
+            long generationNotified = this.uploadedGenerationNotified.get();
             Set<PrimaryTermAndGeneration> generationNotifiedBCCDependencies = generationNotified == EMPTY_GENERATION_NOTIFIED_SENTINEL
                 ? Set.of()
                 : resolveReferencedBCCsForCommit(generationNotified);
@@ -1595,7 +1650,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             boolean success = registerUnpromoteableCommitRefs(nodes, commitReference);
             // it is fine if a newer commit notification removed the registration, since then blobReference cannot be used
             // by search shard readers anymore.
-            assert success || commitReference.getPrimaryTermAndGeneration().generation() < generationNotified.get();
+            assert success || commitReference.getPrimaryTermAndGeneration().generation() < uploadedGenerationNotified.get();
         }
 
         /**
@@ -1607,7 +1662,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // but the blob references point to BCCs
             var blobReference = primaryTermAndGenToBlobReference.get(commit);
             if (blobReference == null) {
-                long lastUploadedBccGeneration = getMaxUploadedGenerationRange().bccGen;
+                long lastUploadedBccGeneration = getMaxUploadedBccGeneration();
                 if (lastUploadedBccGeneration != -1) {
                     blobReference = primaryTermAndGenToBlobReference.get(resolvePrimaryTermForGeneration(lastUploadedBccGeneration));
                 }
@@ -1636,11 +1691,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     return blobReference;
                 } else {
                     // TODO: the following generation management needs to be refined with ES-8200
-                    long generation = getMaxUploadedGenerationRange().bccGen;
+                    long generation = getMaxUploadedBccGeneration();
                     assert generation > previousGenerationUploaded;
                     previousGenerationUploaded = generation;
                     blobReference = primaryTermAndGenToBlobReference.get(new PrimaryTermAndGeneration(allocationPrimaryTerm, generation));
-                    assert blobReference != null || getMaxUploadedGenerationRange().bccGen > generation;
+                    assert blobReference != null || getMaxUploadedBccGeneration() > generation;
                 }
             }
         }
@@ -2005,17 +2060,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         @Override
         public String toString() {
             return "CommitAndBlobLocation [blobReference=" + blobReference + ", blobLocation=" + blobLocation + ']';
-        }
-    }
-
-    /**
-     * The start and end generations for BCC
-     * @param bccGen The start generation, also the BCC's generation
-     * @param ccGen The end generation, which is the generation of the last CC in the BCC
-     */
-    private record GenerationRange(long bccGen, long ccGen) {
-        GenerationRange {
-            assert bccGen <= ccGen : bccGen + " > " + ccGen;
         }
     }
 

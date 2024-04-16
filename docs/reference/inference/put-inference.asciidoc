@@ -314,7 +314,6 @@ request, which can be used for abuse detection.
 `user`:::
 (optional, string)
 For `openai` service only. Specifies the user issuing the request, which can be used for abuse detection.
->>>>>>> c5d724dcc1c (Update docs for Azure OpenAI Embeddings inference)
 =====
 
 

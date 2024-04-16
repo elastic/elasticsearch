@@ -23,6 +23,6 @@ the OpenAI service.
 * An https://azure.microsoft.com/free/cognitive-services?azure-portal=true[Azure subscription]
 * Access granted to Azure OpenAI in the desired Azure subscription.
 You can apply for access to Azure OpenAI by completing the form at https://aka.ms/oai/access.
-* An embedding model deployed in https://oai.azure.com/[Azure OpenAI Studio]
+* An embedding model deployed in https://oai.azure.com/[Azure OpenAI Studio].
 
 // end::azure-openai[]

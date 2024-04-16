@@ -56,7 +56,8 @@ public class EqualsTests extends AbstractFunctionTestCase {
                 ),
                 "lhs",
                 "rhs",
-                List.of()
+                (lhs, rhs) -> List.of(),
+                false
             )
         );
 
@@ -70,9 +71,10 @@ public class EqualsTests extends AbstractFunctionTestCase {
                 "rhs",
                 Object::equals,
                 DataTypes.BOOLEAN,
-                TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX),
-                TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX),
-                List.of()
+                TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true),
+                TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true),
+                List.of(),
+                false
             )
         );
         suppliers.addAll(
@@ -84,7 +86,8 @@ public class EqualsTests extends AbstractFunctionTestCase {
                 DataTypes.BOOLEAN,
                 TestCaseSupplier.booleanCases(),
                 TestCaseSupplier.booleanCases(),
-                List.of()
+                List.of(),
+                false
             )
         );
         suppliers.addAll(
@@ -96,7 +99,8 @@ public class EqualsTests extends AbstractFunctionTestCase {
                 DataTypes.BOOLEAN,
                 TestCaseSupplier.ipCases(),
                 TestCaseSupplier.ipCases(),
-                List.of()
+                List.of(),
+                false
             )
         );
         suppliers.addAll(
@@ -108,7 +112,8 @@ public class EqualsTests extends AbstractFunctionTestCase {
                 DataTypes.BOOLEAN,
                 TestCaseSupplier.versionCases(""),
                 TestCaseSupplier.versionCases(""),
-                List.of()
+                List.of(),
+                false
             )
         );
         // Datetime
@@ -122,7 +127,8 @@ public class EqualsTests extends AbstractFunctionTestCase {
                 DataTypes.BOOLEAN,
                 TestCaseSupplier.dateCases(),
                 TestCaseSupplier.dateCases(),
-                List.of()
+                List.of(),
+                false
             )
         );
 
@@ -144,7 +150,8 @@ public class EqualsTests extends AbstractFunctionTestCase {
                 DataTypes.BOOLEAN,
                 TestCaseSupplier.geoPointCases(),
                 TestCaseSupplier.geoPointCases(),
-                List.of()
+                List.of(),
+                false
             )
         );
 
@@ -157,7 +164,8 @@ public class EqualsTests extends AbstractFunctionTestCase {
                 DataTypes.BOOLEAN,
                 TestCaseSupplier.geoShapeCases(),
                 TestCaseSupplier.geoShapeCases(),
-                List.of()
+                List.of(),
+                false
             )
         );
         suppliers.addAll(
@@ -169,7 +177,8 @@ public class EqualsTests extends AbstractFunctionTestCase {
                 DataTypes.BOOLEAN,
                 TestCaseSupplier.cartesianPointCases(),
                 TestCaseSupplier.cartesianPointCases(),
-                List.of()
+                List.of(),
+                false
             )
         );
 
@@ -182,7 +191,8 @@ public class EqualsTests extends AbstractFunctionTestCase {
                 DataTypes.BOOLEAN,
                 TestCaseSupplier.cartesianShapeCases(),
                 TestCaseSupplier.cartesianShapeCases(),
-                List.of()
+                List.of(),
+                false
             )
         );
 

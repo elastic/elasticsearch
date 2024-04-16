@@ -381,7 +381,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         NumericTypeTestConfigs<Number> typeStuff,
         String lhsName,
         String rhsName,
-        List<String> warnings,
+        BiFunction<TypedData, TypedData, List<String>> warnings,
         boolean allowRhsZero
     ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
@@ -406,7 +406,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                     getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), true),
                     getSuppliersForNumericType(rhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), allowRhsZero),
                     evaluatorToString,
-                    (lhs, rhs) -> warnings,
+                    warnings,
                     suppliers,
                     expected,
                     false

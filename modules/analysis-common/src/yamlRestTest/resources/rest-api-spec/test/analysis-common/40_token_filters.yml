@@ -665,6 +665,7 @@
 ---
 "stemmer_override file access":
     - do:
+        catch: request
         indices.create:
           index: test
           body:
@@ -674,16 +675,8 @@
                   my_stemmer_override:
                     type: stemmer_override
                     rules_path: "jvm.options"
-    - do:
-        indices.analyze:
-          index: test
-          body:
-            text:      test
-            tokenizer: keyword
-            filter:    [my_stemmer_override]
-    - match: { status: 400 }
-    - match: { error.type: illegal_argument_exception }
-    - match: { error.reason: "elision filter requires [articles] or [articles_path] setting" }
+    - match: { status: 500 }
+    - match: { error.type: access_control_exception }
 
 ---
 "decompounder":

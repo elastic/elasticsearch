@@ -106,6 +106,11 @@ public class EsqlFeatures implements FeatureSpecification {
     public static final NodeFeature STRING_LITERAL_AUTO_CASTING = new NodeFeature("esql.string_literal_auto_casting");
 
     /**
+     * Base64 encoding and decoding functions.
+     */
+    public static final NodeFeature BASE64_DECODE_ENCODE = new NodeFeature("esql.base64_decode_encode");
+
+    /**
      * Support for the :: casting operator
      */
     public static final NodeFeature CASTING_OPERATOR = new NodeFeature("esql.casting_operator");
@@ -115,6 +120,7 @@ public class EsqlFeatures implements FeatureSpecification {
         return Set.of(
             ASYNC_QUERY,
             AGG_VALUES,
+            BASE64_DECODE_ENCODE,
             MV_SORT,
             DISABLE_NULLABLE_OPTS,
             ST_X_Y,

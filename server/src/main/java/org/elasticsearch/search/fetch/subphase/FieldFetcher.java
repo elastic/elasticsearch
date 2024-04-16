@@ -170,7 +170,16 @@ public class FieldFetcher {
 
     public Map<String, DocumentField> fetch(Source source, int doc) throws IOException {
         Map<String, DocumentField> documentFields = new HashMap<>();
-        for (FieldContext context : fieldContexts.values()) {
+        Collection<FieldContext> fieldsToLoad = fieldContexts.values();
+        if (storedFieldsSpec != null
+            && storedFieldsSpec.requiredStoredFields() != null
+            && storedFieldsSpec.requiredStoredFields().isEmpty() == false) {
+            fieldsToLoad = fieldContexts.values()
+                .stream()
+                .filter(fc -> storedFieldsSpec.requiredStoredFields().contains(fc.fieldName))
+                .toList();
+        }
+        for (FieldContext context : fieldsToLoad) {
             String field = context.fieldName;
             ValueFetcher valueFetcher = context.valueFetcher;
             final DocumentField docField = valueFetcher.fetchDocumentField(field, source, doc);

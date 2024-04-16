@@ -51,7 +51,6 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
 
     private final StatelessSharedBlobCacheService.CacheFile cacheFile;
 
-    private final long length;
     private final CacheBlobReader cacheBlobReader;
     private final long offset;
 
@@ -63,9 +62,8 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
         long length,
         long offset
     ) {
-        super(name, context);
+        super(name, context, length);
         this.cacheBlobReader = cacheBlobReader;
-        this.length = length;
         this.offset = offset;
         this.context = context;
         this.cacheFile = cacheFile.copy();
@@ -79,11 +77,6 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
     @Override
     public void close() throws IOException {
 
-    }
-
-    @Override
-    public long length() {
-        return length;
     }
 
     @Override
@@ -105,7 +98,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
 
     @Override
     public SearchIndexInput clone() {
-        SearchIndexInput searchIndexInput = new SearchIndexInput(super.toString(), cacheFile, context, cacheBlobReader, length, offset);
+        SearchIndexInput searchIndexInput = new SearchIndexInput(super.toString(), cacheFile, context, cacheBlobReader, length(), offset);
         try {
             searchIndexInput.seek(getFilePointer());
         } catch (IOException e) {
@@ -239,7 +232,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
             + ", cacheFile="
             + cacheFile
             + ", length="
-            + length
+            + length()
             + ", offset="
             + offset
             + '}';

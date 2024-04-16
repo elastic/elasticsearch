@@ -40,6 +40,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.engine.ElasticsearchReaderManager;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -495,7 +496,14 @@ public class IndexEngine extends InternalEngine {
         if (getLastCommittedSegmentInfos().getGeneration() < generation) {
             listener.onFailure(new IllegalStateException("Cannot wait on generation which has not been committed"));
         } else {
-            statelessCommitService.addListenerForUploadedGeneration(shardId, generation, listener);
+            // Wait for upload to complete only for true flushes, i.e. _not_ converted from refreshes, which guarantee
+            // a commit to be uploaded.
+            if (statelessCommitService.isStatelessUploadDelayed() == false || IS_FLUSH_BY_REFRESH.get() == false) {
+                statelessCommitService.addListenerForUploadedGeneration(shardId, generation, listener);
+            } else {
+                logger.trace(() -> Strings.format("no need to wait for non-uploaded generation [%s]", generation));
+                listener.onResponse(null);
+            }
         }
     }
 

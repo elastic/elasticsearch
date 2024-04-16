@@ -40,7 +40,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsTy
 public class HuggingFaceServiceSettings implements ServiceSettings, HuggingFaceRateLimitServiceSettings {
     public static final String NAME = "hugging_face_service_settings";
 
-    // At the time of writing HuggingFace hasn't posted the default rate limit for inference endpoints so the value his is only a guess
+    // At the time of writing HuggingFace hasn't posted the default rate limit for inference endpoints so the value here is only a guess
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(TimeValue.timeValueMinutes(3000));
 
     public static HuggingFaceServiceSettings fromMap(Map<String, Object> map) {

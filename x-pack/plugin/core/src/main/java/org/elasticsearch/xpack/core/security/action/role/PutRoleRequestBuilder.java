@@ -21,6 +21,8 @@ import java.util.Map;
  */
 public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, PutRoleResponse> {
 
+    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().build();
+
     public PutRoleRequestBuilder(ElasticsearchClient client) {
         super(client, PutRoleAction.INSTANCE, new PutRoleRequest());
     }
@@ -29,9 +31,8 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
      * Populate the put role request from the source and the role's name
      */
     public PutRoleRequestBuilder source(String name, BytesReference source, XContentType xContentType) throws IOException {
-        // we pass false as last parameter because we want to reject the request if field permissions
-        // are given in 2.x syntax
-        RoleDescriptor descriptor = RoleDescriptor.parse(name, source, false, xContentType, false);
+        // we want to reject the request if field permissions are given in 2.x syntax, hence we do not allow2xFormat
+        RoleDescriptor descriptor = ROLE_DESCRIPTOR_PARSER.parse(name, source, xContentType);
         assert name.equals(descriptor.getName());
         request.name(name);
         request.cluster(descriptor.getClusterPrivileges());

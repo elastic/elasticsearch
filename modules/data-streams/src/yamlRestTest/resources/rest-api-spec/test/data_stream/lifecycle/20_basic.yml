@@ -1,7 +1,7 @@
 setup:
   - skip:
       features: allowed_warnings
-      cluster_features: ["datastream_lifecycle", "data_stream.lifecycle.global_retention"]
+      cluster_features: ["data_stream.lifecycle.global_retention"]
       reason: "Data stream lifecycles with global retention are only supported in 8.14+"
   - do:
       allowed_warnings:

@@ -1,7 +1,7 @@
 setup:
   - skip:
       features: allowed_warnings
-      cluster_features: ["datastream_lifecycle"]
+      cluster_features: ["gte_v8.11.0"]
       reason: "Data stream lifecycle was GA in 8.11"
   - do:
       allowed_warnings:
@@ -24,7 +24,7 @@ setup:
 ---
 "Get data stream lifecycle":
   - skip:
-      cluster_features: ["datastream_lifecycle", "data_stream.lifecycle.global_retention"]
+      cluster_features: ["data_stream.lifecycle.global_retention"]
       reason: "Data stream lifecycle with effective retention was released in 8.14"
 
   - do:
@@ -49,7 +49,7 @@ setup:
 ---
 "Put data stream lifecycle does not succeed when at lease one data stream does not exist":
   - skip:
-      cluster_features: ["datastream_lifecycle", "data_stream.lifecycle.global_retention"]
+      cluster_features: ["data_stream.lifecycle.global_retention"]
       reason: "Data stream lifecycle with effective retention was released in 8.14"
   - do:
       catch:  missing
@@ -72,7 +72,7 @@ setup:
 ---
 "Delete data stream lifecycle does not succeed when at lease one data stream does not exist":
   - skip:
-      cluster_features: ["datastream_lifecycle", "data_stream.lifecycle.global_retention"]
+      cluster_features: ["data_stream.lifecycle.global_retention"]
       reason: "Data stream lifecycle with effective retention was released in 8.14"
   - do:
       catch:  missing

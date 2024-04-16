@@ -359,6 +359,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     switch (similarity) {
                         case COSINE -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.COSINE);
                         case DOT_PRODUCT -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT);
+                        case L2_NORM -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.L2_NORM);
                         default -> throw new IllegalArgumentException(
                             "Unknown similarity measure in model_settings [" + similarity.name() + "]"
                         );
@@ -381,10 +382,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
         if (previous == null) {
             return true;
-        }
-        if (current == null) {
-            conflicts.addConflict("model_settings", "");
-            return false;
         }
         conflicts.addConflict("model_settings", "");
         return false;

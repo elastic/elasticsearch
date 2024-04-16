@@ -389,6 +389,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         protected LogicalPlan rule(UnaryPlan plan) {
             LogicalPlan child = plan.child();
 
@@ -422,7 +423,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                     plan = new Aggregate(
                         a.source(),
                         p.child(),
-                        combineUpperGroupingsAndLowerProjections(a.groupings(), p.projections()),
+                        // After substitutions groupings can only contain attributes.
+                        combineUpperGroupingsAndLowerProjections((List<? extends Attribute>) (List<?>) a.groupings(), p.projections()),
                         combineProjections(a.aggregates(), p.projections())
                     );
                 }
@@ -488,24 +490,23 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         }
 
         private static List<Expression> combineUpperGroupingsAndLowerProjections(
-            List<? extends Expression> upperGroupings,
+            List<? extends Attribute> upperGroupings,
             List<? extends NamedExpression> lowerProjections
         ) {
             // Collect the alias map for resolving the source (f1 = 1, f2 = f1, etc..)
-            AttributeMap<Expression> aliases = new AttributeMap<>();
+            AttributeMap<Attribute> aliases = new AttributeMap<>();
             for (NamedExpression ne : lowerProjections) {
-                // record the alias
-                aliases.put(ne.toAttribute(), Alias.unwrap(ne));
+                // Projections are just aliases for attributes, so casting is safe.
+                aliases.put(ne.toAttribute(), (Attribute) Alias.unwrap(ne));
             }
 
             // Replace any matching attribute directly with the aliased attribute from the projection.
             AttributeSet replaced = new AttributeSet();
-            for (Expression expr : upperGroupings) {
+            for (Attribute attr : upperGroupings) {
                 // All substitutions happen before; groupings must be attributes at this point.
-                Attribute attr = (Attribute) expr;
-                replaced.add((Attribute) aliases.resolve(attr, attr));
+                replaced.add(aliases.resolve(attr, attr));
             }
-            return replaced.stream().map(attr -> (Expression) attr).toList();
+            return new ArrayList<>(replaced);
         }
 
         /**

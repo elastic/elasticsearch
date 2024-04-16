@@ -1,8 +1,6 @@
 [[elasticsearch-reference]]
 = Elasticsearch Guide
 
-:include-xpack:         true
-
 include::../Versions.asciidoc[]
 include::links.asciidoc[]
 

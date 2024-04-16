@@ -30,7 +30,7 @@ def supportedVersion = bwcVersion -> {
   return bwcVersion.onOrAfter(Version.fromString("8.11.0"));
 }
 
-// Versions on and after 8.14 will get a `version` parameter
+// Versions on and after 8.13.3 will get a `version` parameter
 def versionUnsupported = bwcVersion -> {
   return bwcVersion.before(Version.fromString("8.13.3"));
 }

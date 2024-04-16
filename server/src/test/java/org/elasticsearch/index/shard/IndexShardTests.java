@@ -4001,6 +4001,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107462")
     public void testFlushTimeExcludingWaiting() throws Exception {
         IndexShard shard = newStartedShard();
         for (int i = 0; i < randomIntBetween(4, 10); i++) {

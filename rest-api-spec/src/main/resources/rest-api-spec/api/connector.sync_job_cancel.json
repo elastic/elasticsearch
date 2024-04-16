@@ -1,8 +1,8 @@
 {
-  "connector_sync_job.delete": {
+  "connector.sync_job_cancel": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-connector-sync-job-api.html",
-      "description": "Deletes a connector sync job."
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/cancel-connector-sync-job-api.html",
+      "description": "Cancels a connector sync job."
     },
     "stability": "experimental",
     "visibility": "public",
@@ -14,14 +14,14 @@
     "url": {
       "paths": [
         {
-          "path": "/_connector/_sync_job/{connector_sync_job_id}",
+          "path": "/_connector/_sync_job/{connector_sync_job_id}/_cancel",
           "methods": [
-            "DELETE"
+            "PUT"
           ],
           "parts": {
             "connector_sync_job_id": {
               "type": "string",
-              "description": "The unique identifier of the connector sync job to be deleted."
+              "description": "The unique identifier of the connector sync job to be canceled"
             }
           }
         }

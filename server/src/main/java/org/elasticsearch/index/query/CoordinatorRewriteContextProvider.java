@@ -62,7 +62,7 @@ public class CoordinatorRewriteContextProvider {
         if (timestampRange.containsAllShardRanges() == false) { /// MP TODO: is this logic needed for event.ingested? Not clear what this is
             timestampRange = indexMetadata.getTimeSeriesTimestampRange(timestampFieldType);
             if (timestampRange == null) {
-                /// MP TODO: this logic has to change now, right? - can't short circuit until we've checked for event.ingested
+                /// MP TODO: does this logic need to change now? - we can't short circuit until we've checked for event.ingested (?)
                 return null;
             }
         }

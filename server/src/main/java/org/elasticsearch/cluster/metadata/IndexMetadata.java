@@ -137,7 +137,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         EnumSet.of(ClusterBlockLevel.WRITE)
     );
 
-    // 'event.ingested' (part of Elastic Common Schema) range is also tracked in cluster state, along with @timestamp
+    // 'event.ingested' (part of Elastic Common Schema) range is tracked in cluster state, along with @timestamp
     public static final String EVENT_INGESTED_FIELD_NAME = "event.ingested";
 
     @Nullable
@@ -2564,7 +2564,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                             break;
                         case KEY_TIMESTAMP_RANGE:
                             builder.timestampRange(IndexLongFieldRange.fromXContent(parser));
-                            /// MP TODO: Hmm, we need to add eventIngestedRange here - what is fromXContent used for?
+                            /// MP TODO: we need to add eventIngestedRange here and in toXContent
                             break;
                         case KEY_STATS:
                             builder.stats(IndexMetadataStats.fromXContent(parser));

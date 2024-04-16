@@ -175,13 +175,13 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
         return fieldToType;
     }
 
-    /// MP TODO: update the javadoc
     /**
-     * @return the field type of the {@code @timestamp} field of the given index, or {@code null} if:
+     * @return a map holding the field types of the {@code @timestamp} and {@code event.ingested} fields of the given index,
+     * or {@code null} if:
      * - the index is not found,
      * - the field is not found,
      * - the mapping is not known yet, or
-     * - the field is not a timestamp field.
+     * - the index does not have a useful timestamp field.
      */
     @Nullable
     public Map<String, DateFieldMapper.DateFieldType> getTimestampFieldTypeMap(Index index) {

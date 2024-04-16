@@ -1828,12 +1828,13 @@ public class IndicesService extends AbstractLifecycleComponent
             || (danglingIndicesToWrite.isEmpty() && danglingIndicesThreadPoolExecutor.getActiveCount() == 0);
     }
 
-    /// MP TODO Update javadoc here
     /**
-     * @return the field type of the {@code @timestamp} field of the given index, or {@code null} if:
+     * @return a map holding the field types of the {@code @timestamp} and {@code event.ingested} fields of the given index,
+     * or {@code null} if:
      * - the index is not found,
-     * - the field is not found, or
-     * - the field is not a timestamp field.
+     * - the field is not found,
+     * - the mapping is not known yet, or
+     * - the index does not have a useful timestamp field.
      */
     @Nullable
     public Map<String, DateFieldMapper.DateFieldType> getTimestampFieldTypeMap(Index index) {

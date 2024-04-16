@@ -596,7 +596,7 @@ public class ShardStateAction {
     }
 
     /**
-     * TODO DOCUMENT ME
+     * Holder of the pair of time ranges needed in cluster state - one for @timestamp, the other for event.ingested
      * @param timestampRange
      * @param eventIngestedRange
      */
@@ -809,7 +809,7 @@ public class ShardStateAction {
             if (in.getTransportVersion().onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
                 this.eventIngestedRange = ShardLongFieldRange.readFrom(in);
             } else {
-                this.eventIngestedRange = ShardLongFieldRange.UNKNOWN;
+                this.eventIngestedRange = ShardLongFieldRange.UNKNOWN;  // MP TODO: is this the right choice?
             }
         }
 

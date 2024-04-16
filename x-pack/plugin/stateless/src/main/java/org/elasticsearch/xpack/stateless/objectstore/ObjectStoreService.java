@@ -76,6 +76,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.parseGenerationFromBlobName;
@@ -379,7 +380,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     }
 
     public void uploadTranslogFile(String fileName, BytesReference reference, ActionListener<Void> listener) {
-        logger.debug("starting translog file upload [{}]", fileName);
         enqueueTask(listener, uploadTranslogTaskRunner, l -> new TranslogFileUploadTask(fileName, reference, l));
     }
 
@@ -404,7 +404,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
     public void asyncDeleteTranslogFile(String fileToDelete) {
         asyncDeleteFile(() -> {
-            logger.debug("scheduling translog blob file for async delete [{}]", fileToDelete);
             translogBlobsToDelete.add(fileToDelete);
             if (translogDeleteSchedulePermit.tryAcquire()) {
                 threadPool.executor(Stateless.TRANSLOG_THREAD_POOL).execute(new FileDeleteTask(this::getTranslogBlobContainer));
@@ -414,12 +413,6 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
     public void asyncDeleteShardFile(StaleCompoundCommit staleCompoundCommit) {
         asyncDeleteFile(() -> {
-            logger.debug(
-                "scheduling shard [{}] blob file for async delete [{}][{}]",
-                staleCompoundCommit.shardId(),
-                staleCompoundCommit.primaryTerm(),
-                staleCompoundCommit.fileName()
-            );
             commitBlobsToDelete.add(staleCompoundCommit);
             if (shardFileDeleteSchedulePermit.tryAcquire()) {
                 threadPool.executor(Stateless.SHARD_WRITE_THREAD_POOL).execute(new ShardFilesDeleteTask());
@@ -757,6 +750,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             boolean success = false;
             try {
                 blobContainer.get().deleteBlobsIgnoringIfNotExists(OperationPurpose.TRANSLOG, toDeleteInThisTask.iterator());
+                logger.debug(() -> format("deleted translog files %s", toDeleteInThisTask));
                 success = true;
             } finally {
                 if (success == false) {
@@ -786,7 +780,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             final var level = lifecycle.started() ? Level.WARN : Level.DEBUG;
             if (logger.isDebugEnabled()) {
                 // Might be 100 files, only log when debug enabled
-                logger.log(level, () -> format("exception while attempting to delete blob files [{}]", toDeleteInThisTask), e);
+                logger.log(level, () -> format("exception while attempting to delete blob files [{}]", blobPathStream().toList()), e);
             } else {
                 logger.log(level, () -> "exception while attempting to delete blob files", e);
             }
@@ -811,19 +805,19 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         protected void doRun() throws Exception {
             boolean success = false;
             try {
-                getObjectStore().blobStore()
-                    .deleteBlobsIgnoringIfNotExists(
-                        OperationPurpose.INDICES,
-                        toDeleteInThisTask.stream()
-                            .map(commit -> commit.absoluteBlobPath(getBlobContainer(commit.shardId(), commit.primaryTerm()).path()))
-                            .iterator()
-                    );
+                getObjectStore().blobStore().deleteBlobsIgnoringIfNotExists(OperationPurpose.INDICES, blobPathStream().iterator());
+                logger.debug(() -> format("deleted shard files %s", blobPathStream().toList()));
                 success = true;
             } finally {
                 if (success == false) {
                     commitBlobsToDelete.addAll(toDeleteInThisTask);
                 }
             }
+        }
+
+        private Stream<String> blobPathStream() {
+            return toDeleteInThisTask.stream()
+                .map(commit -> commit.absoluteBlobPath(getBlobContainer(commit.shardId(), commit.primaryTerm()).path()));
         }
     }
 }

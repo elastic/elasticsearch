@@ -114,6 +114,9 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
             .sorted(Map.Entry.comparingByKey())
             .map(Map.Entry::getValue)
             .toList();
+        logger.debug(
+            () -> format("translog replicator reader opened for recovery %s", blobsToRead.stream().map(BlobMetadata::name).toList())
+        );
         this.operations = Iterators.flatMap(blobsToRead.iterator(), this::readBlobTranslogOperations);
         this.startNanos = System.nanoTime();
     }

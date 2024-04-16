@@ -245,11 +245,13 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
                 b.endArray();
             }));
             assertWarnings(
-                "Parameter [badparam] is used in a dynamic template mapping and has no effect on type [null]. Usage will result in an error in future major versions and should be removed."
+                "Parameter [badparam] is used in a dynamic template mapping and has no effect on type [null]. "
+                    + "Usage will result in an error in future major versions and should be removed."
             );
             mapper.parse(source(b -> b.field("field", "foo")));
             assertWarnings(
-                "Parameter [badparam] is used in a dynamic template mapping and has no effect on type [null]. Usage will result in an error in future major versions and should be removed."
+                "Parameter [badparam] is used in a dynamic template mapping and has no effect on type [null]. "
+                    + "Usage will result in an error in future major versions and should be removed."
             );
         }
 

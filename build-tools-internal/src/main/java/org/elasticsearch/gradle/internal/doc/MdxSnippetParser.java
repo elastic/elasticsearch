@@ -10,7 +10,6 @@ package org.elasticsearch.gradle.internal.doc;
 
 import org.jetbrains.annotations.NotNull;
 
-import java.io.File;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -23,20 +22,23 @@ public class MdxSnippetParser extends SnippetParser {
 
     public static final Pattern TEST_RESPONSE_PATTERN = Pattern.compile("\\{\\/\\*\s*TESTRESPONSE(\\[(.*)\\])?\s\\*\\/\\}");
     public static final Pattern TEST_PATTERN = Pattern.compile("\\{\\/\\*\s*TEST(\\[(.*)\\])?\s\\*\\/\\}");
+    public static final String CONSOLE_REGEX = "\\{\\/\\*\s*CONSOLE\s\\*\\/\\}";
+    public static final String NOTCONSOLE_REGEX = "\\{\\/\\*\s*NOTCONSOLE\s\\*\\/\\}";
+    public static final String TESTSETUP_REGEX = "\\{\\/\\*\s*TESTSETUP\s\\*\\/\\}";
+    public static final String TEARDOWN_REGEX = "\\{\\/\\*\s*TEARDOWN\s\\*\\/\\}";
 
     public MdxSnippetParser(Map<String, String> defaultSubstitutions) {
         super(defaultSubstitutions);
     }
 
     @Override
-    protected void parseLine(List<Snippet> snippets, File rootDir, File docFile, int lineNumber, String line) {
+    protected void parseLine(List<Snippet> snippets, Path docPath, int lineNumber, String line) {
         Matcher snippetStartMatcher = SNIPPET_PATTERN.matcher(line);
         if (snippetStartMatcher.matches()) {
             if (snippetBuilder == null) {
-                Path path = rootDir.toPath().relativize(docFile.toPath());
                 if (snippetStartMatcher.groupCount() == 1) {
                     String language = snippetStartMatcher.group(1);
-                    snippetBuilder = new SnippetBuilder().withPath(path)
+                    snippetBuilder = new SnippetBuilder().withPath(docPath)
                         .withLineNumber(lineNumber + 1)
                         .withName(null)
                         .withSubstitutions(defaultSubstitutions)
@@ -47,31 +49,26 @@ public class MdxSnippetParser extends SnippetParser {
             }
             return;
         }
-        if (testHandled(docFile.getName(), lineNumber, line, snippetBuilder)) {
-            return;
-        }
-        if (testResponseHandled(docFile.getName(), lineNumber, line, snippetBuilder)) {
-            return;
-        }
+        handleCommons(snippets, docPath.toFile(), lineNumber, line);
+    }
 
-        if (snippetBuilder == null) {
-            // Outside
-            return;
-        }
-        if (snippetBuilder.notFinished()) {
-            // Inside
-            // We don't need the annotations
-            line = line.replaceAll("<\\d+>", "");
-            // nor bookmarks
-            line = line.replaceAll("\\[\\^\\d+\\]", "");
-            // Nor any trailing spaces
-            line = line.replaceAll("\s+$", "");
-            snippetBuilder.withContent(line, true);
+    @Override
+    protected String getTestSetupRegex() {
+        return TESTSETUP_REGEX;
+    }
 
-            return;
-        }
-        snippets.add(snippetBuilder.build());
-        snippetBuilder = null;
+    @Override
+    protected String getTeardownRegex() {
+        return TEARDOWN_REGEX;
+    }
+
+    protected String getNotconsoleRegex() {
+        return NOTCONSOLE_REGEX;
+    }
+
+    @NotNull
+    protected String getConsoleRegex() {
+        return CONSOLE_REGEX;
     }
 
     protected Pattern testResponsePattern() {

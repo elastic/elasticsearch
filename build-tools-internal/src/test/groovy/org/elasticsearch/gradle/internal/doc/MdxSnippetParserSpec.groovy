@@ -8,8 +8,26 @@
 
 package org.elasticsearch.gradle.internal.doc
 
-import spock.lang.Specification
+class MdxSnippetParserSpec extends AbstractParserSpec {
 
-class SnippetParserSpec extends Specification {
+    @Override
+    SnippetParser parser(Map<String,String> defaultSubstitutions = [:]) {
+        return new MdxSnippetParser(defaultSubstitutions)
+    }
 
+    @Override
+    protected String docSnippetWithTestSetup() {
+        return """
+```console
+GET seats/_search
+{
+  "query": {
+    "match_all": {}
+  }
+}
+```
+{/* TEST[setup:seats] */}
+
+"""
+    }
 }

@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
 import javax.inject.Inject;
 
 public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
@@ -40,11 +41,21 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
 
     private Map<String, String> teardowns = new HashMap();
 
+    /**
+     * For easier migration from asciidoc to mdx we support a migration mode that
+     * allows generation from the same file name but different extensions. The task
+     * will compare the generated tests from the asciidoc and mdx files and fail if
+     * they are not equal (ignoring the line numbers).
+     * */
     private boolean migrationMode = Boolean.getBoolean("gradle.docs.migration");
 
     @Input
     public boolean isMigrationMode() {
         return migrationMode;
+    }
+
+    public void setMigrationMode(boolean migrationMode) {
+        this.migrationMode = migrationMode;
     }
 
     /**
@@ -134,7 +145,7 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
         doLast(task -> {
             builder.finishLastTest();
             builder.checkUnconverted();
-            if(migrationMode) {
+            if (migrationMode) {
                 assertEqualTestSnippetFromMigratedDocs();
             }
         });
@@ -450,7 +461,6 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
             finishLastTest();
             lastDocsPath = test.path();
 
-
             // Make the destination file:
             // Shift the path into the destination directory tree
             Path dest = getOutputRoot().toPath().resolve(test.path());
@@ -458,10 +468,11 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
             String fileName = dest.getName(dest.getNameCount() - 1).toString();
 
             if (hasMultipleDocImplementations(test.path())) {
-                if(migrationMode == false) {
-                    String replace = dest.getName(dest.getNameCount() - 1).toString().replace(".asciidoc", "").replace(".mdx", "");
+                String fileNameWithoutExt = dest.getName(dest.getNameCount() - 1).toString().replace(".asciidoc", "").replace(".mdx", "");
+
+                if (migrationMode == false) {
                     throw new InvalidUserDataException(
-                        "Multiple doc files found for same content found: " + replace + ".ascidocc / " + replace + ".mdx."
+                        "Found multiple files with the same name '" + fileNameWithoutExt + "' but different extensions: [asciidoc, mdx]"
                     );
                 }
                 getLogger().warn("Found multiple doc file types for " + test.path() + ". Generating tests for all of them.");
@@ -546,24 +557,37 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
         }
     }
 
-
     private void assertEqualTestSnippetFromMigratedDocs() {
-        getTestRoot().getAsFileTree().matching(patternSet -> {
-            patternSet.include("**/*asciidoc.yml");
-        }).forEach(asciidocFile -> {
+        getTestRoot().getAsFileTree().matching(patternSet -> { patternSet.include("**/*asciidoc.yml"); }).forEach(asciidocFile -> {
             File mdxFile = new File(asciidocFile.getAbsolutePath().replace(".asciidoc.yml", ".mdx.yml"));
-            if(mdxFile.exists() == false) {
+            if (mdxFile.exists() == false) {
                 throw new InvalidUserDataException("Couldn't find the corresponding mdx file for " + asciidocFile.getAbsolutePath());
             }
             try {
                 List<String> asciidocLines = Files.readAllLines(asciidocFile.toPath());
                 List<String> mdxLines = Files.readAllLines(mdxFile.toPath());
                 if (asciidocLines.size() != mdxLines.size()) {
-                    throw new GradleException("Files are not equal, different line count");
+                    throw new GradleException(
+                        "Yaml rest specs ("
+                            + asciidocFile.toPath()
+                            + " and "
+                            + mdxFile.getAbsolutePath()
+                            + ") are not equal, different line count"
+                    );
+
                 }
                 for (int i = 0; i < asciidocLines.size(); i++) {
-                    if (asciidocLines.get(i).replaceAll("line_\\d+", "line_0").equals(mdxLines.get(i).replaceAll("line_\\d+", "line_0")) == false) {
-                        throw new GradleException("Files are not equal, difference on line: " + (i + 1));
+                    if (asciidocLines.get(i)
+                        .replaceAll("line_\\d+", "line_0")
+                        .equals(mdxLines.get(i).replaceAll("line_\\d+", "line_0")) == false) {
+                        throw new GradleException(
+                            "Yaml rest specs ("
+                                + asciidocFile.toPath()
+                                + " and "
+                                + mdxFile.getAbsolutePath()
+                                + ") are not equal, difference on line: "
+                                + (i + 1)
+                        );
                     }
                 }
             } catch (IOException e) {
@@ -572,13 +596,13 @@ public abstract class RestTestsFromDocSnippetTask extends DocSnippetTask {
         });
     }
 
-
     private boolean hasMultipleDocImplementations(Path path) {
+        File dir = getDocs().getDir();
         String fileName = path.getName(path.getNameCount() - 1).toString();
         if (fileName.endsWith("asciidoc")) {
-            return Files.exists(path.getParent().resolve(fileName.replace(".asciidoc", ".mdx")));
+            return new File(dir, path.toString().replace(".asciidoc", ".mdx")).exists();
         } else if (fileName.endsWith("mdx")) {
-            return Files.exists(path.getParent().resolve(fileName.replace(".mdx", ".asciidoc")));
+            return new File(dir, path.toString().replace(".mdx", ".asciidoc")).exists();
         }
         return false;
     }

@@ -14,6 +14,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -55,17 +56,61 @@ public abstract class SnippetParser {
 
     public List<Snippet> parseDoc(File rootDir, File docFile) {
         List<Snippet> snippets = new ArrayList<>();
+        Path path = rootDir.toPath().relativize(docFile.toPath());
         try (Stream<String> lines = Files.lines(docFile.toPath(), StandardCharsets.UTF_8)) {
             List<String> linesList = lines.toList();
             for (int lineNumber = 0; lineNumber < linesList.size(); lineNumber++) {
                 String line = linesList.get(lineNumber);
-                parseLine(snippets, rootDir, docFile, lineNumber, line);
+                parseLine(snippets, path, lineNumber, line);
             }
             fileParsingFinished(snippets);
         } catch (IOException e) {
             e.printStackTrace();
         }
         return snippets;
+    }
+
+    protected void handleCommons(List<Snippet> snippets, File docFile, int lineNumber, String line) {
+        if (consoleHandled(docFile.getName(), lineNumber, line, snippetBuilder)) {
+            return;
+        }
+        if (testHandled(docFile.getName(), lineNumber, line, snippetBuilder)) {
+            return;
+        }
+        if (testResponseHandled(docFile.getName(), lineNumber, line, snippetBuilder)) {
+            return;
+        }
+        if (line.matches(getTestSetupRegex())) {
+            snippetBuilder.withTestSetup(true);
+            return;
+        }
+        // TODO
+        if (line.matches(getTeardownRegex())) {
+            snippetBuilder.withTestTearDown(true);
+            return;
+        }
+        if (snippetBuilder == null) {
+            // Outside
+            return;
+        }
+        if (snippetBuilder.notFinished()) {
+            // Inside
+            // We don't need the annotations
+            line = line.replaceAll("<\\d+>", "");
+            // nor bookmarks
+            line = line.replaceAll("\\[\\^\\d+\\]", "");
+            // Nor any trailing spaces
+            line = line.replaceAll("\s+$", "");
+            snippetBuilder.withContent(line, true);
+            return;
+        }
+        // TODO
+        // Allow line continuations for console snippets within lists
+        if (snippetBuilder != null && line.trim().equals("+")) {
+            return;
+        }
+        snippets.add(snippetBuilder.build());
+        snippetBuilder = null;
     }
 
     private void fileParsingFinished(List<Snippet> snippets) {
@@ -75,7 +120,7 @@ public abstract class SnippetParser {
         }
     }
 
-    protected abstract void parseLine(List<Snippet> snippets, File rootDir, File docFile, int lineNumber, String line);
+    protected abstract void parseLine(List<Snippet> snippets, Path docPath, int lineNumber, String line);
 
     boolean testResponseHandled(String name, int lineNumber, String line, SnippetBuilder snippetBuilder) {
         Matcher matcher = testResponsePattern().matcher(line);
@@ -161,6 +206,37 @@ public abstract class SnippetParser {
         }
         return false;
     }
+
+    protected boolean consoleHandled(String fileName, int lineNumber, String line, SnippetBuilder snippet) {
+        if (line.matches(getConsoleRegex())) {
+            if (snippetBuilder == null) {
+                throw new InvalidUserDataException(fileName + ":" + lineNumber + ": CONSOLE not paired with a snippet");
+            }
+            if (snippetBuilder.consoleDefined()) {
+                throw new InvalidUserDataException(fileName + ":" + lineNumber + ": Can't be both CONSOLE and NOTCONSOLE");
+            }
+            snippetBuilder.withConsole(Boolean.TRUE);
+            return true;
+        } else if (line.matches(getNotconsoleRegex())) {
+            if (snippet == null) {
+                throw new InvalidUserDataException(fileName + ":" + lineNumber + ": NOTCONSOLE not paired with a snippet");
+            }
+            if (snippetBuilder.consoleDefined()) {
+                throw new InvalidUserDataException(fileName + ":" + lineNumber + ": Can't be both CONSOLE and NOTCONSOLE");
+            }
+            snippet.withConsole(Boolean.FALSE);
+            return true;
+        }
+        return false;
+    }
+
+    protected abstract String getTestSetupRegex();
+
+    protected abstract String getTeardownRegex();
+
+    protected abstract String getConsoleRegex();
+
+    protected abstract String getNotconsoleRegex();
 
     protected abstract Pattern testPattern();
 

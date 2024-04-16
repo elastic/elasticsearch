@@ -8,10 +8,8 @@
 
 package org.elasticsearch.gradle.internal.doc;
 
-import org.gradle.api.InvalidUserDataException;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.File;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +20,10 @@ public class AsciidocSnippetParser extends SnippetParser {
     public static final Pattern SNIPPET_PATTERN = Pattern.compile("-{4,}\\s*");
 
     public static final Pattern TEST_RESPONSE_PATTERN = Pattern.compile("\\/\\/\s*TESTRESPONSE(\\[(.+)\\])?\s*");
+    public static final String CONSOLE_REGEX = "\\/\\/\s*CONSOLE\s*";
+    public static final String NOTCONSOLE_REGEX = "\\/\\/\s*NOTCONSOLE\s*";
+    public static final String TESTSETUP_REGEX = "\\/\\/\s*TESTSETUP\s*";
+    public static final String TEARDOWN_REGEX = "\\/\\/\s*TEARDOWN\s*";
 
     public AsciidocSnippetParser(Map<String, String> defaultSubstitutions) {
         super(defaultSubstitutions);
@@ -41,11 +43,10 @@ public class AsciidocSnippetParser extends SnippetParser {
     private String currentName = null;
     private String lastLanguage = null;
 
-    protected void parseLine(List<Snippet> snippets, File rootDir, File docFile, int lineNumber, String line) {
+    protected void parseLine(List<Snippet> snippets, Path docPath, int lineNumber, String line) {
         if (SNIPPET_PATTERN.matcher(line).matches()) {
             if (snippetBuilder == null) {
-                Path path = rootDir.toPath().relativize(docFile.toPath());
-                snippetBuilder = new SnippetBuilder().withPath(path)
+                snippetBuilder = new SnippetBuilder().withPath(docPath)
                     .withLineNumber(lineNumber + 1)
                     .withName(currentName)
                     .withSubstitutions(defaultSubstitutions);
@@ -66,65 +67,24 @@ public class AsciidocSnippetParser extends SnippetParser {
             currentName = source.name;
             return;
         }
-        if (consoleHandled(docFile.getName(), lineNumber, line, snippetBuilder)) {
-            return;
-        }
-        if (testHandled(docFile.getName(), lineNumber, line, snippetBuilder)) {
-            return;
-        }
-        if (testResponseHandled(docFile.getName(), lineNumber, line, snippetBuilder)) {
-            return;
-        }
-        if (line.matches("\\/\\/\s*TESTSETUP\s*")) {
-            snippetBuilder.withTestSetup(true);
-            return;
-        }
-        if (line.matches("\\/\\/\s*TEARDOWN\s*")) {
-            snippetBuilder.withTestTearDown(true);
-            return;
-        }
-        if (snippetBuilder == null) {
-            // Outside
-            return;
-        }
-        if (snippetBuilder.notFinished()) {
-            // Inside
-            // We don't need the annotations
-            line = line.replaceAll("<\\d+>", "");
-            // Nor any trailing spaces
-            line = line.replaceAll("\s+$", "");
-            snippetBuilder.withContent(line, true);
-            return;
-        }
-        // Allow line continuations for console snippets within lists
-        if (snippetBuilder != null && line.trim().equals("+")) {
-            return;
-        }
-        snippets.add(snippetBuilder.build());
-        snippetBuilder = null;
+        handleCommons(snippets, docPath.toFile(), lineNumber, line);
     }
 
-    private boolean consoleHandled(String fileName, int lineNumber, String line, SnippetBuilder snippet) {
-        if (line.matches("\\/\\/\s*CONSOLE\s*")) {
-            if (snippetBuilder == null) {
-                throw new InvalidUserDataException(fileName + ":" + lineNumber + ": CONSOLE not paired with a snippet");
-            }
-            if (snippetBuilder.consoleDefined()) {
-                throw new InvalidUserDataException(fileName + ":" + lineNumber + ": Can't be both CONSOLE and NOTCONSOLE");
-            }
-            snippetBuilder.withConsole(Boolean.TRUE);
-            return true;
-        } else if (line.matches("\\/\\/\s*NOTCONSOLE\s*")) {
-            if (snippet == null) {
-                throw new InvalidUserDataException(fileName + ":" + lineNumber + ": NOTCONSOLE not paired with a snippet");
-            }
-            if (snippetBuilder.consoleDefined()) {
-                throw new InvalidUserDataException(fileName + ":" + lineNumber + ": Can't be both CONSOLE and NOTCONSOLE");
-            }
-            snippet.withConsole(Boolean.FALSE);
-            return true;
-        }
-        return false;
+    protected String getTestSetupRegex() {
+        return TESTSETUP_REGEX;
+    }
+
+    protected String getTeardownRegex() {
+        return TEARDOWN_REGEX;
+    }
+
+    protected String getNotconsoleRegex() {
+        return NOTCONSOLE_REGEX;
+    }
+
+    @NotNull
+    protected String getConsoleRegex() {
+        return CONSOLE_REGEX;
     }
 
     static Source matchSource(String line) {

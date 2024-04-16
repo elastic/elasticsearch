@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -123,11 +124,14 @@ public class DateDiff extends EsqlScalarFunction implements OptionalArgument {
 
     @FunctionInfo(
         returnType = "integer",
-        description = "Subtract 2 dates and return their difference in multiples of a unit specified in the 1st argument"
+        description = "Subtracts the `startTimestamp` from the `endTimestamp` and returns the\n"
+            + "difference in multiples of `unit`. If `startTimestamp` is later than the\n"
+            + "`endTimestamp`, negative values are returned.",
+        examples = @Example(file = "date", tag = "docsDateDiff")
     )
     public DateDiff(
         Source source,
-        @Param(name = "unit", type = { "keyword", "text" }, description = "A valid date unit") Expression unit,
+        @Param(name = "unit", type = { "keyword", "text" }, description = "Time difference unit") Expression unit,
         @Param(
             name = "startTimestamp",
             type = { "date" },

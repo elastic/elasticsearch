@@ -2,4 +2,4 @@
 
 *Description*
 
-Subtract 2 dates and return their difference in multiples of a unit specified in the 1st argument
+Subtracts the `startTimestamp` from the `endTimestamp` and returns the difference in multiples of `unit`. If `startTimestamp` is later than the `endTimestamp`, negative values are returned.

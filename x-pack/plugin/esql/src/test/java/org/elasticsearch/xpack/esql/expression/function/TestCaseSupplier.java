@@ -76,23 +76,6 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return types.stream().map(t -> "<" + t.typeName() + ">").collect(Collectors.joining(", "));
     }
 
-    public static List<TestCaseSupplier> stringCases(
-        BinaryOperator<Object> expected,
-        BiFunction<DataType, DataType, String> evaluatorToString,
-        List<String> warnings,
-        DataType expectedType
-    ) {
-        List<TypedDataSupplier> lhsSuppliers = new ArrayList<>();
-        List<TypedDataSupplier> rhsSuppliers = new ArrayList<>();
-        List<TestCaseSupplier> suppliers = new ArrayList<>();
-        for (DataType type : AbstractConvertFunction.STRING_TYPES) {
-            lhsSuppliers.addAll(stringCases(type));
-            rhsSuppliers.addAll(stringCases(type));
-            casesCrossProduct(expected, lhsSuppliers, rhsSuppliers, evaluatorToString, warnings, suppliers, expectedType, true);
-        }
-        return suppliers;
-    }
-
     @Override
     public TestCase get() {
         TestCase supplied = supplier.get();
@@ -275,14 +258,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return suppliers;
     }
 
-    public record NumericTypeTestConfig<T>(Number min, Number max, BiFunction<Number, Number, T> expected, String evaluatorName) {}
+    public record NumericTypeTestConfig(Number min, Number max, BinaryOperator<Number> expected, String evaluatorName) {}
 
-    public record NumericTypeTestConfigs<T>(
-        NumericTypeTestConfig<T> intStuff,
-        NumericTypeTestConfig<T> longStuff,
-        NumericTypeTestConfig<T> doubleStuff
+    public record NumericTypeTestConfigs(
+        NumericTypeTestConfig intStuff,
+        NumericTypeTestConfig longStuff,
+        NumericTypeTestConfig doubleStuff
     ) {
-        public NumericTypeTestConfig<T> get(DataType type) {
+        public NumericTypeTestConfig get(DataType type) {
             if (type == DataTypes.INTEGER) {
                 return intStuff;
             }
@@ -329,8 +312,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         throw new IllegalArgumentException("bogus numeric type [" + type + "]");
     }
 
-    public static List<TestCaseSupplier> forBinaryComparisonWithWidening(
-        NumericTypeTestConfigs<Boolean> typeStuff,
+    public static List<TestCaseSupplier> forBinaryWithWidening(
+        NumericTypeTestConfigs typeStuff,
         String lhsName,
         String rhsName,
         BiFunction<TypedData, TypedData, List<String>> warnings,
@@ -342,45 +325,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         for (DataType lhsType : numericTypes) {
             for (DataType rhsType : numericTypes) {
                 DataType expected = widen(lhsType, rhsType);
-                NumericTypeTestConfig<Boolean> expectedTypeStuff = typeStuff.get(expected);
-                BiFunction<DataType, DataType, String> evaluatorToString = (lhs, rhs) -> expectedTypeStuff.evaluatorName()
-                    + "["
-                    + lhsName
-                    + "="
-                    + getCastEvaluator("Attribute[channel=0]", lhs, expected)
-                    + ", "
-                    + rhsName
-                    + "="
-                    + getCastEvaluator("Attribute[channel=1]", rhs, expected)
-                    + "]";
-                casesCrossProduct(
-                    (l, r) -> expectedTypeStuff.expected().apply((Number) l, (Number) r),
-                    getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max()),
-                    getSuppliersForNumericType(rhsType, expectedTypeStuff.min(), expectedTypeStuff.max()),
-                    evaluatorToString,
-                    warnings,
-                    suppliers,
-                    DataTypes.BOOLEAN,
-                    true
-                );
-            }
-        }
-        return suppliers;
-    }
-
-    public static List<TestCaseSupplier> forBinaryWithWidening(
-        NumericTypeTestConfigs<Number> typeStuff,
-        String lhsName,
-        String rhsName,
-        List<String> warnings
-    ) {
-        List<TestCaseSupplier> suppliers = new ArrayList<>();
-        List<DataType> numericTypes = List.of(DataTypes.INTEGER, DataTypes.LONG, DataTypes.DOUBLE);
-
-        for (DataType lhsType : numericTypes) {
-            for (DataType rhsType : numericTypes) {
-                DataType expected = widen(lhsType, rhsType);
-                NumericTypeTestConfig<Number> expectedTypeStuff = typeStuff.get(expected);
+                NumericTypeTestConfig expectedTypeStuff = typeStuff.get(expected);
                 BiFunction<DataType, DataType, String> evaluatorToString = (lhs, rhs) -> expectedTypeStuff.evaluatorName()
                     + "["
                     + lhsName
@@ -940,7 +885,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return cases;
     }
 
-    public static List<TypedDataSupplier> booleanCases() {
+    private static List<TypedDataSupplier> booleanCases() {
         return List.of(
             new TypedDataSupplier("<true>", () -> true, DataTypes.BOOLEAN),
             new TypedDataSupplier("<false>", () -> false, DataTypes.BOOLEAN)
@@ -1322,14 +1267,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
      * exists because we can't generate random values from the test parameter generation functions, and instead need to return
      * suppliers which generate the random values at test execution time.
      */
-    public record TypedDataSupplier(String name, Supplier<Object> supplier, DataType type, boolean forceLiteral) {
-
-        public TypedDataSupplier(String name, Supplier<Object> supplier, DataType type) {
-            this(name, supplier, type, false);
-        }
-
+    public record TypedDataSupplier(String name, Supplier<Object> supplier, DataType type) {
         public TypedData get() {
-            return new TypedData(supplier.get(), type, name, forceLiteral);
+            return new TypedData(supplier.get(), type, name);
         }
     }
 

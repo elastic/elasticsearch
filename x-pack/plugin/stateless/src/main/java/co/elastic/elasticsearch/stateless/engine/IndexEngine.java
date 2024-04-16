@@ -54,10 +54,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -85,8 +85,8 @@ public class IndexEngine extends InternalEngine {
     // This is written and then accessed on the same thread under the flush lock. So not need for volatile
     private long translogStartFileForNextCommit = 0;
 
-    // The values of this map are sets of BCCs referenced by the reader
-    private final Map<DirectoryReader, Set<PrimaryTermAndGeneration>> openReaders = new ConcurrentHashMap<>();
+    // The values of this map are sets of BCCs referenced by the reader. This map is guarded by the openReaders monitor.
+    private final Map<DirectoryReader, Set<PrimaryTermAndGeneration>> openReaders = new HashMap<>();
 
     private final AtomicBoolean ongoingFlushMustUpload = new AtomicBoolean(false);
 
@@ -173,19 +173,25 @@ public class IndexEngine extends InternalEngine {
         }
 
         ElasticsearchDirectoryReader.addReaderCloseListener(directoryReader, ignored -> onLocalReaderClosed(directoryReader));
-        openReaders.put(directoryReader, referencedBCCsForCommit);
+        synchronized (openReaders) {
+            openReaders.put(directoryReader, referencedBCCsForCommit);
+        }
     }
 
     private void onLocalReaderClosed(DirectoryReader reader) {
-        var bccDependencies = openReaders.remove(reader);
-        assert bccDependencies != null : openReaders + " -> " + reader;
-        assert bccDependencies.isEmpty() == false;
+        Set<PrimaryTermAndGeneration> bccDependencies;
+        Set<PrimaryTermAndGeneration> remainingReferencedBCCs;
+        // CHM iterators are weakly consistent, meaning that we're not guaranteed to see new insertions while we compute
+        // the set of remainingReferencedBCCs, that's why we use a regular HashMap with synchronized.
+        synchronized (openReaders) {
+            bccDependencies = openReaders.remove(reader);
+            assert bccDependencies != null : openReaders + " -> " + reader;
+            assert bccDependencies.isEmpty() == false;
+            remainingReferencedBCCs = openReaders.values().stream().flatMap(Collection::stream).collect(Collectors.toSet());
+        }
 
         long bccHoldingCommit = bccDependencies.stream().max(PrimaryTermAndGeneration::compareTo).get().generation();
-        localReaderListener.onLocalReaderClosed(
-            bccHoldingCommit,
-            openReaders.values().stream().flatMap(Collection::stream).collect(Collectors.toSet())
-        );
+        localReaderListener.onLocalReaderClosed(bccHoldingCommit, remainingReferencedBCCs);
     }
 
     static long getLatestCommittedGeneration(DirectoryReader directoryReader) {
@@ -282,8 +288,11 @@ public class IndexEngine extends InternalEngine {
         return getLastCommittedSegmentInfos().getGeneration();
     }
 
+    // visible for testing
     Map<DirectoryReader, Set<PrimaryTermAndGeneration>> getOpenReaders() {
-        return openReaders;
+        synchronized (openReaders) {
+            return Map.copyOf(openReaders);
+        }
     }
 
     @Override

@@ -70,7 +70,7 @@ PUT idx
   "mappings": {
     "_source": { "mode": "synthetic" },
     "properties": {
-      "binary": { "type": "binary" }
+      "binary": { "type": "binary", "doc_values": true }
     }
   }
 }

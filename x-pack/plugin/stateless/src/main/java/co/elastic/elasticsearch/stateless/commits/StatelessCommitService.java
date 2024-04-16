@@ -70,6 +70,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -722,10 +723,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             final var recoveredCommit = recoveredBcc.last();
             Map<PrimaryTermAndGeneration, Map<String, BlobLocation>> referencedBlobs = new HashMap<>();
-            // TODO: ES-8246 Fix #getInternalFiles to account for multiple CCs belonging to a BCC
-            final var recoveredInternalFiles = recoveredCommit.getInternalFiles();
+            final var bccStoredFiles = recoveredBcc.getAllInternalFiles();
+            // It's possible that the recovered commit uses files from a different commit stored
+            // in the same BCC, hence we need to ensure that those are also present in the recovered BCC BlobReference
+            final var recoveredBCCFilesUsedByRecoveredCommit = new HashSet<String>();
             for (Map.Entry<String, BlobLocation> referencedBlob : recoveredCommit.commitFiles().entrySet()) {
-                if (recoveredInternalFiles.contains(referencedBlob.getKey()) == false) {
+                // The recoveredCommit may contain non-internal files that belong to the same BCC,
+                // that's why we consider all the BCC internal files when we check if we need to
+                // create an BlobReference for a commit file that is stored in a different BCC
+                if (bccStoredFiles.contains(referencedBlob.getKey()) == false) {
                     referencedBlobs.computeIfAbsent(
                         new PrimaryTermAndGeneration(
                             referencedBlob.getValue().primaryTerm(),
@@ -733,6 +739,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         ),
                         primaryTermAndGeneration -> new HashMap<>()
                     ).put(referencedBlob.getKey(), referencedBlob.getValue());
+                } else {
+                    recoveredBCCFilesUsedByRecoveredCommit.add(referencedBlob.getKey());
                 }
             }
 
@@ -772,11 +780,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
 
             var referencedBCCsForRecoveryCommit = previousBCCBlobs.stream()
-                .filter(commit -> referencedBlobs.containsKey(commit.getPrimaryTermAndGeneration()))
+                .filter(bccBlobReference -> referencedBlobs.containsKey(bccBlobReference.getPrimaryTermAndGeneration()))
                 .collect(Collectors.toUnmodifiableSet());
             var recoveryBCCBlob = new BlobReference(
-                recoveredCommit.primaryTermAndGeneration(),
-                recoveredCommit.getInternalFiles(),
+                recoveredBcc.primaryTermAndGeneration(),
+                recoveredBCCFilesUsedByRecoveredCommit,
                 referencedBCCsForRecoveryCommit,
                 // During recovery we only read the latest stored commit,
                 // hence we consider that the recovered blob reference contains only that commit
@@ -785,14 +793,25 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             assert primaryTermAndGenToBlobReference.containsKey(recoveredCommit.primaryTermAndGeneration()) == false;
 
-            primaryTermAndGenToBlobReference.put(recoveryBCCBlob.getPrimaryTermAndGeneration(), recoveryBCCBlob);
-
-            recoveredCommit.getInternalFiles().forEach(fileName -> {
+            // TODO: ES-8235 Maybe structure BlobReference and related data structures better?
+            // Populate dependent BlobReference data structures before we publish the recoveryBCCBlob
+            // by adding it to primaryTermAndGenToBlobReference (i.e. the recovery might fail due to the index being deleted
+            // while recovery is running and when we try to clean up some of the related data structures it can trip assertions
+            // due to them being in a non-consistent state)
+            recoveredBCCFilesUsedByRecoveredCommit.forEach(fileName -> {
                 var fileBlobLocation = recoveredCommit.commitFiles().get(fileName);
                 assert fileBlobLocation != null : fileName;
                 var existing = blobLocations.put(fileName, new CommitAndBlobLocation(recoveryBCCBlob, fileBlobLocation));
                 assert existing == null : fileName + ':' + existing;
             });
+
+            var referencedBCCGenerationsByRecoveredCommit = BatchedCompoundCommit.computeReferencedBCCGenerations(recoveredCommit);
+            commitReferencesInfos.put(
+                recoveredCommit.primaryTermAndGeneration(),
+                new CommitReferencesInfo(recoveredCommit.primaryTermAndGeneration(), referencedBCCGenerationsByRecoveredCommit)
+            );
+
+            primaryTermAndGenToBlobReference.put(recoveryBCCBlob.getPrimaryTermAndGeneration(), recoveryBCCBlob);
 
             var currentUnpromotableShardAssignedNodes = shardRoutingFinder.apply(shardId)
                 .unpromotableShards()
@@ -802,12 +821,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             primaryTermAndGenToBlobReference.values()
                 .forEach(commit -> trackOutstandingUnpromotableShardCommitRef(currentUnpromotableShardAssignedNodes, commit));
-
-            var referencedBCCGenerationsByRecoveredCommit = BatchedCompoundCommit.computeReferencedBCCGenerations(recoveredCommit);
-            commitReferencesInfos.put(
-                recoveredCommit.primaryTermAndGeneration(),
-                new CommitReferencesInfo(recoveredCommit.primaryTermAndGeneration(), referencedBCCGenerationsByRecoveredCommit)
-            );
 
             // Decrement all of the non-recovered BCCs that are not referenced by the recovered commit
             for (BlobReference blobReference : primaryTermAndGenToBlobReference.values()) {

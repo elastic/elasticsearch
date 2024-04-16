@@ -56,7 +56,7 @@ public class ModTests extends AbstractFunctionTestCase {
                 ),
                 "lhs",
                 "rhs",
-                List.of(),
+                (lhs, rhs) -> List.of(),
                 false
             )
         );
@@ -118,7 +118,7 @@ public class ModTests extends AbstractFunctionTestCase {
                     TestCaseSupplier.getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), true),
                     TestCaseSupplier.getSuppliersForNumericType(rhsType, 0, 0, true),
                     evaluatorToString,
-                    List.of(
+                    (lhs, rhs) -> List.of(
                         "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                         "Line -1:-1: java.lang.ArithmeticException: / by zero"
                     ),

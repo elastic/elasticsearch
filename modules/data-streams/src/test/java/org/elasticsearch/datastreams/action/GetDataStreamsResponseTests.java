@@ -81,7 +81,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 .setAllowCustomRouting(true)
                 .setIndexMode(IndexMode.STANDARD)
                 .setLifecycle(new DataStreamLifecycle())
-                .setFailureStore(true)
+                .setFailureStoreEnabled(true)
                 .setFailureIndices(failureStores)
                 .build();
 
@@ -158,7 +158,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                     is(ManagedBy.LIFECYCLE.displayValue)
                 );
 
-                if (DataStream.isFailureStoreEnabled()) {
+                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
                     List<Object> failureStoresRepresentation = (List<Object>) dataStreamMap.get(
                         DataStream.FAILURE_INDICES_FIELD.getPreferredName()
                     );
@@ -184,7 +184,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 .setAllowCustomRouting(true)
                 .setIndexMode(IndexMode.STANDARD)
                 .setLifecycle(new DataStreamLifecycle(null, null, false))
-                .setFailureStore(true)
+                .setFailureStoreEnabled(true)
                 .setFailureIndices(failureStores)
                 .build();
 
@@ -250,7 +250,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                     is(ManagedBy.UNMANAGED.displayValue)
                 );
 
-                if (DataStream.isFailureStoreEnabled()) {
+                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
                     List<Object> failureStoresRepresentation = (List<Object>) dataStreamMap.get(
                         DataStream.FAILURE_INDICES_FIELD.getPreferredName()
                     );

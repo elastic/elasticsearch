@@ -494,9 +494,6 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         assertThat(flatList, containsInAnyOrder("engineering"));
     }
 
-    @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "this trips ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION)")
-    // comment out those assertions in EsqlIndexResolver and TransportFieldCapabilitiesAction to see this test pass
     public void testCrossClusterQueryAgainstInvalidRemote() throws Exception {
         configureRemoteCluster();
         populateData();

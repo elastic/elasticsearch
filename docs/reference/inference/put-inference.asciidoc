@@ -57,24 +57,27 @@ The unique identifier of the {infer} endpoint.
 `<task_type>`::
 (Required, string)
 The type of the {infer} task that the model will perform. Available task types:
+* `completion`,
+* `rerank`,
 * `sparse_embedding`,
-* `text_embedding`,
-* `completion`
+* `text_embedding`.
 
 
 [discrete]
 [[put-inference-api-request-body]]
-== {api-request-body-title}
+==== {api-request-body-title}
 
 `service`::
 (Required, string)
 The type of service supported for the specified task type.
 Available services:
-* `cohere`: specify the `text_embedding` task type to use the Cohere service.
+* `cohere`: specify the `text_embedding` or the `rerank` task type to use the
+Cohere service.
 * `elser`: specify the `sparse_embedding` task type to use the ELSER service.
 * `hugging_face`: specify the `text_embedding` task type to use the Hugging Face
 service.
-* `openai`: specify the `text_embedding` task type to use the OpenAI service.
+* `openai`: specify the `completion` or `text_embedding` task type to use the
+OpenAI service.
 * `elasticsearch`: specify the `text_embedding` task type to use the E5
 built-in model or text embedding models uploaded by Eland.
 
@@ -100,7 +103,8 @@ the same name and the updated API key.
 
 `embedding_type`::
 (Optional, string)
-Specifies the types of embeddings you want to get back. Defaults to `float`.
+Only for `text_embedding`. Specifies the types of embeddings you want to get
+back. Defaults to `float`.
 Valid values are:
   * `byte`: use it for signed int8 embeddings (this is a synonym of `int8`).
   * `float`: use it for the default float embeddings.
@@ -108,10 +112,13 @@ Valid values are:
 
 `model_id`::
 (Optional, string)
-The name of the model to use for the {infer} task. To review the available
-models, refer to the
-https://docs.cohere.com/reference/embed[Cohere docs]. Defaults to
-`embed-english-v2.0`.
+The name of the model to use for the {infer} task.
+To review the availble `rerank` models, refer to the
+https://docs.cohere.com/reference/rerank-1[Cohere docs].
+
+To review the available `text_embedding` models, refer to the
+https://docs.cohere.com/reference/embed[Cohere docs]. The default value for
+`text_embedding` is `embed-english-v2.0`.
 =====
 +
 .`service_settings` for the `elser` service
@@ -210,11 +217,34 @@ allocations. Must be a power of 2. Max allowed value is 32.
 Settings to configure the {infer} task. These settings are specific to the
 `<task_type>` you specified.
 +
+.`task_settings` for the `completion` task type
+[%collapsible%closed]
+=====
+`user`:::
+(Optional, string)
+For `openai` service only. Specifies the user issuing the request, which can be
+used for abuse detection.
+=====
++
+.`task_settings` for the `rerank` task type
+[%collapsible%closed]
+=====
+`return_documents`::
+(Optional, boolean)
+For `cohere` service only. Specify whether to return doc text within the 
+results.
+
+`top_n`::
+(Optional, integer)
+The number of most relevant documents to return, defaults to the number of the
+documents.
+=====
++
 .`task_settings` for the `text_embedding` task type
 [%collapsible%closed]
 =====
 `input_type`:::
-(optional, string)
+(Optional, string)
 For `cohere` service only. Specifies the type of input passed to the model.
 Valid values are:
   * `classification`: use it for embeddings passed through a text classifier.
@@ -236,15 +266,8 @@ maximum token length. Defaults to `END`. Valid values are:
 
 `user`:::
 (optional, string)
-For `openai` service only. Specifies the user issuing the request, which can be used for abuse detection.
-=====
-+
-.`task_settings` for the `completion` task type
-[%collapsible%closed]
-=====
-`user`:::
-(optional, string)
-For `openai` service only. Specifies the user issuing the request, which can be used for abuse detection.
+For `openai` service only. Specifies the user issuing the request, which can be
+used for abuse detection.
 =====
 
 
@@ -260,7 +283,7 @@ This section contains example API calls for every service type.
 ===== Cohere service
 
 The following example shows how to create an {infer} endpoint called
-`cohere_embeddings` to perform a `text_embedding` task type.
+`cohere-embeddings` to perform a `text_embedding` task type.
 
 [source,console]
 ------------------------------------------------------------
@@ -275,6 +298,30 @@ PUT _inference/text_embedding/cohere-embeddings
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
+
+
+The following example shows how to create an {infer} endpoint called
+`cohere-rerank` to perform a `rerank` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/rerank/cohere-rerank 
+{
+    "service": "cohere",
+    "service_settings": {
+        "api_key": "<API-KEY>", 
+        "model_id": "rerank-english-v3.0"
+    },
+    "task_settings": {
+        "top_n": 10,
+        "return_documents": true
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+For more examples, also review the 
+https://docs.cohere.com/docs/elasticsearch-and-cohere#rerank-search-results-with-cohere-and-elasticsearch[Cohere documentation].
 
 
 [discrete]
@@ -414,11 +461,11 @@ been
 ===== OpenAI service
 
 The following example shows how to create an {infer} endpoint called
-`openai_embeddings` to perform a `text_embedding` task type.
+`openai-embeddings` to perform a `text_embedding` task type.
 
 [source,console]
 ------------------------------------------------------------
-PUT _inference/text_embedding/openai_embeddings
+PUT _inference/text_embedding/openai-embeddings
 {
     "service": "openai",
     "service_settings": {
@@ -430,11 +477,11 @@ PUT _inference/text_embedding/openai_embeddings
 // TEST[skip:TBD]
 
 The next example shows how to create an {infer} endpoint called
-`openai_completion` to perform a `completion` task type.
+`openai-completion` to perform a `completion` task type.
 
 [source,console]
 ------------------------------------------------------------
-PUT _inference/completion/openai_completion
+PUT _inference/completion/openai-completion
 {
     "service": "openai",
     "service_settings": {

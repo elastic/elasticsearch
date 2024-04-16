@@ -179,20 +179,20 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         this.downsampleMetrics = downsampleMetrics;
     }
 
-    private void recordLatencyOnSuccess(long startTime) {
-        recordLatency(startTime, DownsampleMetrics.ActionStatus.SUCCESS);
+    private void recordSuccessMetrics(long startTime) {
+        recordOperation(startTime, DownsampleMetrics.ActionStatus.SUCCESS);
     }
 
-    private void recordLatencyOnFailure(long startTime) {
-        recordLatency(startTime, DownsampleMetrics.ActionStatus.FAILED);
+    private void recordFailureMetrics(long startTime) {
+        recordOperation(startTime, DownsampleMetrics.ActionStatus.FAILED);
     }
 
-    private void recordLatencyOnInvalidConfiguration(long startTime) {
-        recordLatency(startTime, DownsampleMetrics.ActionStatus.INVALID_CONFIGURATION);
+    private void recordInvalidConfigurationMetrics(long startTime) {
+        recordOperation(startTime, DownsampleMetrics.ActionStatus.INVALID_CONFIGURATION);
     }
 
-    private void recordLatency(long startTime, DownsampleMetrics.ActionStatus status) {
-        downsampleMetrics.recordLatencyTotal(
+    private void recordOperation(long startTime, DownsampleMetrics.ActionStatus status) {
+        downsampleMetrics.recordOperation(
             TimeValue.timeValueMillis(client.threadPool().relativeTimeInMillis() - startTime).getMillis(),
             status
         );
@@ -215,7 +215,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 boolean hasDocumentLevelPermissions = indexPermissions.getDocumentPermissions().hasDocumentLevelPermissions();
                 boolean hasFieldLevelSecurity = indexPermissions.getFieldPermissions().hasFieldLevelSecurity();
                 if (hasDocumentLevelPermissions || hasFieldLevelSecurity) {
-                    recordLatencyOnInvalidConfiguration(startTime);
+                    recordInvalidConfigurationMetrics(startTime);
                     listener.onFailure(
                         new ElasticsearchException(
                             "Rollup forbidden for index [" + sourceIndexName + "] with document level or field level security settings."
@@ -228,14 +228,14 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         // Assert source index exists
         IndexMetadata sourceIndexMetadata = state.getMetadata().index(sourceIndexName);
         if (sourceIndexMetadata == null) {
-            recordLatencyOnInvalidConfiguration(startTime);
+            recordInvalidConfigurationMetrics(startTime);
             listener.onFailure(new IndexNotFoundException(sourceIndexName));
             return;
         }
 
         // Assert source index is a time_series index
         if (IndexSettings.MODE.get(sourceIndexMetadata.getSettings()) != IndexMode.TIME_SERIES) {
-            recordLatencyOnInvalidConfiguration(startTime);
+            recordInvalidConfigurationMetrics(startTime);
             listener.onFailure(
                 new ElasticsearchException(
                     "Rollup requires setting ["
@@ -252,7 +252,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
         // Assert source index is read-only
         if (state.blocks().indexBlocked(ClusterBlockLevel.WRITE, sourceIndexName) == false) {
-            recordLatencyOnInvalidConfiguration(startTime);
+            recordInvalidConfigurationMetrics(startTime);
             listener.onFailure(
                 new ElasticsearchException(
                     "Downsample requires setting [" + IndexMetadata.SETTING_BLOCKS_WRITE + " = true] for index [" + sourceIndexName + "]"
@@ -327,7 +327,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             }
 
             if (validationException.validationErrors().isEmpty() == false) {
-                recordLatencyOnInvalidConfiguration(startTime);
+                recordInvalidConfigurationMetrics(startTime);
                 delegate.onFailure(validationException);
                 return;
             }
@@ -336,7 +336,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             try {
                 mapping = createDownsampleIndexMapping(helper, request.getDownsampleConfig(), mapperService, sourceIndexMappings);
             } catch (IOException e) {
-                recordLatencyOnFailure(startTime);
+                recordFailureMetrics(startTime);
                 delegate.onFailure(e);
                 return;
             }
@@ -361,7 +361,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             dimensionFields
                         );
                     } else {
-                        recordLatencyOnFailure(startTime);
+                        recordFailureMetrics(startTime);
                         delegate.onFailure(new ElasticsearchException("Failed to create downsample index [" + downsampleIndexName + "]"));
                     }
                 }, e -> {
@@ -390,7 +390,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                             dimensionFields
                         );
                     } else {
-                        recordLatencyOnFailure(startTime);
+                        recordFailureMetrics(startTime);
                         delegate.onFailure(e);
                     }
                 })
@@ -516,7 +516,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 public void onFailure(Exception e) {
                     logger.error("error while waiting for downsampling persistent task", e);
                     if (errorReported.getAndSet(true) == false) {
-                        recordLatencyOnFailure(startTime);
+                        recordFailureMetrics(startTime);
                     }
                     listener.onFailure(e);
                 }
@@ -958,7 +958,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
         @Override
         public void onFailure(Exception e) {
-            recordLatencyOnSuccess(startTime);  // Downsampling has already completed in all shards.
+            recordSuccessMetrics(startTime);  // Downsampling has already completed in all shards.
             listener.onFailure(e);
         }
 
@@ -1026,7 +1026,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
         @Override
         public void onFailure(Exception e) {
-            recordLatencyOnSuccess(startTime);  // Downsampling has already completed in all shards.
+            recordSuccessMetrics(startTime);  // Downsampling has already completed in all shards.
             actionListener.onFailure(e);
         }
 
@@ -1061,7 +1061,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             request.setParentTask(parentTask);
             client.admin().indices().forceMerge(request, ActionListener.wrap(mergeIndexResp -> {
                 actionListener.onResponse(AcknowledgedResponse.TRUE);
-                recordLatencyOnSuccess(startTime);
+                recordSuccessMetrics(startTime);
             }, t -> {
                 /*
                  * At this point downsample index has been created
@@ -1070,13 +1070,13 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                  */
                 logger.error("Failed to force-merge downsample index [" + downsampleIndexName + "]", t);
                 actionListener.onResponse(AcknowledgedResponse.TRUE);
-                recordLatencyOnSuccess(startTime);
+                recordSuccessMetrics(startTime);
             }));
         }
 
         @Override
         public void onFailure(Exception e) {
-            recordLatencyOnSuccess(startTime);
+            recordSuccessMetrics(startTime);
             this.actionListener.onFailure(e);
         }
 

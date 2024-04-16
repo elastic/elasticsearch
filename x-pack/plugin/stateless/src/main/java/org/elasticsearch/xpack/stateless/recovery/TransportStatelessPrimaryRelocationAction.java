@@ -229,7 +229,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             l.onFailure(e);
         }).delegateFailureAndWrap((listener0, preFlushResult) -> {
             logger.debug("[{}] acquiring all primary operation permits", request.shardId());
-            indexShard.relocated(request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
+            indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
                 threadDumpListener.onResponse(null);
                 logShardStats("obtained primary context", indexShard, engine);
                 logger.debug("[{}] obtained primary context: [{}]", request.shardId(), primaryContext);

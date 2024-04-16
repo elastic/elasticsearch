@@ -59,12 +59,18 @@ public class ChunkedSparseEmbeddingResults implements ChunkedInferenceServiceRes
     }
 
     public static ChunkedSparseEmbeddingResults of(List<EmbeddingChunk<SparseEmbedding.WeightedToken>> embeddingChunks) {
-        var ch = embeddingChunks.stream().map(
-            chunk ->
-                new ChunkedTextExpansionResults.ChunkedResult(chunk.matchedText(), chunk.embedding().getEmbedding().stream()
-                    .map(weightedToken -> new TextExpansionResults.WeightedToken(weightedToken.token(), weightedToken.weight()))
-                    .toList())
-        ).toList();
+        var ch = embeddingChunks.stream()
+            .map(
+                chunk -> new ChunkedTextExpansionResults.ChunkedResult(
+                    chunk.matchedText(),
+                    chunk.embedding()
+                        .getEmbedding()
+                        .stream()
+                        .map(weightedToken -> new TextExpansionResults.WeightedToken(weightedToken.token(), weightedToken.weight()))
+                        .toList()
+                )
+            )
+            .toList();
 
         return new ChunkedSparseEmbeddingResults(ch);
     }

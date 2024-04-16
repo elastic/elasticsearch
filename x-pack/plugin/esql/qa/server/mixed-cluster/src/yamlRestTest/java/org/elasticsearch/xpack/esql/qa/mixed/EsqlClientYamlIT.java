@@ -47,7 +47,7 @@ public class EsqlClientYamlIT extends ESClientYamlSuiteTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        if ("true".equals(System.getProperty("tests.version_parameter_unsupported"))) {
+        if (EsqlSpecTestCase.availableVersions().isEmpty()) {
             // TODO: skip tests with explicitly set version and/or strip the version if it's 2024.04.01.
             return createParameters();
         }
@@ -114,7 +114,7 @@ public class EsqlClientYamlIT extends ESClientYamlSuiteTestCase {
         final RestClient restClient,
         final List<HttpHost> hosts
     ) {
-        if ("true".equals(System.getProperty("tests.version_parameter_unsupported"))) {
+        if (EsqlSpecTestCase.availableVersions().isEmpty()) {
             return new ImpersonateOfficialClientTestClient(restSpec, restClient, hosts, this::getClientBuilderWithSniffedHosts, "es=8.13");
         }
         return super.initClientYamlTestClient(restSpec, restClient, hosts);

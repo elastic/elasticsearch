@@ -61,10 +61,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     // To avoid referencing the main module, we replicate EsqlFeatures.ASYNC_QUERY.id() here
     protected static final String ASYNC_QUERY_FEATURE_ID = "esql.async_query";
 
-    protected static final Set<EsqlVersion> VERSIONS = Build.current().isSnapshot()
-        ? Set.of(EsqlVersion.values())
-        : Set.of(EsqlVersion.releasedAscending());
-
     private static final Logger LOGGER = LogManager.getLogger(EsqlSpecTestCase.class);
     private final String fileName;
     private final String groupName;
@@ -72,6 +68,14 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     private final Integer lineNumber;
     protected final CsvTestCase testCase;
     protected final Mode mode;
+
+    public static Set<EsqlVersion> availableVersions() {
+        if ("true".equals(System.getProperty("tests.version_parameter_unsupported"))) {
+            // TODO: skip tests with explicitly set version and/or strip the version if it's 2024.04.01.
+            return Set.of();
+        }
+        return Build.current().isSnapshot() ? Set.of(EsqlVersion.values()) : Set.of(EsqlVersion.releasedAscending());
+    }
 
     public enum Mode {
         SYNC,
@@ -153,8 +157,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
 
         String versionString = null;
-        if ("true".equals(System.getProperty("tests.version_parameter_unsupported")) == false) {
-            EsqlVersion version = randomFrom(EsqlSpecTestCase.VERSIONS);
+        if (availableVersions().isEmpty() == false) {
+            EsqlVersion version = randomFrom(availableVersions());
             versionString = randomBoolean() ? version.toString() : version.versionStringWithoutEmoji();
         }
 

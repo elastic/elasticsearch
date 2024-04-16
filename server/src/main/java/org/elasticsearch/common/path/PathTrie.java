@@ -191,7 +191,7 @@ public class PathTrie<T> {
             TrieNode node = children.get(token);
             boolean usedWildcard;
 
-            if (node == null) {
+            if (node == null && token.charAt(0) != '_') {
                 if (trieMatchingMode == TrieMatchingMode.WILDCARD_NODES_ALLOWED) {
                     node = children.get(wildcard);
                     if (node == null) {

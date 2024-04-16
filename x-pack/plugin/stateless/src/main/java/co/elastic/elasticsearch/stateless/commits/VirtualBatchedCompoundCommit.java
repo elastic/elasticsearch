@@ -185,11 +185,13 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             long lastCompoundCommitSize = lastCompoundCommit.getSizeInBytes();
             long lastCompoundCommitSizePageAligned = BlobCacheUtils.toPageAlignedSize(lastCompoundCommitSize);
             int padding = Math.toIntExact(lastCompoundCommitSizePageAligned - lastCompoundCommitSize);
-            lastCompoundCommit.setPadding(padding);
-            long paddingOffset = currentOffset.get();
-            var previousPaddingOffset = internalDataReadersByOffset.put(paddingOffset, new InternalPaddingReader(padding));
-            assert previousPaddingOffset == null;
-            currentOffset.set(paddingOffset + padding);
+            if (padding > 0) {
+                lastCompoundCommit.setPadding(padding);
+                long paddingOffset = currentOffset.get();
+                var previousPaddingOffset = internalDataReadersByOffset.put(paddingOffset, new InternalPaddingReader(padding));
+                assert previousPaddingOffset == null;
+                currentOffset.set(paddingOffset + padding);
+            }
         }
 
         final long headerOffset = currentOffset.get();

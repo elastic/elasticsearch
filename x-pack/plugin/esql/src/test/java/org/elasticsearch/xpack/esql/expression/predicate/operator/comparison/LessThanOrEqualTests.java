@@ -11,18 +11,20 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.hamcrest.Matcher;
 
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class LessThanOrEqualTests extends AbstractFunctionTestCase {
+public class LessThanOrEqualTests extends AbstractBinaryComparisonTestCase {
     public LessThanOrEqualTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -45,7 +47,17 @@ public class LessThanOrEqualTests extends AbstractFunctionTestCase {
     }
 
     @Override
-    protected Expression build(Source source, List<Expression> args) {
-        return new LessThanOrEqual(source, args.get(0), args.get(1), null);
+    protected <T extends Comparable<T>> Matcher<Object> resultMatcher(T lhs, T rhs) {
+        return equalTo(lhs.compareTo(rhs) <= 0);
+    }
+
+    @Override
+    protected BinaryComparison build(Source source, Expression lhs, Expression rhs) {
+        return new LessThanOrEqual(source, lhs, rhs, ZoneOffset.UTC);
+    }
+
+    @Override
+    protected boolean isEquality() {
+        return false;
     }
 }

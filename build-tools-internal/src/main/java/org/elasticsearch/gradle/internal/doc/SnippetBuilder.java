@@ -12,6 +12,7 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
 
+import org.apache.commons.collections.map.MultiValueMap;
 import org.gradle.api.InvalidUserDataException;
 
 import java.io.IOException;
@@ -20,6 +21,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 class SnippetBuilder {
     static final int NOT_FINISHED = -1;
@@ -31,8 +33,8 @@ class SnippetBuilder {
     private int end = NOT_FINISHED;
     private boolean testSetup;
     private boolean testTeardown;
-    // order matters for substitutions. therefore we pick linkedHashMap
-    private Map<String, String> substitutions = new LinkedHashMap<>();
+    // some tests rely on ugly regex substitutions using the same key multiple times
+    private MultiValueMap substitutions = MultiValueMap.decorate(new LinkedHashMap<String, String>());
     private String catchPart;
     private boolean test;
     private String skip;
@@ -92,10 +94,6 @@ class SnippetBuilder {
     }
 
     public SnippetBuilder withSubstitution(String key, String value) {
-        if (this.substitutions.containsKey(key)) {
-            System.out.println("Warning: substitution for key " + key + " already defined. Ignoring value " + value);
-            return this;
-        }
         this.substitutions.put(key, value);
         return this;
     }
@@ -158,18 +156,19 @@ class SnippetBuilder {
     }
 
     private String escapeSubstitutions(String contents) {
-        for (Map.Entry<String, String> substitution : substitutions.entrySet()) {
+        Set<Map.Entry<String, List<String>>> set = substitutions.entrySet();
+        for (Map.Entry<String, List<String>> substitution : set) {
             String pattern = substitution.getKey();
-            String subst = substitution.getValue();
-            /*
-             * $body is really common, but it looks like a
-             * backreference, so we just escape it here to make the
-             * tests cleaner.
-             */
-            subst = subst.replace("$body", "\\$body");
-            subst = subst.replace("$_path", "\\$_path");
-            subst = subst.replace("\\n", "\n");
-            contents = contents.replaceAll(pattern, subst);
+            for(String subst : substitution.getValue()) {
+                /*
+                 * $body is really common, but it looks like a
+                 * backreference, so we just escape it here to make the
+                 * tests cleaner.
+                 */
+                subst = subst.replace("$body", "\\$body");
+                subst = subst.replace("$_path", "\\$_path");
+                subst = subst.replace("\\n", "\n");
+                contents = contents.replaceAll(pattern, subst);            }
         }
         return contents;
     }

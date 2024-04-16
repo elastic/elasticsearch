@@ -32,7 +32,7 @@ def supportedVersion = bwcVersion -> {
 
 // Versions on and after 8.14 will get a `version` parameter
 def versionUnsupported = bwcVersion -> {
-  return bwcVersion.before(Version.fromString("8.14.0"));
+  return bwcVersion.before(Version.fromString("8.13.3"));
 }
 
 BuildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->

@@ -156,7 +156,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
      * BytesRef reference to storing intermediate results. As long as each thread provides
      * its own intermediate instance, this method is thread safe.
      */
-    public long threadSafeFind(BytesRef key, BytesRef intermediate) {
+    private long threadSafeFind(BytesRef key, BytesRef intermediate) {
         return find(key, key.hashCode(), intermediate);
     }
 
@@ -247,6 +247,21 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
     @Override
     public long ramBytesUsed() {
         return BASE_RAM_BYTES_USED + bytesRefs.ramBytesUsed() + ids.ramBytesUsed() + hashes.ramBytesUsed() + spare.bytes.length;
+    }
+
+    public Finder newFinder() {
+        return new Finder();
+    }
+
+    /**
+     * Returns a finder class that can be used to find keys in the hash in a thread-safe manner
+     */
+    public class Finder {
+        private final BytesRef intermediate = new BytesRef();
+
+        public long find(BytesRef key) {
+            return threadSafeFind(key, intermediate);
+        }
     }
 
 }

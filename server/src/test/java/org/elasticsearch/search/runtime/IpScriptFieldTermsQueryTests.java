@@ -43,7 +43,6 @@ public class IpScriptFieldTermsQueryTests extends AbstractScriptFieldQueryTestCa
         return new BytesRef(InetAddressPoint.encode(addr));
     }
 
-
     private IpScriptFieldTermsQuery createTestInstance(int size) {
         BytesRefHash terms = new BytesRefHash(size, BigArrays.NON_RECYCLING_INSTANCE);
         while (terms.size() < size) {
@@ -96,13 +95,13 @@ public class IpScriptFieldTermsQueryTests extends AbstractScriptFieldQueryTestCa
         terms.add(ip1);
         terms.add(ip2);
         IpScriptFieldTermsQuery query = new IpScriptFieldTermsQuery(randomScript(), leafFactory, "test", terms);
-        BytesRef intermediate = new BytesRef();
-        assertTrue(query.matches(new BytesRef[] { ip1 }, 1, intermediate));
-        assertTrue(query.matches(new BytesRef[] { ip2 }, 1, intermediate));
-        assertTrue(query.matches(new BytesRef[] { ip1, notIp }, 2, intermediate));
-        assertTrue(query.matches(new BytesRef[] { notIp, ip1 }, 2, intermediate));
-        assertFalse(query.matches(new BytesRef[] { notIp }, 1, intermediate));
-        assertFalse(query.matches(new BytesRef[] { notIp, ip1 }, 1, intermediate));
+        BytesRefHash.Finder finder = terms.newFinder();
+        assertTrue(query.matches(new BytesRef[] { ip1 }, 1, finder));
+        assertTrue(query.matches(new BytesRef[] { ip2 }, 1, finder));
+        assertTrue(query.matches(new BytesRef[] { ip1, notIp }, 2, finder));
+        assertTrue(query.matches(new BytesRef[] { notIp, ip1 }, 2, finder));
+        assertFalse(query.matches(new BytesRef[] { notIp }, 1, finder));
+        assertFalse(query.matches(new BytesRef[] { notIp, ip1 }, 1, finder));
     }
 
     @Override

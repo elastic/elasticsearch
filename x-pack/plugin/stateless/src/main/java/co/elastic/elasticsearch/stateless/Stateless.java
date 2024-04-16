@@ -401,7 +401,7 @@ public class Stateless extends Plugin
         var cacheService = createSharedBlobCacheService(services, nodeEnvironment, settings, threadPool);
         var sharedBlobCacheServiceSupplier = new SharedBlobCacheServiceSupplier(setAndGet(this.sharedBlobCacheService, cacheService));
         components.add(sharedBlobCacheServiceSupplier);
-        var cacheBlobReaderService = setAndGet(this.cacheBlobReaderService, new CacheBlobReaderService(cacheService, client));
+        var cacheBlobReaderService = setAndGet(this.cacheBlobReaderService, new CacheBlobReaderService(settings, cacheService, client));
         components.add(cacheBlobReaderService);
         var cacheWarmingService = createSharedBlobCacheWarmingService(cacheService, threadPool);
         setAndGet(this.sharedBlobCacheWarmingService, cacheWarmingService);

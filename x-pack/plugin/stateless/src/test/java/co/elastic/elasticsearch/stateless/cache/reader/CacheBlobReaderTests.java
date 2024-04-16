@@ -26,6 +26,7 @@ import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommitTestUtils;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
+import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectoryTestUtils;
 import co.elastic.elasticsearch.stateless.lucene.SearchIndexInput;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
@@ -36,6 +37,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -57,12 +59,16 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.LongFunction;
 
 import static co.elastic.elasticsearch.stateless.lucene.SearchDirectoryTestUtils.getCacheService;
+import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
+import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -89,6 +95,16 @@ public class CacheBlobReaderTests extends ESTestCase {
             NamedXContentRegistry xContentRegistry,
             long primaryTerm
         ) throws IOException {
+            this(environmentSupplier, nodeEnvironmentSupplier, xContentRegistry, primaryTerm, 0);
+        }
+
+        FakeVBCCStatelessNode(
+            Function<Settings, Environment> environmentSupplier,
+            CheckedFunction<Settings, NodeEnvironment, IOException> nodeEnvironmentSupplier,
+            NamedXContentRegistry xContentRegistry,
+            long primaryTerm,
+            long minimumVbccSize
+        ) throws IOException {
             super(environmentSupplier, nodeEnvironmentSupplier, xContentRegistry, primaryTerm);
             final var indexBlobContainer = indexingDirectory.getSearchDirectory().getBlobContainer(primaryTerm);
             searchDirectory.setBlobContainer((term) -> indexBlobContainer);
@@ -103,6 +119,16 @@ public class CacheBlobReaderTests extends ESTestCase {
                     throw new AssertionError("Unexpected call");
                 }
             );
+            appendCommitsToVbcc(commits);
+
+            while (virtualBatchedCompoundCommit.getTotalSizeInBytes() < minimumVbccSize) {
+                var moreCommits = generateIndexCommits(randomIntBetween(1, 30), false);
+                appendCommitsToVbcc(moreCommits);
+            }
+        }
+
+        private void appendCommitsToVbcc(List<StatelessCommitRef> commits) {
+            assert virtualBatchedCompoundCommit != null;
             for (StatelessCommitRef statelessCommitRef : commits) {
                 assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef));
                 var pendingCompoundCommits = VirtualBatchedCompoundCommitTestUtils.getPendingStatelessCompoundCommits(
@@ -114,6 +140,14 @@ public class CacheBlobReaderTests extends ESTestCase {
 
         public VirtualBatchedCompoundCommit getVirtualBatchedCompoundCommit() {
             return virtualBatchedCompoundCommit;
+        }
+
+        public Map.Entry<String, BlobLocation> getLastInternalLocation() {
+            // Get the last internal file of the VBCC. We do that by using a comparator that compares their offsets, and use that
+            // comparator to get the max of the VBCC internal locations.
+            return virtualBatchedCompoundCommit.getInternalLocations().entrySet().stream().max((l, r) -> {
+                return Math.toIntExact(l.getValue().offset() - r.getValue().offset());
+            }).get();
         }
 
         public synchronized BatchedCompoundCommit uploadVirtualBatchedCompoundCommit() throws IOException {
@@ -156,7 +190,7 @@ public class CacheBlobReaderTests extends ESTestCase {
         @Override
         protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
             var originalCacheBlobReaderService = super.createCacheBlobReaderService(cacheService);
-            return new CacheBlobReaderService(cacheService, client) {
+            return new CacheBlobReaderService(nodeSettings, cacheService, client) {
                 @Override
                 public CacheBlobReader getCacheBlobReader(
                     ShardId shardId,
@@ -173,7 +207,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                     var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
                         shardId,
                         location.getBatchedCompoundCommitTermAndGeneration(),
-                        client
+                        client,
+                        TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings)
                     ) {
                         @Override
                         public void getVirtualBatchedCompoundCommitChunk(
@@ -210,6 +245,36 @@ public class CacheBlobReaderTests extends ESTestCase {
                     l.onResponse(new ReleasableBytesReference(bytesStreamOutput.bytes(), bytesStreamOutput::close));
                 });
             });
+        }
+
+        public void readVirtualBatchedCompoundCommitByte(long offset) {
+            try (
+                var searchIndexInput = new SearchIndexInput(
+                    "fileName",
+                    sharedCacheService.getCacheFile(
+                        new FileCacheKey(shardId, getPrimaryTerm(), virtualBatchedCompoundCommit.getBlobName()),
+                        virtualBatchedCompoundCommit.getTotalSizeInBytes()
+                    ),
+                    randomIOContext(),
+                    cacheBlobReaderService.getCacheBlobReader(
+                        shardId,
+                        (term) -> indexingDirectory.getSearchDirectory().getBlobContainer(term),
+                        virtualBatchedCompoundCommit.getInternalLocations().get(getLastInternalLocation().getKey()),
+                        new ObjectStoreUploadTracker() {
+                            @Override
+                            public boolean isUploaded(PrimaryTermAndGeneration termAndGen) {
+                                return false;
+                            }
+                        }
+                    ),
+                    1,
+                    offset
+                )
+            ) {
+                searchIndexInput.readByte();
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
         }
 
         @Override
@@ -325,14 +390,100 @@ public class CacheBlobReaderTests extends ESTestCase {
                     .build();
             }
         }) {
-            var virtualBatchedCompoundCommit = node.virtualBatchedCompoundCommit;
-            // Get the last internal file of the VBCC. We do that by using a comparator that compares their offsets, and use that
-            // comparator to get the max of the VBCC internal locations.
-            var lastEntry = virtualBatchedCompoundCommit.getInternalLocations().entrySet().stream().max((l, r) -> {
-                return Math.toIntExact(l.getValue().offset() - r.getValue().offset());
-            }).get();
+            assertFileChecksum(node.searchDirectory, node.getLastInternalLocation().getKey());
+        }
+    }
 
+    public void testTransportBlobReaderChunkSettingByReadingOneChunk() throws Exception {
+        final var primaryTerm = randomLongBetween(1L, 10L);
+        final var chunkSize = PAGE_SIZE * randomIntBetween(1, 256); // 4KiB to 1MiB
+        try (
+            var node = new FakeVBCCStatelessNode(
+                this::newEnvironment,
+                this::newNodeEnvironment,
+                xContentRegistry(),
+                primaryTerm,
+                chunkSize * 2
+            ) {
+                @Override
+                protected Settings nodeSettings() {
+                    return Settings.builder()
+                        .put(super.nodeSettings())
+                        .put(
+                            SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
+                            new ByteSizeValue(40, ByteSizeUnit.MB).getStringRep()
+                        )
+                        .put(
+                            CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.getKey(),
+                            ByteSizeValue.ofBytes(chunkSize).getStringRep()
+                        )
+                        .build();
+                }
+            }
+        ) {
+            var lastEntry = node.getLastInternalLocation();
+
+            // Manually calculate range for the last file
+            long start = (lastEntry.getValue().offset() / chunkSize) * chunkSize;
+            long end = BlobCacheUtils.toPageAlignedSize(lastEntry.getValue().offset() + lastEntry.getValue().fileLength());
+            long expectedBytesToWrite = end - start;
+
+            long writtenBytesBefore = getCacheService(node.searchDirectory).getStats().writeBytes();
             assertFileChecksum(node.searchDirectory, lastEntry.getKey());
+            long writtenBytesAfter = getCacheService(node.searchDirectory).getStats().writeBytes();
+            long writtenBytes = writtenBytesAfter - writtenBytesBefore;
+            assertThat(writtenBytes, equalTo(expectedBytesToWrite));
+        }
+    }
+
+    public void testTransportBlobReaderChunkSettingByReadingAllChunks() throws Exception {
+        final var primaryTerm = randomLongBetween(1L, 10L);
+        final var chunkSize = PAGE_SIZE * randomIntBetween(1, 256); // 4KiB to 1MiB
+        try (
+            var node = new FakeVBCCStatelessNode(
+                this::newEnvironment,
+                this::newNodeEnvironment,
+                xContentRegistry(),
+                primaryTerm,
+                chunkSize * 2
+            ) {
+                @Override
+                protected Settings nodeSettings() {
+                    return Settings.builder()
+                        .put(super.nodeSettings())
+                        .put(
+                            SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
+                            new ByteSizeValue(40, ByteSizeUnit.MB).getStringRep()
+                        )
+                        .put(
+                            CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.getKey(),
+                            ByteSizeValue.ofBytes(chunkSize).getStringRep()
+                        )
+                        .build();
+                }
+            }
+        ) {
+            final var vbccSize = node.virtualBatchedCompoundCommit.getTotalSizeInBytes();
+
+            // Read last byte of every chunk
+            long writtenBytesBefore = getCacheService(node.searchDirectory).getStats().writeBytes();
+            for (long offset = chunkSize - 1; offset < vbccSize; offset += chunkSize) {
+                node.readVirtualBatchedCompoundCommitByte(offset);
+            }
+            // Read last byte of VBCC
+            node.readVirtualBatchedCompoundCommitByte(vbccSize - 1);
+            long writtenBytesAfter = getCacheService(node.searchDirectory).getStats().writeBytes();
+            long writtenBytes = writtenBytesAfter - writtenBytesBefore;
+            assertThat(writtenBytes, greaterThan(0L));
+
+            // Now go through all files, and ensure nothing is written to the cache (since it was fully populated from the chunks before)
+            writtenBytesBefore = getCacheService(node.searchDirectory).getStats().writeBytes();
+            node.virtualBatchedCompoundCommit.getInternalLocations()
+                .keySet()
+                .forEach(filename -> assertFileChecksum(node.searchDirectory, filename));
+            writtenBytesAfter = getCacheService(node.searchDirectory).getStats().writeBytes();
+            writtenBytes = writtenBytesAfter - writtenBytesBefore;
+            assertThat(writtenBytes, equalTo(0L));
         }
     }
 
@@ -342,7 +493,7 @@ public class CacheBlobReaderTests extends ESTestCase {
             @Override
             protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
                 var originalCacheBlobReaderService = super.createCacheBlobReaderService(cacheService);
-                return new CacheBlobReaderService(cacheService, client) {
+                return new CacheBlobReaderService(nodeSettings, cacheService, client) {
                     @Override
                     public CacheBlobReader getCacheBlobReader(
                         ShardId shardId,
@@ -359,7 +510,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                         var writerFromPrimary = new IndexingShardCacheBlobReader(
                             shardId,
                             location.getBatchedCompoundCommitTermAndGeneration(),
-                            client
+                            client,
+                            TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings)
                         ) {
                             @Override
                             public void getVirtualBatchedCompoundCommitChunk(

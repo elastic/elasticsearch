@@ -314,7 +314,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         );
         var directory = new SearchDirectory(
             cache,
-            new CacheBlobReaderService(cache, mock(Client.class)),
+            new CacheBlobReaderService(indexSettings.getSettings(), cache, mock(Client.class)),
             MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
             shardId
         );
@@ -377,7 +377,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         var threadPool = registerThreadPool(new TestThreadPool(getTestName() + "[" + shardId + "][search]"));
         var directory = new SearchDirectory(
             sharedBlobCacheService,
-            new CacheBlobReaderService(sharedBlobCacheService, mock(Client.class)),
+            new CacheBlobReaderService(indexSettings.getSettings(), sharedBlobCacheService, mock(Client.class)),
             MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
             shardId
         );

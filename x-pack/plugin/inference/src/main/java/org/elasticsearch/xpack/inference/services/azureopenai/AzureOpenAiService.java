@@ -283,7 +283,8 @@ public class AzureOpenAiService extends SenderService {
             embeddingSize,
             model.getServiceSettings().dimensionsSetByUser(),
             model.getServiceSettings().maxInputTokens(),
-            similarityToUse
+            similarityToUse,
+            model.getServiceSettings().rateLimitSettings()
         );
 
         return new AzureOpenAiEmbeddingsModel(model, serviceSettings);

@@ -172,14 +172,20 @@ public class HuggingFaceServiceSettingsTests extends AbstractWireSerializingTest
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var serviceSettings = new HuggingFaceServiceSettings(ServiceUtils.createUri("url"), null, null, null, null);
+        var serviceSettings = new HuggingFaceServiceSettings(
+            ServiceUtils.createUri("url"),
+            null,
+            null,
+            null,
+            new RateLimitSettings(TimeValue.timeValueSeconds(3))
+        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = org.elasticsearch.common.Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"url":"url","rate_limit":{"requests_per_time_unit":"1.3d"}}"""));
+            {"url":"url","rate_limit":{"requests_per_time_unit":"3s"}}"""));
     }
 
     @Override

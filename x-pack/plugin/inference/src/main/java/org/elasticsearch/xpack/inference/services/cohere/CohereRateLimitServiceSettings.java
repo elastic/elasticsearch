@@ -5,14 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.azureopenai;
+package org.elasticsearch.xpack.inference.services.cohere;
 
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
-public interface AzureOpenAiRateLimitServiceSettings {
-    String resourceName();
-
-    String deploymentId();
-
+public interface CohereRateLimitServiceSettings {
     RateLimitSettings rateLimitSettings();
+
 }

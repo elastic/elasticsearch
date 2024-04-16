@@ -658,7 +658,12 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
                     oldRequest.getCompoundCommit(),
                     oldRequest.getBatchedCompoundCommitGeneration(),
                     lastUploadedTermAndGen
-                );
+                ) {
+                    @Override
+                    public boolean isUpload() {
+                        return true;
+                    }
+                };
                 handler.messageReceived(newRequest, channel, task);
             });
 

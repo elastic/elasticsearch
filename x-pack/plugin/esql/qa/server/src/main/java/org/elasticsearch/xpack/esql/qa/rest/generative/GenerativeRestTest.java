@@ -11,8 +11,8 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
+import org.elasticsearch.xpack.esql.version.EsqlVersion;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -98,7 +98,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     private EsqlQueryGenerator.QueryExecuted execute(String command, int depth) {
         try {
             Map<String, Object> a = RestEsqlTestCase.runEsqlSync(
-                new RestEsqlTestCase.RequestObjectBuilder().query(command).version(EsqlTestUtils.latestEsqlVersionOrSnapshot()).build()
+                new RestEsqlTestCase.RequestObjectBuilder().query(command).version(EsqlVersion.ROCKET.toString()).build()
             );
             List<EsqlQueryGenerator.Column> outputSchema = outputSchema(a);
             return new EsqlQueryGenerator.QueryExecuted(command, depth, outputSchema, null);

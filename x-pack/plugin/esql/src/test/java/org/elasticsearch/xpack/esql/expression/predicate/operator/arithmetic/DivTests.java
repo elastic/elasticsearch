@@ -47,16 +47,29 @@ public class DivTests extends AbstractFunctionTestCase {
                         (l, r) -> l.longValue() / r.longValue(),
                         "DivLongsEvaluator"
                     ),
-                    new TestCaseSupplier.NumericTypeTestConfig(
-                        Double.NEGATIVE_INFINITY,
-                        Double.POSITIVE_INFINITY,
-                        (l, r) -> l.doubleValue() / r.doubleValue(),
-                        "DivDoublesEvaluator"
-                    )
+                    new TestCaseSupplier.NumericTypeTestConfig(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, (l, r) -> {
+                        double v = l.doubleValue() / r.doubleValue();
+                        if (Double.isFinite(v)) {
+                            return v;
+                        }
+                        return null;
+                    }, "DivDoublesEvaluator")
                 ),
                 "lhs",
                 "rhs",
-                List.of(),
+                (lhs, rhs) -> {
+                    if (lhs.type() != DataTypes.DOUBLE || rhs.type() != DataTypes.DOUBLE) {
+                        return List.of();
+                    }
+                    double v = ((Double) lhs.getValue()) / ((Double) rhs.getValue());
+                    if (Double.isFinite(v)) {
+                        return List.of();
+                    }
+                    return List.of(
+                        "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                        "Line -1:-1: java.lang.ArithmeticException: / by zero"
+                    );
+                },
                 false
             )
         );
@@ -118,7 +131,7 @@ public class DivTests extends AbstractFunctionTestCase {
                     TestCaseSupplier.getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), true),
                     TestCaseSupplier.getSuppliersForNumericType(rhsType, 0, 0, true),
                     evaluatorToString,
-                    List.of(
+                    (lhs, rhs) -> List.of(
                         "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                         "Line -1:-1: java.lang.ArithmeticException: / by zero"
                     ),

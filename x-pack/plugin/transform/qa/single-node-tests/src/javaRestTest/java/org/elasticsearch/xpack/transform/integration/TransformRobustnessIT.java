@@ -139,8 +139,14 @@ public class TransformRobustnessIT extends TransformRestTestCase {
 
                 // Stop the transform with force set randomly.
                 stopTransform(transformId, force);
-                // After the transform is stopped, there should be no transform task left.
-                assertThat(getTransformTasks(), is(empty()));
+                if (force) {
+                    // If the "force" has been used, then the persistent task is removed from the cluster state but the local task can still
+                    // be seen by the PersistentTasksNodeService. We need to wait until PersistentTasksNodeService reconciles the state.
+                    assertBusy(() -> assertThat(getTransformTasks(), is(empty())));
+                } else {
+                    // If the "force" hasn't been used then we can expect the local task to be already gone.
+                    assertThat(getTransformTasks(), is(empty()));
+                }
                 assertThat(getTransformTasksFromClusterState(transformId), is(empty()));
 
                 // Delete the transform.

@@ -65,7 +65,7 @@ public class AddTests extends AbstractFunctionTestCase {
                 ),
                 "lhs",
                 "rhs",
-                List.of(),
+                (lhs, rhs) -> List.of(),
                 true
             )
         );

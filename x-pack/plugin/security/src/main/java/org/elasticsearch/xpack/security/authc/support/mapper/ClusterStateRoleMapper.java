@@ -18,15 +18,11 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
-import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.stream.Collectors;
-
-import static org.elasticsearch.common.Strings.format;
 
 public final class ClusterStateRoleMapper implements UserRoleMapper, ClusterStateListener {
 
@@ -50,20 +46,7 @@ public final class ClusterStateRoleMapper implements UserRoleMapper, ClusterStat
 
     @Override
     public void resolveRoles(UserData user, ActionListener<Set<String>> listener) {
-        ExpressionModel model = user.asModel();
-        Set<String> roles = getMappings().stream()
-            .filter(ExpressionRoleMapping::isEnabled)
-            .filter(m -> m.getExpression().match(model))
-            .flatMap(m -> {
-                Set<String> roleNames = m.getRoleNames(scriptService, model);
-                logger.trace(
-                    () -> format("Applying role-mapping [{}] to user-model [{}] produced role-names [{}]", m.getName(), model, roleNames)
-                );
-                return roleNames.stream();
-            })
-            .collect(Collectors.toSet());
-        logger.debug(() -> format("Mapping user [{}] to roles [{}]", user, roles));
-        listener.onResponse(roles);
+        listener.onResponse(ExpressionRoleMapping.resolveRoles(user, getMappings(), scriptService, logger));
     }
 
     @Override

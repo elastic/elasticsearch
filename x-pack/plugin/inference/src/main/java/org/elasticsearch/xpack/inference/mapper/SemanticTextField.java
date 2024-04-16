@@ -221,7 +221,6 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
         args -> new InferenceResult((String) args[0], (ModelSettings) args[1], (List<Chunk>) args[2])
     );
 
-    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Chunk, Void> CHUNKS_PARSER = new ConstructingObjectParser<>(
         CHUNKS_FIELD.getPreferredName(),
         true,

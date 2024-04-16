@@ -1111,7 +1111,32 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .cluster()
             .prepareRestoreSnapshot(REPO, snapshot)
             .setWaitForCompletion(true)
-            .setRestoreGlobalState(randomBoolean())
+            .setRestoreGlobalState(false)
+            .get()
+            .getRestoreInfo();
+        assertThat(restoreInfo.failedShards(), is(0));
+        assertThat(restoreInfo.successfulShards(), is(1));
+    }
+
+    /**
+     * This test is a copy of the {@link #testExcludeDSFromSnapshotWhenExcludingItsIndices()} the only difference
+     * is that one include the global state and one doesn't. In general this shouldn't matter that's why it used to be
+     * a random parameter of the test, but because of #107515 it fails when we include the global state. Keep them
+     * separate until this is fixed.
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107515")
+    public void testExcludeDSFromSnapshotWhenExcludingItsIndicesWithGlobalState() {
+        final String snapshot = "test-snapshot";
+        final String indexWithoutDataStream = "test-idx-no-ds";
+        createIndexWithContent(indexWithoutDataStream);
+        final SnapshotInfo snapshotInfo = createSnapshot(REPO, snapshot, List.of("*", "-.*"));
+        assertThat(snapshotInfo.dataStreams(), empty());
+        assertAcked(client.admin().indices().prepareDelete(indexWithoutDataStream));
+        RestoreInfo restoreInfo = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(REPO, snapshot)
+            .setWaitForCompletion(true)
+            .setRestoreGlobalState(true)
             .get()
             .getRestoreInfo();
         assertThat(restoreInfo.failedShards(), is(0));

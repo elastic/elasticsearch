@@ -532,14 +532,36 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         }
     }
 
-    // TODO: Deprecate this method?
-    protected QueryBuilder rewriteQuery(QB queryBuilder, QueryRewriteContext rewriteContext) throws IOException {
-        QueryBuilder rewritten = rewriteAndFetch(queryBuilder, rewriteContext);
+    /**
+     * Simulate rewriting the query builder exclusively on the data node.
+     * <br/>
+     * <br/>
+     * NOTE: This simulation does not reflect how the query builder will be rewritten in production.
+     * See {@link AbstractQueryTestCase#rewriteQuery(AbstractQueryBuilder, QueryRewriteContext, SearchExecutionContext)} for a more accurate
+     * simulation.
+     *
+     * @param queryBuilder The query builder to rewrite
+     * @param shardRewriteContext The data node rewrite context
+     * @return The rewritten query builder
+     * @throws IOException
+     */
+    protected QueryBuilder rewriteQuery(QB queryBuilder, SearchExecutionContext shardRewriteContext) throws IOException {
+        QueryBuilder rewritten = rewriteAndFetch(queryBuilder, shardRewriteContext);
         // extra safety to fail fast - serialize the rewritten version to ensure it's serializable.
         assertSerialization(rewritten);
         return rewritten;
     }
 
+    /**
+     * Simulate rewriting the query builder in stages across the coordinator node & data node.
+     * It is rewritten on the coordinator node first, then again on the data node.
+     *
+     * @param queryBuilder The query builder to rewrite
+     * @param coordinatorRewriteContext the coordinator node rewrite context
+     * @param shardRewriteContext The data node rewrite context
+     * @return The rewritten query builder
+     * @throws IOException
+     */
     protected QueryBuilder rewriteQuery(
         QB queryBuilder,
         QueryRewriteContext coordinatorRewriteContext,

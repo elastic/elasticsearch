@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.application.connector.action.UpdateConnectorStatu
 import org.elasticsearch.xpack.application.connector.filtering.FilteringAdvancedSnippet;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringRule;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringValidationInfo;
+import org.elasticsearch.xpack.application.connector.filtering.FilteringValidationState;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -288,6 +289,71 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
             ConnectorFiltering.getDefaultConnectorFilteringConfig().getDomain(),
             equalTo(indexedConnector.getFiltering().get(0).getDomain())
         );
+    }
+
+    public void testUpdateConnectorFilteringValidation() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        FilteringValidationInfo validationInfo = ConnectorTestUtils.getRandomFilteringValidationInfo();
+
+        DocWriteResponse validationInfoUpdateResponse = awaitUpdateConnectorDraftFilteringValidation(connectorId, validationInfo);
+        assertThat(validationInfoUpdateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+
+        assertThat(validationInfo, equalTo(indexedConnector.getFiltering().get(0).getDraft().getFilteringValidationInfo()));
+    }
+
+    public void testActivateConnectorDraftFiltering_draftValid_shouldActivate() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        // Populate draft filtering
+        FilteringAdvancedSnippet advancedSnippet = ConnectorTestUtils.getRandomConnectorFiltering().getDraft().getAdvancedSnippet();
+        List<FilteringRule> rules = ConnectorTestUtils.getRandomConnectorFiltering().getDraft().getRules();
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorFilteringDraft(connectorId, advancedSnippet, rules);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        FilteringValidationInfo validationSuccess = new FilteringValidationInfo.Builder().setValidationState(FilteringValidationState.VALID)
+            .setValidationErrors(Collections.emptyList())
+            .build();
+
+        DocWriteResponse validationInfoUpdateResponse = awaitUpdateConnectorDraftFilteringValidation(connectorId, validationSuccess);
+        assertThat(validationInfoUpdateResponse.status(), equalTo(RestStatus.OK));
+
+        DocWriteResponse activateFilteringResponse = awaitActivateConnectorDraftFiltering(connectorId);
+        assertThat(activateFilteringResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+
+        // Assert that draft is activated
+        assertThat(advancedSnippet, equalTo(indexedConnector.getFiltering().get(0).getActive().getAdvancedSnippet()));
+        assertThat(rules, equalTo(indexedConnector.getFiltering().get(0).getActive().getRules()));
+    }
+
+    public void testActivateConnectorDraftFiltering_draftNotValid_expectFailure() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        FilteringValidationInfo validationFailure = new FilteringValidationInfo.Builder().setValidationState(
+            FilteringValidationState.INVALID
+        ).setValidationErrors(Collections.emptyList()).build();
+
+        DocWriteResponse validationInfoUpdateResponse = awaitUpdateConnectorDraftFilteringValidation(connectorId, validationFailure);
+        assertThat(validationInfoUpdateResponse.status(), equalTo(RestStatus.OK));
+
+        expectThrows(ElasticsearchStatusException.class, () -> awaitActivateConnectorDraftFiltering(connectorId));
     }
 
     public void testUpdateConnectorLastSeen() throws Exception {
@@ -772,6 +838,59 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
             throw exc.get();
         }
         assertNotNull("Received null response from update filtering request", resp.get());
+        return resp.get();
+    }
+
+    private UpdateResponse awaitUpdateConnectorDraftFilteringValidation(String connectorId, FilteringValidationInfo validationInfo)
+        throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.updateConnectorDraftFilteringValidation(connectorId, validationInfo, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateResponse indexResponse) {
+                resp.set(indexResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+
+        assertTrue("Timeout waiting for update filtering validation request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from update filtering validation request", resp.get());
+        return resp.get();
+    }
+
+    private UpdateResponse awaitActivateConnectorDraftFiltering(String connectorId) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<UpdateResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<Exception> exc = new AtomicReference<>(null);
+        connectorIndexService.activateConnectorDraftFiltering(connectorId, new ActionListener<>() {
+            @Override
+            public void onResponse(UpdateResponse indexResponse) {
+                resp.set(indexResponse);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exc.set(e);
+                latch.countDown();
+            }
+        });
+
+        assertTrue("Timeout waiting for activate draft filtering request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        if (exc.get() != null) {
+            throw exc.get();
+        }
+        assertNotNull("Received null response from activate draft filtering request", resp.get());
         return resp.get();
     }
 

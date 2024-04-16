@@ -1320,3 +1320,50 @@ l1:integer | l2:integer
 2          | null
 null       | 0
 ;
+
+base64Encode#[skip:-8.13.99,reason:new base64 function added in 8.14]
+required_feature: esql.base64_decode_encode
+
+// tag::to_base64[]
+row a = "elastic" 
+| eval e = to_base64(a)
+// end::to_base64[]
+;
+
+// tag::to_base64-result[]
+a:keyword | e:keyword
+elastic   | ZWxhc3RpYw==
+// end::to_base64-result[]
+;
+
+base64Decode#[skip:-8.13.99,reason:new base64 function added in 8.14]
+required_feature: esql.base64_decode_encode
+
+// tag::from_base64[]
+row a = "ZWxhc3RpYw==" 
+| eval d = from_base64(a)
+// end::from_base64[]
+;
+
+// tag::from_base64-result[]
+a:keyword    | d:keyword
+ZWxhc3RpYw== | elastic
+// end::from_base64-result[]
+;
+
+base64EncodeDecodeEmp#[skip:-8.13.99,reason:new base64 function added in 8.14]
+required_feature: esql.base64_decode_encode
+
+from employees
+| where emp_no < 10032 and emp_no > 10027
+| eval e = to_base64(first_name), d = from_base64(e)
+| keep emp_no, first_name, e, d
+| sort emp_no
+;
+
+emp_no:integer | first_name:keyword | e:keyword    | d:keyword
+10028          | Domenick           | RG9tZW5pY2s= | Domenick
+10029          | Otmar              | T3RtYXI=     | Otmar
+10030          | null               | null         | null
+10031          | null               | null         | null
+;

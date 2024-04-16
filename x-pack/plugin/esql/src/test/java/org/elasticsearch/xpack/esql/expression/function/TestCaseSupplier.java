@@ -88,7 +88,16 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         for (DataType type : AbstractConvertFunction.STRING_TYPES) {
             lhsSuppliers.addAll(stringCases(type));
             rhsSuppliers.addAll(stringCases(type));
-            casesCrossProduct(expected, lhsSuppliers, rhsSuppliers, evaluatorToString, warnings, suppliers, expectedType, true);
+            casesCrossProduct(
+                expected,
+                lhsSuppliers,
+                rhsSuppliers,
+                evaluatorToString,
+                (lhs, rhs) -> warnings,
+                suppliers,
+                expectedType,
+                true
+            );
         }
         return suppliers;
     }
@@ -355,8 +364,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                     + "]";
                 casesCrossProduct(
                     (l, r) -> expectedTypeStuff.expected().apply((Number) l, (Number) r),
-                    getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max()),
-                    getSuppliersForNumericType(rhsType, expectedTypeStuff.min(), expectedTypeStuff.max()),
+                    getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), allowRhsZero),
+                    getSuppliersForNumericType(rhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), allowRhsZero),
                     evaluatorToString,
                     warnings,
                     suppliers,
@@ -372,7 +381,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         NumericTypeTestConfigs<Number> typeStuff,
         String lhsName,
         String rhsName,
-        List<String> warnings
+        List<String> warnings,
+        boolean allowRhsZero
     ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         List<DataType> numericTypes = List.of(DataTypes.INTEGER, DataTypes.LONG, DataTypes.DOUBLE);
@@ -396,7 +406,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                     getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), true),
                     getSuppliersForNumericType(rhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), allowRhsZero),
                     evaluatorToString,
-                    warnings,
+                    (lhs, rhs) -> warnings,
                     suppliers,
                     expected,
                     false

@@ -17,6 +17,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.Weight;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleVector;
@@ -217,7 +218,7 @@ public final class LuceneWithScoresOperator extends LuceneOperator {
             segments = currentSegmentBuilder.build();
             docs = currentDocsBuilder.build();
             scores = currentScoresBuilder.build();
-            page = new Page(size, new DocVector(shard.asVector(), segments, docs, scores,null).asBlock());
+            page = new Page(size, new DocVector(shard.asVector(), segments, docs, scores, null).asBlock());
         } finally {
             if (page == null) {
                 Releasables.closeExpectNoException(shard, segments, docs);
@@ -253,5 +254,17 @@ public final class LuceneWithScoresOperator extends LuceneOperator {
             }
             return leafCollector;
         }
+    }
+
+    static Function<ShardContext, Weight> weightFunction(Function<ShardContext, Query> queryFunction, ScoreMode scoreMode) {
+        return ctx -> {
+            final var query = queryFunction.apply(ctx);
+            final var searcher = ctx.searcher();
+            try {
+                return searcher.createWeight(searcher.rewrite(query), scoreMode, 1);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        };
     }
 }

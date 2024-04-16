@@ -11,6 +11,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.ParsingException;
@@ -168,10 +169,14 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             return inferenceResults != null ? new SemanticQueryBuilder(this, inferenceResultsSupplier, inferenceResults) : this;
         }
 
-        String inferenceId = getInferenceIdForForField(
-            queryRewriteContext.getResolvedIndices().getConcreteLocalIndicesMetadata().values(),
-            fieldName
-        );
+        ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
+        if (resolvedIndices == null) {
+            throw new IllegalStateException(
+                "Rewriting on the coordinator node requires a query rewrite context with non-null resolved indices"
+            );
+        }
+
+        String inferenceId = getInferenceIdForForField(resolvedIndices.getConcreteLocalIndicesMetadata().values(), fieldName);
         SetOnce<InferenceServiceResults> inferenceResultsSupplier;
         if (inferenceId != null) {
             InferenceAction.Request inferenceRequest = new InferenceAction.Request(

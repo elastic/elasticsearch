@@ -27,22 +27,16 @@ import java.util.function.Supplier;
  */
 class PreloadedFieldLookupProvider implements LeafFieldLookupProvider {
 
-    private final Set<String> preloadedStoredFields;
+    private Set<String> preloadedStoredFields;
     private Map<String, List<Object>> storedFields;
     private LeafFieldLookupProvider backUpLoader;
     private Supplier<LeafFieldLookupProvider> loaderSupplier;
-
-    PreloadedFieldLookupProvider(Set<String> preloadedStoredFields) {
-        this.preloadedStoredFields = preloadedStoredFields;
-    }
 
     @Override
     public void populateFieldLookup(FieldLookup fieldLookup, int doc) throws IOException {
         String field = fieldLookup.fieldType().name();
         if (preloadedStoredFields.contains(field)) {
             fieldLookup.setValues(storedFields.get(field));
-            //TODO remove this assert
-            assert assertBackupValueSameAsPreloaded(fieldLookup, doc);
             return;
         }
         // stored field not preloaded, go and get it directly
@@ -52,16 +46,8 @@ class PreloadedFieldLookupProvider implements LeafFieldLookupProvider {
         backUpLoader.populateFieldLookup(fieldLookup, doc);
     }
 
-    private boolean assertBackupValueSameAsPreloaded(FieldLookup fieldLookup, int doc) throws IOException {
-        FieldLookup fl = new FieldLookup(fieldLookup.fieldType());
-        loaderSupplier.get().populateFieldLookup(fl, doc);
-        if (fieldLookup.getValue() == null) {
-            assert fl.getValue() == null : "loaded unexpected value for " + fieldLookup.fieldType().name() + ": " + fl.getValue();
-        } else {
-            assert fieldLookup.getValue().equals(fl.getValue())
-                : "loaded different value for " + fieldLookup.fieldType().name() + ": " + fl.getValue() + " - " + fieldLookup.getValue();
-        }
-        return true;
+    void setPreloadedStoredFields(Set<String> preloadedStoredFields) {
+        this.preloadedStoredFields = preloadedStoredFields;
     }
 
     void setStoredFields(Map<String, List<Object>> storedFields) {

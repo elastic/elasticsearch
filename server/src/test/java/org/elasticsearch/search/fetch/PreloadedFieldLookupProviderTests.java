@@ -30,7 +30,8 @@ import static org.mockito.Mockito.when;
 public class PreloadedFieldLookupProviderTests extends ESTestCase {
 
     public void testFallback() throws IOException {
-        PreloadedFieldLookupProvider lookup = new PreloadedFieldLookupProvider(Collections.singleton("foo"));
+        PreloadedFieldLookupProvider lookup = new PreloadedFieldLookupProvider();
+        lookup.setPreloadedStoredFields(Collections.singleton("foo"));
         lookup.setStoredFields(Map.of("foo", List.of("bar")));
 
         MappedFieldType fieldType = mock(MappedFieldType.class);

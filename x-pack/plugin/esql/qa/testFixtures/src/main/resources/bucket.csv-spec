@@ -408,7 +408,7 @@ FROM ul_logs
 2017-11-10T20:34:43.000Z|1.75E19
 ;
 
-bucketMultipleAndExpressions
+bucketMultipleAndExpressions#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
 | STATS sumK = (b1k + b2k) / 1000 BY b1k = BUCKET(salary, 1000.), b2k = BUCKET(salary, 2000.)
 | SORT sumK

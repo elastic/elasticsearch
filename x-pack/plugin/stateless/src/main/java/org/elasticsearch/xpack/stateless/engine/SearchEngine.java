@@ -65,12 +65,12 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -107,7 +107,8 @@ public class SearchEngine extends Engine {
     private volatile long maxSequenceNumber = SequenceNumbers.NO_OPS_PERFORMED;
     private volatile long processedLocalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
 
-    private final Map<DirectoryReader, OpenReaderInfo> openReaders = new ConcurrentHashMap<>();
+    // Guarded by the openReaders monitor
+    private final Map<DirectoryReader, OpenReaderInfo> openReaders = new HashMap<>();
 
     public SearchEngine(EngineConfig config, ClosedShardService closedShardService) {
         super(config);
@@ -197,8 +198,15 @@ public class SearchEngine extends Engine {
         IndexCommit commit,
         Set<PrimaryTermAndGeneration> bccDependencies
     ) throws IOException {
-        ElasticsearchDirectoryReader.addReaderCloseListener(directoryReader, ignored -> openReaders.remove(directoryReader));
-        openReaders.put(directoryReader, new OpenReaderInfo(commit.getFileNames(), bccDependencies));
+        ElasticsearchDirectoryReader.addReaderCloseListener(directoryReader, ignored -> {
+            synchronized (openReaders) {
+                openReaders.remove(directoryReader);
+            }
+        });
+
+        synchronized (openReaders) {
+            openReaders.put(directoryReader, new OpenReaderInfo(commit.getFileNames(), bccDependencies));
+        }
     }
 
     PrimaryTermAndGeneration getCurrentPrimaryTermAndGeneration() {
@@ -212,7 +220,11 @@ public class SearchEngine extends Engine {
     }
 
     public Set<PrimaryTermAndGeneration> getAcquiredPrimaryTermAndGenerations() {
-        return openReaders.values().stream().flatMap(openReader -> openReader.referencedBCCs().stream()).collect(Collectors.toSet());
+        // CHM iterators are weakly consistent, meaning that we're not guaranteed to see new insertions while we compute
+        // the set of remaining open reader referenced BCCs, that's why we use a regular HashMap with synchronized.
+        synchronized (openReaders) {
+            return openReaders.values().stream().flatMap(openReader -> openReader.referencedBCCs().stream()).collect(Collectors.toSet());
+        }
     }
 
     /**
@@ -377,9 +389,14 @@ public class SearchEngine extends Engine {
                 var reader = readerManager.acquire();
                 try {
                     assert assertSegmentInfosAndCommits(reader, latestCommit, current, next);
-                    directory.retainFiles(
-                        openReaders.values().stream().flatMap(openReaderInfo -> openReaderInfo.files().stream()).collect(Collectors.toSet())
-                    );
+                    Set<String> filesToRetain;
+                    synchronized (openReaders) {
+                        filesToRetain = openReaders.values()
+                            .stream()
+                            .flatMap(openReaderInfo -> openReaderInfo.files().stream())
+                            .collect(Collectors.toSet());
+                    }
+                    directory.retainFiles(filesToRetain);
                     logger.debug("segments updated from generation [{}] to [{}]", current.getGeneration(), next.getGeneration());
                     callSegmentGenerationListeners(
                         new PrimaryTermAndGeneration(primaryTerm(reader.getIndexCommit()), reader.getIndexCommit().getGeneration())

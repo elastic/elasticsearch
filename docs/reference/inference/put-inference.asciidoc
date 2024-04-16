@@ -303,11 +303,9 @@ maximum token length. Defaults to `END`. Valid values are:
 
 `user`:::
 (optional, string)
-<<<<<<< HEAD
-For `openai` service only. Specifies the user issuing the request, which can be
-used for abuse detection.
-=======
-For `openai` and `azureopenai` service only. Specifies the user issuing the request, which can be used for abuse detection.
+For `openai` and `azureopenai` service only. Specifies the user issuing the
+request, which can be used for abuse detection.
+
 =====
 +
 .`task_settings` for the `completion` task type

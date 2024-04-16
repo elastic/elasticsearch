@@ -99,7 +99,7 @@ the `cosine` measures are equivalent.
 
 [source,console]
 ------------------------------------------------------------
-PUT _inference/text_embedding/azure-openai_embeddings <1>
+PUT _inference/text_embedding/azure_openai_embeddings <1>
 {
     "service": "azureopenai",
     "service_settings": {

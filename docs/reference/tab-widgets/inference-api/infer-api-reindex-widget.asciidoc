@@ -23,7 +23,7 @@
             aria-selected="false"
             aria-controls="infer-api-reindex-azure-openai-tab"
             id="infer-api-reindex-azure-openai">
-      OpenAI
+      Azure OpenAI
     </button>
   </div>
   <div tabindex="0"

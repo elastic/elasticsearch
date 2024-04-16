@@ -191,6 +191,10 @@ public class SubscribableListener<T> implements ActionListener<T> {
      *                      <li>Pass the desired executor in as {@code executor}, and</li>
      *                      <li>Invoke {@link #addListener} using that executor.</li>
      *                      </ul>
+     *                      <p>
+     *                      If {@code executor} rejects the execution of the completion of the subscribing listener then the result is
+     *                      discarded and the subscribing listener is completed with a rejection exception on the thread which completes
+     *                      this listener.
      * @param threadContext If not {@code null}, and the subscribing listener is not completed immediately, then it will be completed in
      *                      the given thread context. If {@code null}, and the subscribing listener is not completed immediately, then it
      *                      will be completed in the {@link ThreadContext} of the completing thread. If the subscribing listener is
@@ -451,6 +455,11 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * <li>Pass the desired executor in as {@code executor}, and</li>
      * <li>Invoke {@link #andThen} using that executor.</li>
      * </ul>
+     * <p>
+     * If {@code executor} rejects the execution of {@code nextStep} then the result is discarded and the returned listener is completed
+     * with a rejection exception on the thread which completes this listener. Likewise if this listener is completed exceptionally but
+     * {@code executor} rejects the execution of the completion of the returned listener then the returned listener is completed with a
+     * rejection exception on the thread which completes this listener.
      */
     public <U> SubscribableListener<U> andThen(
         Executor executor,

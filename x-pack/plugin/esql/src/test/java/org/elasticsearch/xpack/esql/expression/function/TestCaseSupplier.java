@@ -186,7 +186,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 + "="
                 + castToDoubleEvaluator("Attribute[channel=1]", rhsType)
                 + "]",
-            warnings,
+            (lhs, rhs) -> warnings,
             suppliers,
             DataTypes.DOUBLE,
             false
@@ -199,7 +199,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<TypedDataSupplier> lhsSuppliers,
         List<TypedDataSupplier> rhsSuppliers,
         BiFunction<DataType, DataType, String> evaluatorToString,
-        List<String> warnings,
+        BiFunction<TypedData, TypedData, List<String>> warnings,
         List<TestCaseSupplier> suppliers,
         DataType expectedType,
         boolean symmetric
@@ -221,7 +221,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         DataType expectedType,
         BinaryOperator<Object> expectedValue
     ) {
-        return testCaseSupplier(lhsSupplier, rhsSupplier, evaluatorToString, expectedType, expectedValue, List.of());
+        return testCaseSupplier(lhsSupplier, rhsSupplier, evaluatorToString, expectedType, expectedValue, (lhs, rhs) -> List.of());
     }
 
     private static TestCaseSupplier testCaseSupplier(
@@ -230,7 +230,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         BiFunction<DataType, DataType, String> evaluatorToString,
         DataType expectedType,
         BinaryOperator<Object> expectedValue,
-        List<String> warnings
+        BiFunction<TypedData, TypedData, List<String>> warnings
     ) {
         String caseName = lhsSupplier.name() + ", " + rhsSupplier.name();
         return new TestCaseSupplier(caseName, List.of(lhsSupplier.type(), rhsSupplier.type()), () -> {
@@ -242,7 +242,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 expectedType,
                 equalTo(expectedValue.apply(lhsTyped.getValue(), rhsTyped.getValue()))
             );
-            for (String warning : warnings) {
+            for (String warning : warnings.apply(lhsTyped, rhsTyped)) {
                 testCase = testCase.withWarning(warning);
             }
             return testCase;
@@ -316,7 +316,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         NumericTypeTestConfigs typeStuff,
         String lhsName,
         String rhsName,
-        List<String> warnings,
+        BiFunction<TypedData, TypedData, List<String>> warnings,
         boolean allowRhsZero
     ) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
@@ -369,7 +369,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             lhsSuppliers,
             rhsSuppliers,
             (lhsType, rhsType) -> name + "[" + lhsName + "=Attribute[channel=0], " + rhsName + "=Attribute[channel=1]]",
-            warnings,
+            (lhs, rhs) -> warnings,
             suppliers,
             expectedType,
             symmetric

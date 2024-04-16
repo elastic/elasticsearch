@@ -426,7 +426,7 @@ public class IndexEngine extends InternalEngine {
         var vbcc = statelessCommitService.getVirtualBatchedCompoundCommit(shardId, vbccTermGen);
         if (vbcc == null) {
             // If the VBCC was not found, then it is already uploaded, so let the search shard query the blob store
-            throw new VirtualBatchedCompoundCommit.BatchedCompoundCommitAlreadyUploaded(shardId, vbccTermGen);
+            throw VirtualBatchedCompoundCommit.buildResourceNotFoundException(shardId, vbccTermGen);
         } else {
             // This length adjustment is needed because the last CC is not padded in a vBCC
             int length = Math.min(request.getLength(), Math.toIntExact(vbcc.getTotalSizeInBytes() - request.getOffset()));

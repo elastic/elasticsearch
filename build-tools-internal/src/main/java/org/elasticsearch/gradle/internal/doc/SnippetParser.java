@@ -84,7 +84,6 @@ public abstract class SnippetParser {
             snippetBuilder.withTestSetup(true);
             return;
         }
-        // TODO
         if (line.matches(getTeardownRegex())) {
             snippetBuilder.withTestTearDown(true);
             return;
@@ -104,7 +103,6 @@ public abstract class SnippetParser {
             snippetBuilder.withContent(line, true);
             return;
         }
-        // TODO
         // Allow line continuations for console snippets within lists
         if (snippetBuilder != null && line.trim().equals("+")) {
             return;
@@ -113,7 +111,7 @@ public abstract class SnippetParser {
         snippetBuilder = null;
     }
 
-    private void fileParsingFinished(List<Snippet> snippets) {
+    void fileParsingFinished(List<Snippet> snippets) {
         if (snippetBuilder != null) {
             snippets.add(snippetBuilder.build());
             snippetBuilder = null;

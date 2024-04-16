@@ -13,22 +13,138 @@ import spock.lang.Specification
 import java.nio.file.Path
 
 abstract class AbstractParserSpec extends Specification {
+
     abstract SnippetParser parser()
 
-    def "can parse snippet with test setup"() {
-        given:
-        def snippetParser = parser()
-        List<Snippet> snippets = []
+    abstract String docSnippetWithTestResponses()
 
+    abstract String docSnippetWithTest()
+
+    def "can parse snippet with test"() {
         when:
-        docSnippetWithTestSetup().eachLine { line, index ->
-            snippetParser.parseLine(snippets, Path.of("some-path.mdx"), index, line)
-        }
-
+        def snippets = parse(docSnippetWithTest())
         then:
         snippets*.test() == [true]
+        snippets*.testResponse() == [false]
+        snippets*.language() == ["console"]
+        snippets*.catchPart() == ["/painless_explain_error/"]
+        snippets*.teardown() == ["some_teardown"]
         snippets*.setup() == ["seats"]
+        snippets*.warnings() == [["some_warning"]]
+        snippets*.contents() == ["""PUT /hockey/_doc/1?refresh
+{"first":"johnny","last":"gaudreau","goals":[9,27,1],"assists":[17,46,0],"gp":[26,82,1]}
+
+POST /hockey/_explain/1?error_trace=false
+{
+  "query": {
+    "script": {
+      "script": "Debug.explain(doc.goals)"
+    }
+  }
+}
+"""]
     }
 
-    protected abstract String docSnippetWithTestSetup();
+    def "can parse snippet with test responses"() {
+        when:
+        def snippets = parse(docSnippetWithTestResponses())
+        then:
+        snippets*.testResponse() == [true]
+        snippets*.test() == [false]
+        snippets*.language() == ["console-result"]
+        snippets*.skip() == ["some_skip_message"]
+        snippets*.contents() == ["""{
+  "docs" : [
+    {
+      "processor_results" : [
+        {
+          "processor_type" : "set",
+          "status" : "success",
+          "doc" : {
+            "_index" : "index",
+            "_id" : "id",
+            "_version": "-3",
+            "_source" : {
+              "field2" : "_value2",
+              "foo" : "bar"
+            },
+            "_ingest" : {
+              "pipeline" : "_simulate_pipeline",
+              "timestamp" : \$body.docs.0.processor_results.0.doc._ingest.timestamp
+            }
+          }
+        },
+        {
+          "processor_type" : "set",
+          "status" : "success",
+          "doc" : {
+            "_index" : "index",
+            "_id" : "id",
+            "_version": "-3",
+            "_source" : {
+              "field3" : "_value3",
+              "field2" : "_value2",
+              "foo" : "bar"
+            },
+            "_ingest" : {
+              "pipeline" : "_simulate_pipeline",
+              "timestamp" : \$body.docs.0.processor_results.0.doc._ingest.timestamp
+            }
+          }
+        }
+      ]
+    },
+    {
+      "processor_results" : [
+        {
+          "processor_type" : "set",
+          "status" : "success",
+          "doc" : {
+            "_index" : "index",
+            "_id" : "id",
+            "_version": "-3",
+            "_source" : {
+              "field2" : "_value2",
+              "foo" : "rab"
+            },
+            "_ingest" : {
+              "pipeline" : "_simulate_pipeline",
+              "timestamp" : \$body.docs.1.processor_results.0.doc._ingest.timestamp
+            }
+          }
+        },
+        {
+          "processor_type" : "set",
+          "status" : "success",
+          "doc" : {
+            "_index" : "index",
+            "_id" : "id",
+            "_version": "-3",
+            "_source" : {
+              "field3" : "_value3",
+              "field2" : "_value2",
+              "foo" : "rab"
+            },
+            "_ingest" : {
+              "pipeline" : "_simulate_pipeline",
+              "timestamp" : \$body.docs.1.processor_results.0.doc._ingest.timestamp
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+"""]
+    }
+
+    List<Snippet> parse(String docSnippet) {
+        List<Snippet> snippets = new ArrayList<>()
+        def snippetParser = parser()
+        docSnippet.eachLine { line, index ->
+            snippetParser.parseLine(snippets, Path.of("some-path.xyz"), index, line)
+        }
+        snippetParser.fileParsingFinished(snippets)
+        return snippets
+    }
 }

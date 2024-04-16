@@ -92,6 +92,10 @@ class SnippetBuilder {
     }
 
     public SnippetBuilder withSubstitution(String key, String value) {
+        if (this.substitutions.containsKey(key)) {
+            System.out.println("Warning: substitution for key " + key + " already defined. Ignoring value " + value);
+            return this;
+        }
         this.substitutions.put(key, value);
         return this;
     }

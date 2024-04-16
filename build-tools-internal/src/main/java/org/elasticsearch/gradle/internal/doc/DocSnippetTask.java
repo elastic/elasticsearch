@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.internal.doc;
 
-import org.apache.commons.collections.map.HashedMap;
 import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.InvalidUserDataException;
@@ -18,6 +17,7 @@ import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -35,7 +35,7 @@ public abstract class DocSnippetTask extends DefaultTask {
      * directory.
      */
     private ConfigurableFileTree docs;
-    private Map<String, String> defaultSubstitutions = new HashedMap();
+    private Map<String, String> defaultSubstitutions = new LinkedHashMap<>();
 
     @InputFiles
     public ConfigurableFileTree getDocs() {

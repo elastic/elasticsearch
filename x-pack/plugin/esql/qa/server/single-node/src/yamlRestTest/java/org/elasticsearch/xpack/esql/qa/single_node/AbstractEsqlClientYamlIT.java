@@ -11,11 +11,9 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.elasticsearch.test.rest.yaml.section.ApiCallSection;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -23,7 +21,6 @@ import org.junit.ClassRule;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 
 abstract class AbstractEsqlClientYamlIT extends ESClientYamlSuiteTestCase {
@@ -88,14 +85,5 @@ abstract class AbstractEsqlClientYamlIT extends ESClientYamlSuiteTestCase {
             );
             default -> e;
         };
-    }
-
-    static DoSection setVersion(DoSection doSection) {
-        ApiCallSection copy = doSection.getApiCallSection().copyWithNewApi(doSection.getApiCallSection().getApi());
-        for (Map<String, Object> body : copy.getBodies()) {
-            body.putIfAbsent("version", EsqlTestUtils.latestEsqlVersionOrSnapshot());
-        }
-        doSection.setApiCallSection(copy);
-        return doSection;
     }
 }

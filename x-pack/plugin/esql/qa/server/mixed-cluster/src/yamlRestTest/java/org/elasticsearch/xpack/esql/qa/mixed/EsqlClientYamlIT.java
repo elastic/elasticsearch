@@ -21,7 +21,6 @@ import org.elasticsearch.test.rest.yaml.section.ApiCallSection;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -48,16 +47,36 @@ public class EsqlClientYamlIT extends ESClientYamlSuiteTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         if (EsqlSpecTestCase.availableVersions().isEmpty()) {
-            // TODO: skip tests with explicitly set version and/or strip the version if it's 2024.04.01.
-            return createParameters();
+            return updateEsqlQueryDoSections(createParameters(), EsqlClientYamlIT::stripVersion);
         }
-        return updateEsqlQueryDoSections(createParameters(), EsqlClientYamlIT::setVersion);
+        return createParameters();
     }
 
     @Before
     @After
     public void assertRequestBreakerEmpty() throws Exception {
         EsqlSpecTestCase.assertRequestBreakerEmpty();
+    }
+
+    @Override
+    protected ClientYamlTestClient initClientYamlTestClient(
+        final ClientYamlSuiteRestSpec restSpec,
+        final RestClient restClient,
+        final List<HttpHost> hosts
+    ) {
+        if (EsqlSpecTestCase.availableVersions().isEmpty()) {
+            return new ImpersonateOfficialClientTestClient(restSpec, restClient, hosts, this::getClientBuilderWithSniffedHosts, "es=8.13");
+        }
+        return super.initClientYamlTestClient(restSpec, restClient, hosts);
+    }
+
+    static DoSection stripVersion(DoSection doSection) {
+        ApiCallSection copy = doSection.getApiCallSection().copyWithNewApi(doSection.getApiCallSection().getApi());
+        for (Map<String, Object> body : copy.getBodies()) {
+            body.remove("version");
+        }
+        doSection.setApiCallSection(copy);
+        return doSection;
     }
 
     // TODO: refactor, copied from single-node's AbstractEsqlClientYamlIt
@@ -96,27 +115,5 @@ public class EsqlClientYamlIT extends ESClientYamlSuiteTestCase {
             // );
             default -> e;
         };
-    }
-
-    // TODO: refactor, copied from single-node's AbstractEsqlClientYamlIt
-    static DoSection setVersion(DoSection doSection) {
-        ApiCallSection copy = doSection.getApiCallSection().copyWithNewApi(doSection.getApiCallSection().getApi());
-        for (Map<String, Object> body : copy.getBodies()) {
-            body.putIfAbsent("version", EsqlTestUtils.latestEsqlVersionOrSnapshot());
-        }
-        doSection.setApiCallSection(copy);
-        return doSection;
-    }
-
-    @Override
-    protected ClientYamlTestClient initClientYamlTestClient(
-        final ClientYamlSuiteRestSpec restSpec,
-        final RestClient restClient,
-        final List<HttpHost> hosts
-    ) {
-        if (EsqlSpecTestCase.availableVersions().isEmpty()) {
-            return new ImpersonateOfficialClientTestClient(restSpec, restClient, hosts, this::getClientBuilderWithSniffedHosts, "es=8.13");
-        }
-        return super.initClientYamlTestClient(restSpec, restClient, hosts);
     }
 }

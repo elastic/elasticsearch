@@ -32,7 +32,7 @@ public class EsqlClientYamlAsyncSubmitAndFetchIT extends AbstractEsqlClientYamlI
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return updateEsqlQueryDoSections(createParameters(), doSection -> { return new DoEsqlAsync(setVersion(doSection)); });
+        return updateEsqlQueryDoSections(createParameters(), DoEsqlAsync::new);
     }
 
     private static class DoEsqlAsync implements ExecutableSection {

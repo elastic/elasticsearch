@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.section.ApiCallSection;
-import org.elasticsearch.test.rest.yaml.section.DoSection;
 
 import java.util.Map;
 
@@ -28,8 +27,7 @@ public class EsqlClientYamlAsyncIT extends AbstractEsqlClientYamlIT {
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         return updateEsqlQueryDoSections(createParameters(), doSection -> {
-            DoSection withVersion = setVersion(doSection);
-            ApiCallSection copy = withVersion.getApiCallSection().copyWithNewApi("esql.async_query");
+            ApiCallSection copy = doSection.getApiCallSection().copyWithNewApi("esql.async_query");
             for (Map<String, Object> body : copy.getBodies()) {
                 body.put("wait_for_completion_timeout", "30m");
             }

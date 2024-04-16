@@ -7,7 +7,7 @@ highlight:
   title: A SIMD (Neon) optimised vector distance function for merging int8 Scalar Quantized vectors has been added
   body: |-
     An optimised int8 vector distance implementation for aarch64 has been added.
-    This implementation is currently only used during during merging.
+    This implementation is currently only used during merging.
     The vector distance implementation outperforms Lucene's Pamana Vector
     implementation for binary comparisons by approx 5x (depending on the number
     of dimensions). It does so by means of SIMD (Neon) intrinsics compiled into a

@@ -23,6 +23,7 @@ import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -49,7 +50,10 @@ public class ObjectStoreCacheBlobReader implements CacheBlobReader {
 
     @Override
     public InputStream getRangeInputStream(long position, int length) throws IOException {
-        // TODO catch RequestedRangeNotSatisfiedException, ignore it
-        return blobContainer.readBlob(OperationPurpose.INDICES, blobName, position, length);
+        try {
+            return blobContainer.readBlob(OperationPurpose.INDICES, blobName, position, length);
+        } catch (RequestedRangeNotSatisfiedException e) {
+            return InputStream.nullInputStream();
+        }
     }
 }

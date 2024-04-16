@@ -38,6 +38,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
+import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -62,6 +63,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.LongFunction;
@@ -69,6 +72,7 @@ import java.util.function.LongFunction;
 import static co.elastic.elasticsearch.stateless.lucene.SearchDirectoryTestUtils.getCacheService;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -484,6 +488,98 @@ public class CacheBlobReaderTests extends ESTestCase {
             writtenBytesAfter = getCacheService(node.searchDirectory).getStats().writeBytes();
             writtenBytes = writtenBytesAfter - writtenBytesBefore;
             assertThat(writtenBytes, equalTo(0L));
+        }
+    }
+
+    public void testCacheBlobReaderCanCauseSingleRequestedRangeNotSatisfiedException() throws Exception {
+        final var primaryTerm = randomLongBetween(1L, 10L);
+        final var chunkSize = PAGE_SIZE * randomIntBetween(1, 256); // 4KiB to 1MiB
+        try (
+            var node = new FakeVBCCStatelessNode(
+                this::newEnvironment,
+                this::newNodeEnvironment,
+                xContentRegistry(),
+                primaryTerm,
+                chunkSize * 2
+            ) {
+                Queue<Long> getRangeInputStreamCalls = new ConcurrentLinkedQueue<Long>();
+
+                @Override
+                protected Settings nodeSettings() {
+                    return Settings.builder()
+                        .put(super.nodeSettings())
+                        .put(
+                            SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
+                            new ByteSizeValue(40, ByteSizeUnit.MB).getStringRep()
+                        )
+                        .put(
+                            CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.getKey(),
+                            ByteSizeValue.ofBytes(chunkSize).getStringRep()
+                        )
+                        .build();
+                }
+
+                @Override
+                protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
+                    var originalCacheBlobReaderService = super.createCacheBlobReaderService(cacheService);
+                    return new CacheBlobReaderService(nodeSettings, cacheService, client) {
+                        @Override
+                        public CacheBlobReader getCacheBlobReader(
+                            ShardId shardId,
+                            LongFunction<BlobContainer> blobContainer,
+                            BlobLocation location,
+                            ObjectStoreUploadTracker objectStoreUploadTracker
+                        ) {
+                            var originalCacheBlobReader = originalCacheBlobReaderService.getCacheBlobReader(
+                                shardId,
+                                blobContainer,
+                                location,
+                                objectStoreUploadTracker
+                            );
+                            return new CacheBlobReader() {
+                                @Override
+                                public ByteRange getRange(long position, int length) {
+                                    return originalCacheBlobReader.getRange(position, length);
+                                }
+
+                                @Override
+                                public InputStream getRangeInputStream(long position, int length) throws IOException {
+                                    assert length > 0;
+                                    getRangeInputStreamCalls.add(position);
+                                    return originalCacheBlobReader.getRangeInputStream(position, length);
+                                }
+                            };
+                        }
+                    };
+                }
+            }
+        ) {
+            final var vbccSize = node.virtualBatchedCompoundCommit.getTotalSizeInBytes();
+
+            // Read a byte in the last page of the blob, which makes the cache read the last chunk from the indexing shard, up to the
+            // end of the blob.
+            long lastPageOffset = vbccSize % PAGE_SIZE == 0 ? (vbccSize / PAGE_SIZE - 1) * PAGE_SIZE : (vbccSize / PAGE_SIZE) * PAGE_SIZE;
+            long offsetInLastPage = randomLongBetween(lastPageOffset, vbccSize - 1);
+            node.readVirtualBatchedCompoundCommitByte(offsetInLastPage);
+
+            // Upload and switch to read from the object store
+            var bcc = node.uploadVirtualBatchedCompoundCommit();
+
+            // Read the files, which makes the cache fill a 16MiB region from the cache that extends beyond the end of the blob file.
+            // This means it will need to fill two gaps: one before the chunk we read above, and one that starts at the next page after
+            // the end of the blob file up to the end of the region. That last gap results in RequestedRangeNotSatisfiedException, which
+            // should be handled and ignored by ObjectStoreCacheBlobReader, so that the gap is not attempted to be fetched again.
+            node.virtualBatchedCompoundCommit.getInternalLocations()
+                .keySet()
+                .forEach(filename -> assertFileChecksum(node.searchDirectory, filename));
+
+            // 3 calls expected for: the chunk from the indexing node, the gap before the chunk, and the gap beyond the end of the blob file
+            assertThat(node.getRangeInputStreamCalls.size(), equalTo(3));
+            long lastChunkOffset = (offsetInLastPage / chunkSize) * chunkSize;
+            assertThat(
+                node.getRangeInputStreamCalls.stream().toList(),
+                containsInAnyOrder(lastChunkOffset, 0L, BlobCacheUtils.toPageAlignedSize(vbccSize))
+            );
         }
     }
 

@@ -27,7 +27,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class DynamicFieldMapperTests extends ESSingleNodeTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return List.of(NonDynamicFieldPlugin.class);
@@ -204,9 +203,7 @@ public class DynamicFieldMapperTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected void parseCreateField(DocumentParserContext context) throws IOException {
-
-        }
+        protected void parseCreateField(DocumentParserContext context) throws IOException {}
 
         @Override
         public FieldMapper.Builder getMergeBuilder() {

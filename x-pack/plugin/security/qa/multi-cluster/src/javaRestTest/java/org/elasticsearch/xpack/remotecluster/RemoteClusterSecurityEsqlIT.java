@@ -690,6 +690,9 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                 body.endObject();
             }
         }
+        // TODO: we should use the latest or a random version, even when new versions are released.
+        String version = Build.current().isSnapshot() ? "snapshot" : "2024.04.01";
+        body.field("version", version);
         body.endObject();
         Request request = new Request("POST", "_query");
         request.setJsonEntity(org.elasticsearch.common.Strings.toString(body));

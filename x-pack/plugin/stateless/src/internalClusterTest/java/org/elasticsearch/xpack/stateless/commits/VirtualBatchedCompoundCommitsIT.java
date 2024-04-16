@@ -70,6 +70,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
+import static co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService.TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -236,7 +237,8 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
             findSearchShard(indexName).shardId(),
             new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
-            client(searchNode)
+            client(searchNode),
+            TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings().build())
         );
         try (var inputStream = indexingShardCacheBlobReader.getRangeInputStream(randomLongBetween(0, Long.MAX_VALUE - 1), length)) {
             validateSimulatedVirtualBatchedCompoundCommitChunkResponse(inputStream, length);
@@ -274,7 +276,8 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
             findSearchShard(indexName).shardId(),
             new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
-            client(searchNode)
+            client(searchNode),
+            TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings().build())
         );
         CountDownLatch validated = new CountDownLatch(1);
 
@@ -321,7 +324,8 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
             findSearchShard(indexName).shardId(),
             new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
-            client(searchNode)
+            client(searchNode),
+            TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings().build())
         );
         int length = randomIntBetween(5, 20);
         CountDownLatch validated = new CountDownLatch(1);
@@ -370,7 +374,8 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
             findSearchShard(indexName).shardId(),
             new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
-            client(searchNode)
+            client(searchNode),
+            TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings().build())
         );
         int length = randomIntBetween(5, 20);
         CountDownLatch exceptionThrown = new CountDownLatch(1);
@@ -439,7 +444,8 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
             findSearchShard(indexName).shardId(),
             new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
-            client(searchNode)
+            client(searchNode),
+            TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings().build())
         );
         int length = randomIntBetween(5, 20);
         CountDownLatch exceptionThrown = new CountDownLatch(1);
@@ -515,7 +521,8 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
             findSearchShard(indexName).shardId(),
             new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
-            client(searchNode)
+            client(searchNode),
+            TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings().build())
         );
         int length = randomIntBetween(5, 20);
         try (var inputStream = indexingShardCacheBlobReader.getRangeInputStream(randomLongBetween(0, Long.MAX_VALUE - 1), length)) {
@@ -540,7 +547,8 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
             findSearchShard(indexName).shardId(),
             new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
-            client(searchNode)
+            client(searchNode),
+            TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings().build())
         );
         int length = randomIntBetween(5, 20);
         try (var inputStream = indexingShardCacheBlobReader.getRangeInputStream(Long.MAX_VALUE, length)) {
@@ -579,7 +587,8 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
             findSearchShard(indexName).shardId(),
             new PrimaryTermAndGeneration(1, randomNonNegativeLong()),
-            client(searchNode)
+            client(searchNode),
+            TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings().build())
         );
         int length = randomIntBetween(5, 20);
         CountDownLatch exceptionThrown = new CountDownLatch(1);

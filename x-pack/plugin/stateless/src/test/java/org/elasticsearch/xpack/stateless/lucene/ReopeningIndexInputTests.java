@@ -109,7 +109,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
                 newFSDirectory(indexDataPath),
                 new SearchDirectory(
                     sharedBlobCacheService,
-                    new CacheBlobReaderService(sharedBlobCacheService, mock(Client.class)),
+                    new CacheBlobReaderService(settings, sharedBlobCacheService, mock(Client.class)),
                     MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
                     shardId
                 )
@@ -184,7 +184,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
                 newFSDirectory(indexDataPath),
                 new SearchDirectory(
                     sharedBlobCacheService,
-                    new CacheBlobReaderService(sharedBlobCacheService, mock(Client.class)),
+                    new CacheBlobReaderService(settings, sharedBlobCacheService, mock(Client.class)),
                     MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
                     shardId
                 )

@@ -139,6 +139,8 @@ public class FakeStatelessNode implements Closeable {
     public final ThreadPool threadPool;
 
     public final StatelessElectionStrategy electionStrategy;
+    public final StatelessSharedBlobCacheService sharedCacheService;
+    public final CacheBlobReaderService cacheBlobReaderService;
     private final StatelessCommitCleaner commitCleaner;
 
     private final Closeable closeables;
@@ -200,9 +202,9 @@ public class FakeStatelessNode implements Closeable {
             client = createClient(nodeSettings, threadPool);
             nodeEnvironment = nodeEnvironmentSupplier.apply(nodeSettings);
             localCloseables.add(nodeEnvironment);
-            final var sharedCacheService = createCacheService(nodeEnvironment, nodeSettings, threadPool);
+            sharedCacheService = createCacheService(nodeEnvironment, nodeSettings, threadPool);
             localCloseables.add(sharedCacheService);
-            final var cacheBlobReaderService = createCacheBlobReaderService(sharedCacheService);
+            cacheBlobReaderService = createCacheBlobReaderService(sharedCacheService);
             indexingDirectory = localCloseables.add(
                 new IndexDirectory(
                     new FsDirectoryFactory().newDirectory(indexSettings, indexingShardPath),
@@ -312,7 +314,7 @@ public class FakeStatelessNode implements Closeable {
     }
 
     protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
-        return new CacheBlobReaderService(cacheService, client);
+        return new CacheBlobReaderService(nodeSettings, cacheService, client);
     }
 
     public List<StatelessCommitRef> generateIndexCommits(int commitsNumber) throws IOException {

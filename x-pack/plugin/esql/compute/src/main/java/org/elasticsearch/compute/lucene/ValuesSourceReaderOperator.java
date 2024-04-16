@@ -20,6 +20,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -140,7 +142,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 IntVector docs = docVector.docs();
                 int shard = docVector.shards().getInt(0);
                 int segment = docVector.segments().getInt(0);
-                loadFromSingleLeaf(blocks, shard, segment, new BlockLoader.Docs() {
+                loadFromSingleLeaf(blocks, shard, segment, docVector.scores(), new BlockLoader.Docs() {
                     @Override
                     public int count() {
                         return docs.getPositionCount();
@@ -215,7 +217,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         return true;
     }
 
-    private void loadFromSingleLeaf(Block[] blocks, int shard, int segment, BlockLoader.Docs docs) throws IOException {
+    private void loadFromSingleLeaf(Block[] blocks, int shard, int segment, DoubleVector scores, BlockLoader.Docs docs) throws IOException {
         int firstDoc = docs.get(0);
         positionFieldWork(shard, segment, firstDoc);
         StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.NO_REQUIREMENTS;
@@ -226,7 +228,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             for (int f = 0; f < fields.length; f++) {
                 FieldWork field = fields[f];
                 BlockLoader.ColumnAtATimeReader columnAtATime = field.columnAtATime(ctx);
-                if (columnAtATime != null) {
+                if (field.info.name.equals("_score")) {
+                    blocks[f] = scores.asBlock();
+                } else if (columnAtATime != null) {
                     blocks[f] = (Block) columnAtATime.read(loaderBlockFactory, docs);
                 } else {
                     rowStrideReaders.add(
@@ -281,10 +285,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
     private void loadFromSingleLeafUnsorted(Block[] blocks, DocVector docVector) throws IOException {
         IntVector docs = docVector.docs();
+        DoubleVector scores = docVector.scores();
         int[] forwards = docVector.shardSegmentDocMapForwards();
         int shard = docVector.shards().getInt(0);
         int segment = docVector.segments().getInt(0);
-        loadFromSingleLeaf(blocks, shard, segment, new BlockLoader.Docs() {
+        loadFromSingleLeaf(blocks, shard, segment, scores, new BlockLoader.Docs() {
             @Override
             public int count() {
                 return docs.getPositionCount();
@@ -308,6 +313,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         private final IntVector shards;
         private final IntVector segments;
         private final IntVector docs;
+        private final DoubleVector scores;
         private final int[] forwards;
         private final int[] backwards;
         private final Block.Builder[] builders;
@@ -320,6 +326,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             shards = docVector.shards();
             segments = docVector.segments();
             docs = docVector.docs();
+            scores = docVector.scores();
             forwards = docVector.shardSegmentDocMapForwards();
             backwards = docVector.shardSegmentDocMapBackwards();
             builders = new Block.Builder[target.length];
@@ -327,6 +334,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
 
         void run() throws IOException {
+            DoubleBlock.Builder scoreBuilder = blockFactory.newDoubleBlockBuilder(docs.getPositionCount());
+
+            int scoreBuilderIndex = -1;
             for (int f = 0; f < fields.length; f++) {
                 /*
                  * Important note: each block loader has a method to build an
@@ -335,6 +345,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                  * So! We take the least common denominator which is the loader
                  * from the element expected element type.
                  */
+                if (fields[f].info.name.equals("_score")) {
+                    scoreBuilderIndex = f;
+                }
                 builders[f] = fields[f].info.type.newBlockBuilder(docs.getPositionCount(), blockFactory);
             }
             int p = forwards[0];
@@ -345,10 +358,12 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             LeafReaderContext ctx = ctx(shard, segment);
             fieldsMoved(ctx, shard);
             read(firstDoc);
+            scoreBuilder.appendDouble(scores.getDouble(p));
             for (int i = 1; i < forwards.length; i++) {
                 p = forwards[i];
                 shard = shards.getInt(p);
                 segment = segments.getInt(p);
+                scoreBuilder.appendDouble(scores.getDouble(p));
                 boolean changedSegment = positionFieldWorkDocGuarteedAscending(shard, segment);
                 if (changedSegment) {
                     ctx = ctx(shard, segment);
@@ -356,10 +371,14 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 }
                 read(docs.getInt(p));
             }
+
             for (int f = 0; f < builders.length; f++) {
                 try (Block orig = builders[f].build()) {
                     target[f] = orig.filter(backwards);
                 }
+            }
+            if (scoreBuilderIndex != -1) {
+                target[scoreBuilderIndex] = scores.asBlock();
             }
         }
 

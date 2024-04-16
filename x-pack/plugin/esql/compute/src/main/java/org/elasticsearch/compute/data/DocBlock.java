@@ -90,14 +90,18 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         private final IntVector.Builder segments;
         private final IntVector.Builder docs;
 
+        private DoubleVector.Builder scores;
+
         private Builder(BlockFactory blockFactory, int estimatedSize) {
             IntVector.Builder shards = null;
             IntVector.Builder segments = null;
             IntVector.Builder docs = null;
+            DoubleVector.Builder scores = null;
             try {
                 shards = blockFactory.newIntVectorBuilder(estimatedSize);
                 segments = blockFactory.newIntVectorBuilder(estimatedSize);
                 docs = blockFactory.newIntVectorBuilder(estimatedSize);
+                scores = blockFactory.newDoubleVectorBuilder(estimatedSize);
             } finally {
                 if (docs == null) {
                     Releasables.closeExpectNoException(shards, segments, docs);
@@ -106,6 +110,7 @@ public class DocBlock extends AbstractVectorBlock implements Block {
             this.shards = shards;
             this.segments = segments;
             this.docs = docs;
+            this.scores = scores;
         }
 
         public Builder appendShard(int shard) {
@@ -120,6 +125,11 @@ public class DocBlock extends AbstractVectorBlock implements Block {
 
         public Builder appendDoc(int doc) {
             docs.appendInt(doc);
+            return this;
+        }
+
+        public Builder appendScore(float score) {
+            scores.appendDouble(score);
             return this;
         }
 
@@ -145,6 +155,7 @@ public class DocBlock extends AbstractVectorBlock implements Block {
                 shards.appendInt(docVector.shards().getInt(i));
                 segments.appendInt(docVector.segments().getInt(i));
                 docs.appendInt(docVector.docs().getInt(i));
+                scores.appendDouble(docVector.scores().getDouble(i));
             }
             return this;
         }
@@ -172,11 +183,13 @@ public class DocBlock extends AbstractVectorBlock implements Block {
             IntVector segments = null;
             IntVector docs = null;
             DocVector result = null;
+            DoubleVector scores = null;
             try {
                 shards = this.shards.build();
                 segments = this.segments.build();
                 docs = this.docs.build();
-                result = new DocVector(shards, segments, docs, null);
+                scores = this.scores.build();
+                result = new DocVector(shards, segments, docs, scores, null);
                 return result.asBlock();
             } finally {
                 if (result == null) {

@@ -34,6 +34,8 @@ public class EsSourceExec extends LeafExec {
     private final List<Attribute> attributes;
     private QueryBuilder query;
 
+    private boolean withScores = false;
+
     public EsSourceExec(EsRelation relation) {
         this(relation.source(), relation.index(), relation.output(), null);
 
@@ -45,6 +47,7 @@ public class EsSourceExec extends LeafExec {
                 FieldAttribute fa = new FieldAttribute(EMPTY, fieldName, new EsField(fieldName, TEXT, emptyMap(), true));
                 MatchQueryPredicate mmqp = new MatchQueryPredicate(relation.source(), fa, queryString, "");
                 this.query = TRANSLATOR_HANDLER.asQuery(mmqp).asBuilder();
+                this.withScores = true;
             }
         }
     }
@@ -67,6 +70,10 @@ public class EsSourceExec extends LeafExec {
     @Override
     public List<Attribute> output() {
         return attributes;
+    }
+
+    public boolean withScores() {
+        return withScores;
     }
 
     @Override

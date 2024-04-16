@@ -30,6 +30,8 @@ public final class DocVector extends AbstractVector implements Vector {
     private final IntVector segments;
     private final IntVector docs;
 
+    private final DoubleVector scores;
+
     /**
      * Are the docs in this vector all in one segment and non-decreasing? If
      * so we can load doc values via a fast path.
@@ -47,10 +49,15 @@ public final class DocVector extends AbstractVector implements Vector {
     private int[] shardSegmentDocMapBackwards;
 
     public DocVector(IntVector shards, IntVector segments, IntVector docs, Boolean singleSegmentNonDecreasing) {
+        this(shards, segments, docs, null, singleSegmentNonDecreasing);
+    }
+
+    public DocVector(IntVector shards, IntVector segments, IntVector docs,  DoubleVector scores, Boolean singleSegmentNonDecreasing) {
         super(shards.getPositionCount(), shards.blockFactory());
         this.shards = shards;
         this.segments = segments;
         this.docs = docs;
+        this.scores = scores;
         this.singleSegmentNonDecreasing = singleSegmentNonDecreasing;
         if (shards.getPositionCount() != segments.getPositionCount()) {
             throw new IllegalArgumentException(
@@ -75,6 +82,10 @@ public final class DocVector extends AbstractVector implements Vector {
 
     public IntVector docs() {
         return docs;
+    }
+
+    public DoubleVector scores() {
+        return scores;
     }
 
     public boolean singleSegmentNonDecreasing() {

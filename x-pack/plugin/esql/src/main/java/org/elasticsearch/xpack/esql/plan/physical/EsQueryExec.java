@@ -41,6 +41,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     private final List<FieldSort> sorts;
     private final List<Attribute> attrs;
 
+    private boolean withScores = false;
+
     /**
      * Estimate of the number of bytes that'll be loaded per position before
      * the stream of pages is consumed.
@@ -57,8 +59,9 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         }
     }
 
-    public EsQueryExec(Source source, EsIndex index, QueryBuilder query) {
-        this(source, index, List.of(new FieldAttribute(source, DOC_ID_FIELD.getName(), DOC_ID_FIELD)), query, null, null, null);
+    public EsQueryExec(Source source, EsIndex index, QueryBuilder query, boolean withScores) {
+        this(source, index, List.of(new FieldAttribute(source, DOC_ID_FIELD.getName(), DOC_ID_FIELD)), query, null, null, null, withScores);
+        this.withScores = withScores;
     }
 
     public EsQueryExec(
@@ -70,18 +73,32 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         List<FieldSort> sorts,
         Integer estimatedRowSize
     ) {
+        this(source, index, attrs, query, limit, sorts, estimatedRowSize, false);
+    }
+
+    public EsQueryExec(
+        Source source,
+        EsIndex index,
+        List<Attribute> attrs,
+        QueryBuilder query,
+        Expression limit,
+        List<FieldSort> sorts,
+        Integer estimatedRowSize,
+        boolean withScores
+    ) {
         super(source);
         this.index = index;
         this.query = query;
         this.attrs = attrs;
         this.limit = limit;
         this.sorts = sorts;
+        this.withScores = withScores;
         this.estimatedRowSize = estimatedRowSize;
     }
 
     @Override
     protected NodeInfo<EsQueryExec> info() {
-        return NodeInfo.create(this, EsQueryExec::new, index, attrs, query, limit, sorts, estimatedRowSize);
+        return NodeInfo.create(this, EsQueryExec::new, index, attrs, query, limit, sorts, estimatedRowSize, withScores);
     }
 
     public EsIndex index() {
@@ -100,6 +117,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     public Expression limit() {
         return limit;
     }
+
+    public boolean withScores() { return withScores; }
 
     public List<FieldSort> sorts() {
         return sorts;
@@ -129,15 +148,15 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             state.add(false, Integer.BYTES * 2);
             size = state.consumeAllFields(true);
         }
-        return Objects.equals(this.estimatedRowSize, size) ? this : new EsQueryExec(source(), index, attrs, query, limit, sorts, size);
+        return Objects.equals(this.estimatedRowSize, size) ? this : new EsQueryExec(source(), index, attrs, query, limit, sorts, size, withScores);
     }
 
     public EsQueryExec withLimit(Expression limit) {
-        return Objects.equals(this.limit, limit) ? this : new EsQueryExec(source(), index, attrs, query, limit, sorts, estimatedRowSize);
+        return Objects.equals(this.limit, limit) ? this : new EsQueryExec(source(), index, attrs, query, limit, sorts, estimatedRowSize, withScores);
     }
 
     public EsQueryExec withSorts(List<FieldSort> sorts) {
-        return Objects.equals(this.sorts, sorts) ? this : new EsQueryExec(source(), index, attrs, query, limit, sorts, estimatedRowSize);
+        return Objects.equals(this.sorts, sorts) ? this : new EsQueryExec(source(), index, attrs, query, limit, sorts, estimatedRowSize, withScores);
     }
 
     @Override

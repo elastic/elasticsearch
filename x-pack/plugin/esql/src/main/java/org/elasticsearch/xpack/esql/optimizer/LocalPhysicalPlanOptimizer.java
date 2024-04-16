@@ -144,7 +144,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             if (timeSeriesMode) {
                 return new EsTimeseriesQueryExec(plan.source(), plan.index(), plan.query());
             } else {
-                return new EsQueryExec(plan.source(), plan.index(), plan.query());
+                return new EsQueryExec(plan.source(), plan.index(), plan.query(), plan.withScores());
             }
         }
     }
@@ -235,7 +235,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                         query,
                         queryExec.limit(),
                         queryExec.sorts(),
-                        queryExec.estimatedRowSize()
+                        queryExec.estimatedRowSize(),
+                        queryExec.withScores()
                     );
                     if (nonPushable.size() > 0) { // update filter with remaining non-pushable conditions
                         plan = new FilterExec(filterExec.source(), queryExec, Predicates.combineAnd(nonPushable));

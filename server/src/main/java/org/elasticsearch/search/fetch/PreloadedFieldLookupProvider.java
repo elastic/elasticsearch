@@ -39,10 +39,10 @@ class PreloadedFieldLookupProvider implements LeafFieldLookupProvider {
     @Override
     public void populateFieldLookup(FieldLookup fieldLookup, int doc) throws IOException {
         String field = fieldLookup.fieldType().name();
-        if (storedFields.containsKey(field)) {
-            // if (preloadedStoredFields.contains(field)) {
+        if (preloadedStoredFields.contains(field)) {
             fieldLookup.setValues(storedFields.get(field));
-            // assert assertBackupValueSameAsPreloaded(fieldLookup, doc);
+            //TODO remove this assert
+            assert assertBackupValueSameAsPreloaded(fieldLookup, doc);
             return;
         }
         // stored field not preloaded, go and get it directly

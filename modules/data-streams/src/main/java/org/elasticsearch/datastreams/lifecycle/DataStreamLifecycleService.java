@@ -795,7 +795,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         Set<Index> currentRunWriteIndices = new HashSet<>();
         currentRunWriteIndices.add(maybeExecuteRollover(state, dataStream, false));
         if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            currentRunWriteIndices.add(maybeExecuteRollover(state, dataStream, true));
+            Index failureStoreWriteIndex = maybeExecuteRollover(state, dataStream, true);
+            if (failureStoreWriteIndex != null) {
+                currentRunWriteIndices.add(failureStoreWriteIndex);
+            }
         }
         return currentRunWriteIndices;
     }

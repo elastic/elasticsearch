@@ -319,7 +319,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     builder.endArray();
                 }
                 builder.field(DataStream.GENERATION_FIELD.getPreferredName(), dataStream.getGeneration());
-                if (DataStream.isFailureStoreEnabled()) {
+                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
                     builder.field(DataStream.FAILURE_INDICES_FIELD.getPreferredName());
                     builder.startArray();
                     for (Index failureStore : dataStream.getFailureIndices()) {
@@ -358,8 +358,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), dataStream.isAllowCustomRouting());
                 builder.field(REPLICATED.getPreferredName(), dataStream.isReplicated());
                 builder.field(ROLLOVER_ON_WRITE.getPreferredName(), dataStream.rolloverOnWrite());
-                if (DataStream.isFailureStoreEnabled()) {
-                    builder.field(DataStream.FAILURE_STORE_FIELD.getPreferredName(), dataStream.isFailureStore());
+                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+                    builder.field(DataStream.FAILURE_STORE_FIELD.getPreferredName(), dataStream.isFailureStoreEnabled());
                 }
                 if (dataStream.getAutoShardingEvent() != null) {
                     DataStreamAutoShardingEvent autoShardingEvent = dataStream.getAutoShardingEvent();

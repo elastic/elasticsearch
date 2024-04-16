@@ -19,7 +19,6 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingResponse;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,7 +29,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
  * Rest endpoint to delete a role-mapping from the {@link org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore}
  */
 @ServerlessScope(Scope.INTERNAL)
-public class RestDeleteRoleMappingAction extends SecurityBaseRestHandler {
+public class RestDeleteRoleMappingAction extends NativeRoleMappingBaseRestHandler {
 
     public RestDeleteRoleMappingAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);

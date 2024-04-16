@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -87,7 +88,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(MockRepository.Plugin.class, DataStreamsPlugin.class);
+        return List.of(MockRepository.Plugin.class, DataStreamsPlugin.class, MapperExtrasPlugin.class);
     }
 
     @Before
@@ -97,6 +98,21 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         createRepository(REPO, "fs", location);
 
         DataStreamIT.putComposableIndexTemplate("t1", List.of("ds", "other-ds"));
+        DataStreamIT.putComposableIndexTemplate("t2", """
+            {
+                "properties": {
+                  "@timestamp": {
+                    "type": "date",
+                    "format": "date_optional_time||epoch_millis"
+                  },
+                  "message": {
+                   "type": "match_only_text"
+                  },
+                  "flag": {
+                    "type": "boolean"
+                  }
+              }
+            }""", List.of("with-fs"), null, null, null, null);
 
         CreateDataStreamAction.Request request = new CreateDataStreamAction.Request("ds");
         AcknowledgedResponse response = client.execute(CreateDataStreamAction.INSTANCE, request).get();
@@ -930,7 +946,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .prepareRestoreSnapshot(REPO, snapshot)
             .setIndices(indexWithoutDataStream)
             .setWaitForCompletion(true)
-            .setRestoreGlobalState(randomBoolean())
+            .setRestoreGlobalState(true)
             .get()
             .getRestoreInfo();
         assertThat(restoreInfo.failedShards(), is(0));

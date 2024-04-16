@@ -147,6 +147,7 @@ public abstract class StoredFieldLoader {
 
     private static List<String> fieldsToLoad(boolean loadSource, Set<String> fields) {
         Set<String> fieldsToLoad = new HashSet<>();
+        // TODO is this necessary? why is _ignored not in here?
         fieldsToLoad.add("_id");
         fieldsToLoad.add("_routing");
         if (loadSource) {

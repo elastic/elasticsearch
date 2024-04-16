@@ -28,8 +28,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-import static java.util.Collections.emptyMap;
-
 /**
  * Base {@link StoredFieldVisitor} that retrieves all non-redundant metadata.
  */
@@ -41,7 +39,7 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
     private final Set<String> requiredFields;
     protected BytesReference source;
     protected String id;
-    protected Map<String, List<Object>> fieldsValues;
+    private final Map<String, List<Object>> fieldsValues = new HashMap<>();
 
     public FieldsVisitor(boolean loadSource) {
         this(loadSource, SourceFieldMapper.NAME);
@@ -156,9 +154,6 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
     }
 
     public String routing() {
-        if (fieldsValues == null) {
-            return null;
-        }
         List<Object> values = fieldsValues.get(RoutingFieldMapper.NAME);
         if (values == null || values.isEmpty()) {
             return null;
@@ -168,13 +163,13 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
     }
 
     public Map<String, List<Object>> fields() {
-        return fieldsValues != null ? fieldsValues : emptyMap();
+        return fieldsValues;
     }
 
     public void reset() {
-        if (fieldsValues != null) {
-            fieldsValues.clear();
-        }
+        fieldsValues.clear();
+        fieldsValues.put(RoutingFieldMapper.NAME, null);
+        fieldsValues.put(IgnoredFieldMapper.NAME, null);
         source = null;
         id = null;
 
@@ -185,10 +180,6 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
     }
 
     void addValue(String name, Object value) {
-        if (fieldsValues == null) {
-            fieldsValues = new HashMap<>();
-        }
-
         List<Object> values = fieldsValues.computeIfAbsent(name, k -> new ArrayList<>(2));
         values.add(value);
     }

@@ -54,9 +54,9 @@ public final class EnrichCache {
         this.cache = CacheBuilder.<CacheKey, List<Map<?, ?>>>builder().setMaximumWeight(maxSize).build();
     }
 
-    void putIfAbsent(
+    public void putIfAbsent(
         SearchRequest searchRequest,
-        BiConsumer<SearchRequest, ActionListener<SearchResponse>> consumer,
+        BiConsumer<SearchRequest, ActionListener<SearchResponse>> searchResponseFetcher,
         ActionListener<List<Map<?, ?>>> listener
     ) {
         // intentionally non-locking for simplicity...it's OK if we re-put the same key/value in the cache during a race condition.
@@ -64,7 +64,7 @@ public final class EnrichCache {
         if (response != null) {
             listener.onResponse(response);
         } else {
-            consumer.accept(searchRequest, ActionListener.wrap(resp -> {
+            searchResponseFetcher.accept(searchRequest, ActionListener.wrap(resp -> {
                 List<Map<?, ?>> value = toCacheValue(resp);
                 put(searchRequest, value);
                 listener.onResponse(deepCopy(value, false));
@@ -72,6 +72,7 @@ public final class EnrichCache {
         }
     }
 
+    // non-private for unit testing only
     List<Map<?, ?>> get(SearchRequest searchRequest) {
         String enrichIndex = getEnrichIndexKey(searchRequest);
         CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);
@@ -84,6 +85,7 @@ public final class EnrichCache {
         }
     }
 
+    // non-private for unit testing only
     void put(SearchRequest searchRequest, List<Map<?, ?>> response) {
         String enrichIndex = getEnrichIndexKey(searchRequest);
         CacheKey cacheKey = new CacheKey(enrichIndex, searchRequest);

@@ -317,11 +317,11 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             documentFields = new HashMap<>();
             metadataFields = new HashMap<>();
             for (Map.Entry<String, List<Object>> entry : leafStoredFieldLoader.storedFields().entrySet()) {
-                if (false == needed.contains(entry.getKey())) {
+                if (false == needed.contains(entry.getKey()) || entry.getValue() == null) {
                     continue;
                 }
                 MappedFieldType ft = mapperService.fieldType(entry.getKey());
-                if (ft == null || entry.getValue() == null) {
+                if (ft == null) {
                     continue;   // user asked for a non-existent field, ignore it
                 }
                 List<Object> values = entry.getValue().stream().map(ft::valueForDisplay).toList();

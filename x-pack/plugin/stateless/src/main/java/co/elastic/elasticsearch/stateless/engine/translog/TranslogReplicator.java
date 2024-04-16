@@ -216,7 +216,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error("Unexpected exception when running translog replication task", e);
+                logger.error("unexpected exception when running translog replication task", e);
             }
         }, FLUSH_CHECK_INTERVAL, executor);
     }
@@ -232,6 +232,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     }
 
     public void register(ShardId shardId, long primaryTerm, LongConsumer persistedSeqNoConsumer) {
+        logger.debug(() -> format("shard %s registered with translog replicator", shardId));
         var previous = shardSyncStates.put(
             shardId,
             new ShardSyncState(
@@ -248,6 +249,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     public void unregister(ShardId shardId) {
         var unregistered = shardSyncStates.remove(shardId);
+        logger.debug(() -> format("shard %s unregistered with translog replicator", shardId));
         assert unregistered != null;
         unregistered.close(indicesServiceState.get() == Lifecycle.State.CLOSED || indicesServiceState.get() == Lifecycle.State.STOPPED);
     }
@@ -384,11 +386,13 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             ++uploadTryNumber;
             // Retain the bytes to ensure that a cancel call does not corrupt them before upload
             if (bytesToClose.tryIncRef()) {
+                logger.trace(() -> format("attempt [%s] to upload translog file [%s]", uploadTryNumber, translog.metadata().name()));
                 objectStoreService.uploadTranslogFile(
                     translog.metadata().name(),
                     translog.bytes().data(),
                     ActionListener.releaseAfter(ActionListener.wrap(unused -> {
                         isUploaded = true;
+                        logger.debug(() -> format("uploaded translog file [%s]", translog.metadata().name()));
                         listener.onResponse(unused);
 
                     }, e -> {
@@ -439,7 +443,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             public void onFailure(Exception e) {
                 // We only fully fail when the translog replicator is shutting down
                 logger.info(
-                    () -> "Failed to upload translog file [" + translog.metadata().name() + "] due to translog replicator shutdown",
+                    () -> "failed to upload translog file [" + translog.metadata().name() + "] due to translog replicator shutdown",
                     e
                 );
                 assert isOpen.get() == false;
@@ -483,13 +487,20 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 new ActionListener<>() {
                     @Override
                     public void onResponse(Void unused) {
+                        logger.debug(
+                            () -> format(
+                                "validated cluster state for translog file upload [validateGeneration=%s, files=%s]",
+                                validateGeneration,
+                                completedSyncs.stream().map(f -> f.name).toList()
+                            )
+                        );
                         nodeState.markClusterStateValidateFinished(validateGeneration);
                     }
 
                     @Override
                     public void onFailure(Exception e) {
                         // We only fully fail when the translog replicator is shutting down
-                        logger.info(() -> "Failed to validate cluster state due to translog replicator shutdown", e);
+                        logger.info(() -> "failed to validate cluster state due to translog replicator shutdown", e);
                     }
                 },
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
@@ -505,6 +516,13 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         @Override
         public void tryAction(ActionListener<Void> listener) {
+            logger.trace(
+                () -> format(
+                    "attempting to validate cluster state for translog file upload [validateGeneration=%s, files=%s]",
+                    validateGeneration,
+                    completedSyncs.stream().map(f -> f.name).toList()
+                )
+            );
             consistencyService.ensureClusterStateConsistentWithRootBlob(listener, TimeValue.MAX_VALUE);
         }
 
@@ -516,6 +534,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     private class ValidateClusterStateForDeleteTask extends RetryableAction<Void> {
 
+        private final BlobTranslogFile fileToDelete;
+
         private ValidateClusterStateForDeleteTask(BlobTranslogFile fileToDelete) {
             super(
                 org.apache.logging.log4j.LogManager.getLogger(TranslogReplicator.class),
@@ -526,21 +546,24 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 new ActionListener<>() {
                     @Override
                     public void onResponse(Void unused) {
+                        logger.debug(() -> format("validated cluster state for translog file delete [file=%s]", fileToDelete.blobName()));
                         nodeState.clusterStateValidateForDeleteFinished(fileToDelete);
                     }
 
                     @Override
                     public void onFailure(Exception e) {
                         // We only fully fail when the translog replicator is shutting down
-                        logger.info(() -> "Failed to validate cluster state due to translog replicator shutdown", e);
+                        logger.info(() -> "failed to validate cluster state due to translog replicator shutdown", e);
                     }
                 },
                 threadPool.executor(ThreadPool.Names.GENERIC)
             );
+            this.fileToDelete = fileToDelete;
         }
 
         @Override
         public void tryAction(ActionListener<Void> listener) {
+            logger.trace(() -> format("attempting to validate cluster state for translog file delete [file=%s]", fileToDelete.blobName()));
             consistencyService.delayedEnsureClusterStateConsistentWithRootBlob(listener);
         }
 
@@ -748,6 +771,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             ClusterState state = consistencyService.state();
             if (allShardsAtLeastYellow(fileToDelete, state)) {
                 translogFilesToDelete.remove(fileToDelete);
+                logger.debug(() -> format("scheduling translog file [%s] for async delete", fileToDelete.blobName()));
                 objectStoreService.asyncDeleteTranslogFile(fileToDelete.blobName);
             } else {
                 ClusterStateObserver observer = new ClusterStateObserver(
@@ -763,6 +787,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                     public void onNewClusterState(ClusterState state) {
                         assert allShardsAtLeastYellow(fileToDelete, state);
                         translogFilesToDelete.remove(fileToDelete);
+                        logger.debug(() -> format("scheduling translog file [%s] for async delete", fileToDelete.blobName()));
                         objectStoreService.asyncDeleteTranslogFile(fileToDelete.blobName);
                     }
 

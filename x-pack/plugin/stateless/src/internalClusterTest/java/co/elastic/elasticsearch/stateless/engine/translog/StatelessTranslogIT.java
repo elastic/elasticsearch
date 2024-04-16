@@ -21,26 +21,44 @@ import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
@@ -228,6 +246,215 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
                 .getAsLong();
             assertThat(minReferenced, equalTo(minReferencedFile));
         }
+    }
+
+    @TestLogging(
+        value = "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator:debug,"
+            + "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader:debug",
+        reason = "to ensure we translog events on DEBUG level"
+    )
+    public void testTranslogStressRecoveryTest() throws Exception {
+        // TODO: Add Failures.REMOTE_FAIL once issues with remote failure have been resolved
+        runStressTest(4, Failures.RESTART, Failures.LOCAL_FAIL);
+    }
+
+    @TestLogging(
+        value = "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator:debug,"
+            + "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader:debug",
+        reason = "to ensure we translog events on DEBUG level"
+    )
+    public void testTranslogRestartOnlyStressRecoveryTest() throws Exception {
+        // Restarts take the longest so lower failure count
+        runStressTest(2, Failures.RESTART);
+    }
+
+    // TODO: Uncomment once issues with remote failure have been resolved
+    // @TestLogging(
+    // value = "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator:debug,"
+    // + "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader:debug",
+    // reason = "to ensure we translog events on DEBUG level"
+    // )
+    // public void testTranslogRemoteFailureOnlyStressRecoveryTest() throws Exception {
+    // runStressTest(3, Failures.REMOTE_FAIL);
+    // }
+
+    @TestLogging(
+        value = "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator:debug,"
+            + "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader:debug",
+        reason = "to ensure we translog events on DEBUG level"
+    )
+    public void testTranslogLocalFailureOnlyStressRecoveryTest() throws Exception {
+        runStressTest(3, Failures.LOCAL_FAIL);
+    }
+
+    private void runStressTest(int failureCount, Failures... failureTypes) throws Exception {
+        TimeValue flushInterval = TimeValue.timeValueMillis(rarely() ? 200 : randomLongBetween(25, 100));
+        logger.info("running test with translog flush interval {}", flushInterval);
+
+        startMasterOnlyNode();
+        startSearchNode();
+
+        String indexNode1 = startMasterAndIndexNode(
+            Settings.builder()
+                .put(TranslogReplicator.FLUSH_INTERVAL_SETTING.getKey(), flushInterval)
+                .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1))
+                .build()
+        );
+        String indexNode2 = startMasterAndIndexNode(
+            Settings.builder()
+                .put(TranslogReplicator.FLUSH_INTERVAL_SETTING.getKey(), flushInterval)
+                .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1))
+                .build()
+        );
+        ensureStableCluster(4);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(4, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
+        ensureGreen(indexName);
+
+        AtomicLong minExpectedDocs = new AtomicLong();
+
+        ArrayList<CountDownLatch> failureLatches = new ArrayList<>(failureCount);
+        int reqN = 0;
+        for (int i = 0; i < failureCount; i++) {
+            int failThreshold = randomIntBetween(30, 60);
+            failureLatches.add(new CountDownLatch(reqN + failThreshold));
+            reqN += failThreshold;
+        }
+        reqN += randomIntBetween(30, 60);
+
+        ExecutorService executorService = Executors.newFixedThreadPool(4);
+        CountDownLatch allReqLatch = new CountDownLatch(reqN);
+        Set<String> successes = ConcurrentCollections.newConcurrentSet();
+        Set<String> failures = ConcurrentCollections.newConcurrentSet();
+
+        logger.info("running test with {} requests", reqN);
+
+        for (int n = 0; n < reqN; ++n) {
+            executorService.execute(() -> {
+                try {
+                    var bulkRequest = client().prepareBulk();
+                    // Occasionally set timeout to avoid retries
+                    if (randomBoolean() && randomBoolean()) {
+                        bulkRequest.setTimeout(TimeValue.timeValueMillis(100));
+                    }
+                    int numDocs = randomIntBetween(10, 50);
+                    for (int i = 0; i < numDocs; i++) {
+                        bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
+                    }
+                    var bulkResponse = bulkRequest.get();
+
+                    Arrays.stream(bulkResponse.getItems()).forEach(bulkItemResponse -> {
+                        if (bulkItemResponse.isFailed()) {
+                            failures.add(bulkItemResponse.getId());
+                        } else {
+                            minExpectedDocs.incrementAndGet();
+                            successes.add(bulkItemResponse.getId());
+                        }
+                    });
+                } catch (Exception e) {
+                    logger.warn("exception on indexing thread", e);
+                } finally {
+                    failureLatches.forEach(CountDownLatch::countDown);
+                }
+
+                try {
+                    // Flush approximately every 32 requests
+                    if (randomBoolean() && randomBoolean() && randomBoolean() && randomBoolean() && randomBoolean()) {
+                        // Do not use the test flush() helper method as it can trigger an assertion if a flush fails due to a node restart.
+                        indicesAdmin().prepareFlush(indexName).get();
+                    }
+                } catch (Exception e) {
+                    logger.warn("exception while flushing on indexing thread", e);
+                } finally {
+                    allReqLatch.countDown();
+                }
+            });
+        }
+
+        try {
+            for (CountDownLatch latch : failureLatches) {
+                safeAwait(latch);
+                induceFailures(indexNode1, indexNode2, indexName, failureTypes);
+            }
+
+            safeAwait(allReqLatch);
+
+            refresh(indexName);
+
+            SearchResponse response = prepareSearch(indexName).setQuery(QueryBuilders.idsQuery().addIds(failures.toArray(new String[0])))
+                .get();
+            long failureHits = response.getHits().getTotalHits().value;
+            response.decRef();
+            logger.info(
+                "Found ["
+                    + failureHits
+                    + "] hits matching failure ids. This is not an error condition as docs can be accepted by the system and still be "
+                    + "indicated as failed to the client."
+            );
+
+            assertResponse(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
+                assertNoFailures(searchResponse);
+                assertThat(searchResponse.getHits().getTotalHits().value, greaterThanOrEqualTo(minExpectedDocs.get()));
+            });
+
+            assertResponse(
+                prepareSearch(indexName).setQuery(QueryBuilders.idsQuery().addIds(successes.toArray(new String[0]))),
+                searchResponse -> {
+                    assertNoFailures(searchResponse);
+                    assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) successes.size()));
+                }
+            );
+        } finally {
+            long outstandingRequests = allReqLatch.getCount();
+            if (outstandingRequests > 0) {
+                logger.warn("test finished with {} outstanding requests", outstandingRequests);
+            }
+
+            executorService.shutdown();
+            executorService.awaitTermination(10, TimeUnit.SECONDS);
+        }
+    }
+
+    private enum Failures {
+        RESTART,
+        LOCAL_FAIL,
+        REMOTE_FAIL
+    }
+
+    private void induceFailures(String indexNode1, String indexNode2, String indexName, Failures... failureTypes) throws Exception {
+        Failures failure = randomFrom(failureTypes);
+        logger.info("inducing failure of type: {}", failure.name());
+        switch (failure) {
+            case RESTART -> {
+                internalCluster().restartNode(randomFrom(indexNode1, indexNode2));
+                ensureStableCluster(4);
+            }
+            case LOCAL_FAIL -> {
+                IndexShard indexShard = findIndexShard(resolveIndex(indexName), randomFrom(0, 1, 2, 3));
+                indexShard.failShard("broken", new Exception("boom local"));
+            }
+            case REMOTE_FAIL -> {
+                IndexShard indexShard = findIndexShard(resolveIndex(indexName), randomFrom(0, 1, 2, 3));
+                ShardStateAction shardStateAction = internalCluster().getInstance(
+                    ShardStateAction.class,
+                    randomFrom(internalCluster().getMasterName(), indexNode1, indexNode2)
+                );
+                ShardRouting shardRouting = indexShard.routingEntry();
+                PlainActionFuture<Void> listener = new PlainActionFuture<>();
+                shardStateAction.remoteShardFailed(
+                    indexShard.shardId(),
+                    shardRouting.allocationId().getId(),
+                    indexShard.getOperationPrimaryTerm(),
+                    true,
+                    "broken",
+                    new Exception("boom remote"),
+                    listener
+                );
+                listener.actionGet();
+            }
+        }
+        ensureGreen(indexName);
     }
 
     private static void assertDirectoryConsistency(List<BlobMetadata> blobs, BlobContainer translogBlobContainer, ShardId shardId)

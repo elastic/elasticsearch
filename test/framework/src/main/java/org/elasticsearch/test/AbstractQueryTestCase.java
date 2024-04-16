@@ -553,7 +553,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     /**
-     * Simulate rewriting the query builder in stages across the coordinator node & data node.
+     * Simulate rewriting the query builder in stages across the coordinator node and data node.
      * It is rewritten on the coordinator node first, then again on the data node.
      *
      * @param queryBuilder The query builder to rewrite

@@ -36,10 +36,8 @@ import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -56,7 +54,6 @@ import org.junit.Before;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -95,7 +92,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(MockRepository.Plugin.class, DataStreamsPlugin.class, MockWildcardPlugin.class);
+        return List.of(MockRepository.Plugin.class, DataStreamsPlugin.class, MapperExtrasPlugin.class);
     }
 
     @Before
@@ -111,9 +108,6 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
                   "@timestamp": {
                     "type": "date",
                     "format": "date_optional_time||epoch_millis"
-                  },
-                  "message": {
-                   "type": "wildcard"
                   },
                   "flag": {
                     "type": "boolean"
@@ -995,7 +989,32 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .prepareRestoreSnapshot(REPO, snapshot)
             .setIndices(indexWithoutDataStream)
             .setWaitForCompletion(true)
-            .setRestoreGlobalState(randomBoolean())
+            .setRestoreGlobalState(false)
+            .get()
+            .getRestoreInfo();
+        assertThat(restoreInfo.failedShards(), is(0));
+        assertThat(restoreInfo.successfulShards(), is(1));
+    }
+
+    /**
+     * This test is a copy of the {@link #testPartialRestoreSnapshotThatIncludesDataStream()} the only difference
+     * is that one include the global state and one doesn't. In general this shouldn't matter that's why it used to be
+     * a random parameter of the test, but because of #107515 it fails when we include the global state. Keep them
+     * separate until this is fixed.
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107515")
+    public void testPartialRestoreSnapshotThatIncludesDataStreamWithGlobalState() {
+        final String snapshot = "test-snapshot";
+        final String indexWithoutDataStream = "test-idx-no-ds";
+        createIndexWithContent(indexWithoutDataStream);
+        createFullSnapshot(REPO, snapshot);
+        assertAcked(client.admin().indices().prepareDelete(indexWithoutDataStream));
+        RestoreInfo restoreInfo = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(REPO, snapshot)
+            .setIndices(indexWithoutDataStream)
+            .setWaitForCompletion(true)
+            .setRestoreGlobalState(true)
             .get()
             .getRestoreInfo();
         assertThat(restoreInfo.failedShards(), is(0));
@@ -1156,15 +1175,5 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             client.admin().cluster().prepareRestoreSnapshot(REPO, snapshotName).setWaitForCompletion(true)
         );
         assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (my-alias)"));
-    }
-
-    public static class MockWildcardPlugin extends Plugin implements MapperPlugin {
-
-        @Override
-        public Map<String, Mapper.TypeParser> getMappers() {
-            Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
-            mappers.put("wildcard", KeywordFieldMapper.PARSER);
-            return Collections.unmodifiableMap(mappers);
-        }
     }
 }

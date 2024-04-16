@@ -191,7 +191,7 @@ class DownsampleShardIndexer {
                 + task.getNumSent()
                 + "]";
             logger.info(error);
-            downsampleMetrics.recordLatencyShard(duration.millis(), DownsampleMetrics.ActionStatus.MISSING_DOCS);
+            downsampleMetrics.recordShardOperation(duration.millis(), DownsampleMetrics.ActionStatus.MISSING_DOCS);
             throw new DownsampleShardIndexerException(error, false);
         }
 
@@ -204,7 +204,7 @@ class DownsampleShardIndexer {
                 + task.getNumFailed()
                 + "]";
             logger.info(error);
-            downsampleMetrics.recordLatencyShard(duration.millis(), DownsampleMetrics.ActionStatus.FAILED);
+            downsampleMetrics.recordShardOperation(duration.millis(), DownsampleMetrics.ActionStatus.FAILED);
             throw new DownsampleShardIndexerException(error, false);
         }
 
@@ -214,7 +214,7 @@ class DownsampleShardIndexer {
             ActionListener.noop()
         );
         logger.info("Downsampling task [" + task.getPersistentTaskId() + " on shard " + indexShard.shardId() + " completed");
-        downsampleMetrics.recordLatencyShard(duration.millis(), DownsampleMetrics.ActionStatus.SUCCESS);
+        downsampleMetrics.recordShardOperation(duration.millis(), DownsampleMetrics.ActionStatus.SUCCESS);
         return new DownsampleIndexerAction.ShardDownsampleResponse(indexShard.shardId(), task.getNumIndexed());
     }
 

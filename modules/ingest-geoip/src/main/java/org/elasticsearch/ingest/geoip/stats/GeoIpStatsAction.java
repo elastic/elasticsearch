@@ -139,7 +139,6 @@ public class GeoIpStatsAction {
                 builder.field("hits_time_in_millis", cacheStats.hitsTimeInMillis());
                 builder.field("misses_time_in_millis", cacheStats.missesTimeInMillis());
                 builder.field("store_query_time_in_millis", cacheStats.storeQueryTimeInMillis());
-                builder.field("puts_time_in_millis", cacheStats.cachePutsTimeInMillis());
                 builder.endObject();
                 builder.endObject();
             }

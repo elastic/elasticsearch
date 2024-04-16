@@ -21,13 +21,11 @@ public record CacheStats(
     long evictions,
     long hitsTimeInMillis,
     long missesTimeInMillis,
-    long storeQueryTimeInMillis,
-    long cachePutsTimeInMillis
+    long storeQueryTimeInMillis
 ) implements Writeable {
 
     public CacheStats(StreamInput streamInput) throws IOException {
         this(
-            streamInput.readLong(),
             streamInput.readLong(),
             streamInput.readLong(),
             streamInput.readLong(),
@@ -47,6 +45,5 @@ public record CacheStats(
         out.writeLong(hitsTimeInMillis);
         out.writeLong(missesTimeInMillis);
         out.writeLong(storeQueryTimeInMillis);
-        out.writeLong(cachePutsTimeInMillis);
     }
 }

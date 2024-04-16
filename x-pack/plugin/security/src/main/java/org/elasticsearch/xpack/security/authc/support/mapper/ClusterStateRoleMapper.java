@@ -73,10 +73,14 @@ public final class ClusterStateRoleMapper implements UserRoleMapper, ClusterStat
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (false == Objects.equals(
-            RoleMappingMetadata.getFromClusterState(event.previousState()),
-            RoleMappingMetadata.getFromClusterState(event.state())
-        )) {
+        // Here, it's just simpler to also trigger a realm cache clear when only disabled role mapping expressions changed,
+        // even though disable role mapping expressions are ultimately ignored.
+        // Instead, it's better to ensure disabled role mapping expressions are not published in the cluster state in the first place.
+        if (enabled
+            && false == Objects.equals(
+                RoleMappingMetadata.getFromClusterState(event.previousState()),
+                RoleMappingMetadata.getFromClusterState(event.state())
+            )) {
             notifyClearCache();
         }
     }

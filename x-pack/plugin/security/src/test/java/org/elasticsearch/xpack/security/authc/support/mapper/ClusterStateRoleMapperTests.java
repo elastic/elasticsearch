@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.authc.support.mapper;
 
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -16,6 +17,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
@@ -42,6 +44,8 @@ public class ClusterStateRoleMapperTests extends ESTestCase {
 
     private ScriptService scriptService;
     private ClusterService clusterService;
+    private Settings enabledSettings;
+    private Settings disabledSettings;
 
     @Before
     public void setup() {
@@ -52,26 +56,26 @@ public class ClusterStateRoleMapperTests extends ESTestCase {
             () -> 1L
         );
         clusterService = mock(ClusterService.class);
+        enabledSettings = Settings.builder().put("xpack.security.authc.cluster_state_role_mappings.enabled", true).build();
+        if (randomBoolean()) {
+            disabledSettings = Settings.builder().put("xpack.security.authc.cluster_state_role_mappings.enabled", false).build();
+        } else {
+            // the cluster state role mapper is disabled by default
+            disabledSettings = Settings.EMPTY;
+        }
     }
 
     public void testRegisterForClusterChangesIfEnabled() {
-        Settings settings = Settings.builder().put("xpack.security.authc.cluster_state_role_mappings.enabled", true).build();
-        ClusterStateRoleMapper roleMapper = new ClusterStateRoleMapper(settings, scriptService, clusterService);
+        ClusterStateRoleMapper roleMapper = new ClusterStateRoleMapper(enabledSettings, scriptService, clusterService);
         verify(clusterService, times(1)).addListener(same(roleMapper));
     }
 
     public void testNoRegisterForClusterChangesIfNotEnabled() {
-        Settings settings;
-        if (randomBoolean()) {
-            settings = Settings.EMPTY;
-        } else {
-            settings = Settings.builder().put("xpack.security.authc.cluster_state_role_mappings.enabled", false).build();
-        }
-        new ClusterStateRoleMapper(settings, scriptService, clusterService);
+        new ClusterStateRoleMapper(disabledSettings, scriptService, clusterService);
         verifyNoInteractions(clusterService);
     }
 
-    public void testRoleMappingMatching() throws Exception {
+    public void testRoleResolving() throws Exception {
         UserRoleMapper.UserData userData = mock(UserRoleMapper.UserData.class);
         ExpressionModel expressionModel = mock(ExpressionModel.class);
         when(userData.asModel()).thenReturn(expressionModel);
@@ -83,8 +87,7 @@ public class ClusterStateRoleMapperTests extends ESTestCase {
         when(clusterService.state()).thenReturn(state);
         {
             // the role mapper is enabled
-            Settings settings = Settings.builder().put("xpack.security.authc.cluster_state_role_mappings.enabled", true).build();
-            ClusterStateRoleMapper roleMapper = new ClusterStateRoleMapper(settings, scriptService, clusterService);
+            ClusterStateRoleMapper roleMapper = new ClusterStateRoleMapper(enabledSettings, scriptService, clusterService);
             PlainActionFuture<Set<String>> future = new PlainActionFuture<>();
             roleMapper.resolveRoles(userData, future);
             Set<String> roleNames = future.get();
@@ -99,19 +102,40 @@ public class ClusterStateRoleMapperTests extends ESTestCase {
         }
         {
             // but if the role mapper is disabled, NO roles are resolved
-            Settings settings;
-            if (randomBoolean()) {
-                settings = Settings.EMPTY;
-            } else {
-                settings = Settings.builder().put("xpack.security.authc.cluster_state_role_mappings.enabled", false).build();
-            }
-            ClusterStateRoleMapper roleMapper = new ClusterStateRoleMapper(settings, scriptService, clusterService);
+            ClusterStateRoleMapper roleMapper = new ClusterStateRoleMapper(disabledSettings, scriptService, clusterService);
             PlainActionFuture<Set<String>> future = new PlainActionFuture<>();
             roleMapper.resolveRoles(userData, future);
             Set<String> roleNames = future.get();
             assertThat(roleNames, empty());
             verifyNoMoreInteractions(mapping1, mapping2, mapping3);
         }
+    }
+
+    public void testRoleMappingChangesTriggerRealmCacheClear() {
+        CachingRealm mockRealm = mock(CachingRealm.class);
+        ClusterStateRoleMapper roleMapper = new ClusterStateRoleMapper(enabledSettings, scriptService, clusterService);
+        roleMapper.refreshRealmOnChange(mockRealm);
+        ExpressionRoleMapping mapping1 = mockExpressionRoleMapping(true, Set.of("role"), mock(ExpressionModel.class));
+        ExpressionModel model2 = mock(ExpressionModel.class);
+        ExpressionRoleMapping mapping2 = mockExpressionRoleMapping(true, Set.of("role"), model2);
+        ExpressionRoleMapping mapping3 = mockExpressionRoleMapping(true, Set.of("role3"), model2);
+        ClusterState emptyState = ClusterState.builder(new ClusterName("elasticsearch")).build();
+        RoleMappingMetadata roleMappingMetadata1 = new RoleMappingMetadata(Set.of(mapping1));
+        ClusterState state1 = roleMappingMetadata1.updateClusterState(emptyState);
+        roleMapper.clusterChanged(new ClusterChangedEvent("test", emptyState, state1));
+        verify(mockRealm, times(1)).expireAll();
+        RoleMappingMetadata roleMappingMetadata2 = new RoleMappingMetadata(Set.of(mapping2));
+        ClusterState state2 = roleMappingMetadata2.updateClusterState(state1);
+        roleMapper.clusterChanged(new ClusterChangedEvent("test", state1, state2));
+        verify(mockRealm, times(2)).expireAll();
+        RoleMappingMetadata roleMappingMetadata3 = new RoleMappingMetadata(Set.of(mapping3));
+        ClusterState state3 = roleMappingMetadata3.updateClusterState(state2);
+        roleMapper.clusterChanged(new ClusterChangedEvent("test", state2, state3));
+        verify(mockRealm, times(3)).expireAll();
+        RoleMappingMetadata roleMappingMetadata4 = new RoleMappingMetadata(Set.of(mapping2, mapping3));
+        ClusterState state4 = roleMappingMetadata4.updateClusterState(state3);
+        roleMapper.clusterChanged(new ClusterChangedEvent("test", state3, state4));
+        verify(mockRealm, times(4)).expireAll();
     }
 
     private ExpressionRoleMapping mockExpressionRoleMapping(boolean enabled, Set<String> roleNames, ExpressionModel... matchingModels) {

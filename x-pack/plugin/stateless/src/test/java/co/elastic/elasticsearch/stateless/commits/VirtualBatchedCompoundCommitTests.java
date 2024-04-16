@@ -24,6 +24,7 @@ import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Tuple;
@@ -247,8 +248,8 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
 
                 // Close vBCC and expect an exception when trying to read from it
                 virtualBatchedCompoundCommit.close();
-                VirtualBatchedCompoundCommit.BatchedCompoundCommitAlreadyUploaded exception = expectThrows(
-                    VirtualBatchedCompoundCommit.BatchedCompoundCommitAlreadyUploaded.class,
+                ResourceNotFoundException exception = expectThrows(
+                    ResourceNotFoundException.class,
                     () -> virtualBatchedCompoundCommit.getBytesByRange(
                         0L,
                         (long) serializedBatchedCompoundCommit.length(),

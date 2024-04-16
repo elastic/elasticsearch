@@ -530,7 +530,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                                         assert false : e;
                                     }
                                     listener.onFailure(
-                                        new VirtualBatchedCompoundCommit.BatchedCompoundCommitAlreadyUploaded(shardId, virtualBccTermAndGen)
+                                        VirtualBatchedCompoundCommit.buildResourceNotFoundException(shardId, virtualBccTermAndGen)
                                     );
                                 }
                             }
@@ -549,7 +549,7 @@ public class CacheBlobReaderTests extends ESTestCase {
             var searchDirectory = node.searchDirectory;
 
             // Read all files and ensure they are the same. This tries to read from the VBCC, but it uploads it in the meantime and
-            // produces a BatchedCompoundCommitAlreadyUploaded that makes the search directory read from the blob store ultimately.
+            // produces a ResourceNotFoundException that makes the search directory read from the blob store ultimately.
             virtualBatchedCompoundCommit.getInternalLocations().keySet().forEach(filename -> assertFileChecksum(searchDirectory, filename));
         }
     }

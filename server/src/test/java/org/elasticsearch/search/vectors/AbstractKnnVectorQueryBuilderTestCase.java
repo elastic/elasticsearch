@@ -150,15 +150,18 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         assertThat(e.getMessage(), containsString("the query vector has a different dimension [2] than the index vectors [3]"));
     }
 
-    public void testNonexistentField() throws IOException {
+    public void testNonexistentField(){
+        SearchExecutionContext context = createSearchExecutionContext();
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("nonexistent", new float[] { 1.0f, 1.0f, 1.0f }, 10, null);
+        context.setAllowUnmappedFields(false);
+        QueryShardException e = expectThrows(QueryShardException.class, () -> query.doToQuery(context));
+        assertThat(e.getMessage(), containsString("No field mapping can be found for the field with name [nonexistent]"));
+    }
+    public void testNonexistentFieldReturnEmpty() throws IOException {
         SearchExecutionContext context = createSearchExecutionContext();
         KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("nonexistent", new float[] { 1.0f, 1.0f, 1.0f }, 10, null);
         Query queryNone = query.doToQuery(context);
         assertThat(queryNone, instanceOf(MatchNoDocsQuery.class));
-
-        context.setAllowUnmappedFields(false);
-        QueryShardException e = expectThrows(QueryShardException.class, () -> query.doToQuery(context));
-        assertThat(e.getMessage(), containsString("No field mapping can be found for the field with name [nonexistent]"));
     }
 
     public void testWrongFieldType() {

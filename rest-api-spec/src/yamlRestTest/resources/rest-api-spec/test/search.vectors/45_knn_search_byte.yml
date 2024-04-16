@@ -149,7 +149,6 @@ setup:
 ---
 "Test nonexistent field":
   - do:
-      catch: bad_request
       search:
         index: test
         body:
@@ -159,8 +158,8 @@ setup:
             query_vector: [ 1, 0, 0, 0, -1 ]
             k: 2
             num_candidates: 3
-  - match: { error.root_cause.0.type: "query_shard_exception" }
-  - match: { error.root_cause.0.reason: "failed to create query: field [nonexistent] does not exist in the mapping" }
+
+  - length: {hits.hits: 0}
 
 ---
 "Vector similarity search only":

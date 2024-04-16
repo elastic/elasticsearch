@@ -103,7 +103,7 @@ public class SearchDirectoryTests extends ESTestCase {
                 CacheBlobReaderService cacheBlobReaderService,
                 MutableObjectStoreUploadTracker objectStoreUploadTracker
             ) {
-                var customCacheBlobReaderService = new CacheBlobReaderService(sharedCacheService, client) {
+                var customCacheBlobReaderService = new CacheBlobReaderService(nodeSettings, sharedCacheService, client) {
                     @Override
                     public CacheBlobReader getCacheBlobReader(
                         ShardId shardId,

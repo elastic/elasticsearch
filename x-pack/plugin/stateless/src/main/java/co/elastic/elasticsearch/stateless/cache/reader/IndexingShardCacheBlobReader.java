@@ -27,10 +27,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
-import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.FilterStreamInput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -41,24 +41,26 @@ import java.io.InputStream;
  * A {@link CacheBlobReader} that fetches page-aligned data from the indexing node. May throw
  * {@link co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit.BatchedCompoundCommitAlreadyUploaded} exception if the
  * fetch needs to be tried from the blob store.
+ *
+ * The chunk size argument is only used to round down the beginning of a range. The end of the range is always rounded up to the next page.
  */
 public class IndexingShardCacheBlobReader implements CacheBlobReader {
 
     private final ShardId shardId;
     private final PrimaryTermAndGeneration bccTermAndGen;
     private final Client client;
+    private final ByteSizeValue chunkSize;
 
-    public IndexingShardCacheBlobReader(ShardId shardId, PrimaryTermAndGeneration bccTermAndGen, Client client) {
+    public IndexingShardCacheBlobReader(ShardId shardId, PrimaryTermAndGeneration bccTermAndGen, Client client, ByteSizeValue chunkSize) {
         this.shardId = shardId;
         this.bccTermAndGen = bccTermAndGen;
         this.client = client;
+        this.chunkSize = chunkSize;
     }
 
     @Override
     public ByteRange getRange(long position, int length) {
-        // TODO round down the beginning to more kilobytes/megabytes (ES-8154)
-        // Page-align the range
-        long start = (position / SharedBytes.PAGE_SIZE) * SharedBytes.PAGE_SIZE;
+        long start = (position / chunkSize.getBytes()) * chunkSize.getBytes();
         // It is important that the end is only rounded up to next page aligned, since that ensures we will not read past the last CC
         // (current blob length). This is an important property for the ability to append blobs to a VBCC.
         long end = BlobCacheUtils.toPageAlignedSize(position + length);

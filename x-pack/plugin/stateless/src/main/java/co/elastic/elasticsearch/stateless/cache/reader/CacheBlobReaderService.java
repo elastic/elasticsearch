@@ -22,8 +22,13 @@ package co.elastic.elasticsearch.stateless.cache.reader;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 
+import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.function.LongFunction;
@@ -34,14 +39,36 @@ import java.util.function.LongFunction;
  */
 public class CacheBlobReaderService {
 
+    /**
+     * The setting for the chunk size to be used for the ranges returned by {@link IndexingShardCacheBlobReader}. The chunk size is only
+     * used to round down the beginning of a range. The end of the range is always rounded up to the next page.
+     */
+    public static final Setting<ByteSizeValue> TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING = new Setting<>(
+        "stateless.transport_blob_reader.chunk_size",
+        ByteSizeValue.ofKb(128).getStringRep(),
+        s -> ByteSizeValue.parseBytesSizeValue(s, "stateless.indexing_shard_cache_blob_reader.chunk_size"),
+        value -> {
+            if (value.getBytes() <= 0L || value.getBytes() % SharedBytes.PAGE_SIZE != 0L) {
+                throw new SettingsException(
+                    "setting [{}] must be greater than zero and must be multiple of {}",
+                    "stateless.transport_blob_reader.chunk_size",
+                    SharedBytes.PAGE_SIZE
+                );
+            }
+        },
+        Setting.Property.NodeScope
+    );
+
     private final StatelessSharedBlobCacheService cacheService;
     private final Client client;
+    private final ByteSizeValue indexingShardCacheBlobReaderChunkSize;
 
     // TODO consider specializing the CacheBlobReaderService for the indexing node to always consider blobs as uploaded (ES-8248)
     // TODO refactor CacheBlobReaderService to keep track of shard's upload info itself (ES-8248)
-    public CacheBlobReaderService(StatelessSharedBlobCacheService cacheService, Client client) {
+    public CacheBlobReaderService(Settings settings, StatelessSharedBlobCacheService cacheService, Client client) {
         this.cacheService = cacheService;
         this.client = client;
+        this.indexingShardCacheBlobReaderChunkSize = TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(settings);
     }
 
     /**
@@ -69,7 +96,12 @@ public class CacheBlobReaderService {
         if (objectStoreUploadTracker.isUploaded(locationPrimaryTermAndGeneration)) {
             return objectStoreCacheBlobReader;
         } else {
-            var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(shardId, locationPrimaryTermAndGeneration, client);
+            var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
+                shardId,
+                locationPrimaryTermAndGeneration,
+                client,
+                indexingShardCacheBlobReaderChunkSize
+            );
             return new SwitchingCacheBlobReader(
                 locationPrimaryTermAndGeneration,
                 objectStoreUploadTracker,

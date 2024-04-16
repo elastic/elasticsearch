@@ -125,7 +125,7 @@ public class IndexDirectoryTests extends ESTestCase {
                 newFSDirectory(indexDataPath),
                 new SearchDirectory(
                     sharedBlobCacheService,
-                    new CacheBlobReaderService(sharedBlobCacheService, mock(Client.class)),
+                    new CacheBlobReaderService(settings, sharedBlobCacheService, mock(Client.class)),
                     MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
                     shardId
                 )
@@ -258,7 +258,7 @@ public class IndexDirectoryTests extends ESTestCase {
                 newFSDirectory(indexDataPath),
                 new SearchDirectory(
                     sharedBlobCacheService,
-                    new CacheBlobReaderService(sharedBlobCacheService, mock(Client.class)),
+                    new CacheBlobReaderService(settings, sharedBlobCacheService, mock(Client.class)),
                     MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
                     shardId
                 )
@@ -339,7 +339,7 @@ public class IndexDirectoryTests extends ESTestCase {
                 newFSDirectory(indexDataPath),
                 new SearchDirectory(
                     sharedBlobCacheService,
-                    new CacheBlobReaderService(sharedBlobCacheService, mock(Client.class)),
+                    new CacheBlobReaderService(settings, sharedBlobCacheService, mock(Client.class)),
                     MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
                     shardId
                 )

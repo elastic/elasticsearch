@@ -112,7 +112,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                     instance.nodeEphemeralId(),
                     commitFiles,
                     instance.sizeInBytes(),
-                    randomValueOtherThan(instance.internalFiles(), () -> Set.copyOf(randomSubsetOf(commitFiles.keySet())))
+                    Set.copyOf(randomSubsetOf(commitFiles.keySet()))
                 );
             }
             case 5 -> new StatelessCompoundCommit(
@@ -292,10 +292,12 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
         if (entries == 0) {
             return Map.of();
         }
-        return IntStream.range(0, entries + 1).mapToObj(operand -> "file_" + operand).collect(Collectors.toMap(Function.identity(), s -> {
-            long fileLength = randomLongBetween(100, 1000);
-            long offset = randomLongBetween(0, 200);
-            return new BlobLocation(randomLongBetween(1, 10), randomAlphaOfLength(10), offset, fileLength);
-        }));
+        return IntStream.range(0, entries + 1)
+            .mapToObj(operand -> UUIDs.randomBase64UUID())
+            .collect(Collectors.toMap(Function.identity(), s -> {
+                long fileLength = randomLongBetween(100, 1000);
+                long offset = randomLongBetween(0, 200);
+                return new BlobLocation(randomLongBetween(1, 10), randomAlphaOfLength(10), offset, fileLength);
+            }));
     }
 }

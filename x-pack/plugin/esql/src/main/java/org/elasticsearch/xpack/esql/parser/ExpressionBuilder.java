@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Less
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ConvertUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -491,7 +490,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     public Expression visitInlineCast(EsqlBaseParser.InlineCastContext ctx) {
         Source source = source(ctx);
         DataType dataType = typedParsing(this, ctx.dataType(), DataType.class);
-        var converterToFactory = ConvertUtils.converterFactory(dataType);
+        var converterToFactory = EsqlDataTypeConverter.converterFunctionFactory(dataType);
         if (converterToFactory == null) {
             throw new ParsingException(source, "Unsupported conversion to type [{}]", dataType);
         }

@@ -700,6 +700,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         reason = "verifying shutdown doesn't cause warnings",
         value = "co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService:WARN"
     )
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1671")
     public void testDeleteIndexWhileNodeStopping() {
         var indexNode = startMasterAndIndexNode();
         startSearchNode();

@@ -1157,7 +1157,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             + ", flatVectorFormat=ES814ScalarQuantizedVectorsFormat("
             + "name=ES814ScalarQuantizedVectorsFormat, confidenceInterval="
             + (setConfidenceInterval ? confidenceInterval : null)
-            + ", bits=7, compress=false"
             + ", rawVectorFormat=Lucene99FlatVectorsFormat()"
             + "))";
         assertEquals(expectedString, knnVectorsFormat.toString());

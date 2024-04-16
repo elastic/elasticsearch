@@ -1466,7 +1466,7 @@ public abstract class FieldMapper extends Mapper {
         };
     }
 
-    public static BiConsumer<String, MappingParserContext> notDynamicallyCreated(String type) {
+    public static BiConsumer<String, MappingParserContext> notFromDynamicTemplates(String type) {
         return (n, c) -> {
             if (c.isFromDynamicTemplate()) {
                 throw new MapperParsingException("Field [" + n + "] of type [" + type + "] can't be used in dynamic templates");

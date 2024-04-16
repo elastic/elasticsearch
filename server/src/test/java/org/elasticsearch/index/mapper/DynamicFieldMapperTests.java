@@ -172,7 +172,7 @@ public class DynamicFieldMapperTests extends ESSingleNodeTestCase {
 
         private static final TypeParser PARSER = new TypeParser(
             (n, c) -> new Builder(n),
-            List.of(notDynamicallyCreated(NAME), notInMultiFields(NAME))
+            List.of(notFromDynamicTemplates(NAME), notInMultiFields(NAME))
         );
 
         private static class Builder extends FieldMapper.Builder {

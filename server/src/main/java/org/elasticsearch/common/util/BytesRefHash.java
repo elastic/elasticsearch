@@ -133,10 +133,14 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
      * Get the id associated with <code>key</code>
      */
     public long find(BytesRef key, int code) {
+        return find(key, code, spare);
+    }
+
+    private long find(BytesRef key, int code, BytesRef intermediate) {
         final long slot = slot(rehash(code), mask);
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long id = id(index);
-            if (id == -1L || key.bytesEquals(get(id, spare))) {
+            if (id == -1L || key.bytesEquals(get(id, intermediate))) {
                 return id;
             }
         }
@@ -145,6 +149,15 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
     /** Sugar for {@link #find(BytesRef, int) find(key, key.hashCode()} */
     public long find(BytesRef key) {
         return find(key, key.hashCode());
+    }
+
+    /**
+     * Allows finding a key in the hash in a thread safe manner, by providing an intermediate
+     * BytesRef reference to storing intermediate results. As long as each thread provides
+     * its own intermediate instance, this method is thread safe.
+     */
+    private long threadSafeFind(BytesRef key, BytesRef intermediate) {
+        return find(key, key.hashCode(), intermediate);
     }
 
     private long set(BytesRef key, int code, long id) {
@@ -234,6 +247,21 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
     @Override
     public long ramBytesUsed() {
         return BASE_RAM_BYTES_USED + bytesRefs.ramBytesUsed() + ids.ramBytesUsed() + hashes.ramBytesUsed() + spare.bytes.length;
+    }
+
+    /**
+     * Returns a finder class that can be used to find keys in the hash in a thread-safe manner
+     */
+    public Finder newFinder() {
+        return new Finder();
+    }
+
+    public class Finder {
+        private final BytesRef intermediate = new BytesRef();
+
+        public long find(BytesRef key) {
+            return threadSafeFind(key, intermediate);
+        }
     }
 
 }

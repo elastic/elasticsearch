@@ -39,8 +39,10 @@ class PreloadedFieldLookupProvider implements LeafFieldLookupProvider {
     @Override
     public void populateFieldLookup(FieldLookup fieldLookup, int doc) throws IOException {
         String field = fieldLookup.fieldType().name();
-        if (preloadedStoredFields.contains(field)) {
+        if (storedFields.containsKey(field)) {
+            // if (preloadedStoredFields.contains(field)) {
             fieldLookup.setValues(storedFields.get(field));
+            // assert assertBackupValueSameAsPreloaded(fieldLookup, doc);
             return;
         }
         // stored field not preloaded, go and get it directly
@@ -48,6 +50,18 @@ class PreloadedFieldLookupProvider implements LeafFieldLookupProvider {
             backUpLoader = loaderSupplier.get();
         }
         backUpLoader.populateFieldLookup(fieldLookup, doc);
+    }
+
+    private boolean assertBackupValueSameAsPreloaded(FieldLookup fieldLookup, int doc) throws IOException {
+        FieldLookup fl = new FieldLookup(fieldLookup.fieldType());
+        loaderSupplier.get().populateFieldLookup(fl, doc);
+        if (fieldLookup.getValue() == null) {
+            assert fl.getValue() == null : "loaded unexpected value for " + fieldLookup.fieldType().name() + ": " + fl.getValue();
+        } else {
+            assert fieldLookup.getValue().equals(fl.getValue())
+                : "loaded different value for " + fieldLookup.fieldType().name() + ": " + fl.getValue() + " - " + fieldLookup.getValue();
+        }
+        return true;
     }
 
     void setStoredFields(Map<String, List<Object>> storedFields) {

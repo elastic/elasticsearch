@@ -90,6 +90,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -548,12 +549,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         for (int i = 0; i < args.size(); i++) {
             typesFromSignature.add(new HashSet<>());
         }
+        Function<DataType, String> typeName = dt -> dt.esType() != null ? dt.esType() : dt.typeName();
         for (Map.Entry<List<DataType>, DataType> entry : signatures().entrySet()) {
             List<DataType> types = entry.getKey();
             for (int i = 0; i < args.size() && i < types.size(); i++) {
-                typesFromSignature.get(i).add(signatureType(types.get(i)));
+                typesFromSignature.get(i).add(typeName.apply(types.get(i)));
             }
-            returnFromSignature.add(entry.getValue().esType());
+            returnFromSignature.add(typeName.apply(entry.getValue()));
         }
 
         for (int i = 0; i < args.size(); i++) {
@@ -571,10 +573,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Set<String> returnTypes = Arrays.stream(description.returnType()).collect(Collectors.toCollection(TreeSet::new));
         assertEquals(returnFromSignature, returnTypes);
 
-    }
-
-    private static String signatureType(DataType type) {
-        return type.esType() != null ? type.esType() : type.typeName();
     }
 
     /**

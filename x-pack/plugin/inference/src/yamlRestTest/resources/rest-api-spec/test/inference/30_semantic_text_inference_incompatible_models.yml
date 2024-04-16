@@ -1,0 +1,190 @@
+setup:
+  - skip:
+      version: " - 8.12.99"
+      reason: semantic_text introduced in 8.13.0 # TODO change when 8.13.0 is released
+
+  - do:
+      inference.put_model:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+  - do:
+      inference.put_model:
+        task_type: text_embedding
+        inference_id: dense-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          mappings:
+            properties:
+              sparse_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              dense_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+
+  # Index a doc to set mappings internally
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          dense_field: "inference test"
+          sparse_field: "another inference test"
+
+---
+"Fails for non-compatible dimensions":
+
+  - do:
+      inference.delete_model:
+        task_type: text_embedding
+        inference_id: dense-inference-id
+
+  - do:
+      inference.put_model:
+        task_type: text_embedding
+        inference_id: dense-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 20,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      catch: /Incompatible model settings for field \[dense_field\].+/
+      index:
+        index: test-index
+        id: doc_2
+        body:
+          dense_field: "some other test"
+
+---
+"Fails for non-compatible similarity":
+
+  - do:
+      inference.delete_model:
+        task_type: text_embedding
+        inference_id: dense-inference-id
+
+  - do:
+      inference.put_model:
+        task_type: text_embedding
+        inference_id: dense-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "similarity": "dot_product",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      catch: /Incompatible model settings for field \[dense_field\].+/
+      index:
+        index: test-index
+        id: doc_2
+        body:
+          dense_field: "some other test"
+
+---
+"Fails for non-compatible task type for dense vectors":
+
+  - do:
+      inference.delete_model:
+        task_type: text_embedding
+        inference_id: dense-inference-id
+
+
+  - do:
+      inference.put_model:
+        task_type: sparse_embedding
+        inference_id: dense-inference-id
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      catch: /Incompatible model settings for field \[dense_field\].+/
+      index:
+        index: test-index
+        id: doc_2
+        body:
+          dense_field: "some other test"
+
+---
+"Fails for non-compatible task type for sparse vectors":
+
+  - do:
+      inference.delete_model:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id
+
+  - do:
+      inference.put_model:
+        task_type: text_embedding
+        inference_id: sparse-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      catch: /Incompatible model settings for field \[sparse_field\].+/
+      index:
+        index: test-index
+        id: doc_2
+        body:
+          sparse_field: "some other test"
+
+

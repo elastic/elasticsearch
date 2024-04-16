@@ -102,11 +102,6 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         }
 
         @Override
-        public TestDenseInferenceServiceExtension.TestServiceSettings getServiceSettings() {
-            return (TestDenseInferenceServiceExtension.TestServiceSettings) super.getServiceSettings();
-        }
-
-        @Override
         public TestTaskSettings getTaskSettings() {
             return (TestTaskSettings) super.getTaskSettings();
         }

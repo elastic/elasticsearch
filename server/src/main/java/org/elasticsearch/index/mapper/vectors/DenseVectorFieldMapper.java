@@ -230,6 +230,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return new Parameter<?>[] { elementType, dims, indexed, similarity, indexOptions, meta };
         }
 
+        public Builder similarity(VectorSimilarity vectorSimilarity) {
+            similarity.setValue(vectorSimilarity);
+            return this;
+        }
+
+        public Builder dimensions(int dimensions) {
+            this.dims.setValue(dimensions);
+            return this;
+        }
+
         @Override
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
             return new DenseVectorFieldMapper(
@@ -754,7 +764,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         ElementType.FLOAT
     );
 
-    enum VectorSimilarity {
+    public enum VectorSimilarity {
         L2_NORM {
             @Override
             float score(float similarity, ElementType elementType, int dim) {

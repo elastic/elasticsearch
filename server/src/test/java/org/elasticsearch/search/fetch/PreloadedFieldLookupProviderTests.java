@@ -18,6 +18,7 @@ import org.elasticsearch.search.lookup.FieldLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -29,8 +30,8 @@ import static org.mockito.Mockito.when;
 public class PreloadedFieldLookupProviderTests extends ESTestCase {
 
     public void testFallback() throws IOException {
-        PreloadedFieldLookupProvider lookup = new PreloadedFieldLookupProvider();
-        lookup.storedFields = Map.of("foo", List.of("bar"));
+        PreloadedFieldLookupProvider lookup = new PreloadedFieldLookupProvider(Collections.singleton("foo"));
+        lookup.setStoredFields(Map.of("foo", List.of("bar")));
 
         MappedFieldType fieldType = mock(MappedFieldType.class);
         when(fieldType.name()).thenReturn("foo");
@@ -39,7 +40,7 @@ public class PreloadedFieldLookupProviderTests extends ESTestCase {
 
         lookup.populateFieldLookup(fieldLookup, 0);
         assertEquals("BAR", fieldLookup.getValue());
-        assertNull(lookup.backUpLoader);    // fallback didn't get used because 'foo' is in the list
+        assertNull(lookup.getBackUpLoader());    // fallback didn't get used because 'foo' is in the list
 
         MappedFieldType unloadedFieldType = mock(MappedFieldType.class);
         when(unloadedFieldType.name()).thenReturn("unloaded");

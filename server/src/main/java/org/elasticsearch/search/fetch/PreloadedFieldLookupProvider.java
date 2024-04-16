@@ -15,6 +15,7 @@ import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -26,14 +27,19 @@ import java.util.function.Supplier;
  */
 class PreloadedFieldLookupProvider implements LeafFieldLookupProvider {
 
-    Map<String, List<Object>> storedFields;
-    LeafFieldLookupProvider backUpLoader;
-    Supplier<LeafFieldLookupProvider> loaderSupplier;
+    private final Set<String> preloadedStoredFields;
+    private Map<String, List<Object>> storedFields;
+    private LeafFieldLookupProvider backUpLoader;
+    private Supplier<LeafFieldLookupProvider> loaderSupplier;
+
+    PreloadedFieldLookupProvider(Set<String> preloadedStoredFields) {
+        this.preloadedStoredFields = preloadedStoredFields;
+    }
 
     @Override
     public void populateFieldLookup(FieldLookup fieldLookup, int doc) throws IOException {
         String field = fieldLookup.fieldType().name();
-        if (storedFields.containsKey(field)) {
+        if (preloadedStoredFields.contains(field)) {
             fieldLookup.setValues(storedFields.get(field));
             return;
         }
@@ -44,8 +50,18 @@ class PreloadedFieldLookupProvider implements LeafFieldLookupProvider {
         backUpLoader.populateFieldLookup(fieldLookup, doc);
     }
 
+    void setStoredFields(Map<String, List<Object>> storedFields) {
+        assert preloadedStoredFields.containsAll(storedFields.keySet())
+            : "Provided stored field that was not expected to be preloaded? " + storedFields.keySet() + " - " + preloadedStoredFields;
+        this.storedFields = storedFields;
+    }
+
     void setNextReader(LeafReaderContext ctx) {
         backUpLoader = null;
         loaderSupplier = () -> LeafFieldLookupProvider.fromStoredFields().apply(ctx);
+    }
+
+    LeafFieldLookupProvider getBackUpLoader() {
+        return backUpLoader;
     }
 }

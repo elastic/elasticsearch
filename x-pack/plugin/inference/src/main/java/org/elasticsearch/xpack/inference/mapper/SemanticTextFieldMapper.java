@@ -36,8 +36,6 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
@@ -65,8 +63,6 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOrig
  */
 public class SemanticTextFieldMapper extends FieldMapper implements InferenceFieldMapper {
     public static final String CONTENT_TYPE = "semantic_text";
-
-    private static final Logger logger = LogManager.getLogger(SemanticTextFieldMapper.class);
 
     public static final TypeParser PARSER = new TypeParser(
         (n, c) -> new Builder(n, c.indexVersionCreated()),

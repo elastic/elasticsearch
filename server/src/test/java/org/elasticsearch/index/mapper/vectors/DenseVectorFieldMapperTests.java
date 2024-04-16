@@ -1115,12 +1115,14 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         }));
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
         Codec codec = codecService.codec("default");
+        KnnVectorsFormat knnVectorsFormat;
         if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
             assertThat(codec, instanceOf(PerFieldMapperCodec.class));
+            knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         } else {
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
+            knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         }
-        KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         String expectedString = "Lucene99HnswVectorsFormat(name=Lucene99HnswVectorsFormat, maxConn="
             + (setM ? m : DEFAULT_MAX_CONN)
             + ", beamWidth="
@@ -1151,12 +1153,14 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         }));
         CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
         Codec codec = codecService.codec("default");
+        KnnVectorsFormat knnVectorsFormat;
         if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
             assertThat(codec, instanceOf(PerFieldMapperCodec.class));
+            knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         } else {
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
+            knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         }
-        KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         String expectedString = "ES814HnswScalarQuantizedVectorsFormat(name=ES814HnswScalarQuantizedVectorsFormat, maxConn="
             + m
             + ", beamWidth="

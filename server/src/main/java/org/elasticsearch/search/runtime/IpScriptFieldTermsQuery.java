@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.runtime;
 
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.util.BytesRefHash;
@@ -16,24 +18,49 @@ import org.elasticsearch.script.Script;
 
 import java.util.Objects;
 
-public class IpScriptFieldTermsQuery extends AbstractIpScriptFieldQuery {
+import static org.elasticsearch.search.runtime.AbstractIpScriptFieldQuery.decode;
+
+public class IpScriptFieldTermsQuery extends AbstractScriptFieldQuery<IpFieldScript> {
     private final BytesRefHash terms;
 
     public IpScriptFieldTermsQuery(Script script, IpFieldScript.LeafFactory leafFactory, String fieldName, BytesRefHash terms) {
-        super(script, leafFactory, fieldName);
+        super(script, fieldName, leafFactory::newInstance);
         this.terms = terms;
     }
 
-    @Override
-    protected boolean matches(BytesRef[] values, int count) {
-        synchronized (terms) {
-            for (int i = 0; i < count; i++) {
-                if (terms.find(values[i]) >= 0) {
-                    return true;
-                }
+    boolean matches(BytesRef[] values, int count, BytesRef intermediate) {
+        for (int i = 0; i < count; i++) {
+            if (terms.threadSafeFind(values[i], intermediate) >= 0) {
+                return true;
             }
         }
         return false;
+    }
+
+    @Override
+    protected boolean matches(IpFieldScript scriptContext, int docId) {
+        throw new UnsupportedOperationException("Need to use matches(IpFieldScript, int, BytesRef) instead");
+    }
+
+    boolean matches(IpFieldScript scriptContext, int docId, BytesRef intermediate) {
+        scriptContext.runForDoc(docId);
+        return matches(scriptContext.values(), scriptContext.count(), intermediate);
+    }
+
+    protected TwoPhaseIterator createTwoPhaseIterator(IpFieldScript scriptContext, DocIdSetIterator approximation) {
+        return new TwoPhaseIterator(approximation) {
+            private final BytesRef bytesRef = new BytesRef();
+
+            @Override
+            public boolean matches() {
+                return IpScriptFieldTermsQuery.this.matches(scriptContext, approximation.docID(), bytesRef);
+            }
+
+            @Override
+            public float matchCost() {
+                return MATCH_COST;
+            }
+        };
     }
 
     @Override

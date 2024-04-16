@@ -78,7 +78,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
 
     private static final Observer[] EMPTY_DIRECTORY = new Observer[0];
 
-    private abstract class Observer {
+    private abstract static class Observer {
         final Path path;
         boolean exists;
         boolean isDirectory;
@@ -94,7 +94,7 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
         abstract void onFileDeleted();
     }
 
-    private class DeniedObserver extends Observer {
+    private static class DeniedObserver extends Observer {
         private DeniedObserver(Path path) {
             super(path);
         }
@@ -233,7 +233,8 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
                 child.init(initial);
                 return child;
             } catch (AccessControlException e) {
-                // don't have permissions
+                // don't have permissions, use a placeholder
+                logger.debug("Don't have permissions to watch path [{}]", file);
                 return new DeniedObserver(file);
             }
         }

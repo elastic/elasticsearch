@@ -36,7 +36,7 @@ public class CreateApiKeyRequestBuilder extends ActionRequestBuilder<CreateApiKe
     );
 
     @SuppressWarnings("unchecked")
-    protected static ConstructingObjectParser<CreateApiKeyRequest, Void> createParser(
+    public static ConstructingObjectParser<CreateApiKeyRequest, Void> createParser(
         CheckedBiFunction<String, XContentParser, RoleDescriptor, IOException> roleDescriptorParser
     ) {
         ConstructingObjectParser<CreateApiKeyRequest, Void> parser = new ConstructingObjectParser<>(

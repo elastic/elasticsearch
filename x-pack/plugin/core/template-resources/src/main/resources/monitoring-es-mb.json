@@ -2363,6 +2363,13 @@
           "properties": {
             "indices": {
               "properties": {
+                "shards_stats": {
+                  "properties": {
+                    "total_count": {
+                      "type": "long"
+                    }
+                  }
+                },
                 "shards": {
                   "properties": {
                     "total": {

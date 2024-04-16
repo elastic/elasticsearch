@@ -144,7 +144,7 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
     public void testNonExistentEnrichPolicy() throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> RestEsqlTestCase.runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("from test | enrich countris"), List.of())
+            () -> RestEsqlTestCase.runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("from test | enrich countris"))
         );
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()),
@@ -188,13 +188,11 @@ public abstract class RestEnrichTestCase extends ESRestTestCase {
 
     private Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject) throws IOException {
         if (mode == Mode.ASYNC) {
-            return RestEsqlTestCase.runEsqlAsync(requestObject, NO_WARNINGS);
+            return RestEsqlTestCase.runEsqlAsync(requestObject);
         } else {
-            return RestEsqlTestCase.runEsqlSync(requestObject, NO_WARNINGS);
+            return RestEsqlTestCase.runEsqlSync(requestObject);
         }
     }
-
-    private static final List<String> NO_WARNINGS = List.of();
 
     @Override
     protected boolean preserveClusterUponCompletion() {

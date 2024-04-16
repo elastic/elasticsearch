@@ -71,28 +71,14 @@ public class DataStreamMetadataTests extends AbstractChunkedSerializingTestCase<
     public void testWithAlias() {
         Index index1 = new Index("data-stream-1-index", "1");
         Index index2 = new Index("data-stream-2-index", "2");
-        DataStream dataStream1 = new DataStream(
-            "data-stream-1",
-            List.of(index1),
-            1,
-            Map.of(),
-            false,
-            false,
-            false,
-            false,
-            IndexMode.STANDARD
-        );
-        DataStream dataStream2 = new DataStream(
-            "data-stream-2",
-            List.of(index2),
-            1,
-            Map.of(),
-            false,
-            false,
-            false,
-            false,
-            IndexMode.STANDARD
-        );
+        DataStream dataStream1 = DataStream.builder("data-stream-1", List.of(index1))
+            .setMetadata(Map.of())
+            .setIndexMode(IndexMode.STANDARD)
+            .build();
+        DataStream dataStream2 = DataStream.builder("data-stream-2", List.of(index2))
+            .setMetadata(Map.of())
+            .setIndexMode(IndexMode.STANDARD)
+            .build();
         ImmutableOpenMap<String, DataStream> dataStreams = new ImmutableOpenMap.Builder<String, DataStream>().fPut(
             "data-stream-1",
             dataStream1

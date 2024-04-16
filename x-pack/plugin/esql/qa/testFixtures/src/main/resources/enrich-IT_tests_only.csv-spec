@@ -146,7 +146,8 @@ emp_no:integer | x:keyword | lang:keyword | language:keyword
 
 
 multivalue
-row a = ["1", "2"] | enrich languages_policy on a with a_lang = language_name;  
+required_feature: esql.mv_sort
+row a = ["1", "2"] | enrich languages_policy on a with a_lang = language_name | eval a_lang = mv_sort(a_lang);  
 
 a:keyword   | a_lang:keyword
 ["1", "2"]  | ["English", "French"] 
@@ -294,7 +295,7 @@ required_feature: esql.mv_warn
 FROM airports
 | ENRICH city_boundaries ON city_location WITH airport, region, city_boundary
 | EVAL boundary_wkt_length = LENGTH(TO_STRING(city_boundary))
-| STATS city_centroid = ST_CENTROID(city_location), count = COUNT(city_location), min_wkt = MIN(boundary_wkt_length), max_wkt = MAX(boundary_wkt_length)
+| STATS city_centroid = ST_CENTROID_AGG(city_location), count = COUNT(city_location), min_wkt = MIN(boundary_wkt_length), max_wkt = MAX(boundary_wkt_length)
 ;
 warning:Line 3:30: evaluation of [LENGTH(TO_STRING(city_boundary))] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 3:30: java.lang.IllegalArgumentException: single-value function encountered multi-value
@@ -325,7 +326,7 @@ FROM airports
 | ENRICH city_names ON city WITH airport, region, city_boundary
 | MV_EXPAND city_boundary
 | EVAL airport_in_city = ST_INTERSECTS(location, city_boundary)
-| STATS count=COUNT(*), centroid=ST_CENTROID(location) BY airport_in_city
+| STATS count=COUNT(*), centroid=ST_CENTROID_AGG(location) BY airport_in_city
 | SORT count ASC
 ;
 

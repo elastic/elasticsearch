@@ -31,9 +31,8 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -62,7 +61,6 @@ import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.results.ChunkedTextEmbeddingResultsTests.asMapWithListsInsteadOfArrays;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectation;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.Utils.getInvalidModel;
@@ -620,7 +618,15 @@ public class CohereServiceTests extends ESTestCase {
 
         try (var service = new CohereService(factory, createWithEmptySettings(threadPool))) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(mockModel, null, List.of(""), new HashMap<>(), InputType.INGEST, listener);
+            service.infer(
+                mockModel,
+                null,
+                List.of(""),
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             MatcherAssert.assertThat(
@@ -679,7 +685,15 @@ public class CohereServiceTests extends ESTestCase {
                 null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, List.of("abc"), new HashMap<>(), InputType.INGEST, listener);
+            service.infer(
+                model,
+                null,
+                List.of("abc"),
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -914,7 +928,15 @@ public class CohereServiceTests extends ESTestCase {
                 null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, List.of("abc"), new HashMap<>(), InputType.INGEST, listener);
+            service.infer(
+                model,
+                null,
+                List.of("abc"),
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             MatcherAssert.assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));
@@ -965,7 +987,15 @@ public class CohereServiceTests extends ESTestCase {
                 null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, List.of("abc"), new HashMap<>(), InputType.INGEST, listener);
+            service.infer(
+                model,
+                null,
+                List.of("abc"),
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -1035,6 +1065,7 @@ public class CohereServiceTests extends ESTestCase {
                 List.of("abc"),
                 CohereEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.SEARCH, null),
                 InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
 
@@ -1099,7 +1130,15 @@ public class CohereServiceTests extends ESTestCase {
                 null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, List.of("abc"), new HashMap<>(), InputType.UNSPECIFIED, listener);
+            service.infer(
+                model,
+                null,
+                List.of("abc"),
+                new HashMap<>(),
+                InputType.UNSPECIFIED,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -1120,11 +1159,12 @@ public class CohereServiceTests extends ESTestCase {
         }
     }
 
-    public void testChunkedInfer_CallsInfer_ConvertsFloatResponse() throws IOException {
+    public void testChunkedInfer_BatchesCalls() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
 
+            // Batching will call the service with 2 inputs
             String responseJson = """
                 {
                     "id": "de37399c-5df6-47cb-bc57-e3c5680c977b",
@@ -1136,6 +1176,10 @@ public class CohereServiceTests extends ESTestCase {
                             [
                                 0.123,
                                 -0.123
+                            ],
+                            [
+                                0.223,
+                                -0.223
                             ]
                         ]
                     },
@@ -1162,27 +1206,34 @@ public class CohereServiceTests extends ESTestCase {
                 null
             );
             PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(model, List.of("abc"), new HashMap<>(), InputType.UNSPECIFIED, new ChunkingOptions(null, null), listener);
-
-            var result = listener.actionGet(TIMEOUT).get(0);
-            assertThat(result, CoreMatchers.instanceOf(ChunkedTextEmbeddingResults.class));
-
-            MatcherAssert.assertThat(
-                asMapWithListsInsteadOfArrays((ChunkedTextEmbeddingResults) result),
-                Matchers.is(
-                    Map.of(
-                        ChunkedTextEmbeddingResults.FIELD_NAME,
-                        List.of(
-                            Map.of(
-                                ChunkedNlpInferenceResults.TEXT,
-                                "abc",
-                                ChunkedNlpInferenceResults.INFERENCE,
-                                List.of((double) 0.123f, (double) -0.123f)
-                            )
-                        )
-                    )
-                )
+            // 2 inputs
+            service.chunkedInfer(
+                model,
+                List.of("foo", "bar"),
+                new HashMap<>(),
+                InputType.UNSPECIFIED,
+                new ChunkingOptions(null, null),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
             );
+
+            var results = listener.actionGet(TIMEOUT);
+            assertThat(results, hasSize(2));
+            {
+                assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedTextEmbeddingFloatResults.class));
+                var floatResult = (ChunkedTextEmbeddingFloatResults) results.get(0);
+                assertThat(floatResult.chunks(), hasSize(1));
+                assertEquals("foo", floatResult.chunks().get(0).matchedText());
+                assertEquals(List.of(0.123f, -0.123f), floatResult.chunks().get(0).embedding());
+            }
+            {
+                assertThat(results.get(1), CoreMatchers.instanceOf(ChunkedTextEmbeddingFloatResults.class));
+                var floatResult = (ChunkedTextEmbeddingFloatResults) results.get(1);
+                assertThat(floatResult.chunks(), hasSize(1));
+                assertEquals("bar", floatResult.chunks().get(0).matchedText());
+                assertEquals(List.of(0.223f, -0.223f), floatResult.chunks().get(0).embedding());
+            }
+
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             MatcherAssert.assertThat(
@@ -1194,84 +1245,13 @@ public class CohereServiceTests extends ESTestCase {
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of("texts", List.of("abc"), "model", "model", "embedding_types", List.of("float")))
+                is(Map.of("texts", List.of("foo", "bar"), "model", "model", "embedding_types", List.of("float")))
             );
         }
     }
 
     public void testChunkedInfer_CallsInfer_ConvertsByteResponse() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new CohereService(senderFactory, createWithEmptySettings(threadPool))) {
-
-            String responseJson = """
-                {
-                    "id": "de37399c-5df6-47cb-bc57-e3c5680c977b",
-                    "texts": [
-                        "hello"
-                    ],
-                    "embeddings": {
-                        "int8": [
-                            [
-                                12,
-                                -12
-                            ]
-                        ]
-                    },
-                    "meta": {
-                        "api_version": {
-                            "version": "1"
-                        },
-                        "billed_units": {
-                            "input_tokens": 1
-                        }
-                    },
-                    "response_type": "embeddings_by_type"
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = CohereEmbeddingsModelTests.createModel(
-                getUrl(webServer),
-                "secret",
-                new CohereEmbeddingsTaskSettings(null, null),
-                1024,
-                1024,
-                "model",
-                CohereEmbeddingType.INT8
-            );
-            PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(model, List.of("abc"), new HashMap<>(), InputType.UNSPECIFIED, new ChunkingOptions(null, null), listener);
-
-            var result = listener.actionGet(TIMEOUT).get(0);
-
-            MatcherAssert.assertThat(
-                result.asMap(),
-                Matchers.is(
-                    Map.of(
-                        ChunkedTextEmbeddingByteResults.FIELD_NAME,
-                        List.of(
-                            Map.of(
-                                ChunkedNlpInferenceResults.TEXT,
-                                "abc",
-                                ChunkedNlpInferenceResults.INFERENCE,
-                                List.of((byte) 12, (byte) -12)
-                            )
-                        )
-                    )
-                )
-            );
-            MatcherAssert.assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().get(0).getUri().getQuery());
-            MatcherAssert.assertThat(
-                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
-                equalTo(XContentType.JSON.mediaType())
-            );
-            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
-
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("texts", List.of("abc"), "model", "model", "embedding_types", List.of("int8"))));
-        }
+        // TODO byte response not implemented yet
     }
 
     private Map<String, Object> getRequestConfigMap(

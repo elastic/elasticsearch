@@ -89,6 +89,7 @@ import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -155,6 +156,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -192,6 +194,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
@@ -1916,10 +1919,15 @@ public class IndexShardTests extends IndexShardTestCase {
         Thread recoveryThread = new Thread(() -> {
             try {
                 startRecovery.await();
-                shard.relocated(routing.getTargetRelocatingShard().allocationId().getId(), (primaryContext, listener) -> {
-                    relocationStarted.countDown();
-                    listener.onResponse(null);
-                }, ActionListener.noop());
+                shard.relocated(
+                    routing.relocatingNodeId(),
+                    routing.getTargetRelocatingShard().allocationId().getId(),
+                    (primaryContext, listener) -> {
+                        relocationStarted.countDown();
+                        listener.onResponse(null);
+                    },
+                    ActionListener.noop()
+                );
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -2123,29 +2131,48 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    public void testRelocateMissingTarget() throws Exception {
+    public void testRelocateMismatchedTarget() throws Exception {
         final IndexShard shard = newStartedShard(true);
         final ShardRouting original = shard.routingEntry();
-        final ShardRouting toNode1 = ShardRoutingHelper.relocate(original, "node_1");
-        IndexShardTestCase.updateRoutingEntry(shard, toNode1);
+
+        final ShardRouting wrongTargetNodeShardRouting = ShardRoutingHelper.relocate(original, "node_1");
+        IndexShardTestCase.updateRoutingEntry(shard, wrongTargetNodeShardRouting);
         IndexShardTestCase.updateRoutingEntry(shard, original);
-        final ShardRouting toNode2 = ShardRoutingHelper.relocate(original, "node_2");
-        IndexShardTestCase.updateRoutingEntry(shard, toNode2);
+
+        final ShardRouting wrongTargetAllocationIdShardRouting = ShardRoutingHelper.relocate(original, "node_2");
+        IndexShardTestCase.updateRoutingEntry(shard, wrongTargetAllocationIdShardRouting);
+        IndexShardTestCase.updateRoutingEntry(shard, original);
+
+        final ShardRouting correctShardRouting = ShardRoutingHelper.relocate(original, "node_2");
+        IndexShardTestCase.updateRoutingEntry(shard, correctShardRouting);
+
         final AtomicBoolean relocated = new AtomicBoolean();
-        final IllegalStateException error = expectThrows(
-            IllegalStateException.class,
-            () -> blockingCallRelocated(shard, toNode1, (ctx, listener) -> relocated.set(true))
+
+        final IllegalIndexShardStateException wrongNodeException = expectThrows(
+            IllegalIndexShardStateException.class,
+            () -> blockingCallRelocated(shard, wrongTargetNodeShardRouting, (ctx, listener) -> relocated.set(true))
         );
         assertThat(
-            error.getMessage(),
+            wrongNodeException.getMessage(),
+            equalTo("CurrentState[STARTED] : shard is no longer relocating to node [node_1]: " + correctShardRouting)
+        );
+        assertFalse(relocated.get());
+
+        final IllegalStateException wrongTargetIdException = expectThrows(
+            IllegalStateException.class,
+            () -> blockingCallRelocated(shard, wrongTargetAllocationIdShardRouting, (ctx, listener) -> relocated.set(true))
+        );
+        assertThat(
+            wrongTargetIdException.getMessage(),
             equalTo(
                 "relocation target ["
-                    + toNode1.getTargetRelocatingShard().allocationId().getId()
+                    + wrongTargetAllocationIdShardRouting.getTargetRelocatingShard().allocationId().getId()
                     + "] is no longer part of the replication group"
             )
         );
         assertFalse(relocated.get());
-        blockingCallRelocated(shard, toNode2, (ctx, listener) -> {
+
+        blockingCallRelocated(shard, correctShardRouting, (ctx, listener) -> {
             relocated.set(true);
             listener.onResponse(null);
         });
@@ -3974,6 +4001,42 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107462")
+    public void testFlushTimeExcludingWaiting() throws Exception {
+        IndexShard shard = newStartedShard();
+        for (int i = 0; i < randomIntBetween(4, 10); i++) {
+            indexDoc(shard, "_doc", Integer.toString(i));
+        }
+
+        int numFlushes = randomIntBetween(2, 5);
+        var flushesLatch = new CountDownLatch(numFlushes);
+        var executor = Executors.newFixedThreadPool(numFlushes);
+        try {
+            for (int i = 0; i < numFlushes; i++) {
+                executor.submit(() -> {
+                    shard.flush(new FlushRequest().waitIfOngoing(true).force(true));
+                    flushesLatch.countDown();
+                });
+            }
+            safeAwait(flushesLatch);
+
+            FlushStats flushStats = shard.flushStats();
+            assertThat(
+                "Flush time excluding waiting should be captured",
+                flushStats.getTotalTimeExcludingWaitingOnLockMillis(),
+                greaterThan(0L)
+            );
+            assertThat(
+                "Flush time excluding waiting should less than flush time with waiting",
+                flushStats.getTotalTimeExcludingWaitingOnLockMillis(),
+                lessThan(flushStats.getTotalTime().millis())
+            );
+        } finally {
+            closeShards(shard);
+            executor.shutdown();
+        }
+    }
+
     @TestLogging(reason = "testing traces of concurrent flushes", value = "org.elasticsearch.index.engine.Engine:TRACE")
     public void testFlushOnIdleConcurrentFlushDoesNotWait() throws Exception {
         final MockLogAppender mockLogAppender = new MockLogAppender();
@@ -4937,7 +5000,7 @@ public class IndexShardTests extends IndexShardTestCase {
         BiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>> consumer
     ) {
         PlainActionFuture.<Void, RuntimeException>get(
-            f -> indexShard.relocated(routing.getTargetRelocatingShard().allocationId().getId(), consumer, f)
+            f -> indexShard.relocated(routing.relocatingNodeId(), routing.getTargetRelocatingShard().allocationId().getId(), consumer, f)
         );
     }
 }

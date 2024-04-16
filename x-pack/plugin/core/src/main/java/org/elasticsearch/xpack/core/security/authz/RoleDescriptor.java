@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -474,7 +475,11 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         public RoleDescriptor parse(String name, BytesReference source, XContentType xContentType) throws IOException {
             assert name != null;
             try (
-                XContentParser parser = createParserNotCompressed(LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG, source, xContentType)
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                    source,
+                    xContentType
+                )
             ) {
                 return parse(name, parser);
             }

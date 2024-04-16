@@ -94,8 +94,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     // larger than any (unsigned) long
     private static final String HUMONGOUS_DOUBLE = "1E300";
-    private static final String INFINITY = "1.0/0.0";
-    private static final String NAN = "0.0/0.0";
 
     public static boolean shouldLog() {
         return false;
@@ -431,22 +429,19 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         String equalPlusMinus = randomFrom(" == ", " == -");
         // TODO: once we do not support infinity and NaN anymore, remove INFINITY/NAN cases.
         // https://github.com/elastic/elasticsearch/issues/98698#issuecomment-1847423390
-        String humongousPositiveLiteral = randomFrom(HUMONGOUS_DOUBLE, INFINITY);
-        String nanOrNull = randomFrom(NAN, "to_double(null)");
 
         List<String> trueForSingleValuesPredicates = List.of(
-            lessOrLessEqual + humongousPositiveLiteral,
-            largerOrLargerEqual + " -" + humongousPositiveLiteral,
-            inEqualPlusMinus + humongousPositiveLiteral,
-            inEqualPlusMinus + NAN
+            lessOrLessEqual + HUMONGOUS_DOUBLE,
+            largerOrLargerEqual + " -" + HUMONGOUS_DOUBLE,
+            inEqualPlusMinus + HUMONGOUS_DOUBLE
         );
         List<String> alwaysFalsePredicates = List.of(
-            lessOrLessEqual + " -" + humongousPositiveLiteral,
-            largerOrLargerEqual + humongousPositiveLiteral,
-            equalPlusMinus + humongousPositiveLiteral,
-            lessOrLessEqual + nanOrNull,
-            largerOrLargerEqual + nanOrNull,
-            equalPlusMinus + nanOrNull,
+            lessOrLessEqual + " -" + HUMONGOUS_DOUBLE,
+            largerOrLargerEqual + HUMONGOUS_DOUBLE,
+            equalPlusMinus + HUMONGOUS_DOUBLE,
+            lessOrLessEqual + "to_double(null)",
+            largerOrLargerEqual + "to_double(null)",
+            equalPlusMinus + "to_double(null)",
             inEqualPlusMinus + "to_double(null)"
         );
 

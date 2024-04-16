@@ -162,10 +162,7 @@ public class RoleDescriptorTests extends ESTestCase {
 
     public void testParse() throws Exception {
         String q = "{\"cluster\":[\"a\", \"b\"]}";
-        RoleDescriptor rd = RoleDescriptor.parser()
-            .allowRestriction(true)
-            .allowDescription(true)
-            .parse("test", new BytesArray(q), XContentType.JSON);
+        RoleDescriptor rd = RoleDescriptor.parser().parse("test", new BytesArray(q), XContentType.JSON);
         assertEquals("test", rd.getName());
         assertArrayEquals(new String[] { "a", "b" }, rd.getClusterPrivileges());
         assertEquals(0, rd.getIndicesPrivileges().length);
@@ -176,7 +173,7 @@ public class RoleDescriptorTests extends ESTestCase {
               "cluster": [ "a", "b" ],
               "run_as": [ "m", "n" ]
             }""";
-        rd = RoleDescriptor.parser().allowRestriction(true).allowDescription(true).parse("test", new BytesArray(q), XContentType.JSON);
+        rd = RoleDescriptor.parser().parse("test", new BytesArray(q), XContentType.JSON);
         assertEquals("test", rd.getName());
         assertArrayEquals(new String[] { "a", "b" }, rd.getClusterPrivileges());
         assertEquals(0, rd.getIndicesPrivileges().length);
@@ -272,7 +269,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 }
               }
             }""";
-        rd = RoleDescriptor.parser().allowRestriction(true).parse("test", new BytesArray(q), XContentType.JSON);
+        rd = RoleDescriptor.parser().parse("test", new BytesArray(q), XContentType.JSON);
         assertEquals("test", rd.getName());
         assertArrayEquals(new String[] { "a", "b" }, rd.getClusterPrivileges());
         assertEquals(1, rd.getIndicesPrivileges().length);
@@ -283,7 +280,7 @@ public class RoleDescriptorTests extends ESTestCase {
 
         q = """
             {"cluster":["a", "b"], "metadata":{"foo":"bar"}}""";
-        rd = RoleDescriptor.parser().allowRestriction(true).parse("test", new BytesArray(q), XContentType.JSON);
+        rd = RoleDescriptor.parser().parse("test", new BytesArray(q), XContentType.JSON);
         assertEquals("test", rd.getName());
         assertArrayEquals(new String[] { "a", "b" }, rd.getClusterPrivileges());
         assertEquals(0, rd.getIndicesPrivileges().length);
@@ -325,7 +322,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 }
               }
             }""";
-        rd = RoleDescriptor.parser().allowRestriction(true).parse("test", new BytesArray(q), XContentType.JSON);
+        rd = RoleDescriptor.parser().parse("test", new BytesArray(q), XContentType.JSON);
         assertThat(rd.getName(), equalTo("test"));
         assertThat(rd.getClusterPrivileges(), arrayContaining("a", "b"));
         assertThat(rd.getIndicesPrivileges().length, equalTo(1));
@@ -366,7 +363,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 }
               }
             }""";
-        rd = RoleDescriptor.parser().allowRestriction(true).parse("testUpdateProfile", new BytesArray(q), XContentType.JSON);
+        rd = RoleDescriptor.parser().parse("testUpdateProfile", new BytesArray(q), XContentType.JSON);
         assertThat(rd.getName(), is("testUpdateProfile"));
         assertThat(rd.getClusterPrivileges(), arrayContaining("manage"));
         assertThat(rd.getIndicesPrivileges(), Matchers.emptyArray());
@@ -391,7 +388,7 @@ public class RoleDescriptorTests extends ESTestCase {
 
         q = """
             {"applications": [{"application": "myapp", "resources": ["*"], "privileges": ["login" ]}] }""";
-        rd = RoleDescriptor.parser().allowRestriction(true).parse("test", new BytesArray(q), XContentType.JSON);
+        rd = RoleDescriptor.parser().parse("test", new BytesArray(q), XContentType.JSON);
         assertThat(rd.getName(), equalTo("test"));
         assertThat(rd.getClusterPrivileges(), emptyArray());
         assertThat(rd.getIndicesPrivileges(), emptyArray());
@@ -405,7 +402,7 @@ public class RoleDescriptorTests extends ESTestCase {
             {"applications":[{"not_supported": true, "resources": ["*"], "privileges": ["my-app:login" ]}] }""";
         final IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> RoleDescriptor.parser().allowRestriction(true).parse("test", new BytesArray(badJson), XContentType.JSON)
+            () -> RoleDescriptor.parser().parse("test", new BytesArray(badJson), XContentType.JSON)
         );
         assertThat(ex.getMessage(), containsString("not_supported"));
 
@@ -626,8 +623,6 @@ public class RoleDescriptorTests extends ESTestCase {
         final ElasticsearchParseException e = expectThrows(
             ElasticsearchParseException.class,
             () -> RoleDescriptor.parser()
-                .allow2xFormat(randomBoolean())
-                .allowDescription(randomBoolean())
                 .allowRestriction(false)
                 .parse(
                     "test_role_with_restriction",
@@ -650,8 +645,6 @@ public class RoleDescriptorTests extends ESTestCase {
               }
             }""";
         RoleDescriptor role = RoleDescriptor.parser()
-            .allow2xFormat(randomBoolean())
-            .allowDescription(randomBoolean())
             .allowRestriction(true)
             .parse(
                 "test_role_with_restriction",
@@ -982,10 +975,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 }
               }
             }""", profileNamesString, applicationNamesString);
-        RoleDescriptor role3 = RoleDescriptor.parser()
-            .allowRestriction(randomBoolean())
-            .allowDescription(randomBoolean())
-            .parse(roleName, new BytesArray(json), XContentType.JSON);
+        RoleDescriptor role3 = RoleDescriptor.parser().parse(roleName, new BytesArray(json), XContentType.JSON);
         assertThat(role3, is(role1));
         json = Strings.format("""
             {
@@ -1002,10 +992,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 }
               }
             }""", applicationNamesString, profileNamesString);
-        RoleDescriptor role4 = RoleDescriptor.parser()
-            .allowRestriction(randomBoolean())
-            .allowDescription(randomBoolean())
-            .parse(roleName, new BytesArray(json), XContentType.JSON);
+        RoleDescriptor role4 = RoleDescriptor.parser().parse(roleName, new BytesArray(json), XContentType.JSON);
         assertThat(role4, is(role1));
     }
 

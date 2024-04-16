@@ -512,7 +512,6 @@ public class IndexDirectory extends ByteSizeDirectory {
     class ReopeningIndexInput extends BlobCacheBufferedIndexInput {
 
         private final String name;
-        private final long length;
         private final IOContext context;
         private final LocalFileRef localFile;
 
@@ -540,9 +539,8 @@ public class IndexDirectory extends ByteSizeDirectory {
             long sliceOffset,
             long sliceLength
         ) {
-            super("reopening(" + name + ')', BlobCacheBufferedIndexInput.BUFFER_SIZE);
+            super("reopening(" + name + ')', BlobCacheBufferedIndexInput.BUFFER_SIZE, length);
             this.name = name;
-            this.length = length;
             this.context = context;
             this.localFile = localFile;
             this.sliceDescription = sliceDescription;
@@ -811,11 +809,6 @@ public class IndexDirectory extends ByteSizeDirectory {
         }
 
         @Override
-        public long length() {
-            return length;
-        }
-
-        @Override
         protected void seekInternal(long pos) throws IOException {
             executeLocallyOrReopen(current -> {
                 ensureSeek(pos, current);
@@ -862,7 +855,7 @@ public class IndexDirectory extends ByteSizeDirectory {
 
         @Override
         public IndexInput slice(String sliceDescription, long sliceOffset, long sliceLength) throws IOException {
-            var arraySlice = trySliceBuffer(sliceDescription, sliceOffset, length);
+            var arraySlice = trySliceBuffer(sliceDescription, sliceOffset, length());
             if (arraySlice != null) {
                 return arraySlice;
             }

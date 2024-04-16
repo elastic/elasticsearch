@@ -101,6 +101,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -204,7 +205,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
     public static class TestStatelessCommitService extends StatelessCommitService {
 
         private final Map<ShardId, AtomicInteger> invocationCounters = ConcurrentCollections.newConcurrentMap();
-        private final AtomicReference<CountDownLatch> onCommitCreationLatch = new AtomicReference<>();
+        private final AtomicReference<CyclicBarrier> onCommitCreationBarrier = new AtomicReference<>();
 
         public TestStatelessCommitService(
             Settings settings,
@@ -218,9 +219,9 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
 
         @Override
         public void onCommitCreation(StatelessCommitRef reference) {
-            final CountDownLatch latch = onCommitCreationLatch.get();
-            if (latch != null) {
-                safeAwait(latch);
+            final CyclicBarrier barrier = onCommitCreationBarrier.get();
+            if (barrier != null) {
+                safeAwait(barrier);
             }
             super.onCommitCreation(reference);
         }
@@ -450,7 +451,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
     }
 
     // TODO move this test to a separate test class for refresh cost optimization
-    public void testRefreshWillSetMaxUploadGenForFlushThatDoesNotWait() throws InterruptedException {
+    public void testRefreshWillSetMaxUploadGenForFlushThatDoesNotWait() throws Exception {
         final String indexNode = startIndexNode();
         startSearchNode();
         final String indexName = randomIdentifier();
@@ -467,12 +468,13 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
 
         indexDocs(indexName, randomIntBetween(1, 100));
 
-        final var latch = new CountDownLatch(1);
-        statelessCommitService.onCommitCreationLatch.set(latch);
+        final CyclicBarrier barrier = new CyclicBarrier(2);
+        statelessCommitService.onCommitCreationBarrier.set(barrier);
 
         // A thread simulates scheduled refresh. It will be blocked inside the flush lock
         final Thread refreshThread = new Thread(() -> { indexEngine.maybeRefresh("test", ActionListener.noop()); });
         refreshThread.start();
+        assertBusy(() -> assertThat(barrier.getNumberWaiting(), equalTo(1))); // ensure it is blocked
 
         // A flush that does not force nor wait, it will return immediately.
         client().admin().indices().prepareFlush().setForce(false).setWaitIfOngoing(false).get(TimeValue.timeValueSeconds(10));
@@ -480,7 +482,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         assertThat(statelessCommitService.getMaxGenerationToUploadForFlush(shardId), equalTo(initialGeneration));
 
         // Unblock the refresh thread which should see the upload flag and set max upload gen accordingly
-        latch.countDown();
+        barrier.await();
         refreshThread.join();
         assertThat(statelessCommitService.getMaxGenerationToUploadForFlush(shardId), equalTo(initialGeneration + 1));
         assertThat(statelessCommitService.getCurrentVirtualBcc(shardId), nullValue());

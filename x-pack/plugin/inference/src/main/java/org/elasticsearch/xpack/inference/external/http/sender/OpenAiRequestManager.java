@@ -22,16 +22,14 @@ abstract class OpenAiRequestManager extends BaseRequestManager {
         super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model, uriBuilder));
     }
 
-    record RateLimitGrouping(OpenAiAccount account, String modelId) {
+    record RateLimitGrouping(int accountHash, int modelIdHash) {
         public static RateLimitGrouping of(OpenAiModel model, CheckedSupplier<URI, URISyntaxException> uriBuilder) {
             Objects.requireNonNull(model);
 
-            return new RateLimitGrouping(OpenAiAccount.of(model, uriBuilder), model.rateLimitServiceSettings().modelId());
-        }
-
-        public RateLimitGrouping {
-            Objects.requireNonNull(account);
-            Objects.requireNonNull(modelId);
+            return new RateLimitGrouping(
+                OpenAiAccount.of(model, uriBuilder).hashCode(),
+                model.rateLimitServiceSettings().modelId().hashCode()
+            );
         }
     }
 }

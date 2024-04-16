@@ -77,14 +77,10 @@ public class HuggingFaceRequestManager extends BaseRequestManager {
         );
     }
 
-    record RateLimitGrouping(HuggingFaceAccount account) {
+    record RateLimitGrouping(int accountHash) {
 
         public static RateLimitGrouping of(HuggingFaceModel model) {
-            return new RateLimitGrouping(new HuggingFaceAccount(model.rateLimitServiceSettings().uri(), model.apiKey()));
-        }
-
-        public RateLimitGrouping {
-            Objects.requireNonNull(account);
+            return new RateLimitGrouping(new HuggingFaceAccount(model.rateLimitServiceSettings().uri(), model.apiKey()).hashCode());
         }
     }
 }

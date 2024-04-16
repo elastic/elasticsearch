@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.cohere.CohereModel;
 
@@ -19,15 +18,11 @@ abstract class CohereRequestManager extends BaseRequestManager {
         super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model));
     }
 
-    record RateLimitGrouping(SecureString apiKey) {
+    record RateLimitGrouping(int apiKeyHash) {
         public static RateLimitGrouping of(CohereModel model) {
             Objects.requireNonNull(model);
 
-            return new RateLimitGrouping(model.apiKey());
-        }
-
-        public RateLimitGrouping {
-            Objects.requireNonNull(apiKey);
+            return new RateLimitGrouping(model.apiKey().hashCode());
         }
     }
 }

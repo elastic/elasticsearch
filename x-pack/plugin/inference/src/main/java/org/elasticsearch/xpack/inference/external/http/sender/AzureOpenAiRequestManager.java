@@ -17,16 +17,14 @@ public abstract class AzureOpenAiRequestManager extends BaseRequestManager {
         super(threadPool, model.getInferenceEntityId(), RateLimitGrouping.of(model));
     }
 
-    record RateLimitGrouping(String resourceName, String deploymentId) {
+    record RateLimitGrouping(int resourceNameHash, int deploymentIdHash) {
         public static RateLimitGrouping of(AzureOpenAiModel model) {
             Objects.requireNonNull(model);
 
-            return new RateLimitGrouping(model.rateLimitServiceSettings().resourceName(), model.rateLimitServiceSettings().deploymentId());
-        }
-
-        public RateLimitGrouping {
-            Objects.requireNonNull(resourceName);
-            Objects.requireNonNull(deploymentId);
+            return new RateLimitGrouping(
+                model.rateLimitServiceSettings().resourceName().hashCode(),
+                model.rateLimitServiceSettings().deploymentId().hashCode()
+            );
         }
     }
 }

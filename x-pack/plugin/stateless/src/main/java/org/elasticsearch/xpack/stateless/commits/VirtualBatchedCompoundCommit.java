@@ -28,7 +28,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.io.stream.PositionTrackingOutputStreamStreamOutput;
@@ -467,8 +467,15 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 decRef();
             }
         } else {
-            throw new BatchedCompoundCommitAlreadyUploaded(shardId, primaryTermAndGeneration);
+            throw buildResourceNotFoundException(shardId, primaryTermAndGeneration);
         }
+    }
+
+    public static ResourceNotFoundException buildResourceNotFoundException(
+        ShardId shardId,
+        PrimaryTermAndGeneration primaryTermAndGeneration
+    ) {
+        return new ResourceNotFoundException("BCC for shard " + shardId + " and " + primaryTermAndGeneration + " is already uploaded");
     }
 
     private boolean assertCompareAndSetFreezeOrAppendingCommitThread(Thread current, Thread updated) {
@@ -629,18 +636,6 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             int paddingBytesToRead = BlobCacheUtils.toIntBytes(Math.min(length, padding - offset));
             PendingCompoundCommit.writePadding(output, paddingBytesToRead);
             return paddingBytesToRead;
-        }
-    }
-
-    public static class BatchedCompoundCommitAlreadyUploaded extends ElasticsearchException {
-        public BatchedCompoundCommitAlreadyUploaded(ShardId shardId, PrimaryTermAndGeneration primaryTermAndGeneration) {
-            super("batched compound commit for shard " + shardId + " and " + primaryTermAndGeneration + " is already uploaded");
-        }
-
-        @Override
-        public synchronized Throwable fillInStackTrace() {
-            // stack trace is uninteresting, as the exception simply signifies that the search shard should look into the object store
-            return this;
         }
     }
 }

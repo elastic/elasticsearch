@@ -19,9 +19,10 @@
 
 package co.elastic.elasticsearch.stateless.cache.reader;
 
-import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.blobcache.common.ByteRange;
 
 import java.io.IOException;
@@ -66,10 +67,14 @@ public class SwitchingCacheBlobReader implements CacheBlobReader {
         } else {
             try {
                 return cacheBlobReaderForNonUploaded.getRangeInputStream(position, length);
-            } catch (VirtualBatchedCompoundCommit.BatchedCompoundCommitAlreadyUploaded ex) {
+            } catch (Exception ex) {
                 // TODO ideally use ShardReadThread pool here again. (ES-8155)
                 // TODO ideally use a region-aligned range to write. (ES-8225)
-                return cacheBlobReaderForUploaded.getRangeInputStream(position, length);
+                if (ExceptionsHelper.unwrapCause(ex) instanceof ResourceNotFoundException) {
+                    return cacheBlobReaderForUploaded.getRangeInputStream(position, length);
+                } else {
+                    throw ex;
+                }
             }
         }
     }

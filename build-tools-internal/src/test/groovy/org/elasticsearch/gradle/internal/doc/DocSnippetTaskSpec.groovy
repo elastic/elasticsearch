@@ -38,57 +38,6 @@ class DocSnippetTaskSpec extends Specification {
         snippets*.catchPart == [null, null, null, null, null, null, null]
     }
 
-    def "handling console parsing"() {
-        when:
-        def snippets = task().parseDocFile(
-            tempDir, docFile(
-            "mapping-charfilter.asciidoc",
-            """
-[source,console]
-----
-
-// $firstToken
-----
-"""
-        ))
-        then:
-        snippets*.console == [firstToken.equals("CONSOLE")]
-
-
-        when:
-        task().parseDocFile(
-            tempDir, docFile(
-            "mapping-charfilter.asciidoc",
-            """
-[source,console]
-----
-// $firstToken
-// $secondToken
-----
-"""
-        ))
-        then:
-        def e = thrown(InvalidUserDataException)
-        e.message == "mapping-charfilter.asciidoc:4: Can't be both CONSOLE and NOTCONSOLE"
-
-        when:
-        task().parseDocFile(
-            tempDir, docFile(
-            "mapping-charfilter.asciidoc",
-            """
-// $firstToken
-// $secondToken
-"""
-        ))
-        then:
-        e = thrown(InvalidUserDataException)
-        e.message == "mapping-charfilter.asciidoc:1: $firstToken not paired with a snippet"
-
-        where:
-        firstToken << ["CONSOLE", "NOTCONSOLE"]
-        secondToken << ["NOTCONSOLE", "CONSOLE"]
-    }
-
     def "test parsing snippet from doc"() {
         def doc = docFile(
             "mapping-charfilter.asciidoc",

@@ -10,15 +10,41 @@ package org.elasticsearch.gradle.internal.doc
 
 import spock.lang.Specification
 
+import org.gradle.api.InvalidUserDataException
+
 import java.nio.file.Path
 
 abstract class AbstractParserSpec extends Specification {
 
     abstract SnippetParser parser()
-
     abstract String docSnippetWithTestResponses()
-
     abstract String docSnippetWithTest()
+    abstract String docSnippetWithRepetitiveSubstiutions()
+    abstract String docSnippetWithConsole()
+    abstract String docSnippetWithNotConsole()
+    abstract String docSnippetWithMixedConsoleNotConsole()
+
+    def "can parse snippet with console"() {
+        when:
+        def snippets = parse(docSnippetWithConsole())
+        then:
+        snippets*.console() == [true]
+    }
+
+    def "can parse snippet with notconsole"() {
+        when:
+        def snippets = parse(docSnippetWithNotConsole())
+        then:
+        snippets*.console() == [false]
+    }
+
+    def "fails on mixing console and notconsole"() {
+        when:
+        def snippets = parse(docSnippetWithMixedConsoleNotConsole())
+        then:
+        def e = thrown(InvalidUserDataException)
+        e.message.matches("some\\-path\\.xyz\\:\\d\\: Can't be both CONSOLE and NOTCONSOLE")
+    }
 
     def "can parse snippet with test"() {
         when:
@@ -138,6 +164,21 @@ POST /hockey/_explain/1?error_trace=false
 """]
     }
 
+    def "can parse snippet with repetitive regex substitutions"() {
+        when:
+        def snippets = parse(docSnippetWithRepetitiveSubstiutions())
+        then:
+        snippets*.test() == [true]
+        snippets*.testResponse() == [false]
+        snippets*.language() == ["console"]
+        snippets*.contents() == ["""PUT /_snapshot/repo1
+{"type": "fs", "settings": {"location": "repo/1"}}
+PUT /_snapshot/repo1/snap2?wait_for_completion=true
+PUT /_snapshot/repo1/snap1?wait_for_completion=true
+GET /_cat/snapshots/repo1?v=true&s=id
+"""]
+    }
+
     List<Snippet> parse(String docSnippet) {
         List<Snippet> snippets = new ArrayList<>()
         def snippetParser = parser()
@@ -147,4 +188,5 @@ POST /hockey/_explain/1?error_trace=false
         snippetParser.fileParsingFinished(snippets)
         return snippets
     }
+
 }

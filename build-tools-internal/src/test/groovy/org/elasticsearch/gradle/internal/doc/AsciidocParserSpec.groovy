@@ -103,6 +103,50 @@ POST /hockey/_explain/1
     }
 
     @Override
+    String docSnippetWithRepetitiveSubstiutions() {
+        return """
+[source,console]
+--------------------------------------------------
+GET /_cat/snapshots/repo1?v=true&s=id
+--------------------------------------------------
+// TEST[s/^/PUT \\/_snapshot\\/repo1\\/snap1?wait_for_completion=true\\n/]
+// TEST[s/^/PUT \\/_snapshot\\/repo1\\/snap2?wait_for_completion=true\\n/]
+// TEST[s/^/PUT \\/_snapshot\\/repo1\\n{"type": "fs", "settings": {"location": "repo\\/1"}}\\n/]
+"""
+    }
+
+    @Override
+    String docSnippetWithConsole() {
+        return """
+[source,console]
+----
+// CONSOLE
+----
+"""
+    }
+
+    @Override
+    String docSnippetWithNotConsole() {
+        return """
+[source,console]
+----
+// NOTCONSOLE
+----
+"""
+    }
+
+    @Override
+    String docSnippetWithMixedConsoleNotConsole() {
+        return """
+[source,console]
+----
+// NOTCONSOLE
+// CONSOLE
+----
+"""
+    }
+
+    @Override
     String docSnippetWithTestResponses() {
         return """
 [source,console-result]

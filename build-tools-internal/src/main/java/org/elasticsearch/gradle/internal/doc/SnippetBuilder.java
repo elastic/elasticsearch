@@ -159,7 +159,7 @@ class SnippetBuilder {
         Set<Map.Entry<String, List<String>>> set = substitutions.entrySet();
         for (Map.Entry<String, List<String>> substitution : set) {
             String pattern = substitution.getKey();
-            for(String subst : substitution.getValue()) {
+            for (String subst : substitution.getValue()) {
                 /*
                  * $body is really common, but it looks like a
                  * backreference, so we just escape it here to make the
@@ -168,7 +168,8 @@ class SnippetBuilder {
                 subst = subst.replace("$body", "\\$body");
                 subst = subst.replace("$_path", "\\$_path");
                 subst = subst.replace("\\n", "\n");
-                contents = contents.replaceAll(pattern, subst);            }
+                contents = contents.replaceAll(pattern, subst);
+            }
         }
         return contents;
     }

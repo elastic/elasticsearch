@@ -22,7 +22,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-public abstract class SnippetParser {
+abstract class SnippetParser {
     protected static final String SCHAR = "(?:\\\\\\/|[^\\/])";
     protected static final String NON_JSON = "(non_json)";
     protected static final String SKIP_REGEX = "skip:([^\\]]+)";
@@ -50,7 +50,7 @@ public abstract class SnippetParser {
 
     protected SnippetBuilder snippetBuilder = null;
 
-    public SnippetParser(Map<String, String> defaultSubstitutions) {
+    SnippetParser(Map<String, String> defaultSubstitutions) {
         this.defaultSubstitutions = defaultSubstitutions;
     }
 

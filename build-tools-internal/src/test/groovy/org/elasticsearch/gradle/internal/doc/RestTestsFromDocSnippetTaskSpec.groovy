@@ -51,68 +51,6 @@ class RestTestsFromDocSnippetTaskSpec extends Specification {
         e.message == "Invalid block quote starting at 7 in:\n" + input
     }
 
-    def "can create rest tests from snapshot docs"() {
-        def build = ProjectBuilder.builder().build()
-        given:
-        def task = build.tasks.create("restTestFromSnippet", RestTestsFromDocSnippetTask)
-        task.expectedUnconvertedCandidates = []
-        docFile("docs/snapshots.asciidoc", """
-[source,console]
---------------------------------------------------
-GET /_cat/snapshots/repo1?v=true&s=id
---------------------------------------------------
-// TEST[s/^/PUT \\/_snapshot\\/repo1\\/snap1?wait_for_completion=true\\n/]
-// TEST[s/^/PUT \\/_snapshot\\/repo1\\/snap2?wait_for_completion=true\\n/]
-// TEST[s/^/PUT \\/_snapshot\\/repo1\\n{"type": "fs", "settings": {"location": "repo\\/1"}}\\n/]
-
-""")
-        task.docs = build.fileTree(new File(tempDir, "docs"))
-        task.testRoot.convention(build.getLayout().buildDirectory.dir("rest-tests"));
-
-        when:
-        task.getActions().forEach { it.execute(task) }
-
-
-        def restSpec = new File(task.getTestRoot().get().getAsFile(), "rest-api-spec/test/snapshots.yml")
-
-        then:
-        restSpec.exists()
-        normalizeString(restSpec.text, tempDir) == """---
-"line_3":
-  - skip:
-      features:
-        - default_shards
-        - stash_in_key
-        - stash_in_path
-        - stash_path_replace
-        - warnings
-  - do:
-      raw:
-        method: PUT
-        path: "_snapshot/repo1"
-        body: |
-          {"type": "fs", "settings": {"location": "repo/1"}}
-  - is_false: _shards.failures
-  - do:
-      raw:
-        method: PUT
-        path: "_snapshot/repo1/snap2"
-        wait_for_completion: "true"
-  - is_false: _shards.failures
-  - do:
-      raw:
-        method: PUT
-        path: "_snapshot/repo1/snap1"
-        wait_for_completion: "true"
-  - is_false: _shards.failures
-  - do:
-      raw:
-        method: GET
-        path: "_cat/snapshots/repo1"
-        v: "true"
-        s: "id\""""
-    }
-
     def "test is doc write request"() {
         expect:
         shouldAddShardFailureCheck("doc-index/_search") == true
@@ -559,14 +497,12 @@ GET /_cat/snapshots/repo1?v=true&s=id
         new File(task.getTestRoot().get().getAsFile(), "rest-api-spec/test/painless-field-context.mdx.yml").exists()
     }
 
-
     File docFile(String fileName, String docContent) {
         def file = tempDir.toPath().resolve(fileName).toFile()
         file.parentFile.mkdirs()
         file.text = docContent
         return file
     }
-
 
     void sampleDocs() {
         docFile("docs/reference/sql/getting-started.asciidoc",  SAMPLE_TEST_DOCS["docs/reference/sql/getting-started.asciidoc"])

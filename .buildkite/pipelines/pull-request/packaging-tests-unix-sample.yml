@@ -23,5 +23,14 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           diskSizeGb: 350
           machineType: custom-16-32768
+          preemptible: true
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+
         env:
           PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"

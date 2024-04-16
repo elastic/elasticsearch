@@ -2324,21 +2324,10 @@ public final class InternalTestCluster extends TestCluster {
         return map.values().stream().filter(predicate).collect(Collectors.toCollection(ArrayList::new));
     }
 
-    private static final class NodeNamePredicate implements Predicate<NodeAndClient> {
-        private final String nodeName;
-
-        NodeNamePredicate(String nodeName) {
-            this.nodeName = nodeName;
-        }
-
+    private record NodeNamePredicate(String nodeName) implements Predicate<NodeAndClient> {
         @Override
         public boolean test(NodeAndClient nodeAndClient) {
             return nodeName.equals(nodeAndClient.getName());
-        }
-
-        @Override
-        public String toString() {
-            return "name: " + nodeName;
         }
     }
 

@@ -46,7 +46,6 @@ final class GeoIpCache {
     private final Cache<CacheKey, AbstractResponse> cache;
     private final AtomicLong hitsTimeInNanos = new AtomicLong(0);
     private final AtomicLong missesTimeInNanos = new AtomicLong(0);
-    private final AtomicLong storeQueryTimeInNanos = new AtomicLong(0);
 
     // package private for testing
     GeoIpCache(long maxSize, LongSupplier relativeNanoTimeProvider) {
@@ -78,16 +77,14 @@ final class GeoIpCache {
         if (response == null) {
             long retrieveStart = relativeNanoTimeProvider.getAsLong();
             response = retrieveFunction.apply(ip);
-            long databaseRequestTime = relativeNanoTimeProvider.getAsLong() - retrieveStart;
-            storeQueryTimeInNanos.addAndGet(databaseRequestTime);
-            missesTimeInNanos.addAndGet(cacheRequestTime + databaseRequestTime);
             // if the response from the database was null, then use the no-result sentinel value
             if (response == null) {
                 response = NO_RESULT;
             }
             // store the result or no-result in the cache
             cache.put(cacheKey, response);
-
+            long databaseRequestAndCachePutTime = relativeNanoTimeProvider.getAsLong() - retrieveStart;
+            missesTimeInNanos.addAndGet(cacheRequestTime + databaseRequestAndCachePutTime);
         } else {
             hitsTimeInNanos.addAndGet(cacheRequestTime);
         }
@@ -134,8 +131,7 @@ final class GeoIpCache {
             stats.getMisses(),
             stats.getEvictions(),
             TimeValue.nsecToMSec(hitsTimeInNanos.get()),
-            TimeValue.nsecToMSec(missesTimeInNanos.get()),
-            TimeValue.nsecToMSec(storeQueryTimeInNanos.get())
+            TimeValue.nsecToMSec(missesTimeInNanos.get())
         );
     }
 

@@ -115,7 +115,5 @@ public class GeoIpCacheTests extends ESTestCase {
         assertThat(cacheStats.hitsTimeInMillis(), equalTo(3L));
         // There are 4 misses. Each is made up of a cache query, and a database query, each being 1ms:
         assertThat(cacheStats.missesTimeInMillis(), equalTo(8L));
-        // There are 4 misses, and each call to the database is 1ms:
-        assertThat(cacheStats.storeQueryTimeInMillis(), equalTo(4L));
     }
 }

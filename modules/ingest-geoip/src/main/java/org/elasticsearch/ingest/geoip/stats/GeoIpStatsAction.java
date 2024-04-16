@@ -138,7 +138,6 @@ public class GeoIpStatsAction {
                 builder.field("evictions", cacheStats.evictions());
                 builder.field("hits_time_in_millis", cacheStats.hitsTimeInMillis());
                 builder.field("misses_time_in_millis", cacheStats.missesTimeInMillis());
-                builder.field("store_query_time_in_millis", cacheStats.storeQueryTimeInMillis());
                 builder.endObject();
                 builder.endObject();
             }

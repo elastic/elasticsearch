@@ -33,16 +33,14 @@ public class CacheStatsSerializingTests extends AbstractWireSerializingTestCase<
         long evictions = instance.evictions();
         long hitsTimeInMillis = instance.hitsTimeInMillis();
         long missesTimeInMillis = instance.missesTimeInMillis();
-        long storeQueryTimeInMillis = instance.storeQueryTimeInMillis();
-        return switch (between(0, 6)) {
+        return switch (between(0, 5)) {
             case 0 -> new CacheStats(
                 randomValueOtherThan(count, ESTestCase::randomLong),
                 hits,
                 misses,
                 evictions,
                 hitsTimeInMillis,
-                missesTimeInMillis,
-                storeQueryTimeInMillis
+                missesTimeInMillis
             );
             case 1 -> new CacheStats(
                 count,
@@ -50,8 +48,7 @@ public class CacheStatsSerializingTests extends AbstractWireSerializingTestCase<
                 misses,
                 evictions,
                 hitsTimeInMillis,
-                missesTimeInMillis,
-                storeQueryTimeInMillis
+                missesTimeInMillis
             );
             case 2 -> new CacheStats(
                 count,
@@ -59,8 +56,7 @@ public class CacheStatsSerializingTests extends AbstractWireSerializingTestCase<
                 randomValueOtherThan(misses, ESTestCase::randomLong),
                 evictions,
                 hitsTimeInMillis,
-                missesTimeInMillis,
-                storeQueryTimeInMillis
+                missesTimeInMillis
             );
             case 3 -> new CacheStats(
                 count,
@@ -68,8 +64,7 @@ public class CacheStatsSerializingTests extends AbstractWireSerializingTestCase<
                 misses,
                 randomValueOtherThan(evictions, ESTestCase::randomLong),
                 hitsTimeInMillis,
-                missesTimeInMillis,
-                storeQueryTimeInMillis
+                missesTimeInMillis
             );
             case 4 -> new CacheStats(
                 count,
@@ -77,8 +72,7 @@ public class CacheStatsSerializingTests extends AbstractWireSerializingTestCase<
                 misses,
                 evictions,
                 randomValueOtherThan(hitsTimeInMillis, ESTestCase::randomLong),
-                missesTimeInMillis,
-                storeQueryTimeInMillis
+                missesTimeInMillis
             );
             case 5 -> new CacheStats(
                 count,
@@ -86,23 +80,13 @@ public class CacheStatsSerializingTests extends AbstractWireSerializingTestCase<
                 misses,
                 evictions,
                 hitsTimeInMillis,
-                randomValueOtherThan(missesTimeInMillis, ESTestCase::randomLong),
-                storeQueryTimeInMillis
-            );
-            case 6 -> new CacheStats(
-                count,
-                hits,
-                misses,
-                evictions,
-                hitsTimeInMillis,
-                missesTimeInMillis,
-                randomValueOtherThan(storeQueryTimeInMillis, ESTestCase::randomLong)
+                randomValueOtherThan(missesTimeInMillis, ESTestCase::randomLong)
             );
             default -> throw new IllegalStateException("Unexpected value");
         };
     }
 
     static CacheStats createRandomInstance() {
-        return new CacheStats(randomLong(), randomLong(), randomLong(), randomLong(), randomLong(), randomLong(), randomLong());
+        return new CacheStats(randomLong(), randomLong(), randomLong(), randomLong(), randomLong(), randomLong());
     }
 }

@@ -14,19 +14,12 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
-public record CacheStats(
-    long count,
-    long hits,
-    long misses,
-    long evictions,
-    long hitsTimeInMillis,
-    long missesTimeInMillis,
-    long storeQueryTimeInMillis
-) implements Writeable {
+public record CacheStats(long count, long hits, long misses, long evictions, long hitsTimeInMillis, long missesTimeInMillis)
+    implements
+        Writeable {
 
     public CacheStats(StreamInput streamInput) throws IOException {
         this(
-            streamInput.readLong(),
             streamInput.readLong(),
             streamInput.readLong(),
             streamInput.readLong(),
@@ -44,6 +37,5 @@ public record CacheStats(
         out.writeLong(evictions);
         out.writeLong(hitsTimeInMillis);
         out.writeLong(missesTimeInMillis);
-        out.writeLong(storeQueryTimeInMillis);
     }
 }

@@ -113,12 +113,8 @@ The amount of time in milliseconds spent fetching data from the cache on succesf
 
 `misses_time_in_millis`::
 (Long)
-The amount of time in milliseconds spent fetching data from the cache and the backing GeoIP2 database on cache misses only.
-
-`store_query_time_in_millis`::
-(Long)
-The amount of time in milliseconds spent fetching data from the backing GeoIP2 database. This is a subset of the time accounted
-for in `misses_time_in_millis`.
+The amount of time in milliseconds spent fetching data from the cache and the backing GeoIP2 database and updating the
+cache, on cache misses only.
 
 ======
 

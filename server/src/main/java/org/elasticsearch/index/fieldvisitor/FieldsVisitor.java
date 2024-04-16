@@ -36,10 +36,10 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
 
     private final boolean loadSource;
     final String sourceFieldName;
-    private final Set<String> requiredFields;
-    protected BytesReference source;
-    protected String id;
-    private final Map<String, List<Object>> fieldsValues = new HashMap<>();
+    private final Set<String> requiredFields = new HashSet<>();
+    protected final Map<String, List<Object>> fieldsValues = new HashMap<>();
+    private BytesReference source;
+    private String id;
 
     public FieldsVisitor(boolean loadSource) {
         this(loadSource, SourceFieldMapper.NAME);
@@ -49,7 +49,6 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
     public FieldsVisitor(boolean loadSource, String sourceFieldName) {
         this.loadSource = loadSource;
         this.sourceFieldName = sourceFieldName;
-        requiredFields = new HashSet<>();
         reset();
     }
 
@@ -67,7 +66,7 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         }
         // support _uid for loading older indices
         if ("_uid".equals(fieldInfo.name)) {
-            if (requiredFields.remove(IdFieldMapper.NAME) || requiredFields.remove(LegacyTypeFieldMapper.NAME)) {
+            if (requiredFields.remove(IdFieldMapper.NAME)) {
                 return Status.YES;
             }
         }
@@ -168,11 +167,14 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
 
     public void reset() {
         fieldsValues.clear();
+        // _id and _source are not added to fieldsValues: we want to signal that _routing and _ignored were tentatively loaded,
+        // and if no value is found for them, there will be an entry in the map with null value.
+        // This way LeafSearchLookup won't try to load them again
         fieldsValues.put(RoutingFieldMapper.NAME, null);
         fieldsValues.put(IgnoredFieldMapper.NAME, null);
         source = null;
         id = null;
-
+        requiredFields.clear();
         requiredFields.addAll(BASE_REQUIRED_FIELDS);
         if (loadSource) {
             requiredFields.add(sourceFieldName);

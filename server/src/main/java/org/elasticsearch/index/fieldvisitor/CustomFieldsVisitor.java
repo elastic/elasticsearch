@@ -51,4 +51,15 @@ public class CustomFieldsVisitor extends FieldsVisitor {
         }
         return Status.NO;
     }
+
+    @Override
+    public void reset() {
+        super.reset();
+        // For all fields that were requested, signal that they were tentatively loaded,
+        // and if no value is found for them, there will be an entry in the map with null value
+        // this way LeafSearchLookup won't try to load them again
+        for (String field : fields) {
+            fieldsValues.put(field, null);
+        }
+    }
 }

@@ -19,16 +19,17 @@ import java.util.Set;
  * {@code _source} is always loaded unless disabled explicitly.
  */
 public class CustomFieldsVisitor extends FieldsVisitor {
-    private final Set<String> fields;
+    private final Set<String> fields = new HashSet<>();
 
     public CustomFieldsVisitor(Set<String> fields, boolean loadSource) {
         super(loadSource);
-        this.fields = new HashSet<>(fields);
+        this.fields.addAll(fields);
         // metadata fields that are always retrieved are already handled by FieldsVisitor, so removing
         // them here means that if the only fields requested are those metadata fields then we can shortcut loading
         FieldsVisitor.BASE_REQUIRED_FIELDS.forEach(this.fields::remove);
         this.fields.remove(this.sourceFieldName);
         this.fields.remove(IgnoredFieldMapper.NAME);
+        doReset();
     }
 
     @Override
@@ -55,6 +56,12 @@ public class CustomFieldsVisitor extends FieldsVisitor {
     @Override
     public void reset() {
         super.reset();
+        if (fields != null) {
+            doReset();
+        }
+    }
+
+    private void doReset() {
         // For all fields that were requested, signal that they were tentatively loaded,
         // and if no value is found for them, there will be an entry in the map with null value
         // this way LeafSearchLookup won't try to load them again

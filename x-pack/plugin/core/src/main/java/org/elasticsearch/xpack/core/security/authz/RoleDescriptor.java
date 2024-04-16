@@ -420,25 +420,32 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
     }
 
-    public static Parser parser() {
-        return new Parser();
+    public static Parser.Builder parser() {
+        return new Parser.Builder();
     }
 
-    public static final class Parser {
+    public record Parser(boolean allow2xFormat, boolean allowRestriction) {
 
-        private boolean allow2xFormat = false;
-        private boolean allowRestriction = false;
+        public static final class Builder {
+            private boolean allow2xFormat = false;
+            private boolean allowRestriction = false;
 
-        private Parser() {}
+            private Builder() {}
 
-        public Parser allow2xFormat(boolean allow2xFormat) {
-            this.allow2xFormat = allow2xFormat;
-            return this;
-        }
+            public Builder allow2xFormat(boolean allow2xFormat) {
+                this.allow2xFormat = allow2xFormat;
+                return this;
+            }
 
-        public Parser allowRestriction(boolean allowRestriction) {
-            this.allowRestriction = allowRestriction;
-            return this;
+            public Builder allowRestriction(boolean allowRestriction) {
+                this.allowRestriction = allowRestriction;
+                return this;
+            }
+
+            public Parser build() {
+                return new Parser(allow2xFormat, allowRestriction);
+            }
+
         }
 
         public RoleDescriptor parse(String name, BytesReference source, XContentType xContentType) throws IOException {

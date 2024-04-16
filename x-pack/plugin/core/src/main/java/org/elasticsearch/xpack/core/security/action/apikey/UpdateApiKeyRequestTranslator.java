@@ -25,9 +25,8 @@ public interface UpdateApiKeyRequestTranslator {
     UpdateApiKeyRequest translate(RestRequest request) throws IOException;
 
     class Default implements UpdateApiKeyRequestTranslator {
-        private static final ConstructingObjectParser<Payload, Void> PARSER = createParser(
-            (n, p) -> RoleDescriptor.parser().allowRestriction(true).parse(n, p)
-        );
+        private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parser().allowRestriction(true).build();
+        private static final ConstructingObjectParser<Payload, Void> PARSER = createParser(ROLE_DESCRIPTOR_PARSER::parse);
 
         @SuppressWarnings("unchecked")
         protected static ConstructingObjectParser<Payload, Void> createParser(

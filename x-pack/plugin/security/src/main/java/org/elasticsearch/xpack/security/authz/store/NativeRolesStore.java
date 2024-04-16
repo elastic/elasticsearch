@@ -97,6 +97,8 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     private static final Logger logger = LogManager.getLogger(NativeRolesStore.class);
 
+    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parser().allow2xFormat(true).build();
+
     private final Settings settings;
     private final Client client;
     private final XPackLicenseState licenseState;
@@ -483,7 +485,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         final String name = id.substring(ROLE_TYPE.length() + 1);
         try {
             // we do not want to reject permissions if the field permissions are given in 2.x syntax, hence why we allow2xFormat
-            RoleDescriptor roleDescriptor = RoleDescriptor.parser().allow2xFormat(true).parse(name, sourceBytes, XContentType.JSON);
+            RoleDescriptor roleDescriptor = ROLE_DESCRIPTOR_PARSER.parse(name, sourceBytes, XContentType.JSON);
             final boolean dlsEnabled = Arrays.stream(roleDescriptor.getIndicesPrivileges())
                 .anyMatch(IndicesPrivileges::isUsingDocumentLevelSecurity);
             final boolean flsEnabled = Arrays.stream(roleDescriptor.getIndicesPrivileges())

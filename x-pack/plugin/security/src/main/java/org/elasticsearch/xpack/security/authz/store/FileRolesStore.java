@@ -67,6 +67,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
     private static final Pattern IN_SEGMENT_LINE = Pattern.compile("^\\s+.+");
     private static final Pattern SKIP_LINE = Pattern.compile("(^#.*|^\\s*)");
     private static final Logger logger = LogManager.getLogger(FileRolesStore.class);
+    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parser().allow2xFormat(true).build();
 
     private final Settings settings;
     private final Path file;
@@ -305,7 +306,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                     token = parser.nextToken();
                     if (token == XContentParser.Token.START_OBJECT) {
                         // we do not want to reject files if field permissions are given in 2.x syntax, hence why we allow2xFormat
-                        RoleDescriptor descriptor = RoleDescriptor.parser().allow2xFormat(true).parse(roleName, parser);
+                        RoleDescriptor descriptor = ROLE_DESCRIPTOR_PARSER.parse(roleName, parser);
                         return checkDescriptor(descriptor, path, logger, settings, xContentRegistry, roleValidator);
                     } else {
                         logger.error("invalid role definition [{}] in roles file [{}]. skipping role...", roleName, path.toAbsolutePath());

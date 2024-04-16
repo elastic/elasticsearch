@@ -223,6 +223,9 @@ public final class CrossClusterAccessSubjectInfo {
     public static final class RoleDescriptorsBytes implements Writeable {
 
         public static final RoleDescriptorsBytes EMPTY = new RoleDescriptorsBytes(new BytesArray("{}"));
+
+        private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parser().build();
+
         private final BytesReference rawBytes;
 
         public RoleDescriptorsBytes(BytesReference rawBytes) {
@@ -263,7 +266,7 @@ public final class CrossClusterAccessSubjectInfo {
                 while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                     parser.nextToken();
                     final String roleName = parser.currentName();
-                    roleDescriptors.add(RoleDescriptor.parser().parse(roleName, parser));
+                    roleDescriptors.add(ROLE_DESCRIPTOR_PARSER.parse(roleName, parser));
                 }
                 return Set.copyOf(roleDescriptors);
             } catch (IOException e) {

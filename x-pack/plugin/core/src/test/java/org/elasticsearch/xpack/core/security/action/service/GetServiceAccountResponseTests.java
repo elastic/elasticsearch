@@ -98,6 +98,7 @@ public class GetServiceAccountResponseTests extends AbstractWireSerializingTestC
         final Map<String, Object> descriptorMap = (Map<String, Object>) responseFragment.get("role_descriptor");
         assertThat(
             RoleDescriptor.parser()
+                .build()
                 .parse(roleDescriptor.getName(), XContentTestUtils.convertToXContent(descriptorMap, XContentType.JSON), XContentType.JSON),
             equalTo(roleDescriptor)
         );

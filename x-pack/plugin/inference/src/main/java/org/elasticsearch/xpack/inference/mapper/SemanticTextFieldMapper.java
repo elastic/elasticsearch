@@ -140,8 +140,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             var semanticMergeWith = (SemanticTextFieldMapper) mergeWith;
             var context = mapperMergeContext.createChildContext(mergeWith.simpleName(), ObjectMapper.Dynamic.FALSE);
             var inferenceField = inferenceFieldBuilder.apply(context.getMapperBuilderContext());
-            var childContext = context.createChildContext(inferenceField.simpleName(), ObjectMapper.Dynamic.FALSE);
-            var mergedInferenceField = inferenceField.merge(semanticMergeWith.fieldType().getInferenceField(), childContext);
+            var mergedInferenceField = inferenceField.merge(semanticMergeWith.fieldType().getInferenceField(), context);
             inferenceFieldBuilder = c -> mergedInferenceField;
         }
 

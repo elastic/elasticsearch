@@ -37,7 +37,7 @@ public class FieldPermissionsTests extends ESTestCase {
                 }
               ]
             }""";
-        RoleDescriptor.Parser roleParser = RoleDescriptor.parser().build();
+        RoleDescriptor.Parser roleParser = RoleDescriptor.parserBuilder().build();
         RoleDescriptor rd = roleParser.parse("test", new BytesArray(q), XContentType.JSON);
         assertArrayEquals(rd.getIndicesPrivileges()[0].getGrantedFields(), new String[] { "f1", "f2", "f3", "f4" });
         assertArrayEquals(rd.getIndicesPrivileges()[0].getDeniedFields(), new String[] { "f3", "f4" });
@@ -199,14 +199,14 @@ public class FieldPermissionsTests extends ESTestCase {
     public void testBWCFieldPermissions() throws Exception {
         String q = """
             {"indices": [ {"names": "idx2", "privileges": ["p3"], "fields": ["f1", "f2"]}]}""";
-        RoleDescriptor rd = RoleDescriptor.parser().allow2xFormat(true).build().parse("test", new BytesArray(q), XContentType.JSON);
+        RoleDescriptor rd = RoleDescriptor.parserBuilder().allow2xFormat(true).build().parse("test", new BytesArray(q), XContentType.JSON);
         assertArrayEquals(rd.getIndicesPrivileges()[0].getGrantedFields(), new String[] { "f1", "f2" });
         assertNull(rd.getIndicesPrivileges()[0].getDeniedFields());
 
         final String failingQuery = q;
         ElasticsearchParseException e = expectThrows(
             ElasticsearchParseException.class,
-            () -> RoleDescriptor.parser().allow2xFormat(false).build().parse("test", new BytesArray(failingQuery), XContentType.JSON)
+            () -> RoleDescriptor.parserBuilder().allow2xFormat(false).build().parse("test", new BytesArray(failingQuery), XContentType.JSON)
         );
         assertThat(e.getDetailedMessage(), containsString("""
             ["fields": [...]] format has changed for field permissions in role [test], \
@@ -214,13 +214,16 @@ public class FieldPermissionsTests extends ESTestCase {
 
         q = """
             {"indices": [ {"names": "idx2", "privileges": ["p3"], "fields": []}]}""";
-        rd = RoleDescriptor.parser().allow2xFormat(true).build().parse("test", new BytesArray(q), XContentType.JSON);
+        rd = RoleDescriptor.parserBuilder().allow2xFormat(true).build().parse("test", new BytesArray(q), XContentType.JSON);
         assertArrayEquals(rd.getIndicesPrivileges()[0].getGrantedFields(), new String[] {});
         assertNull(rd.getIndicesPrivileges()[0].getDeniedFields());
         final String failingQuery2 = q;
         e = expectThrows(
             ElasticsearchParseException.class,
-            () -> RoleDescriptor.parser().allow2xFormat(false).build().parse("test", new BytesArray(failingQuery2), XContentType.JSON)
+            () -> RoleDescriptor.parserBuilder()
+                .allow2xFormat(false)
+                .build()
+                .parse("test", new BytesArray(failingQuery2), XContentType.JSON)
         );
         assertThat(e.getDetailedMessage(), containsString("""
             ["fields": [...]] format has changed for field permissions in role [test], \
@@ -228,13 +231,16 @@ public class FieldPermissionsTests extends ESTestCase {
 
         q = """
             {"indices": [ {"names": "idx2", "privileges": ["p3"], "fields": null}]}""";
-        rd = RoleDescriptor.parser().allow2xFormat(true).build().parse("test", new BytesArray(q), XContentType.JSON);
+        rd = RoleDescriptor.parserBuilder().allow2xFormat(true).build().parse("test", new BytesArray(q), XContentType.JSON);
         assertNull(rd.getIndicesPrivileges()[0].getGrantedFields());
         assertNull(rd.getIndicesPrivileges()[0].getDeniedFields());
         final String failingQuery3 = q;
         e = expectThrows(
             ElasticsearchParseException.class,
-            () -> RoleDescriptor.parser().allow2xFormat(false).build().parse("test", new BytesArray(failingQuery3), XContentType.JSON)
+            () -> RoleDescriptor.parserBuilder()
+                .allow2xFormat(false)
+                .build()
+                .parse("test", new BytesArray(failingQuery3), XContentType.JSON)
         );
         assertThat(e.getDetailedMessage(), containsString("""
             ["fields": [...]] format has changed for field permissions in role [test], \

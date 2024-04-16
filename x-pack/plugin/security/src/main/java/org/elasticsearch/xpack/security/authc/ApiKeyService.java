@@ -202,7 +202,7 @@ public class ApiKeyService {
         Property.NodeScope
     );
 
-    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parser().allowRestriction(true).build();
+    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allowRestriction(true).build();
 
     private final Clock clock;
     private final Client client;

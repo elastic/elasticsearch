@@ -21,7 +21,7 @@ import java.util.Map;
  */
 public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, PutRoleResponse> {
 
-    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parser().build();
+    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().build();
 
     public PutRoleRequestBuilder(ElasticsearchClient client) {
         super(client, PutRoleAction.INSTANCE, new PutRoleRequest());

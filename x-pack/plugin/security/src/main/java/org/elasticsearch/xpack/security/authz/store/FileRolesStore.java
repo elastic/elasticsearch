@@ -67,7 +67,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
     private static final Pattern IN_SEGMENT_LINE = Pattern.compile("^\\s+.+");
     private static final Pattern SKIP_LINE = Pattern.compile("(^#.*|^\\s*)");
     private static final Logger logger = LogManager.getLogger(FileRolesStore.class);
-    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parser().allow2xFormat(true).build();
+    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allow2xFormat(true).build();
 
     private final Settings settings;
     private final Path file;

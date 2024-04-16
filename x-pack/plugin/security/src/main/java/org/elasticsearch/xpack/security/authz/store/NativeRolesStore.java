@@ -97,7 +97,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     private static final Logger logger = LogManager.getLogger(NativeRolesStore.class);
 
-    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parser().allow2xFormat(true).build();
+    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allow2xFormat(true).build();
 
     private final Settings settings;
     private final Client client;

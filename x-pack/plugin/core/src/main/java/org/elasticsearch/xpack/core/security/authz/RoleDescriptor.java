@@ -420,7 +420,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
     }
 
-    public static Parser.Builder parser() {
+    public static Parser.Builder parserBuilder() {
         return new Parser.Builder();
     }
 
